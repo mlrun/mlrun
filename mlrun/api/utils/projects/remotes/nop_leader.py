@@ -19,29 +19,36 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> bool:
         self._update_state(project)
-        return mlrun.api.utils.singletons.project_member.get_project_member().create_project(
+        (
+            _,
+            is_running_in_background,
+        ) = mlrun.api.utils.singletons.project_member.get_project_member().create_project(
             self.db_session, project, self._project_role
         )
+        return is_running_in_background
 
-    def store_project(
+    def update_project(
         self,
         session: str,
         name: str,
         project: mlrun.api.schemas.Project,
-        wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ):
         self._update_state(project)
-        return mlrun.api.utils.singletons.project_member.get_project_member().store_project(
+        mlrun.api.utils.singletons.project_member.get_project_member().store_project(
             self.db_session, name, project, self._project_role
         )
 
     @staticmethod
     def _update_state(project: mlrun.api.schemas.Project):
-        project.status.state = mlrun.api.schemas.ProjectState(
-            project.spec.desired_state
-        )
+        if (
+            not project.status.state
+            or project.status.state in mlrun.api.schemas.ProjectState.terminal_states()
+        ):
+            project.status.state = mlrun.api.schemas.ProjectState(
+                project.spec.desired_state
+            )
 
     def delete_project(
         self,
@@ -55,7 +62,9 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         )
 
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -66,9 +75,15 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
             datetime.datetime.utcnow(),
         )
 
-    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
-        return mlrun.api.utils.singletons.project_member.get_project_member().get_project(
-            self.db_session, name
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.api.schemas.Project:
+        return (
+            mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+                self.db_session, name
+            )
         )
 
     def format_as_leader_project(
@@ -77,7 +92,9 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
         return mlrun.api.schemas.IguazioProject(data=project.dict())
 
     def get_project_owner(
-        self, session: str, name: str,
+        self,
+        session: str,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         project = self.get_project(session, name)
         return mlrun.api.schemas.ProjectOwner(

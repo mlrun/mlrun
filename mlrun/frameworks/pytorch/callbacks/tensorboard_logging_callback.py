@@ -10,12 +10,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.tensorboard.summary import hparams
 
 import mlrun
-from mlrun.frameworks._common.loggers import TensorboardLogger, TrackableType
-from mlrun.frameworks.pytorch.callbacks.logging_callback import (
-    LoggingCallback,
-    MetricFunctionType,
-    MetricValueType,
-)
+
+from ..._dl_common.loggers import TensorboardLogger
+from ..utils import PyTorchTypes
+from .logging_callback import LoggingCallback
 
 
 class _MLRunSummaryWriter(SummaryWriter):
@@ -69,11 +67,13 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param context:               A MLRun context to use for logging into the user's tensorboard directory. The
                                       context parameters can be logged as static hyperparameters as well.
         :param tensorboard_directory: If context is not given, or if wished to set the directory even with context,
-                                      this will be the output for the event logs of tensorboard.
+                                      this will be the output for the event logs of tensorboard. If not given, context
+                                      must be provided as the default tensorboard output directory will be:
+                                      /User/.tensorboard/<PROJECT_NAME> or if working on local, the set artifacts path.
         :param run_name:              This experiment run name. Each run name will be indexed at the end of the name so
                                       each experiment will be numbered automatically. If a context was given, the
                                       context's uid will be added instead of an index. If a run name was not given the
-                                      current time in the following format: 'YYYY-mm-dd_HH:MM:SS'.
+                                      current time stamp will be used.
         :param update_frequency:      Per how many iterations (batches) the callback should write the tracked values to
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
@@ -109,7 +109,8 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param input_sample: An input sample for writing the model.
         """
         self._summary_writer.add_graph(
-            model=model, input_to_model=input_sample,
+            model=model,
+            input_to_model=input_sample,
         )
 
     def write_parameters_table_to_tensorboard(self):
@@ -132,17 +133,13 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         # Prepare the summaries values and the dynamic hyperparameters values:
         graph_parameters = {}
         for metric in self._training_summaries:
-            graph_parameters[
-                "{}/training_{}".format(self._Sections.SUMMARY, metric)
-            ] = 0.0
+            graph_parameters[f"{self._Sections.SUMMARY}/training_{metric}"] = 0.0
         for metric in self._validation_summaries:
-            graph_parameters[
-                "{}/validation_{}".format(self._Sections.SUMMARY, metric)
-            ] = 0.0
+            graph_parameters[f"{self._Sections.SUMMARY}/validation_{metric}"] = 0.0
         for parameter, epochs in self._dynamic_hyperparameters.items():
-            graph_parameters[
-                "{}/{}".format(self._Sections.HYPERPARAMETERS, parameter)
-            ] = epochs[-1]
+            graph_parameters[f"{self._Sections.HYPERPARAMETERS}/{parameter}"] = epochs[
+                -1
+            ]
 
         # Write the hyperparameters and summaries table:
         self._summary_writer.add_hparams(non_graph_parameters, graph_parameters)
@@ -163,7 +160,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step: The iteration / epoch the text belongs to.
         """
         self._summary_writer.add_text(
-            tag=tag, text_string=text, global_step=step,
+            tag=tag,
+            text_string=text,
+            global_step=step,
         )
 
     def _write_scalar_to_tensorboard(self, name: str, value: float, step: int):
@@ -175,7 +174,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step:  The iteration / epoch the value belongs to.
         """
         self._summary_writer.add_scalar(
-            tag=name, scalar_value=value, global_step=step,
+            tag=name,
+            scalar_value=value,
+            global_step=step,
         )
 
     def _write_weight_histogram_to_tensorboard(
@@ -189,7 +190,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
         :param step:   The iteration / epoch the weight's histogram state belongs to.
         """
         self._summary_writer.add_histogram(
-            tag=name, values=weight, global_step=step,
+            tag=name,
+            values=weight,
+            global_step=step,
         )
 
     def _write_weight_image_to_tensorboard(
@@ -237,10 +240,14 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -298,21 +305,14 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
 
-        :raise ValueError: In case both 'context' and 'tensorboard_directory' parameters were not given or the
-                           'update_frequency' was incorrect.
+        :raise MLRunInvalidArgumentError: In case both 'context' and 'tensorboard_directory' parameters were not given
+                                          or the 'update_frequency' was incorrect.
         """
         super(TensorboardLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
         )
-
-        # Validate input:
-        if context is None and tensorboard_directory is None:
-            raise ValueError(
-                "Expecting to receive a mlrun.MLClientCtx context or a path to a directory to output the logging file "
-                "but None were given."
-            )
 
         # Replace the logger with an MLRunLogger:
         del self._logger
@@ -367,7 +367,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
     ):
         """
@@ -459,7 +459,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         super(TensorboardLoggingCallback, self).on_run_end()
 
     def on_validation_end(
-        self, loss_value: MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the

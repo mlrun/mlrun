@@ -1,5 +1,6 @@
 import hashlib
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import Optional
 
 import mlrun
@@ -19,7 +20,10 @@ class FunctionURI:
     def from_string(cls, function_uri):
         project, uri, tag, hash_key = parse_versioned_object_uri(function_uri)
         return cls(
-            project=project, function=uri, tag=tag or None, hash_key=hash_key or None,
+            project=project,
+            function=uri,
+            tag=tag or None,
+            hash_key=hash_key or None,
         )
 
 
@@ -96,7 +100,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 def set_project_model_monitoring_credentials(
     access_key: str, project: Optional[str] = None
 ):
-    """ Set the credentials that will be used by the project's model monitoring
+    """Set the credentials that will be used by the project's model monitoring
     infrastructure functions.
     The supplied credentials must have data access
 
@@ -108,3 +112,9 @@ def set_project_model_monitoring_credentials(
         provider=mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets={"MODEL_MONITORING_ACCESS_KEY": access_key},
     )
+
+
+class EndpointType(IntEnum):
+    NODE_EP = 1  # end point that is not a child of a router
+    ROUTER = 2  # endpoint that is router
+    LEAF_EP = 3  # end point that is a child of a router

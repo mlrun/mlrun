@@ -18,21 +18,23 @@ import mlrun.utils.singleton
 from mlrun.utils import logger
 
 
-class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
+class Pipelines(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
-        namespace: str = mlrun.mlconf.namespace,
+        namespace: typing.Optional[str] = None,
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[int, typing.Optional[int], typing.List[dict]]:
-        if project != "*" and (page_token or page_size or sort_by or filter_):
+        if project != "*" and (page_token or page_size or sort_by):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Filtering by project can not be used together with pagination, sorting, or custom filter"
+                "Filtering by project can not be used together with pagination, or sorting"
             )
         if format_ == mlrun.api.schemas.PipelinesFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
@@ -41,13 +43,19 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Summary format is not supported for list pipelines, use get instead"
             )
-        kfp_client = kfp.Client(namespace=namespace)
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunNotFoundError(
+                "KubeFlow Pipelines is not configured"
+            )
+        kfp_client = kfp.Client(host=kfp_url)
         if project != "*":
             run_dicts = []
             while page_token is not None:
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.api.schemas.PipelinesPagination.max_page_size,
+                    filter=filter_,
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
                 page_token = response.next_page_token
@@ -79,10 +87,15 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         db_session: sqlalchemy.orm.Session,
         run_id: str,
         project: typing.Optional[str] = None,
-        namespace: str = mlrun.mlconf.namespace,
+        namespace: typing.Optional[str] = None,
         format_: mlrun.api.schemas.PipelinesFormat = mlrun.api.schemas.PipelinesFormat.summary,
     ):
-        kfp_client = kfp.Client(namespace=namespace)
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunBadRequestError(
+                "KubeFlow Pipelines is not configured"
+            )
+        kfp_client = kfp.Client(host=kfp_url)
         run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
@@ -112,7 +125,7 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         content_type: str,
         data: bytes,
         arguments: dict = None,
-        namespace: str = mlrun.mlconf.namespace,
+        namespace: typing.Optional[str] = None,
     ):
         if arguments is None:
             arguments = {}
@@ -141,7 +154,12 @@ class Pipelines(metaclass=mlrun.utils.singleton.Singleton,):
         )
 
         try:
-            kfp_client = kfp.Client(namespace=namespace)
+            kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+            if not kfp_url:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "KubeFlow Pipelines is not configured"
+                )
+            kfp_client = kfp.Client(host=kfp_url)
             experiment = kfp_client.create_experiment(name=experiment_name)
             run = kfp_client.run_pipeline(
                 experiment.id, run_name, pipeline_file.name, params=arguments

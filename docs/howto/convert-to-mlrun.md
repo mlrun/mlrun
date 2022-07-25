@@ -1,3 +1,4 @@
+(convert-to-mlrun)=
 # Converting Research Notebook to Operational Pipeline With MLRun
 
 [Overview](#overview)&nbsp;| [Running the Demo](#demo-run)&nbsp;| [Demo Flow](#demo-flow)&nbsp;| [Pipeline Output](#pipeline-output)&nbsp;| [Notebooks and Code](#notebooks-and-code)
@@ -31,7 +32,7 @@ The code includes the following components:
 ## Notebooks and Code
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 convert-original-code
 convert-mlrun-code

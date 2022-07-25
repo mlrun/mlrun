@@ -1,4 +1,8 @@
+import io
 import re
+import unittest.mock
+
+import deepdiff
 
 import automation.release_notes.generate
 
@@ -81,3 +85,111 @@ def test_commit_regex_matching():
             case["expected_pull_request_number"]
             == match.groupdict()["pullRequestNumber"]
         )
+
+
+def test_generate_release_notes():
+    release = "v0.9.0-rc8"
+    previous_release = "v0.9.0-rc7"
+    release_branch = "master"
+
+    release_generator = automation.release_notes.generate.ReleaseNotesGenerator(
+        release, previous_release, release_branch
+    )
+
+    cases = [
+        {
+            "_run_command": [
+                None,
+                "fd6c5a86 {Gal Topper} [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)\n"
+                "985d7cb8 {Saar Cohen} [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
+                "fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)\n"
+                "985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
+            ],
+            "_resolve_github_username": ["gtopper", "theSaarco"],
+            "expected_response": f"""
+### Features / Enhancements
+* **Requirements**: Bump storey to 0.8.15 and v3io-frames to 0.10.2, #1553, @gtopper
+* **Secrets**: Verify project secrets do not exist when deleting a project, #1552, @theSaarco
+
+* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
+
+### Bug fixes
+* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{release}#bug-fixes)
+
+
+#### Pull requests:
+fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
+985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)
+
+""",
+        },
+        {
+            "_run_command": [
+                None,
+                "fd6c5a86 {Gal Topper} [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)\n"
+                "20d4088c {yuribros1974} Merge pull request #1511 from mlrun/ML-509_update_release_status\n"
+                "985d7cb8 {Saar Cohen} [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
+                "fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)\n"
+                "20d4088c Merge pull request #1511 from mlrun/ML-509_update_release_status\n"
+                "985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)",
+            ],
+            "_resolve_github_username": ["gtopper", "theSaarco"],
+            "expect_failure": True,
+            "expected_response": f"""
+### Features / Enhancements
+* **Requirements**: Bump storey to 0.8.15 and v3io-frames to 0.10.2, #1553, @gtopper
+* **Secrets**: Verify project secrets do not exist when deleting a project, #1552, @theSaarco
+
+* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
+
+### Bug fixes
+* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{release}#bug-fixes)
+
+
+#### Pull requests:
+fd6c5a86 [Requirements] Bump storey to 0.8.15 and v3io-frames to 0.10.2 (#1553)
+20d4088c Merge pull request #1511 from mlrun/ML-509_update_release_status
+985d7cb8 [Secrets] Verify project secrets do not exist when deleting a project (#1552)
+
+#### Failed parsing:
+20d4088c {{yuribros1974}} Merge pull request #1511 from mlrun/ML-509_update_release_status
+
+""",
+        },
+        {
+            "_run_command": [None, "", ""],
+            "_resolve_github_username": None,
+            "expect_failure": False,
+            "expected_response": f"""
+### Features / Enhancements
+
+* **UI**: [Features & enhancement](https://github.com/mlrun/ui/releases/tag/{release}#features-and-enhancements)
+
+### Bug fixes
+* **UI**: [Bug fixes](https://github.com/mlrun/ui/releases/tag/{release}#bug-fixes)
+
+
+#### Pull requests:
+
+
+""",
+        },
+    ]
+    automation.release_notes.generate.tempfile = unittest.mock.MagicMock()
+    for case in cases:
+        with unittest.mock.patch(
+            "automation.release_notes.generate.ReleaseNotesGenerator._run_command"
+        ) as _run_command_mock, unittest.mock.patch(
+            "automation.release_notes.generate.ReleaseNotesGenerator._resolve_github_username"
+        ) as _resolve_github_user_mock, unittest.mock.patch(
+            "sys.stdout", new=io.StringIO()
+        ) as stdout_mock:
+            _run_command_mock.side_effect = case["_run_command"]
+            _resolve_github_user_mock.side_effect = case["_resolve_github_username"]
+            try:
+                release_generator.run()
+            except ValueError:
+                if not case.get("expect_failure", False):
+                    raise
+            diff = deepdiff.DeepDiff(case["expected_response"], stdout_mock.getvalue())
+            assert diff == {}

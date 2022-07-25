@@ -1,9 +1,11 @@
+import pathlib
+
 import pytest
 import sqlalchemy.orm
 
 import mlrun
+from mlrun.serving import GraphContext, V2ModelServer
 import mlrun.api.db.sqldb.db
-from mlrun.serving import GraphContext
 from mlrun.utils import logger
 
 from .demo_states import *  # noqa
@@ -36,8 +38,18 @@ class Mul(storey.MapClass):
         return event * 2
 
 
+class ModelTestingClass(V2ModelServer):
+    def load(self):
+        print("loading")
+
+    def predict(self, request):
+        print("predict:", request)
+        resp = request["inputs"]
+        return resp
+
+
 def test_basic_flow(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+        db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")
@@ -203,6 +215,30 @@ def test_add_model(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.S
     assert "m1" in graph["r2"].routes, "model was not added to proper router"
 
 
+def test_multi_function():
+    # model is added to the specified router (by name)
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("Echo", "e1").to("$queue", "q1", path="").to("*", "r1", function="f2").to(
+        "Echo", "e2", function="f2"
+    )
+    fn.add_model("m1", class_name="ModelTestingClass", model_path=".")
+
+    # start from root function
+    server = fn.to_mock_server()
+    resp = server.test("/v2/models/m1/infer", body={"inputs": [5]})
+    server.wait_for_completion()
+    print(resp)
+    assert resp["outputs"] == [5], "wrong output"
+
+    # start from 2nd function
+    server = fn.to_mock_server(current_function="f2")
+    resp = server.test(body={"inputs": [5]})
+    server.wait_for_completion()
+    print(resp)
+    assert resp["outputs"] == [5], "wrong output"
+
+
 path_control_tests = {"handler": (myfunc2, None), "class": (None, "Mul")}
 
 
@@ -266,3 +302,71 @@ def test_path_control_routers(
     server.wait_for_completion()
     # expect avg of (5*10) and (5*20) = 75
     assert resp["y"]["outputs"] == [75], "wrong output"
+
+
+def test_to_dict():
+    from mlrun.serving.remote import RemoteStep
+
+    rs = RemoteStep(
+        name="remote_echo",
+        url="/url",
+        method="GET",
+        input_path="req",
+        result_path="resp",
+        retries=4,
+    )
+
+    assert rs.to_dict() == {
+        "name": "remote_echo",
+        "class_args": {
+            "method": "GET",
+            "return_json": True,
+            "url": "/url",
+            "retries": 4,
+        },
+        "class_name": "mlrun.serving.remote.RemoteStep",
+        "input_path": "req",
+        "result_path": "resp",
+    }, "unexpected serialization"
+
+    ms = V2ModelServer(name="ms", model_path="./xx", multiplier=7)
+    assert ms.to_dict() == {
+        "class_args": {"model_path": "./xx", "multiplier": 7, "protocol": "v2"},
+        "class_name": "mlrun.serving.v2_serving.V2ModelServer",
+        "name": "ms",
+    }, "unexpected serialization"
+
+
+def test_module_load():
+    # test that the functions and classes are imported automatically from the function code
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "myfunc.py")
+
+    def check_function(name, fn):
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="s1", class_name="Mycls").to(name="s2", handler="myhand")
+
+        server = fn.to_mock_server()
+        resp = server.test(body=5)
+        # result should be 5 * 2 * 2 = 20
+        assert resp == 20, f"got unexpected result {resp} with {name}"
+
+    check_function(
+        "code_to_function",
+        mlrun.code_to_function("test1", filename=function_path, kind="serving"),
+    )
+    check_function(
+        "new_function",
+        mlrun.new_function("test2", command=function_path, kind="serving"),
+    )
+
+
+def test_missing_functions():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.to(name="s1", class_name="Echo").to(
+        name="s2", class_name="Echo", function="child_func"
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match=r"function child_func*"
+    ):
+        function.deploy()

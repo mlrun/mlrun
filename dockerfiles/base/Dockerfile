@@ -1,6 +1,14 @@
-ARG MLRUN_PYTHON_VERSION=3.7
+ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
+
+RUN apt-get update && \
+    apt-get -s dist-upgrade | \
+    grep "^Inst" | \
+    grep -i securi | \
+    awk -F " " {'print $2'} | \
+    xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 # need to be redeclared since used in the from
 ARG MLRUN_PYTHON_VERSION
@@ -30,19 +38,21 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 
 ENV PATH /opt/conda/bin:$PATH
 
-RUN conda install python=${MLRUN_PYTHON_VERSION} pip~=20.2.0 && conda clean -aqy
+ARG MLRUN_PIP_VERSION=22.0.0
+RUN conda config --add channels conda-forge && \
+    conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
+    conda clean -aqy
 
-COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt \
-    -r base-image-requirements.txt
+    -r mlrun-image-requirements.txt
 
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-ARG MLRUN_MLUTILS_CACHE_DATE=initial
+# if we give all the requirements together pip resolver go nuts so separating between the package and the image
+# requirements
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}
+    -r base-image-requirements.txt

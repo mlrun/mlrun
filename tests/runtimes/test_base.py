@@ -59,14 +59,21 @@ class TestAutoMount:
         rundb_mock.assert_no_mount_or_creds_configured()
 
     def test_fill_credentials(self, rundb_mock):
-        os.environ["MLRUN_AUTH_SESSION"] = "some-access-key"
+        os.environ[
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        ] = "some-access-key"
 
         runtime = self._generate_runtime()
         self._execute_run(runtime)
         assert (
-            runtime.metadata.credentials.access_key == os.environ["MLRUN_AUTH_SESSION"]
+            runtime.metadata.credentials.access_key
+            == os.environ[
+                mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+            ]
         )
-        del os.environ["MLRUN_AUTH_SESSION"]
+        del os.environ[
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        ]
 
     def test_auto_mount_invalid_value(self):
         # When invalid value is used, we explode
@@ -79,15 +86,19 @@ class TestAutoMount:
         auto_mount_type = AutoMountType(mlconf.storage.auto_mount_type)
         assert auto_mount_type == AutoMountType.auto
 
-    def test_run_with_automount_pvc(self, rundb_mock):
+    @staticmethod
+    def _setup_pvc_mount():
         mlconf.storage.auto_mount_type = "pvc"
-        # Verify that extra parameters get filtered out
-        pvc_params = {
+        return {
             "pvc_name": "test_pvc",
             "volume_name": "test_volume",
             "volume_mount_path": "/mnt/test/path",
-            "invalid_param": "blublu",
         }
+
+    def test_run_with_automount_pvc(self, rundb_mock):
+        pvc_params = self._setup_pvc_mount()
+        # Verify that extra parameters get filtered out
+        pvc_params["invalid_param"] = "blublu"
 
         # Try with a simple string
         pvc_params_str = ",".join(
@@ -125,3 +136,50 @@ class TestAutoMount:
 
         with pytest.raises(TypeError):
             mlconf.get_storage_auto_mount_params()
+
+    def test_auto_mount_function_with_pvc_config(self, rundb_mock):
+        pvc_params = self._setup_pvc_mount()
+        pvc_params_str = base64.b64encode(json.dumps(pvc_params).encode())
+        mlconf.storage.auto_mount_params = pvc_params_str
+
+        runtime = self._generate_runtime()
+        runtime.apply(mlrun.auto_mount())
+        assert runtime.spec.disable_auto_mount
+
+        self._execute_run(runtime)
+        rundb_mock.assert_pvc_mount_configured(pvc_params)
+
+        os.environ.pop("V3IO_ACCESS_KEY", None)
+        # This won't work if mount type is not pvc
+        mlconf.storage.auto_mount_type = "auto"
+        with pytest.raises(
+            ValueError, match="failed to auto mount, need to set env vars"
+        ):
+            runtime.apply(mlrun.auto_mount())
+
+    @staticmethod
+    def _setup_s3_mount(use_secret, non_anonymous):
+        mlconf.storage.auto_mount_type = "s3"
+        if use_secret:
+            params = {
+                "secret_name": "s3_secret",
+            }
+        else:
+            params = {
+                "aws_access_key": "some_key",
+                "aws_secret_key": "some_secret_key",
+            }
+        if non_anonymous:
+            params["non_anonymous"] = True
+        return params
+
+    @pytest.mark.parametrize("use_secret", [True, False])
+    @pytest.mark.parametrize("non_anonymous", [True, False])
+    def test_auto_mount_s3(self, use_secret, non_anonymous, rundb_mock):
+        s3_params = self._setup_s3_mount(use_secret, non_anonymous)
+        mlconf.storage.auto_mount_params = ",".join(
+            [f"{key}={value}" for key, value in s3_params.items()]
+        )
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_s3_mount_configured(s3_params)

@@ -14,6 +14,9 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.config import config
 from mlrun.datastore import store_manager
 
+from ..schemas import SecretProviderName
+from .secrets import Secrets, SecretsClientType
+
 # Using a complex separator, as it's less likely someone will use it in a real secret name
 secret_name_separator = "-__-"
 
@@ -24,15 +27,18 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
         self._catalogs = {}
 
     @staticmethod
-    def _get_k8s():
+    def _in_k8s():
         k8s_helper = get_k8s()
-        if not k8s_helper.is_running_inside_kubernetes_cluster():
-            return None
-        return k8s_helper
+        return (
+            k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
+        )
 
     @staticmethod
     def _generate_credentials_secret_key(source, key=""):
-        return source + secret_name_separator + key
+        full_key = source + secret_name_separator + key
+        return Secrets().generate_client_project_secret_key(
+            SecretsClientType.marketplace, full_key
+        )
 
     def add_source(self, source: MarketplaceSource):
         source_name = source.metadata.name
@@ -42,7 +48,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
 
     def remove_source(self, source_name):
         self._catalogs.pop(source_name, None)
-        if not self._get_k8s():
+        if not self._in_k8s():
             return
 
         source_credentials = self._get_source_credentials(source_name)
@@ -52,12 +58,15 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             self._generate_credentials_secret_key(source_name, key)
             for key in source_credentials
         ]
-        self._get_k8s().delete_project_secrets(
-            self._internal_project_name, secrets_to_delete
+        Secrets().delete_project_secrets(
+            self._internal_project_name,
+            SecretProviderName.kubernetes,
+            secrets_to_delete,
+            allow_internal_secrets=True,
         )
 
     def _store_source_credentials(self, source_name, credentials: dict):
-        if not self._get_k8s():
+        if not self._in_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "MLRun is not configured with k8s, marketplace source credentials cannot be stored securely"
             )
@@ -66,16 +75,30 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             self._generate_credentials_secret_key(source_name, key): value
             for key, value in credentials.items()
         }
-        self._get_k8s().store_project_secrets(
-            self._internal_project_name, adjusted_credentials
+        Secrets().store_project_secrets(
+            self._internal_project_name,
+            mlrun.api.schemas.SecretsData(
+                provider=SecretProviderName.kubernetes, secrets=adjusted_credentials
+            ),
+            allow_internal_secrets=True,
         )
 
     def _get_source_credentials(self, source_name):
-        if not self._get_k8s():
+        if not self._in_k8s():
             return {}
 
         secret_prefix = self._generate_credentials_secret_key(source_name)
-        secrets = self._get_k8s().get_project_secret_data(self._internal_project_name)
+        secrets = (
+            Secrets()
+            .list_project_secrets(
+                self._internal_project_name,
+                SecretProviderName.kubernetes,
+                allow_secrets_from_k8s=True,
+                allow_internal_secrets=True,
+            )
+            .secrets
+        )
+
         source_secrets = {}
         for key, value in secrets.items():
             if key.startswith(secret_prefix):

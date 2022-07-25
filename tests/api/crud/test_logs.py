@@ -9,7 +9,10 @@ def test_log(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
     uid = "m33"
     data1, data2 = b"ab", b"cd"
     mlrun.api.crud.Runs().store_run(
-        db, {"some-run-data": "blabla"}, uid, project=project
+        db,
+        {"metadata": {"name": "run-name"}, "some-run-data": "blabla"},
+        uid,
+        project=project,
     )
     mlrun.api.crud.Logs().store_log(data1, project, uid)
     _, log = mlrun.api.crud.Logs().get_logs(db, project, uid)

@@ -20,7 +20,10 @@ from mlrun.serving.server import create_graph_server
 
 
 def _build_feature_vector_graph(
-    vector, feature_set_fields, feature_set_objects, fixed_window_type,
+    vector,
+    feature_set_fields,
+    feature_set_objects,
+    fixed_window_type,
 ):
     graph = vector.spec.graph.copy()
     start_states, default_final_state, responders = graph.check_and_process_graph(
@@ -57,13 +60,15 @@ def _build_feature_vector_graph(
     return graph
 
 
-def init_feature_vector_graph(vector, query_options):
+def init_feature_vector_graph(vector, query_options, update_stats=False):
     try:
         from storey import SyncEmitSource
     except ImportError as exc:
         raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
-    feature_set_objects, feature_set_fields = vector.parse_features(False)
+    feature_set_objects, feature_set_fields = vector.parse_features(
+        offline=False, update_stats=update_stats
+    )
     graph = _build_feature_vector_graph(
         vector, feature_set_fields, feature_set_objects, query_options
     )

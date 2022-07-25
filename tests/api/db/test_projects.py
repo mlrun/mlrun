@@ -15,7 +15,8 @@ from mlrun.api.db.sqldb.models import Project
 
 
 def test_get_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -37,14 +38,17 @@ def test_get_project(
     assert project_output.spec.description == project_description
     assert (
         deepdiff.DeepDiff(
-            project_labels, project_output.metadata.labels, ignore_order=True,
+            project_labels,
+            project_output.metadata.labels,
+            ignore_order=True,
         )
         == {}
     )
 
 
 def test_get_project_with_pre_060_record(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project_name"
     _generate_and_insert_pre_060_record(db_session, project_name)
@@ -52,7 +56,10 @@ def test_get_project_with_pre_060_record(
         db_session.query(Project).filter(Project.name == project_name).one()
     )
     assert pre_060_record.full_object is None
-    project = db.get_project(db_session, project_name,)
+    project = db.get_project(
+        db_session,
+        project_name,
+    )
     assert project.metadata.name == project_name
     updated_record = (
         db_session.query(Project).filter(Project.name == project_name).one()
@@ -61,7 +68,7 @@ def test_get_project_with_pre_060_record(
     assert updated_record.full_object is not None
 
 
-def test_data_migration_fill_project_state(
+def test_data_migration_enrich_project_state(
     db: DBInterface, db_session: sqlalchemy.orm.Session,
 ):
     for i in range(10):
@@ -72,14 +79,14 @@ def test_data_migration_fill_project_state(
         # getting default value from the schema
         assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
         assert project.status.state is None
-    mlrun.api.initial_data._fill_project_state(db, db_session)
+    mlrun.api.initial_data._enrich_project_state(db, db_session)
     projects = db.list_projects(db_session)
     for project in projects.projects:
         assert project.spec.desired_state == mlrun.api.schemas.ProjectState.online
         assert project.status.state == project.spec.desired_state
     # verify not storing for no reason
     db.store_project = unittest.mock.Mock()
-    mlrun.api.initial_data._fill_project_state(db, db_session)
+    mlrun.api.initial_data._enrich_project_state(db, db_session)
     assert db.store_project.call_count == 0
 
 
@@ -92,7 +99,8 @@ def _generate_and_insert_pre_060_record(
 
 
 def test_list_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     expected_projects = [
         {"name": "project-name-1"},
@@ -131,7 +139,8 @@ def test_list_project(
 
 
 def test_list_project_names_filter(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
 
     project_names = ["project-1", "project-2", "project-3", "project-4", "project-5"]
@@ -150,128 +159,81 @@ def test_list_project_names_filter(
     )
 
     assert (
-        deepdiff.DeepDiff(filter_names, projects_output.projects, ignore_order=True,)
+        deepdiff.DeepDiff(
+            filter_names,
+            projects_output.projects,
+            ignore_order=True,
+        )
         == {}
     )
 
     projects_output = db.list_projects(
-        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only, names=[],
+        db_session,
+        format_=mlrun.api.schemas.ProjectsFormat.name_only,
+        names=[],
     )
 
     assert projects_output.projects == []
 
 
 def test_create_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
-    project_name = "project-name"
-    project_description = "some description"
-    project_labels = {
-        "some-label": "some-label-value",
-    }
-    project_created = datetime.datetime.utcnow()
-
+    project = _generate_project()
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created, labels=project_labels,
-            ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
-        ),
+        project.copy(deep=True),
     )
-
-    project_output = db.get_project(db_session, project_name)
-    assert project_output.metadata.name == project_name
-    assert project_output.spec.description == project_description
-    # Created in request body should be ignored and set by the DB layer
-    assert project_output.metadata.created != project_created
-    assert (
-        deepdiff.DeepDiff(
-            project_labels, project_output.metadata.labels, ignore_order=True,
-        )
-        == {}
-    )
+    _assert_project(db, db_session, project)
 
 
 def test_store_project_creation(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
-    project_name = "project-name"
-    project_description = "some description"
-    project_created = datetime.datetime.utcnow()
-    project_labels = {
-        "some-label": "some-label-value",
-    }
+    project = _generate_project()
     db.store_project(
         db_session,
-        project_name,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created, labels=project_labels,
-            ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
-        ),
+        project.metadata.name,
+        project.copy(deep=True),
     )
-    project_output = db.get_project(db_session, project_name)
-    assert project_output.metadata.name == project_name
-    assert project_output.spec.description == project_description
-    # Created in request body should be ignored and set by the DB layer
-    assert project_output.metadata.created != project_created
-    assert (
-        deepdiff.DeepDiff(
-            project_labels, project_output.metadata.labels, ignore_order=True,
-        )
-        == {}
-    )
+    _assert_project(db, db_session, project)
 
 
 def test_store_project_update(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
-    project_name = "project-name"
-    project_description = "some description"
-    project_labels = {
-        "some-label": "some-label-value",
-    }
-    project_created = datetime.datetime.utcnow()
+    project = _generate_project()
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(
-                name=project_name, created=project_created, labels=project_labels,
-            ),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
-        ),
+        project.copy(deep=True),
     )
 
     db.store_project(
         db_session,
-        project_name,
+        project.metadata.name,
         mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
+            metadata=mlrun.api.schemas.ProjectMetadata(name=project.metadata.name),
         ),
     )
-    project_output = db.get_project(db_session, project_name)
-    assert project_output.metadata.name == project_name
+    project_output = db.get_project(db_session, project.metadata.name)
+    assert project_output.metadata.name == project.metadata.name
     assert project_output.spec.description is None
     assert project_output.metadata.labels is None
     # Created in request body should be ignored and set by the DB layer
-    assert project_output.metadata.created != project_created
+    assert project_output.metadata.created != project.metadata.created
 
 
 def test_patch_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
-    project_name = "project-name"
-    project_description = "some description"
-    project_created = datetime.datetime.utcnow()
+    project = _generate_project()
     db.create_project(
         db_session,
-        mlrun.api.schemas.Project(
-            metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
-            spec=mlrun.api.schemas.ProjectSpec(description=project_description),
-        ),
+        project.copy(deep=True),
     )
 
     patched_project_description = "some description 2"
@@ -280,27 +242,33 @@ def test_patch_project(
     }
     db.patch_project(
         db_session,
-        project_name,
+        project.metadata.name,
         {
-            "metadata": {"created": project_created, "labels": patched_project_labels},
+            "metadata": {
+                "created": project.metadata.created,
+                "labels": patched_project_labels,
+            },
             "spec": {"description": patched_project_description},
         },
     )
-    project_output = db.get_project(db_session, project_name)
-    assert project_output.metadata.name == project_name
+    project_output = db.get_project(db_session, project.metadata.name)
+    assert project_output.metadata.name == project.metadata.name
     assert project_output.spec.description == patched_project_description
     # Created in request body should be ignored and set by the DB layer
-    assert project_output.metadata.created != project_created
+    assert project_output.metadata.created != project.metadata.created
     assert (
         deepdiff.DeepDiff(
-            patched_project_labels, project_output.metadata.labels, ignore_order=True,
+            patched_project_labels,
+            project_output.metadata.labels,
+            ignore_order=True,
         )
         == {}
     )
 
 
 def test_delete_project(
-    db: DBInterface, db_session: sqlalchemy.orm.Session,
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -315,3 +283,39 @@ def test_delete_project(
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.get_project(db_session, project_name)
+
+
+def _generate_project():
+    return mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(
+            name="project-name",
+            created=datetime.datetime.utcnow() - datetime.timedelta(seconds=1),
+            labels={
+                "some-label": "some-label-value",
+            },
+        ),
+        spec=mlrun.api.schemas.ProjectSpec(
+            description="some description", owner="owner-name"
+        ),
+    )
+
+
+def _assert_project(
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
+    expected_project: mlrun.api.schemas.Project,
+):
+    project_output = db.get_project(db_session, expected_project.metadata.name)
+    assert project_output.metadata.name == expected_project.metadata.name
+    assert project_output.spec.description == expected_project.spec.description
+    assert project_output.spec.owner == expected_project.spec.owner
+    # Created in request body should be ignored and set by the DB layer
+    assert project_output.metadata.created != expected_project.metadata.created
+    assert (
+        deepdiff.DeepDiff(
+            expected_project.metadata.labels,
+            project_output.metadata.labels,
+            ignore_order=True,
+        )
+        == {}
+    )

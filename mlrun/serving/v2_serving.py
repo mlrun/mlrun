@@ -26,53 +26,80 @@ from mlrun.api.schemas import (
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
+from mlrun.utils.model_monitoring import EndpointType
+
+from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
-class V2ModelServer:
-    """base model serving class (v2), using similar API to KFServing v2 and Triton
-
-    The class is initialized automatically by the model server and can run locally
-    as part of a nuclio serverless function, or as part of a real-time pipeline
-    default model url is: /v2/models/<model>[/versions/<ver>]/operation
-
-    You need to implement two mandatory methods:
-      load()     - download the model file(s) and load the model into memory
-      predict()  - accept request payload and return prediction/inference results
-
-    you can override additional methods : preprocess, validate, postprocess, explain
-    you can add custom api endpoint by adding method op_xx(event), will be invoked by
-    calling the <model-url>/xx (operation = xx)
-
-    Example
-    -------
-    defining a class::
-
-        class MyClass(V2ModelServer):
-            def load(self):
-                # load and initialize the model and/or other elements
-                model_file, extra_data = self.get_model(suffix='.pkl')
-                self.model = load(open(model_file, "rb"))
-
-            def predict(self, request):
-                events = np.array(request['inputs'])
-                dmatrix = xgb.DMatrix(events)
-                result: xgb.DMatrix = self.model.predict(dmatrix)
-                return {"outputs": result.tolist()}
-
-    """
+class V2ModelServer(StepToDict):
+    """base model serving class (v2), using similar API to KFServing v2 and Triton"""
 
     def __init__(
         self,
-        context,
-        name: str,
+        context=None,
+        name: str = None,
         model_path: str = None,
         model=None,
         protocol=None,
-        **class_args,
+        input_path: str = None,
+        result_path: str = None,
+        **kwargs,
     ):
+        """base model serving class (v2), using similar API to KFServing v2 and Triton
+
+        The class is initialized automatically by the model server and can run locally
+        as part of a nuclio serverless function, or as part of a real-time pipeline
+        default model url is: /v2/models/<model>[/versions/<ver>]/operation
+
+        You need to implement two mandatory methods:
+          load()     - download the model file(s) and load the model into memory
+          predict()  - accept request payload and return prediction/inference results
+
+        you can override additional methods : preprocess, validate, postprocess, explain
+        you can add custom api endpoint by adding method op_xx(event), will be invoked by
+        calling the <model-url>/xx (operation = xx)
+
+        model server classes are subclassed (subclass implements the `load()` and `predict()` methods)
+        the subclass can be added to a serving graph or to a model router
+
+        defining a sub class::
+
+            class MyClass(V2ModelServer):
+                def load(self):
+                    # load and initialize the model and/or other elements
+                    model_file, extra_data = self.get_model(suffix='.pkl')
+                    self.model = load(open(model_file, "rb"))
+
+                def predict(self, request):
+                    events = np.array(request['inputs'])
+                    dmatrix = xgb.DMatrix(events)
+                    result: xgb.DMatrix = self.model.predict(dmatrix)
+                    return {"outputs": result.tolist()}
+
+        usage example::
+
+            # adding a model to a serving graph using the subclass MyClass
+            # MyClass will be initialized with the name "my", the model_path, and an arg called my_param
+            graph = fn.set_topology("router")
+            fn.add_model("my", class_name="MyClass", model_path="<model-uri>>", my_param=5)
+
+        :param context:    for internal use (passed in init)
+        :param name:       step name
+        :param model_path: model file/dir or artifact path
+        :param model:      model object (for local testing)
+        :param protocol:   serving API protocol (default "v2")
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param kwargs:     extra arguments (can be accessed using self.get_param(key))
+        """
         self.name = name
         self.version = ""
-        if ":" in name:
+        if name and ":" in name:
             self.name, self.version = name.split(":", 1)
         self.context = context
         self.ready = False
@@ -80,9 +107,14 @@ class V2ModelServer:
         self.protocol = protocol or "v2"
         self.model_path = model_path
         self.model_spec: mlrun.artifacts.ModelArtifact = None
-        self._params = class_args
+        self._input_path = input_path
+        self._result_path = result_path
+        self._kwargs = kwargs  # for to_dict()
+        self._params = kwargs
         self._model_logger = (
-            _ModelLogPusher(self, context) if context.stream.enabled else None
+            _ModelLogPusher(self, context)
+            if context and context.stream.enabled
+            else None
         )
 
         self.metrics = {}
@@ -90,6 +122,7 @@ class V2ModelServer:
         if model:
             self.model = model
             self.ready = True
+        self.model_endpoint_uid = None
 
     def _load_and_update_state(self):
         try:
@@ -118,7 +151,8 @@ class V2ModelServer:
             logger.warn("GraphServer not initialized for VotingEnsemble instance")
             return
 
-        _init_endpoint_record(server, self)
+        if not self.context.is_mock or self.context.server.track_models:
+            self.model_endpoint_uid = _init_endpoint_record(server, self)
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -133,31 +167,31 @@ class V2ModelServer:
     def get_model(self, suffix=""):
         """get the model file(s) and metadata from model store
 
-    the method returns a path to the model file and the extra data (dict of dataitem objects)
-    it also loads the model metadata into the self.model_spec attribute, allowing direct access
-    to all the model metadata attributes.
+        the method returns a path to the model file and the extra data (dict of dataitem objects)
+        it also loads the model metadata into the self.model_spec attribute, allowing direct access
+        to all the model metadata attributes.
 
-    get_model is usually used in the model .load() method to init the model
-    Examples
-    --------
-    ::
+        get_model is usually used in the model .load() method to init the model
+        Examples
+        --------
+        ::
 
-        def load(self):
-            model_file, extra_data = self.get_model(suffix='.pkl')
-            self.model = load(open(model_file, "rb"))
-            categories = extra_data['categories'].as_df()
+            def load(self):
+                model_file, extra_data = self.get_model(suffix='.pkl')
+                self.model = load(open(model_file, "rb"))
+                categories = extra_data['categories'].as_df()
 
-    Parameters
-    ----------
-    suffix : str
-        optional, model file suffix (when the model_path is a directory)
+        Parameters
+        ----------
+        suffix : str
+            optional, model file suffix (when the model_path is a directory)
 
-    Returns
-    -------
-    str
-        (local) model file
-    dict
-        extra dataitems dictionary
+        Returns
+        -------
+        str
+            (local) model file
+        dict
+            extra dataitems dictionary
 
         """
         model_file, self.model_spec, extra_dataitems = mlrun.artifacts.get_model(
@@ -176,7 +210,7 @@ class V2ModelServer:
     def _check_readiness(self, event):
         if self.ready:
             return
-        if not event.trigger or event.trigger == "http":
+        if not event.trigger or event.trigger.kind in ["http", ""]:
             raise RuntimeError(f"model {self.name} is not ready yet")
         self.context.logger.info(f"waiting for model {self.name} to load")
         for i in range(50):  # wait up to 4.5 minutes
@@ -185,30 +219,37 @@ class V2ModelServer:
                 return
         raise RuntimeError(f"model {self.name} is not ready {self.error}")
 
-    def _pre_event_processing_actions(self, event, op):
+    def _pre_event_processing_actions(self, event, event_body, op):
         self._check_readiness(event)
-        request = self.preprocess(event.body, op)
-        if "id" not in request:
-            request["id"] = event.id
+        request = self.preprocess(event_body, op)
         return self.validate(request, op)
 
     def do_event(self, event, *args, **kwargs):
         """main model event handler method"""
         start = now_date()
+        original_body = event.body
+        event_body = _extract_input_data(self._input_path, event.body)
+        event_id = event.id
         op = event.path.strip("/")
+        if event_body and isinstance(event_body, dict):
+            op = op or event_body.get("operation")
+            event_id = event_body.get("id", event_id)
+        if not op and event.method != "GET":
+            op = "infer"
 
         if op == "predict" or op == "infer":
             # predict operation
-            request = self._pre_event_processing_actions(event, op)
+            request = self._pre_event_processing_actions(event, event_body, op)
             try:
                 outputs = self.predict(request)
             except Exception as exc:
+                request["id"] = event_id
                 if self._model_logger:
                     self._model_logger.push(start, request, op=op, error=exc)
                 raise exc
 
             response = {
-                "id": request["id"],
+                "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
             }
@@ -229,29 +270,33 @@ class V2ModelServer:
         elif op == "" and event.method == "GET":
             # get model metadata operation
             setattr(event, "terminated", True)
-            event.body = {
+            event_body = {
                 "name": self.name,
                 "version": self.version,
                 "inputs": [],
                 "outputs": [],
             }
             if self.model_spec:
-                event.body["inputs"] = self.model_spec.inputs
-                event.body["outputs"] = self.model_spec.outputs
+                event_body["inputs"] = self.model_spec.inputs.to_dict()
+                event_body["outputs"] = self.model_spec.outputs.to_dict()
+            event.body = _update_result_body(
+                self._result_path, original_body, event_body
+            )
             return event
 
         elif op == "explain":
             # explain operation
-            request = self._pre_event_processing_actions(event, op)
+            request = self._pre_event_processing_actions(event, event_body, op)
             try:
                 outputs = self.explain(request)
             except Exception as exc:
+                request["id"] = event_id
                 if self._model_logger:
                     self._model_logger.push(start, request, op=op, error=exc)
                 raise exc
 
             response = {
-                "id": request["id"],
+                "id": event_id,
                 "model_name": self.name,
                 "outputs": outputs,
             }
@@ -261,7 +306,7 @@ class V2ModelServer:
         elif hasattr(self, "op_" + op):
             # custom operation (child methods starting with "op_")
             response = getattr(self, "op_" + op)(event)
-            event.body = response
+            event.body = _update_result_body(self._result_path, original_body, response)
             return event
 
         else:
@@ -269,9 +314,33 @@ class V2ModelServer:
 
         response = self.postprocess(response)
         if self._model_logger:
-            self._model_logger.push(start, request, response, op)
-        event.body = response
+            inputs, outputs = self.logged_results(request, response, op)
+            if inputs is None and outputs is None:
+                self._model_logger.push(start, request, response, op)
+            else:
+                track_request = {"id": event_id, "inputs": inputs or []}
+                track_response = {"outputs": outputs or []}
+                self._model_logger.push(start, track_request, track_response, op)
+        event.body = _update_result_body(self._result_path, original_body, response)
         return event
+
+    def logged_results(self, request: dict, response: dict, op: str):
+        """hook for controlling which results are tracked by the model monitoring
+
+        this hook allows controlling which input/output data is logged by the model monitoring
+        allow filtering out columns or adding custom values, can also be used to monitor derived metrics
+        for example in image classification calculate and track the RGB values vs the image bitmap
+
+        the request["inputs"] holds a list of input values/arrays, the response["outputs"] holds a list of
+        corresponding output values/arrays (the schema of the input/output fields is stored in the model object),
+        this method should return lists of alternative inputs and outputs which will be monitored
+
+        :param request:   predict/explain request, see model serving docs for details
+        :param response:  result from the model predict/explain (after postprocess())
+        :param op:        operation (predict/infer or explain)
+        :returns: the input and output lists to track
+        """
+        return None, None
 
     def validate(self, request, operation):
         """validate the event body (after preprocess)"""
@@ -380,6 +449,9 @@ class _ModelLogPusher:
 
 def _init_endpoint_record(graph_server, model: V2ModelServer):
     logger.info("Initializing endpoint records")
+
+    uid = None
+
     try:
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
@@ -402,7 +474,7 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                 ),
                 active=True,
             ),
-            status=ModelEndpointStatus(),
+            status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )
 
         db = mlrun.get_run_db()
@@ -412,5 +484,8 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
             endpoint_id=model_endpoint.metadata.uid,
             model_endpoint=model_endpoint,
         )
+        uid = model_endpoint.metadata.uid
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)
+
+    return uid

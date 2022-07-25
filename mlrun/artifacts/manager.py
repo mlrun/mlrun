@@ -16,14 +16,36 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import logger, uxjoin
-from .base import Artifact, DirArtifact, LinkArtifact
-from .dataset import DatasetArtifact, TableArtifact
-from .model import ModelArtifact
-from .plots import ChartArtifact, PlotArtifact
+from ..utils import is_legacy_artifact, is_relative_path, logger
+from .base import (
+    Artifact,
+    DirArtifact,
+    LegacyArtifact,
+    LegacyDirArtifact,
+    LegacyLinkArtifact,
+    LinkArtifact,
+)
+from .dataset import (
+    DatasetArtifact,
+    LegacyDatasetArtifact,
+    LegacyTableArtifact,
+    TableArtifact,
+)
+from .model import LegacyModelArtifact, ModelArtifact
+from .plots import (
+    BokehArtifact,
+    ChartArtifact,
+    LegacyBokehArtifact,
+    LegacyChartArtifact,
+    LegacyPlotArtifact,
+    LegacyPlotlyArtifact,
+    PlotArtifact,
+    PlotlyArtifact,
+)
 
 artifact_types = {
     "": Artifact,
+    "artifact": Artifact,
     "dir": DirArtifact,
     "link": LinkArtifact,
     "plot": PlotArtifact,
@@ -31,6 +53,22 @@ artifact_types = {
     "table": TableArtifact,
     "model": ModelArtifact,
     "dataset": DatasetArtifact,
+    "plotly": PlotlyArtifact,
+    "bokeh": BokehArtifact,
+}
+
+# TODO - Remove this when legacy types are deleted (1.2.0?)
+legacy_artifact_types = {
+    "": LegacyArtifact,
+    "dir": LegacyDirArtifact,
+    "link": LegacyLinkArtifact,
+    "plot": LegacyPlotArtifact,
+    "chart": LegacyChartArtifact,
+    "table": LegacyTableArtifact,
+    "model": LegacyModelArtifact,
+    "dataset": LegacyDatasetArtifact,
+    "plotly": LegacyPlotlyArtifact,
+    "bokeh": LegacyBokehArtifact,
 }
 
 
@@ -49,15 +87,24 @@ class ArtifactProducer:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
-def dict_to_artifact(struct: dict):
+def dict_to_artifact(struct: dict) -> Artifact:
+    # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
+    # property to make this distinction
     kind = struct.get("kind", "")
-    artifact_class = artifact_types[kind]
+
+    if is_legacy_artifact(struct):
+        artifact_class = legacy_artifact_types[kind]
+    else:
+        artifact_class = artifact_types[kind]
+
     return artifact_class.from_dict(struct)
 
 
 class ArtifactManager:
     def __init__(
-        self, db: RunDBInterface = None, calc_hash=True,
+        self,
+        db: RunDBInterface = None,
+        calc_hash=True,
     ):
         self.calc_hash = calc_hash
 
@@ -91,13 +138,14 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
-    ):
+        **kwargs,
+    ) -> Artifact:
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
-                item = DirArtifact(key, body)
+                item = DirArtifact(key, body, **kwargs)
             else:
-                item = Artifact(key, body)
+                item = Artifact(key, body, **kwargs)
         else:
             key = item.key
             target_path = target_path or item.target_path
@@ -107,37 +155,6 @@ class ArtifactManager:
             viewer = "web-app"
         item.format = format or item.format
         item.src_path = src_path
-        if src_path and ("://" in src_path or src_path.startswith("/")):
-            raise ValueError(
-                f"local/source path ({src_path}) must be a relative path, "
-                "cannot be remote or absolute path, "
-                "use target_path for absolute paths"
-            )
-
-        if target_path:
-            if not (target_path.startswith("/") or "://" in target_path):
-                raise ValueError(
-                    f"target_path ({target_path}) param cannot be relative"
-                )
-        else:
-            target_path = uxjoin(
-                artifact_path,
-                src_path,
-                filename(key, item.format),
-                producer.iteration,
-                item.is_dir,
-            )
-
-        if item.is_dir and not target_path.endswith("/"):
-            target_path += "/"
-
-        item.target_path = target_path
-        item.viewer = viewer or item.viewer
-        item.tree = producer.tag
-        item.labels = labels or item.labels
-        item.producer = producer.get_meta()
-        item.iter = producer.iteration
-        item.project = producer.project
 
         if db_key is None:
             # set the default artifact db key
@@ -146,15 +163,41 @@ class ArtifactManager:
             else:
                 db_key = key
         item.db_key = db_key if db_key else ""
+        item.viewer = viewer or item.viewer
+        item.tree = producer.tag
+        item.labels = labels or item.labels
+        item.producer = producer.get_meta()
+        item.iter = producer.iteration
+        item.project = producer.project
+        item.tag = tag or item.tag
+
+        if target_path:
+            if is_relative_path(target_path):
+                raise ValueError(
+                    f"target_path ({target_path}) param cannot be relative"
+                )
+            upload = False
+        elif src_path and "://" in src_path:
+            if upload:
+                raise ValueError(f"Cannot upload from remote path {src_path}")
+            target_path = src_path
+            upload = False
+        elif not item.is_inline():
+            target_path = item.generate_target_path(artifact_path, producer)
+
+        if target_path and item.is_dir and not target_path.endswith("/"):
+            target_path += "/"
+
+        item.target_path = target_path
 
         item.before_log()
         self.artifacts[key] = item
 
-        if (upload is None and item.kind != "dir") or upload:
+        if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             item.upload()
 
         if db_key:
-            self._log_to_db(db_key, producer.project, producer.inputs, item, tag)
+            self._log_to_db(db_key, producer.project, producer.inputs, item)
         size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
@@ -162,12 +205,22 @@ class ArtifactManager:
         )
         return item
 
-    def _log_to_db(self, key, project, sources, item, tag):
+    def update_artifact(self, producer, item):
+        self.artifacts[item.key] = item
+        self._log_to_db(item.db_key, producer.project, producer.inputs, item)
+
+    def _log_to_db(self, key, project, sources, item, tag=None):
         if self.artifact_db:
+            item.updated = None
             if sources:
                 item.sources = [{"name": k, "path": str(v)} for k, v in sources.items()]
             self.artifact_db.store_artifact(
-                key, item.to_dict(), item.tree, iter=item.iter, tag=tag, project=project
+                key,
+                item.to_dict(),
+                item.tree,
+                iter=item.iter,
+                tag=tag or item.tag,
+                project=project,
             )
 
     def link_artifact(
@@ -182,6 +235,7 @@ class ArtifactManager:
         link_iteration=0,
         link_key=None,
         link_tree=None,
+        db_key=None,
     ):
         if self.artifact_db:
             item = LinkArtifact(
@@ -193,7 +247,7 @@ class ArtifactManager:
             )
             item.tree = tree
             item.iter = iter
-            item.db_key = name + "_" + key
+            item.db_key = db_key or (name + "_" + key)
             self.artifact_db.store_artifact(
                 item.db_key,
                 item.to_dict(),
@@ -202,6 +256,17 @@ class ArtifactManager:
                 tag=tag,
                 project=project,
             )
+
+
+def extend_artifact_path(artifact_path: str, default_artifact_path: str):
+    artifact_path = str(artifact_path or "")
+    if artifact_path and artifact_path.startswith("+/"):
+        if not default_artifact_path:
+            return artifact_path[len("+/") :]
+        if not default_artifact_path.endswith("/"):
+            default_artifact_path += "/"
+        return default_artifact_path + artifact_path[len("+/") :]
+    return artifact_path or default_artifact_path
 
 
 def filename(key, format):

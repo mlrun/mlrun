@@ -1,17 +1,23 @@
 from typing import Callable, Dict, List, Tuple, Union
 
+import torch
+from torch import Tensor
+
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.frameworks._common.loggers import MLRunLogger, TrackableType
-from mlrun.frameworks.pytorch.callbacks.logging_callback import LoggingCallback
-from mlrun.frameworks.pytorch.model_handler import PyTorchModelHandler
+
+from ..._common import LoggingMode
+from ..._dl_common.loggers import MLRunLogger
+from ..model_handler import PyTorchModelHandler
+from ..utils import PyTorchTypes
+from .logging_callback import LoggingCallback
 
 
 class MLRunLoggingCallback(LoggingCallback):
     """
     Callback for logging data during training / validation via mlrun's context. Each tracked hyperparameter and metrics
     results will be logged per epoch and at the end of the run the model will be saved and logged as well. Some plots
-    will be available as well. To summerize, the available data in mlrun will be:
+    will be available as well. To summarize, the available data in mlrun will be:
 
     * For each epoch:
 
@@ -31,45 +37,34 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str],
-        custom_objects_directory: str,
-        log_model_labels: Dict[str, TrackableType] = None,
-        log_model_parameters: Dict[str, TrackableType] = None,
-        log_model_extra_data: Dict[str, Union[TrackableType, Artifact]] = None,
+        model_handler: PyTorchModelHandler,
+        log_model_tag: str = "",
+        log_model_labels: Dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_parameters: Dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_extra_data: Dict[
+            str, Union[PyTorchTypes.TrackableType, Artifact]
+        ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
         """
-        Initialize an mlrun logging callback with the given hyperparameters and logging configurations.
+        Initialize an mlrun logging callback with the given hyperparameters and logging configurations. Notice: In order
+        to log the model, its class (torch.Module) must be in the custom objects map or the modules map.
 
         :param context:                  MLRun context to log to. Its parameters will be logged automatically  if
                                          'auto_log' is True.
-        :param custom_objects_map:       A dictionary of all the custom objects required for loading the model. Each key
-                                         is a path to a python file and its value is the custom object name to import
-                                         from it. If multiple objects needed to be imported from the same py file a list
-                                         can be given. The map can be passed as a path to a json file as well. For
-                                         example:
-                                         {
-                                             "/.../custom_optimizer.py": "optimizer",
-                                             "/.../custom_layers.py": ["layer1", "layer2"]
-                                         }
-                                         All the paths will be accessed from the given 'custom_objects_directory',
-                                         meaning each py file will be read from 'custom_objects_directory/<MAP VALUE>'.
-                                         If the model path given is of a store object, the custom objects map will be
-                                         read from the logged custom object map artifact of the model.
-                                         Notice: The custom objects will be imported in the order they came in this
-                                         dictionary (or json). If a custom object is depended on another, make sure to
-                                         put it below the one it relies on.
-        :param custom_objects_directory: Path to the directory with all the python files required for the custom
-                                         objects. Can be passed as a zip file as well (will be extracted during the run
-                                         before loading the model). If the model path given is of a store object, the
-                                         custom objects files will be read from the logged custom object artifact of the
-                                         model.
+        :param model_handler:            The model handler to use for logging the model at the end of the run with the
+                                         collected logs.
+        :param log_model_tag:            Version tag to give the logged model.
         :param log_model_labels:         Labels to log with the model.
         :param log_model_parameters:     Parameters to log with the model.
         :param log_model_extra_data:     Extra data to log with the model.
@@ -106,29 +101,42 @@ class MLRunLoggingCallback(LoggingCallback):
 
         # Replace the logger with an MLRunLogger:
         del self._logger
-        self._logger = MLRunLogger(
-            context=context,
-            log_model_labels=log_model_labels,
-            log_model_parameters=log_model_parameters,
-            log_model_extra_data=log_model_extra_data,
-        )
+        self._logger = MLRunLogger(context=context)
 
-        # Store the additional PyTorchModelHandler parameters for logging the model later:
-        self._custom_objects_map = custom_objects_map
-        self._custom_objects_directory = custom_objects_directory
+        # Store the given handler:
+        self._model_handler = model_handler
+
+        # Store the attributes to log along the model:
+        self._log_model_tag = log_model_tag
+        self._log_model_labels = log_model_labels
+        self._log_model_parameters = log_model_parameters
+        self._log_model_extra_data = log_model_extra_data
+
+        # Setup the additional PyTorchModelHandler parameters for logging the model later:
+        self._input_sample = None  # type: PyTorchModelHandler.IOSample
+        self._output_sample = None  # type: PyTorchModelHandler.IOSample
 
     def on_run_end(self):
         """
         Before the run ends, this method will be called to log the model and the run summaries charts.
         """
-        model = self._objects[self._ObjectKeys.MODEL]
+        # Check if the logger is in evaluation mode, if so, log the last epoch
+        if self._logger.mode == LoggingMode.EVALUATION:
+            self._logger.log_epoch_to_context(epoch=1)
+
+        # Set the inputs and outputs:
+        if self._model_handler.inputs is None:
+            self._model_handler.set_inputs(from_sample=self._input_sample)
+        if self._model_handler.outputs is None:
+            self._model_handler.set_outputs(from_sample=self._output_sample)
+
+        # End the run:
         self._logger.log_run(
-            model_handler=PyTorchModelHandler(
-                model_name=type(model).__name__,
-                custom_objects_map=self._custom_objects_map,
-                custom_objects_directory=self._custom_objects_directory,
-                model=model,
-            )
+            model_handler=self._model_handler,
+            tag=self._log_model_tag,
+            labels=self._log_model_labels,
+            parameters=self._log_model_parameters,
+            extra_data=self._log_model_extra_data,
         )
 
     def on_epoch_end(self, epoch: int):
@@ -142,3 +150,24 @@ class MLRunLoggingCallback(LoggingCallback):
 
         # Create child context to hold the current epoch's results:
         self._logger.log_epoch_to_context(epoch=epoch)
+
+    def on_inference_begin(self, x: Tensor):
+        """
+        Before the inference of the current batch sample into the model, this method will be called to save an input
+        sample - a zeros tensor with the same properties of the 'x' input.
+
+        :param x: The input of the current batch.
+        """
+        if self._input_sample is None:
+            self._input_sample = torch.zeros(size=x.shape, dtype=x.dtype)
+
+    def on_inference_end(self, y_pred: Tensor, y_true: Tensor):
+        """
+        After the inference of the current batch sample, this method will be called to save an output sample - a zeros
+        tensor with the same properties of the 'y_pred' output.
+
+        :param y_pred: The prediction (output) of the model for this batch's input ('x').
+        :param y_true: The ground truth value of the current batch.
+        """
+        if self._output_sample is None:
+            self._output_sample = torch.zeros(size=y_pred.shape, dtype=y_pred.dtype)

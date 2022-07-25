@@ -15,7 +15,10 @@
 # this file is based on the code from kubeflow pipelines git
 import os
 
+import mlrun
+from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.utils.helpers import logger
 
 from .iguazio import mount_v3io
 
@@ -63,19 +66,27 @@ def auto_mount(pvc_name="", volume_mount_path="", volume_name=None):
 
     volume will be selected by the following order:
     - k8s PVC volume when both pvc_name and volume_mount_path are set
-    - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
+    - k8s PVC volume if it's configured as the auto mount type
+    - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
     """
     if pvc_name and volume_mount_path:
         return mount_pvc(
             pvc_name=pvc_name,
             volume_mount_path=volume_mount_path,
-            volume_name=volume_name or "pvc",
+            volume_name=volume_name or "shared-persistency",
         )
     if "MLRUN_PVC_MOUNT" in os.environ:
-        return mount_pvc(volume_name=volume_name or "pvc",)
+        return mount_pvc(
+            volume_name=volume_name or "shared-persistency",
+        )
+    # In the case of MLRun-kit when working remotely, no env variables will be defined but auto-mount
+    # parameters may still be declared - use them in that case.
+    if config.storage.auto_mount_type == "pvc":
+        return mount_pvc(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
+
     raise ValueError("failed to auto mount, need to set env vars")
 
 
@@ -105,3 +116,145 @@ def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
         )
 
     return _mount_secret
+
+
+def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=None):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param configmap_name:  k8s configmap name
+    :param mount_path:      path to mount inside the container
+    :param volume_name:     unique volume name
+    :param items:           If unspecified, each key-value pair in the Data field
+                            of the referenced Configmap will be projected into the
+                            volume as a file whose name is the key and content is
+                            the value.
+                            If specified, the listed keys will be projected into
+                            the specified paths, and unlisted keys will not be
+                            present.
+    """
+
+    def _mount_configmap(task):
+        from kubernetes import client as k8s_client
+
+        vol = k8s_client.V1ConfigMapVolumeSource(name=configmap_name, items=items)
+        return task.add_volume(
+            k8s_client.V1Volume(name=volume_name, config_map=vol)
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_configmap
+
+
+def mount_hostpath(host_path, mount_path, volume_name="hostpath"):
+    """Modifier function to mount kubernetes configmap as files(s)
+
+    :param host_path:  host path
+    :param mount_path:   path to mount inside the container
+    :param volume_name:  unique volume name
+    """
+
+    def _mount_hostpath(task):
+        from kubernetes import client as k8s_client
+
+        return task.add_volume(
+            k8s_client.V1Volume(
+                name=volume_name,
+                host_path=k8s_client.V1HostPathVolumeSource(path=host_path, type=""),
+            )
+        ).add_volume_mount(
+            k8s_client.V1VolumeMount(mount_path=mount_path, name=volume_name)
+        )
+
+    return _mount_hostpath
+
+
+def mount_s3(
+    secret_name=None,
+    aws_access_key="",
+    aws_secret_key="",
+    endpoint_url=None,
+    prefix="",
+    aws_region=None,
+    non_anonymous=False,
+):
+    """Modifier function to add s3 env vars or secrets to container
+
+    :param secret_name: kubernetes secret name (storing the access/secret keys)
+    :param aws_access_key: AWS_ACCESS_KEY_ID value
+    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value
+    :param endpoint_url: s3 endpoint address (for non AWS s3)
+    :param prefix: string prefix to add before the env var name (for working with multiple s3 data stores)
+    :param aws_region: amazon region
+    :param non_anonymous: force the S3 API to use non-anonymous connection, even if no credentials are provided
+        (for authenticating externally, such as through IAM instance-roles)
+    :return:
+    """
+
+    if secret_name and (aws_access_key or aws_secret_key):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both"
+        )
+
+    if aws_access_key or aws_secret_key:
+        logger.warning(
+            "it is recommended to use k8s secret (specify secret_name), "
+            "specifying the aws_access_key/aws_secret_key directly is unsafe"
+        )
+
+    def _use_s3_cred(container_op):
+        from os import environ
+
+        from kubernetes import client as k8s_client
+
+        _access_key = aws_access_key or environ.get(prefix + "AWS_ACCESS_KEY_ID")
+        _secret_key = aws_secret_key or environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
+        _endpoint_url = endpoint_url or environ.get(prefix + "S3_ENDPOINT_URL")
+
+        container = container_op.container
+        if _endpoint_url:
+            container.add_env_variable(
+                k8s_client.V1EnvVar(name=prefix + "S3_ENDPOINT_URL", value=endpoint_url)
+            )
+        if aws_region:
+            container.add_env_variable(
+                k8s_client.V1EnvVar(name=prefix + "AWS_REGION", value=aws_region)
+            )
+        if non_anonymous:
+            container.add_env_variable(
+                k8s_client.V1EnvVar(name=prefix + "S3_NON_ANONYMOUS", value="true")
+            )
+
+        if secret_name:
+            container.add_env_variable(
+                k8s_client.V1EnvVar(
+                    name=prefix + "AWS_ACCESS_KEY_ID",
+                    value_from=k8s_client.V1EnvVarSource(
+                        secret_key_ref=k8s_client.V1SecretKeySelector(
+                            name=secret_name, key="AWS_ACCESS_KEY_ID"
+                        )
+                    ),
+                )
+            ).add_env_variable(
+                k8s_client.V1EnvVar(
+                    name=prefix + "AWS_SECRET_ACCESS_KEY",
+                    value_from=k8s_client.V1EnvVarSource(
+                        secret_key_ref=k8s_client.V1SecretKeySelector(
+                            name=secret_name, key="AWS_SECRET_ACCESS_KEY"
+                        )
+                    ),
+                )
+            )
+
+        else:
+            return container_op.add_env_variable(
+                k8s_client.V1EnvVar(
+                    name=prefix + "AWS_ACCESS_KEY_ID", value=_access_key
+                )
+            ).add_env_variable(
+                k8s_client.V1EnvVar(
+                    name=prefix + "AWS_SECRET_ACCESS_KEY", value=_secret_key
+                )
+            )
+
+    return _use_s3_cred

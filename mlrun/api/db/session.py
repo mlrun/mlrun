@@ -9,3 +9,12 @@ def create_session() -> Session:
 
 def close_session(db_session):
     db_session.close()
+
+
+def run_function_with_new_db_session(func):
+    session = create_session()
+    try:
+        result = func(session)
+        return result
+    finally:
+        close_session(session)

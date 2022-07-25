@@ -1,17 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union
+from typing import List
 
-import numpy as np
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-# Supported types of loss and metrics values:
-MetricValueType = Union[int, float, np.ndarray, Tensor]
-
-# Supported types of metrics:
-MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
+from ..utils import PyTorchTypes
 
 
 class Callback(ABC):
@@ -59,7 +54,7 @@ class Callback(ABC):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
     ):
         """
@@ -132,7 +127,7 @@ class Callback(ABC):
         pass
 
     def on_validation_end(
-        self, loss_value: MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
     ) -> bool:
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called.
@@ -145,7 +140,7 @@ class Callback(ABC):
         """
         return True
 
-    def on_train_batch_begin(self, batch: int, x, y_true: Tensor):
+    def on_train_batch_begin(self, batch: int, x: Tensor, y_true: Tensor):
         """
         After the training of the given batch begins, this method will be called.
 
@@ -155,7 +150,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_train_batch_end(self, batch: int, x, y_pred: Tensor, y_true: Tensor) -> bool:
+    def on_train_batch_end(
+        self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor
+    ) -> bool:
         """
         Before the training of the given batch ends, this method will be called.
 
@@ -168,7 +165,7 @@ class Callback(ABC):
         """
         return True
 
-    def on_validation_batch_begin(self, batch: int, x, y_true: Tensor):
+    def on_validation_batch_begin(self, batch: int, x: Tensor, y_true: Tensor):
         """
         After the validation of the given batch begins, this method will be called.
 
@@ -179,7 +176,7 @@ class Callback(ABC):
         pass
 
     def on_validation_batch_end(
-        self, batch: int, x, y_pred: Tensor, y_true: Tensor
+        self, batch: int, x: Tensor, y_pred: Tensor, y_true: Tensor
     ) -> bool:
         """
         Before the validation of the given batch ends, this method will be called.
@@ -194,7 +191,7 @@ class Callback(ABC):
         """
         return True
 
-    def on_inference_begin(self, x):
+    def on_inference_begin(self, x: Tensor):
         """
         Before the inference of the current batch sample into the model, this method will be called to process the
         input.
@@ -219,7 +216,7 @@ class Callback(ABC):
         """
         pass
 
-    def on_train_loss_end(self, loss_value: MetricValueType):
+    def on_train_loss_end(self, loss_value: PyTorchTypes.MetricValueType):
         """
         After the training calculation of the loss, this method will be called.
 
@@ -233,7 +230,7 @@ class Callback(ABC):
         """
         pass
 
-    def on_validation_loss_end(self, loss_value: MetricValueType):
+    def on_validation_loss_end(self, loss_value: PyTorchTypes.MetricValueType):
         """
         After the validating calculation of the loss, this method will be called.
 
@@ -247,7 +244,7 @@ class Callback(ABC):
         """
         pass
 
-    def on_train_metrics_end(self, metric_values: List[MetricValueType]):
+    def on_train_metrics_end(self, metric_values: List[PyTorchTypes.MetricValueType]):
         """
         After the training calculation of the metrics, this method will be called.
 
@@ -261,7 +258,9 @@ class Callback(ABC):
         """
         pass
 
-    def on_validation_metrics_end(self, metric_values: List[MetricValueType]):
+    def on_validation_metrics_end(
+        self, metric_values: List[PyTorchTypes.MetricValueType]
+    ):
         """
         After the validating calculation of the metrics, this method will be called.
 

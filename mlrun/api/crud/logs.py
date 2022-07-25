@@ -12,11 +12,18 @@ from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.runtimes.constants import PodPhases
+from mlrun.utils import logger
 
 
-class Logs(metaclass=mlrun.utils.singleton.Singleton,):
+class Logs(
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     def store_log(
-        self, body: bytes, project: str, uid: str, append: bool = True,
+        self,
+        body: bytes,
+        project: str,
+        uid: str,
+        append: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
         log_file = log_path(project, uid)
@@ -26,7 +33,8 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
             fp.write(body)
 
     def delete_logs(
-        self, project: str,
+        self,
+        project: str,
     ):
         project = project or mlrun.mlconf.default_project
         logs_path = project_logs_path(project)
@@ -60,8 +68,19 @@ class Logs(metaclass=mlrun.utils.singleton.Singleton,):
                 out = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
             if get_k8s():
-                pods = get_k8s().get_logger_pods(project, uid)
+                run_kind = data.get("metadata", {}).get("labels", {}).get("kind")
+                pods = get_k8s().get_logger_pods(project, uid, run_kind)
                 if pods:
+                    if len(pods) > 1:
+
+                        # This shouldn't happen, but if it does, we log it here. No need to fail.
+                        logger.debug(
+                            "Got more than one pod in logger pods result",
+                            run_uid=uid,
+                            run_kind=run_kind,
+                            project=project,
+                            pods=pods,
+                        )
                     pod, pod_phase = list(pods.items())[0]
                     if pod_phase != PodPhases.pending:
                         resp = get_k8s().logs(pod)

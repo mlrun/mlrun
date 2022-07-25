@@ -1,6 +1,5 @@
 import os.path
 import pathlib
-import shutil
 import typing
 import unittest.mock
 
@@ -19,93 +18,36 @@ class Constants(object):
     unknown_revision = "revision3"
 
 
-@pytest.mark.parametrize("from_scratch", [True, False])
-def test_no_database_exists(
-    mock_alembic, mock_database, mock_shutil_copy, from_scratch
-):
+def test_no_database_exists(mock_alembic, mock_database):
     mock_database(db_file_exists=False)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
-    mock_shutil_copy.assert_not_called()
 
 
-@pytest.mark.parametrize("from_scratch", [True, False])
-def test_database_exists_no_revision(
-    mock_alembic, mock_database, mock_shutil_copy, from_scratch
-):
+def test_database_exists_no_revision(mock_alembic, mock_database):
     mock_database()
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util.init_alembic()
 
-    # from scratch should skip stamp even if no revision exists
-    expected_stamp_calls = ["revision1"] if not from_scratch else []
-    assert mock_alembic.stamp_calls == expected_stamp_calls
     assert mock_alembic.upgrade_calls == ["head"]
-    mock_shutil_copy.assert_not_called()
 
 
-@pytest.mark.parametrize("from_scratch", [True, False])
-def test_database_exists_known_revision(
-    mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name, from_scratch
-):
+def test_database_exists_known_revision(mock_alembic, mock_database):
     mock_database(current_revision=Constants.initial_revision)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
-    mock_shutil_copy.assert_called_once_with(
-        mock_db_file_name, pathlib.Path(f"{Constants.initial_revision}.db")
-    )
 
 
-@pytest.mark.parametrize("from_scratch", [True, False])
-def test_database_exists_unknown_revision_successful_downgrade(
-    mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name, from_scratch
-):
+def test_database_exists_unknown(mock_alembic, mock_database):
     mock_database(current_revision=Constants.unknown_revision)
     alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    alembic_util.init_alembic(from_scratch=from_scratch)
+    alembic_util.init_alembic()
     assert mock_alembic.stamp_calls == []
     assert mock_alembic.upgrade_calls == ["head"]
-    copy_calls = [
-        # first copy - backup the current database before downgrading
-        unittest.mock.call(
-            mock_db_file_name, pathlib.Path(f"{Constants.unknown_revision}.db")
-        ),
-        # second copy - to downgrade to the old db file
-        unittest.mock.call(
-            pathlib.Path(f"{Constants.latest_revision}.db"), mock_db_file_name
-        ),
-        # third copy - to back up the db file. In a real scenario the backup would be {latest_revision}.db
-        # as the revision should change during the last copy, but changing a mock during the init_alembic function
-        # is cumbersome and might make the test unreadable - so the current revision stays unknown_revision.
-        unittest.mock.call(
-            mock_db_file_name, pathlib.Path(f"{Constants.unknown_revision}.db")
-        ),
-    ]
-    mock_shutil_copy.assert_has_calls(copy_calls)
-
-
-@pytest.mark.parametrize("from_scratch", [True, False])
-def test_database_exists_unknown_revision_failed_downgrade(
-    mock_alembic, mock_database, mock_shutil_copy, mock_db_file_name, from_scratch
-):
-    mock_database(
-        current_revision=Constants.unknown_revision, db_backup_exists=False,
-    )
-    alembic_util = mlrun.api.utils.db.alembic.AlembicUtil(pathlib.Path(""))
-    with pytest.raises(
-        RuntimeError,
-        match=f"Cannot fall back to revision {Constants.latest_revision}, "
-        f"no back up exists. Current revision: {Constants.unknown_revision}",
-    ):
-        alembic_util.init_alembic(from_scratch=from_scratch)
-
-    assert mock_alembic.stamp_calls == []
-    assert mock_alembic.upgrade_calls == []
-    mock_shutil_copy.assert_not_called()
 
 
 @pytest.fixture()
@@ -152,13 +94,6 @@ def mock_db_file_name(monkeypatch) -> str:
     db_file_name = "test.db"
     monkeypatch.setattr(mlconf.httpdb, "dsn", db_file_name)
     return db_file_name
-
-
-@pytest.fixture()
-def mock_shutil_copy(monkeypatch) -> unittest.mock.Mock:
-    copy = unittest.mock.Mock()
-    monkeypatch.setattr(shutil, "copy2", copy)
-    return copy
 
 
 class MockAlembicCommand(object):

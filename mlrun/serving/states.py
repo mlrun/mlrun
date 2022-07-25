@@ -24,6 +24,7 @@ from typing import Union
 
 from ..config import config
 from ..datastore import get_stream_pusher
+from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_v3io_path
@@ -371,7 +372,7 @@ class TaskStep(BaseStep):
 
             # add common args (name, context, ..) only if target class can accept them
             argspec = getfullargspec(self._class_object)
-            for key in ["name", "context", "input_path", "result_path"]:
+            for key in ["name", "context", "input_path", "result_path", "full_event"]:
                 if argspec.varkw or key in argspec.args:
                     class_args[key] = getattr(self, key)
 
@@ -426,6 +427,8 @@ class TaskStep(BaseStep):
     def _post_init(self, mode="sync"):
         if self._object and hasattr(self._object, "post_init"):
             self._object.post_init(mode)
+            if hasattr(self._object, "model_endpoint_uid"):
+                self.endpoint_uid = self._object.model_endpoint_uid
 
     def respond(self):
         """mark this step as the responder.
@@ -453,6 +456,11 @@ class TaskStep(BaseStep):
         try:
             if self.full_event or self._call_with_event:
                 return self._handler(event, *args, **kwargs)
+
+            if self._handler is None:
+                raise MLRunInvalidArgumentError(
+                    f"step {self.name} does not have a handler"
+                )
 
             result = self._handler(
                 _extract_input_data(self.input_path, event.body), *args, **kwargs
@@ -511,7 +519,15 @@ class RouterStep(TaskStep):
     def routes(self, routes: dict):
         self._routes = ObjectDict.from_dict(classes_map, routes, "task")
 
-    def add_route(self, key, route=None, class_name=None, handler=None, **class_args):
+    def add_route(
+        self,
+        key,
+        route=None,
+        class_name=None,
+        handler=None,
+        function=None,
+        **class_args,
+    ):
         """add child route step or class to the router
 
         :param key:        unique name (and route path) for the child step
@@ -519,12 +535,14 @@ class RouterStep(TaskStep):
         :param class_name: class name to build the route step from (when route is not provided)
         :param class_args: class init arguments
         :param handler:    class handler to invoke on run/event
+        :param function:   function this step should run in
         """
 
-        if not route and not class_name:
+        if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)
+        route.function = function or route.function
         route = self._routes.update(key, route)
         route.set_parent(self)
         return route
@@ -546,6 +564,10 @@ class RouterStep(TaskStep):
         )
 
         for route in self._routes.values():
+            if self.function and not route.function:
+                # if the router runs on a child function and the
+                # model function is not specified use the router function
+                route.function = self.function
             route.set_parent(self)
             route.init_object(context, namespace, mode, reset=reset)
 
@@ -565,7 +587,14 @@ class RouterStep(TaskStep):
         yield from self._routes.keys()
 
     def plot(self, filename=None, format=None, source=None, **kw):
-        """plot/save a graphviz plot"""
+        """plot/save graph using graphviz
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
         return _generate_graphviz(
             self, _add_graphviz_router, filename, format, source=source, **kw
         )
@@ -580,6 +609,7 @@ class QueueStep(BaseStep):
         "path",
         "shards",
         "retention_in_hours",
+        "trigger_args",
         "options",
     ]
 
@@ -590,6 +620,7 @@ class QueueStep(BaseStep):
         after: list = None,
         shards: int = None,
         retention_in_hours: int = None,
+        trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
@@ -597,6 +628,7 @@ class QueueStep(BaseStep):
         self.shards = shards
         self.retention_in_hours = retention_in_hours
         self.options = options
+        self.trigger_args = trigger_args
         self._stream = None
         self._async_object = None
 
@@ -607,6 +639,7 @@ class QueueStep(BaseStep):
                 self.path,
                 shards=self.shards,
                 retention_in_hours=self.retention_in_hours,
+                **self.options,
             )
         self._set_error_handler()
 
@@ -872,6 +905,7 @@ class FlowStep(BaseStep):
         yield from self._steps.keys()
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        """initialize graph objects and classes"""
         self.context = context
         self.check_and_process_graph()
 
@@ -919,8 +953,8 @@ class FlowStep(BaseStep):
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
             if step.after:
-                prev_step = step.after[0]
-                self[prev_step].set_next(step.name)
+                for prev_step in step.after:
+                    self[prev_step].set_next(step.name)
         if self.on_error and self.on_error in start_steps:
             start_steps.remove(self.on_error)
 
@@ -998,10 +1032,6 @@ class FlowStep(BaseStep):
 
     def _build_async_flow(self):
         """initialize and build the async/storey DAG"""
-        try:
-            import storey
-        except ImportError:
-            raise GraphError("storey package is not installed, use pip install storey")
 
         def process_step(state, step, root):
             if not state._is_local_function(self.context):
@@ -1012,41 +1042,11 @@ class FlowStep(BaseStep):
                     next_step = step.to(next_state.async_object)
                     process_step(next_state, next_step, root)
 
-        for step in self._steps.values():
-            if hasattr(step, "async_object") and step._is_local_function(self.context):
-                if step.kind == StepKinds.queue:
-                    skip_stream = self.context.is_mock and step.next
-                    if step.path and not skip_stream:
-                        stream_path = step.path
-                        endpoint = None
-                        if "://" in stream_path:
-                            endpoint, stream_path = parse_v3io_path(step.path)
-                            stream_path = stream_path.strip("/")
-                        step._async_object = storey.StreamTarget(
-                            storey.V3ioDriver(endpoint), stream_path
-                        )
-                    else:
-                        step._async_object = storey.Map(lambda x: x)
+        default_source, self._wait_for_result = _init_async_objects(
+            self.context, self._steps.values()
+        )
 
-                elif not step.async_object or not hasattr(
-                    step.async_object, "_outlets"
-                ):
-                    # if regular class, wrap with storey Map
-                    step._async_object = storey.Map(
-                        step._handler,
-                        full_event=step.full_event or step._call_with_event,
-                        input_path=step.input_path,
-                        result_path=step.result_path,
-                        name=step.name,
-                        context=self.context,
-                    )
-                if not step.next and hasattr(step, "responder") and step.responder:
-                    # if responder step (return result), add Complete()
-                    step.async_object.to(storey.Complete(full_event=True))
-                    self._wait_for_result = True
-
-        # todo: allow source array (e.g. data->json loads..)
-        source = self._source or storey.SyncEmitSource()
+        source = self._source or default_source
         for next_state in self._start_steps:
             next_step = source.to(next_state.async_object)
             process_step(next_state, next_step, self)
@@ -1085,6 +1085,18 @@ class FlowStep(BaseStep):
         for step in self.get_children():
             if step.kind == StepKinds.queue:
                 step.init_object(self.context, None)
+
+    def list_child_functions(self):
+        """return a list of child function names referred to in the steps"""
+        functions = []
+        for step in self.get_children():
+            if (
+                hasattr(step, "function")
+                and step.function
+                and step.function not in functions
+            ):
+                functions.append(step.function)
+        return functions
 
     def is_empty(self):
         """is the graph empty (no child steps)"""
@@ -1151,7 +1163,15 @@ class FlowStep(BaseStep):
             return self._controller.await_termination()
 
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
-        """plot/save graph using graphviz"""
+        """plot/save graph using graphviz
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param targets:   list of target steps to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
         return _generate_graphviz(
             self,
             _add_graphviz_flow,
@@ -1203,7 +1223,10 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
 
 
 def _add_graphviz_flow(
-    graph, step, source=None, targets=None,
+    graph,
+    step,
+    source=None,
+    targets=None,
 ):
     start_steps, default_final_step, responders = step.check_and_process_graph(
         allow_empty=True
@@ -1240,7 +1263,13 @@ def _add_graphviz_flow(
 
 
 def _generate_graphviz(
-    step, renderer, filename=None, format=None, source=None, targets=None, **kw,
+    step,
+    renderer,
+    filename=None,
+    format=None,
+    source=None,
+    targets=None,
+    **kw,
 ):
     try:
         from graphviz import Digraph
@@ -1374,3 +1403,68 @@ def params_to_step(
     if graph_shape:
         step.shape = graph_shape
     return name, step
+
+
+def _init_async_objects(context, steps):
+    try:
+        import storey
+    except ImportError:
+        raise GraphError("storey package is not installed, use pip install storey")
+
+    wait_for_result = False
+
+    for step in steps:
+        if hasattr(step, "async_object") and step._is_local_function(context):
+            if step.kind == StepKinds.queue:
+                skip_stream = context.is_mock and step.next
+                if step.path and not skip_stream:
+                    stream_path = step.path
+                    endpoint = None
+                    kafka_bootstrap_servers = step.options.get(
+                        "kafka_bootstrap_servers"
+                    )
+                    if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
+                        topic, bootstrap_servers = parse_kafka_url(
+                            stream_path, kafka_bootstrap_servers
+                        )
+
+                        kafka_producer_options = step.options.get(
+                            "kafka_producer_options"
+                        )
+
+                        step._async_object = storey.KafkaTarget(
+                            topic=topic,
+                            bootstrap_servers=bootstrap_servers,
+                            producer_options=kafka_producer_options,
+                            context=context,
+                        )
+                    else:
+                        if stream_path.startswith("v3io://"):
+                            endpoint, stream_path = parse_v3io_path(step.path)
+                            stream_path = stream_path.strip("/")
+                        step._async_object = storey.StreamTarget(
+                            storey.V3ioDriver(endpoint),
+                            stream_path,
+                            context=context,
+                        )
+                else:
+                    step._async_object = storey.Map(lambda x: x)
+
+            elif not step.async_object or not hasattr(step.async_object, "_outlets"):
+                # if regular class, wrap with storey Map
+                step._async_object = storey.Map(
+                    step._handler,
+                    full_event=step.full_event or step._call_with_event,
+                    input_path=step.input_path,
+                    result_path=step.result_path,
+                    name=step.name,
+                    context=context,
+                )
+            if not step.next and hasattr(step, "responder") and step.responder:
+                # if responder step (return result), add Complete()
+                step.async_object.to(storey.Complete(full_event=True))
+                wait_for_result = True
+
+    source_args = context.get_param("source_args", {})
+    default_source = storey.SyncEmitSource(context=context, **source_args)
+    return default_source, wait_for_result

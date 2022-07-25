@@ -8,8 +8,8 @@ on:
   schedule:
 
     # * is a special character in YAML so you have to quote this string
-    # Run the system tests every 3 hours
-    - cron:  '0 */3 * * *'
+    # Run the system tests every 4 hours
+    - cron:  '0 */4 * * *'
 
   workflow_dispatch:
     inputs:
@@ -39,7 +39,8 @@ on:
 
 jobs:
   run-system-tests-enterprise-ci:
-    timeout-minutes: 60
+    # When increasing the timeout make sure it's not larger than the schedule cron interval
+    timeout-minutes: 240
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
 
@@ -105,7 +106,8 @@ jobs:
         upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
         export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
         echo "::set-output name=ui_hash::$(echo $ui_hash)"
-        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
+        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}+$mlrun_hash)"
+        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
         echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-$ui_hash"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
@@ -126,8 +128,15 @@ jobs:
         poll-interval-seconds: 20s
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Write google big query credentials to file
+      id: credentials
+      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
+      run: |
+        export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
+        echo  ${{ secrets.V06_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
+      timeout-minutes: 20
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
@@ -141,12 +150,13 @@ jobs:
           "${{ secrets.V06_SYSTEM_TEST_USERNAME }}" \
           "${{ secrets.V06_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ steps.computed_params.outputs.iguazio_version }}" \
+          "${{ secrets.V06_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.V06_SYSTEM_TEST_PASSWORD }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_version }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
     - name: Prepare System Test env.yaml and 0.5.x system
       if: ${{ steps.git_info.outputs.branch == '0.5.x' }}
@@ -167,9 +177,10 @@ jobs:
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_version }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
+          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
+        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
           make test-system-dockerized

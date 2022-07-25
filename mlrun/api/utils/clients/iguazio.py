@@ -1,11 +1,11 @@
 import copy
 import datetime
+import enum
 import http
 import json
 import typing
 import urllib.parse
 
-import deepdiff
 import fastapi
 import requests.adapters
 import urllib3
@@ -61,12 +61,17 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1)
+            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
+            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
         )
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
-        self._wait_for_job_completion_retry_interval = 5
+        # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
+        # has not been completed, increase the interval to retry every 5 seconds
+        self._wait_for_job_completion_retry_interval = mlrun.utils.create_step_backoff(
+            [[1, 10], [5, None]]
+        )
         self._wait_for_project_terminal_state_retry_interval = 5
 
     def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
@@ -134,30 +139,21 @@ class Client(
                 SessionPlanes.data,
                 SessionPlanes.control,
             ]
-
-        response = self._send_request_to_api(
-            "GET", "access_keys", "Failed getting access keys from Iguazio", session,
-        )
-        response_body = response.json()
-        for access_key in response_body.get("data", []):
-            access_key_planes = access_key.get("attributes", {}).get("planes", [])
-            if deepdiff.DeepDiff(planes, access_key_planes, ignore_order=True,) == {}:
-                return access_key["id"]
-        # If we're here we couldn't find an existing access key with the requested planes, so let's create one
         body = {
             "data": {
                 "type": "access_key",
                 "attributes": {"label": "MLRun", "planes": planes},
             }
         }
-        logger.debug("Creating access key in Iguazio", planes=planes)
         response = self._send_request_to_api(
             "POST",
-            "access_keys",
-            "Failed verifying iguazio session",
+            "self/get_or_create_access_key",
+            "Failed getting or creating iguazio access key",
             session,
             json=body,
         )
+        if response.status_code == http.HTTPStatus.CREATED.value:
+            logger.debug("Created access key in Iguazio", planes=planes)
         return response.json()["data"]["id"]
 
     def create_project(
@@ -165,28 +161,22 @@ class Client(
         session: str,
         project: mlrun.api.schemas.Project,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> bool:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
-        return self._create_project_in_iguazio(session, body, wait_for_completion)
+        return self._create_project_in_iguazio(
+            session, project.metadata.name, body, wait_for_completion
+        )
 
-    def store_project(
+    def update_project(
         self,
         session: str,
         name: str,
         project: mlrun.api.schemas.Project,
-        wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        logger.debug("Storing project in Iguazio", name=name, project=project)
+    ):
+        logger.debug("Updating project in Iguazio", name=name, project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
-        try:
-            self._get_project_from_iguazio(session, name)
-        except requests.HTTPError as exc:
-            if exc.response.status_code != http.HTTPStatus.NOT_FOUND.value:
-                raise
-            return self._create_project_in_iguazio(session, body, wait_for_completion)
-        else:
-            return self._put_project_to_iguazio(session, name, body), False
+        self._put_project_to_iguazio(session, name, body)
 
     def delete_project(
         self,
@@ -229,6 +219,11 @@ class Client(
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
+                logger.debug(
+                    "Waiting for project deletion job in Iguazio",
+                    name=name,
+                    job_id=job_id,
+                )
                 self._wait_for_job_completion(
                     session, job_id, "Project deletion job failed"
                 )
@@ -236,7 +231,10 @@ class Client(
             return True
 
     def list_projects(
-        self, session: str, updated_after: typing.Optional[datetime.datetime] = None,
+        self,
+        session: str,
+        updated_after: typing.Optional[datetime.datetime] = None,
+        page_size: typing.Optional[int] = None,
     ) -> typing.Tuple[
         typing.List[mlrun.api.schemas.Project], typing.Optional[datetime.datetime]
     ]:
@@ -244,6 +242,12 @@ class Client(
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
             params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
+        if page_size is None:
+            page_size = (
+                mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
+            )
+        if page_size is not None:
+            params["page[size]"] = int(page_size)
 
         params["include"] = "owner"
         response = self._send_request_to_api(
@@ -262,11 +266,17 @@ class Client(
         latest_updated_at = self._find_latest_updated_at(response_body)
         return projects, latest_updated_at
 
-    def get_project(self, session: str, name: str,) -> mlrun.api.schemas.Project:
+    def get_project(
+        self,
+        session: str,
+        name: str,
+    ) -> mlrun.api.schemas.Project:
         return self._get_project_from_iguazio(session, name)
 
     def get_project_owner(
-        self, session: str, name: str,
+        self,
+        session: str,
+        name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
             session, name, include_owner_session=True
@@ -297,18 +307,20 @@ class Client(
         return latest_updated_at
 
     def _create_project_in_iguazio(
-        self, session: str, body: dict, wait_for_completion: bool
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
-        project, job_id = self._post_project_to_iguazio(session, body)
+        self, session: str, name: str, body: dict, wait_for_completion: bool
+    ) -> bool:
+        _, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
+            logger.debug(
+                "Waiting for project creation job in Iguazio",
+                name=name,
+                job_id=job_id,
+            )
             self._wait_for_job_completion(
                 session, job_id, "Project creation job failed"
             )
-            return (
-                self._get_project_from_iguazio(session, project.metadata.name),
-                False,
-            )
-        return project, True
+            return False
+        return True
 
     def _post_project_to_iguazio(
         self, session: str, body: dict
@@ -417,6 +429,14 @@ class Client(
                 kwargs.setdefault("headers", {})[
                     mlrun.api.schemas.HeaderNames.projects_role
                 ] = "mlrun"
+
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for kwarg in ["headers", "params"]:
+            dict_ = kwargs.get(kwarg, {})
+            for key in dict_.keys():
+                if isinstance(dict_[key], enum.Enum):
+                    dict_[key] = dict_[key].value
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)
@@ -477,13 +497,13 @@ class Client(
             body["data"]["attributes"][
                 "created_at"
             ] = project.metadata.created.isoformat()
-        if project.metadata.labels:
+        if project.metadata.labels is not None:
             body["data"]["attributes"][
                 "labels"
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.labels
             )
-        if project.metadata.annotations:
+        if project.metadata.annotations is not None:
             body["data"]["attributes"][
                 "annotations"
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
@@ -552,12 +572,16 @@ class Client(
                 "description"
             ]
         if iguazio_project["attributes"].get("labels"):
-            mlrun_project.metadata.labels = Client._transform_iguazio_labels_to_mlrun_labels(
-                iguazio_project["attributes"]["labels"]
+            mlrun_project.metadata.labels = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["labels"]
+                )
             )
         if iguazio_project["attributes"].get("annotations"):
-            mlrun_project.metadata.annotations = Client._transform_iguazio_labels_to_mlrun_labels(
-                iguazio_project["attributes"]["annotations"]
+            mlrun_project.metadata.annotations = (
+                Client._transform_iguazio_labels_to_mlrun_labels(
+                    iguazio_project["attributes"]["annotations"]
+                )
             )
         if iguazio_project["attributes"].get("owner_username"):
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]

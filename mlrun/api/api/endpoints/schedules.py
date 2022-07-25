@@ -4,11 +4,14 @@ import fastapi.concurrency
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.utils import logger
 
 router = APIRouter()
 
@@ -17,6 +20,7 @@ router = APIRouter()
 def create_schedule(
     project: str,
     schedule: schemas.ScheduleInput,
+    request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -30,6 +34,23 @@ def create_schedule(
         mlrun.api.schemas.AuthorizationAction.create,
         auth_info,
     )
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to create schedule, re-routing to chief",
+            project=project,
+            schedule=schedule.dict(),
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.create_schedule(
+            project=project, request=request, json=schedule.dict()
+        )
+
+    if not auth_info.access_key:
+        auth_info.access_key = schedule.credentials.access_key
     get_scheduler().create_schedule(
         db_session,
         auth_info,
@@ -38,8 +59,8 @@ def create_schedule(
         schedule.kind,
         schedule.scheduled_object,
         schedule.cron_trigger,
-        labels=schedule.labels,
-        concurrency_limit=schedule.concurrency_limit,
+        schedule.labels,
+        schedule.concurrency_limit,
     )
     return Response(status_code=HTTPStatus.CREATED.value)
 
@@ -49,6 +70,7 @@ def update_schedule(
     project: str,
     name: str,
     schedule: schemas.ScheduleUpdate,
+    request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -59,6 +81,24 @@ def update_schedule(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to update schedule, re-routing to chief",
+            project=project,
+            name=name,
+            schedule=schedule.dict(),
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.update_schedule(
+            project=project, name=name, request=request, json=schedule.dict()
+        )
+
+    if not auth_info.access_key:
+        auth_info.access_key = schedule.credentials.access_key
     get_scheduler().update_schedule(
         db_session,
         auth_info,
@@ -78,19 +118,25 @@ def list_schedules(
     labels: str = None,
     kind: schemas.ScheduleKinds = None,
     include_last_run: bool = False,
+    include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     schedules = get_scheduler().list_schedules(
-        db_session, project, name, kind, labels, include_last_run=include_last_run,
+        db_session, project, name, kind, labels, include_last_run, include_credentials
     )
     filtered_schedules = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
         schedules.schedules,
-        lambda schedule: (schedule.project, schedule.name,),
+        lambda schedule: (
+            schedule.project,
+            schedule.name,
+        ),
         auth_info,
     )
     schedules.schedules = filtered_schedules
@@ -104,11 +150,12 @@ def get_schedule(
     project: str,
     name: str,
     include_last_run: bool = False,
+    include_credentials: bool = fastapi.Query(False, alias="include-credentials"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
     schedule = get_scheduler().get_schedule(
-        db_session, project, name, include_last_run=include_last_run,
+        db_session, project, name, include_last_run, include_credentials
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
@@ -124,6 +171,7 @@ def get_schedule(
 async def invoke_schedule(
     project: str,
     name: str,
+    request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -135,6 +183,19 @@ async def invoke_schedule(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to invoke schedule, re-routing to chief",
+            project=project,
+            name=name,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.invoke_schedule(project=project, name=name, request=request)
+
     return await get_scheduler().invoke_schedule(db_session, auth_info, project, name)
 
 
@@ -144,6 +205,7 @@ async def invoke_schedule(
 def delete_schedule(
     project: str,
     name: str,
+    request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -154,6 +216,19 @@ def delete_schedule(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to delete schedule, re-routing to chief",
+            project=project,
+            name=name,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.delete_schedule(project=project, name=name, request=request)
+
     get_scheduler().delete_schedule(db_session, project, name)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -161,10 +236,14 @@ def delete_schedule(
 @router.delete("/projects/{project}/schedules", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_schedules(
     project: str,
+    request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    schedules = get_scheduler().list_schedules(db_session, project,)
+    schedules = get_scheduler().list_schedules(
+        db_session,
+        project,
+    )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.schedule,
         schedules.schedules,
@@ -172,5 +251,17 @@ def delete_schedules(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to delete all project schedules, re-routing to chief",
+            project=project,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.delete_schedules(project=project, request=request)
+
     get_scheduler().delete_schedules(db_session, project)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

@@ -30,7 +30,11 @@ async def store_log(
     )
     body = await request.body()
     await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.crud.Logs().store_log, body, project, uid, append,
+        mlrun.api.crud.Logs().store_log,
+        body,
+        project,
+        uid,
+        append,
     )
     return {}
 

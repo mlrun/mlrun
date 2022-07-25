@@ -12,9 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_PYTHON_VERSION=3.7
+ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
+
+RUN apt-get update && \
+    apt-get -s dist-upgrade | \
+    grep "^Inst" | \
+    grep -i securi | \
+    awk -F " " {'print $2'} | \
+    xargs apt-get install -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -25,7 +33,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 WORKDIR /mlrun
 
-RUN python -m pip install --upgrade pip~=20.2.0
+ARG MLRUN_PIP_VERSION=22.0.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt

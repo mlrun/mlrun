@@ -8,6 +8,11 @@ from tests.conftest import results
 from .demo_states import *  # noqa
 
 
+class _DummyStreamRaiser:
+    def push(self, data):
+        raise ValueError("DummyStreamRaiser raises an error")
+
+
 def test_async_basic(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
@@ -93,3 +98,20 @@ def test_on_error(db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Se
     assert (
         resp["error"] and resp["origin_state"] == "Raiser"
     ), f"error wasnt caught, resp={resp}"
+
+
+def test_push_error():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    chain = graph.to("Chain", name="s1")
+    chain.to("Raiser")
+
+    function.verbose = True
+    server = function.to_mock_server()
+    server.error_stream = "dummy:///nothing"
+    # Force an error inside push_error itself
+    server._error_stream_object = _DummyStreamRaiser()
+    logger.info(graph.to_yaml())
+
+    server.test(body=[])
+    server.wait_for_completion()

@@ -16,7 +16,9 @@ logger = logging.getLogger("version_file")
 def main():
     parser = argparse.ArgumentParser(description="Create or update the version file")
 
-    parser.add_argument("--mlrun-version", type=str, required=False, default="unstable")
+    parser.add_argument(
+        "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
+    )
 
     args = parser.parse_args()
 
@@ -55,11 +57,18 @@ def _run_command(command, args=None):
 
     if sys.version_info[0] >= 3:
         process = subprocess.run(
-            command, shell=True, check=True, capture_output=True, encoding="utf-8",
+            command,
+            shell=True,
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
         )
         output = process.stdout
     else:
-        output = subprocess.check_output(command, shell=True,)
+        output = subprocess.check_output(
+            command,
+            shell=True,
+        )
 
     return output
 

@@ -6,6 +6,7 @@ from mlrun.api.api.endpoints import (
     auth,
     background_tasks,
     client_spec,
+    clusterization_spec,
     feature_store,
     files,
     frontend_spec,
@@ -15,6 +16,7 @@ from mlrun.api.api.endpoints import (
     logs,
     marketplace,
     model_endpoints,
+    operations,
     pipelines,
     projects,
     runs,
@@ -24,7 +26,7 @@ from mlrun.api.api.endpoints import (
     submit,
 )
 
-api_router = APIRouter()
+api_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
 api_router.include_router(
     artifacts.router,
     tags=["artifacts"],
@@ -52,6 +54,7 @@ api_router.include_router(
 )
 api_router.include_router(healthz.router, tags=["healthz"])
 api_router.include_router(client_spec.router, tags=["client-spec"])
+api_router.include_router(clusterization_spec.router, tags=["clusterization-spec"])
 api_router.include_router(
     logs.router,
     tags=["logs"],
@@ -107,5 +110,10 @@ api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
 api_router.include_router(
     marketplace.router,
     tags=["marketplace"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    operations.router,
+    tags=["operations"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

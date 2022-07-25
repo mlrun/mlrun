@@ -84,7 +84,7 @@ class ProjectOwner(pydantic.BaseModel):
 
 class ProjectSummary(pydantic.BaseModel):
     name: str
-    functions_count: int
+    files_count: int
     feature_sets_count: int
     models_count: int
     runs_failed_recent_count: int

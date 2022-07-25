@@ -57,7 +57,7 @@ class TestDaskRuntime(TestRuntimeBase):
         _, kwargs = self.kube_cluster_mock.call_args
         return kwargs["scheduler_pod_template"]
 
-    def _get_namespace_arg(self):
+    def _get_create_pod_namespace_arg(self):
         _, kwargs = self.kube_cluster_mock.call_args
         return kwargs["namespace"]
 
@@ -84,7 +84,9 @@ class TestDaskRuntime(TestRuntimeBase):
 
         return dask_cluster
 
-    def _assert_scheduler_pod_args(self,):
+    def _assert_scheduler_pod_args(
+        self,
+    ):
         scheduler_pod = self._get_scheduler_pod_creation_args()
         scheduler_container_spec = scheduler_pod.spec.containers[0]
         assert scheduler_container_spec.args == ["dask-scheduler"]
@@ -109,6 +111,13 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_scheduler_requests,
         )
 
+    def assert_security_context(
+        self,
+        security_context=None,
+    ):
+        pod = self._get_pod_creation_args()
+        assert pod.spec.security_context == (security_context or {})
+
     def test_dask_runtime(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
 
@@ -130,6 +139,12 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
 
         expected_requests = generate_resources(mem="2G", cpu=3)
+        runtime.with_scheduler_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
+        runtime.with_worker_requests(
+            mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
         runtime.with_requests(
             mem=expected_requests["memory"], cpu=expected_requests["cpu"]
         )
@@ -146,7 +161,8 @@ class TestDaskRuntime(TestRuntimeBase):
             cpu=expected_scheduler_limits["cpu"],
         )
         runtime.with_worker_limits(
-            mem=expected_worker_limits["memory"], cpu=expected_worker_limits["cpu"],
+            mem=expected_worker_limits["memory"],
+            cpu=expected_worker_limits["cpu"],
         )
         runtime.gpus(expected_gpus, gpu_type)
         _ = runtime.client
@@ -167,6 +183,65 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_requests,
             expected_scheduler_limits,
         )
+
+    def test_dask_runtime_without_specifying_resources(
+        self, db: Session, client: TestClient
+    ):
+        for test_case in [
+            {
+                # when are not defaults defined
+                "default_function_pod_resources": {
+                    "requests": {"cpu": None, "memory": None, "gpu": None},
+                    "limits": {"cpu": None, "memory": None, "gpu": None},
+                },
+                "expected_scheduler_resources": {
+                    "requests": {},
+                    "limits": {},
+                },
+                "expected_worker_resources": {
+                    "requests": {},
+                    "limits": {},
+                },
+            },
+            {
+                "default_function_pod_resources": {  # with defaults
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+                "expected_scheduler_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+                "expected_worker_resources": {
+                    "requests": {"cpu": "25m", "memory": "1M"},
+                    "limits": {"cpu": "2", "memory": "1G"},
+                },
+            },
+        ]:
+            mlrun.mlconf.default_function_pod_resources = test_case.get(
+                "default_function_pod_resources"
+            )
+
+            runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
+            expected_worker_resources = test_case.setdefault(
+                "expected_worker_resources", {}
+            )
+            expected_scheduler_resources = test_case.setdefault(
+                "expected_scheduler_resources", {}
+            )
+
+            expected_worker_requests = expected_worker_resources.get("requests")
+            expected_worker_limits = expected_worker_resources.get("limits")
+            expected_scheduler_requests = expected_scheduler_resources.get("requests")
+            expected_scheduler_limits = expected_scheduler_resources.get("limits")
+
+            _ = runtime.client
+            self._assert_pods_resources(
+                expected_worker_requests,
+                expected_worker_limits,
+                expected_scheduler_requests,
+                expected_scheduler_limits,
+            )
 
     def test_dask_with_node_selection(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -245,3 +320,40 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
             expected_node_selector=node_selector,
         )
+
+    def test_dask_with_default_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+        self.kube_cluster_mock.assert_called_once()
+        self.assert_security_context()
+
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
+        default_security_context = self._generate_security_context(
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
+        )
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+        assert self.kube_cluster_mock.call_count == 2
+        self.assert_security_context(default_security_context)
+
+    def test_dask_with_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        other_security_context = self._generate_security_context(
+            2000,
+            2000,
+        )
+
+        # override security context
+        runtime.with_security_context(other_security_context)
+        _ = runtime.client
+        self.assert_security_context(other_security_context)

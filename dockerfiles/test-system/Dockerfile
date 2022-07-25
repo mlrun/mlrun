@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_PYTHON_VERSION=3.7.9
+ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
@@ -24,13 +24,22 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   make \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip~=20.2.0
+ARG MLRUN_PIP_VERSION=22.0.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
-COPY ./dockerfiles/test-system/requirements.txt /tmp/test-system-requirements.txt
-COPY ./extras-requirements.txt /tmp
-COPY ./requirements.txt /tmp
-RUN python -m pip install -r /tmp/requirements.txt -r /tmp/extras-requirements.txt -r /tmp/test-system-requirements.txt && rm -f /tmp/*requirements.txt
+COPY ./dockerfiles/test-system/requirements.txt /tmp/mlrun-requirements/test-system-requirements.txt
+COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/mlrun-requirements/mlrun-api-requirements.txt
+COPY ./extras-requirements.txt /tmp/mlrun-requirements
+COPY ./requirements.txt /tmp/mlrun-requirements
+RUN python -m pip install \
+  -r /tmp/mlrun-requirements/requirements.txt \
+  -r /tmp/mlrun-requirements/extras-requirements.txt \
+  -r /tmp/mlrun-requirements/mlrun-api-requirements.txt \
+  -r /tmp/mlrun-requirements/test-system-requirements.txt
 COPY . /tmp/mlrun
-RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile && cd /tmp && rm -rf mlrun
+RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile
+
+# Clean up all code used for building to simulate user env
+RUN rm -rf /tmp/mlrun-requirements && rm -rf /tmp/mlrun
 
 CMD ["make",  "test-system"]

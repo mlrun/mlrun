@@ -28,11 +28,17 @@ from ..datastore.store_resources import ResourceCache
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import MockEvent, create_graph_server
-from ..utils import logger
+from ..utils import logger, normalize_name
 
 
 def init_featureset_graph(
-    source, featureset, namespace, targets=None, return_df=True, verbose=False
+    source,
+    featureset,
+    namespace,
+    targets=None,
+    return_df=True,
+    verbose=False,
+    rows_limit=None,
 ):
     """create storey ingestion graph/DAG from feature set object"""
 
@@ -45,6 +51,7 @@ def init_featureset_graph(
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
     if graph.engine != "sync":
+        # todo: support rows_limit it storey sources
         _add_data_steps(
             graph,
             cache,
@@ -54,27 +61,60 @@ def init_featureset_graph(
             return_df=return_df,
             context=server.context,
         )
+        server.init_object(namespace)
+        return graph.wait_for_completion()
 
     server.init_object(namespace)
 
-    if graph.engine != "sync":
-        return graph.wait_for_completion()
-
+    # if the source is a dataframe iterator we load/write it in chunks
+    chunk_id = 0
     if hasattr(source, "to_dataframe"):
-        source = source.to_dataframe()
+        if source.is_iterator():
+            chunk_id = 1
+            chunks = source.to_dataframe()
+        else:
+            chunks = [source.to_dataframe()]
     elif not hasattr(source, "to_csv"):
         raise mlrun.errors.MLRunInvalidArgumentError("illegal source")
+    else:
+        chunks = [source]
 
-    event = MockEvent(body=source)
-    data = server.run(event, get_body=True)
-    for target in targets:
-        target = get_target_driver(target, featureset)
-        size = target.write_dataframe(data)
-        target_status = target.update_resource_status("ready", size=size)
+    entity_columns = list(featureset.spec.entities.keys())
+    key_fields = entity_columns if entity_columns else None
+
+    sizes = [0] * len(targets)
+    data_result = None
+    total_rows = 0
+    targets = [get_target_driver(target, featureset) for target in targets]
+    for chunk in chunks:
+        event = MockEvent(body=chunk)
+        data = server.run(event, get_body=True)
+        if data is not None:
+            for i, target in enumerate(targets):
+                size = target.write_dataframe(
+                    data,
+                    key_column=key_fields,
+                    timestamp_key=featureset.spec.timestamp_key,
+                    chunk_id=chunk_id,
+                )
+                if size:
+                    sizes[i] += size
+        chunk_id += 1
+        if data_result is None:
+            # in case of multiple chunks only return the first chunk (last may be too small)
+            data_result = data
+        total_rows += data.shape[0]
+        if rows_limit and total_rows >= rows_limit:
+            break
+
+    # todo: fire termination event if iterator
+
+    for i, target in enumerate(targets):
+        target_status = target.update_resource_status("ready", size=sizes[i])
         if verbose:
             logger.info(f"wrote target: {target_status}")
 
-    return data
+    return data_result
 
 
 def featureset_initializer(server):
@@ -83,9 +123,14 @@ def featureset_initializer(server):
     context = server.context
     cache = server.resource_cache
     featureset, source, targets, _, _ = context_to_ingestion_params(context)
+
     graph = featureset.spec.graph.copy()
     _add_data_steps(
-        graph, cache, featureset, targets=targets, source=source,
+        graph,
+        cache,
+        featureset,
+        targets=targets,
+        source=source,
     )
     featureset.save()
     server.graph = graph
@@ -154,15 +199,11 @@ def _add_data_steps(
 
 
 def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service=None):
-    name = name or f"{featureset.metadata.name}_ingest"
+    name = normalize_name(name or f"{featureset.metadata.name}-ingest-job")
     use_spark = featureset.spec.engine == "spark"
-    if use_spark and not run_config.local and not spark_service:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Remote spark ingestion requires the spark service name to be provided"
-        )
+    spark_runtimes = [RuntimeKinds.remotespark, RuntimeKinds.spark]
 
     default_kind = RuntimeKinds.remotespark if use_spark else RuntimeKinds.job
-    spark_runtimes = [RuntimeKinds.remotespark]  # may support spark operator in future
 
     if not run_config.function:
         function_ref = featureset.spec.function.copy()
@@ -172,6 +213,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
             function_ref.code = (function_ref.code or "") + _default_job_handler
         run_config.function = function_ref
         run_config.handler = "handler"
+    elif run_config.function.kind == RuntimeKinds.spark and spark_service is not None:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Spark operator jobs do not support standalone spark submission"
+        )
 
     image = None if use_spark else mlrun.mlconf.feature_store.default_job_image
     function = run_config.to_function(default_kind, image)
@@ -186,8 +231,13 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     if not use_spark and not function.spec.image:
         raise mlrun.errors.MLRunInvalidArgumentError("function image must be specified")
 
-    if use_spark and not run_config.local:
-        function.with_spark_service(spark_service=spark_service)
+    if use_spark and function.kind == RuntimeKinds.remotespark and not run_config.local:
+        if not spark_service:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Remote spark ingestion requires the spark service name to be provided"
+            )
+        else:
+            function.with_spark_service(spark_service=spark_service)
 
     task = mlrun.new_task(
         name=name,

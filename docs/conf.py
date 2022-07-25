@@ -33,10 +33,10 @@ def current_version():
 # -- Project information -----------------------------------------------------
 
 project = "mlrun"
-copyright = "2021, Iguazio"
+copyright = "2022, Iguazio"
 author = "Iguazio"
 
-master_doc = "index"
+master_doc = "contents"
 
 # The short X.Y version
 version = current_version()
@@ -59,6 +59,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_togglebutton",
+    "sphinx_panels",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -94,8 +95,9 @@ html_title = ""
 html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
-jupyter_execute_notebooks = "off"
+nb_execution_mode = "off"
 html_sourcelink_suffix = ""
+autoclass_content = "both"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -128,11 +130,12 @@ myst_enable_extensions = [
     "replacements",
     "linkify",
     "substitution",
-    "myst_nb",
 ]
 myst_url_schemes = ("http", "https", "mailto")
+myst_heading_anchors = 2
 panels_add_bootstrap_css = False
-
+myst_all_links_external = True
+myst_substitutions = {"version": version}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

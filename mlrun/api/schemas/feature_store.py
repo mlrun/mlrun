@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
-from .auth import AuthorizationResourceTypes
+from .auth import AuthorizationResourceTypes, Credentials
 from .object import (
     LabelRecord,
     ObjectKind,
@@ -148,10 +148,6 @@ class DataTarget(BaseModel):
 
     class Config:
         extra = Extra.allow
-
-
-class Credentials(BaseModel):
-    access_key: Optional[str]
 
 
 class FeatureSetIngestInput(BaseModel):

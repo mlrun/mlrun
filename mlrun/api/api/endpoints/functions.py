@@ -3,10 +3,19 @@ import os
 import traceback
 from distutils.util import strtobool
 from http import HTTPStatus
-from typing import List
+from typing import List, Optional
 
 import v3io
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
+import v3io.dataplane
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    Query,
+    Request,
+    Response,
+)
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -15,9 +24,12 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_run_db_instance, log_and_raise
+from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
+from mlrun.api.crud.secrets import Secrets, SecretsClientType
+from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
@@ -133,7 +145,9 @@ def list_functions(
     if project is None:
         project = config.default_project
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project, mlrun.api.schemas.AuthorizationAction.read, auth_info,
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
     functions = mlrun.api.crud.Functions().list_functions(
         db_session, project, name, tag, labels
@@ -158,6 +172,9 @@ async def build_function(
     request: Request,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
 ):
     data = None
     try:
@@ -167,20 +184,42 @@ async def build_function(
 
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
+    project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+    function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
-        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        project,
         auth_info=auth_info,
     )
     await run_in_threadpool(
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
-        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-        function.get("metadata", {}).get("name"),
+        project,
+        function_name,
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+
+    # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
+    # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Requesting to deploy serving function with track models, re-routing to chief",
+                function_name=function_name,
+                project=project,
+                function=function,
+            )
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return chief_client.build_function(request=request, json=data)
+
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
     else:
@@ -196,6 +235,7 @@ async def build_function(
         skip_deployed,
         mlrun_version_specifier,
         data.get("builder_env"),
+        client_version,
     )
     return {
         "data": fn.to_dict(),
@@ -210,6 +250,9 @@ async def start_function(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+    client_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
 ):
     # TODO: ensure project here !!! for background task
     data = None
@@ -229,14 +272,19 @@ async def start_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
 
     background_task = await run_in_threadpool(
-        mlrun.api.utils.background_tasks.Handler().create_background_task,
+        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
         function.metadata.project,
         background_tasks,
         _start_function,
+        background_timeout,
+        # args for _start_function
         function,
         auth_info,
+        client_version,
     )
 
     return background_task
@@ -299,7 +347,8 @@ def build_status(
             name,
             project,
             tag,
-            last_log_timestamp=last_log_timestamp,
+            # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+            last_log_timestamp=last_log_timestamp or 1.0,
             verbose=verbose,
             auth_info=auth_info,
         )
@@ -329,7 +378,12 @@ def build_status(
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
         mlrun.api.crud.Functions().store_function(
-            db_session, fn, name, project, tag, versioned=versioned,
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
         )
         return Response(
             content=text,
@@ -362,6 +416,24 @@ def build_status(
             },
         )
 
+    # read from log file
+    terminal_states = ["failed", "error", "ready"]
+    log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
+    if state in terminal_states and log_file.exists():
+        with log_file.open("rb") as fp:
+            fp.seek(offset)
+            out = fp.read()
+        return Response(
+            content=out,
+            media_type="text/plain",
+            headers={
+                "x-mlrun-function-status": state,
+                "function_status": state,
+                "function_image": image,
+                "builder_pod": pod,
+            },
+        )
+
     logger.info(f"get pod {pod} status")
     state = get_k8s().get_pod_status(pod)
     logger.info(f"pod state={state}")
@@ -373,10 +445,16 @@ def build_status(
         logger.error(f"build {state}, watch the build pod logs: {pod}")
         state = mlrun.api.schemas.FunctionState.error
 
-    if logs and state != "pending":
+    if (logs and state != "pending") or state in terminal_states:
         resp = get_k8s().logs(pod)
-        if resp:
-            out = resp.encode()[offset:]
+        if state in terminal_states:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with log_file.open("wb") as fp:
+                fp.write(resp.encode())
+
+        if resp and logs:
+            # begin from the offset number and then encode
+            out = resp[offset:].encode()
 
     update_in(fn, "status.state", state)
     if state == mlrun.api.schemas.FunctionState.ready:
@@ -386,7 +464,12 @@ def build_status(
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
     mlrun.api.crud.Functions().store_function(
-        db_session, fn, name, project, tag, versioned=versioned,
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
     )
 
     return Response(
@@ -405,10 +488,11 @@ def _build_function(
     db_session,
     auth_info: mlrun.api.schemas.AuthInfo,
     function,
-    with_mlrun,
-    skip_deployed,
-    mlrun_version_specifier,
+    with_mlrun=True,
+    skip_deployed=False,
+    mlrun_version_specifier=None,
     builder_env=None,
+    client_version=None,
 ):
     fn = None
     ready = None
@@ -423,6 +507,8 @@ def _build_function(
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
+            mlrun.api.api.utils.process_function_service_account(fn)
+            mlrun.api.api.utils.mask_sensitive_data(fn, auth_info)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -430,15 +516,11 @@ def _build_function(
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
                         _init_serving_function_stream_args(fn=fn)
-                        model_monitoring_access_key = _get_project_secret(
-                            fn.metadata.project, "MODEL_MONITORING_ACCESS_KEY"
+                        model_monitoring_access_key = _process_model_monitoring_secret(
+                            db_session,
+                            fn.metadata.project,
+                            "MODEL_MONITORING_ACCESS_KEY",
                         )
-                        # TODO: if model monitoring is not defined we should try to grab the project owner access key
-                        #  as well
-                        if not model_monitoring_access_key:
-                            raise MLRunRuntimeError(
-                                "MODEL_MONITORING_ACCESS_KEY not found in project secrets"
-                            )
 
                         _create_model_monitoring_stream(project=fn.metadata.project)
                         mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
@@ -455,16 +537,31 @@ def _build_function(
                         traceback=traceback.format_exc(),
                     )
 
-            deploy_nuclio_function(fn, auth_info=auth_info)
+            deploy_nuclio_function(
+                fn,
+                auth_info=auth_info,
+                client_version=client_version,
+                builder_env=builder_env,
+            )
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
+            log_file = log_path(
+                fn.metadata.project,
+                f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
+            )
+            if log_file.exists() and not (skip_deployed and fn.is_deployed()):
+                # delete old build log file if exist and build is not skipped
+                os.remove(str(log_file))
+
             ready = build_runtime(
+                auth_info,
                 fn,
                 with_mlrun,
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                client_version=client_version,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
@@ -495,7 +592,9 @@ def _parse_start_function_body(db_session, data):
     return new_function(runtime=runtime)
 
 
-def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
+def _start_function(
+    function, auth_info: mlrun.api.schemas.AuthInfo, client_version: str = None
+):
     db_session = mlrun.api.db.session.create_session()
     try:
         resource = runtime_resources_map.get(function.kind)
@@ -508,8 +607,10 @@ def _start_function(function, auth_info: mlrun.api.schemas.AuthInfo):
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+            mlrun.api.api.utils.process_function_service_account(function)
+            mlrun.api.api.utils.mask_sensitive_data(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](function)
+            resource["start"](function, client_version=client_version)
             function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:
@@ -615,14 +716,60 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
     return None
 
 
-def _get_project_secret(project_name: str, secret_key: str):
+def _process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+    # The expected result of this method is an access-key placed in an internal project-secret.
+    # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
+    # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option
+    # (which is the recommended option for users) is to retrieve a new access-key from the project owner and use it.
     logger.info(
         "Getting project secret", project_name=project_name, namespace=config.namespace
     )
-    secret_value = mlrun.api.crud.Secrets().get_secret(
+
+    provider = SecretProviderName.kubernetes
+    secret_value = Secrets().get_project_secret(
         project_name,
-        mlrun.api.schemas.SecretProviderName.kubernetes,
+        provider,
         secret_key,
         allow_secrets_from_k8s=True,
     )
+    user_provided_key = secret_value is not None
+    internal_key_name = Secrets().generate_client_project_secret_key(
+        SecretsClientType.model_monitoring, secret_key
+    )
+
+    if not user_provided_key:
+        secret_value = Secrets().get_project_secret(
+            project_name,
+            provider,
+            internal_key_name,
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+        )
+        if not secret_value:
+            import mlrun.api.utils.singletons.project_member
+
+            project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                db_session, project_name
+            )
+
+            secret_value = project_owner.session
+            if not secret_value:
+                raise MLRunRuntimeError(
+                    f"No model monitoring access key. Failed to generate one for owner of project {project_name}",
+                )
+
+            logger.info(
+                "Filling model monitoring access-key from project owner",
+                project_name=project_name,
+                project_owner=project_owner.username,
+            )
+
+    secrets = SecretsData(provider=provider, secrets={internal_key_name: secret_value})
+    Secrets().store_project_secrets(project_name, secrets, allow_internal_secrets=True)
+    if user_provided_key:
+        logger.info(
+            "Deleting user-provided access-key - replaced with an internal secret"
+        )
+        Secrets().delete_project_secret(project_name, provider, secret_key)
+
     return secret_value

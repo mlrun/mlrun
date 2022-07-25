@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.0
+ARG CUDA_VER=11.2
 
 FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
@@ -25,6 +25,10 @@ ENV PATH /opt/conda/bin:$PATH
 
 # Set default shell to /bin/bash
 SHELL ["/bin/bash", "-cu"]
+
+RUN apt-key del 7fa2af80 && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
 
 RUN apt-get update && \
     apt-mark hold libcublas-dev libcublas10 && \
@@ -45,11 +49,12 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
+ARG MLRUN_PIP_VERSION=22.0.0
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
         python=3.7 \
-        pip~=20.2.0 \
+        pip~=${MLRUN_PIP_VERSION} \
     && conda clean -aqy
 
 RUN conda install -n base cmake cython \
@@ -94,22 +99,25 @@ WORKDIR /mlrun
 COPY ./requirements.txt ./
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
-COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
-COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
-COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
 
 RUN python -m pip install \
     -r requirements.txt \
     -r extras-requirements.txt \
-    -r mlrun-image-requirements.txt \
-    -r base-image-requirements.txt \
-    -r models-image-requirements.txt \
+    -r mlrun-image-requirements.txt
+
+# if we give all the requirements together pip resolver go nuts so separating between the package and the image
+# requirements
+COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
+RUN python -m pip install \
+    -r base-image-requirements.txt
+
+COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
+RUN python -m pip install \
+    -r models-image-requirements.txt
+
+COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
+RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
 COPY . .
 RUN python -m pip install .[complete]
-
-ARG MLRUN_MLUTILS_GITHUB_TAG=development
-ARG MLRUN_MLUTILS_CACHE_DATE=initial
-RUN python -m pip install \
-    git+https://github.com/mlrun/mlutils.git@${MLRUN_MLUTILS_GITHUB_TAG}

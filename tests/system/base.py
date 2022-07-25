@@ -14,7 +14,6 @@ logger = create_logger(level="debug", name="test-system")
 
 
 class TestMLRunSystem:
-
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent
     env_file_path = root_path / "tests" / "system" / "env.yml"
@@ -28,6 +27,7 @@ class TestMLRunSystem:
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
+        "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
     def setup_method(self, method):
@@ -48,6 +48,7 @@ class TestMLRunSystem:
 
         if not self._skip_set_environment():
             set_environment(project=self.project_name)
+            self.project = mlrun.get_or_create_project(self.project_name, "./")
 
         self.custom_setup()
 
@@ -71,8 +72,6 @@ class TestMLRunSystem:
             f"Tearing down test {self.__class__.__name__}::{method.__name__}"
         )
 
-        self.custom_teardown()
-
         self._logger.debug("Removing test data from database")
         if self._should_clean_resources():
             fsets = self._run_db.list_feature_sets()
@@ -81,7 +80,11 @@ class TestMLRunSystem:
                     fset.purge_targets()
 
         self._delete_test_project()
+
+        self.custom_teardown()
+
         self._teardown_env()
+
         self._logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )
@@ -118,6 +121,18 @@ class TestMLRunSystem:
             reason=f"This is a system test, add the needed environment variables {*mandatory_env_vars,} "
             "in tests/system/env.yml to run it",
         )(test)
+
+    @classmethod
+    def is_enterprise_environment(cls):
+        try:
+            env = cls._get_env_from_file()
+        except FileNotFoundError:
+            return False
+        else:
+            for env_var in cls.mandatory_enterprise_env_vars:
+                if env_var not in env or env[env_var] is None:
+                    return False
+            return True
 
     @property
     def assets_path(self):
@@ -229,10 +244,9 @@ class TestMLRunSystem:
         iteration_results: bool = False,
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
-        iterpath = str(best_iteration) if best_iteration else ""
-        assert run_outputs["model"] == str(output_path / iterpath / "model.txt")
-        assert run_outputs["html_result"] == str(output_path / iterpath / "result.html")
-        assert run_outputs["chart"] == str(output_path / iterpath / "chart.html")
+        assert run_outputs["model"].startswith(str(output_path))
+        assert run_outputs["html_result"].startswith(str(output_path))
+        assert run_outputs["chart"].startswith(str(output_path))
         assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf:{uid}"
         if accuracy:
             assert run_outputs["accuracy"] == accuracy
@@ -241,9 +255,7 @@ class TestMLRunSystem:
         if best_iteration:
             assert run_outputs["best_iteration"] == best_iteration
         if iteration_results:
-            assert run_outputs["iteration_results"] == str(
-                output_path / "iteration_results.csv"
-            )
+            assert run_outputs["iteration_results"].startswith(str(output_path))
 
     @staticmethod
     def _has_marker(test: typing.Callable, marker_name: str) -> bool:

@@ -1,33 +1,34 @@
 (tutorial)=
-# Getting-Started Tutorial
+# Tutorials and Examples
 
-This tutorial provides a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
+The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
-The tutorial covers MLRun fundamentals such as creation of projects and data ingestion and preparation, and demonstrates how to create an end-to-end machine-learning (ML) pipeline.
-MLRun is integrated as a default (pre-deployed) shared service in the Iguazio Data Science Platform.
+Make sure you start with the [**Quick Start Tutorial**](./01-mlrun-basics.html) to understand the basics.
 
-You'll learn how to
-
-- Collect (ingest), prepare, and analyze data
-- Train, deploy, and monitor an ML model
-- Create and run an automated ML pipeline
-
-You'll also learn about the basic concepts, components, and APIs that allow you to perform these tasks, including
-
-- Setting up MLRun
-- Creating and working with projects
-- Creating, deploying and running MLRun functions
-- Using MLRun to run functions, jobs, and full workflows
-- Deploying a model to a serving layer using serverless functions
-
-The tutorial is divided into four parts, each with a dedicated Jupyter notebook.
-The notebooks are designed to be run sequentially, as each notebook relies on the execution of the previous notebook:
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 01-mlrun-basics
 02-model-training
 03-model-serving
-04-pipeline.ipynb
+04-pipeline
+../feature-store/basic-demo
 ```
+
+You can find different end-to-end demos in MLRun demos repository at [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
+Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun. See
+
+```{toctree}
+:maxdepth: 1
+
+MLRun demos repository <https://github.com/mlrun/demos>
+MLRun Katakoda Scenarios <https://www.katacoda.com/mlrun>
+```
+## Running the demos in Open Source MLRun
+
+By default, these demos work with the online feature store, which is currently not part of the Open Source MLRun default deployment:
+- fraud-prevention-feature-store 
+- network-operations
+- azureml_demo

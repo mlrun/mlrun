@@ -1,3 +1,9 @@
+import typing
+from enum import Enum
+
+import pydantic
+
+
 # Ideally we would want this to be class FunctionState(str, enum.Enum) which is the "FastAPI-compatible" way of creating
 # schemas
 # But, when we save a function to the DB, we pickle the body, which saves the state as an instance of this class (and
@@ -23,3 +29,31 @@ class FunctionState:
     pending = "pending"
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
+
+
+class PreemptionModes(str, Enum):
+    # makes function pods be able to run on preemptible nodes
+    allow = "allow"
+    # makes the function pods run on preemptible nodes only
+    constrain = "constrain"
+    # prevents the function pods from running on preemptible nodes
+    prevent = "prevent"
+    # doesn't apply any preemptible node selection on the function
+    none = "none"
+
+
+class ImagePullSecret(pydantic.BaseModel):
+    default: typing.Optional[str]
+
+
+class SecurityContext(pydantic.BaseModel):
+    default: typing.Optional[str]
+
+
+class FunctionSpec(pydantic.BaseModel):
+    image_pull_secret: typing.Optional[ImagePullSecret]
+    security_context: typing.Optional[SecurityContext]
+
+
+class Function(pydantic.BaseModel):
+    spec: typing.Optional[FunctionSpec]

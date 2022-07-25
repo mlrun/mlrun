@@ -5,12 +5,19 @@ from http import HTTPStatus
 
 import deepdiff
 import nuclio
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import mlconf
+import tests.api.api.utils
+from mlrun import mlconf, new_function
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
-from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
+from mlrun.runtimes.function import (
+    NuclioStatus,
+    compile_function_config,
+    deploy_nuclio_function,
+)
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -51,7 +58,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     @staticmethod
     def _mock_db_remote_deploy_functions():
-        def _remote_db_mock_function(func, with_mlrun):
+        def _remote_db_mock_function(func, with_mlrun, builder_env=None):
             deploy_nuclio_function(func)
             return {
                 "data": {
@@ -208,8 +215,24 @@ class TestServingRuntime(TestNuclioRuntime):
 
         assert deepdiff.DeepDiff(resp, expected_response) == {}
 
+    def test_mock_bad_step(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+        graph = function.set_topology("flow", exist_ok=True, engine="sync")
+
+        graph.add_step(
+            name="extend", class_name="storey.Extend", _fn='({"tag": "something"})'
+        )
+
+        server = function.to_mock_server()
+        with pytest.raises(RuntimeError):
+            server.test()
+
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
+        orig_function = get_k8s()._get_project_secrets_raw_data
+        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+
         function = self._create_serving_function()
+        tests.api.api.utils.create_project(client, self.project)
 
         # Simulate a remote build by issuing client's API. Code below is taken from httpdb.
         req = {
@@ -217,11 +240,13 @@ class TestServingRuntime(TestNuclioRuntime):
             "with_mlrun": "no",
             "mlrun_version_specifier": "0.6.0",
         }
-        response = client.post("/api/build/function", json=req)
+        response = client.post("build/function", json=req)
 
         assert response.status_code == HTTPStatus.OK.value
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+        get_k8s()._get_project_secrets_raw_data = orig_function
 
     def test_child_functions_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()
@@ -251,7 +276,7 @@ class TestServingRuntime(TestNuclioRuntime):
             {
                 "function_name": f"{self.project}-{self.name}-child_function",
                 "file_name": child_function_path,
-                "parent_function": function._function_uri(),
+                "parent_function": function.metadata.name,
             },
             {
                 "function_name": f"{self.project}-{self.name}",
@@ -268,3 +293,26 @@ class TestServingRuntime(TestNuclioRuntime):
         self._assert_deploy_spec_has_secrets_config(
             expected_secret_sources=self._generate_expected_secret_sources()
         )
+
+    def test_empty_function(self):
+        # test simple function (no source)
+        function = new_function("serving", kind="serving", image="mlrun/mlrun")
+        function.set_topology("flow")
+        _, _, config = compile_function_config(function)
+        # verify the code is filled with the mlrun serving wrapper
+        assert config["spec"]["build"]["functionSourceCode"]
+
+        # test function built from source repo (set the handler)
+        function = new_function(
+            "serving", kind="serving", image="mlrun/mlrun", source="git://x/y#z"
+        )
+        function.set_topology("flow")
+
+        # mock secrets for the source (so it will not fail)
+        orig_function = get_k8s()._get_project_secrets_raw_data
+        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        _, _, config = compile_function_config(function, builder_env={})
+        get_k8s()._get_project_secrets_raw_data = orig_function
+
+        # verify the handler points to mlrun serving wrapper handler
+        assert config["spec"]["handler"].startswith("mlrun.serving")

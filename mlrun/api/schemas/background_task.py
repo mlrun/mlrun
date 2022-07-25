@@ -22,9 +22,10 @@ class BackgroundTaskState(str, enum.Enum):
 
 class BackgroundTaskMetadata(pydantic.BaseModel):
     name: str
-    project: str
+    project: typing.Optional[str]
     created: typing.Optional[datetime.datetime]
     updated: typing.Optional[datetime.datetime]
+    timeout: typing.Optional[int]
 
 
 class BackgroundTaskSpec(pydantic.BaseModel):

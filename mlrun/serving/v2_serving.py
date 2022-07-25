@@ -22,6 +22,7 @@ from mlrun.api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringMode,
 )
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
@@ -221,6 +222,7 @@ class V2ModelServer(StepToDict):
 
     def _pre_event_processing_actions(self, event, event_body, op):
         self._check_readiness(event)
+        print("[EYAL]: now in pre process event body: ", event.body)
         request = self.preprocess(event_body, op)
         return self.validate(request, op)
 
@@ -473,6 +475,9 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                     project=project, kind="stream"
                 ),
                 active=True,
+                monitoring_mode=ModelMonitoringMode.enabled
+                if model.context.server.track_models
+                else ModelMonitoringMode.disabled,
             ),
             status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )

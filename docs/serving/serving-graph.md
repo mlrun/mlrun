@@ -24,7 +24,7 @@ and other MLRun facilities.
 **In this section**
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
   
 getting-started
 use-cases

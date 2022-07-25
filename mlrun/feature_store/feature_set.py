@@ -25,6 +25,7 @@ from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import (
     TargetTypes,
+    convert_wasb_schema_to_az,
     default_target_names,
     get_offline_target,
     get_online_target,
@@ -402,6 +403,10 @@ class FeatureSet(ModelObj):
                 )
             if not hasattr(target, "kind"):
                 target = DataTargetBase(target, name=str(target))
+            if target.path is not None and (
+                target.path.startswith("wasb") or target.path.startswith("wasbs")
+            ):
+                convert_wasb_schema_to_az(target)
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step

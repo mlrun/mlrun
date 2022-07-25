@@ -1,25 +1,109 @@
 from abc import ABC
-from typing import Dict, List, Type, Union
+from typing import Dict, List, Union
 
 import sklearn
 from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
 
-from .._common.utils import ModelType
+from .._ml_common import AlgorithmFunctionality
 from .metric import Metric
-from .utils import AlgorithmFunctionality, DatasetType, MetricEntry
+from .utils import SKLearnTypes
 
 
 class MetricsLibrary(ABC):
     """
-    Static class of a collection of metrics to use in training and evaluation of machine learning frameworks.
+    Static class for getting and parsing metrics to use in training and evaluation of SciKit-Learn.
     """
 
+    # A constant name for the context parameter to use for passing a metrics configuration:
+    CONTEXT_PARAMETER = "_metrics"
+
+    # A keyword to add in case the metric is based on predictions probabilities (not final predictions):
     _NEED_PROBABILITIES_KEYWORD = "need_probabilities"
 
-    @staticmethod
-    def from_list(metrics_list: List[Union[Metric, MetricEntry]]) -> List[Metric]:
+    @classmethod
+    def get_metrics(
+        cls,
+        metrics: Union[
+            List[Metric],
+            List[SKLearnTypes.MetricEntryType],
+            Dict[str, SKLearnTypes.MetricEntryType],
+        ] = None,
+        context: mlrun.MLClientCtx = None,
+        include_default: bool = True,
+        **default_kwargs,
+    ) -> List[Metric]:
+        """
+        Get metrics for a run. The metrics will be taken from the provided metrics / configuration via code, from
+        provided configuration via MLRun context and if the 'include_default' is True, from the metric library's
+        defaults as well.
+
+        :param metrics:         The metrics parameter passed to the function. Can be passed as a dictionary or a list of
+                                metrics.
+        :param context:         A context to look in if the configuration was passed as a parameter.
+        :param include_default: Whether to include the default in addition to the provided metrics. Defaulted to True.
+        :param default_kwargs:  Additional key word arguments to pass to the 'default' method of the given metrics
+                                library class.
+
+        :return: The metrics list.
+
+        :raise MLRunInvalidArgumentError: If the metrics were not passed in a list or a dictionary.
+        """
+        # Set up the plans list:
+        parsed_metrics = []  # type: List[Metric]
+
+        # Get the metrics passed via context:
+        if context is not None and cls.CONTEXT_PARAMETER in context.parameters:
+            parsed_metrics += cls._parse(
+                metrics=context.parameters.get(cls.CONTEXT_PARAMETER, None)
+            )
+
+        # Get the user's set metrics:
+        if metrics is not None:
+            parsed_metrics += cls._parse(metrics=metrics)
+
+        # Get the library's default:
+        if include_default:
+            parsed_metrics += cls._default(**default_kwargs)
+
+        return parsed_metrics
+
+    @classmethod
+    def _parse(
+        cls,
+        metrics: Union[
+            List[Metric],
+            List[SKLearnTypes.MetricEntryType],
+            Dict[str, SKLearnTypes.MetricEntryType],
+        ],
+    ) -> List[Metric]:
+        """
+        Parse the given metrics by the possible rules of the framework implementing.
+
+        :param metrics: A collection of metrics to parse.
+
+        :return: The parsed metrics to use in training / evaluation.
+        """
+        # Parse from dictionary:
+        if isinstance(metrics, dict):
+            return cls._from_dict(metrics_dictionary=metrics)
+
+        # Parse from list:
+        if isinstance(metrics, list):
+            return cls._from_list(metrics_list=metrics)
+
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"The metrics are expected to be in a list or a dictionary. Received: {type(metrics)}. A metric can be a "
+            f"function, callable object, name of an imported function or a module path to import the function. "
+            f"Arguments can be passed as a tuple: in the following form: (metric, arguments). If used in a dictionary, "
+            f"each key will be the name to use for logging the metric."
+        )
+
+    @classmethod
+    def _from_list(
+        cls, metrics_list: List[Union[Metric, SKLearnTypes.MetricEntryType]]
+    ) -> List[Metric]:
         """
         Collect the given metrics configurations from a list. The metrics names will be chosen by the following rules:
 
@@ -39,12 +123,14 @@ class MetricsLibrary(ABC):
         return [
             metric
             if isinstance(metric, Metric)
-            else MetricsLibrary._to_metric_class(metric_entry=metric)
+            else cls._to_metric_class(metric_entry=metric)
             for metric in metrics_list
         ]
 
-    @staticmethod
-    def from_dict(metrics_dictionary: Dict[str, MetricEntry]) -> List[Metric]:
+    @classmethod
+    def _from_dict(
+        cls, metrics_dictionary: Dict[str, SKLearnTypes.MetricEntryType]
+    ) -> List[Metric]:
         """
         Collect the given metrics configurations from a dictionary.
 
@@ -58,16 +144,16 @@ class MetricsLibrary(ABC):
         :return: A list of metrics objects.
         """
         return [
-            MetricsLibrary._to_metric_class(
-                metric_entry=metric, metric_name=metric_name
-            )
+            cls._to_metric_class(metric_entry=metric, metric_name=metric_name)
             for metric_name, metric in metrics_dictionary.items()
         ]
 
     @classmethod
-    def default(cls, model: ModelType, y: DatasetType = None, **kwargs) -> List[Metric]:
+    def _default(
+        cls, model: SKLearnTypes.ModelType, y: SKLearnTypes.DatasetType = None
+    ) -> List[Metric]:
         """
-        Get the default metrics list of this framework's library.
+        Get the default metrics list according to the algorithm functionality.
 
         :param model: The model to check if its a regression model or a classification model.
         :param y:     The ground truth values to check if its multiclass and / or multi output.
@@ -160,20 +246,21 @@ class MetricsLibrary(ABC):
 
         return metrics
 
-    @staticmethod
+    @classmethod
     def _to_metric_class(
-        metric_entry: MetricEntry,
+        cls,
+        metric_entry: SKLearnTypes.MetricEntryType,
         metric_name: str = None,
     ) -> Metric:
         """
         Create a Metric instance from a user given metric entry.
 
-        :param metric_entry: Metric entry as passed inside of a list or a dictionary.
+        :param metric_entry: Metric entry as passed inside a list or a dictionary.
         :param metric_name:  The metric name to use (if passed from a dictionary).
 
         :return: The metric class instance of this entry.
         """
-        # If its a tuple, unpack it to get the additional arguments:
+        # If it's a tuple, unpack it to get the additional arguments:
         if isinstance(metric_entry, tuple):
             metric, arguments = metric_entry
         else:
@@ -181,9 +268,9 @@ class MetricsLibrary(ABC):
             arguments = {}
 
         # Check if the 'need_probabilities' attribute is given:
-        if MetricsLibrary._NEED_PROBABILITIES_KEYWORD in arguments:
-            need_probabilities = arguments[MetricsLibrary._NEED_PROBABILITIES_KEYWORD]
-            arguments.pop(MetricsLibrary._NEED_PROBABILITIES_KEYWORD)
+        if cls._NEED_PROBABILITIES_KEYWORD in arguments:
+            need_probabilities = arguments[cls._NEED_PROBABILITIES_KEYWORD]
+            arguments.pop(cls._NEED_PROBABILITIES_KEYWORD)
         else:
             need_probabilities = False
 
@@ -194,60 +281,3 @@ class MetricsLibrary(ABC):
             additional_arguments=arguments,
             need_probabilities=need_probabilities,
         )
-
-
-# A constant name for the context parameter to use for passing a plans configuration:
-METRICS_CONTEXT_PARAMETER = "_metrics"
-
-
-def get_metrics(
-    metrics_library: Type[MetricsLibrary],
-    metrics: Union[List[Metric], List[MetricEntry], Dict[str, MetricEntry]] = None,
-    context: mlrun.MLClientCtx = None,
-    include_default: bool = True,
-    **default_kwargs,
-) -> List[Metric]:
-    """
-    Get metrics for a run. The metrics will be taken from the provided metrics / configuration via code, from provided
-    configuration via MLRun context and if the 'include_default' is True, from the framework metric library's defaults.
-
-    :param metrics_library: The framework's metrics library class to get its defaults.
-    :param metrics:         The metrics parameter passed to the function. Can be passed as a dictionary or a list of
-                            metrics.
-    :param context:         A context to look in if the configuration was passed as a parameter.
-    :param include_default: Whether to include the default in addition to the provided metrics. Defaulted to True.
-    :param default_kwargs:  Additional key word arguments to pass to the 'default' method of the given metrics library
-                            class.
-
-    :return: The metrics list.
-
-    :raise MLRunInvalidArgumentError: If the metrics were not passed in a list or a dictionary.
-    """
-    # Setup the plans list:
-    parsed_metrics = []  # type: List[Metric]
-
-    # Get the user input metrics:
-    metrics_from_context = None
-    if context is not None:
-        metrics_from_context = context.parameters.get(METRICS_CONTEXT_PARAMETER, None)
-    for user_input in [metrics, metrics_from_context]:
-        if user_input is not None:
-            if isinstance(user_input, dict):
-                parsed_metrics += metrics_library.from_dict(
-                    metrics_dictionary=user_input
-                )
-            elif isinstance(user_input, list):
-                parsed_metrics += metrics_library.from_list(metrics_list=user_input)
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The metrics are expected to be in a list or a dictionary. Received: {type(user_input)}. A metric "
-                    f"can be a function, callable object, name of an imported function or a module path to import the "
-                    f"function. Arguments can be passed as a tuple: in the following form: (metric, arguments). If "
-                    f"used in a dictionary, each key will be the name to use for logging the metric."
-                )
-
-    # Get the library's default:
-    if include_default:
-        parsed_metrics += metrics_library.default(**default_kwargs)
-
-    return parsed_metrics

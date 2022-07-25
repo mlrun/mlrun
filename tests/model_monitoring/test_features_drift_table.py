@@ -1,7 +1,7 @@
+import json
 import os
 import tempfile
 from typing import Tuple
-import json
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,10 @@ import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.data_types.infer import DFDataInfer
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
-from mlrun.model_monitoring.model_monitoring_batch import VirtualDrift, calculate_inputs_statistics
+from mlrun.model_monitoring.model_monitoring_batch import (
+    VirtualDrift,
+    calculate_inputs_statistics,
+)
 
 
 def generate_data(
@@ -78,7 +81,9 @@ def plot_produce(context: mlrun.MLClientCtx):
     )
 
     # Log:
-    context.log_artifact(Artifact(body=html_plot, format="html", key="drift_table_plot"))
+    context.log_artifact(
+        Artifact(body=html_plot, format="html", key="drift_table_plot")
+    )
 
 
 def test_plot_produce():
@@ -98,9 +103,11 @@ def test_plot_produce():
     assert len(train_run.status.artifacts) == 1
 
     # Check the plot was saved properly (only the drift table plot should appear):
-    artifact_directory_content = os.listdir(os.path.dirname(train_run.outputs["drift_table_plot"]))
+    artifact_directory_content = os.listdir(
+        os.path.dirname(train_run.outputs["drift_table_plot"])
+    )
     assert len(artifact_directory_content) == 1
-    assert artifact_directory_content[0] == 'drift_table_plot.html'
+    assert artifact_directory_content[0] == "drift_table_plot.html"
 
     # Clean up the temporary directory:
     output_path.cleanup()

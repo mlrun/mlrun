@@ -376,7 +376,7 @@ def ingest(
     if run_config:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal in with RunConfig"
+                "DataFrame source is illegal in conjunction with run_config"
             )
         # remote job execution
         verify_feature_set_permissions(

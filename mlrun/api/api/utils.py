@@ -495,6 +495,8 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     if (
         mlrun.mlconf.function.spec.security_context.mode == "keep"
         and function.spec.security_context is not None
+        and function.spec.security_context.run_as_user is not None
+        and function.spec.security_context.run_as_group is not None
     ):
         return
 

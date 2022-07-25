@@ -58,7 +58,8 @@ class ImagePullSecret(pydantic.BaseModel):
 
 class SecurityContext(pydantic.BaseModel):
     default: typing.Optional[str]
-    mode: typing.Optional[SecurityContextEnrichmentModes]
+    enrichment_mode: typing.Optional[SecurityContextEnrichmentModes]
+    enrichment_group_id: typing.Optional[int]
 
 
 class ServiceAccount(pydantic.BaseModel):

@@ -480,6 +480,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     override - use the user id of the user requesting to submit the run
     manual - security context is not auto applied
     """
+    function: mlrun.runtimes.pod.KubeResource
 
     # if security context is not required
     # security context is not yet supported with spark runtime since it requires spark 3.2+
@@ -493,7 +494,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         logger.debug(
             "Security context is not required",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
-            function_name=function.name,
+            function_name=function.metadata.name,
         )
         return
 
@@ -509,7 +510,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         logger.debug(
             "Security context is already set",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
-            function_name=function.name,
+            function_name=function.metadata.name,
         )
         return
 
@@ -517,10 +518,11 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         SecurityContextEnrichmentModes.override.value,
         SecurityContextEnrichmentModes.retain.value,
     ]:
-        function: mlrun.runtimes.pod.KubeResource
+
+        # if enrichment mode is -1 we set group id to user unix id
         nogroup_id = (
             mlrun.mlconf.function.spec.security_context.enrichment_group_id
-            if mlrun.mlconf.function.spec.security_context.enrichment_group_id != "-1"
+            if mlrun.mlconf.function.spec.security_context.enrichment_group_id != -1
             else auth_info.user_unix_id
         )
 

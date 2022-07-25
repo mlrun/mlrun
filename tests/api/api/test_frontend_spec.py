@@ -102,13 +102,11 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
                     username=None,
                     session="some-session",
                     user_id=None,
+                    user_unix_id=0,
                     user_group_ids=[],
                 )
             )
         )
-    )
-    mlrun.api.utils.clients.iguazio.Client().get_user_unix_id = unittest.mock.Mock(
-        return_value=0
     )
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
         unittest.mock.Mock(return_value=None)

@@ -42,13 +42,23 @@ class PreemptionModes(str, Enum):
     none = "none"
 
 
+# used when running in Iguazio (otherwise use manual mode)
+class SecurityContextModes(str, Enum):
+    # always use the user id of the user that triggered the 1st run
+    keep = "keep"
+    # use the user id of the user that triggered the last run
+    override = "override"
+    # security context is not auto applied
+    manual = "manual"
+
+
 class ImagePullSecret(pydantic.BaseModel):
     default: typing.Optional[str]
 
 
 class SecurityContext(pydantic.BaseModel):
     default: typing.Optional[str]
-    mode: typing.Optional[str]
+    mode: typing.Optional[SecurityContextModes]
 
 
 class ServiceAccount(pydantic.BaseModel):

@@ -51,13 +51,11 @@ def test_grafana_proxy_model_endpoints_check_connection(
                     session="some-session",
                     data_session="some-session",
                     user_id=None,
+                    user_unix_id=0,
                     user_group_ids=[],
                 )
             )
         )
-    )
-    mlrun.api.utils.clients.iguazio.Client().get_user_unix_id = unittest.mock.Mock(
-        return_value=0
     )
     response = client.get(
         url="grafana-proxy/model-endpoints",

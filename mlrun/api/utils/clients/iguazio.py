@@ -480,6 +480,7 @@ class Client(
         planes = planes or []
         user_unix_id = None
         x_unix_uid = response.headers.get("x-unix-uid")
+        # x-unix-uid may be 'Unknown' in case it is missing or failure when enriching authentication info
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 

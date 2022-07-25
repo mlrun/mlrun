@@ -24,7 +24,7 @@ import kubernetes.client as k8s_client
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..api.schemas import NodeSelectorOperator, PreemptionModes
+from ..api.schemas import NodeSelectorOperator, PreemptionModes, SecurityContextModes
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_node_selector_requirements,
@@ -1024,7 +1024,10 @@ class KubeResource(BaseRuntime):
 
         :param security_context:         The security context for the pod
         """
-        if mlrun.mlconf.function.spec.security_context.mode != "manual":
+        if (
+            mlrun.mlconf.function.spec.security_context.mode
+            != SecurityContextModes.manual
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Security context is handled internally when mode is not manual"
             )

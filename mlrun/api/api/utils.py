@@ -19,7 +19,7 @@ import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.schemas import SecretProviderName
+from mlrun.api.schemas import SecretProviderName, SecurityContextModes
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -482,9 +482,9 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     """
 
     # if security context is not required
-    # security context is not yet supported with spark runtime
+    # security context is not yet supported with spark runtime since it requires spark 3.2+
     if (
-        mlrun.mlconf.function.spec.security_context.mode == "manual"
+        mlrun.mlconf.function.spec.security_context.mode == SecurityContextModes.manual
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         or mlrun.mlconf.httpdb.authentication.mode != "iguazio"

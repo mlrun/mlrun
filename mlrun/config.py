@@ -137,9 +137,7 @@ default_config = {
                 # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
                 "default": "e30=",  # encoded empty dict
                 # used when running in Iguazio (otherwise use manual mode).
-                # keep: always use the user id of the user that triggered the 1st run
-                # override: use the user id of the user requesting to submit the run
-                # manual: security context is not auto applied
+                # see mlrun.api.schemas.function.SecurityContextModes for available options
                 "mode": "keep",
             },
             "service_account": {"default": None},
@@ -155,7 +153,7 @@ default_config = {
             "mpijob": "mlrun/ml-models",
         },
         # see enrich_function_preemption_spec for more info,
-        # and mlrun.api.schemas.functionPreemptionModes for available options
+        # and mlrun.api.schemas.function.PreemptionModes for available options
         "preemption_mode": "prevent",
     },
     "httpdb": {

@@ -17,6 +17,7 @@ import mlrun.errors
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.api.api.endpoints.functions import _build_function
+from mlrun.api.schemas import SecurityContextModes
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes.function import (
@@ -1082,7 +1083,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             2000,
         )
 
-        mlrun.mlconf.function.spec.security_context.mode = "manual"
+        mlrun.mlconf.function.spec.security_context.mode = SecurityContextModes.manual
         function.with_security_context(other_security_context)
         self.execute_function(function)
 

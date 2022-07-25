@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.k8s_utils
+from mlrun.api.schemas import SecurityContextModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -266,7 +267,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             exc.value
         )
 
-        mlrun.mlconf.function.spec.security_context.mode = "manual"
+        mlrun.mlconf.function.spec.security_context.mode = SecurityContextModes.manual
         runtime.with_security_context(other_security_context)
         self.execute_function(runtime)
         self.assert_security_context(other_security_context)

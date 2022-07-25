@@ -222,7 +222,6 @@ class V2ModelServer(StepToDict):
 
     def _pre_event_processing_actions(self, event, event_body, op):
         self._check_readiness(event)
-        print("[EYAL]: now in pre process event body: ", event.body)
         request = self.preprocess(event_body, op)
         return self.validate(request, op)
 

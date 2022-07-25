@@ -851,7 +851,7 @@ class ModelEndpoints:
             auth_info=auth_info,
         )
 
-        # get the function uri
+        # Get the function uri
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")
 

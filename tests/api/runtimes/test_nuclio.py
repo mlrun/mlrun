@@ -1084,7 +1084,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            SecurityContextEnrichmentModes.manual
+            SecurityContextEnrichmentModes.disabled
         )
         function.with_security_context(other_security_context)
         self.execute_function(function)

@@ -485,7 +485,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     # security context is not yet supported with spark runtime since it requires spark 3.2+
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.manual
+        == SecurityContextEnrichmentModes.disabled
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         or mlrun.mlconf.httpdb.authentication.mode != "iguazio"

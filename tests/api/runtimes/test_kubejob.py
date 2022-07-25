@@ -268,7 +268,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            SecurityContextEnrichmentModes.manual
+            SecurityContextEnrichmentModes.disabled
         )
         runtime.with_security_context(other_security_context)
         self.execute_function(runtime)

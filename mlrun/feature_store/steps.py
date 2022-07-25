@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 from storey import MapClass
 
+from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
-from mlrun.errors import MLRunInvalidArgumentError
 
 
 class FeaturesetValidator(StepToDict, MapClass):

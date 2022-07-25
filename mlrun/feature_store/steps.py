@@ -9,6 +9,7 @@ from storey import MapClass
 from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
+from mlrun.errors import MLRunInvalidArgumentError
 
 
 class FeaturesetValidator(StepToDict, MapClass):
@@ -165,7 +166,7 @@ class OneHotEncoder(StepToDict, MapClass):
         for values in mapping.values():
             for val in values:
                 if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
-                    raise ValueError(
+                    raise MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
 

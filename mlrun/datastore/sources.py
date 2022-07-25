@@ -74,6 +74,30 @@ class _MondoDBIterator:
         curr_df["_id"] = curr_df["_id"].astype(str)
         return curr_df
 
+class _SqlDBIterator:
+    def __init__(self, collection, iter_chunksize, iter_query=None):
+        """
+        Iterate over given collection
+
+        :param query: ???
+        :param chunksize: number of rows per chunk
+        :param collection: sql collection
+        """
+        self.collection = collection
+        self.iter_chunksize = iter_chunksize
+        self.iter_query = iter_query
+        self.keys = self.collection.keys()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        chunk = self.collection.fetchmany(self.iter_chunksize)
+        if len(chunk) != 0:
+            return pd.DataFrame(chunk, columns=self.keys)
+        else:
+            raise StopIteration
+
 
 class BaseSourceDriver(DataSource):
     support_spark = False
@@ -972,6 +996,121 @@ class MongoDBSource(BaseSourceDriver):
             filter_column=self.time_field or time_field,
             **attributes,
         )
+
+    def is_iterator(self):
+        return True if self.attributes.get("chunksize") else False
+
+
+class SqlDBSource(BaseSourceDriver):
+    """
+    Reads MongoDB as input source for a flow.
+    example::
+         connection_string = "???"
+         query = {age: {"$gt: 5}}
+         MongoDBSource(connection_string=connection_string, collection_name="coll",
+         db_name="my_dataset", chunksize=5, query=query)
+    :parameter name:  source name
+    :parameter query: dictionary query for mongodb
+    :parameter chunksize: number of rows per chunk (default large single chunk)
+    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter start_time: filters out data before this time
+    :parameter end_time: filters out data after this time
+    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+         cause the job to run every 30 minutes
+    :parameter db_name: the name of the database to access
+    :parameter connection_string: your mongodb connection string
+    :parameter collection_name: the name of the collection to access,
+                                    from the current database
+    :parameter spark_options: additional spark read options
+    """
+
+    kind = "sqldb"
+    support_storey = True
+    support_spark = False
+
+    def __init__(
+        self,
+        name: str = "",
+        max_results_for_table: int = None,
+        query: dict = None,
+        chunksize: int = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time=None,
+        end_time=None,
+        db_path: str = None,
+        collection_name: str = None,
+        spark_options: dict = None,
+    ):
+        _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
+        db_path = db_path or os.getenv(_SQL_DB_PATH_STRING_ENV_VAR)
+        if db_path is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"cannot specify without db_path arg or secret {_SQL_DB_PATH_STRING_ENV_VAR}"
+            )
+        attrs = {
+            "query": query,
+            "max_results": max_results_for_table,
+            "chunksize": chunksize,
+            "spark_options": spark_options,
+            "collection_name": collection_name,
+            "db_path": db_path
+        }
+        attrs = {key: value for key, value in attrs.items() if value is not None}
+        super().__init__(
+            name,
+            attributes=attrs,
+            key_field=key_field,
+            time_field=time_field,
+            schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    def to_dataframe(self):
+        import sqlalchemy as db
+        query = self.attributes.get("query")
+        db_path = self.attributes.get("db_path")
+        collection_name = self.attributes.get("collection_name")
+        chunksize = self.attributes.get("chunksize")
+        if collection_name and db_path:
+            engine = db.create_engine(db_path)
+            metadata = db.MetaData()
+            connection = engine.connect()
+            collection = db.Table(collection_name, metadata, autoload=True, autoload_with=engine)
+            results = connection.execute(db.select([collection]))
+            if chunksize:
+                return _SqlDBIterator(collection=results, iter_chunksize=chunksize, iter_query=query)
+            else:
+                results = results.fetchall()
+                df = pd.DataFrame(results)
+                df.columns = results[0].keys()
+                connection.close()
+                return df
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "collection_name and db_name args must be specified"
+            )
+
+    def to_step(self, key_field=None, time_field=None, context=None):
+        import storey
+
+        attributes = self.attributes or {}
+        if context:
+            attributes["context"] = context
+
+        return storey.sources.SqlDBSource(
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
+            storage_options=self._get_store().get_storage_options(),
+            end_filter=self.end_time,
+            start_filter=self.start_time,
+            filter_column=self.time_field or time_field,
+            **attributes,
+        )
+        pass
 
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False

@@ -17,7 +17,6 @@ import mlrun.errors
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.api.api.endpoints.functions import _build_function
-from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.runtimes.function import (

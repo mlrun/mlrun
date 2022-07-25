@@ -43,8 +43,6 @@ MLRUN_CACHE_DATE ?= $(shell date +%s)
 # 2. add the --cache-from flag to the docker build
 # 3. docker tag and push (also) the (updated) cache image
 MLRUN_DOCKER_CACHE_FROM_TAG ?=
-# if MLRUN_NO_CACHE passed we don't want to use cache, this is mainly used for cleaner if statements
-MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_CACHE_FROM_REGISTRY ?= $(MLRUN_DOCKER_REGISTRY)
 MLRUN_PUSH_DOCKER_CACHE_IMAGE ?=
 MLRUN_GIT_ORG ?= mlrun
@@ -59,6 +57,8 @@ MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKE
 MLRUN_CACHE_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_CACHE_FROM_REGISTRY),$(strip $(MLRUN_DOCKER_CACHE_FROM_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 MLRUN_CORE_DOCKER_TAG_SUFFIX := -core
 MLRUN_DOCKER_CACHE_FROM_FLAG :=
+# if MLRUN_NO_CACHE passed we don't want to use cache, this is mainly used for cleaner if statements
+MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 

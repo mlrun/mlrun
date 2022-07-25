@@ -3,11 +3,7 @@ ARG MLRUN_PYTHON_VERSION=3.7.13
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
 RUN apt-get update && \
-    apt-get -s dist-upgrade | \
-    grep "^Inst" | \
-    grep -i "stable\|securi" | \
-    awk -F " " {'print $2'} | \
-    DEBIAN_FRONTEND=noninteractive xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 # need to be redeclared since used in the from

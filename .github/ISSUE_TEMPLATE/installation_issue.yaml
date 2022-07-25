@@ -10,8 +10,7 @@ body:
       options:
         - label: >
             I have read the [installation guide](https://docs.mlrun.org/en/latest/install.html).
-    validations:
-      required: true
+          required: true
   - type: dropdown
     id: os
     attributes:

@@ -139,7 +139,7 @@ default_config = {
                 # used when running in Iguazio.
                 # keep: always use the user id of the user that triggered the 1st run
                 # override: use the user id of the user requesting to submit the run
-                # disabled: security context is not auto applied
+                # manual: security context is not auto applied
                 "mode": "keep",
             },
             "service_account": {"default": None},

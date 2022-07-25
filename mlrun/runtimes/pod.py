@@ -1024,9 +1024,9 @@ class KubeResource(BaseRuntime):
 
         :param security_context:         The security context for the pod
         """
-        if mlrun.mlconf.function.spec.security_context.mode != "disabled":
+        if mlrun.mlconf.function.spec.security_context.mode != "manual":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Security context is handled internally when mode is not disabled"
+                "Security context is handled internally when mode is not manual"
             )
         self.spec.security_context = security_context
 

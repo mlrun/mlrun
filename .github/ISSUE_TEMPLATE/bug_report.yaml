@@ -28,7 +28,7 @@ body:
       render: python
     validations:
       required: true
-    - type: textarea
+  - type: textarea
     id: problem
     attributes:
       label: Issue Description

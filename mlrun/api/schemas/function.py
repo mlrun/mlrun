@@ -42,9 +42,9 @@ class PreemptionModes(str, Enum):
     none = "none"
 
 
-# used when running in Iguazio (otherwise use manual mode)
+# used when running in Iguazio (otherwise use disabled mode)
 class SecurityContextEnrichmentModes(str, Enum):
-    # always use the user id of the user that triggered the 1st run
+    # always use the user id of the user that triggered the 1st run / created the function
     retain = "retain"
     # use the user id of the user that triggered the last run
     override = "override"

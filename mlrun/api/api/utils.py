@@ -485,7 +485,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     # security context is not yet supported with spark runtime since it requires spark 3.2+
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.disabled
+        == SecurityContextEnrichmentModes.disabled.value
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         or mlrun.mlconf.httpdb.authentication.mode != "iguazio"
@@ -497,10 +497,11 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         )
         return
 
-    # TODO: for old functions being triggered after upgrading mlrun - enrich with project owner uid
+    # TODO: for old functions being triggered after upgrading mlrun to 1.0.5 or above - enrich with project owner uid.
+    #  Enrichment with retain enrichment mode should occur on function creation only.
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.retain
+        == SecurityContextEnrichmentModes.retain.value
         and function.spec.security_context is not None
         and function.spec.security_context.run_as_user is not None
         and function.spec.security_context.run_as_group is not None
@@ -508,30 +509,36 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         logger.debug(
             "Security context is already set",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
+            function_name=function.name,
         )
         return
 
     if mlrun.mlconf.function.spec.security_context.enrichment_mode in [
-        SecurityContextEnrichmentModes.override,
-        SecurityContextEnrichmentModes.retain,
+        SecurityContextEnrichmentModes.override.value,
+        SecurityContextEnrichmentModes.retain.value,
     ]:
-        logger.debug(
-            "Enriching security context",
-            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
-        )
         function: mlrun.runtimes.pod.KubeResource
         nogroup_id = (
             mlrun.mlconf.function.spec.security_context.enrichment_group_id
             if mlrun.mlconf.function.spec.security_context.enrichment_group_id != "-1"
             else auth_info.user_unix_id
         )
+
+        logger.debug(
+            "Enriching security context",
+            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
+            function_name=function.metadata.name,
+            nogroup_id=nogroup_id,
+            user_unix_id=auth_info.user_unix_id,
+        )
         function.spec.security_context = kubernetes.client.V1SecurityContext(
             run_as_user=auth_info.user_unix_id,
             run_as_group=int(nogroup_id),
         )
+
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Invalid security context mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
+            f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
         )
 
 

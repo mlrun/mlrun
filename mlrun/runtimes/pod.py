@@ -1031,7 +1031,7 @@ class KubeResource(BaseRuntime):
         """
         if (
             mlrun.mlconf.function.spec.security_context.enrichment_mode
-            != SecurityContextEnrichmentModes.disabled
+            != SecurityContextEnrichmentModes.disabled.value
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Security context is handled internally when enrichment mode is not disabled"

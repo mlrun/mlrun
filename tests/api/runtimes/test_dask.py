@@ -356,7 +356,7 @@ class TestDaskRuntime(TestRuntimeBase):
 
         # override security context
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            SecurityContextEnrichmentModes.disabled
+            SecurityContextEnrichmentModes.disabled.value
         )
         runtime.with_security_context(other_security_context)
         _ = runtime.client

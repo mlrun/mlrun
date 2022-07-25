@@ -354,6 +354,7 @@ class TestDaskRuntime(TestRuntimeBase):
         )
 
         # override security context
+        mlrun.mlconf.function.spec.security_context.mode = "manual"
         runtime.with_security_context(other_security_context)
         _ = runtime.client
         self.assert_security_context(other_security_context)

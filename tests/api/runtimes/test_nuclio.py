@@ -1082,6 +1082,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             2000,
         )
 
+        mlrun.mlconf.function.spec.security_context.mode = "manual"
         function.with_security_context(other_security_context)
         self.execute_function(function)
 

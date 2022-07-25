@@ -259,6 +259,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
         runtime = self._generate_runtime()
 
+        # default mode is 'keep' which is internally managed
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            runtime.with_security_context(other_security_context)
+        assert "Security context is handled internally when mode is not manual" in str(
+            exc.value
+        )
+
+        mlrun.mlconf.function.spec.security_context.mode = "manual"
         runtime.with_security_context(other_security_context)
         self.execute_function(runtime)
         self.assert_security_context(other_security_context)

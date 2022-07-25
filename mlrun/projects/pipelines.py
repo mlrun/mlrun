@@ -677,7 +677,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image=mlrun.config.config.default_base_image,
+                image=mlrun.mlconf.default_base_image,
             )
 
             msg = "executing workflow "
@@ -813,22 +813,22 @@ def github_webhook(request):
 
 def load_and_run(
     context,
-    url: typing.Optional[str] = None,
+    url: str = None,
     project_name: str = "",
-    init_git: typing.Optional[bool] = None,
-    subpath: typing.Optional[str] = None,
-    clone: typing.Optional[bool] = False,
-    workflow_name: typing.Optional[str] = None,
-    workflow_path: typing.Optional[str] = None,
-    workflow_arguments: typing.Optional[dict] = None,
-    artifact_path: typing.Optional[str] = None,
-    workflow_handler: typing.Optional[str] = None,
-    namespace: typing.Optional[str] = None,
+    init_git: bool = None,
+    subpath: str = None,
+    clone: bool = False,
+    workflow_name: str = None,
+    workflow_path: str = None,
+    workflow_arguments: typing.Dict[str, typing.Any] = None,
+    artifact_path: str = None,
+    workflow_handler: typing.Union[str, typing.Callable] = None,
+    namespace: str = None,
     sync: bool = False,
     dirty: bool = False,
-    ttl: typing.Optional[int] = None,
-    engine: typing.Optional[str] = None,
-    local: typing.Optional[bool] = None,
+    ttl: int = None,
+    engine: str = None,
+    local: bool = None,
 ):
     project = mlrun.load_project(
         context=f"./{project_name}",

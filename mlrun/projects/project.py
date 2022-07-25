@@ -1949,6 +1949,7 @@ class MlrunProject(ModelObj):
         elif workflow_spec.schedule:
             inner_engine = engine
             engine = "remote"
+        # The default engine is kfp if not given:
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
         if not inner_engine and engine == "remote":
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
@@ -1964,7 +1965,8 @@ class MlrunProject(ModelObj):
             namespace=namespace,
         )
         run_msg = f"started run workflow {name} "
-        if run and hasattr(run, "run_id"):
+        # run is None when scheduling
+        if run:
             run_msg += f"with run id = '{run.run_id}' "
         run_msg += f"by {workflow_engine.engine} engine"
         logger.info(run_msg)

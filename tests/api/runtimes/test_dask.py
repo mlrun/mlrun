@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 import mlrun
 from mlrun import mlconf
-from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
 from tests.api.runtimes.base import TestRuntimeBase
@@ -355,9 +354,6 @@ class TestDaskRuntime(TestRuntimeBase):
         )
 
         # override security context
-        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
-            SecurityContextEnrichmentModes.disabled.value
-        )
         runtime.with_security_context(other_security_context)
         _ = runtime.client
         self.assert_security_context(other_security_context)

@@ -491,7 +491,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
 
     function: mlrun.runtimes.pod.KubeResource
 
-    # TODO: enrich old functions being triggered after upgrading mlrun to 1.0.5 or above with project owner uid.
+    # TODO: enrich old functions being triggered after upgrading mlrun with project owner uid.
     #  Enrichment with retain enrichment mode should occur on function creation only.
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode

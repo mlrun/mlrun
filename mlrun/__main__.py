@@ -879,7 +879,7 @@ def logs(uid, project, offset, db, watch):
     help="ensure the project exists, if not, create project",
 )
 @click.option(
-    "--schedule-pipeline",
+    "--schedule",
     type=str,
     default=None,
     help="a standard crontab expression string, for help see: "

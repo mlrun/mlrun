@@ -24,7 +24,11 @@ import kubernetes.client as k8s_client
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..api.schemas import NodeSelectorOperator, PreemptionModes
+from ..api.schemas import (
+    NodeSelectorOperator,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_node_selector_requirements,
@@ -1017,7 +1021,10 @@ class KubeResource(BaseRuntime):
 
     def with_security_context(self, security_context: k8s_client.V1SecurityContext):
         """
-        Set security context for the pod
+        Set security context for the pod.
+        For Iguazio we handle security context internally -
+        see mlrun.api.schemas.function.SecurityContextEnrichmentModes
+
         Example:
 
             from kubernetes import client as k8s_client
@@ -1033,6 +1040,13 @@ class KubeResource(BaseRuntime):
 
         :param security_context:         The security context for the pod
         """
+        if (
+            mlrun.mlconf.function.spec.security_context.enrichment_mode
+            != SecurityContextEnrichmentModes.disabled.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Security context is handled internally when enrichment mode is not disabled"
+            )
         self.spec.security_context = security_context
 
     def list_valid_priority_class_names(self):

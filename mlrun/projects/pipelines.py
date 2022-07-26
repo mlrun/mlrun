@@ -668,7 +668,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
-        runner_name = f"workflow-runner-{workflow_name}"
+        runner_name = f"pipeline-runner-{workflow_name}"
         run_id = None
 
         try:
@@ -679,7 +679,7 @@ class _RemoteRunner(_PipelineRunner):
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
-
+            load_and_run_fn.set_label("job-type", "pipeline-runner").set_label("workflow", workflow_name)
             msg = "executing workflow "
             if workflow_spec.schedule:
                 msg += "scheduling "

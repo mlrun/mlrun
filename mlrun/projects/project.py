@@ -1022,6 +1022,7 @@ class MlrunProject(ModelObj):
         args_schema: typing.List[EntrypointParam] = None,
         handler=None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        ttl=None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1036,6 +1037,7 @@ class MlrunProject(ModelObj):
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
         if not workflow_path:
@@ -1060,6 +1062,8 @@ class MlrunProject(ModelObj):
             workflow["args_schema"] = args_schema
         workflow["engine"] = engine
         workflow["schedule"] = schedule
+        if ttl:
+            workflow["ttl"] = ttl
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1872,7 +1876,7 @@ class MlrunProject(ModelObj):
         ttl: int = None,
         engine: str = None,
         local: bool = None,
-        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
@@ -1900,6 +1904,7 @@ class MlrunProject(ModelObj):
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                          for using workflow's spec schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
@@ -1939,8 +1944,12 @@ class MlrunProject(ModelObj):
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
-        if schedule is not None:
-            workflow_spec.schedule = schedule
+        if schedule:
+            # Schedule = True -> use workflow_spec.schedule
+            if not isinstance(schedule, bool):
+                workflow_spec.schedule = schedule
+        else:
+            workflow_spec.schedule = None
 
         inner_engine = None
         if engine and engine.startswith("remote"):

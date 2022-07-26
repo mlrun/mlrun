@@ -570,7 +570,165 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
             ]
             break
     else:
-        pytest.fail("no create-repo init container")
+        pytest.fail("no create-repos init container")
+
+
+def test_build_runtime_ecr_with_repository(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    repo_name = "my-repo"
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        f"aws_account_id.dkr.ecr.us-east-2.amazonaws.com/{repo_name}"
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repos":
+            assert (
+                f"aws ecr create-repository --region us-east-2 --repository-name "
+                f"{repo_name}/func-some-project-some-function" in init_container.args[1]
+            )
+            break
+    else:
+        pytest.fail("no create-repos init container")
+
+
+@pytest.mark.parametrize(
+    "image_target,registry,default_repository,expected_dest",
+    [
+        (
+            "test-image",
+            None,
+            None,
+            "test-image",
+        ),
+        (
+            "test-image",
+            "test-registry",
+            None,
+            "test-registry/test-image",
+        ),
+        (
+            "test-image",
+            "test-registry/test-repository",
+            None,
+            "test-registry/test-repository/test-image",
+        ),
+        (
+            ".test-image",
+            None,
+            "default.docker.registry/default-repository",
+            "default.docker.registry/default-repository/test-image",
+        ),
+        (
+            ".default-repository/test-image",
+            None,
+            "default.docker.registry/default-repository",
+            "default.docker.registry/default-repository/test-image",
+        ),
+        (
+            ".test-image",
+            None,
+            "default.docker.registry",
+            "default.docker.registry/test-image",
+        ),
+    ],
+)
+def test_resolve_image_dest(image_target, registry, default_repository, expected_dest):
+    docker_registry_secret = "default-docker-registry-secret"
+    config.httpdb.builder.docker_registry = default_repository
+    config.httpdb.builder.docker_registry_secret = docker_registry_secret
+
+    image_target, _ = mlrun.builder._resolve_image_target_and_registry_secret(
+        image_target, registry
+    )
+    assert image_target == expected_dest
+
+
+@pytest.mark.parametrize(
+    "image_target,registry,secret_name,default_secret_name,expected_secret_name",
+    [
+        (
+            "test-image",
+            None,
+            None,
+            "default-secret-name",
+            None,
+        ),
+        (
+            "test-image",
+            None,
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            "test-image",
+            "test-registry",
+            None,
+            "default-secret-name",
+            None,
+        ),
+        (
+            "test-image",
+            "test-registry",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            "test-secret-name",
+            None,
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_registry_secret(
+    image_target, registry, secret_name, default_secret_name, expected_secret_name
+):
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+    config.httpdb.builder.docker_registry_secret = default_secret_name
+
+    _, secret_name = mlrun.builder._resolve_image_target_and_registry_secret(
+        image_target, registry, secret_name
+    )
+    assert secret_name == expected_secret_name
 
 
 def _get_target_image_from_create_pod_mock():

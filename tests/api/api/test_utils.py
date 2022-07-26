@@ -15,6 +15,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import tests.api.api.utils
 import tests.api.conftest
 from mlrun.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
@@ -29,6 +30,7 @@ from mlrun.utils import logger
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
 pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
+PROJECT = "some-project"
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(

@@ -46,6 +46,7 @@ class PreemptionModes(str, Enum):
 # populates mlrun.mlconf.function.spec.security_context.enrichment_mode
 class SecurityContextEnrichmentModes(str, Enum):
     # always use the user id of the user that triggered the 1st run / created the function
+    # NOTE: this mode is incomplete and not fully supported yet
     retain = "retain"
     # use the user id of the user that triggered the current run
     override = "override"

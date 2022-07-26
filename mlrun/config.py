@@ -550,6 +550,10 @@ class Config:
         return valid_function_priority_class_names
 
     @staticmethod
+    def is_running_on_iguazio() -> bool:
+        return config.igz_version is not None and config.igz_version != ""
+
+    @staticmethod
     def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
         if not config.igz_version:
             return None

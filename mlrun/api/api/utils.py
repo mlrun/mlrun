@@ -486,13 +486,8 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         == SecurityContextEnrichmentModes.disabled.value
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
-        or mlrun.mlconf.httpdb.authentication.mode != "iguazio"
+        or mlrun.mlconf.is_running_on_iguazio()
     ):
-        logger.debug(
-            "Security context is not required",
-            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
-            function_name=function.metadata.name,
-        )
         return
 
     # TODO: enrich old functions being triggered after upgrading mlrun to 1.0.5 or above with project owner uid.
@@ -516,7 +511,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         SecurityContextEnrichmentModes.retain.value,
     ]:
 
-        # if enrichment mode is -1 we set group id to user unix id
+        # if enrichment group id is -1 we set group id to user unix id
         nogroup_id = (
             mlrun.mlconf.function.spec.security_context.enrichment_group_id
             if mlrun.mlconf.function.spec.security_context.enrichment_group_id != -1

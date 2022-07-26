@@ -575,6 +575,38 @@ def test_build_runtime_ecr_with_aws_secret(monkeypatch):
         pytest.fail("no create-repos init container")
 
 
+def test_build_runtime_ecr_with_repository(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    repo_name = "my-repo"
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        f"aws_account_id.dkr.ecr.us-east-2.amazonaws.com/{repo_name}"
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repos":
+            assert (
+                f"aws ecr create-repository --region us-east-2 --repository-name "
+                f"{repo_name}/func-some-project-some-function" in init_container.args[1]
+            )
+            break
+    else:
+        pytest.fail("no create-repos init container")
+
+
 @pytest.mark.parametrize(
     "image_target,registry,default_repository,expected_dest",
     [

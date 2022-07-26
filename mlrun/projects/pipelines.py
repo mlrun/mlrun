@@ -668,7 +668,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
-        runner_name = f"pipeline-runner-{workflow_name}"
+        runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
         try:
@@ -679,31 +679,39 @@ class _RemoteRunner(_PipelineRunner):
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
-            load_and_run_fn.set_label("job-type", "pipeline-runner").set_label(
-                "workflow", workflow_name
-            )
             msg = "executing workflow "
             if workflow_spec.schedule:
                 msg += "scheduling "
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
             )
+            runspec = mlrun.RunObject.from_dict(
+                {
+                    "spec": {
+                        "parameters": {
+                            "url": project.spec.source,
+                            "project_name": project.name,
+                            "workflow_name": workflow_name or workflow_spec.name,
+                            "workflow_path": workflow_spec.path,
+                            "workflow_arguments": workflow_spec.args,
+                            "artifact_path": artifact_path,
+                            "workflow_handler": workflow_handler
+                            or workflow_spec.handler,
+                            "namespace": namespace,
+                            "ttl": workflow_spec.ttl,
+                            "engine": workflow_spec.engine,
+                            "local": workflow_spec.run_local,
+                        },
+                        "handler": "mlrun.projects.load_and_run",
+                    },
+                    "metadata": {"name": workflow_name},
+                }
+            )
+            runspec = runspec.set_label("job-type", "workflow-runner").set_label(
+                "workflow", workflow_name
+            )
             run = load_and_run_fn.run(
-                name=workflow_name,
-                params={
-                    "url": project.spec.source,
-                    "project_name": project.name,
-                    "workflow_name": workflow_name or workflow_spec.name,
-                    "workflow_path": workflow_spec.path,
-                    "workflow_arguments": workflow_spec.args,
-                    "artifact_path": artifact_path,
-                    "workflow_handler": workflow_handler or workflow_spec.handler,
-                    "namespace": namespace,
-                    "ttl": workflow_spec.ttl,
-                    "engine": workflow_spec.engine,
-                    "local": workflow_spec.run_local,
-                },
-                handler="mlrun.projects.load_and_run",
+                runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
             )

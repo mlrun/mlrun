@@ -44,7 +44,6 @@ class TotalVarianceDistance:
     Provides a symmetric drift distance between two periods t and u
     Z - vector of random variables
     Pt - Probability distribution over time span t
-
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -57,7 +56,6 @@ class TotalVarianceDistance:
     def compute(self) -> float:
         """
         Calculate Total Variance distance.
-
         :returns:  Total Variance Distance.
         """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
@@ -70,7 +68,6 @@ class HellingerDistance:
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
-
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -83,10 +80,11 @@ class HellingerDistance:
     def compute(self) -> float:
         """
         Calculate Hellinger Distance
-
         :returns: Hellinger Distance
         """
-        return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
+        return np.sqrt(
+            0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
+        )
 
 
 @dataclasses.dataclass
@@ -95,7 +93,6 @@ class KullbackLeiblerDivergence:
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
-
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -110,7 +107,6 @@ class KullbackLeiblerDivergence:
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.
         :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
-
         :returns: KL Divergence
         """
         t_u = np.sum(
@@ -633,7 +629,7 @@ class BatchProcessor:
                     options=mlrun.data_types.infer.InferOptions.all_stats(),
                 )
 
-                # save feature set to apply changes
+                # Save feature set to apply changes
                 m_fs.save()
 
                 # Get the timestamp of the latest request:
@@ -646,18 +642,6 @@ class BatchProcessor:
                     df=named_features_df,
                     options=mlrun.data_types.infer.InferOptions.Histogram,
                 )
-
-                # Recalculate the histograms over the bins that are set in the sample-set of the end point:
-                for feature in current_stats.keys():
-                    if feature in endpoint.status.feature_stats:
-                        current_values, sample_bins = np.histogram(
-                            named_features_df[feature].to_numpy(),
-                            bins=endpoint.status.feature_stats[feature]["hist"][1],
-                        )
-                        current_stats[feature]["hist"] = [
-                            current_values.tolist(),
-                            sample_bins.tolist(),
-                        ]
 
                 # Compute the drift based on the histogram of the current stats and the histogram of the original
                 # feature stats that can be found in the model endpoint object:

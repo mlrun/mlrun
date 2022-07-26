@@ -250,10 +250,6 @@ class FeaturesDriftTablePlot:
         if isinstance(value, str):
             return ""
 
-        # Check fo nan values:
-        if np.isnan(value):
-            return ""
-
         # Any whole number or number with a long integer value should be parsed into short characters
         # (e.g: 10000 -> 10k, 1100000 -> 1.1m):
         integer_length = len(str(int(value)))

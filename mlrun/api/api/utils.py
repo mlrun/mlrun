@@ -477,7 +477,6 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
     mlrun.mlconf.function.spec.security_context.enrichment_mode
     and mlrun.mlconf.function.spec.security_context.enrichment_group_id
     """
-    function: mlrun.runtimes.pod.KubeResource
 
     # if security context is not required.
     # security context is not yet supported with spark runtime since it requires spark 3.2+
@@ -486,9 +485,11 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         == SecurityContextEnrichmentModes.disabled.value
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
-        or mlrun.mlconf.is_running_on_iguazio()
+        or not mlrun.mlconf.is_running_on_iguazio()
     ):
         return
+
+    function: mlrun.runtimes.pod.KubeResource
 
     # TODO: enrich old functions being triggered after upgrading mlrun to 1.0.5 or above with project owner uid.
     #  Enrichment with retain enrichment mode should occur on function creation only.

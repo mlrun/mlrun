@@ -80,8 +80,14 @@ def make_kaniko_pod(
     verbose=False,
     builder_env=None,
     runtime_spec=None,
+    registry=None,
 ):
     extra_runtime_spec = {}
+    if not registry:
+
+        # if registry was not given, infer it from the image destination
+        registry = dest.partition("/")[0]
+
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
@@ -129,10 +135,6 @@ def make_kaniko_pod(
     )
     kpod.env = builder_env
 
-    if secret_name:
-        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
-        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
-
     if config.is_pip_ca_configured():
         items = [
             {
@@ -171,13 +173,75 @@ def make_kaniko_pod(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
 
-        kpod.set_init_container(
+        kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
             args=["sh", "-c", "; ".join(commands)],
             env=env,
+            name="create-dockerfile",
         )
 
+    # when using ECR we need init container to create the image repository
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    if ".ecr." in registry and registry.endswith(".amazonaws.com"):
+        end = dest.find(":")
+        if end == -1:
+            end = len(dest)
+        repo = dest[dest.find("/") + 1 : end]
+        configure_kaniko_ecr_init_container(kpod, registry, repo)
+
+    # mount regular docker config secret
+    elif secret_name:
+        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
+        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
     return kpod
+
+
+def configure_kaniko_ecr_init_container(kpod, registry, repo):
+    region = registry.split(".")[3]
+
+    # fail silently in order to ignore "repository already exists" errors
+    # if any other error occurs - kaniko will fail similarly
+    command = (
+        f"aws ecr create-repository --region {region} --repository-name {repo} || true"
+        + f" && aws ecr create-repository --region {region} --repository-name {repo}/cache || true"
+    )
+    init_container_env = {}
+
+    if not config.httpdb.builder.docker_registry_secret:
+
+        # assume instance role has permissions to register and store a container image
+        # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
+        # we only need this in the kaniko container
+        kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+    else:
+        aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
+        aws_credentials_file_env_value = "/tmp/credentials"
+
+        # set the credentials file location in the init container
+        init_container_env[
+            aws_credentials_file_env_key
+        ] = aws_credentials_file_env_value
+
+        # set the kaniko container AWS credentials location to the mount's path
+        kpod.env.append(
+            client.V1EnvVar(
+                name=aws_credentials_file_env_key, value=aws_credentials_file_env_value
+            )
+        )
+        # mount the AWS credentials secret
+        kpod.mount_secret(
+            config.httpdb.builder.docker_registry_secret,
+            path="/tmp",
+        )
+
+    kpod.append_init_container(
+        config.httpdb.builder.kaniko_aws_cli_image,
+        command=["/bin/sh"],
+        args=["-c", command],
+        env=init_container_env,
+        name="create-repos",
+    )
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -305,6 +369,7 @@ def build_image(
         verbose=verbose,
         builder_env=builder_env,
         runtime_spec=runtime_spec,
+        registry=registry,
     )
 
     if to_mount:

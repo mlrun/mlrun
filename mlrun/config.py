@@ -120,6 +120,26 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
+    "background_tasks": {
+        # enabled / disabled
+        "timeout_mode": "enabled",
+        # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
+        "default_timeouts": {
+            "operations": {"migrations": "3600"},
+            "runtimes": {"dask": "600"},
+        },
+    },
+    "function": {
+        "spec": {
+            "image_pull_secret": {"default": None},
+            "security_context": {
+                # default security context to be applied to all functions - json string base64 encoded format
+                # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
+                "default": "e30=",  # encoded empty dict
+            },
+            "service_account": {"default": None},
+        },
+    },
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -236,6 +256,9 @@ default_config = {
             # setting the docker registry to be used for built images, can include the repository as well, e.g.
             # index.docker.io/<username>, if not included repository will default to mlrun
             "docker_registry": "",
+            # dockerconfigjson type secret to attach to kaniko pod.
+            # For amazon ECR, the secret is expected to provide AWS credentials. Leave empty to use EC2 IAM policy.
+            # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
             "docker_registry_secret": "",
             # whether to allow the docker registry we're pulling from to be insecure. "enabled", "disabled" or "auto"
             # which will resolve by the existence of secret
@@ -249,6 +272,8 @@ default_config = {
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.6.0",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.13.1",
+            # image for kaniko init container when docker registry is ECR
+            "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -472,6 +497,11 @@ class Config:
     def get_preemptible_tolerations(self) -> list:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.tolerations", list
+        )
+
+    def get_default_function_security_context(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "function.spec.security_context.default", dict
         )
 
     def is_preemption_nodes_configured(self):

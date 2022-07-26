@@ -184,13 +184,17 @@ class ModelEndpoints:
                 )
         # check if features can be found within the feature vector
         elif model_obj.feature_vector:
-            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(model_obj.feature_vector)
-            fv = run_db.get_feature_vector(name=name, project=model_endpoint.metadata.project, tag=tag)
+            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
+                model_obj.feature_vector
+            )
+            fv = run_db.get_feature_vector(
+                name=name, project=model_endpoint.metadata.project, tag=tag
+            )
             for feature in fv.status.features:
-                if feature['name'] != fv.status.label_column:
+                if feature["name"] != fv.status.label_column:
                     feature_set.add_feature(
                         mlrun.feature_store.Feature(
-                            name=feature['name'], value_type=feature['value_type']
+                            name=feature["name"], value_type=feature["value_type"]
                         )
                     )
         else:

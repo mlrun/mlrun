@@ -679,7 +679,9 @@ class _RemoteRunner(_PipelineRunner):
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
-            load_and_run_fn.set_label("job-type", "pipeline-runner").set_label("workflow", workflow_name)
+            load_and_run_fn.set_label("job-type", "pipeline-runner").set_label(
+                "workflow", workflow_name
+            )
             msg = "executing workflow "
             if workflow_spec.schedule:
                 msg += "scheduling "

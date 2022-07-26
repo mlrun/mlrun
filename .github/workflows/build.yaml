@@ -18,7 +18,7 @@ on:
         required: false
         default: ''
       version:
-        description: 'The version to build, without prefix v (e.g. 1.1.0), if not provided version will be <latest-release>-<commit-hash>'
+        description: 'The version to build, without prefix v (e.g. 1.1.0), if not provided version will be <unstable-version-prefix>-<commit-hash>, where <unstable-version-prefix> is taken from automation/version/unstable_version_prefix'
         required: false
         default: ''
       skip_images:

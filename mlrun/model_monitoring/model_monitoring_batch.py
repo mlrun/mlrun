@@ -419,7 +419,7 @@ class VirtualDrift:
         :param possible_drift_threshold: Threshold for the calculated result to be in a possible drift status.
         :param drift_detected_threshold: Threshold for the calculated result to be in a drift detected status.
 
-        :return: The figured drift status.
+        :returns: The figured drift status.
         """
         drift_status = DriftStatus.NO_DRIFT
         if drift_result >= drift_detected_threshold:
@@ -441,7 +441,7 @@ def calculate_inputs_statistics(
     :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
                                   sample set.
 
-    :return: The calculated statistics of the inputs data.
+    :returns: The calculated statistics of the inputs data.
     """
     # Use `DFDataInfer` to calculate the statistics over the inputs:
     inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
@@ -486,7 +486,6 @@ class BatchProcessor:
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param v3io_access_key:             Token key for v3io.
-
         """
         self.context = context
         self.project = project

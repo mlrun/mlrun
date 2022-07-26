@@ -182,7 +182,7 @@ def make_kaniko_pod(
 
     # when using ECR we need init container to create the image repository
     # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    if ".ecr." in registry and registry.endswith(".amazonaws.com"):
+    if ".ecr." in registry and ".amazonaws.com" in registry:
         end = dest.find(":")
         if end == -1:
             end = len(dest)

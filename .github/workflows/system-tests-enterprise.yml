@@ -94,7 +94,7 @@ jobs:
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
-        echo "::set-output name=unstable_version_prefix::$(cat automation/system_test/unstable_version_prefix)"
+        echo "::set-output name=unstable_version_prefix::$(cat automation/version/unstable_version_prefix)"
     - name: Set computed versions params
       id: computed_params
       run: |

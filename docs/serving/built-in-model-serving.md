@@ -18,7 +18,7 @@ For GPU support, use the `mlrun/ml-models-gpu` image (adding GPU drivers and sup
 
 ## Example
 
-The following code shows how to create a basic serving model using Scikit-learn. The assumption that you already have a model file called `model.pkl`
+The following code shows how to create a basic serving model using Scikit-learn. The assumption that you already have a model file, to run the example below, first set the value of the `model_path` variable.
 
 ``` python
 import mlrun

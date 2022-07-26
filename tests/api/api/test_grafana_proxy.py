@@ -51,6 +51,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
                     session="some-session",
                     data_session="some-session",
                     user_id=None,
+                    user_unix_id=0,
                     user_group_ids=[],
                 )
             )

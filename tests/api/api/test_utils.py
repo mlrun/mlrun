@@ -15,18 +15,22 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import tests.api.api.utils
 import tests.api.conftest
 from mlrun.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
     ensure_function_has_auth_set,
+    ensure_function_security_context,
 )
+from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
 pytestmark = pytest.mark.usefixtures("k8s_secrets_mock")
+PROJECT = "some-project"
 
 
 def test_generate_function_and_task_from_submit_run_body_body_override_values(
@@ -831,6 +835,192 @@ def test_mask_v3io_volume_credentials(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+
+
+def test_ensure_function_security_context_no_enrichment(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    mlrun.mlconf.igz_version = "3.6"
+
+    logger.info("Enrichment mode is disabled, nothing should be changed")
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.disabled.value
+    )
+    _, _, _, original_function_dict_job_kind = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    logger.info("Local function, nothing should be changed")
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    _, _, _, original_function_dict_local_kind = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.local
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict_local_kind)
+    function = mlrun.new_function(runtime=original_function_dict_local_kind)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    logger.info("Not running on iguazio, nothing should be changed")
+    mlrun.mlconf.igz_version = ""
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    _, _, _, original_function_dict_job_kind = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    ensure_function_security_context(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_ensure_function_security_context_override_enrichment_mode(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+
+    logger.info("Enrichment mode is override, security context should be enriched")
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+
+    # assert function was changed
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        != {}
+    )
+
+    # the enrichment that should be done
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=int(
+            mlrun.mlconf.function.spec.security_context.enrichment_group_id
+        ),
+    )
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_ensure_function_security_context_enrichment_group_id(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    logger.info("Change enrichment group id and validate it is being enriched")
+    group_id = 2000
+    mlrun.mlconf.function.spec.security_context.enrichment_group_id = group_id
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=group_id,
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    logger.info("Enrichment group id is -1, user unix id should be used as group id")
+    mlrun.mlconf.function.spec.security_context.enrichment_group_id = -1
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=auth_info.user_unix_id,
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_ensure_function_security_context_unknown_enrichment_mode(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = "not a real mode"
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    logger.info("Unknown enrichment mode, should fail")
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        ensure_function_security_context(function, auth_info)
+    assert (
+        f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
+        in str(exc.value)
+    )
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(

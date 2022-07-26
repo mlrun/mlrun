@@ -1,7 +1,7 @@
 (model_serving)=
 # Model Serving
 
-MLRun model serving allow composition of multi-stage real-time pipelines that include data manipulation and execution of models. The architecture allows high scalability and low latency performance.
+MLRun model serving allows composition of multi-stage real-time pipelines that include data manipulation and execution of models. The architecture allows high scalability while maintaining low latency performance.
 
 ## Basic Model Serving
 

@@ -15,6 +15,11 @@ ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
+
+ARG UID=1000
+# this creates both user and group with the same id
+RUN useradd -u $UID mlrun
+
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*

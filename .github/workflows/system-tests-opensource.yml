@@ -109,7 +109,7 @@ jobs:
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
-        echo "::set-output name=system_test_version_prefix::$(cat automation/system_test/version_prefix)"
+        echo "::set-output name=unstable_version_prefix::$(cat automation/system_test/unstable_version_prefix)"
     - name: Set computed versions params
       id: computed_params
       run: |
@@ -121,9 +121,9 @@ jobs:
         upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
         export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
         echo "::set-output name=ui_hash::$(echo $ui_hash)"
-        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.system_test_version_prefix }}+$mlrun_hash)"
-        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.system_test_version_prefix }}-$mlrun_hash)"
-        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.system_test_version_prefix }}-$ui_hash"
+        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)"
+        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)"
+        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
           echo ${input_docker_repo:-mlrun})"

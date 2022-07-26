@@ -59,7 +59,7 @@ jobs:
       id: git_info
       run: |
         echo "::set-output name=mlrun_commit_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
-        echo "::set-output name=system_test_version_prefix::$(cat automation/system_test/version_prefix)"
+        echo "::set-output name=unstable_version_prefix::$(cat automation/system_test/unstable_version_prefix)"
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
@@ -74,7 +74,7 @@ jobs:
       run: |
         echo "::set-output name=mlrun_version::$( \
           input_mlrun_version=${{ github.event.inputs.version }} && \
-          default_mlrun_version=$(echo ${{ steps.git_info.outputs.system_test_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
+          default_mlrun_version=$(echo ${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
           echo ${input_mlrun_version:-`echo $default_mlrun_version`})"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \

@@ -137,6 +137,7 @@ class Client(
             "self",
             "Failed get iguazio user",
             headers={
+                "authorization": request.headers.get("authorization"),
                 "cookie": request.headers.get("cookie"),
             },
         )

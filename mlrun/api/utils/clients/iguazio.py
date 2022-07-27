@@ -131,15 +131,12 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
-    def get_user_unix_id(self, request: fastapi.Request) -> str:
+    def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
             "GET",
             "self",
             "Failed get iguazio user",
-            headers={
-                "authorization": request.headers.get("authorization"),
-                "cookie": request.headers.get("cookie"),
-            },
+            session,
         )
         response_json = response.json()
         return response_json["data"]["attributes"]["uid"]

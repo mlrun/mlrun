@@ -915,6 +915,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
 
     logger.info("Enrichment mode is override, security context should be enriched")
     auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
@@ -922,6 +923,9 @@ def test_ensure_function_security_context_override_enrichment_mode(
 
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
+
+    # assert user unix id was not fetched from iguazio
+    assert mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.called == 0
 
     # assert function was changed
     assert (
@@ -1024,7 +1028,7 @@ def test_ensure_function_security_context_unknown_enrichment_mode(
     )
 
 
-def test_ensure_function_security_context_missing_control_plane(
+def test_ensure_function_security_context_missing_control_plane_session(
     db: Session, client: TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
@@ -1044,6 +1048,47 @@ def test_ensure_function_security_context_missing_control_plane(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)
     assert "Missing control plane session" in str(exc.value)
+
+
+def test_ensure_function_security_context_get_user_unix_id(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    user_unix_id = 1000
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override
+    )
+
+    # set auth info with control plane and without user unix id so that it will be fetched
+    auth_info = mlrun.api.schemas.AuthInfo(
+        planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.control]
+    )
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
+    )
+
+    logger.info("No user unix id in headers, should fetch from iguazio")
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=user_unix_id,
+        run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(

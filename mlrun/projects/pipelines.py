@@ -519,6 +519,8 @@ class _KFPRunner(_PipelineRunner):
     def wait_for_completion(
         run_id, project=None, timeout=None, expected_statuses=None, run_object=None
     ):
+        if timeout is None:
+            timeout = 60 * 60
         project_name = project.metadata.name if project else ""
         run_info = wait_for_pipeline_completion(
             run_id,
@@ -758,7 +760,10 @@ class _RemoteRunner(_PipelineRunner):
         run_id, project=None, timeout=None, expected_statuses=None, run_object=None
     ):
         # Note: here the run parameter is a RunObject
-        run_object.wait_for_completion(timeout=timeout)
+        state = run_object.wait_for_completion(timeout=timeout)
+        if state == mlrun.runtimes.constants.RunStates.completed:
+            return mlrun.run.RunStatuses.succeeded
+        return mlrun.run.RunStatuses.failed
 
     @staticmethod
     def get_run_status(
@@ -768,6 +773,8 @@ class _RemoteRunner(_PipelineRunner):
         expected_statuses=None,
         notifiers: RunNotifications = None,
     ):
+        if timeout is None:
+            timeout = 60 * 60
         # Note: here the run parameter is _PipelineRunStatus
         # Watching inner workflow:
         inner_engine_kind = run.run_object.status.results.get("engine", None)

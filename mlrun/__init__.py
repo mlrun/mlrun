@@ -17,7 +17,6 @@
 __all__ = ["get_version", "set_environment", "code_to_function", "import_function"]
 
 import getpass
-import os.path
 from os import environ, path
 
 import dotenv
@@ -195,7 +194,7 @@ def set_env_from_file(env_file: str, return_dict: bool = False):
     :param return_dict: set to True to return the env as a dict
     :return: None or env dict
     """
-    if not os.path.isfile(env_file):
+    if not path.isfile(env_file):
         raise MLRunInvalidArgumentError(f"env file {env_file} does not exist")
     env_vars = dotenv.dotenv_values(env_file)
     if None in env_vars.values():

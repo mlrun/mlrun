@@ -1039,7 +1039,7 @@ def test_ensure_function_security_context_missing_control_plane(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    logger.info("Session missing control plane")
+    logger.info("Session missing control plane, should fail")
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)

@@ -491,6 +491,7 @@ class Client(
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
             user_unix_id=user_unix_id,
+            planes=planes,
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session

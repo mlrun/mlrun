@@ -211,6 +211,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 auth_info.user_unix_id is None
                 and mlrun.mlconf.function.spec.security_context.enrichment_mode
                 != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+                and mlrun.api.utils.clients.iguazio.SessionPlanes.control
+                in auth_info.planes
             ):
                 auth_info.user_unix_id = iguazio_client.get_user_unix_id(request)
 

@@ -617,6 +617,59 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         with pytest.raises(FileNotFoundError):
             pd.read_parquet(target.get_target_path())
 
+    def test_write_dataframe_overwrite_false(self):
+        name = "test_write_dataframe_overwrite_false"
+
+        path = "v3io:///bigdata/test_write_dataframe_overwrite_false.parquet"
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        df = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2021-01-10 10:00:00"),
+                ],
+                "first_name": ["moshe"],
+                "data": [2000],
+            }
+        )
+        df.to_parquet(path=path, filesystem=fsys)
+
+        source = ParquetSource(
+            "myparquet",
+            path=path,
+            time_field="time",
+        )
+
+        feature_set = fs.FeatureSet(
+            name=name,
+            entities=[fs.Entity("first_name")],
+            timestamp_key="time",
+            engine="spark",
+        )
+
+        target = ParquetTarget(
+            name="pq",
+            path="v3io:///bigdata/test_write_dataframe_overwrite_false/",
+            partitioned=False,
+        )
+
+        fs.ingest(
+            feature_set,
+            source,
+            run_config=fs.RunConfig(local=False),
+            targets=[
+                target,
+            ],
+            overwrite=False,
+            spark_context=self.spark_service,
+        )
+
+        features = [f"{name}.*"]
+        vec = fs.FeatureVector("test-vec", features)
+
+        resp = fs.get_offline_features(vec)
+        df = resp.to_dataframe()
+        assert df.to_dict() == {"data": {0: 2000}}
+
     @pytest.mark.parametrize(
         "should_succeed, is_parquet, is_partitioned, target_path",
         [

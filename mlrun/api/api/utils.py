@@ -515,15 +515,17 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
 
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
         # so we need to request it explicitly
-        if (
-            auth_info.user_unix_id is None
-            and mlrun.api.utils.clients.iguazio.SessionPlanes.control
-            in auth_info.planes
-        ):
+        if auth_info.user_unix_id is None:
+            if (
+                mlrun.api.utils.clients.iguazio.SessionPlanes.control
+                not in auth_info.planes
+            ):
+                raise mlrun.errors.MLRunUnauthorizedError(
+                    "Missing control plane session"
+                )
+
             iguazio_client = mlrun.api.utils.clients.iguazio.Client()
             auth_info.user_unix_id = iguazio_client.get_user_unix_id(auth_info.session)
-        else:
-            raise mlrun.errors.MLRunUnauthorizedError("Missing control plane session")
 
         # if enrichment group id is -1 we set group id to user unix id
         nogroup_id = (

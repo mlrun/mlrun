@@ -13,6 +13,7 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import tests.api.api.utils
@@ -1021,6 +1022,28 @@ def test_ensure_function_security_context_unknown_enrichment_mode(
         f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
         in str(exc.value)
     )
+
+
+def test_ensure_function_security_context_missing_control_plane(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(
+        planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.data]
+    )
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    logger.info("Session missing control plane")
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
+        ensure_function_security_context(function, auth_info)
+    assert "Missing control plane session" in str(exc.value)
 
 
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(

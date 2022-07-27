@@ -131,14 +131,12 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
-    def get_user_unix_id(self, request: fastapi.Request) -> str:
+    def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
             "GET",
             "self",
             "Failed get iguazio user",
-            headers={
-                "cookie": request.headers.get("cookie"),
-            },
+            session,
         )
         response_json = response.json()
         return response_json["data"]["attributes"]["uid"]
@@ -478,6 +476,7 @@ class Client(
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
             user_unix_id=user_unix_id,
+            planes=planes,
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session

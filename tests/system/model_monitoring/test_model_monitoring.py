@@ -428,7 +428,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
 
-    @pytest.mark.timeout(350)
+    @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
         # The following test:
         # 1 - apply model monitoring for a regression algorithm
@@ -525,31 +525,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         # Deploy the serving function
         serving_fn.deploy()
 
-        # Invoke the model
-        fset = mlrun.feature_store.get_feature_set("diabetes-set")
-        res = fset.to_dataframe()
-        data_to_invoke = res.reset_index()["patient_id"].values
-        for msg_batch in range(51):
-            ids_for_prediction = [[str(choice(data_to_invoke))] for i in range(5)]
-            serving_fn.invoke(
-                path="/v2/models/diabetes_model/infer",
-                body={"inputs": ids_for_prediction},
-            )
-            sleep(0.2)
-
-        # Sleep to allow TSDB to be written (10/m)
-        sleep(20)
-
-        # Trigger model monitoring batch job
-        mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
-
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
         assert len(endpoints_list.endpoints) == 1
 
         # Validate monitoring mode
         model_endpoint = endpoints_list.endpoints[0]
-        assert model_endpoint.spec.monitoring_mode == "enabled"
+        assert (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+        )
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

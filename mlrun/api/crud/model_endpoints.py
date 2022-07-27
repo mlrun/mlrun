@@ -85,7 +85,10 @@ class ModelEndpoints:
                 model_endpoint.spec.algorithm = model_obj.algorithm
 
             # Create monitoring feature set if monitoring found in model endpoint object
-            if model_endpoint.spec.monitoring_mode == "enabled":
+            if (
+                model_endpoint.spec.monitoring_mode
+                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+            ):
                 self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )

@@ -561,7 +561,11 @@ class BatchProcessor:
 
         active_endpoints = set()
         for endpoint in endpoints.endpoints:
-            if endpoint.spec.active and endpoint.spec.monitoring_mode == "enabled":
+            if (
+                endpoint.spec.active
+                and endpoint.spec.monitoring_mode
+                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+            ):
                 active_endpoints.add(endpoint.metadata.uid)
 
         # perform drift analysis for each model endpoint

@@ -157,7 +157,7 @@ class ModelEndpoints:
                                   the features are not found in the model object.
         """
 
-        # define a new feature set
+        # Define a new feature set
         _, serving_function_name, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(
             model_endpoint.spec.function_uri
         )
@@ -177,7 +177,7 @@ class ModelEndpoints:
             "model_class": model_endpoint.spec.model_class,
         }
 
-        # add features to the feature set according to the model object
+        # Add features to the feature set according to the model object
         if model_obj.inputs.values():
             for feature in model_obj.inputs.values():
                 feature_set.add_feature(
@@ -185,7 +185,7 @@ class ModelEndpoints:
                         name=feature.name, value_type=feature.value_type
                     )
                 )
-        # check if features can be found within the feature vector
+        # Check if features can be found within the feature vector
         elif model_obj.feature_vector:
             _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
                 model_obj.feature_vector
@@ -206,8 +206,7 @@ class ModelEndpoints:
             )
             return
 
-        # define parquet target for this feature set
-
+        # Define parquet target for this feature set
         parquet_path = (
             f"v3io:///projects/{model_endpoint.metadata.project}"
             f"/model-endpoints/parquet/key={model_endpoint.metadata.uid}"
@@ -220,7 +219,7 @@ class ModelEndpoints:
             with_defaults=False,
         )
 
-        # save the new feature set
+        # Save the new feature set
         feature_set._override_run_db(db_session)
         feature_set.save()
         logger.info(

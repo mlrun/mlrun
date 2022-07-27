@@ -914,8 +914,8 @@ def test_ensure_function_security_context_override_enrichment_mode(
     )
 
     logger.info("Enrichment mode is override, security context should be enriched")
-    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
     mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
@@ -1064,14 +1064,14 @@ def test_ensure_function_security_context_get_user_unix_id(
     auth_info = mlrun.api.schemas.AuthInfo(
         planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.control]
     )
-    _, _, _, original_function_dict = _generate_original_function(
-        kind=mlrun.runtimes.RuntimeKinds.job
-    )
     mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
         return_value=user_unix_id
     )
 
     logger.info("No user unix id in headers, should fetch from iguazio")
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
     original_function = mlrun.new_function(runtime=original_function_dict)
     original_function.spec.security_context = kubernetes.client.V1SecurityContext(
         run_as_user=user_unix_id,

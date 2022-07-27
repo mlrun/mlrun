@@ -131,6 +131,18 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
+    def get_user_unix_id(self, request: fastapi.Request) -> str:
+        response = self._send_request_to_api(
+            "GET",
+            "self",
+            "Failed get iguazio user",
+            headers={
+                "cookie": request.headers.get("cookie"),
+            },
+        )
+        response_json = response.json()
+        return response_json["data"]["attributes"]["uid"]
+
     def get_or_create_access_key(
         self, session: str, planes: typing.List[str] = None
     ) -> str:
@@ -466,11 +478,18 @@ class Client(
         if planes:
             planes = planes.split(",")
         planes = planes or []
+        user_unix_id = None
+        x_unix_uid = response.headers.get("x-unix-uid")
+        # x-unix-uid may be 'Unknown' in case it is missing or in case of enrichment failures
+        if x_unix_uid and x_unix_uid.lower() != "unknown":
+            user_unix_id = int(x_unix_uid)
+
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],
             session=response.headers["x-v3io-session-key"],
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
+            user_unix_id=user_unix_id,
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session

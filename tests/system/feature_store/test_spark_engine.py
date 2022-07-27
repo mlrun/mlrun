@@ -1,4 +1,6 @@
 import os
+import pathlib
+import sys
 import uuid
 from datetime import datetime
 from time import sleep
@@ -11,7 +13,7 @@ from storey import EmitEveryEvent
 
 import mlrun
 import mlrun.feature_store as fs
-from mlrun import store_manager
+from mlrun import code_to_function, store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.feature_store import FeatureSet
@@ -65,22 +67,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         self._init_env_from_file()
 
-        if not self.spark_image_deployed:
+        store, _ = store_manager.get_or_create_store(self.get_remote_pq_source_path())
+        store.upload(
+            self.get_remote_pq_source_path(without_prefix=True),
+            self.get_local_pq_source_path(),
+        )
+        store, _ = store_manager.get_or_create_store(self.get_remote_csv_source_path())
+        store.upload(
+            self.get_remote_csv_source_path(without_prefix=True),
+            self.get_local_csv_source_path(),
+        )
 
-            store, _ = store_manager.get_or_create_store(
-                self.get_remote_pq_source_path()
-            )
-            store.upload(
-                self.get_remote_pq_source_path(without_prefix=True),
-                self.get_local_pq_source_path(),
-            )
-            store, _ = store_manager.get_or_create_store(
-                self.get_remote_csv_source_path()
-            )
-            store.upload(
-                self.get_remote_csv_source_path(without_prefix=True),
-                self.get_local_csv_source_path(),
-            )
+        if not self.spark_image_deployed:
             if not self.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
             else:
@@ -121,15 +119,23 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             entities=[fs.Entity(key)],
             engine="spark",
         )
+        # Added to test that we can ingest a column named "summary"
+        measurements.graph.to(name="rename_column", handler="rename_column")
         source = CSVSource(
             "mycsv", path=self.get_remote_csv_source_path(), time_field="timestamp"
         )
+        filename = str(
+            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
+            / "spark_ingest_remote_test_code.py"
+        )
+        func = code_to_function("func", kind="remote-spark", filename=filename)
+        run_config = fs.RunConfig(local=False, function=func, handler="ingest_handler")
         fs.ingest(
             measurements,
             source,
             return_df=True,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=run_config,
         )
 
         features = [f"{name}.*"]

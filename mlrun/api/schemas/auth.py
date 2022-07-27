@@ -95,6 +95,7 @@ class AuthInfo(pydantic.BaseModel):
     user_group_ids: typing.List[str] = []
     user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
+    planes: typing.List[str] = []
 
     def to_nuclio_auth_info(self):
         if self.session != "":

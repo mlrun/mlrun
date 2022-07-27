@@ -1,5 +1,6 @@
 import collections
 import dataclasses
+import datetime
 import json
 import os
 from enum import Enum
@@ -13,8 +14,9 @@ import v3io.dataplane
 import mlrun
 import mlrun.api.schemas
 import mlrun.data_types.infer
+import mlrun.feature_store as fstore
 import mlrun.run
-import mlrun.utils
+import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
@@ -42,7 +44,6 @@ class TotalVarianceDistance:
     Provides a symmetric drift distance between two periods t and u
     Z - vector of random variables
     Pt - Probability distribution over time span t
-
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -55,7 +56,6 @@ class TotalVarianceDistance:
     def compute(self) -> float:
         """
         Calculate Total Variance distance.
-
         :returns:  Total Variance Distance.
         """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
@@ -68,7 +68,6 @@ class HellingerDistance:
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
-
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -81,7 +80,6 @@ class HellingerDistance:
     def compute(self) -> float:
         """
         Calculate Hellinger Distance
-
         :returns: Hellinger Distance
         """
         return np.sqrt(
@@ -95,7 +93,6 @@ class KullbackLeiblerDivergence:
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
-
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -110,7 +107,6 @@ class KullbackLeiblerDivergence:
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.
         :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
-
         :returns: KL Divergence
         """
         t_u = np.sum(
@@ -172,7 +168,7 @@ class VirtualDrift:
         self.feature_weights = feature_weights
         self.capping = inf_capping
 
-        # initialize objects of the current metrics
+        # Initialize objects of the current metrics
         self.metrics = {
             TotalVarianceDistance.NAME: TotalVarianceDistance,
             HellingerDistance.NAME: HellingerDistance,
@@ -189,16 +185,15 @@ class VirtualDrift:
         :returns: Histogram dataframe
         """
 
-        # create a dictionary with feature histograms as values
+        # Create a dictionary with feature histograms as values
         histograms = {}
         for feature, stats in histogram_dict.items():
-            histograms[feature] = stats["hist"][0]
+            if "hist" in stats:
+                # Normalize to probability distribution of each feature
+                histograms[feature] = np.array(stats["hist"][0]) / stats["count"]
 
-        # convert the dictionary to pandas DataFrame
+        # Convert the dictionary to pandas DataFrame
         histograms = pd.DataFrame(histograms)
-
-        # normalize to probability distribution of each feature
-        histograms = histograms / histograms.sum()
 
         return histograms
 
@@ -423,7 +418,7 @@ class VirtualDrift:
         :param possible_drift_threshold: Threshold for the calculated result to be in a possible drift status.
         :param drift_detected_threshold: Threshold for the calculated result to be in a drift detected status.
 
-        :return: The figured drift status.
+        :returns: The figured drift status.
         """
         drift_status = DriftStatus.NO_DRIFT
         if drift_result >= drift_detected_threshold:
@@ -472,7 +467,7 @@ class BatchProcessor:
         # define the required paths for the project objects.
         # note that the kv table, tsdb, and the input stream paths are located at the default location
         # while the parquet path is located at the user-space location
-        template = mlrun.utils.config.model_endpoint_monitoring.store_prefixes.default
+        template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
         (
             _,
@@ -491,8 +486,10 @@ class BatchProcessor:
             self.stream_container,
             self.stream_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)
-        self.parquet_path = mlrun.utils.config.model_endpoint_monitoring.store_prefixes.user_space.format(
-            project=project, kind="parquet"
+        self.parquet_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                project=project, kind="parquet"
+            )
         )
 
         logger.info(
@@ -511,10 +508,10 @@ class BatchProcessor:
 
         # get drift thresholds from the model monitoring configuration
         self.default_possible_drift_threshold = (
-            mlrun.utils.config.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
         self.default_drift_detected_threshold = (
-            mlrun.utils.config.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
 
         # get a runtime database
@@ -526,7 +523,7 @@ class BatchProcessor:
             access_key=self.v3io_access_key
         )
         self.frames = mlrun.utils.v3io_clients.get_frames_client(
-            address=mlrun.utils.config.v3io_framesd,
+            address=mlrun.mlconf.v3io_framesd,
             container=self.tsdb_container,
             token=self.v3io_access_key,
         )
@@ -564,33 +561,16 @@ class BatchProcessor:
 
         active_endpoints = set()
         for endpoint in endpoints.endpoints:
-            if endpoint.spec.active:
+            if (
+                endpoint.spec.active
+                and endpoint.spec.monitoring_mode
+                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+            ):
                 active_endpoints.add(endpoint.metadata.uid)
 
-        store, sub = mlrun.store_manager.get_or_create_store(self.parquet_path)
-        prefix = self.parquet_path.replace(sub, "")
-        fs = store.get_filesystem(silent=False)
-
-        if not fs.exists(sub):
-            logger.warn(f"{sub} does not exist")
-            return
-
-        for endpoint_dir in fs.ls(sub):
-            endpoint_id = endpoint_dir["name"].split("=")[-1]
-            if endpoint_id not in active_endpoints:
-                continue
-
-        # Perform drift analysis for each model endpoint:
+        # perform drift analysis for each model endpoint
         for endpoint_id in active_endpoints:
             try:
-                last_year = self.get_last_created_dir(fs, endpoint_dir)
-                last_month = self.get_last_created_dir(fs, last_year)
-                last_day = self.get_last_created_dir(fs, last_month)
-                last_hour = self.get_last_created_dir(fs, last_day)
-
-                full_path = f"{prefix}{last_hour['name']}"
-
-                logger.info(f"Now processing {full_path}")
 
                 # Get model endpoint object:
                 endpoint = self.db.get_model_endpoint(
@@ -606,14 +586,58 @@ class BatchProcessor:
                     logger.info(f"{endpoint_id} is router skipping")
                     continue
 
-                df = pd.read_parquet(full_path)
+                # convert feature set into dataframe and get the latest dataset
+                (
+                    _,
+                    serving_function_name,
+                    _,
+                    _,
+                ) = mlrun.utils.helpers.parse_versioned_object_uri(
+                    endpoint.spec.function_uri
+                )
+
+                model_name = endpoint.spec.model.replace(":", "-")
+
+                m_fs = fstore.get_feature_set(
+                    f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
+                )
+                df = m_fs.to_dataframe(
+                    start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
+                    end_time=datetime.datetime.now(),
+                    time_column="timestamp",
+                )
+
+                # continue if no input provided in the previous hour
+                if len(df) == 0:
+                    continue
+
+                # get feature names from monitoring feature set
+                feature_names = [
+                    feature_name["name"]
+                    for feature_name in m_fs.spec.features.to_dict()
+                ]
+
+                # create DataFrame based on the input features
+                stats_columns = [
+                    "timestamp",
+                    *feature_names,
+                    "prediction",
+                ]
+
+                named_features_df = df[stats_columns].copy()
+
+                # infer feature set stats and schema
+                fstore.api._infer_from_static_df(
+                    named_features_df,
+                    m_fs,
+                    options=mlrun.data_types.infer.InferOptions.all_stats(),
+                )
+
+                # Save feature set to apply changes
+                m_fs.save()
 
                 # Get the timestamp of the latest request:
                 timestamp = df["timestamp"].iloc[-1]
-
-                # Create DataFrame based on the input features:
-                named_features_df = list(df["named_features"])
-                named_features_df = pd.DataFrame(named_features_df)
 
                 # Get the current stats that are represented by histogram of each feature within the dataset. In the
                 # following dictionary, each key is a feature with dictionary of stats (including histogram
@@ -704,17 +728,11 @@ class BatchProcessor:
                     index_cols=["timestamp", "endpoint_id", "record_type"],
                 )
 
-                # logger.info(f"Done updating drift measures {full_path}")
+                logger.info("Done updating drift measures", endpoint_id=endpoint_id)
 
             except Exception as e:
                 logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
-
-    @staticmethod
-    def get_last_created_dir(fs, endpoint_dir):
-        dirs = fs.ls(endpoint_dir["name"])
-        last_dir = sorted(dirs, key=lambda k: k["name"].split("=")[-1])[-1]
-        return last_dir
 
 
 def handler(context: mlrun.run.MLClientCtx):

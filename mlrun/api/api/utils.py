@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
@@ -511,6 +512,18 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         SecurityContextEnrichmentModes.override.value,
         SecurityContextEnrichmentModes.retain.value,
     ]:
+
+        # before iguazio 3.6 the user unix id is not passed in the session verification response headers
+        # so we need to request it explicitly
+        if (
+            auth_info.user_unix_id is None
+            and mlrun.mlconf.function.spec.security_context.enrichment_mode
+            != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+            and mlrun.api.utils.clients.iguazio.SessionPlanes.control
+            in auth_info.planes
+        ):
+            iguazio_client = mlrun.api.utils.clients.iguazio.Client()
+            auth_info.user_unix_id = iguazio_client.get_user_unix_id(auth_info.session)
 
         # if enrichment group id is -1 we set group id to user unix id
         nogroup_id = (

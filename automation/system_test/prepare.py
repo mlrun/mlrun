@@ -123,6 +123,7 @@ class SystemTestPreparer:
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
+        time_to_wait: int = 5*60,
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -145,7 +146,7 @@ class SystemTestPreparer:
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live
+                    command, args, workdir, stdin, live, time_to_wait,
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
@@ -176,6 +177,7 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
+        time_to_wait: int = 5 * 60,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -212,6 +214,12 @@ class SystemTestPreparer:
                         break
                 print(line, end="")
         else:
+            # if time_to_wait:
+            #     self._logger.debug("about to wait", time_to_wait=time_to_wait)
+            #     for i in range(time_to_wait):
+            #         if i%10:
+            #             self._logger.debug(f"{i} seconds passed")
+            #         time.sleep(1)
             self._logger.debug("running stdout = stdout_stream.read()")
             stdout = stdout_stream.read()
 
@@ -369,6 +377,8 @@ class SystemTestPreparer:
                 f'"Authorization: token {self._github_access_token}"',
                 provctl_url,
             ],
+            live=False,
+            time_to_wait=1
         )
         self._run_command("chmod", args=["+x", provctl])
         return provctl
@@ -398,6 +408,7 @@ class SystemTestPreparer:
                 self._mlrun_version,
                 mlrun_archive,
             ],
+            live=False,
         )
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)

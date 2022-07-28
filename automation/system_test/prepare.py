@@ -190,13 +190,16 @@ class SystemTestPreparer:
         if stdin:
             stdin_stream.write(stdin)
             stdin_stream.close()
-
+        counter = 0
         if live:
             while True:
                 line = stdout_stream.readline()
                 stdout += line
                 if not line:
-                    break
+                    if counter < 30:
+                        print("Got empty line from stream")
+                        time.sleep(1)
+                        counter += 1
                 print(line, end="")
         else:
             stdout = stdout_stream.read()

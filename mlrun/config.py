@@ -132,6 +132,16 @@ default_config = {
     "function": {
         "spec": {
             "image_pull_secret": {"default": None},
+            "security_context": {
+                # default security context to be applied to all functions - json string base64 encoded format
+                # in camelCase format: {"runAsUser": 1000, "runAsGroup": 3000}
+                "default": "e30=",  # encoded empty dict
+                # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
+                "enrichment_mode": "disabled",
+                # default 65534 (nogroup), set to -1 to use the user unix id
+                "enrichment_group_id": 65534,
+            },
+            "service_account": {"default": None},
         },
     },
     "function_defaults": {
@@ -144,7 +154,7 @@ default_config = {
             "mpijob": "mlrun/ml-models",
         },
         # see enrich_function_preemption_spec for more info,
-        # and mlrun.api.schemas.functionPreemptionModes for available options
+        # and mlrun.api.schemas.function.PreemptionModes for available options
         "preemption_mode": "prevent",
     },
     "httpdb": {
@@ -512,6 +522,11 @@ class Config:
             "preemptible_nodes.tolerations", list
         )
 
+    def get_default_function_security_context(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "function.spec.security_context.default", dict
+        )
+
     def is_preemption_nodes_configured(self):
         if (
             not self.get_preemptible_tolerations()
@@ -533,6 +548,10 @@ class Config:
             if priority_class_name not in valid_function_priority_class_names:
                 valid_function_priority_class_names.append(priority_class_name)
         return valid_function_priority_class_names
+
+    @staticmethod
+    def is_running_on_iguazio() -> bool:
+        return config.igz_version is not None and config.igz_version != ""
 
     @staticmethod
     def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:

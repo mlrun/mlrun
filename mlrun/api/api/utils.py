@@ -14,12 +14,13 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.schemas import SecretProviderName
+from mlrun.api.schemas import SecretProviderName, SecurityContextEnrichmentModes
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -151,6 +152,7 @@ def _generate_function_and_task_from_submit_run_body(
     process_function_service_account(function)
 
     mask_sensitive_data(function, auth_info)
+    ensure_function_security_context(function, auth_info)
     return function, task
 
 
@@ -449,6 +451,11 @@ def process_function_service_account(function):
         allow_internal_secrets=True,
     )
 
+    # If default SA was not configured for the project, try to retrieve it from global config (if exists)
+    default_service_account = (
+        default_service_account or mlrun.mlconf.function.spec.service_account.default
+    )
+
     # Sanity check on project configuration
     if (
         default_service_account
@@ -463,6 +470,86 @@ def process_function_service_account(function):
     function.validate_and_enrich_service_account(
         allowed_service_accounts, default_service_account
     )
+
+
+def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
+    """
+    For iguazio we enforce that pods run with user id and group id depending on
+    mlrun.mlconf.function.spec.security_context.enrichment_mode
+    and mlrun.mlconf.function.spec.security_context.enrichment_group_id
+    """
+
+    # if security context is not required.
+    # security context is not yet supported with spark runtime since it requires spark 3.2+
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == SecurityContextEnrichmentModes.disabled.value
+        or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or function.kind == mlrun.runtimes.RuntimeKinds.spark
+        or not mlrun.mlconf.is_running_on_iguazio()
+    ):
+        return
+
+    function: mlrun.runtimes.pod.KubeResource
+
+    # TODO: enrich old functions being triggered after upgrading mlrun with project owner uid.
+    #  Enrichment with retain enrichment mode should occur on function creation only.
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == SecurityContextEnrichmentModes.retain.value
+        and function.spec.security_context is not None
+        and function.spec.security_context.run_as_user is not None
+        and function.spec.security_context.run_as_group is not None
+    ):
+        logger.debug(
+            "Security context is already set",
+            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
+            function_name=function.metadata.name,
+        )
+        return
+
+    if mlrun.mlconf.function.spec.security_context.enrichment_mode in [
+        SecurityContextEnrichmentModes.override.value,
+        SecurityContextEnrichmentModes.retain.value,
+    ]:
+
+        # before iguazio 3.6 the user unix id is not passed in the session verification response headers
+        # so we need to request it explicitly
+        if auth_info.user_unix_id is None:
+            if (
+                mlrun.api.utils.clients.iguazio.SessionPlanes.control
+                not in auth_info.planes
+            ):
+                raise mlrun.errors.MLRunUnauthorizedError(
+                    "Missing control plane session"
+                )
+
+            iguazio_client = mlrun.api.utils.clients.iguazio.Client()
+            auth_info.user_unix_id = iguazio_client.get_user_unix_id(auth_info.session)
+
+        # if enrichment group id is -1 we set group id to user unix id
+        nogroup_id = (
+            mlrun.mlconf.function.spec.security_context.enrichment_group_id
+            if mlrun.mlconf.function.spec.security_context.enrichment_group_id != -1
+            else auth_info.user_unix_id
+        )
+
+        logger.debug(
+            "Enriching/overriding security context",
+            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
+            function_name=function.metadata.name,
+            nogroup_id=nogroup_id,
+            user_unix_id=auth_info.user_unix_id,
+        )
+        function.spec.security_context = kubernetes.client.V1SecurityContext(
+            run_as_user=auth_info.user_unix_id,
+            run_as_group=int(nogroup_id),
+        )
+
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
+        )
 
 
 def _submit_run(

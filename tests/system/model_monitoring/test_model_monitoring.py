@@ -10,10 +10,11 @@ import fsspec
 import pandas as pd
 import pytest
 import v3iofs
-from sklearn.datasets import load_iris
+from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
 import mlrun.api.schemas
+import mlrun.artifacts.model
 import mlrun.feature_store
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -426,6 +427,114 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 for measure in measures:
                     assert measure in drift_measures
                     assert type(drift_measures[measure]) == float
+
+    @pytest.mark.timeout(200)
+    def test_model_monitoring_with_regression(self):
+        # The following test:
+        # 1 - apply model monitoring for a regression algorithm
+        # 2 - use auto_trainer functionality
+        # 3 - creates the model monitoring feature set based on the feature vector and not on the model object
+
+        # Load boston housing pricing dataset
+        diabetes_data = load_diabetes()
+        train_set = pd.DataFrame(
+            diabetes_data.data, columns=diabetes_data.feature_names
+        ).reset_index()
+        train_set.rename({"index": "patient_id"}, axis=1, inplace=True)
+
+        # Load target dataset
+        target_set = pd.DataFrame(
+            diabetes_data.target, columns=["target"]
+        ).reset_index()
+        target_set.rename({"index": "patient_id"}, axis=1, inplace=True)
+
+        # Create feature sets for both the features and the labels
+        diabetes_set = mlrun.feature_store.FeatureSet(
+            "diabetes-set", entities=["patient_id"]
+        )
+        label_set = mlrun.feature_store.FeatureSet(
+            "target-set", entities=["patient_id"]
+        )
+
+        # Ingest data
+        mlrun.feature_store.ingest(diabetes_set, train_set)
+        mlrun.feature_store.ingest(
+            label_set, target_set, targets=[mlrun.datastore.targets.ParquetTarget()]
+        )
+
+        # Define feature vector and save it to MLRun's feature store DB
+        fv = mlrun.feature_store.FeatureVector(
+            "diabetes-features",
+            features=["diabetes-set.*"],
+            label_feature="target-set.target",
+        )
+        fv.save()
+
+        assert (
+            fv.uri == f"store://feature-vectors/{self.project_name}/diabetes-features"
+        )
+
+        # Request (get or create) the offline dataset from the feature store and save to a parquet target
+        mlrun.feature_store.get_offline_features(
+            fv, target=mlrun.datastore.targets.ParquetTarget()
+        )
+
+        # Train the model using the auto trainer from the marketplace
+        train = mlrun.import_function("hub://auto_trainer", new_name="train")
+        train.deploy()
+        model_class = "sklearn.linear_model.LinearRegression"
+        model_name = "diabetes_model"
+        label_columns = "target"
+
+        train_run = train.run(
+            inputs={"dataset": fv.uri},
+            params={
+                "model_class": model_class,
+                "model_name": model_name,
+                "label_columns": label_columns,
+                "train_test_split_size": 0.2,
+            },
+            handler="train",
+        )
+
+        # Remove features from model obj and set feature vector uri
+        db = mlrun.get_run_db()
+        model_obj: mlrun.artifacts.ModelArtifact = (
+            mlrun.datastore.store_resources.get_store_resource(
+                train_run.outputs["model"], db=db
+            )
+        )
+        model_obj.inputs = []
+        model_obj.feature_vector = fv.uri + ":latest"
+        mlrun.artifacts.model.update_model(model_obj)
+
+        # Set the serving topology to simple model routing
+        # with data enrichment and imputing from the feature vector
+        serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+        serving_fn.set_topology(
+            "router",
+            mlrun.serving.routers.EnrichmentModelRouter(
+                feature_vector_uri=str(fv.uri), impute_policy={"*": "$mean"}
+            ),
+        )
+        serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
+
+        # Enable model monitoring
+        serving_fn.set_tracking()
+
+        # Deploy the serving function
+        serving_fn.deploy()
+
+        # Validate a single endpoint
+        endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
+        assert len(endpoints_list.endpoints) == 1
+
+        # Validate monitoring mode
+        model_endpoint = endpoints_list.endpoints[0]
+        assert (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+        )
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

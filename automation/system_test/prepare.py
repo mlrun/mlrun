@@ -197,9 +197,11 @@ class SystemTestPreparer:
                 stdout += line
                 if not line:
                     if counter < 30:
-                        print("Got empty line from stream")
+                        print("Got empty line from stream", end="")
                         time.sleep(1)
                         counter += 1
+                    else:
+                        break
                 print(line, end="")
         else:
             stdout = stdout_stream.read()

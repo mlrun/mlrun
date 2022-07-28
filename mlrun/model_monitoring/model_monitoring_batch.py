@@ -422,7 +422,7 @@ class VirtualDrift:
         :param possible_drift_threshold: Threshold for the calculated result to be in a possible drift status.
         :param drift_detected_threshold: Threshold for the calculated result to be in a drift detected status.
 
-        :return: The figured drift status.
+        :returns: The figured drift status.
         """
         drift_status = DriftStatus.NO_DRIFT
         if drift_result >= drift_detected_threshold:

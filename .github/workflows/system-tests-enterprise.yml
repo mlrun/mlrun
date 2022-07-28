@@ -36,6 +36,10 @@ on:
       override_iguazio_version:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
         required: false
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        required: false
+        default: 'false'
 
 jobs:
   run-system-tests-enterprise-ci:
@@ -136,7 +140,7 @@ jobs:
         echo  ${{ secrets.LATEST_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
     - name: Prepare System Test env.yaml and 0.6.x system
       if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
-      timeout-minutes: 20
+      timeout-minutes: 30
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
@@ -157,6 +161,11 @@ jobs:
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
+
+#    # Enable tmate debugging of manually-triggered workflows if the input option was provided
+#    - name: Setup tmate session
+#      uses: mxschmitt/action-tmate@v3
+#      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
 
     - name: Prepare System Test env.yaml and 0.5.x system
       if: ${{ steps.git_info.outputs.branch == '0.5.x' }}

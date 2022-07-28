@@ -374,7 +374,8 @@ class SystemTestPreparer:
                 "create-patch",
                 "appservice",
                 override_image_arg,
-                "--gzip-flag=-1"
+                "--gzip-flag=-1",
+                "-v",
                 f"--target-iguazio-version={str(self._iguazio_version)}",
                 "mlrun",
                 self._mlrun_version,

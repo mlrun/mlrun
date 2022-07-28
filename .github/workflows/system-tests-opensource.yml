@@ -44,7 +44,7 @@ env:
 
 jobs:
   run-system-tests-opensource-ci:
-    timeout-minutes: 60
+    timeout-minutes: 90
     name: Run System Tests Open Source
     runs-on: ubuntu-latest
 
@@ -61,6 +61,13 @@ jobs:
       run: |
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
           -r dockerfiles/mlrun-api/requirements.txt && pip install -e .
+
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    # we will free up some space for us (~2GB)
+    - name: Freeing up disk space
+      run: |
+        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq
@@ -102,7 +109,7 @@ jobs:
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-ui)"
-        echo "::set-output name=latest_version::$(curl -sf https://pypi.org/pypi/mlrun/json | jq -r '.info.version')"
+        echo "::set-output name=unstable_version_prefix::$(cat automation/version/unstable_version_prefix)"
     - name: Set computed versions params
       id: computed_params
       run: |
@@ -114,9 +121,9 @@ jobs:
         upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
         export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
         echo "::set-output name=ui_hash::$(echo $ui_hash)"
-        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}+$mlrun_hash)"
-        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.latest_version }}-$mlrun_hash)"
-        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.latest_version }}-$ui_hash"
+        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)"
+        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)"
+        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash"
         echo "::set-output name=mlrun_docker_repo::$( \
           input_docker_repo=${{ github.event.inputs.docker_repo }} && \
           echo ${input_docker_repo:-mlrun})"
@@ -129,12 +136,12 @@ jobs:
 
     - uses: azure/setup-helm@v1
       with:
-        version: "v3.3.4"
+        version: "v3.9.1"
 
     - uses: manusa/actions-setup-minikube@v2.4.2
       with:
-        minikube version: "v1.22.0"
-        kubernetes version: "v1.20.11"
+        minikube version: "v1.26.0"
+        kubernetes version: "v1.23.9"
         driver: docker
         github token: ${{ github.token }}
         # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)
@@ -153,6 +160,7 @@ jobs:
             install mlrun-kit \
             --debug \
             --wait \
+            --timeout 600s \
             --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
@@ -170,7 +178,7 @@ jobs:
         echo "MLRUN_DBPATH: http://$(minikube ip):${MLRUN_API_NODE_PORT}" > tests/system/env.yml
 
     - name: Run system tests
-      timeout-minutes: 25
+      timeout-minutes: 60
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
         MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \

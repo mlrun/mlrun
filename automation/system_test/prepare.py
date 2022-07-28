@@ -234,8 +234,11 @@ class SystemTestPreparer:
             self._logger.debug("skipped running stderr = stderr_stream.read()")
 
         self._logger.debug("running exit_status = stdout_stream.channel.recv_exit_status()")
-        exit_status = stdout_stream.channel.recv_exit_status()
-        self._logger.debug("got ", exit_status=exit_status)
+        if not skip_read:
+            exit_status = stdout_stream.channel.recv_exit_status()
+            self._logger.debug("got ", exit_status=exit_status)
+        else:
+            time.sleep(12*60)
 
         return stdout, stderr, exit_status
 

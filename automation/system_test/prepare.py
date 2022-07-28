@@ -408,24 +408,24 @@ class SystemTestPreparer:
         if self._override_mlrun_images:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
-        self._run_command(
-            f"./{provctl_path}",
-            args=[
-                f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
-                "create-patch",
-                "appservice",
-                override_image_arg,
-                "--gzip-flag=-1",
-                "-v",
-                f"--target-iguazio-version={str(self._iguazio_version)}",
-                "mlrun",
-                self._mlrun_version,
-                mlrun_archive,
-            ],
-            live=False,
-            skip_read=True,
-            time_to_wait=12*60
-        )
+        # self._run_command(
+        #     f"./{provctl_path}",
+        #     args=[
+        #         f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
+        #         "create-patch",
+        #         "appservice",
+        #         override_image_arg,
+        #         "--gzip-flag=-1",
+        #         "-v",
+        #         f"--target-iguazio-version={str(self._iguazio_version)}",
+        #         "mlrun",
+        #         self._mlrun_version,
+        #         mlrun_archive,
+        #     ],
+        #     live=False,
+        #     skip_read=True,
+        #     time_to_wait=12*60
+        # )
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(

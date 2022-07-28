@@ -124,6 +124,7 @@ class SystemTestPreparer:
         suppress_errors: bool = False,
         local: bool = False,
         time_to_wait: int = 5*60,
+        skip_read: bool = False,
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -146,7 +147,7 @@ class SystemTestPreparer:
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live, time_to_wait,
+                    command, args, workdir, stdin, live, time_to_wait,skip_read,
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
@@ -178,6 +179,7 @@ class SystemTestPreparer:
         stdin: str = None,
         live: bool = True,
         time_to_wait: int = 5 * 60,
+        skip_read: bool = False,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -220,11 +222,16 @@ class SystemTestPreparer:
             #         if i%10:
             #             self._logger.debug(f"{i} seconds passed")
             #         time.sleep(1)
-            self._logger.debug("running stdout = stdout_stream.read()")
-            stdout = stdout_stream.read()
-
-        self._logger.debug("running stderr = stderr_stream.read()")
-        stderr = stderr_stream.read()
+            if not skip_read:
+                self._logger.debug("running stdout = stdout_stream.read()")
+                stdout = stdout_stream.read()
+            else:
+                self._logger.debug("skipped running stdout = stdout_stream.read()")
+        if not skip_read:
+            self._logger.debug("running stderr = stderr_stream.read()")
+            stderr = stderr_stream.read()
+        else:
+            self._logger.debug("skipped running stderr = stderr_stream.read()")
 
         self._logger.debug("running exit_status = stdout_stream.channel.recv_exit_status()")
         exit_status = stdout_stream.channel.recv_exit_status()
@@ -409,6 +416,7 @@ class SystemTestPreparer:
                 mlrun_archive,
             ],
             live=False,
+            skip_read=True,
         )
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)

@@ -6,7 +6,7 @@ For an AWS user the easiest way to install MLRun is to use a native AWS deployme
 - EKS cluster 1.22 
 
 ## Click on the AWS icon to deploy Iguazio
-<a href="https://console.aws.amazon.com/"><img src="_static/images/aws-icon.png"></img></a>
+<a href="https://console.aws.amazon.com/"><img src="../_static/images/aws-icon.png"></img></a>
 
 Once clicked, the browser opens your AWS login page and direct you to the cloud formation stack page <br>
 Next, you need to fill in the form and once click on Done MLRun would be deployed on top of your EKS cluster <br>

@@ -55,9 +55,10 @@ body:
   - type: input
     id: helm_chart_version
     attributes:
-      label: MLRun Kit Helm Chart Version
+      label: MLRun Kit Version
       description: >
-        Please provide the version of the MLRun Helm chart with ``helm search repo v3io-stable | grep mlrun-kit | awk '{print $2}'``.
+        Docker install: Please provide the version of the MLRun Kit with the full output of ``docker ps | grep mlrun | awk '{print $2}'``.<br />
+        K8s install: Please provide the version of the MLRun Helm chart with the full output of ``helm search repo v3io-stable | grep mlrun-kit | awk '{print $2}'``.
     validations:
       required: true
   - type: textarea

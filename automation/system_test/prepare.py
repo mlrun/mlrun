@@ -204,7 +204,7 @@ class SystemTestPreparer:
                 self._logger.debug("line", line=line)
                 stdout += line
                 if not line:
-                    if counter < 30:
+                    if counter < 2:
                         self._logger.debug("Got empty line from stream")
                         time.sleep(1)
                         counter += 1

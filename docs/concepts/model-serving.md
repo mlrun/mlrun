@@ -16,7 +16,7 @@ Optionally, one can create a mock server, which runs the model as an in-memory o
 
 ## Routers and Ensembles
 
-A single serving function can host more than a single model. One can call `add_model` multiple times and specify a different model per each model key. Each `add_model` will create another model endpoint.
+A single serving function can host more than a single model. You can call `add_model` multiple times and specify a different model per each model key. Each `add_model` will create another model endpoint.
 
 One can also create an ensemble of models, where a call to one model endpoint will combine the results of other models together.
 

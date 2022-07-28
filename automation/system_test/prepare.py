@@ -183,32 +183,44 @@ class SystemTestPreparer:
         if args:
             command += " " + " ".join(args)
 
+        self._logger.debug("Executing command", command=command)
+
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
         )
-
+        self._logger.debug("Got", stdin_stream=stdin_stream, stdout_stream=stdout_stream, stderr_stream=stderr_stream)
         if stdin:
+            self._logger.debug("writing stdin",stdin=stdin)
             stdin_stream.write(stdin)
+            self._logger.debug("finished",stdin=stdin)
             stdin_stream.close()
+            self._logger.debug("closing")
+
         counter = 0
         if live:
             while True:
+                self._logger.debug("readLine")
                 line = stdout_stream.readline()
+                self._logger.debug("line", line=line)
                 stdout += line
                 if not line:
                     if counter < 30:
-                        print("Got empty line from stream", end="")
+                        self._logger.debug("Got empty line from stream")
                         time.sleep(1)
                         counter += 1
                     else:
                         break
                 print(line, end="")
         else:
+            self._logger.debug("running stdout = stdout_stream.read()")
             stdout = stdout_stream.read()
 
+        self._logger.debug("running stderr = stderr_stream.read()")
         stderr = stderr_stream.read()
 
+        self._logger.debug("running exit_status = stdout_stream.channel.recv_exit_status()")
         exit_status = stdout_stream.channel.recv_exit_status()
+        self._logger.debug("got ", exit_status=exit_status)
 
         return stdout, stderr, exit_status
 

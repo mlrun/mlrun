@@ -238,7 +238,11 @@ class SystemTestPreparer:
             exit_status = stdout_stream.channel.recv_exit_status()
             self._logger.debug("got ", exit_status=exit_status)
         else:
-            time.sleep(12*60)
+            self._logger.debug("going to sleep")
+            for i in range(time_to_wait):
+                if i%10==0:
+                    self._logger.debug(f"{i} seconds passed")
+                time.sleep(1)
 
         return stdout, stderr, exit_status
 
@@ -420,6 +424,7 @@ class SystemTestPreparer:
             ],
             live=False,
             skip_read=True,
+            time_to_wait=12*60
         )
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
@@ -436,6 +441,8 @@ class SystemTestPreparer:
                 "mlrun",
                 mlrun_archive,
             ],
+            live=False,
+            skip_read=True,
         )
 
 

@@ -14,6 +14,8 @@
 import base64
 from io import BytesIO
 
+import mlrun
+
 from ..utils import dict_to_json
 from .base import Artifact, LegacyArtifact
 
@@ -201,19 +203,29 @@ class PlotlyArtifact(Artifact):
         :param key:         Key for the artifact to be stored in the database.
         :param target_path: Path to save the artifact.
         """
+        # Validate the plotly package:
+        try:
+            from plotly.graph_objs import Figure
+        except ModuleNotFoundError:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Using `PlotlyArtifact` requires plotly package. Use `pip install mlrun[plotly]` to install it."
+            )
+        except ImportError:
+            import plotly
+
+            raise mlrun.errors.MLRunMissingDependencyError(
+                f"Using `PlotlyArtifact` requires plotly version >= 5.4.0 but found version {plotly.__version__}. "
+                f"Use `pip install -U mlrun[plotly]` to install it."
+            )
+
+        # Call the artifact initializer:
         super().__init__(key=key, target_path=target_path, viewer="plotly")
 
         # Validate input:
-        try:
-            from plotly.graph_objs import Figure
-        except (ModuleNotFoundError, ImportError) as Error:
-            raise Error(
-                "Using 'PlotlyArtifact' requires plotly package. Use pip install mlrun[plotly] to install it."
-            )
         if not isinstance(figure, Figure):
-            raise ValueError(
-                "PlotlyArtifact requires the figure parameter to be a "
-                "'plotly.graph_objs.Figure' but received '{}'".format(type(figure))
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"PlotlyArtifact requires the figure parameter to be a "
+                f"`plotly.graph_objs.Figure` but received '{type(figure)}'"
             )
 
         # Continue initializing the plotly artifact:

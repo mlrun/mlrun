@@ -57,6 +57,7 @@ class ReleaseNotesGenerator:
             "Nick Brown": "ihs-nick",
             "Oded Messer": "omesser",
             "Tom Tankilevitch": "tankilevitch",
+            "Adam": "quaark",
         }
 
     def run(self):

@@ -124,7 +124,7 @@ class SystemTestPreparer:
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
-        nohup: bool = False
+        detach: bool = False
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -147,7 +147,7 @@ class SystemTestPreparer:
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live,nohup
+                    command, args, workdir, stdin, live, detach,
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
@@ -178,26 +178,24 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        nohup : bool = False
+        detach : bool = False
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
-        if nohup:
-            command = "nohup " + command
-        else:
-            command = f"cd {workdir}; " + command
+
+        command = f"cd {workdir}; " + command
         if args:
             command += " " + " ".join(args)
 
-        if nohup:
-            command += " &"
-            stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-                command, get_pty=True
-            )
-        else:
-            stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-                command
-            )
+        if detach:
+            command = f"screen -d -m bash -c '{command}'"
+        #     stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
+        #         command, get_pty=True
+        #     )
+        # else:
+        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
+            command
+        )
 
         if stdin:
             stdin_stream.write(stdin)
@@ -380,7 +378,6 @@ class SystemTestPreparer:
                 time.sleep(5)
                 counter+=5
 
-
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
         self._logger.debug(
@@ -406,7 +403,7 @@ class SystemTestPreparer:
                 self._mlrun_version,
                 mlrun_archive,
             ],
-            nohup=True,
+            detach=True,
         )
         self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then exit; else echo "True";fi')
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)

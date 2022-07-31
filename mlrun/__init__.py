@@ -194,6 +194,7 @@ def set_env_from_file(env_file: str, return_dict: bool = False):
     :param return_dict: set to True to return the env as a dict
     :return: None or env dict
     """
+    env_file = path.expanduser(env_file)
     if not path.isfile(env_file):
         raise MLRunInvalidArgumentError(f"env file {env_file} does not exist")
     env_vars = dotenv.dotenv_values(env_file)

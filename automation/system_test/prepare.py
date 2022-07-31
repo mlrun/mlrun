@@ -183,13 +183,14 @@ class SystemTestPreparer:
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
         if nohup:
-            command = "nohup " + command + " &"
+            command = "nohup " + command
         else:
             command = f"cd {workdir}; " + command
         if args:
             command += " " + " ".join(args)
 
         if nohup:
+            command += " &"
             stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
                 command, get_pty=True
             )

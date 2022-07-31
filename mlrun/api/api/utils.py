@@ -48,6 +48,7 @@ def project_logs_path(project) -> Path:
 
 
 def get_obj_path(schema, path, user=""):
+    real_path = config.httpdb.real_path
     if path.startswith("/User/"):
         user = user or environ.get("V3IO_USERNAME", "admin")
         path = "v3io:///users/" + user + path[5:]
@@ -59,19 +60,29 @@ def get_obj_path(schema, path, user=""):
         data_volume_prefix = config.httpdb.data_volume
         if data_volume_prefix.endswith("/"):
             data_volume_prefix = data_volume_prefix[:-1]
-        if config.httpdb.real_path:
+        if real_path:
             path_from_volume = path[len(data_volume_prefix) :]
             if path_from_volume.startswith("/"):
                 path_from_volume = path_from_volume[1:]
-            path = str(Path(config.httpdb.real_path) / Path(path_from_volume))
+            path = str(Path(real_path) / Path(path_from_volume))
     if schema:
         schema_prefix = schema + "://"
         if not path.startswith(schema_prefix):
             path = f"{schema_prefix}{path}"
-    if not path.startswith("v3io://") and (
-        not config.httpdb.real_path
-        or (config.httpdb.real_path and not path.startswith(config.httpdb.real_path))
-    ):
+
+    # Check if path is allowed - v3io:// is always allowed, and also the real_path parameter if specified.
+    # We never allow local files in the allowed paths list. Allowed paths must contain a schema (://)
+    allowed_file_paths = config.httpdb.allowed_file_paths
+    allowed_paths_list = (
+        [path.strip() for path in allowed_file_paths.split(",") if "://" in path]
+        if allowed_file_paths
+        else []
+    )
+    if real_path:
+        allowed_paths_list.append(real_path)
+    allowed_paths_list.append("v3io://")
+
+    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
         raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
     return path
 

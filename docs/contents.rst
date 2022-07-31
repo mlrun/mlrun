@@ -31,6 +31,7 @@
    :caption: Data collection and preparation
    
    feature-store/feature-store-data-ingestion
+   data-collect-prep/logging_datasets
    feature-store/feature-store-tutorials   
   
 .. toctree::

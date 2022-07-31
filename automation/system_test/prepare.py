@@ -189,10 +189,12 @@ class SystemTestPreparer:
 
         if detach:
             command = f"screen -d -m bash -c '{command}'"
+            self._logger.debug("running command", command=command)
         #     stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
         #         command, get_pty=True
         #     )
         # else:
+
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
         )
@@ -390,7 +392,7 @@ class SystemTestPreparer:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
         self._run_command(
-            f"{self.Constants.workdir}/{provctl_path}",
+            f"./{provctl_path}",
             args=[
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",
@@ -405,7 +407,7 @@ class SystemTestPreparer:
             ],
             detach=True,
         )
-        self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then exit; else echo "True";fi')
+        self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then exit123; else echo "True";fi')
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
             f"./{provctl_path}",

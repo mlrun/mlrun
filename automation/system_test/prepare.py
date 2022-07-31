@@ -182,9 +182,10 @@ class SystemTestPreparer:
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
-        command = f"cd {workdir}; " + command
         if nohup:
-            command = "nohup " + command
+            command = "nohup " + command + " &"
+        else:
+            command = f"cd {workdir}; " + command
         if args:
             command += " " + " ".join(args)
 
@@ -386,7 +387,7 @@ class SystemTestPreparer:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
         self._run_command(
-            f"./{provctl_path}",
+            f".{self.Constants.workdir}/{provctl_path}",
             args=[
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",

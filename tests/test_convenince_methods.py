@@ -53,7 +53,7 @@ def test_bad_env_files():
 
 
 def test_env_file_does_not_exist():
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
         mlrun.set_env_from_file("some-nonexistent-path")
 
 

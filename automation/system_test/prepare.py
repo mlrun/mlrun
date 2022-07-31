@@ -90,7 +90,7 @@ class SystemTestPreparer:
                 username=self.Constants.ssh_username,
                 password=data_cluster_ssh_password,
             )
-            self._ssh_client.get_transport().set_keepalive(720)
+            # self._ssh_client.get_transport().set_keepalive(720)
 
     def run(self):
 
@@ -357,6 +357,19 @@ class SystemTestPreparer:
         self._run_command("chmod", args=["+x", provctl])
         return provctl
 
+    def _wait_until_finished(self, command):
+        finished = False
+        timeout = 720
+        counter = 0
+        while not finished and counter != timeout:
+            try:
+                self._run_command(command)
+                finished = True
+            except Exception:
+                time.sleep(5)
+                counter+=5
+
+
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
         self._logger.debug(
@@ -369,7 +382,7 @@ class SystemTestPreparer:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
         self._run_command(
-            f"./{provctl_path}",
+            f"nohup ./{provctl_path}",
             args=[
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",
@@ -383,7 +396,7 @@ class SystemTestPreparer:
                 mlrun_archive,
             ],
         )
-
+        self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then exit; else echo "True";fi')
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
             f"./{provctl_path}",

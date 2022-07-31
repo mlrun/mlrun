@@ -44,7 +44,7 @@ on:
 jobs:
   run-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
-    timeout-minutes: 240
+    timeout-minutes: 300
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
 

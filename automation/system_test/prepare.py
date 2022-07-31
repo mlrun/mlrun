@@ -375,7 +375,6 @@ class SystemTestPreparer:
         while not finished and counter != timeout:
             try:
                 self._run_command(command)
-                finished = True
             except Exception:
                 time.sleep(5)
                 counter+=5

@@ -124,6 +124,7 @@ class SystemTestPreparer:
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
+        nohup: bool = False
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -146,7 +147,7 @@ class SystemTestPreparer:
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live,
+                    command, args, workdir, stdin, live,nohup
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
@@ -177,10 +178,13 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
+        nohup : bool = False
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
         command = f"cd {workdir}; " + command
+        if nohup:
+            command = "nohup " + command
         if args:
             command += " " + " ".join(args)
 
@@ -382,7 +386,7 @@ class SystemTestPreparer:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
         self._run_command(
-            f"nohup ./{provctl_path}",
+            f"./{provctl_path}",
             args=[
                 f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
                 "create-patch",
@@ -395,6 +399,7 @@ class SystemTestPreparer:
                 self._mlrun_version,
                 mlrun_archive,
             ],
+            nohup=True,
         )
         self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then exit; else echo "True";fi')
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)

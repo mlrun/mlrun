@@ -375,6 +375,7 @@ class SystemTestPreparer:
         while not finished and counter != timeout:
             try:
                 self._run_command(command)
+                finished=True
             except Exception:
                 time.sleep(5)
                 counter+=5
@@ -406,7 +407,7 @@ class SystemTestPreparer:
             ],
             detach=True,
         )
-        self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then exit123; else echo "True";fi')
+        self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then echo "True"; else exit123;fi')
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
             f"./{provctl_path}",

@@ -66,6 +66,7 @@ class Client(
         )
         self._session = requests.Session()
         self._session.mount("http://", http_adapter)
+        self._session.mount("https://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds

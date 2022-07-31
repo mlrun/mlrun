@@ -84,6 +84,7 @@ class SystemTestPreparer:
         self._logger.info("Connecting to data-cluster", data_cluster_ip=data_cluster_ip)
         if not self._debug:
             self._ssh_client = paramiko.SSHClient()
+            self._ssh_client.get_transport().set_keepalive(720)
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
             self._ssh_client.connect(
                 data_cluster_ip,

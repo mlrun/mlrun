@@ -189,9 +189,14 @@ class SystemTestPreparer:
         if args:
             command += " " + " ".join(args)
 
-        stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-            command
-        )
+        if nohup:
+            stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
+                command, get_pty=True
+            )
+        else:
+            stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
+                command
+            )
 
         if stdin:
             stdin_stream.write(stdin)

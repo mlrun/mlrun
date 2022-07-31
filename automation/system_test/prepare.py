@@ -123,8 +123,6 @@ class SystemTestPreparer:
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
-        time_to_wait: int = 5*60,
-        skip_read: bool = False,
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -147,7 +145,7 @@ class SystemTestPreparer:
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live, time_to_wait,skip_read,
+                    command, args, workdir, stdin, live,
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
@@ -178,8 +176,6 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        time_to_wait: int = 5 * 60,
-        skip_read: bool = False,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -187,62 +183,27 @@ class SystemTestPreparer:
         if args:
             command += " " + " ".join(args)
 
-        self._logger.debug("Executing command", command=command)
-
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
         )
-        self._logger.debug("Got", stdin_stream=stdin_stream, stdout_stream=stdout_stream, stderr_stream=stderr_stream)
-        if stdin:
-            self._logger.debug("writing stdin",stdin=stdin)
-            stdin_stream.write(stdin)
-            self._logger.debug("finished",stdin=stdin)
-            stdin_stream.close()
-            self._logger.debug("closing")
 
-        counter = 0
+        if stdin:
+            stdin_stream.write(stdin)
+            stdin_stream.close()
+
         if live:
             while True:
-                self._logger.debug("readLine")
                 line = stdout_stream.readline()
-                self._logger.debug("line", line=line)
                 stdout += line
                 if not line:
-                    if counter < 2:
-                        self._logger.debug("Got empty line from stream")
-                        time.sleep(1)
-                        counter += 1
-                    else:
-                        break
+                    break
                 print(line, end="")
         else:
-            # if time_to_wait:
-            #     self._logger.debug("about to wait", time_to_wait=time_to_wait)
-            #     for i in range(time_to_wait):
-            #         if i%10:
-            #             self._logger.debug(f"{i} seconds passed")
-            #         time.sleep(1)
-            if not skip_read:
-                self._logger.debug("running stdout = stdout_stream.read()")
-                stdout = stdout_stream.read()
-            else:
-                self._logger.debug("skipped running stdout = stdout_stream.read()")
-        if not skip_read:
-            self._logger.debug("running stderr = stderr_stream.read()")
-            stderr = stderr_stream.read()
-        else:
-            self._logger.debug("skipped running stderr = stderr_stream.read()")
+            stdout = stdout_stream.read()
 
-        self._logger.debug("running exit_status = stdout_stream.channel.recv_exit_status()")
-        if not skip_read:
-            exit_status = stdout_stream.channel.recv_exit_status()
-            self._logger.debug("got ", exit_status=exit_status)
-        else:
-            self._logger.debug("going to sleep")
-            for i in range(time_to_wait):
-                if i%10==0:
-                    self._logger.debug(f"{i} seconds passed")
-                time.sleep(1)
+        stderr = stderr_stream.read()
+
+        exit_status = stdout_stream.channel.recv_exit_status()
 
         return stdout, stderr, exit_status
 
@@ -391,8 +352,6 @@ class SystemTestPreparer:
                 f'"Authorization: token {self._github_access_token}"',
                 provctl_url,
             ],
-            live=False,
-            time_to_wait=1
         )
         self._run_command("chmod", args=["+x", provctl])
         return provctl
@@ -408,24 +367,21 @@ class SystemTestPreparer:
         if self._override_mlrun_images:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
-        # self._run_command(
-        #     f"./{provctl_path}",
-        #     args=[
-        #         f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
-        #         "create-patch",
-        #         "appservice",
-        #         override_image_arg,
-        #         "--gzip-flag=-1",
-        #         "-v",
-        #         f"--target-iguazio-version={str(self._iguazio_version)}",
-        #         "mlrun",
-        #         self._mlrun_version,
-        #         mlrun_archive,
-        #     ],
-        #     live=False,
-        #     skip_read=True,
-        #     time_to_wait=12*60
-        # )
+        self._run_command(
+            f"./{provctl_path}",
+            args=[
+                f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
+                "create-patch",
+                "appservice",
+                override_image_arg,
+                "--gzip-flag=-1",
+                "-v",
+                f"--target-iguazio-version={str(self._iguazio_version)}",
+                "mlrun",
+                self._mlrun_version,
+                mlrun_archive,
+            ],
+        )
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
@@ -441,8 +397,6 @@ class SystemTestPreparer:
                 "mlrun",
                 mlrun_archive,
             ],
-            live=False,
-            skip_read=True,
         )
 
 

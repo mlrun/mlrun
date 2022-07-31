@@ -370,7 +370,7 @@ class SystemTestPreparer:
         return provctl
 
     def _wait_until_finished(
-        self, command: str, timeout: int = 600, interval: int = 10
+        self, command: str, command_name_to_wait_for: str, timeout: int = 600, interval: int = 10
     ):
         finished = False
         counter = 0
@@ -381,6 +381,7 @@ class SystemTestPreparer:
             except Exception:
                 time.sleep(interval)
                 counter += interval
+        self._logger.debug(f"Command {command_name_to_wait_for} took {counter} seconds to finish")
 
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
@@ -412,6 +413,7 @@ class SystemTestPreparer:
         self._wait_until_finished(
             command=f"if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | "
             f'grep "Patch archive prepared"; then echo "True"; else exit123;fi',
+            command_name_to_wait_for="provctl create patch",
             timeout=720,
             interval=20,
         )
@@ -432,8 +434,9 @@ class SystemTestPreparer:
             detach=True,
         )
         self._wait_until_finished(
-            command=f"if cat {str(self.Constants.workdir)}/provctl-patch-patch-{time_string}.log | "
+            command=f"if cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log | "
             f'grep "Finished patching appservice"; then echo "True"; else exit123;fi',
+            command_name_to_wait_for="provctl patch mlrun",
             timeout=20 * 60,
             interval=60,
         )

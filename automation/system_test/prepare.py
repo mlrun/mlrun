@@ -124,7 +124,7 @@ class SystemTestPreparer:
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
-        detach: bool = False
+        detach: bool = False,
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -147,7 +147,12 @@ class SystemTestPreparer:
                 )
             else:
                 stdout, stderr, exit_status = self._run_command_remotely(
-                    command, args, workdir, stdin, live, detach,
+                    command,
+                    args,
+                    workdir,
+                    stdin,
+                    live,
+                    detach,
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
@@ -178,7 +183,7 @@ class SystemTestPreparer:
         workdir: str = None,
         stdin: str = None,
         live: bool = True,
-        detach : bool = False
+        detach: bool = False,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -189,11 +194,7 @@ class SystemTestPreparer:
 
         if detach:
             command = f"screen -d -m bash -c '{command}'"
-            self._logger.debug("running command", command=command)
-        #     stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
-        #         command, get_pty=True
-        #     )
-        # else:
+            self._logger.debug("running command in detached mode", command=command)
 
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
@@ -368,17 +369,18 @@ class SystemTestPreparer:
         self._run_command("chmod", args=["+x", provctl])
         return provctl
 
-    def _wait_until_finished(self, command):
+    def _wait_until_finished(
+        self, command: str, timeout: int = 600, interval: int = 10
+    ):
         finished = False
-        timeout = 720
         counter = 0
         while not finished and counter != timeout:
             try:
                 self._run_command(command)
-                finished=True
+                finished = True
             except Exception:
-                time.sleep(5)
-                counter+=5
+                time.sleep(interval)
+                counter += interval
 
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
@@ -407,7 +409,12 @@ class SystemTestPreparer:
             ],
             detach=True,
         )
-        self._wait_until_finished(command=f'if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | grep "Patch archive prepared"; then echo "True"; else exit123;fi')
+        self._wait_until_finished(
+            command=f"if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | "
+            f'grep "Patch archive prepared"; then echo "True"; else exit123;fi',
+            timeout=720,
+            interval=20,
+        )
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
             f"./{provctl_path}",
@@ -422,6 +429,13 @@ class SystemTestPreparer:
                 "mlrun",
                 mlrun_archive,
             ],
+            detach=True,
+        )
+        self._wait_until_finished(
+            command=f"if cat {str(self.Constants.workdir)}/provctl-patch-patch-{time_string}.log | "
+            f'grep "Finished patching appservice"; then echo "True"; else exit123;fi',
+            timeout=20 * 60,
+            interval=60,
         )
 
 

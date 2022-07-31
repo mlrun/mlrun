@@ -24,7 +24,7 @@ import dotenv
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
-from .errors import MLRunInvalidArgumentError
+from .errors import MLRunNotFoundError, MLRunInvalidArgumentError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
@@ -196,7 +196,7 @@ def set_env_from_file(env_file: str, return_dict: bool = False):
     """
     env_file = path.expanduser(env_file)
     if not path.isfile(env_file):
-        raise MLRunInvalidArgumentError(f"env file {env_file} does not exist")
+        raise MLRunNotFoundError(f"env file {env_file} does not exist")
     env_vars = dotenv.dotenv_values(env_file)
     if None in env_vars.values():
         raise MLRunInvalidArgumentError("env file lines must be in the form key=value")

@@ -1,7 +1,7 @@
 .. toctree::
    :maxdepth: 1
    :caption: MLRun basics
-
+   
    index
    mlops-dev-flow
    install
@@ -11,7 +11,7 @@
 .. toctree::
    :maxdepth: 1
    :caption: Concepts
-
+      
    projects/project
    concepts/data-feature-store
    runtimes/functions
@@ -19,6 +19,7 @@
    store/artifacts
    concepts/jobs
    feature-store/feature-store
+   concepts/model-training
    serving/serving-graph
    concepts/model-serving
    concepts/multi-stage-workflows
@@ -36,6 +37,8 @@
    :maxdepth: 1
    :caption: Training
    
+   create-a-basic-training-job
+   working-with-data-and-model-artifacts
    concepts/auto-logging-mlops
    feature-store/training-fs   
    hyper-params
@@ -44,9 +47,11 @@
    :maxdepth: 1
    :caption: Model serving
 
-   serving/model-serving-get-started
    serving/custom-model-serving-class
+   serving/model-serving-get-started
    feature-store/training-serving
+   serving/testing-model-server
+   serving/deploying-model-server
    serving/model-api
 
 .. toctree::

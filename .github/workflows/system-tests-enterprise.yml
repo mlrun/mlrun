@@ -36,10 +36,6 @@ on:
       override_iguazio_version:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
         required: false
-      debug_enabled:
-        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
-        required: false
-        default: 'false'
 
 jobs:
   run-system-tests-enterprise-ci:

@@ -436,7 +436,7 @@ class SystemTestPreparer:
             f'grep "Patch archive prepared"; then echo "True"; else exit 1;fi',
             command_name_to_wait_for="provctl create patch",
             timeout=900,
-            interval=50,
+            interval=60,
         )
         # print provctl create patch log
         self._run_command(f"cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log")

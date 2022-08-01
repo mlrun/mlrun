@@ -90,7 +90,6 @@ class SystemTestPreparer:
                 username=self.Constants.ssh_username,
                 password=data_cluster_ssh_password,
             )
-            # self._ssh_client.get_transport().set_keepalive(720)
 
     def run(self):
 
@@ -376,33 +375,36 @@ class SystemTestPreparer:
         self._run_command("chmod", args=["+x", provctl])
         return provctl
 
-    def _wait_until_finished(
+    def _run_and_wait_until_successful(
         self,
         command: str,
-        command_name_to_wait_for: str,
-        timeout: int = 600,
+        command_name: str,
+        max_retries: int = 60,
         interval: int = 10,
     ):
         finished = False
-        counter = 0
-        while not finished and counter != timeout:
+        retries = 0
+
+        while not finished and retries < max_retries:
             try:
                 self._run_command(command, verbose=False)
                 finished = True
+
             except Exception:
                 time.sleep(interval)
                 self._logger.debug(
-                    f"Command {command_name_to_wait_for} didn't complete yet, trying again in {interval} seconds",
+                    f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
+                    retry_number=retries,
                 )
-                counter += interval
-        if counter == timeout and not finished:
+                retries += 1
+
+        if retries == max_retries and not finished:
             self._logger.info(
-                f"Command {command_name_to_wait_for} timeout passed and not finished, failing..."
+                f"Command {command_name} timeout passed and not finished, failing..."
             )
             raise mlrun.errors.MLRunTimeoutError()
-        self._logger.info(
-            f"Command {command_name_to_wait_for} took {counter} seconds to finish"
-        )
+
+        self._logger.info(f"Command {command_name} took {retries} retries to finish")
 
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
@@ -431,15 +433,17 @@ class SystemTestPreparer:
             ],
             detach=True,
         )
-        self._wait_until_finished(
+        self._run_and_wait_until_successful(
             command=f"if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | "
             f'grep "Patch archive prepared"; then echo "True"; else exit 1;fi',
-            command_name_to_wait_for="provctl create patch",
-            timeout=900,
+            command_name="provctl create patch",
+            max_retries=20,
             interval=60,
         )
         # print provctl create patch log
-        self._run_command(f"cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log")
+        self._run_command(
+            f"cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log"
+        )
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(
@@ -457,15 +461,17 @@ class SystemTestPreparer:
             ],
             detach=True,
         )
-        self._wait_until_finished(
+        self._run_and_wait_until_successful(
             command=f"if cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log | "
             f'grep "Finished patching appservice"; then echo "True"; else exit 1;fi',
-            command_name_to_wait_for="provctl patch mlrun",
-            timeout=20 * 60,
+            command_name="provctl patch mlrun",
+            max_retries=20,
             interval=60,
         )
         # print provctl patch mlrun log
-        self._run_command(f"cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log")
+        self._run_command(
+            f"cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log"
+        )
 
 
 @click.group()

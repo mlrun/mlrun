@@ -1,5 +1,5 @@
 (model-api)=
-# Model Server API
+# Model serving API
 
 MLRun Serving follows the same REST API defined by Triton and [KFServing v2](https://github.com/kubeflow/kfserving/blob/master/docs/predict-api/v2/required_api.md).
 

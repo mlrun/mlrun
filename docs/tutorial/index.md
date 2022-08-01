@@ -1,9 +1,9 @@
 (tutorial)=
-# Tutorials and Examples
+# Tutorials and examples
 
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
-Make sure you start with the [**Quick Start Tutorial**](./01-mlrun-basics.html) to understand the basics.
+Make sure you start with the [**Quick start tutorial**](./01-mlrun-basics.html) to understand the basics.
 
 Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 

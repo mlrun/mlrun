@@ -30,6 +30,7 @@ from ..api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringMode,
 )
 from ..config import config
 from ..utils.model_monitoring import EndpointType
@@ -736,6 +737,9 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                     project=project, kind="stream"
                 ),
                 active=True,
+                monitoring_mode=ModelMonitoringMode.enabled
+                if voting_ensemble.context.server.track_models
+                else ModelMonitoringMode.disabled,
             ),
             status=ModelEndpointStatus(
                 children=list(voting_ensemble.routes.keys()),

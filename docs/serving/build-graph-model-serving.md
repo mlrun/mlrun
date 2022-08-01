@@ -5,13 +5,4 @@ MLRun serving can produce managed real-time serverless pipelines from various ta
 
 Simple model serving classes can be written in Python or be taken from a set of pre-developed ML/DL classes. The code can handle complex data, feature preparation, and binary data (such as images and video files). The Nuclio serving engine supports the full model-serving life cycle, including auto-generation of microservices, APIs, load balancing, model logging and monitoring, and configuration management.
 
-**In this section**
 
-```{toctree}
-:maxdepth: 1
-model-serving-get-started
-<!--- advanced-routing --->
-custom-model-serving-class
-model-api
-<!--- model-best-practices --->
-```

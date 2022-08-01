@@ -18,6 +18,5 @@ Projects can be loaded/cloned using a single command. Once the project is loaded
 
 create-load-import-project
 use-project
-workflows
 ../secrets
 ```

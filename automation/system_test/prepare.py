@@ -125,19 +125,21 @@ class SystemTestPreparer:
         suppress_errors: bool = False,
         local: bool = False,
         detach: bool = False,
+        verbose: bool = True,
     ) -> str:
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
 
         log_command_location = "locally" if local else "on data cluster"
 
-        self._logger.debug(
-            f"Running command {log_command_location}",
-            command=command,
-            args=args,
-            stdin=stdin,
-            workdir=workdir,
-        )
+        if verbose:
+            self._logger.debug(
+                f"Running command {log_command_location}",
+                command=command,
+                args=args,
+                stdin=stdin,
+                workdir=workdir,
+            )
         if self._debug:
             return ""
         try:
@@ -153,27 +155,30 @@ class SystemTestPreparer:
                     stdin,
                     live,
                     detach,
+                    verbose,
                 )
             if exit_status != 0 and not suppress_errors:
                 raise RuntimeError(f"Command failed with exit status: {exit_status}")
         except (paramiko.SSHException, RuntimeError) as exc:
-            self._logger.error(
-                f"Failed running command {log_command_location}",
-                command=command,
-                error=exc,
-                stdout=stdout,
-                stderr=stderr,
-                exit_status=exit_status,
-            )
+            if verbose:
+                self._logger.error(
+                    f"Failed running command {log_command_location}",
+                    command=command,
+                    error=exc,
+                    stdout=stdout,
+                    stderr=stderr,
+                    exit_status=exit_status,
+                )
             raise
         else:
-            self._logger.debug(
-                f"Successfully ran command {log_command_location}",
-                command=command,
-                stdout=stdout,
-                stderr=stderr,
-                exit_status=exit_status,
-            )
+            if verbose:
+                self._logger.debug(
+                    f"Successfully ran command {log_command_location}",
+                    command=command,
+                    stdout=stdout,
+                    stderr=stderr,
+                    exit_status=exit_status,
+                )
             return stdout
 
     def _run_command_remotely(
@@ -184,6 +189,7 @@ class SystemTestPreparer:
         stdin: str = None,
         live: bool = True,
         detach: bool = False,
+        verbose: bool = True,
     ) -> (str, str, int):
         workdir = workdir or self.Constants.workdir
         stdout, stderr, exit_status = "", "", 0
@@ -194,7 +200,8 @@ class SystemTestPreparer:
 
         if detach:
             command = f"screen -d -m bash -c '{command}'"
-            self._logger.debug("running command in detached mode", command=command)
+            if verbose:
+                self._logger.debug("running command in detached mode", command=command)
 
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
@@ -370,18 +377,28 @@ class SystemTestPreparer:
         return provctl
 
     def _wait_until_finished(
-        self, command: str, command_name_to_wait_for: str, timeout: int = 600, interval: int = 10
+        self,
+        command: str,
+        command_name_to_wait_for: str,
+        timeout: int = 600,
+        interval: int = 10,
     ):
         finished = False
         counter = 0
         while not finished and counter != timeout:
             try:
-                self._run_command(command)
+                self._run_command(command, verbose=False)
                 finished = True
             except Exception:
                 time.sleep(interval)
+                self._logger.debug(
+                    f"Command {command_name_to_wait_for} didn't complete yet, trying again in {interval} seconds",
+                )
                 counter += interval
-        self._logger.debug(f"Command {command_name_to_wait_for} took {counter} seconds to finish")
+
+        self._logger.debug(
+            f"Command {command_name_to_wait_for} took {counter} seconds to finish"
+        )
 
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
@@ -412,7 +429,7 @@ class SystemTestPreparer:
         )
         self._wait_until_finished(
             command=f"if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | "
-            f'grep "Patch archive prepared"; then echo "True"; else exit123;fi',
+            f'grep "Patch archive prepared"; then echo "True"; else exit 1;fi',
             command_name_to_wait_for="provctl create patch",
             timeout=720,
             interval=20,
@@ -435,7 +452,7 @@ class SystemTestPreparer:
         )
         self._wait_until_finished(
             command=f"if cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log | "
-            f'grep "Finished patching appservice"; then echo "True"; else exit123;fi',
+            f'grep "Finished patching appservice"; then echo "True"; else exit 1;fi',
             command_name_to_wait_for="provctl patch mlrun",
             timeout=20 * 60,
             interval=60,

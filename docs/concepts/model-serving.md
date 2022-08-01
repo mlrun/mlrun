@@ -1,21 +1,32 @@
-(model-serving)=
-# Model serving
+(model_serving)=
+# Model Serving
 
-MLRun Serving allow composition of multi-stage real-time pipelines made of serverless Nuclio functions, including data processing, 
-advanced model serving, custom logic, and fast access to a variety of data systems, and deploying them quickly to production with 
-minimal effort.
+MLRun model serving allows composition of multi-stage real-time pipelines that include data manipulation and execution of models. The architecture allows high scalability while maintaining low latency performance.
 
-High-level transformation logic is automatically converted to real-time serverless processing engines that can accept events or online data, 
-handle any type of structured or unstructured data, and run complex computation graphs and native user code. 
+## Basic Model Serving
 
-Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a production serverless pipeline with a single command. 
+The most basic model serving capability is deployment of a single model. To do that one has to:
+1. Create an MLRun function of type `serving` that implements a serving class with the `load` and `predict` methods. MLRun function marketplace comes with a range of such functions that support most common frameworks
+2. Add the model to the function, using the {py:meth}`~mlrun.runtimes.ServingRuntime.add_model` method.
+3. Deploy the model, using the {py:meth}`~mlrun.runtimes.ServingRuntime.deploy` method.
 
-See full details and examples in {ref}`model-serving-get-started`.
+This results in a single model endpoint that can execute the model and return the model prediction.
 
-**In this section**
+Optionally, one can create a mock server, which runs the model as an in-memory object within the user's development environment. This allows testing the model without deploying it.
 
-```{toctree}
-:maxdepth: 1
+## Routers and Ensembles
 
-nuclio-real-time-functions
-```
+A single serving function can host more than a single model. You can call `add_model` multiple times and specify a different model per each model key. Each `add_model` will create another model endpoint.
+
+One can also create an ensemble of models, where a call to one model endpoint will combine the results of other models together.
+
+![model ensemble](../_static/images/model_ensemble.png)
+
+
+## Model Serving Pipeline
+
+Model execution is usually part of a greater pipeline, and the model serving is just a single step in that pipeline. Usually, there is a range of data processing that occurs before and after the model is executed. The process may even involve more than a single model in the pipeline, and/or filters and rules, related to the execution of the models.
+
+MLRun implements model serving pipeline using its graph capabilities. This gives the capability to define steps, such as data processing, such as data enrichment and data manipulation, prior to calling the model as well as perform steps after the model is executed, by performing additional steps on the model output.
+
+![model serving graph](../_static/images/model_serving_graph.png)

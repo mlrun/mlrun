@@ -436,7 +436,7 @@ class SystemTestPreparer:
             f'grep "Patch archive prepared"; then echo "True"; else exit 1;fi',
             command_name_to_wait_for="provctl create patch",
             timeout=800,
-            interval=20,
+            interval=50,
         )
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
         self._run_command(

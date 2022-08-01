@@ -395,8 +395,12 @@ class SystemTestPreparer:
                     f"Command {command_name_to_wait_for} didn't complete yet, trying again in {interval} seconds",
                 )
                 counter += interval
-
-        self._logger.debug(
+        if counter == timeout and not finished:
+            self._logger.info(
+                f"Command {command_name_to_wait_for} timeout passed and not finished, failing..."
+            )
+            raise mlrun.errors.MLRunTimeoutError()
+        self._logger.info(
             f"Command {command_name_to_wait_for} took {counter} seconds to finish"
         )
 

@@ -120,8 +120,8 @@ jobs:
           echo ${input_system_tests_clean_resources:-true})"
         echo "::set-output name=iguazio_version::$( \
           override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
-          iguazio_version_by_branch=`if [ "0.6.x" = "0.5.x" ]; then echo "2.10_b81_20200903195924"; else echo "3.4.2-b149.20220705184806"; fi` && \
-          resolved_iguazio_version=${override_iguazio_version:-$iguazio_version_by_branch} && echo $resolved_iguazio_version)"
+          iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
+          resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)"
     - name: Wait for existing runs to complete
       uses: softprops/turnstyle@v1
       with:
@@ -130,12 +130,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Write google big query credentials to file
       id: credentials
-      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
       run: |
         export google_big_query_credentials_json_path="/home/runner/work/mlrun/mlrun/tests/system/google-big-query-credentials.json"
         echo  ${{ secrets.LATEST_MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON }} > "$google_big_query_credentials_json_path"
-    - name: Prepare System Test env.yaml and 0.6.x system
-      if: ${{ steps.git_info.outputs.branch != '0.5.x' }}
+    - name: Prepare System Test env.yaml and MLRun installation from current branch
       timeout-minutes: 45
       run: |
         python automation/system_test/prepare.py run \
@@ -157,27 +155,6 @@ jobs:
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
           --override-mlrun-images \
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
-
-    - name: Prepare System Test env.yaml and 0.5.x system
-      if: ${{ steps.git_info.outputs.branch == '0.5.x' }}
-      run: |
-        python automation/system_test/prepare.py run \
-          "${{ steps.computed_params.outputs.mlrun_version }}" \
-          "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
-          "${{ secrets.V05_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.V05_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
-          "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          "${{ secrets.V05_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          "${{ secrets.V05_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          "${{ secrets.V05_SYSTEM_TEST_USERNAME }}" \
-          "${{ secrets.V05_SYSTEM_TEST_ACCESS_KEY }}" \
-          "${{ steps.computed_params.outputs.iguazio_version }}" \
-          "${{ secrets.V05_SYSTEM_TEST_PASSWORD }}" \
-          --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
-          --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-          --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-          --override-mlrun-images \
-          "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}"
 
     - name: Run System Tests
       run: |

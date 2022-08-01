@@ -38,8 +38,8 @@
    :maxdepth: 1
    :caption: Training
    
-   create-a-basic-training-job
-   working-with-data-and-model-artifacts
+   training/create-a-basic-training-job
+   training/working-with-data-and-model-artifacts
    concepts/auto-logging-mlops
    feature-store/training-fs   
    hyper-params

@@ -391,14 +391,14 @@ class SystemTestPreparer:
                 finished = True
 
             except Exception:
-                time.sleep(interval)
                 self._logger.debug(
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
                     retry_number=retries,
                 )
                 retries += 1
+                time.sleep(interval)
 
-        if retries == max_retries and not finished:
+        if retries >= max_retries and not finished:
             self._logger.info(
                 f"Command {command_name} timeout passed and not finished, failing..."
             )
@@ -417,10 +417,13 @@ class SystemTestPreparer:
         if self._override_mlrun_images:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
+        provctl_create_patch_log = (
+            f"{str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log"
+        )
         self._run_command(
             f"./{provctl_path}",
             args=[
-                f"--logger-file-path={str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log",
+                f"--logger-file-path={provctl_create_patch_log}",
                 "create-patch",
                 "appservice",
                 override_image_arg,
@@ -434,22 +437,22 @@ class SystemTestPreparer:
             detach=True,
         )
         self._run_and_wait_until_successful(
-            command=f"if cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log | "
-            f'grep "Patch archive prepared"; then echo "True"; else exit 1;fi',
+            command=f"grep 'Patch archive prepared' {provctl_create_patch_log}",
             command_name="provctl create patch",
             max_retries=20,
             interval=60,
         )
         # print provctl create patch log
-        self._run_command(
-            f"cat {str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log"
-        )
+        self._run_command(f"cat {provctl_create_patch_log}")
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
+        provctl_patch_mlrun_log = (
+            f"{str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log"
+        )
         self._run_command(
             f"./{provctl_path}",
             args=[
-                f"--logger-file-path={str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log",
+                f"--logger-file-path={provctl_patch_mlrun_log}",
                 "--app-cluster-password",
                 self._app_cluster_ssh_password,
                 "--data-cluster-password",
@@ -462,16 +465,13 @@ class SystemTestPreparer:
             detach=True,
         )
         self._run_and_wait_until_successful(
-            command=f"if cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log | "
-            f'grep "Finished patching appservice"; then echo "True"; else exit 1;fi',
+            command=f"grep 'Finished patching appservice' {provctl_patch_mlrun_log}",
             command_name="provctl patch mlrun",
             max_retries=20,
             interval=60,
         )
         # print provctl patch mlrun log
-        self._run_command(
-            f"cat {str(self.Constants.workdir)}/provctl-patch-mlrun-{time_string}.log"
-        )
+        self._run_command(f"cat {provctl_patch_mlrun_log}")
 
 
 @click.group()

@@ -8,7 +8,7 @@ MLRun provides three main abstractions to access structured and unstructured dat
 
 - [Data Store](../store/datastore.html) &mdash; defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.)
 - [Data items](../concepts/data-items.html) &mdash; represent a data item or collection of such (file, dir, table, etc.)
-- [Artifacts](../store/artifacts.html) &mdash; Metadata describing one or more data items. see Artifacts.
+- [Artifacts](../store/artifacts.html) &mdash; Metadata describing one or more data items.
 
 Working with the abstractions enable you to securely access different data sources through a single API, many continuance methods (e.g. to/from DataFrame, get, download, list, ..), automated data movement, and versioning.
 

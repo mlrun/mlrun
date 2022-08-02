@@ -30,10 +30,10 @@
    :maxdepth: 1
    :caption: Data collection and preparation
    
-   feature-store/feature-store-data-ingestion
    data-collect-prep/logging_datasets
-   feature-store/feature-store-tutorials   
-  
+   feature-store/feature-store-data-ingestion
+   
+    
 .. toctree::
    :maxdepth: 1
    :caption: Training
@@ -49,10 +49,10 @@
    :caption: Model serving
 
    serving/custom-model-serving-class
+   serving/built-in-model-serving
    serving/model-serving-get-started
    feature-store/training-serving
-   serving/testing-model-server
-   serving/deploying-model-server
+   serving/test-deploy-model-server
    serving/model-api
 
 .. toctree::

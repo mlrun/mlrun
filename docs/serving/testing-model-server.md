@@ -17,8 +17,8 @@ server.test("/v2/models/my_model/infer", body=my_data)
 ```
 
 Output:
-    > 2022-03-29 09:44:52,687 [info] model my_model was loaded
-    > 2022-03-29 09:44:52,688 [info] Loaded ['my_model']
+2022-03-29 09:44:52,687 [info] model my_model was loaded
+2022-03-29 09:44:52,688 [info] Loaded ['my_model']
 
     {'id': '0282c63bff0a44cabfb9f06c34489035',
     'model_name': 'my_model',

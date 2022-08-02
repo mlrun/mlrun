@@ -140,6 +140,9 @@ default_config = {
                 "enrichment_mode": "disabled",
                 # default 65534 (nogroup), set to -1 to use the user unix id
                 "enrichment_group_id": 65534,
+                "pipelines": {
+                    "kfp_pod_user_id": None,
+                },
             },
             "service_account": {"default": None},
         },
@@ -552,6 +555,18 @@ class Config:
     @staticmethod
     def is_running_on_iguazio() -> bool:
         return config.igz_version is not None and config.igz_version != ""
+
+    @staticmethod
+    def get_security_context_enrichment_group_id(user_unix_id: int) -> int:
+        enrichment_group_id = int(
+            config.function.spec.security_context_enrichment_group_id
+        )
+
+        # if enrichment group id is -1 we set group id to user unix id
+        enrichment_group_id = (
+            enrichment_group_id if enrichment_group_id != -1 else user_unix_id
+        )
+        return enrichment_group_id
 
     @staticmethod
     def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:

@@ -32,7 +32,6 @@ def workflow_path():
 
 class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
     pipeline_handler = "kfp_pipeline"
-    target_workflow_path = "workpipe.yaml"
 
     def _get_functions(self):
         func1 = mlrun.new_function(
@@ -328,7 +327,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             }
         }
 
-    def test_kfp_pipeline_overwrites_enriched_attributes(self, rundb_mock):
+    def test_kfp_pipeline_overwrites_enriched_attributes(
+        self, rundb_mock, workflow_path
+    ):
         mlrun.projects.pipeline_context.clear(with_project=True)
         k8s_api = kubernetes.client.ApiClient()
         self.pipeline_path = "remote_pipeline_with_overridden_resources.py"
@@ -370,10 +371,6 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         self.project.save()
 
-        workflow_path = (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / self.target_workflow_path
-        )
         self.project.save_workflow(
             "p1",
             target=str(workflow_path),
@@ -397,5 +394,3 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         assert step["affinity"] == k8s_api.sanitize_for_serialization(
                             tests.projects.assets.remote_pipeline_with_overridden_resources.overridden_affinity
                         )
-        # remove generated workflow file
-        os.remove(workflow_path)

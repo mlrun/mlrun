@@ -236,7 +236,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 if step.get("container") and step.get("name"):
                     assert step["container"].get("securityContext") is None
 
-        # enrichment mode is override and kfp pod user id is not set
+        # enrichment mode is override and kfp pod user id is not set, should raise error
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
             SecurityContextEnrichmentModes.override.value
         )
@@ -246,7 +246,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 target=str(workflow_path),
             )
         assert (
-            "Kubeflow pipeline pod user id is invalid: None, it must be a non-zero integer"
+            "Kubeflow pipeline pod user id is invalid: None, it must be an integer greater than 0"
             in str(exc.value)
         )
 
@@ -258,7 +258,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 target=str(workflow_path),
             )
         assert (
-            "Kubeflow pipeline pod user id is invalid: 0, it must be a non-zero integer"
+            "Kubeflow pipeline pod user id is invalid: 0, it must be an integer greater than 0"
             in str(exc.value)
         )
 

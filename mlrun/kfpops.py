@@ -842,7 +842,7 @@ def add_function_security_context(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Kubeflow pipeline pod user id is invalid: "
                 f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id}, "
-                f"it must be a non-zero integer"
+                f"it must be an integer greater than 0"
             )
 
         kfp_pod_user_id = int(

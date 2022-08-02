@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import pathlib
@@ -34,22 +35,22 @@ class SystemTestPreparer:
 
     def __init__(
         self,
-        mlrun_version: str,
-        mlrun_commit: str,
-        override_image_registry: str,
-        override_image_repo: str,
-        override_mlrun_images: str,
-        data_cluster_ip: str,
-        data_cluster_ssh_password: str,
-        app_cluster_ssh_password: str,
-        github_access_token: str,
-        mlrun_dbpath: str,
-        webapi_direct_http: str,
-        framesd_url: str,
-        username: str,
-        access_key: str,
-        iguazio_version: str,
-        spark_service: str,
+        mlrun_version: str = None,
+        mlrun_commit: str = None,
+        override_image_registry: str = None,
+        override_image_repo: str = None,
+        override_mlrun_images: str = None,
+        data_cluster_ip: str = None,
+        data_cluster_ssh_password: str = None,
+        app_cluster_ssh_password: str = None,
+        github_access_token: str = None,
+        mlrun_dbpath: str = None,
+        webapi_direct_http: str = None,
+        framesd_url: str = None,
+        username: str = None,
+        access_key: str = None,
+        iguazio_version: str = None,
+        spark_service: str = None,
         password: str = None,
         debug: bool = False,
     ):
@@ -81,22 +82,30 @@ class SystemTestPreparer:
         if password:
             self._env_config["V3IO_PASSWORD"] = password
 
-        self._logger.info("Connecting to data-cluster", data_cluster_ip=data_cluster_ip)
+    def prepare_local_env(self):
+        self._prepare_env_local()
+
+    def connect_to_remote(self):
+        self._logger.info(
+            "Connecting to data-cluster", data_cluster_ip=self._data_cluster_ip
+        )
         if not self._debug:
             self._ssh_client = paramiko.SSHClient()
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
             self._ssh_client.connect(
-                data_cluster_ip,
+                self._data_cluster_ip,
                 username=self.Constants.ssh_username,
-                password=data_cluster_ssh_password,
+                password=self._data_cluster_ssh_password,
             )
 
     def run(self):
 
+        self.connect_to_remote()
+
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir(close_ssh_client=False)
 
-        self._prepare_test_env()
+        self._prepare_env_remote()
 
         self._override_mlrun_api_env()
 
@@ -305,17 +314,19 @@ class SystemTestPreparer:
             f"provctl binary not found in {self.Constants.provctl_release_search_amount} latest releases"
         )
 
-    def _prepare_test_env(self):
-
+    def _prepare_env_remote(self):
         self._run_command(
             "mkdir",
             args=["-p", str(self.Constants.workdir)],
         )
+
+    def _prepare_env_local(self):
         contents = yaml.safe_dump(self._env_config)
         filepath = str(self.Constants.system_tests_env_yaml)
         self._logger.debug("Populating system tests env.yml", filepath=filepath)
         self._run_command(
             "cat > ",
+            workdir=".",
             args=[filepath],
             stdin=contents,
             local=True,
@@ -384,7 +395,7 @@ class SystemTestPreparer:
     ):
         finished = False
         retries = 0
-
+        start_time = datetime.datetime.now()
         while not finished and retries < max_retries:
             try:
                 self._run_command(command, verbose=False)
@@ -403,8 +414,10 @@ class SystemTestPreparer:
                 f"Command {command_name} timeout passed and not finished, failing..."
             )
             raise mlrun.errors.MLRunTimeoutError()
-
-        self._logger.info(f"Command {command_name} took {retries} retries to finish")
+        total_seconds_took = (datetime.datetime.now() - start_time).total_seconds()
+        self._logger.info(
+            f"Command {command_name} took {total_seconds_took} seconds to finish"
+        )
 
     def _patch_mlrun(self, provctl_path):
         time_string = time.strftime("%Y%m%d-%H%M%S")
@@ -567,6 +580,57 @@ def run(
         system_test_preparer.run()
     except Exception as exc:
         logger.error("Failed running system test automation", exc=exc)
+        raise
+
+
+@main.command(context_settings=dict(ignore_unknown_options=True))
+@click.argument("mlrun-dbpath", type=str, required=True)
+@click.argument("webapi-direct-url", type=str, required=True)
+@click.argument("framesd-url", type=str, required=True)
+@click.argument("username", type=str, required=True)
+@click.argument("access-key", type=str, required=True)
+@click.argument("spark-service", type=str, required=True)
+@click.argument("password", type=str, default=None, required=False)
+@click.option(
+    "--debug",
+    "-d",
+    is_flag=True,
+    help="Don't run the ci only show the commands that will be run",
+)
+def env(
+    mlrun_dbpath: str,
+    webapi_direct_url: str,
+    framesd_url: str,
+    username: str,
+    access_key: str,
+    spark_service: str,
+    password: str,
+    debug: bool,
+):
+    system_test_preparer = SystemTestPreparer(
+        mlrun_version=None,
+        mlrun_commit=None,
+        override_image_registry=None,
+        override_image_repo=None,
+        override_mlrun_images=None,
+        data_cluster_ip=None,
+        data_cluster_ssh_password=None,
+        app_cluster_ssh_password=None,
+        github_access_token=None,
+        mlrun_dbpath=mlrun_dbpath,
+        webapi_direct_http=webapi_direct_url,
+        framesd_url=framesd_url,
+        username=username,
+        access_key=access_key,
+        iguazio_version=None,
+        spark_service=spark_service,
+        password=password,
+        debug=debug,
+    )
+    try:
+        system_test_preparer.prepare_local_env()
+    except Exception as exc:
+        logger.error("Failed preparing local system test environment", exc=exc)
         raise
 
 

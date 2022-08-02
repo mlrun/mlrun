@@ -462,7 +462,6 @@ test-system: ## Run mlrun system tests
 		--durations=100 \
 		-rf \
 		tests/system
-		--ignore=tests/system/feature_store
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration

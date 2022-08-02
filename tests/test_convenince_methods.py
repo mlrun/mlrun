@@ -52,6 +52,11 @@ def test_bad_env_files():
             mlrun.set_env_from_file(str(assets_path / env))
 
 
+def test_env_file_does_not_exist():
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlrun.set_env_from_file("some-nonexistent-path")
+
+
 def test_auto_load_env_file():
     os.environ["MLRUN_ENV_FILE"] = str(assets_path / "envfile")
     mlrun.mlconf.reload()

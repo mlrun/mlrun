@@ -1,4 +1,5 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+import warnings
 from typing import Dict, List, Union
 
 import mlrun
@@ -40,7 +41,7 @@ def apply_mlrun(
     parameters: Dict[str, Union[str, int, float]] = None,
     extra_data: Dict[str, SKLearnTypes.ExtraDataType] = None,
     auto_log: bool = True,
-    **kwargs
+    **kwargs,
 ) -> SKLearnModelHandler:
     """
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
@@ -180,3 +181,15 @@ def apply_mlrun(
     )
 
     return handler
+
+
+# TODO: Remove in MLRun version 1.2.0.
+def __getattr__(name):
+    if name == "SklearnModelServer":
+        warnings.warn(
+            "PendingDeprecationWarning: 'SklearnModelServer' was renamed to 'SKLearnModelServer'. "
+            "Please use the new name. The old name will be removed in mlrun 1.2.0.",
+            PendingDeprecationWarning,
+        )
+        return SKLearnModelServer
+    raise ImportError(f"cannot import name '{name}' from '{__name__}' ({__file__})")

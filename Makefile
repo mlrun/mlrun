@@ -467,7 +467,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
 	docker run \
 		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
-		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
+		--env MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX=$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX) \
 		-t \
 		--rm \
 		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)

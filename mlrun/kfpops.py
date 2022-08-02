@@ -837,7 +837,7 @@ def add_function_security_context(
         != SecurityContextEnrichmentModes.disabled.value
     ):
 
-        # fail if kfp pod user id is None or 0 (root)
+        # ensure kfp pod user id is not None or 0 (root)
         if not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Kubeflow pipeline pod user id is invalid: "

@@ -183,7 +183,7 @@ def apply_mlrun(
     return handler
 
 
-# TODO: Remove in MLRun version 1.2.0.
+# TODO: Remove once 1.0.0 is no longer supported
 def __getattr__(name):
     if name == "SklearnModelServer":
         warnings.warn(

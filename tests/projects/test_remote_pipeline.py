@@ -6,11 +6,25 @@ import sys
 
 import kubernetes
 import kubernetes.client
+import pytest
 import yaml
 
 import mlrun
 import tests.projects.assets.remote_pipeline_with_overridden_resources
 import tests.projects.base_pipeline
+from mlrun.api.schemas import SecurityContextEnrichmentModes
+
+
+@pytest.fixture()
+def workflow_path():
+    workflow_path = (
+        pathlib.Path(sys.modules[TestRemotePipeline.__module__].__file__)
+        .absolute()
+        .parent
+        / "workpipe.yaml"
+    )
+    yield workflow_path
+    os.remove(workflow_path)
 
 
 class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
@@ -45,7 +59,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         return func1, func2, func3, func4
 
-    def test_kfp_pipeline_enriched_with_priority_class_name(self, rundb_mock):
+    def test_kfp_pipeline_enriched_with_priority_class_name(
+        self, rundb_mock, workflow_path
+    ):
         self.pipeline_path = "remote_pipeline.py"
         mlrun.projects.pipeline_context.clear(with_project=True)
 
@@ -78,10 +94,6 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         # kfp.compiler.Compiler._write_workflow and that's why we mock _write_workflow to get the
         # passed args which one of them is workflow
         # kfp.compiler.Compiler._write_workflow = unittest.mock.Mock(return_value=True)
-        workflow_path = (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / self.target_workflow_path
-        )
         self.project.save_workflow(
             "p1",
             target=str(workflow_path),
@@ -95,10 +107,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         assert step.get("PriorityClassName") == "default-high"
                     elif step.get("name") == "func2-func2":
                         assert step.get("PriorityClassName") == "default-low"
-        os.remove(workflow_path)
 
     def test_kfp_pipeline_enriched_with_affinity_and_tolerations_enriched_by_preemption_mode(
-        self, rundb_mock
+        self, rundb_mock, workflow_path
     ):
         self.pipeline_path = "remote_pipeline.py"
         mlrun.projects.pipeline_context.clear(with_project=True)
@@ -145,10 +156,6 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         )
         self.project.save()
 
-        workflow_path = (
-            pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-            / self.target_workflow_path
-        )
         self.project.save_workflow(
             "p1",
             target=str(workflow_path),
@@ -187,8 +194,114 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         raise mlrun.errors.MLRunRuntimeError(
                             "You missed a container to test"
                         )
-        # remove generated workflow file
-        os.remove(workflow_path)
+
+    def test_kfp_pipeline_enriched_with_security_context(
+        self, rundb_mock, workflow_path
+    ):
+        self.pipeline_path = "remote_pipeline.py"
+        mlrun.projects.pipeline_context.clear(with_project=True)
+
+        self._create_project("remotepipe")
+        func1, func2, func3, func4 = self._get_functions()
+
+        self.project.set_function(func1)
+        self.project.set_function(func2)
+        self.project.set_function(func3)
+        self.project.set_function(func4)
+
+        self.project.set_workflow(
+            "p1",
+            workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
+            handler=self.pipeline_handler,
+            engine="kfp",
+            local=False,
+        )
+
+        # enrichment mode is disabled, security context should not be added
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.disabled.value
+        )
+
+        self.project.save()
+        self.project.save_workflow(
+            "p1",
+            target=str(workflow_path),
+        )
+
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container") and step.get("name"):
+                    assert step["container"].get("securityContext") is None
+
+        # enrichment mode is override and kfp pod user id is not set
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.override.value
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            self.project.save_workflow(
+                "p1",
+                target=str(workflow_path),
+            )
+        assert (
+            "Kubeflow pipeline pod user id is invalid: None, it must be a non-zero integer"
+            in str(exc.value)
+        )
+
+        # user id 0 (root) is not allowed
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id = 0
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            self.project.save_workflow(
+                "p1",
+                target=str(workflow_path),
+            )
+        assert (
+            "Kubeflow pipeline pod user id is invalid: 0, it must be a non-zero integer"
+            in str(exc.value)
+        )
+
+        # security context should be enriched
+        kfp_pod_user_id = 3
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id = (
+            kfp_pod_user_id
+        )
+        expected_security_context = {
+            "runAsUser": kfp_pod_user_id,
+            "runAsGroup": mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+        }
+        self.project.save_workflow(
+            "p1",
+            target=str(workflow_path),
+        )
+
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container") and step.get("name"):
+                    assert (
+                        step["container"].get("securityContext")
+                        == expected_security_context
+                    ), f"security context is not enriched correctly in container: {step.get('name')}"
+
+        # group id should be enriched with kfp pod user id
+        mlrun.mlconf.function.spec.security_context.enrichment_group_id = -1
+        expected_security_context = {
+            "runAsUser": kfp_pod_user_id,
+            "runAsGroup": kfp_pod_user_id,
+        }
+        self.project.save_workflow(
+            "p1",
+            target=str(workflow_path),
+        )
+
+        with workflow_path.open() as workflow_file:
+            workflow = yaml.safe_load(workflow_file)
+            for step in workflow["spec"]["templates"]:
+                if step.get("container") and step.get("name"):
+                    assert (
+                        step["container"].get("securityContext")
+                        == expected_security_context
+                    ), f"security context is not enriched correctly in container: {step.get('name')}"
 
     def _get_preemptible_tolerations(self):
         return [{"effect": "NoSchedule", "key": "test1", "operator": "Exists"}]

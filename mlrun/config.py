@@ -559,7 +559,7 @@ class Config:
     @staticmethod
     def get_security_context_enrichment_group_id(user_unix_id: int) -> int:
         enrichment_group_id = int(
-            config.function.spec.security_context_enrichment_group_id
+            config.function.spec.security_context.enrichment_group_id
         )
 
         # if enrichment group id is -1 we set group id to user unix id

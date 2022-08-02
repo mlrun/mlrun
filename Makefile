@@ -49,7 +49,6 @@ MLRUN_PUSH_DOCKER_CACHE_IMAGE ?=
 MLRUN_GIT_ORG ?= mlrun
 MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
-MLRUN_SYSTEM_TESTS_COMPONENT ?=
 MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.4.1
 MLRUN_HOROVOD_VERSION = 0.22.1
@@ -66,6 +65,19 @@ MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
+
+# if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
+# if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
+# if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
+MLRUN_SYSTEM_TESTS_COMPONENT ?=
+MLRUN_SYSTEM_TESTS_IGNORE_COMPONENT := $(shell echo "$(MLRUN_SYSTEM_TESTS_COMPONENT)" | sed 's/^no_\(.*\)/\1/g')
+ifndef MLRUN_SYSTEM_TESTS_COMPONENT
+	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "tests/system"
+else ifeq ($(MLRUN_SYSTEM_TESTS_COMPONENT),$(MLRUN_SYSTEM_TESTS_IGNORE_COMPONENT))
+	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT)"
+else
+	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "--ignore=tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT) tests/system"
+endif
 
 .PHONY: help
 help: ## Display available commands
@@ -467,7 +479,7 @@ test-system: ## Run mlrun system tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT)
+		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
@@ -477,7 +489,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--durations=100 \
 		-rf \
 		-m "not enterprise" \
-		tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT)
+		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests

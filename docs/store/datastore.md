@@ -101,7 +101,7 @@ here:
 ```{note}
 The `AZURE_STORAGE_CONNECTION_STRING` configuration uses the `BlobServiceClient` to access objects. This has
 limited functionality and cannot be used to access Azure Datalake storage objects. In this case use one of the other 
-authentication methods instead, which utilize the `fsspec` mechanism. 
+authentication methods that use the `fsspec` mechanism. 
 ```
 
 ### Google cloud storage

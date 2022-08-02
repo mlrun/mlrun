@@ -24,7 +24,10 @@ def workflow_path():
         / "workpipe.yaml"
     )
     yield workflow_path
-    os.remove(workflow_path)
+
+    # remove generated workflow file
+    if os.path.exists(workflow_path):
+        os.remove(workflow_path)
 
 
 class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):

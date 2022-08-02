@@ -162,7 +162,7 @@ jobs:
     timeout-minutes: 360
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
-#    needs: [prepare-system-tests-enterprise-ci]
+    needs: [prepare-system-tests-enterprise-ci]
     strategy:
       max-parallel: 1
       matrix:

@@ -44,6 +44,7 @@ class TotalVarianceDistance:
     Provides a symmetric drift distance between two periods t and u
     Z - vector of random variables
     Pt - Probability distribution over time span t
+
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -56,6 +57,7 @@ class TotalVarianceDistance:
     def compute(self) -> float:
         """
         Calculate Total Variance distance.
+
         :returns:  Total Variance Distance.
         """
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
@@ -68,6 +70,7 @@ class HellingerDistance:
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
+
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -80,11 +83,10 @@ class HellingerDistance:
     def compute(self) -> float:
         """
         Calculate Hellinger Distance
+
         :returns: Hellinger Distance
         """
-        return np.sqrt(
-            0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
-        )
+        return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
 
 
 @dataclasses.dataclass
@@ -93,6 +95,7 @@ class KullbackLeiblerDivergence:
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
+
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
@@ -107,6 +110,7 @@ class KullbackLeiblerDivergence:
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.
         :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
+
         :returns: KL Divergence
         """
         t_u = np.sum(
@@ -429,6 +433,40 @@ class VirtualDrift:
         return drift_status
 
 
+def calculate_inputs_statistics(
+    sample_set_statistics: dict, inputs: pd.DataFrame
+) -> dict:
+    """
+    Calculate the inputs data statistics for drift monitoring purpose.
+
+    :param sample_set_statistics: The sample set (stored end point's dataset to reference) statistics. The bins of the
+                                  histograms of each feature will be used to recalculate the histograms of the inputs.
+    :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
+                                  sample set.
+
+    :returns: The calculated statistics of the inputs data.
+    """
+    # Use `DFDataInfer` to calculate the statistics over the inputs:
+    inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
+        df=inputs,
+        options=mlrun.data_types.infer.InferOptions.Histogram,
+    )
+
+    # Recalculate the histograms over the bins that are set in the sample-set of the end point:
+    for feature in inputs_statistics.keys():
+        if feature in sample_set_statistics:
+            counts, bins = np.histogram(
+                inputs[feature].to_numpy(),
+                bins=sample_set_statistics[feature]["hist"][1],
+            )
+            inputs_statistics[feature]["hist"] = [
+                counts.tolist(),
+                bins.tolist(),
+            ]
+
+    return inputs_statistics
+
+
 class BatchProcessor:
     """
     The main object to handle the batch processing job. This object is used to get the required configurations and
@@ -451,7 +489,6 @@ class BatchProcessor:
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param v3io_access_key:             Token key for v3io.
-
         """
         self.context = context
         self.project = project
@@ -639,12 +676,10 @@ class BatchProcessor:
                 # Get the timestamp of the latest request:
                 timestamp = df["timestamp"].iloc[-1]
 
-                # Get the current stats that are represented by histogram of each feature within the dataset. In the
-                # following dictionary, each key is a feature with dictionary of stats (including histogram
-                # distribution) as a value:
-                current_stats = mlrun.data_types.infer.DFDataInfer.get_stats(
-                    df=named_features_df,
-                    options=mlrun.data_types.infer.InferOptions.Histogram,
+                # Get the current stats:
+                current_stats = calculate_inputs_statistics(
+                    sample_set_statistics=endpoint.status.feature_stats,
+                    inputs=named_features_df,
                 )
 
                 # Compute the drift based on the histogram of the current stats and the histogram of the original

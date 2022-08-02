@@ -795,7 +795,8 @@ def _do_populate(env=None):
     global config
 
     if "MLRUN_ENV_FILE" in os.environ:
-        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
+        env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
+        dotenv.load_dotenv(env_file, override=True)
 
     if not config:
         config = Config.from_dict(default_config)

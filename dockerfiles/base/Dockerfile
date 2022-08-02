@@ -24,6 +24,9 @@ RUN apt update -qqq \
 
 WORKDIR /mlrun
 
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
+
 # install miniconda
 RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \

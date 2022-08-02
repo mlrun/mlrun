@@ -234,7 +234,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             workflow = yaml.safe_load(workflow_file)
             for step in workflow["spec"]["templates"]:
                 if step.get("container") and step.get("name"):
-                    assert step["container"].get("securityContext") is None
+                    assert (
+                        step["container"].get("securityContext") is None
+                    ), f"security context should not exist in container: {step.get('name')}"
 
         # enrichment mode is override and kfp pod user id is not set, should raise error
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (

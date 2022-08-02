@@ -1,6 +1,10 @@
 (test-deploy-model-server)=
 # Test and deploy a model server
 
+**In this section**
+- [Testing the model](#testing-the-model)
+- [Deploying the model](#deploying-the-model)
+
 ## Testing the model
 
 MLRun provides a mock server as part of the `serving` runtime. This gives you the ability to deploy your serving function in your local environment for testing purposes.

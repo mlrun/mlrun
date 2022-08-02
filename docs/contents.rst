@@ -16,7 +16,6 @@
    concepts/data-feature-store
    runtimes/functions
    runtimes/load-from-marketplace
-   store/artifacts
    concepts/jobs
    feature-store/feature-store
    concepts/model-training
@@ -41,6 +40,7 @@
    training/create-a-basic-training-job
    training/working-with-data-and-model-artifacts
    concepts/auto-logging-mlops
+   training/built-in-training-function
    feature-store/training-fs   
    hyper-params
   

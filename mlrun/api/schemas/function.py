@@ -58,10 +58,15 @@ class ImagePullSecret(pydantic.BaseModel):
     default: typing.Optional[str]
 
 
+class Pipelines(pydantic.BaseModel):
+    kfp_pod_user_id: typing.Optional[int]
+
+
 class SecurityContext(pydantic.BaseModel):
     default: typing.Optional[str]
     enrichment_mode: typing.Optional[SecurityContextEnrichmentModes]
     enrichment_group_id: typing.Optional[int]
+    pipelines: typing.Optional[Pipelines]
 
 
 class ServiceAccount(pydantic.BaseModel):

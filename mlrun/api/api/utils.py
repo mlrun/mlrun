@@ -528,19 +528,19 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
             auth_info.user_unix_id = iguazio_client.get_user_unix_id(auth_info.session)
 
         # if enrichment group id is -1 we set group id to user unix id
-        enrichment_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
+        enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
             auth_info.user_unix_id
         )
         logger.debug(
             "Enriching/overriding security context",
             mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
             function_name=function.metadata.name,
-            enrichment_group_id=enrichment_group_id,
+            enriched_group_id=enriched_group_id,
             user_unix_id=auth_info.user_unix_id,
         )
         function.spec.security_context = kubernetes.client.V1SecurityContext(
             run_as_user=auth_info.user_unix_id,
-            run_as_group=enrichment_group_id,
+            run_as_group=enriched_group_id,
         )
 
     else:

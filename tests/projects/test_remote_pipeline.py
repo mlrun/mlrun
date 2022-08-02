@@ -242,35 +242,40 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
             SecurityContextEnrichmentModes.override.value
         )
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id = (
+            None
+        )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
             self.project.save_workflow(
                 "p1",
                 target=str(workflow_path),
             )
         assert (
-            "Kubeflow pipeline pod user id is invalid: None, it must be an integer greater than 0"
+            "Kubeflow pipeline pod user id is invalid: None, it must be an integer greater than 0. "
+            "See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
             in str(exc.value)
         )
 
         # user id 0 (root) is not allowed
-        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id = 0
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id = 0
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
             self.project.save_workflow(
                 "p1",
                 target=str(workflow_path),
             )
         assert (
-            "Kubeflow pipeline pod user id is invalid: 0, it must be an integer greater than 0"
+            "Kubeflow pipeline pod user id is invalid: 0, it must be an integer greater than 0. "
+            "See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
             in str(exc.value)
         )
 
         # security context should be enriched
-        kfp_pod_user_id = 3
-        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id = (
-            kfp_pod_user_id
+        kfp_pod_user_unix_id = 5
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id = (
+            kfp_pod_user_unix_id
         )
         expected_security_context = {
-            "runAsUser": kfp_pod_user_id,
+            "runAsUser": kfp_pod_user_unix_id,
             "runAsGroup": mlrun.mlconf.function.spec.security_context.enrichment_group_id,
         }
         self.project.save_workflow(
@@ -290,8 +295,8 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
         # group id should be enriched with kfp pod user id
         mlrun.mlconf.function.spec.security_context.enrichment_group_id = -1
         expected_security_context = {
-            "runAsUser": kfp_pod_user_id,
-            "runAsGroup": kfp_pod_user_id,
+            "runAsUser": kfp_pod_user_unix_id,
+            "runAsGroup": kfp_pod_user_unix_id,
         }
         self.project.save_workflow(
             "p1",

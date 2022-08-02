@@ -59,7 +59,7 @@ class ImagePullSecret(pydantic.BaseModel):
 
 
 class Pipelines(pydantic.BaseModel):
-    kfp_pod_user_id: typing.Optional[int]
+    kfp_pod_user_unix_id: typing.Optional[int]
 
 
 class SecurityContext(pydantic.BaseModel):

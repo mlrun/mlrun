@@ -838,21 +838,24 @@ def add_function_security_context(
     ):
 
         # ensure kfp pod user id is not None or 0 (root)
-        if not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id:
+        if (
+            not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
+        ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Kubeflow pipeline pod user id is invalid: "
-                f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id}, "
-                f"it must be an integer greater than 0"
+                f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id}, "
+                f"it must be an integer greater than 0. "
+                f"See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
             )
 
-        kfp_pod_user_id = int(
-            mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_id
+        kfp_pod_user_unix_id = int(
+            mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
         )
         container_op.container.set_security_context(
             k8s_client.V1SecurityContext(
-                run_as_user=kfp_pod_user_id,
+                run_as_user=kfp_pod_user_unix_id,
                 run_as_group=mlrun.mlconf.get_security_context_enrichment_group_id(
-                    kfp_pod_user_id
+                    kfp_pod_user_unix_id
                 ),
             )
         )

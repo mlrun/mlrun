@@ -49,6 +49,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: fail
+      run: exit 1
 
   run-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval

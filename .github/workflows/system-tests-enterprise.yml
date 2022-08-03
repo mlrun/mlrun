@@ -68,3 +68,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: fail
+      if: matrix.test_component == 'api'
+      run: exit 1

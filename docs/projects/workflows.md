@@ -1,3 +1,4 @@
+(projects-workflows)=
 # Project workflows and automation
 
 A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a  directed acyclic graph (DAG). A workflow 
@@ -12,7 +13,7 @@ directives like conditions and branches are not supported by the `local` engine.
 Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
 Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-Refer to the [**tutorials section**](../tutorial/index.md) for complete examples.
+Refer to the [**tutorials section**](../howto/index.html) for complete examples.
 
 **In this section**
 * [Composing workflows](#composing-workflows)

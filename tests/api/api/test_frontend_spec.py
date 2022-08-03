@@ -102,6 +102,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
                     username=None,
                     session="some-session",
                     user_id=None,
+                    user_unix_id=0,
                     user_group_ids=[],
                 )
             )

@@ -120,4 +120,9 @@ RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
 COPY . .
+
+# non-recursive chmod for the run to be able to create the handler file with any security context
+# at the end of the Dockerfile for docker caching
+RUN chmod 777 /mlrun
+
 RUN python -m pip install .[complete]

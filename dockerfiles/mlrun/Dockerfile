@@ -17,11 +17,7 @@ ARG MLRUN_PYTHON_VERSION=3.7.13
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
 RUN apt-get update && \
-    apt-get -s dist-upgrade | \
-    grep "^Inst" | \
-    grep -i securi | \
-    awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PIP_NO_CACHE_DIR=1
@@ -32,6 +28,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun
+
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
 
 ARG MLRUN_PIP_VERSION=22.0.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}

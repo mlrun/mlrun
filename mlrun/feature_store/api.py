@@ -265,9 +265,6 @@ def get_online_feature_service(
 
     # todo: support remote service (using remote nuclio/mlrun function if run_config)
 
-    for old_name in service.vector.get_feature_aliases().keys():
-        if old_name in service.vector.status.features.keys():
-            del service.vector.status.features[old_name]
     return service
 
 
@@ -379,7 +376,7 @@ def ingest(
     if run_config:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal in with RunConfig"
+                "DataFrame source is illegal in conjunction with run_config"
             )
         # remote job execution
         verify_feature_set_permissions(
@@ -846,7 +843,7 @@ def _ingest_with_spark(
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
-                if len(df_to_write) > 0:
+                if df_to_write.count() > 0:
                     df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
@@ -866,7 +863,7 @@ def _ingest_with_spark(
         if created_spark_context:
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
-            return
+            df = None
     return df
 
 

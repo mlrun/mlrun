@@ -29,7 +29,7 @@ class Plan(ABC):
 
     def is_reproducible(self, *args, **kwargs) -> bool:
         """
-        Check whether or not the plan should be used to produce multiple times or only once. Defaulted to return False.
+        Check whether the plan should be used to produce multiple times or only once. Defaulted to return False.
 
         :return: True if the plan is reproducible and False otherwise.
         """
@@ -38,7 +38,7 @@ class Plan(ABC):
     @abstractmethod
     def is_ready(self, *args, **kwargs) -> bool:
         """
-        Check whether or not the plan is fit for production in the current time this method is called.
+        Check whether the plan is fit for production in the current time this method is called.
 
         :return: True if the plan is producible and False otherwise.
         """

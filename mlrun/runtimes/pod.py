@@ -24,7 +24,11 @@ import kubernetes.client as k8s_client
 import mlrun.errors
 import mlrun.utils.regex
 
-from ..api.schemas import NodeSelectorOperator, PreemptionModes
+from ..api.schemas import (
+    NodeSelectorOperator,
+    PreemptionModes,
+    SecurityContextEnrichmentModes,
+)
 from ..config import config as mlconf
 from ..k8s_utils import (
     generate_preemptible_node_selector_requirements,
@@ -33,7 +37,7 @@ from ..k8s_utils import (
     generate_preemptible_tolerations,
 )
 from ..secrets import SecretsStore
-from ..utils import get_in, logger, normalize_name, update_in
+from ..utils import logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
@@ -51,28 +55,34 @@ sanitized_types = {
         "attribute_type": k8s_client.V1Affinity,
         "sub_attribute_type": None,
         "contains_many": False,
-        "not_sanitized": "node_affinity",
         "not_sanitized_class": dict,
-        "sanitized": "nodeAffinity",
     },
     "tolerations": {
         "attribute_type_name": "List[V1.Toleration]",
         "attribute_type": list,
         "contains_many": True,
         "sub_attribute_type": k8s_client.V1Toleration,
-        "not_sanitized": "toleration_seconds",
         "not_sanitized_class": list,
-        "sanitized": "tolerationSeconds",
+    },
+    "security_context": {
+        "attribute_type_name": "V1SecurityContext",
+        "attribute_type": k8s_client.V1SecurityContext,
+        "sub_attribute_type": None,
+        "contains_many": False,
+        "not_sanitized_class": dict,
     },
 }
 
 sanitized_attributes = {
     "affinity": sanitized_types["affinity"],
     "tolerations": sanitized_types["tolerations"],
+    "security_context": sanitized_types["security_context"],
     "executor_tolerations": sanitized_types["tolerations"],
     "driver_tolerations": sanitized_types["tolerations"],
     "executor_affinity": sanitized_types["affinity"],
     "driver_affinity": sanitized_types["affinity"],
+    "executor_security_context": sanitized_types["security_context"],
+    "driver_security_context": sanitized_types["security_context"],
 }
 
 
@@ -92,6 +102,7 @@ class KubeResourceSpec(FunctionSpec):
         "priority_class_name",
         "tolerations",
         "preemption_mode",
+        "security_context",
     ]
 
     def __init__(
@@ -121,6 +132,7 @@ class KubeResourceSpec(FunctionSpec):
         priority_class_name=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -147,7 +159,9 @@ class KubeResourceSpec(FunctionSpec):
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
         self.service_account = service_account
-        self.image_pull_secret = image_pull_secret
+        self.image_pull_secret = (
+            image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
+        )
         self.node_name = node_name
         self.node_selector = (
             node_selector or mlrun.mlconf.get_default_function_node_selector()
@@ -158,6 +172,9 @@ class KubeResourceSpec(FunctionSpec):
         )
         self._tolerations = tolerations
         self.preemption_mode = preemption_mode
+        self.security_context = (
+            security_context or mlrun.mlconf.get_default_function_security_context()
+        )
 
     @property
     def volumes(self) -> list:
@@ -218,11 +235,24 @@ class KubeResourceSpec(FunctionSpec):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
         self.enrich_function_preemption_spec()
 
+    @property
+    def security_context(self) -> k8s_client.V1SecurityContext:
+        return self._security_context
+
+    @security_context.setter
+    def security_context(self, security_context):
+        self._security_context = transform_attribute_to_k8s_class_instance(
+            "security_context", security_context
+        )
+
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["affinity", "tolerations"])
+        exclude = exclude or []
+        _exclude = ["affinity", "tolerations", "security_context"]
+        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
         api = k8s_client.ApiClient()
-        struct["affinity"] = api.sanitize_for_serialization(self.affinity)
-        struct["tolerations"] = api.sanitize_for_serialization(self.tolerations)
+        for field in _exclude:
+            if field not in exclude:
+                struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct
 
     def update_vols_and_mounts(
@@ -238,88 +268,6 @@ class KubeResourceSpec(FunctionSpec):
 
     def _get_affinity_as_k8s_class_instance(self):
         pass
-
-    def _transform_attribute_to_k8s_class_instance(
-        self, attribute_name, attribute, is_sub_attr: bool = False
-    ):
-        if attribute_name not in sanitized_attributes:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{attribute_name} isn't in the available sanitized attributes"
-            )
-        attribute_config = sanitized_attributes[attribute_name]
-        # initialize empty attribute type
-        if attribute is None:
-            return None
-        if isinstance(attribute, dict):
-            if self._resolve_if_type_sanitized(attribute_name, attribute):
-                api = k8s_client.ApiClient()
-                # not ideal to use their private method, but looks like that's the only option
-                # Taken from https://github.com/kubernetes-client/python/issues/977
-                attribute_type = attribute_config["attribute_type"]
-                if attribute_config["contains_many"]:
-                    attribute_type = attribute_config["sub_attribute_type"]
-                attribute = api._ApiClient__deserialize(attribute, attribute_type)
-
-        elif isinstance(attribute, list):
-            attribute_instance = []
-            for sub_attr in attribute:
-                if not isinstance(sub_attr, dict):
-                    return attribute
-                attribute_instance.append(
-                    self._transform_attribute_to_k8s_class_instance(
-                        attribute_name, sub_attr, is_sub_attr=True
-                    )
-                )
-            attribute = attribute_instance
-        # if user have set one attribute but its part of an attribute that contains many then return inside a list
-        if (
-            not is_sub_attr
-            and attribute_config["contains_many"]
-            and isinstance(attribute, attribute_config["sub_attribute_type"])
-        ):
-            # initialize attribute instance and add attribute to it,
-            # mainly done when attribute is a list but user defines only sets the attribute not in the list
-            attribute_instance = attribute_config["attribute_type"]()
-            attribute_instance.append(attribute)
-            return attribute_instance
-        return attribute
-
-    def _get_sanitized_attribute(self, attribute_name: str):
-        """
-        When using methods like to_dict() on kubernetes class instances we're getting the attributes in snake_case
-        Which is ok if we're using the kubernetes python package but not if for example we're creating CRDs that we
-        apply directly. For that we need the sanitized (CamelCase) version.
-        """
-        attribute = getattr(self, attribute_name)
-        if attribute_name not in sanitized_attributes:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"{attribute_name} isn't in the available sanitized attributes"
-            )
-        attribute_config = sanitized_attributes[attribute_name]
-        if not attribute:
-            return attribute_config["not_sanitized_class"]()
-
-        # check if attribute of type dict, and then check if type is sanitized
-        if isinstance(attribute, dict):
-            if attribute_config["not_sanitized_class"] != dict:
-                raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
-                )
-            if _resolve_if_type_sanitized(attribute_name, attribute):
-                return attribute
-
-        elif isinstance(attribute, list) and not isinstance(
-            attribute[0], attribute_config["sub_attribute_type"]
-        ):
-            if attribute_config["not_sanitized_class"] != list:
-                raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                    f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
-                )
-            if _resolve_if_type_sanitized(attribute_name, attribute[0]):
-                return attribute
-
-        api = k8s_client.ApiClient()
-        return api.sanitize_for_serialization(attribute)
 
     def _set_volume_mount(
         self, volume_mount, volume_mounts_field_name="_volume_mounts"
@@ -1060,6 +1008,36 @@ class KubeResource(BaseRuntime):
         preemptible_mode = PreemptionModes(mode)
         self.spec.preemption_mode = preemptible_mode.value
 
+    def with_security_context(self, security_context: k8s_client.V1SecurityContext):
+        """
+        Set security context for the pod.
+        For Iguazio we handle security context internally -
+        see mlrun.api.schemas.function.SecurityContextEnrichmentModes
+
+        Example:
+
+            from kubernetes import client as k8s_client
+
+            security_context = k8s_client.V1SecurityContext(
+                        run_as_user=1000,
+                        run_as_group=3000,
+                    )
+            function.with_security_context(security_context)
+
+        More info:
+        https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+
+        :param security_context:         The security context for the pod
+        """
+        if (
+            mlrun.mlconf.function.spec.security_context.enrichment_mode
+            != SecurityContextEnrichmentModes.disabled.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Security context is handled internally when enrichment mode is not disabled"
+            )
+        self.spec.security_context = security_context
+
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()
 
@@ -1266,6 +1244,7 @@ def kube_resource_spec_to_pod_spec(
         if len(mlconf.get_valid_function_priority_class_names())
         else None,
         tolerations=kube_resource_spec.tolerations,
+        security_context=kube_resource_spec.security_context,
     )
 
 
@@ -1273,13 +1252,15 @@ def _resolve_if_type_sanitized(attribute_name, attribute):
     attribute_config = sanitized_attributes[attribute_name]
     # heuristic - if one of the keys contains _ as part of the dict it means to_dict on the kubernetes
     # object performed, there's nothing we can do at that point to transform it to the sanitized version
-    if get_in(attribute, attribute_config["not_sanitized"]):
-        raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class"
-        )
+    for key in attribute.keys():
+        if "_" in key:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{attribute_name} must be instance of kubernetes {attribute_config.get('attribute_type_name')} class "
+                f"but contains not sanitized key: {key}"
+            )
+
     # then it's already the sanitized version
-    elif get_in(attribute, attribute_config["sanitized"]):
-        return attribute
+    return attribute
 
 
 def transform_attribute_to_k8s_class_instance(

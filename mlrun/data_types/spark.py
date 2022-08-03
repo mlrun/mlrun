@@ -115,8 +115,17 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
 
     # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
 
-    summary_df = df.summary().toPandas()
+    # if a column named "summary" already exists, we have to rename it to something else and back
+    summary_renamed = False
+    df_for_summary = df
+    if "summary" in df.columns:
+        df_for_summary = df.withColumnRenamed("summary", "__summary_internal__")
+        summary_renamed = True
+    summary_df = df_for_summary.summary().toPandas()
     summary_df.set_index(["summary"], drop=True, inplace=True)
+    if summary_renamed:
+        summary_df.rename(columns={"__summary_internal__": "summary"}, inplace=True)
+
     results_dict = {}
     hist_columns = []
     for col, values in summary_df.items():

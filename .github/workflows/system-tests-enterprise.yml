@@ -68,9 +68,6 @@ jobs:
         test_component: [api,runtimes,feature_store,projects,model_monitoring,examples,demos,backward_compatibility]
     steps:
     - uses: actions/checkout@v2
-    - name: fail
-      if: matrix.test_component == 'api'
-      run: exit 1
 
   verify-all-system-tests-succeeded:
     needs: [run-system-tests-enterprise-ci]

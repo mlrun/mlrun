@@ -1177,15 +1177,38 @@ def test_get_obj_path(db: Session, client: TestClient):
             "data_volume": "/home/jovyan/data",
             "expect_error": True,
         },
+        {
+            "path": "gcs://bucket/and/path",
+            "allowed_paths": "http://, gcs:// ",
+            "expected_path": "gcs://bucket/and/path",
+        },
+        {
+            "path": "bucket/and/path",
+            "schema": "gs",
+            "allowed_paths": " gs://, gcs:// ",
+            "expected_path": "gs://bucket/and/path",
+        },
+        {
+            "path": "gcs://bucket/and/path",
+            "expect_error": True,
+        },
+        {
+            "path": "/local/file/security/breach",
+            "allowed_paths": "/local",
+            "expect_error": True,
+        },
     ]
     for case in cases:
         logger.info("Testing case", case=case)
         old_real_path = mlrun.mlconf.httpdb.real_path
         old_data_volume = mlrun.mlconf.httpdb.data_volume
+        old_allowed_file_paths = mlrun.mlconf.httpdb.allowed_file_paths
         if case.get("real_path"):
             mlrun.mlconf.httpdb.real_path = case["real_path"]
         if case.get("data_volume"):
             mlrun.mlconf.httpdb.data_volume = case["data_volume"]
+        if case.get("allowed_paths"):
+            mlrun.mlconf.httpdb.allowed_file_paths = case["allowed_paths"]
         if case.get("expect_error"):
             with pytest.raises(
                 mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
@@ -1202,6 +1225,8 @@ def test_get_obj_path(db: Session, client: TestClient):
                 mlrun.mlconf.httpdb.real_path = old_real_path
             if case.get("data_volume"):
                 mlrun.mlconf.httpdb.data_volume = old_data_volume
+            if case.get("allowed_paths"):
+                mlrun.mlconf.httpdb.allowed_file_paths = old_allowed_file_paths
 
 
 def _mock_import_function(monkeypatch):

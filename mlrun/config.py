@@ -191,8 +191,12 @@ default_config = {
         "password": "",
         "token": "",
         "logs_path": "./db/logs",
+        # when set, these will replace references to the data_volume with the real_path
         "data_volume": "",
         "real_path": "",
+        # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
+        # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
+        "allowed_file_paths": "",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
@@ -817,7 +821,8 @@ def _do_populate(env=None):
     global config
 
     if "MLRUN_ENV_FILE" in os.environ:
-        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
+        env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
+        dotenv.load_dotenv(env_file, override=True)
 
     if not config:
         config = Config.from_dict(default_config)

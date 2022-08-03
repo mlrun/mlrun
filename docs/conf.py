@@ -117,6 +117,9 @@ html_theme_options = {
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
     "google_analytics_id": "",
+      # Toc options
+    'collapse_navigation': True,
+    'sticky_navigation': True,
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"

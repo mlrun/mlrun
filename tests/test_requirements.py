@@ -81,7 +81,6 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "aioitertools": {""},
         "storey": {"~=1.1.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},

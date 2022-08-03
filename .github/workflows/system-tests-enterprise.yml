@@ -57,6 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
+    if: ${{ always() }}
     strategy:
       max-parallel: 1
       matrix:
@@ -64,7 +65,6 @@ jobs:
     # let's not run this on every fork, change to your fork when developing
     # always is used so the jobs in the matrix will continue even if one of them failed
     # contains(join(needs.*.result, ','), 'success') verifies that the all the jobs in needs ran successfully
-    if: ${{ always() }}
 
     steps:
     - uses: actions/checkout@v2

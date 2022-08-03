@@ -162,13 +162,16 @@ jobs:
     timeout-minutes: 360
     name: Run System Tests Enterprise
     runs-on: ubuntu-latest
+    # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
     strategy:
       max-parallel: 1
       matrix:
         test_component: [api,runtimes,feature_store,projects,model_monitoring,examples,demos,backward_compatibility]
     # let's not run this on every fork, change to your fork when developing
-    if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
+    # always is used so the jobs in the matrix will continue even if one of them failed
+    # contains(join(needs.*.result, ','), 'success') verifies that the all the jobs in needs ran successfully
+    if: always() && contains(join(needs.*.result, ','), 'success') && (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch')
 
     steps:
     - uses: actions/checkout@v2

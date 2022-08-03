@@ -832,32 +832,31 @@ def add_function_security_context(
 ) -> dsl.ContainerOp:
 
     if (
-        not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
-        and mlrun.mlconf.function.spec.security_context.enrichment_mode
-        != SecurityContextEnrichmentModes.disabled.value
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == SecurityContextEnrichmentModes.disabled.value
     ):
+        return container_op
 
-        # ensure kfp pod user id is not None or 0 (root)
-        if (
-            not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Kubeflow pipeline pod user id is invalid: "
-                f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id}, "
-                f"it must be an integer greater than 0. "
-                f"See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
-            )
+    # ensure kfp pod user id is not None or 0 (root)
+    if not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Kubeflow pipeline pod user id is invalid: "
+            f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id}, "
+            f"it must be an integer greater than 0. "
+            f"See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
+        )
 
-        kfp_pod_user_unix_id = int(
-            mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
+    kfp_pod_user_unix_id = int(
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
+    )
+    container_op.container.set_security_context(
+        k8s_client.V1SecurityContext(
+            run_as_user=kfp_pod_user_unix_id,
+            run_as_group=mlrun.mlconf.get_security_context_enrichment_group_id(
+                kfp_pod_user_unix_id
+            ),
         )
-        container_op.container.set_security_context(
-            k8s_client.V1SecurityContext(
-                run_as_user=kfp_pod_user_unix_id,
-                run_as_group=mlrun.mlconf.get_security_context_enrichment_group_id(
-                    kfp_pod_user_unix_id
-                ),
-            )
-        )
+    )
 
     return container_op

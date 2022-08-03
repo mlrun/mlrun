@@ -155,8 +155,6 @@ jobs:
     needs: [prepare-system-tests-enterprise-ci]
     runs-on: ubuntu-latest
     # let's not run this on every fork, change to your fork when developing
-    # always is used so the jobs in the matrix will continue even if one of them failed
-    # contains(join(needs.*.result, ','), 'success') verifies that the all the jobs in needs ran successfully
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     continue-on-error: true
     strategy:

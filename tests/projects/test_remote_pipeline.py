@@ -273,7 +273,8 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                     target=str(workflow_path),
                 )
             assert (
-                f"Kubeflow pipeline pod user id is invalid: {kfp_pod_user_unix_id}, it must be an integer greater than 0. "
+                f"Kubeflow pipeline pod user id is invalid: {kfp_pod_user_unix_id}, "
+                f"it must be an integer greater than 0. "
                 "See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
                 in str(exc.value)
             )

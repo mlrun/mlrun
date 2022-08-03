@@ -14,8 +14,8 @@ aiobotocore~=1.4.0
 s3fs~=2021.8.1
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
-azure-core>=1.23
-azure-storage-blob>=12.13
+azure-core~=1.23
+azure-storage-blob~=12.13
 adlfs~=2021.8.1
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2

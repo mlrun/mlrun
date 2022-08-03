@@ -241,12 +241,15 @@ pipeline_context = _PipelineContext()
 
 
 def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
-    if kfp_pod_template.get("container") and kfp_pod_template.get("name").startswith(
-        function.metadata.name
-    ):
-        priority_class_name = getattr(function.spec, "priority_class_name", None)
-        if priority_class_name:
-            kfp_pod_template["PriorityClassName"] = priority_class_name
+    priority_class_name = getattr(function.spec, "priority_class_name", None)
+    if priority_class_name:
+        kfp_pod_template["PriorityClassName"] = priority_class_name
+
+
+def _set_security_context_on_kfp_pod(kfp_pod_template, function):
+    security_context = getattr(function.spec, "security_context", None)
+    if security_context:
+        kfp_pod_template["SecurityContext"] = security_context
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -291,14 +294,14 @@ def _create_enriched_mlrun_workflow(
                 for function_obj in functions:
                     # we condition within each function since the comparison between the function and
                     # the kfp pod may change depending on the attribute type.
-                    try:
+                    if kfp_step_template.get("container") and kfp_step_template.get(
+                        "name"
+                    ).startswith(function_obj.metadata.name):
                         _set_priority_class_name_on_kfp_pod(
                             kfp_step_template, function_obj
                         )
-                    except Exception as err:
-                        kfp_pod_name = kfp_step_template.get("name")
-                        logger.warning(
-                            f"Unable to enrich kfp pod {kfp_pod_name}", error=str(err)
+                        _set_security_context_on_kfp_pod(
+                            kfp_step_template, function_obj
                         )
     except Exception as err:
         logger.debug("Something in the enrichment of kfp pods failed", error=str(err))

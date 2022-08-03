@@ -39,7 +39,7 @@ from .utils import (
     run_keys,
 )
 
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
+KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 
 project_annotation = "mlrun/project"

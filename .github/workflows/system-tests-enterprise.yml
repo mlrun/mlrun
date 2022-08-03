@@ -54,21 +54,29 @@ jobs:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
     name: Run System Tests Enterprise
-    runs-on: ubuntu-latest
     # requires prepare to finish before starting
     needs: [prepare-system-tests-enterprise-ci]
+    runs-on: ubuntu-latest
+    # let's not run this on every fork, change to your fork when developing
+    # always is used so the jobs in the matrix will continue even if one of them failed
+    # contains(join(needs.*.result, ','), 'success') verifies that the all the jobs in needs ran successfully
+    if: contains(join(needs.*.result, ','), 'success') && (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch')
     continue-on-error: true
     strategy:
       max-parallel: 1
       matrix:
         test_component: [api,runtimes,feature_store,projects,model_monitoring,examples,demos,backward_compatibility]
-    # let's not run this on every fork, change to your fork when developing
-    # always is used so the jobs in the matrix will continue even if one of them failed
-    # contains(join(needs.*.result, ','), 'success') verifies that the all the jobs in needs ran successfully
-    if: contains(join(needs.*.result, ','), 'success') && (github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch')
-
     steps:
     - uses: actions/checkout@v2
     - name: fail
       if: matrix.test_component == 'api'
       run: exit 1
+
+  verify-all-system-tests-succeeded:
+    needs: [run-system-tests-enterprise-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: technote-space/workflow-conclusion-action@v3
+      - name: fail-if-one-of-the-jobs-failes
+        if: env.WORKFLOW_CONCLUSION == 'failure'
+        run: exit 1

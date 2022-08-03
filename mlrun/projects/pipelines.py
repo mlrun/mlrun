@@ -240,16 +240,12 @@ class _PipelineContext:
 pipeline_context = _PipelineContext()
 
 
-def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
-    priority_class_name = getattr(function.spec, "priority_class_name", None)
-    if priority_class_name:
-        kfp_pod_template["PriorityClassName"] = priority_class_name
-
-
-def _set_security_context_on_kfp_pod(kfp_pod_template, function):
-    security_context = getattr(function.spec, "security_context", None)
+def _set_attribute_on_kfp_pod(
+    kfp_pod_template, function, pod_template_key, function_spec_key
+):
+    security_context = getattr(function.spec, function_spec_key, None)
     if security_context:
-        kfp_pod_template["SecurityContext"] = security_context
+        kfp_pod_template[pod_template_key] = security_context
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -297,11 +293,17 @@ def _create_enriched_mlrun_workflow(
                     if kfp_step_template.get("container") and kfp_step_template.get(
                         "name"
                     ).startswith(function_obj.metadata.name):
-                        _set_priority_class_name_on_kfp_pod(
-                            kfp_step_template, function_obj
+                        _set_attribute_on_kfp_pod(
+                            kfp_step_template,
+                            function_obj,
+                            "PriorityClassName",
+                            "priority_class_name",
                         )
-                        _set_security_context_on_kfp_pod(
-                            kfp_step_template, function_obj
+                        _set_attribute_on_kfp_pod(
+                            kfp_step_template,
+                            function_obj,
+                            "SecurityContext",
+                            "security_context",
                         )
     except Exception as err:
         logger.debug("Something in the enrichment of kfp pods failed", error=str(err))

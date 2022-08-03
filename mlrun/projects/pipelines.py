@@ -243,9 +243,9 @@ pipeline_context = _PipelineContext()
 def _set_attribute_on_kfp_pod(
     kfp_pod_template, function, pod_template_key, function_spec_key
 ):
-    security_context = getattr(function.spec, function_spec_key, None)
-    if security_context:
-        kfp_pod_template[pod_template_key] = security_context
+    attribute_value = getattr(function.spec, function_spec_key, None)
+    if attribute_value:
+        kfp_pod_template[pod_template_key] = attribute_value
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and

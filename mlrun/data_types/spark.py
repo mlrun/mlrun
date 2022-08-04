@@ -129,35 +129,22 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     # we therefore need to rename stddev to std for compatibility with pandas
     # we may want to consider going with stddev in 1.2 and beyond
     summary_df.rename(index={"stddev": "std"}, inplace=True)
-    # spark summary also returns string values instead of numerical values,
-    # so we need to convert those back
-    convert_types_back = {}
-    for col_name, col_type in df.dtypes:
-        if col_name in summary_df.columns:
-            # these types exist in spark but not in pandas
-            # a bigint that was converted to string may be in scientific notation,
-            # forcing us to convert it to double rather than integer
-            if col_type in ["bigint", "bigdecimal"]:
-                col_type = "double"
-            convert_types_back[col_name] = col_type
-    summary_df = summary_df.astype(convert_types_back)
 
     results_dict = {}
     hist_columns = []
+    numerical_spark_types = {"int", "bigint", "float", "double", "bigdecimal"}
     for col, values in summary_df.items():
+        original_type = None
+        for col_name, col_type in df.dtypes:
+            if col_name == col:
+                original_type = col_type
+                break
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if stat != "50%":
-                if isinstance(val, (float, np.floating, np.float64)):
-                    stats_dict[stat] = float(val)
-                elif isinstance(val, (int, np.integer, np.int64)):
-                    # boolean values are considered subclass of int
-                    if isinstance(val, bool):
-                        stats_dict[stat] = bool(val)
-                    else:
-                        stats_dict[stat] = int(val)
-                else:
-                    stats_dict[stat] = str(val)
+            if stat in ["min", "max"] and original_type not in numerical_spark_types:
+                stats_dict[stat] = val
+            elif stat != "50%":
+                stats_dict[stat] = float(val)
         results_dict[col] = stats_dict
 
         if (

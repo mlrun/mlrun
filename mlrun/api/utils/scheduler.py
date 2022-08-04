@@ -13,6 +13,7 @@ from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
 import mlrun.errors
 from mlrun.api import schemas
@@ -258,6 +259,7 @@ class Scheduler:
         db_schedule = await fastapi.concurrency.run_in_threadpool(
             get_db().get_schedule, db_session, project, name
         )
+        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,
@@ -567,7 +569,12 @@ class Scheduler:
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
                     mlrun.api.schemas.AuthInfo(
-                        username=username, access_key=access_key
+                        username=username,
+                        access_key=access_key,
+                        planes=[
+                            mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                            mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+                        ],
                     ),
                 )
             except Exception as exc:
@@ -736,7 +743,12 @@ class Scheduler:
             scheduler.update_schedule(
                 db_session,
                 mlrun.api.schemas.AuthInfo(
-                    username=project_owner.username, access_key=project_owner.session
+                    username=project_owner.username,
+                    access_key=project_owner.access_key,
+                    planes=[
+                        mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                        mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+                    ],
                 ),
                 project_name,
                 schedule_name,

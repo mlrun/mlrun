@@ -104,6 +104,7 @@ default_config = {
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
+    "redis_url": "redis://local-host:6379",
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
@@ -361,6 +362,7 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -957,6 +959,10 @@ def read_env(env=None, prefix=env_prefix):
         config["v3io_api"] = v3io_api
     elif is_remote_mlrun:
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
+
+    redis_url = env.get("REDIS_URL")
+    if redis_url:
+        config["redis_url"] = redis_url
 
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
     # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH

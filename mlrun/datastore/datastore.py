@@ -21,6 +21,7 @@ from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
 from .inmem import InMemoryStore
+from .redis import RedisStore
 from .store_resources import get_store_resource, is_store_uri
 from .v3io import V3ioStore
 
@@ -71,6 +72,8 @@ def schema_to_store(schema):
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
         return V3ioStore
+    elif schema in ["redis"]:
+        return RedisStore
     elif schema in ["http", "https"]:
         return HttpStore
     elif schema in ["gcs", "gs"]:

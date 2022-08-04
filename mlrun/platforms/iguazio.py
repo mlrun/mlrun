@@ -639,7 +639,7 @@ def parse_v3io_path(url, suffix="/"):
     """return v3io table path from url"""
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme.lower()
-    if scheme != "v3io" and scheme != "v3ios":
+    if scheme != "v3io" and scheme != "v3ios" and scheme != "redis":
         raise mlrun.errors.MLRunInvalidArgumentError(
             "url must start with v3io://[host]/{container}/{path}, got " + url
         )

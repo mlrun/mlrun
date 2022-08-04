@@ -40,6 +40,7 @@ class TargetTypes:
     csv = "csv"
     parquet = "parquet"
     nosql = "nosql"
+    redisnosql = "redisnosql"
     tsdb = "tsdb"
     stream = "stream"
     kafka = "kafka"
@@ -52,6 +53,7 @@ class TargetTypes:
             TargetTypes.csv,
             TargetTypes.parquet,
             TargetTypes.nosql,
+            TargetTypes.redisnosql,
             TargetTypes.tsdb,
             TargetTypes.stream,
             TargetTypes.kafka,
@@ -1144,6 +1146,91 @@ class NoSqlTarget(BaseStoreTarget):
             frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
 
 
+class RedisNoSqlTarget(BaseStoreTarget):
+    kind = TargetTypes.redisnosql
+    is_table = True
+    is_online = True
+    support_spark = False
+    support_storey = True
+    support_append = True
+
+    def get_table_object(self):
+        from storey import RedisDriver, Table
+
+        # TODO use options/cred
+        endpoint, uri = parse_v3io_path(self.get_target_path())
+        return Table(
+            uri,
+            RedisDriver(redis_url=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
+
+    def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        table = self._resource.uri
+        column_list = self._get_column_list(
+            features=features,
+            timestamp_key=None,
+            key_columns=key_columns,
+            with_type=True,
+        )
+        if not self.columns:
+            aggregate_features = (
+                [key for key, feature in features.items() if feature.aggregate]
+                if features
+                else []
+            )
+            column_list = [
+                col for col in column_list if col[0] not in aggregate_features
+            ]
+
+        graph.add_step(
+            name=self.name or "NoSqlTarget",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.NoSqlTarget",
+            columns=column_list,
+            table=table,
+            **self.attributes,
+        )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        raise NotImplementedError()
+
+    def get_dask_options(self):
+        return {"format": "csv"}
+
+    def as_df(self, columns=None, df_module=None, **kwargs):
+        raise NotImplementedError()
+
+    def prepare_spark_df(self, df):
+        raise NotImplementedError()
+
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
+        raise NotImplementedError()
+
+
 class StreamTarget(BaseStoreTarget):
     kind = TargetTypes.stream
     is_table = False
@@ -1449,6 +1536,7 @@ kind_to_driver = {
     TargetTypes.parquet: ParquetTarget,
     TargetTypes.csv: CSVTarget,
     TargetTypes.nosql: NoSqlTarget,
+    TargetTypes.redisnosql: RedisNoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
     TargetTypes.kafka: KafkaTarget,

@@ -127,7 +127,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         summary_df.rename(columns={"__summary_internal__": "summary"}, inplace=True)
     # pandas df.describe() returns std, while spark returns stddev
     # we therefore need to rename stddev to std for compatibility with pandas
-    # we may want to consider going with stddev in 1.2 and beyond
+    # TODO: we may want to consider changing std to stddev in 1.2 and beyond (this requires a change to mlrun-ui)
     summary_df.rename(index={"stddev": "std"}, inplace=True)
 
     results_dict = {}

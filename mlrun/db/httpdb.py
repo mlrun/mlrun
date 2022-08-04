@@ -55,10 +55,14 @@ def bool2str(val):
     return "yes" if val else "no"
 
 
+HTTP_RETRY_AMOUNT = 3
+HTTP_RETRY_BACKOFF = 1
+HTTP_RETRY_EXCEPTIONS = (ConnectionResetError, requests.exceptions.ConnectionError)
+
 http_adapter = HTTPAdapter(
     max_retries=Retry(
-        total=3,
-        backoff_factor=1,
+        total=HTTP_RETRY_AMOUNT,
+        backoff_factor=HTTP_RETRY_BACKOFF,
         status_forcelist=[500, 502, 503, 504],
         # we want to retry but not to raise since we do want that last response (to parse details on the
         # error from response body) we'll handle raising ourselves
@@ -140,6 +144,18 @@ class HTTPRunDB(RunDBInterface):
         url = f"{self.base_url}/{path_prefix}/{path}"
         return url
 
+    def request_with_retry(self, method, url, **kwargs):
+        retry_count = 0
+        while True:
+            try:
+                response = self.session.request(method, url, **kwargs)
+                return response
+            except HTTP_RETRY_EXCEPTIONS as exc:
+                retry_count += 1
+                if retry_count >= HTTP_RETRY_AMOUNT:
+                    raise exc
+                time.sleep(HTTP_RETRY_BACKOFF)
+
     def api_call(
         self,
         method,
@@ -217,7 +233,7 @@ class HTTPRunDB(RunDBInterface):
             self.session.mount("https://", http_adapter)
 
         try:
-            response = self.session.request(
+            response = self.request_with_retry(
                 method, url, timeout=timeout, verify=False, **kw
             )
         except requests.RequestException as exc:

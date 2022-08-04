@@ -692,7 +692,7 @@ class ModelEndpoints:
         )
         access_key = auth_info.data_session
 
-        # we would ideally base on config.v3io_api but can't for backwards compatibility reasons,
+        # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
@@ -843,7 +843,7 @@ class ModelEndpoints:
             project=project,
         )
 
-        # try to list functions that named model monitoring batch
+        # Try to list functions that named model monitoring batch
         # to make sure that this job has not yet been deployed
         function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
             session=db_session, name="model-monitoring-batch", project=project
@@ -856,7 +856,7 @@ class ModelEndpoints:
             )
             return
 
-        # create a monitoring batch job function object
+        # Create a monitoring batch job function object
         fn = mlrun.model_monitoring.helpers.get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -881,7 +881,7 @@ class ModelEndpoints:
             "Deploying model monitoring batch processing function", project=project
         )
 
-        # add job schedule policy (every hour by default)
+        # Add job schedule policy (every hour by default)
         mlrun.api.api.utils._submit_run(
             db_session=db_session, auth_info=auth_info, data=data
         )

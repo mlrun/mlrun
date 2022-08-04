@@ -243,9 +243,10 @@ pipeline_context = _PipelineContext()
 def _set_function_attribute_on_kfp_pod(
     kfp_pod_template, function, pod_template_key, function_spec_key
 ):
-    priority_class_name = getattr(function.spec, function_spec_key, None)
-    if priority_class_name:
-        kfp_pod_template[pod_template_key] = priority_class_name
+    if kfp_pod_template.get("name").startswith(function.metadata.name):
+        priority_class_name = getattr(function.spec, function_spec_key, None)
+        if priority_class_name:
+            kfp_pod_template[pod_template_key] = priority_class_name
 
 
 def _set_template_container_attribute_on_kfp_pod(
@@ -298,15 +299,12 @@ def _create_enriched_mlrun_workflow(
                 for function_obj in functions:
                     # we condition within each function since the comparison between the function and
                     # the kfp pod may change depending on the attribute type.
-                    if kfp_step_template.get("name").startswith(
-                        function_obj.metadata.name
-                    ):
-                        _set_function_attribute_on_kfp_pod(
-                            kfp_step_template,
-                            function_obj,
-                            "PriorityClassName",
-                            "priority_class_name",
-                        )
+                    _set_function_attribute_on_kfp_pod(
+                        kfp_step_template,
+                        function_obj,
+                        "PriorityClassName",
+                        "priority_class_name",
+                    )
                     _set_template_container_attribute_on_kfp_pod(
                         kfp_step_template,
                         kfp_step_template.get("container"),

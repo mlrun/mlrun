@@ -2,6 +2,7 @@
 # currently we are running it in the integration tests CI step so adding this file for unit tests for the httpdb
 import enum
 import unittest.mock
+
 import pytest
 
 import mlrun.db.httpdb

@@ -523,10 +523,11 @@ class ModelEndpoints:
     ):
         """
         Invoking monitoring deploying functions.
-        :param project:                     The name of the project
-        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
         """
         self.deploy_model_monitoring_stream_processing(
             project=project,
@@ -786,10 +787,11 @@ class ModelEndpoints:
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
         to monitor the log of the data stream. It is triggered when a new log entry is detected.
         It processes the new events into statistics that are then written to statistics databases.
-        :param project:                     The name of the project
-        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
         """
 
         logger.info(
@@ -832,10 +834,11 @@ class ModelEndpoints:
         based on the latest batch of events. By default, this job is executed on the hour every hour.
         Note that if the monitoring batch job was already deployed then you will have to delete the
         old monitoring batch job before deploying a new one.
-        :param project:                     The name of the project
-        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
         """
 
         logger.info(

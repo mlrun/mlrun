@@ -300,14 +300,22 @@ class ServingRuntime(RemoteRuntime):
         batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
     ):
-        """set tracking stream parameters:
+        """set tracking parameters:
 
-        :param stream_path:  path/url of the tracking stream e.g. v3io:///users/mike/mystream
-                             you can use the "dummy://" path for test/simulation
-        :param batch:        micro batch size (send micro batches of N records at a time)
-        :param sample:       sample size (send only one of N records)
-        :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param stream_path:     Path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                                you can use the "dummy://" path for test/simulation.
+        :param batch:           Micro batch size (send micro batches of N records at a time).
+        :param sample:          Sample size (send only one of N records).
+        :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param batch_intervals: Model monitoring batch scheduling policy. By default, executed on the hour every hour.
+                                The time format is based on ScheduleCronTrigger expression: minute, hour, day of month,
+                                month, day of week.
+        :param batch_image:     The image of the model monitoring batch job. By default, the image is mlrun/mlrun.
+        :param stream_image:    The image of the model monitoring stream real-time function. By default, the image
+                                is mlrun/mlrun.
         """
+
+        # Applying model monitoring configurations
         self.spec.track_models = True
         self.spec.tracking_policy = model_monitoring.TrackingPolicy(
             batch_intervals=batch_intervals,

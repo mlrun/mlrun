@@ -32,6 +32,7 @@ def initial_model_monitoring_stream_processing_function(
     :param project:                     project name.
     :param model_monitoring_access_key: access key to apply the model monitoring process.
     :param db_session:                  A session that manages the current dialog with the database.
+    :param tracking_policy:             Model monitoring configurations.
 
     :return:                            A function object from a mlrun runtime class
 
@@ -102,6 +103,7 @@ def get_model_monitoring_batch_function(
     :param project:                     project name.
     :param model_monitoring_access_key: access key to apply the model monitoring process.
     :param db_session:                  A session that manages the current dialog with the database.
+    :param tracking_policy:             Model monitoring configurations.
 
     :return:                            A function object from a mlrun runtime class
 

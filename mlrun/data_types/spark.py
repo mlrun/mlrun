@@ -125,6 +125,22 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     summary_df.set_index(["summary"], drop=True, inplace=True)
     if summary_renamed:
         summary_df.rename(columns={"__summary_internal__": "summary"}, inplace=True)
+    # pandas df.describe() returns std, while spark returns stddev
+    # we therefore need to rename stddev to std for compatibility with pandas
+    # we may want to consider going with stddev in 1.2 and beyond
+    summary_df.rename(index={"stddev": "std"}, inplace=True)
+    # spark summary also returns string values instead of numerical values,
+    # so we need to convert those back
+    convert_types_back = {}
+    for col_name, col_type in df.dtypes:
+        if col_name in summary_df.columns:
+            # these types exist in spark but not in pandas
+            # a bigint that was converted to string may be in scientific notation,
+            # forcing us to convert it to double rather than integer
+            if col_type in ["bigint", "bigdecimal"]:
+                col_type = "double"
+            convert_types_back[col_name] = col_type
+    summary_df = summary_df.astype(convert_types_back)
 
     results_dict = {}
     hist_columns = []

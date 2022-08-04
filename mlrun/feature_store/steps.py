@@ -1,3 +1,4 @@
+import re
 import uuid
 from typing import Any, Dict, List, Union
 
@@ -166,9 +167,15 @@ class OneHotEncoder(StepToDict, MapClass):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-            one_hot_encoding = {f"{feature}_{category}": 0 for category in encoding}
+
+            one_hot_encoding = {
+                f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
+                for category in encoding
+            }
             if value in encoding:
-                one_hot_encoding[f"{feature}_{value}"] = 1
+                one_hot_encoding[
+                    f"{feature}_{OneHotEncoder._sanitized_category(value)}"
+                ] = 1
             else:
                 print(f"Warning, {value} is not a known value by the encoding")
             return one_hot_encoding
@@ -180,6 +187,12 @@ class OneHotEncoder(StepToDict, MapClass):
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
+
+    @staticmethod
+    def _sanitized_category(category):
+        # replace(" " and "-") -> "_"
+        return re.sub("[ -]", "_", category)
+
 
 class DateExtractor(StepToDict, MapClass):
     """Date Extractor allows you to extract a date-time component"""

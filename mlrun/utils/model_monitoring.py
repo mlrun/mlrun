@@ -1,12 +1,14 @@
+import enum
 import hashlib
 from dataclasses import dataclass
-from enum import IntEnum
 from typing import Optional
 
 import mlrun
 from mlrun.config import config
 from mlrun.platforms.iguazio import parse_v3io_path
 from mlrun.utils import parse_versioned_object_uri
+
+from ..model import ModelObj
 
 
 @dataclass
@@ -114,7 +116,19 @@ def set_project_model_monitoring_credentials(
     )
 
 
-class EndpointType(IntEnum):
+class EndpointType(enum.IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
+
+
+class TrackingPolicy(ModelObj):
+    def __init__(
+        self,
+        batch_intervals: str = "0 */1 * * *",
+        batch_image: str = "mlrun/mlrun",
+        stream_image: str = "mlrun/mlrun",
+    ):
+        self.batch_intervals = batch_intervals
+        self.batch_image = batch_image
+        self.stream_image = stream_image

@@ -11,6 +11,7 @@ import mlrun.feature_store as fs
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers
+import mlrun.utils.model_monitoring
 
 _CURRENT_FILE_PATH = pathlib.Path(__file__)
 _STREAM_PROCESSING_FUNCTION_PATH = _CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
@@ -20,7 +21,10 @@ _MONIOTINRG_BATCH_FUNCTION_PATH = (
 
 
 def initial_model_monitoring_stream_processing_function(
-    project: str, model_monitoring_access_key: str, db_session: sqlalchemy.orm.Session
+    project: str,
+    model_monitoring_access_key: str,
+    db_session: sqlalchemy.orm.Session,
+    tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
 ):
     """
     Initialize model monitoring stream processing function.
@@ -48,7 +52,7 @@ def initial_model_monitoring_stream_processing_function(
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image="quay.io/eyaligu/mlrun-api:monitoring-feature-set-2",
+        image=tracking_policy["stream_image"],
     )
 
     # Create monitoring serving graph
@@ -90,6 +94,7 @@ def get_model_monitoring_batch_function(
     model_monitoring_access_key: str,
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.api.schemas.AuthInfo,
+    tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
 ):
     """
     Initialize model monitoring batch function.
@@ -108,7 +113,7 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="quay.io/eyaligu/mlrun-api:monitoring-feature-set-2",
+        image=tracking_policy["batch_image"],
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

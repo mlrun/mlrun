@@ -519,6 +519,7 @@ class ModelEndpoints:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
+        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
         Invoking monitoring deploying functions.
@@ -532,12 +533,14 @@ class ModelEndpoints:
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auto_info=auth_info,
+            tracking_policy=tracking_policy,
         )
         self.deploy_model_monitoring_batch_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
+            tracking_policy=tracking_policy,
         )
 
     def write_endpoint_to_kv(
@@ -777,6 +780,7 @@ class ModelEndpoints:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auto_info: mlrun.api.schemas.AuthInfo,
+        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -808,7 +812,7 @@ class ModelEndpoints:
             )
 
         fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
-            project, model_monitoring_access_key, db_session
+            project, model_monitoring_access_key, db_session, tracking_policy
         )
 
         mlrun.api.api.endpoints.functions._build_function(
@@ -821,6 +825,7 @@ class ModelEndpoints:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
+        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
@@ -857,6 +862,7 @@ class ModelEndpoints:
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
+            tracking_policy=tracking_policy,
         )
 
         # Get the function uri
@@ -868,7 +874,7 @@ class ModelEndpoints:
 
         data = {
             "task": task.to_dict(),
-            "schedule": "0 */1 * * *",
+            "schedule": tracking_policy["batch_intervals"],
         }
 
         logger.info(

@@ -36,7 +36,7 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger, set_paths
+from ..utils import get_caller_globals, logger, model_monitoring, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
@@ -90,6 +90,7 @@ class ServingSpec(NuclioSpec):
         "default_class",
         "secret_sources",
         "track_models",
+        "tracking_policy",
     ]
 
     def __init__(
@@ -125,6 +126,7 @@ class ServingSpec(NuclioSpec):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
+        tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
         node_name=None,
@@ -189,6 +191,7 @@ class ServingSpec(NuclioSpec):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
+        self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
 
@@ -293,6 +296,9 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
+        batch_intervals: str = "0 */1 * * *",
+        batch_image: str = "mlrun/mlrun",
+        stream_image: str = "mlrun/mlrun",
     ):
         """set tracking stream parameters:
 
@@ -303,6 +309,11 @@ class ServingRuntime(RemoteRuntime):
         :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
         """
         self.spec.track_models = True
+        self.spec.tracking_policy = model_monitoring.TrackingPolicy(
+            batch_intervals=batch_intervals,
+            batch_image=batch_image,
+            stream_image=stream_image,
+        )
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:
@@ -612,6 +623,7 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
+            "tracking_policy": self.spec.tracking_policy,
             "default_content_type": self.spec.default_content_type,
         }
 

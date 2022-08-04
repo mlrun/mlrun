@@ -57,7 +57,7 @@ def bool2str(val):
 
 HTTP_RETRY_AMOUNT = 3
 HTTP_RETRY_BACKOFF = 1
-HTTP_RETRY_EXCEPTIONS = (ConnectionResetError, requests.exceptions.ConnectionError)
+HTTP_RETRY_EXCEPTIONS = (ConnectionResetError,)
 
 http_adapter = HTTPAdapter(
     max_retries=Retry(

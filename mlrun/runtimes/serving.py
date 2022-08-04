@@ -296,9 +296,7 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
-        batch_intervals: str = "0 */1 * * *",
-        batch_image: str = "mlrun/mlrun",
-        stream_image: str = "mlrun/mlrun",
+        tracking_policy: dict = None,
     ):
         """set tracking parameters:
 
@@ -307,21 +305,26 @@ class ServingRuntime(RemoteRuntime):
         :param batch:           Micro batch size (send micro batches of N records at a time).
         :param sample:          Sample size (send only one of N records).
         :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param batch_intervals: Model monitoring batch scheduling policy. By default, executed on the hour every hour.
-                                The time format is based on ScheduleCronTrigger expression: minute, hour, day of month,
-                                month, day of week.
-        :param batch_image:     The image of the model monitoring batch job. By default, the image is mlrun/mlrun.
-        :param stream_image:    The image of the model monitoring stream real-time function. By default, the image
-                                is mlrun/mlrun.
+        :param tracking_policy: Dictionary that will be converted into a tracking policy object. By using
+                                TrackingPolicy, the user can apply his model monitoring requirements, such as setting
+                                the scheduling policy of the model monitoring batch job or changing the image of the
+                                model monitoring stream.
+
+                                example::
+                                # initialize a new serving function
+                                serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+                                # apply model monitoring and set monitoring batch job to run every 3 hours
+                                tracking_policy = {'batch_intervals':"0 */3 * * *"}
+                                serving_fn.set_tracking(tracking_policy=tracking_policy)
+
         """
 
         # Applying model monitoring configurations
         self.spec.track_models = True
-        self.spec.tracking_policy = model_monitoring.TrackingPolicy(
-            batch_intervals=batch_intervals,
-            batch_image=batch_image,
-            stream_image=stream_image,
-        )
+        self.spec.tracking_policy = model_monitoring.TrackingPolicy()
+        if tracking_policy:
+            for key in tracking_policy:
+                setattr(self.spec.tracking_policy, key, tracking_policy[key])
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:

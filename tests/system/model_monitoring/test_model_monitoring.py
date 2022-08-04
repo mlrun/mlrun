@@ -519,8 +519,11 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
+        # Define tracking policy
+        tracking_policy = {"batch_intervals": "0 */3 * * *"}
+
         # Enable model monitoring
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         # Deploy the serving function
         serving_fn.deploy()
@@ -535,6 +538,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             model_endpoint.spec.monitoring_mode
             == mlrun.api.schemas.ModelMonitoringMode.enabled.value
         )
+
+        # Validate tracking policy
+        batch_job = db.get_schedule(
+            project=self.project_name, name="model-monitoring-batch"
+        )
+        assert batch_job.cron_trigger.hour == "*/3"
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

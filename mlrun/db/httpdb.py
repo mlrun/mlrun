@@ -154,7 +154,11 @@ class HTTPRunDB(RunDBInterface):
         return url
 
     def request_with_retry(self, method, url, **kwargs):
-        max_retries = HTTP_RETRY_AMOUNT if config.httpdb.retry_api_call_on_exception == "enabled" else 1
+        max_retries = (
+            HTTP_RETRY_AMOUNT
+            if config.httpdb.retry_api_call_on_exception == "enabled"
+            else 1
+        )
         retry_count = 0
         while True:
             try:

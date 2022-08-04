@@ -119,8 +119,7 @@ html_theme_options = {
     "google_analytics_id": "",
       # Toc options
     'collapse_navigation': True,
-    'sticky_navigation': True,
-}
+    }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
 

@@ -196,6 +196,7 @@ default_config = {
         "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
+        "retry_api_call_on_exception": "enabled",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,

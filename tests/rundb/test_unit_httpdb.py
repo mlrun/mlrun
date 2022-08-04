@@ -5,6 +5,7 @@ import unittest.mock
 
 import pytest
 
+import mlrun.config
 import mlrun.db.httpdb
 
 
@@ -31,14 +32,61 @@ def test_api_call_enum_conversion():
             assert type(value) == str
 
 
-def test_connection_reset_causes_retries():
+@pytest.mark.parametrize(
+    "feature_config,exception_type,exception_message,call_amount",
+    [
+        # feature enabled
+        ("enabled", Exception, "some-error", 1),
+        ("enabled", ConnectionError, "some-error", 1),
+        ("enabled", ConnectionResetError, "some-error", 1),
+        (
+            "enabled",
+            ConnectionError,
+            "Connection aborted",
+            mlrun.db.httpdb.HTTP_RETRY_AMOUNT,
+        ),
+        (
+            "enabled",
+            ConnectionResetError,
+            "Connection reset by peer",
+            mlrun.db.httpdb.HTTP_RETRY_AMOUNT,
+        ),
+        (
+            "enabled",
+            ConnectionRefusedError,
+            "Connection refused",
+            mlrun.db.httpdb.HTTP_RETRY_AMOUNT,
+        ),
+        # feature disabled
+        ("disabled", Exception, "some-error", 1),
+        ("disabled", ConnectionError, "some-error", 1),
+        ("disabled", ConnectionResetError, "some-error", 1),
+        ("disabled", ConnectionError, "Connection aborted", 1),
+        (
+            "disabled",
+            ConnectionResetError,
+            "Connection reset by peer",
+            1,
+        ),
+        (
+            "disabled",
+            ConnectionRefusedError,
+            "Connection refused",
+            1,
+        ),
+    ],
+)
+def test_connection_reset_causes_retries(
+    feature_config, exception_type, exception_message, call_amount
+):
+    mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
     db = mlrun.db.httpdb.HTTPRunDB("fake-url")
     db.session = unittest.mock.Mock()
-    db.session.request.side_effect = ConnectionResetError
+    db.session.request.side_effect = exception_type(exception_message)
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
-        with pytest.raises(ConnectionResetError):
+        with pytest.raises(exception_type):
             db.api_call("GET", "some-path")
 
-    assert db.session.request.call_count == mlrun.db.httpdb.HTTP_RETRY_AMOUNT
+    assert db.session.request.call_count == call_amount

@@ -35,7 +35,8 @@ def test_connection_reset_causes_retries():
     db.session = unittest.mock.Mock()
     db.session.request.side_effect = ConnectionResetError
 
-    with unittest.mock.patch("time.sleep") as _:
+    # patch sleep to make test faster
+    with unittest.mock.patch("time.sleep"):
         with pytest.raises(ConnectionResetError):
             db.api_call("GET", "some-path")
 

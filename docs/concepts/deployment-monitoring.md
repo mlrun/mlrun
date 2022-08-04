@@ -3,7 +3,7 @@
 
 By definition, ML models in production make inferences on constantly changing data. Even models that have been trained on massive data sets, with the most meticulously labelled data, start to degrade over time, due to concept drift. Changes in the live environment due to changing behavioral patterns, seasonal shifts, new regulatory environments, market volatility, etc., can have a big impact on a trained model’s ability to make accurate predictions.
 
-Model performance monitoring is a basic operational task that is implemented after an AI model has been deployed. MLRun features include:
+Model performance monitoring is a basic operational task that is implemented after an AI model has been deployed. Model monitoring includes:
 
 - Built-in model monitoring
    Machine learning model monitoring is natively built in to the Iguazio MLOps Platform, along with a wide range of 

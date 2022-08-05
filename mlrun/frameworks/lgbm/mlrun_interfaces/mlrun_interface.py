@@ -3,7 +3,6 @@ from types import ModuleType
 from typing import Callable, List, Tuple, Union
 
 import lightgbm as lgb
-import numpy as np
 
 import mlrun
 

@@ -288,6 +288,11 @@ class Scheduler:
                     auth_info.session
                 )
             )
+            # created an access key with control and data session plane, so enriching auth_info with those planes
+            auth_info.planes = [
+                mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+            ]
 
     def _store_schedule_secrets(
         self,

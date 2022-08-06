@@ -22,7 +22,6 @@ from kfp import dsl
 from kubernetes import client as k8s_client
 
 import mlrun
-from mlrun.api.schemas import SecurityContextEnrichmentModes
 
 from .config import config
 from .db import get_or_set_dburl, get_run_db
@@ -426,7 +425,6 @@ def mlrun_op(
     )
     cop = add_default_function_resources(cop)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
-    cop = add_function_security_context(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
@@ -498,7 +496,6 @@ def deploy_op(
     )
     cop = add_default_function_resources(cop)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
-    cop = add_function_security_context(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
@@ -568,7 +565,6 @@ def build_op(
     )
     cop = add_default_function_resources(cop)
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
-    cop = add_function_security_context(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
@@ -823,40 +819,5 @@ def add_function_node_selection_attributes(
 
         if getattr(function.spec, "affinity"):
             container_op.affinity = function.spec.affinity
-
-    return container_op
-
-
-def add_function_security_context(
-    function, container_op: dsl.ContainerOp
-) -> dsl.ContainerOp:
-
-    if (
-        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
-        or mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == SecurityContextEnrichmentModes.disabled.value
-    ):
-        return container_op
-
-    # ensure kfp pod user id is not None or 0 (root)
-    if not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Kubeflow pipeline pod user id is invalid: "
-            f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id}, "
-            f"it must be an integer greater than 0. "
-            f"See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
-        )
-
-    kfp_pod_user_unix_id = int(
-        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
-    )
-    container_op.container.set_security_context(
-        k8s_client.V1SecurityContext(
-            run_as_user=kfp_pod_user_unix_id,
-            run_as_group=mlrun.mlconf.get_security_context_enrichment_group_id(
-                kfp_pod_user_unix_id
-            ),
-        )
-    )
 
     return container_op

@@ -573,7 +573,7 @@ class Config:
             if user_unix_id is None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "User unix id is required to populate group id when enrichment group id is -1."
-                    "See config.function.spec.security_context.enrichment_group_id for more details."
+                    "See mlrun.config.function.spec.security_context.enrichment_group_id for more details."
                 )
             return user_unix_id
 

@@ -24,6 +24,7 @@ import uuid
 import kfp.compiler
 from kfp import dsl
 from kfp.compiler import compiler
+from kubernetes import client as k8s_client
 
 import mlrun
 import mlrun.api.schemas
@@ -243,18 +244,47 @@ pipeline_context = _PipelineContext()
 def _set_function_attribute_on_kfp_pod(
     kfp_pod_template, function, pod_template_key, function_spec_key
 ):
-    if kfp_pod_template.get("name").startswith(function.metadata.name):
-        priority_class_name = getattr(function.spec, function_spec_key, None)
-        if priority_class_name:
-            kfp_pod_template[pod_template_key] = priority_class_name
+    try:
+        if kfp_pod_template.get("name").startswith(function.metadata.name):
+            attribute_value = getattr(function.spec, function_spec_key, None)
+            if attribute_value:
+                kfp_pod_template[pod_template_key] = attribute_value
+    except Exception as err:
+        kfp_pod_name = kfp_pod_template.get("name")
+        logger.warning(
+            f"Unable to set function attribute on kfp pod {kfp_pod_name}",
+            function_spec_key=function_spec_key,
+            pod_template_key=pod_template_key,
+            error=str(err),
+        )
 
 
-def _set_template_container_attribute_on_kfp_pod(
-    kfp_pod_template, container, pod_template_key, attribute_key
-):
-    attribute_value = container.get(attribute_key, None)
-    if attribute_value:
-        kfp_pod_template[pod_template_key] = attribute_value
+def _enrich_kfp_pod_security_context(kfp_pod_template, function):
+    if (
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+    ):
+        return
+
+    # ensure kfp pod user id is not None or 0 (root)
+    if not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Kubeflow pipeline pod user id is invalid: "
+            f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id}, "
+            f"it must be an integer greater than 0. "
+            f"See mlrun.config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
+        )
+
+    kfp_pod_user_unix_id = int(
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
+    )
+    kfp_pod_template["SecurityContext"] = {
+        "runAsUser": kfp_pod_user_unix_id,
+        "runAsGroup": mlrun.mlconf.get_security_context_enrichment_group_id(
+            kfp_pod_user_unix_id
+        ),
+    }
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -305,12 +335,12 @@ def _create_enriched_mlrun_workflow(
                         "PriorityClassName",
                         "priority_class_name",
                     )
-                    _set_template_container_attribute_on_kfp_pod(
+                    _enrich_kfp_pod_security_context(
                         kfp_step_template,
-                        kfp_step_template.get("container"),
-                        "SecurityContext",
-                        "securityContext",
+                        function_obj,
                     )
+    except mlrun.errors.MLRunInvalidArgumentError:
+        raise
     except Exception as err:
         logger.debug("Something in the enrichment of kfp pods failed", error=str(err))
     return workflow

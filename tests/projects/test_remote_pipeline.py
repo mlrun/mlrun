@@ -275,7 +275,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
             assert (
                 f"Kubeflow pipeline pod user id is invalid: {kfp_pod_user_unix_id}, "
                 f"it must be an integer greater than 0. "
-                "See config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
+                "See mlrun.config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
                 in str(exc.value)
             )
 
@@ -288,10 +288,6 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                 workflow = yaml.safe_load(workflow_file)
                 for step in workflow["spec"]["templates"]:
                     if step.get("container") and step.get("name"):
-                        assert (
-                            step["container"].get("securityContext")
-                            == expected_security_context
-                        ), f"security context was not enriched correctly in container of step: {step.get('name')}"
                         assert (
                             step.get("SecurityContext") == expected_security_context
                         ), f"security context was not enriched correctly in step: {step.get('name')}"

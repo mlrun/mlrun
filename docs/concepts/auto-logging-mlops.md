@@ -1,5 +1,5 @@
 (auto-logging-mlops)=
-# Applying MLRun onto existing training code
+# Automated experiment tracking
 
 You can write custom training functions or use built-in marketplace functions for training models using 
 common open-source frameworks and/or cloud services (such as AzureML, Sagemaker, etc.). 

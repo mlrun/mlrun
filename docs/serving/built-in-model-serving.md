@@ -1,5 +1,5 @@
 (using_built_in_model_serving_classes)=
-# Using Built-in Model Serving Classes
+# Using built-in model serving classes
 
 MLRun includes built-in classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, it is often not necessary to write one if you use these standard classes.
 
@@ -14,7 +14,7 @@ The following table specifies, for each framework, the relevant pre-integrated i
 |LightGBM        |mlrun/ml-models|mlrun.frameworks.lgbm.LGBMModelServer       |
 |PyTorch         |mlrun/ml-models|mlrun.frameworks.pytorch.PyTorchModelServer |
 
-For GPU support, use the `mlrun/ml-models-gpu` image (adding GPU drivers and support)
+For GPU support, use the `mlrun/ml-models-gpu` image (adding GPU drivers and support).
 
 ## Example
 
@@ -49,7 +49,7 @@ serving_fn.add_model(key=model_key,
                     class_name=serving_model_class_name)
 ```
 
-Once the serving function has been created, you can test it:
+After the serving function is created, you can test it:
 
 ``` python
 # Test data to send
@@ -62,7 +62,7 @@ mock_server = serving_fn.to_mock_server()
 mock_server.test(f"/v2/models/{model_key}/infer", body=my_data)
 ```
 
-Similarly, you can deploy the serving function and test it with some data
+Similarly, you can deploy the serving function and test it with some data:
 
 ``` python
 serving_fn.with_code(body=" ") # Workaround, required only for mlrun <= 1.0.2

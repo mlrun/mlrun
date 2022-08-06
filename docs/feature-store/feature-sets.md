@@ -1,3 +1,4 @@
+(feature-sets)=
 # Feature sets
 
 In MLRun, a group of features can be ingested together and stored in logical group called feature set. 

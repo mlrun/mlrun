@@ -16,7 +16,6 @@
    concepts/data-feature-store
    runtimes/functions
    runtimes/load-from-marketplace
-   store/artifacts
    concepts/jobs
    feature-store/feature-store
    concepts/model-training
@@ -30,10 +29,10 @@
    :maxdepth: 1
    :caption: Data collection and preparation
    
-   feature-store/feature-store-data-ingestion
    data-collect-prep/logging_datasets
-   feature-store/feature-store-tutorials   
-  
+   feature-store/feature-store-data-ingestion
+   
+    
 .. toctree::
    :maxdepth: 1
    :caption: Training
@@ -41,6 +40,7 @@
    training/create-a-basic-training-job
    training/working-with-data-and-model-artifacts
    concepts/auto-logging-mlops
+   training/built-in-training-function
    feature-store/training-fs   
    hyper-params
   
@@ -49,10 +49,10 @@
    :caption: Model serving
 
    serving/custom-model-serving-class
+   serving/built-in-model-serving
    serving/model-serving-get-started
    feature-store/training-serving
-   serving/testing-model-server
-   serving/deploying-model-server
+   serving/test-deploy-model-server
    serving/model-api
 
 .. toctree::

@@ -10,5 +10,4 @@ with the CI systems.
 - Elastic scaling of each step
 - Extensive function marketplace 
 
-
-See full details and examples in [CI/CD, rolling upgrades, git](../projects/ci-integration.html).
+See full details and examples in {ref}`ci-integration`.

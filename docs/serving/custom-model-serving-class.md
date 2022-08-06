@@ -113,9 +113,11 @@ The url or the message determines which model is selected, e.g. using the url sc
 
     /v2/models/<model>[/versions/<ver>]/operation
 
-> Note: the `model`, `version` and `operation` can also be specified in the message body 
+```{admonition} Note
+The `model`, `version` and `operation` can also be specified in the message body 
 to support streaming protocols (e.g. Kafka).
-
+```
+       
 More complex routers can be used to support ensembles (send the request to all child models 
 and aggregate the result), multi-armed-bandit, etc. 
 

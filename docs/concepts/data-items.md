@@ -1,6 +1,8 @@
 (data-items)=
 # Data items
 
+A data item can be one item or a or collection of items (file, dir, table, etc.).
+
 When running jobs or pipelines, data is passed using the {py:class}`~mlrun.datastore.DataItem` objects. Data items objects abstract away 
 the data backend implementation, provide a set of convenience methods (`.as_df`, `.get`, `.show`, ..), and enable auto logging/versioning 
 of data and metadata.

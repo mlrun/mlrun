@@ -757,7 +757,7 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 db_session, project_name
             )
 
-            secret_value = project_owner.session
+            secret_value = project_owner.access_key
             if not secret_value:
                 raise MLRunRuntimeError(
                     f"No model monitoring access key. Failed to generate one for owner of project {project_name}",

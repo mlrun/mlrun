@@ -24,7 +24,6 @@ import uuid
 import kfp.compiler
 from kfp import dsl
 from kfp.compiler import compiler
-from kubernetes import client as k8s_client
 
 import mlrun
 import mlrun.api.schemas

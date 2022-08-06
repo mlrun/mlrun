@@ -479,6 +479,31 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         mlconf.function.spec.service_account.default = None
 
+    def test_deploy_with_security_context_enrichment(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        user_unix_id = 1000
+        auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=user_unix_id)
+        mlrun.mlconf.igz_version = "3.6"
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.api.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        _build_function(db, auth_info, function)
+        self.assert_security_context({})
+
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.api.schemas.function.SecurityContextEnrichmentModes.override.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        _build_function(db, auth_info, function)
+        self.assert_security_context(
+            self._generate_security_context(
+                run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+                run_as_user=user_unix_id,
+            )
+        )
+
     def test_deploy_with_global_service_account(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):

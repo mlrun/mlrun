@@ -561,6 +561,7 @@ class Scheduler:
                     mlrun.api.schemas.AuthInfo(
                         username=username,
                         access_key=access_key,
+                        # enriching with control plane tag because scheduling a function requires control plane
                         planes=[
                             mlrun.api.utils.clients.iguazio.SessionPlanes.control,
                             mlrun.api.utils.clients.iguazio.SessionPlanes.data,

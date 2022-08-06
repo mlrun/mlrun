@@ -370,6 +370,7 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                     mlrun.api.utils.clients.iguazio.SessionPlanes.control,
                     mlrun.api.utils.clients.iguazio.SessionPlanes.data,
                 ]
+
             function.metadata.credentials.access_key = auth_info.access_key
         if not function.metadata.credentials.access_key:
             raise mlrun.errors.MLRunInvalidArgumentError(

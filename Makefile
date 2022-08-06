@@ -304,6 +304,7 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
+MLRUN_API_DEV_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api-dev
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
 MLRUN_API_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_API_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
@@ -327,6 +328,19 @@ api: update-version-file ## Build mlrun-api docker image
 push-api: api ## Push api docker image
 	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)
 	$(MLRUN_API_CACHE_IMAGE_PUSH_COMMAND)
+
+
+.PHONY: api-dev
+api-dev: api ## Build mlrun-api development docker image
+	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
+	docker build \
+		--file dockerfiles/mlrun-api/Dockerfile.dev \
+		--build-arg MLRUN_API_IMAGE_NAME_TAGGED=$(MLRUN_API_IMAGE_NAME_TAGGED) \
+		--tag $(MLRUN_API_IMAGE_NAME_TAGGED)-dev .
+
+.PHONY: push-api
+push-api: api ## Push api-dev docker image
+	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)-dev
 
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test

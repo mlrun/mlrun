@@ -196,10 +196,10 @@ def test_get_project_owner(
     nop_leader.project_owner_access_key = owner_access_key
     project = _generate_project(owner=owner)
     projects_follower.create_project(
-        db,
+        None,
         project,
     )
-    project_owner = projects_follower.get_project_owner(db, project.metadata.name)
+    project_owner = projects_follower.get_project_owner(None, project.metadata.name)
     assert project_owner.username == owner
     assert project_owner.access_key == owner_access_key
 

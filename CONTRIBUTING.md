@@ -119,3 +119,41 @@ Currently, this can only be done by one of the maintainers, the process is:
 (leave all options default)
 3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger 
 it for the branch, change "Take tested code from action REF" to `true`   
+
+### MLRun API Remote Debugging
+
+Remotely debugging MLRun is possible using PyCharm and `pydevd_pycharm`, 
+which is installed on MLRun's api image tagged with "-dev" as its suffix.
+
+To Remote Debug MLRun's API, you may need to:
+
+1. Open PyCharm, [create](https://www.jetbrains.com/help/pycharm/remote-debugging-with-product.html#create-remote-debug-config) a run debug configuration
+    - Path mapping `/path/to/mlrun/mlrun=/mlrun`
+    - Leave host to be "localhost"
+    - Check "Redirect output to console"
+    - Uncheck "Suspect after connect"
+
+2. If running remotely - install `ngrok` and run it to create a tunnel. (e.g. `ngrok tcp 40000`)
+    - Use the tcp port from (1).
+
+3. Once ngrok is running, tak the public url from the output and use it to connect to the remote debug server.
+    ```
+    ...
+    Forwarding                    tcp://7.tcp.eu.ngrok.io:13209 -> localhost:40000
+    ```
+
+4. Add envvars to MLRun's API deployment (or use `mlrun-override-env` configmap) with below envvars
+   - `MLRUN_API_DEBUG_MODE` - Whether to enable debugging or not (e.g.: `enabled`)
+   - `MLRUN_API_DEBUG_HOST` - The host returned by ngrok (e.g.: `7.tcp.eu.ngrok.io`)
+   - `MLRUN_REMOTE_DEBUG_PORT` - The port returned by ngrok (e.g.: `13209`)
+
+5. Start Remote Debugging run configuration created on (1). you will see it is waiting for a connection.
+
+6. Using `kubectl`, patch your mlrun deployment with "dev" image tag.
+    ```bash
+    kubectl set image deployment/mlrun-api-chief mlrun-api=quay.io/mlrun/mlrun-api:1.0.5-dev
+    ```
+7. Once the deployment is patched, it will connect to your PyCharm server. Once it is connected, your console
+    will log it with `Connected to pydev debugger (build ...)`.
+
+8. You can now use breaking points while running a remote MLRun API instance.

@@ -60,10 +60,13 @@ def start_debugging() -> None:
 
     # pydevd_pycharm is installed only on development image. do not move this import to top
     import pydevd_pycharm
-    pydevd_pycharm.settrace(os.environ.get("MLRUN_API_DEBUG_HOST", "localhost"),
-                            port=int(os.environ.get("MLRUN_API_DEBUG_PORT", 40000)),
-                            stdoutToServer=True,
-                            stderrToServer=True)
+
+    pydevd_pycharm.settrace(
+        os.environ.get("MLRUN_API_DEBUG_HOST", "localhost"),
+        port=int(os.environ.get("MLRUN_API_DEBUG_PORT", 40000)),
+        stdoutToServer=True,
+        stderrToServer=True,
+    )
 
 
 @app.exception_handler(Exception)

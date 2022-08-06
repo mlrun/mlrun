@@ -339,7 +339,7 @@ api-dev: api ## Build mlrun-api development docker image
 		--tag $(MLRUN_API_IMAGE_NAME_TAGGED)-dev .
 
 .PHONY: push-api
-push-api: api ## Push api-dev docker image
+push-api-dev: api-dev ## Push api-dev docker image
 	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)-dev
 
 

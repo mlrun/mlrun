@@ -89,7 +89,7 @@ def init_data(
 
 
 # If the data_table version doesn't exist, we can assume the data version is 1.
-# This is because data version 1 points to to a data migration which was added back in 0.6.0, and
+# This is because data version 1 points to a data migration which was added back in 0.6.0, and
 # upgrading from a version earlier than 0.6.0 to v>=0.8.0 is not supported.
 data_version_prior_to_table_addition = 1
 latest_data_version = 2

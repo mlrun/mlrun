@@ -161,9 +161,7 @@ class MetricsLibrary(ABC):
         :return: The default metrics list.
         """
         # Discover the algorithm functionality of the provided model:
-        algorithm_functionality = MLUtils.get_algorithm_functionality(
-            model=model, y=y
-        )
+        algorithm_functionality = MLUtils.get_algorithm_functionality(model=model, y=y)
 
         # Initialize the metrics list:
         metrics = []  # type: List[Metric]

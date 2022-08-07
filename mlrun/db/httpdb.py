@@ -190,7 +190,8 @@ class HTTPRunDB(RunDBInterface):
                     raise exc
 
                 logger.debug(
-                    f"{method} {url} request failed on retryable exception, retrying in {HTTP_RETRY_BACKOFF_FACTOR} seconds",
+                    f"{method} {url} request failed on retryable exception, "
+                    f"retrying in {HTTP_RETRY_BACKOFF_FACTOR} seconds",
                     exception_type=type(exc),
                     exception_message=str(exc),
                     retry_interval=HTTP_RETRY_BACKOFF_FACTOR,

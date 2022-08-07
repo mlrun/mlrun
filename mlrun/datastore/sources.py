@@ -74,6 +74,7 @@ class _MondoDBIterator:
         curr_df["_id"] = curr_df["_id"].astype(str)
         return curr_df
 
+
 class _SqlDBIterator:
     def __init__(self, collection, iter_chunksize, iter_query=None):
         """
@@ -880,6 +881,8 @@ class MongoDBSource(BaseSourceDriver):
     kind = "mongodb"
     support_storey = True
     support_spark = False
+    # A constant for the environment variable name of the mongodb connection string:
+    _MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
 
     def __init__(
         self,
@@ -890,8 +893,8 @@ class MongoDBSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
+        start_time: Union[datetime, str] = None,
+        end_time: Union[datetime, str] = None,
         db_name: str = None,
         connection_string: str = None,
         collection_name: str = None,
@@ -924,9 +927,8 @@ class MongoDBSource(BaseSourceDriver):
         :param spark_options:       additional spark read options
         """
 
-        _MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
         connection_string = connection_string or os.getenv(
-            _MONGO_CONNECTION_STRING_ENV_VAR
+            self._MONGO_CONNECTION_STRING_ENV_VAR
         )
         if connection_string is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1056,7 +1058,7 @@ class SqlDBSource(BaseSourceDriver):
             "chunksize": chunksize,
             "spark_options": spark_options,
             "collection_name": collection_name,
-            "db_path": db_path
+            "db_path": db_path,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
@@ -1071,6 +1073,7 @@ class SqlDBSource(BaseSourceDriver):
 
     def to_dataframe(self):
         import sqlalchemy as db
+
         query = self.attributes.get("query")
         db_path = self.attributes.get("db_path")
         collection_name = self.attributes.get("collection_name")
@@ -1079,10 +1082,14 @@ class SqlDBSource(BaseSourceDriver):
             engine = db.create_engine(db_path)
             metadata = db.MetaData()
             connection = engine.connect()
-            collection = db.Table(collection_name, metadata, autoload=True, autoload_with=engine)
+            collection = db.Table(
+                collection_name, metadata, autoload=True, autoload_with=engine
+            )
             results = connection.execute(db.select([collection]))
             if chunksize:
-                return _SqlDBIterator(collection=results, iter_chunksize=chunksize, iter_query=query)
+                return _SqlDBIterator(
+                    collection=results, iter_chunksize=chunksize, iter_query=query
+                )
             else:
                 results = results.fetchall()
                 df = pd.DataFrame(results)

@@ -1437,6 +1437,8 @@ class MongoDBTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
+    # A constant for the environment variable name of the mongodb connection string:
+    MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
 
     def __init__(
         self,
@@ -1477,9 +1479,8 @@ class MongoDBTarget(BaseStoreTarget):
         :param override_collection: pass True if you want to override all the documents on the
                                     collection named by collection_name on current database.
         """
-        MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
         connection_string = connection_string or os.getenv(
-            MONGO_CONNECTION_STRING_ENV_VAR
+            self.MONGO_CONNECTION_STRING_ENV_VAR
         )
         if not all([db_name, collection_name, connection_string]):
             attr = {}
@@ -1869,7 +1870,6 @@ class SqlDBTarget(BaseStoreTarget):
 
     def purge(self):
         pass
-
 
 
 kind_to_driver = {

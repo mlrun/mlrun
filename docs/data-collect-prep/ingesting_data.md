@@ -2,8 +2,8 @@
 # Ingesting data
 
 MLRun provides a set of tools and capabilities to streamline the task of data ingestion and processing. For an 
-end-to-end framework for data processing, management and serving MLRun has the feature-store capabilities, which are
-described [here](../feature-store/feature-store.html). However, in many cases the full feature-store capabilities are 
+end-to-end framework for data processing, management, and serving, MLRun has the feature-store capabilities, which are
+described in {ref}`feature-store`. However, in many cases the full feature-store capabilities are 
 not needed, in which cases MLRun provides a set of utilities to facilitate data ingestion, collection and processing.
 
 ## Connecting to data sources
@@ -25,7 +25,7 @@ input_data = mlrun.get_dataitem(source_url).as_df()
 ```
 
 This code runs locally (for example, in Jupyter) and relies on environment variables to supply credentials for data 
-access. See [this page](../store/datastore.html) for more info on the available data-stores, accessing them locally and
+access. See {ref}`datastore` for more info on the available data-stores, accessing them locally and
 remotely, and how to provide credentials for connecting. 
 
 Running the code locally is very useful for easy debugging and development of the code. 
@@ -74,8 +74,8 @@ cleaned_data_frame = ingest_data_run.artifact('cleaned_data').as_df()
 Note that running the function remotely may require attaching storage to the function, as well as passing storage
 credentials through project secrets. See the following pages for more details:
 
-1. [Attach storage to functions](../runtimes/function-storage.html)
-2. [Working with secrets](../secrets.html)
+1. {ref}`Function_storage_auto_mount`
+2. {ref}`secrets`
 
 ## Data processing
 Once the data is imported from its source, it can be processed using any framework. MLRun natively supports working
@@ -83,13 +83,16 @@ with Pandas DataFrames and converting from and to its `DataItem` object.
 
 For distributed processing of very large datasets, MLRun integrates with the Spark processing engine, and provides
 facilities for executing pySpark code using a Spark service (which can be deployed by the platform when running MLRun
-as part of an Iguazio system) or through submitting the processing task to Spark-operator. The following pages provide
+as part of an Iguazio system) or through submitting the processing task to Spark-operator. The following page provides
 additional details and code-samples:
 
+<!---
+TODO - add this once we have Spark service documentation.
 1. [Spark service](???) - **do we have a page for this? Are we documenting it?**
-2. [Spark operator](../runtimes/spark-operator.html)
+-->
+1. [Spark operator](../runtimes/spark-operator.html)
 
-In a similar manner, Dask can be used for parallel processing of the data. To read data as a Dask data-frame, use the
+In a similar manner, Dask can be used for parallel processing of the data. To read data as a Dask `DataFrame`, use the
 following code:
 
 ```python

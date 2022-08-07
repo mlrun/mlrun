@@ -55,12 +55,12 @@ def bool2str(val):
     return "yes" if val else "no"
 
 
-HTTP_RETRY_AMOUNT = 3
-HTTP_RETRY_BACKOFF = 1
+HTTP_RETRY_COUNT = 3
+HTTP_RETRY_BACKOFF_FACTOR = 1
 
 # make sure to only add exceptions that are raised early in the request. For example, ConnectionError can be raised
 # during the handling of a request, and therefore should not be retried, as the request might not be idempotent.
-HTTP_RETRY_EXCEPTIONS = {
+HTTP_RETRYABLE_EXCEPTIONS = {
     # ConnectionResetError is raised when the server closes the connection prematurely during TCP handshake.
     ConnectionResetError: ["Connection reset by peer", "Connection aborted"],
     # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
@@ -70,8 +70,8 @@ HTTP_RETRY_EXCEPTIONS = {
 
 http_adapter = HTTPAdapter(
     max_retries=Retry(
-        total=HTTP_RETRY_AMOUNT,
-        backoff_factor=HTTP_RETRY_BACKOFF,
+        total=HTTP_RETRY_COUNT,
+        backoff_factor=HTTP_RETRY_BACKOFF_FACTOR,
         status_forcelist=[500, 502, 503, 504],
         # we want to retry but not to raise since we do want that last response (to parse details on the
         # error from response body) we'll handle raising ourselves
@@ -155,33 +155,31 @@ class HTTPRunDB(RunDBInterface):
 
     def request_with_retry(self, method, url, **kwargs):
         max_retries = (
-            HTTP_RETRY_AMOUNT
+            HTTP_RETRY_COUNT
             if config.httpdb.retry_api_call_on_exception == "enabled"
-            else 1
+            else 0
         )
         retry_count = 0
         while True:
             try:
                 response = self.session.request(method, url, **kwargs)
                 return response
-            except tuple(HTTP_RETRY_EXCEPTIONS.keys()) as exc:
-                retry_count += 1
+            except tuple(HTTP_RETRYABLE_EXCEPTIONS.keys()) as exc:
                 if retry_count >= max_retries:
                     logger.warning(
                         f"Maximum retries exhausted for {method} {url} request",
                         exception_type=type(exc),
                         exception_message=str(exc),
-                        retry_interval=HTTP_RETRY_BACKOFF,
+                        retry_interval=HTTP_RETRY_BACKOFF_FACTOR,
                         retry_count=retry_count,
                         max_retries=max_retries,
                     )
                     raise exc
 
                 # only retry on exceptions with the right message
-                exception_is_retryable = False
-                for msg in HTTP_RETRY_EXCEPTIONS[type(exc)]:
-                    if msg in str(exc):
-                        exception_is_retryable = True
+                exception_is_retryable = any(
+                    [msg in str(exc) for msg in HTTP_RETRYABLE_EXCEPTIONS[type(exc)]]
+                )
 
                 if not exception_is_retryable:
                     logger.warning(
@@ -192,14 +190,15 @@ class HTTPRunDB(RunDBInterface):
                     raise exc
 
                 logger.debug(
-                    f"{method} {url} request failed on retryable exception, retrying in {HTTP_RETRY_BACKOFF} seconds",
+                    f"{method} {url} request failed on retryable exception, retrying in {HTTP_RETRY_BACKOFF_FACTOR} seconds",
                     exception_type=type(exc),
                     exception_message=str(exc),
-                    retry_interval=HTTP_RETRY_BACKOFF,
+                    retry_interval=HTTP_RETRY_BACKOFF_FACTOR,
                     retry_count=retry_count,
                     max_retries=max_retries,
                 )
-                time.sleep(HTTP_RETRY_BACKOFF)
+                retry_count += 1
+                time.sleep(HTTP_RETRY_BACKOFF_FACTOR)
 
     def api_call(
         self,

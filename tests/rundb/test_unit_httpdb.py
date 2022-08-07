@@ -43,19 +43,19 @@ def test_api_call_enum_conversion():
             "enabled",
             ConnectionError,
             "Connection aborted",
-            mlrun.db.httpdb.HTTP_RETRY_AMOUNT,
+            mlrun.db.httpdb.HTTP_RETRY_COUNT,
         ),
         (
             "enabled",
             ConnectionResetError,
             "Connection reset by peer",
-            mlrun.db.httpdb.HTTP_RETRY_AMOUNT,
+            mlrun.db.httpdb.HTTP_RETRY_COUNT,
         ),
         (
             "enabled",
             ConnectionRefusedError,
             "Connection refused",
-            mlrun.db.httpdb.HTTP_RETRY_AMOUNT,
+            mlrun.db.httpdb.HTTP_RETRY_COUNT,
         ),
         # feature disabled
         ("disabled", Exception, "some-error", 1),

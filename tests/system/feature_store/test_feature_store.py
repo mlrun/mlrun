@@ -2640,7 +2640,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "department_Marketing": [0],
             },
             index=[0],
-         )
+        )
 
         assert df_res.equals(expected_df)
 

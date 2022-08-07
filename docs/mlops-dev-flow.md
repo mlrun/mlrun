@@ -72,7 +72,7 @@ information, etc. Models can be loaded later into batch or real-time serving mic
 
 ## Building online ML services (online serving)
 With MLRun, in addition to a batch inference, you can deploy a robust and scalable {ref}`real-time pipeline <serving>` for more complex and online scenarios. 
-MLRun uses Nuclio, an open source serverless framework for creating real-time pipelines for {ref}`model deployment <model-serving>`.
+MLRun uses Nuclio, an open source serverless framework for creating real-time pipelines for {ref}`model deployment <model_serving>`.
 
 Once an ML model has been built, it needs to be integrated with real-world data and the business application or front-end services. The 
 whole application or parts thereof need to be deployed without disrupting the service. Deployment can be extremely challenging if the ML 

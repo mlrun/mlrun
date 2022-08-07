@@ -19,7 +19,7 @@ which are created if Enable hive is checked in the Presto service.)
 
 See more about [Kubernetes nodeSelector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector).
 
-### UI configuration
+## UI configuration
 
 Configure node selection on the service level in the service's **Custom Parameters** tab, under **Resources**, by adding or removing 
 Key:Value pairs. For MLRun and Nuclio, this is the default node selection for all MLRun jobs and Nuclio functions. 
@@ -28,7 +28,7 @@ You can also configure the node selection for individual MLRun jobs by going to 
 selector**, and adding or removing Key:Value pairs. Configure the node selection for individual Nuclio functions when creating a function in 
 the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
 
-### SDK configuration
+## SDK configuration
 
 Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
 For example:

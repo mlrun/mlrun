@@ -15,12 +15,12 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 03-model-serving
 04-pipeline
 ../feature-store/basic-demo
-..feature-store/feature-store-tutorials   
+../feature-store/end-to-end-demo/index
 
 ```
 
 You can find different end-to-end demos in MLRun demos repository at [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
-<!-- Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun. -->See
+<!-- Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun. -->See also:
 
 ```{toctree}
 :maxdepth: 1

@@ -26,13 +26,12 @@ from ..datastore import get_store_uri
 from ..datastore.targets import (
     TargetTypes,
     convert_wasb_schema_to_az,
-    default_target_names,
     get_offline_target,
     get_online_target,
     get_target_driver,
     update_targets_run_id_for_ingest,
     validate_target_list,
-    validate_target_placement,
+    validate_target_placement, get_default_targets,
 )
 from ..features import Entity, Feature
 from ..model import (
@@ -391,7 +390,7 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
-            targets.extend(default_target_names())
+            targets.extend(get_default_targets())
 
         validate_target_list(targets=targets)
 

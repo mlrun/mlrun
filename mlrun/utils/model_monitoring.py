@@ -19,7 +19,7 @@ from typing import Optional
 
 import mlrun
 from mlrun.config import config
-from mlrun.platforms.iguazio import parse_v3io_path
+from mlrun.platforms.iguazio import parse_path
 from mlrun.utils import parse_versioned_object_uri
 
 
@@ -106,7 +106,7 @@ def parse_model_endpoint_project_prefix(path: str, project_name: str):
 
 
 def parse_model_endpoint_store_prefix(store_prefix: str):
-    endpoint, parsed_url = parse_v3io_path(store_prefix)
+    endpoint, parsed_url = parse_path(store_prefix)
     container, path = parsed_url.split("/", 1)
     return endpoint, container, path
 

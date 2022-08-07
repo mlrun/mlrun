@@ -32,7 +32,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
 from ..data_types import ValueType
-from ..platforms.iguazio import parse_v3io_path, split_path
+from ..platforms.iguazio import parse_path, split_path
 from .utils import parse_kafka_url, store_path_to_spark
 
 
@@ -1034,7 +1034,7 @@ class NoSqlTarget(BaseStoreTarget):
         from storey import Table, V3ioDriver
 
         # TODO use options/cred
-        endpoint, uri = parse_v3io_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
             V3ioDriver(webapi=endpoint),
@@ -1136,7 +1136,7 @@ class NoSqlTarget(BaseStoreTarget):
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
 
-            _, path_with_container = parse_v3io_path(self.get_target_path())
+            _, path_with_container = parse_path(self.get_target_path())
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1158,7 +1158,7 @@ class RedisNoSqlTarget(BaseStoreTarget):
         from storey import RedisDriver, Table
 
         # TODO use options/cred
-        endpoint, uri = parse_v3io_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
             RedisDriver(redis_url=endpoint),
@@ -1262,7 +1262,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1364,7 +1364,7 @@ class TSDBTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
@@ -1402,7 +1402,7 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_v3io_path(self.get_target_path())
+        _, path_with_container = parse_path(self.get_target_path())
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(

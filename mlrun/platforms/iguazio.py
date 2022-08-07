@@ -480,7 +480,7 @@ class KafkaOutputStream:
 
 class V3ioStreamClient:
     def __init__(self, url: str, shard_id: int = 0, seek_to: str = None, **kwargs):
-        endpoint, stream_path = parse_v3io_path(url)
+        endpoint, stream_path = parse_path(url)
         seek_options = ["EARLIEST", "LATEST", "TIME", "SEQUENCE"]
         seek_to = seek_to or "LATEST"
         seek_to = seek_to.upper()
@@ -635,20 +635,22 @@ def add_or_refresh_credentials(
     return username, control_session, ""
 
 
-def parse_v3io_path(url, suffix="/"):
-    """return v3io table path from url"""
+def parse_path(url, suffix="/"):
+    """return endpoint and table path from url"""
     parsed_url = urlparse(url)
-    scheme = parsed_url.scheme.lower()
-    if scheme != "v3io" and scheme != "v3ios" and scheme != "redis":
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "url must start with v3io://[host]/{container}/{path}, got " + url
-        )
-    endpoint = parsed_url.hostname
-    if endpoint:
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        prefix = "https" if scheme == "v3ios" else "http"
-        endpoint = f"{prefix}://{endpoint}"
+    if parsed_url.netloc:
+        scheme = parsed_url.scheme.lower()
+        if scheme == "v3ios":
+            prefix = "https"
+        elif scheme == "v3io":
+            prefix = "http"
+        elif scheme == "redis":
+            prefix = "redis"
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "url must start with v3io/v3ios/redis, got " + url
+            )
+        endpoint = f"{prefix}://{parsed_url.netloc}"
     else:
         endpoint = None
     return endpoint, parsed_url.path.strip("/") + suffix

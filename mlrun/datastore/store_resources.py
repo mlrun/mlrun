@@ -22,7 +22,7 @@ from mlrun.utils.helpers import (
     parse_versioned_object_uri,
 )
 
-from ..platforms.iguazio import parse_v3io_path
+from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target
 
@@ -78,7 +78,7 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
-            endpoint, uri = parse_v3io_path(uri)
+            endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
                 V3ioDriver(webapi=endpoint),
@@ -87,8 +87,7 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("redis://"):
-            # TODO
-            endpoint, uri = parse_v3io_path(uri)
+            endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
                 RedisDriver(redis_url=endpoint),

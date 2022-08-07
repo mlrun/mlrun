@@ -638,14 +638,23 @@ class BatchProcessor:
                 m_fs = fstore.get_feature_set(
                     f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
                 )
-                df = m_fs.to_dataframe(
-                    start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
-                    end_time=datetime.datetime.now(),
-                    time_column="timestamp",
-                )
+                try:
+                    df = m_fs.to_dataframe(
+                        start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
+                        end_time=datetime.datetime.now(),
+                        time_column="timestamp",
+                    )
 
-                # continue if no input provided in the previous hour
-                if len(df) == 0:
+                    # continue if no input provided in the previous hour
+                    if len(df) == 0:
+                        logger.warn("Not enough model events during the last hour",
+                                    parquet_target=m_fs.status.targets[0].path, endpoint=endpoint_id,
+                                    min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events)
+                        continue
+                # continue if not enough inputs were provided since
+                except FileNotFoundError:
+                    logger.warn("Parquet not found, probably due to not enough model events", parquet_target=m_fs.status.targets[0].path, endpoint=endpoint_id,
+                                min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events)
                     continue
 
                 # get feature names from monitoring feature set

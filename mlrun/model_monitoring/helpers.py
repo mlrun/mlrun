@@ -48,7 +48,7 @@ def initial_model_monitoring_stream_processing_function(
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image="quay.io/eyaligu/mlrun-api:monitoring-feature-set-2",
+        image="mlrun/mlrun",
     )
 
     # Create monitoring serving graph
@@ -108,7 +108,7 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="quay.io/eyaligu/mlrun-api:monitoring-feature-set-2",
+        image="mlrun/mlrun",
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

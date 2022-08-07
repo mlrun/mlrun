@@ -2651,15 +2651,10 @@ class TestFeatureStore(TestMLRunSystem):
         data_set = FeatureSet(
             "test", entities=[Entity("id")], description="feature set"
         )
-        try:
+        with pytest.raises(ValueError):
             data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
-        except ValueError:
-            # suppose to catch this error
-            return
-        assert False
-
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 

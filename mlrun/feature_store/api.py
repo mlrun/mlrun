@@ -780,11 +780,6 @@ def _ingest_with_spark(
 
         key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
-        if not targets:
-            if not featureset.spec.targets:
-                featureset.set_targets()
-            targets = featureset.spec.targets
-            targets = [get_target_driver(target, featureset) for target in targets]
 
         targets_to_ingest = copy.deepcopy(targets)
         featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)

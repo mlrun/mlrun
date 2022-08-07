@@ -72,8 +72,7 @@ def default_target_names():
 def get_default_targets():
     """initialize the default feature set targets list"""
     return [
-        DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
-        for target in default_target_names()
+        DataTargetBase(target, name=str(target)) for target in default_target_names()
     ]
 
 
@@ -725,17 +724,7 @@ class ParquetTarget(BaseStoreTarget):
             after_step = after_step or after_state
 
         if partitioned is None:
-            if all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            ):
-                partitioned = False
-            else:
-                partitioned = True
+            partitioned = True
 
         super().__init__(
             name,

@@ -20,7 +20,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
     def test_set_artifact(self):
-        self.project = mlrun.new_project("test-sa", skip_save=True)
+        self.project = mlrun.new_project("test-sa", save=False)
         self.project.set_artifact(
             "data1", mlrun.artifacts.Artifact(target_path=self.data_url)
         )
@@ -39,7 +39,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
     def test_import_artifacts(self):
         results_path = str(pathlib.Path(tests.conftest.results) / "project")
         project = mlrun.new_project(
-            "test-sa2", context=str(self.assets_path), skip_save=True
+            "test-sa2", context=str(self.assets_path), save=False
         )
         project.spec.artifact_path = results_path
         # use inline body (in the yaml)
@@ -50,12 +50,18 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
 
         artifacts = project.list_artifacts().objects()
         assert len(artifacts) == 2
-        assert artifacts[0].metadata.key == "y"
-        assert artifacts[0]._get_file_body() == "123"
 
-        z_artifact = project.get_artifact("z")
-        assert z_artifact.metadata.key == "z"
-        assert z_artifact._get_file_body() == b"ABC"
+        expected_body_map = {"y": "123", "z": b"ABC"}
+        for artifact in artifacts:
+            assert artifact.metadata.key in expected_body_map
+            assert expected_body_map[artifact.metadata.key] == artifact._get_file_body()
+
+            some_artifact = project.get_artifact(artifact.metadata.key)
+            assert some_artifact.metadata.key == artifact.metadata.key
+            assert (
+                some_artifact._get_file_body()
+                == expected_body_map[artifact.metadata.key]
+            )
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

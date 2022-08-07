@@ -6,6 +6,7 @@ from http import HTTPStatus
 from typing import List, Optional
 
 import v3io
+import v3io.dataplane
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -23,6 +24,7 @@ import mlrun.api.db.session
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
@@ -182,20 +184,42 @@ async def build_function(
 
     logger.info(f"build_function:\n{data}")
     function = data.get("function")
+    project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+    function_name = function.get("metadata", {}).get("name")
     await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
-        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
+        project,
         auth_info=auth_info,
     )
     await run_in_threadpool(
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         mlrun.api.schemas.AuthorizationResourceTypes.function,
-        function.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-        function.get("metadata", {}).get("name"),
+        project,
+        function_name,
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+
+    # schedules are meant to be run solely by the chief then if serving function and track_models is enabled,
+    # it means that schedules will be created as part of building the function, and if not chief then redirect to chief.
+    # to reduce redundant load on the chief, we re-route the request only if the user has permissions
+    if function.get("kind", "") == mlrun.runtimes.RuntimeKinds.serving and function.get(
+        "spec", {}
+    ).get("track_models", False):
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            logger.info(
+                "Requesting to deploy serving function with track models, re-routing to chief",
+                function_name=function_name,
+                project=project,
+                function=function,
+            )
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return chief_client.build_function(request=request, json=data)
+
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
     else:
@@ -248,12 +272,16 @@ async def start_function(
         mlrun.api.schemas.AuthorizationAction.update,
         auth_info,
     )
+    background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
 
     background_task = await run_in_threadpool(
-        mlrun.api.utils.background_tasks.Handler().create_project_background_task,
+        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
         function.metadata.project,
         background_tasks,
         _start_function,
+        background_timeout,
+        # args for _start_function
         function,
         auth_info,
         client_version,
@@ -481,6 +509,7 @@ def _build_function(
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
             mlrun.api.api.utils.process_function_service_account(fn)
             mlrun.api.api.utils.mask_sensitive_data(fn, auth_info)
+            mlrun.api.api.utils.ensure_function_security_context(fn, auth_info)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -488,13 +517,16 @@ def _build_function(
                     if fn.spec.track_models:
                         logger.info("Tracking enabled, initializing model monitoring")
                         _init_serving_function_stream_args(fn=fn)
+                        # get model monitoring access key
                         model_monitoring_access_key = _process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
                             "MODEL_MONITORING_ACCESS_KEY",
                         )
-
+                        # initialize model monitoring stream
                         _create_model_monitoring_stream(project=fn.metadata.project)
+
+                        # deploy both model monitoring stream and model monitoring batch job
                         mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             model_monitoring_access_key=model_monitoring_access_key,
@@ -581,6 +613,7 @@ def _start_function(
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             mlrun.api.api.utils.process_function_service_account(function)
             mlrun.api.api.utils.mask_sensitive_data(function, auth_info)
+            mlrun.api.api.utils.ensure_function_security_context(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function, client_version=client_version)
             function.save(versioned=False)
@@ -724,7 +757,7 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 db_session, project_name
             )
 
-            secret_value = project_owner.session
+            secret_value = project_owner.access_key
             if not secret_value:
                 raise MLRunRuntimeError(
                     f"No model monitoring access key. Failed to generate one for owner of project {project_name}",

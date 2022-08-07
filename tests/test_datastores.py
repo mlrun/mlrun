@@ -204,10 +204,10 @@ def test_get_store_resource_with_linked_artifacts(legacy_format):
         link_artifact.project = project
         model_artifact = LegacyModelArtifact(
             key=f"{artifact_key}#{link_iteration}",
-            project=project,
             target_path="/some/path/again",
             body="just a body",
         )
+        model_artifact.project = project
     else:
         link_artifact = LinkArtifact(
             key=artifact_key,

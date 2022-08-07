@@ -13,6 +13,8 @@ from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.helpers
 import mlrun.errors
 from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
@@ -24,6 +26,11 @@ from mlrun.utils import logger
 
 
 class Scheduler:
+    """
+    When using scheduler for create/update/delete/invoke or any other method that effects the scheduler behavior
+    make sure you are only running them in chief.
+    For more information head over to https://github.com/mlrun/mlrun/pull/2059
+    """
 
     _secret_username_subtype = "username"
     _secret_access_key_subtype = "access_key"
@@ -47,7 +54,11 @@ class Scheduler:
 
         # don't fail the start on re-scheduling failure
         try:
-            self._reload_schedules(db_session)
+            if (
+                mlrun.mlconf.httpdb.clusterization.role
+                == mlrun.api.schemas.ClusterizationRole.chief
+            ):
+                self._reload_schedules(db_session)
         except Exception as exc:
             logger.warning("Failed reloading schedules", exc=exc)
 
@@ -58,6 +69,7 @@ class Scheduler:
         # https://github.com/agronholm/apscheduler/issues/360 - this sleep make them work
         await asyncio.sleep(0)
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
     def create_schedule(
         self,
         db_session: Session,
@@ -109,6 +121,7 @@ class Scheduler:
             auth_info,
         )
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
     def update_schedule(
         self,
         db_session: Session,
@@ -197,6 +210,7 @@ class Scheduler:
             db_session, db_schedule, include_last_run, include_credentials
         )
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
     def delete_schedule(
         self,
         db_session: Session,
@@ -207,6 +221,7 @@ class Scheduler:
         self._remove_schedule_scheduler_resources(project, name)
         get_db().delete_schedule(db_session, project, name)
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
     def delete_schedules(
         self,
         db_session: Session,
@@ -232,6 +247,7 @@ class Scheduler:
         if job:
             self._scheduler.remove_job(job_id)
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
     async def invoke_schedule(
         self,
         db_session: Session,
@@ -243,6 +259,7 @@ class Scheduler:
         db_schedule = await fastapi.concurrency.run_in_threadpool(
             get_db().get_schedule, db_session, project, name
         )
+        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,
@@ -271,6 +288,11 @@ class Scheduler:
                     auth_info.session
                 )
             )
+            # created an access key with control and data session plane, so enriching auth_info with those planes
+            auth_info.planes = [
+                mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+            ]
 
     def _store_schedule_secrets(
         self,
@@ -552,7 +574,12 @@ class Scheduler:
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
                     mlrun.api.schemas.AuthInfo(
-                        username=username, access_key=access_key
+                        username=username,
+                        access_key=access_key,
+                        # enriching with control plane tag because scheduling a function requires control plane
+                        planes=[
+                            mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                        ],
                     ),
                 )
             except Exception as exc:
@@ -721,7 +748,12 @@ class Scheduler:
             scheduler.update_schedule(
                 db_session,
                 mlrun.api.schemas.AuthInfo(
-                    username=project_owner.username, access_key=project_owner.session
+                    username=project_owner.username,
+                    access_key=project_owner.access_key,
+                    # enriching with control plane tag because scheduling a function requires control plane
+                    planes=[
+                        mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                    ],
                 ),
                 project_name,
                 schedule_name,

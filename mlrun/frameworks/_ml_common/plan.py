@@ -6,9 +6,8 @@ from IPython.core.display import HTML, display
 
 import mlrun
 
-from .._common import ModelType
-from .._common.artifacts_library import Plan
-from .utils import DatasetType
+from .._common import Plan
+from .utils import MLTypes
 
 
 class MLPlanStages(Enum):
@@ -16,10 +15,17 @@ class MLPlanStages(Enum):
     Stages for a machine learning plan to be produced.
     """
 
+    # SciKit-Learn's API:
     PRE_FIT = "pre_fit"
     POST_FIT = "post_fit"
     PRE_PREDICT = "pre_predict"
     POST_PREDICT = "post_predict"
+
+    # Boosting API:
+    PRE_TRAIN = "pre_train"
+    POST_TRAIN = "post_train"
+    PRE_ITERATION = "pre_iteration"
+    POST_ITERATION = "post_iteration"
 
 
 class MLPlan(Plan, ABC):
@@ -87,8 +93,11 @@ class MLPlotPlan(MLPlan, ABC):
                 display(HTML(artifact.get_body()))
 
     def _calculate_predictions(
-        self, y_pred: DatasetType = None, model: ModelType = None, x: DatasetType = None
-    ) -> DatasetType:
+        self,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
+    ) -> MLTypes.DatasetType:
         """
         Calculate the predictions using the model and input dataset only if the predictions (y_pred) were not provided.
 

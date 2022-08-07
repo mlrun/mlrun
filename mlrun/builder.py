@@ -80,8 +80,14 @@ def make_kaniko_pod(
     verbose=False,
     builder_env=None,
     runtime_spec=None,
+    registry=None,
 ):
     extra_runtime_spec = {}
+    if not registry:
+
+        # if registry was not given, infer it from the image destination
+        registry = dest.partition("/")[0]
+
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
@@ -129,10 +135,6 @@ def make_kaniko_pod(
     )
     kpod.env = builder_env
 
-    if secret_name:
-        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
-        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
-
     if config.is_pip_ca_configured():
         items = [
             {
@@ -171,13 +173,75 @@ def make_kaniko_pod(
                 "\n".join(requirements).encode("utf-8")
             ).decode("utf-8")
 
-        kpod.set_init_container(
+        kpod.append_init_container(
             config.httpdb.builder.kaniko_init_container_image,
             args=["sh", "-c", "; ".join(commands)],
             env=env,
+            name="create-dockerfile",
         )
 
+    # when using ECR we need init container to create the image repository
+    # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+    if ".ecr." in registry and ".amazonaws.com" in registry:
+        end = dest.find(":")
+        if end == -1:
+            end = len(dest)
+        repo = dest[dest.find("/") + 1 : end]
+        configure_kaniko_ecr_init_container(kpod, registry, repo)
+
+    # mount regular docker config secret
+    elif secret_name:
+        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
+        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
     return kpod
+
+
+def configure_kaniko_ecr_init_container(kpod, registry, repo):
+    region = registry.split(".")[3]
+
+    # fail silently in order to ignore "repository already exists" errors
+    # if any other error occurs - kaniko will fail similarly
+    command = (
+        f"aws ecr create-repository --region {region} --repository-name {repo} || true"
+        + f" && aws ecr create-repository --region {region} --repository-name {repo}/cache || true"
+    )
+    init_container_env = {}
+
+    if not config.httpdb.builder.docker_registry_secret:
+
+        # assume instance role has permissions to register and store a container image
+        # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
+        # we only need this in the kaniko container
+        kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
+    else:
+        aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
+        aws_credentials_file_env_value = "/tmp/credentials"
+
+        # set the credentials file location in the init container
+        init_container_env[
+            aws_credentials_file_env_key
+        ] = aws_credentials_file_env_value
+
+        # set the kaniko container AWS credentials location to the mount's path
+        kpod.env.append(
+            client.V1EnvVar(
+                name=aws_credentials_file_env_key, value=aws_credentials_file_env_value
+            )
+        )
+        # mount the AWS credentials secret
+        kpod.mount_secret(
+            config.httpdb.builder.docker_registry_secret,
+            path="/tmp",
+        )
+
+    kpod.append_init_container(
+        config.httpdb.builder.kaniko_aws_cli_image,
+        command=["/bin/sh"],
+        args=["-c", command],
+        env=init_container_env,
+        name="create-repos",
+    )
 
 
 def upload_tarball(source_dir, target, secrets=None):
@@ -194,7 +258,7 @@ def upload_tarball(source_dir, target, secrets=None):
 def build_image(
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
-    dest,
+    image_target,
     commands=None,
     source="",
     mounter="v3io",
@@ -216,18 +280,9 @@ def build_image(
     runtime_spec=None,
 ):
     builder_env = builder_env or {}
-    if registry:
-        dest = "/".join([registry, dest])
-    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
-        dest = dest[1:]
-        registry, _ = get_parsed_docker_registry()
-        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
-        if not registry:
-            raise ValueError(
-                "Default docker registry is not defined, set "
-                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
-            )
-        dest = "/".join([registry, dest])
+    image_target, secret_name = _resolve_image_target_and_registry_secret(
+        image_target, registry, secret_name
+    )
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -295,7 +350,7 @@ def build_image(
     kpod = make_kaniko_pod(
         project,
         context,
-        dest,
+        image_target,
         dockertext=dock,
         inline_code=inline_code,
         inline_path=inline_path,
@@ -305,6 +360,7 @@ def build_image(
         verbose=verbose,
         builder_env=builder_env,
         runtime_spec=runtime_spec,
+        registry=registry,
     )
 
     if to_mount:
@@ -479,3 +535,31 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
+
+
+def _resolve_image_target_and_registry_secret(
+    image_target: str, registry: str = None, secret_name: str = None
+) -> (str, str):
+    if registry:
+        return "/".join([registry, image_target]), secret_name
+
+    # if dest starts with a dot, we add the configured registry to the start of the dest
+    if image_target.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+
+        # remove prefix from image name
+        image_target = image_target[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+
+        registry, repository = get_parsed_docker_registry()
+        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
+        if not registry:
+            raise ValueError(
+                "Default docker registry is not defined, set "
+                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
+            )
+        image_target_components = [registry, image_target]
+        if repository and repository not in image_target:
+            image_target_components = [registry, repository, image_target]
+
+        return "/".join(image_target_components), secret_name
+
+    return image_target, secret_name

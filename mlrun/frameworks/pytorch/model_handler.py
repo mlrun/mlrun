@@ -7,10 +7,10 @@ from torch.nn import Module
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.data_types import ValueType
 from mlrun.features import Feature
 
 from .._dl_common import DLModelHandler
+from .utils import PyTorchUtils
 
 
 class PyTorchModelHandler(DLModelHandler):
@@ -21,7 +21,7 @@ class PyTorchModelHandler(DLModelHandler):
     # Framework name:
     FRAMEWORK_NAME = "torch"
 
-    # Declare a type of an input sample:
+    # Declare a type of input sample:
     IOSample = Union[torch.Tensor, np.ndarray]
 
     class _LabelKeys:
@@ -121,7 +121,7 @@ class PyTorchModelHandler(DLModelHandler):
                 model_class if isinstance(model_class, str) else model_class.__name__
             )
 
-        # Setup the base handler class:
+        # Set up the base handler class:
         super(PyTorchModelHandler, self).__init__(
             model=model,
             model_path=model_path,
@@ -289,7 +289,7 @@ class PyTorchModelHandler(DLModelHandler):
                 [
                     torch.zeros(
                         size=input_feature.dims,
-                        dtype=self.convert_value_type_to_torch_dtype(
+                        dtype=PyTorchUtils.convert_value_type_to_torch_dtype(
                             value_type=input_feature.value_type
                         ),
                     )
@@ -381,86 +381,6 @@ class PyTorchModelHandler(DLModelHandler):
 
         return onnx_handler.model
 
-    @staticmethod
-    def convert_value_type_to_torch_dtype(
-        value_type: str,
-    ) -> torch.dtype:  # TODO: Move to utils
-        """
-        Get the 'torch.dtype' equivalent to the given MLRun data type.
-
-        :param value_type: The MLRun value type to convert to torch data type.
-
-        :return: The 'torch.dtype' equivalent to the given MLRun data type.
-
-        :raise MLRunInvalidArgumentError: If torch is not supporting the given value type.
-        """
-        # Initialize the mlrun to torch data type conversion map:
-        conversion_map = {
-            ValueType.BOOL: torch.bool,
-            ValueType.INT8: torch.int8,
-            ValueType.INT16: torch.int16,
-            ValueType.INT32: torch.int32,
-            ValueType.INT64: torch.int64,
-            ValueType.UINT8: torch.uint8,
-            ValueType.BFLOAT16: torch.bfloat16,
-            ValueType.FLOAT16: torch.float16,
-            ValueType.FLOAT: torch.float32,
-            ValueType.DOUBLE: torch.float64,
-        }
-
-        # Convert and return:
-        if value_type in conversion_map:
-            return conversion_map[value_type]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"The ValueType given is not supported in torch: '{value_type}'."
-        )
-
-    @staticmethod
-    def convert_torch_dtype_to_value_type(
-        torch_dtype: Union[torch.dtype, str]
-    ) -> str:  # TODO: Move to utils
-        """
-        Convert the given torch data type to MLRun value type. All of the CUDA supported data types are supported. For
-        more information regarding torch data types, visit: https://pytorch.org/docs/stable/tensors.html#data-types
-
-        :param torch_dtype: The torch data type to convert to MLRun's value type. Expected to be a 'torch.dtype' or
-                            'str'.
-
-        :return: The MLRun value type converted from the given data type.
-
-        :raise MLRunInvalidArgumentError: If the torch data type is not supported by MLRun.
-        """
-        # Initialize the torch to mlrun data type conversion map:
-        conversion_map = {
-            str(torch.bool): ValueType.BOOL,
-            str(torch.int8): ValueType.INT8,
-            str(torch.short): ValueType.INT16,
-            str(torch.int16): ValueType.INT16,
-            str(torch.int): ValueType.INT32,
-            str(torch.int32): ValueType.INT32,
-            str(torch.long): ValueType.INT64,
-            str(torch.int64): ValueType.INT64,
-            str(torch.uint8): ValueType.UINT8,
-            str(torch.bfloat16): ValueType.BFLOAT16,
-            str(torch.half): ValueType.FLOAT16,
-            str(torch.float16): ValueType.FLOAT16,
-            str(torch.float): ValueType.FLOAT,
-            str(torch.float32): ValueType.FLOAT,
-            str(torch.double): ValueType.DOUBLE,
-            str(torch.float64): ValueType.DOUBLE,
-        }
-
-        # Parse the given torch data type to string:
-        if isinstance(torch_dtype, torch.dtype):
-            torch_dtype = str(torch_dtype)
-
-        # Convert and return:
-        if torch_dtype in conversion_map:
-            return conversion_map[torch_dtype]
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun value type is not supporting the given torch data type: '{torch_dtype}'."
-        )
-
     def _collect_files_from_store_object(self):
         """
         If the model path given is of a store object, collect the needed model files into this handler for later loading
@@ -512,7 +432,7 @@ class PyTorchModelHandler(DLModelHandler):
             return super(PyTorchModelHandler, self)._read_sample(sample=sample)
         elif isinstance(sample, torch.Tensor):
             return Feature(
-                value_type=self.convert_torch_dtype_to_value_type(
+                value_type=PyTorchUtils.convert_torch_dtype_to_value_type(
                     torch_dtype=sample.dtype
                 ),
                 dims=list(sample.shape),

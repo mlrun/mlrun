@@ -291,6 +291,32 @@ class RunDBMock:
         assert deepdiff.DeepDiff(function_spec["volumes"], expected_volumes) == {}
         assert deepdiff.DeepDiff(function_spec["volume_mounts"], expected_mounts) == {}
 
+    def assert_s3_mount_configured(self, s3_params):
+        env_list = self._function["spec"]["env"]
+        param_names = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+        secret_name = s3_params.get("secret_name")
+        non_anonymous = s3_params.get("non_anonymous")
+
+        env_dict = {
+            item["name"]: item["valueFrom"] if "valueFrom" in item else item["value"]
+            for item in env_list
+            if item["name"] in param_names + ["S3_NON_ANONYMOUS"]
+        }
+
+        if secret_name:
+            expected_envs = {
+                name: {"secretKeyRef": {"key": name, "name": secret_name}}
+                for name in param_names
+            }
+        else:
+            expected_envs = {
+                "AWS_ACCESS_KEY_ID": s3_params["aws_access_key"],
+                "AWS_SECRET_ACCESS_KEY": s3_params["aws_secret_key"],
+            }
+        if non_anonymous:
+            expected_envs["S3_NON_ANONYMOUS"] = "true"
+        assert expected_envs == env_dict
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,

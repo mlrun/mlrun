@@ -197,8 +197,8 @@ def test_build_runtime_target_image(monkeypatch):
 
     # assert it raises if we don't stick to the prefix
     for invalid_image in [
-        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username/without-prefix:{function.metadata.tag}"
-        f"{registry}/without-prefix:{function.metadata.tag}"
+        f"{mlrun.builder.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}username/without-prefix:{function.metadata.tag}",
+        f"{registry}/without-prefix:{function.metadata.tag}",
     ]:
         function.spec.build.image = invalid_image
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -449,6 +449,302 @@ def test_resolve_mlrun_install_command():
         assert (
             result == expected_result
         ), f"Test supposed to pass {case.get('test_description')}"
+
+
+def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+    assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
+        env.to_dict() for env in pod_spec.containers[0].env
+    ]
+    assert len(pod_spec.init_containers) == 2
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repos":
+            assert (
+                "aws ecr create-repository --region region --repository-name mlrun/func-some-project-some-function"
+                in init_container.args[1]
+            )
+            break
+    else:
+        pytest.fail("no create-repos init container")
+
+
+def test_build_runtime_resolve_ecr_registry(monkeypatch):
+    registry = "aws_account_id.dkr.ecr.us-east-2.amazonaws.com"
+    for case in [
+        {
+            "name": "sanity",
+            "repo": "some-repo",
+            "tag": "latest",
+        },
+        {
+            "name": "nested repo",
+            "repo": "mlrun/some-repo",
+            "tag": "1.2.3",
+        },
+        {
+            "name": "no tag",
+            "repo": "some-repo",
+            "tag": None,
+        },
+    ]:
+        _patch_k8s_helper(monkeypatch)
+        mlrun.mlconf.httpdb.builder.docker_registry = ""
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            kind="job",
+        )
+        image = f"{registry}/{case.get('repo')}"
+        if case.get("tag"):
+            image += f":{case.get('tag')}"
+        function.spec.build.image = image
+        mlrun.builder.build_runtime(
+            mlrun.api.schemas.AuthInfo(),
+            function,
+        )
+        pod_spec = _create_pod_mock_pod_spec()
+        for init_container in pod_spec.init_containers:
+            if init_container.name == "create-repos":
+                assert (
+                    f"aws ecr create-repository --region us-east-2 --repository-name {case.get('repo')}"
+                    in init_container.args[1]
+                ), f"test case: {case.get('name')}"
+                break
+        else:
+            pytest.fail(
+                f"no create-repos init container, test case: {case.get('name')}"
+            )
+
+
+def test_build_runtime_ecr_with_aws_secret(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+    assert "aws-secret" in [
+        volume.secret.to_dict()["secret_name"]
+        for volume in pod_spec.volumes
+        if volume.secret
+    ]
+    aws_mount = {
+        "mount_path": "/tmp",
+        "mount_propagation": None,
+        "name": "aws-secret",
+        "read_only": None,
+        "sub_path": None,
+        "sub_path_expr": None,
+    }
+    assert aws_mount in [
+        volume_mount.to_dict() for volume_mount in pod_spec.containers[0].volume_mounts
+    ]
+
+    aws_creds_location_env = {
+        "name": "AWS_SHARED_CREDENTIALS_FILE",
+        "value": "/tmp/credentials",
+        "value_from": None,
+    }
+    assert aws_creds_location_env in [
+        env.to_dict() for env in pod_spec.containers[0].env
+    ]
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repos":
+            assert aws_mount in [
+                volume_mount.to_dict() for volume_mount in init_container.volume_mounts
+            ]
+            assert aws_creds_location_env in [
+                env.to_dict() for env in init_container.env
+            ]
+            break
+    else:
+        pytest.fail("no create-repos init container")
+
+
+def test_build_runtime_ecr_with_repository(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    repo_name = "my-repo"
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        f"aws_account_id.dkr.ecr.us-east-2.amazonaws.com/{repo_name}"
+    )
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = "aws-secret"
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+
+    for init_container in pod_spec.init_containers:
+        if init_container.name == "create-repos":
+            assert (
+                f"aws ecr create-repository --region us-east-2 --repository-name "
+                f"{repo_name}/func-some-project-some-function" in init_container.args[1]
+            )
+            break
+    else:
+        pytest.fail("no create-repos init container")
+
+
+@pytest.mark.parametrize(
+    "image_target,registry,default_repository,expected_dest",
+    [
+        (
+            "test-image",
+            None,
+            None,
+            "test-image",
+        ),
+        (
+            "test-image",
+            "test-registry",
+            None,
+            "test-registry/test-image",
+        ),
+        (
+            "test-image",
+            "test-registry/test-repository",
+            None,
+            "test-registry/test-repository/test-image",
+        ),
+        (
+            ".test-image",
+            None,
+            "default.docker.registry/default-repository",
+            "default.docker.registry/default-repository/test-image",
+        ),
+        (
+            ".default-repository/test-image",
+            None,
+            "default.docker.registry/default-repository",
+            "default.docker.registry/default-repository/test-image",
+        ),
+        (
+            ".test-image",
+            None,
+            "default.docker.registry",
+            "default.docker.registry/test-image",
+        ),
+    ],
+)
+def test_resolve_image_dest(image_target, registry, default_repository, expected_dest):
+    docker_registry_secret = "default-docker-registry-secret"
+    config.httpdb.builder.docker_registry = default_repository
+    config.httpdb.builder.docker_registry_secret = docker_registry_secret
+
+    image_target, _ = mlrun.builder._resolve_image_target_and_registry_secret(
+        image_target, registry
+    )
+    assert image_target == expected_dest
+
+
+@pytest.mark.parametrize(
+    "image_target,registry,secret_name,default_secret_name,expected_secret_name",
+    [
+        (
+            "test-image",
+            None,
+            None,
+            "default-secret-name",
+            None,
+        ),
+        (
+            "test-image",
+            None,
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            "test-image",
+            "test-registry",
+            None,
+            "default-secret-name",
+            None,
+        ),
+        (
+            "test-image",
+            "test-registry",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            "test-secret-name",
+            None,
+            "test-secret-name",
+        ),
+        (
+            ".test-image",
+            None,
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_registry_secret(
+    image_target, registry, secret_name, default_secret_name, expected_secret_name
+):
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+    config.httpdb.builder.docker_registry_secret = default_secret_name
+
+    _, secret_name = mlrun.builder._resolve_image_target_and_registry_secret(
+        image_target, registry, secret_name
+    )
+    assert secret_name == expected_secret_name
 
 
 def _get_target_image_from_create_pod_mock():

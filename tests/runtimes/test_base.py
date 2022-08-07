@@ -156,3 +156,30 @@ class TestAutoMount:
             ValueError, match="failed to auto mount, need to set env vars"
         ):
             runtime.apply(mlrun.auto_mount())
+
+    @staticmethod
+    def _setup_s3_mount(use_secret, non_anonymous):
+        mlconf.storage.auto_mount_type = "s3"
+        if use_secret:
+            params = {
+                "secret_name": "s3_secret",
+            }
+        else:
+            params = {
+                "aws_access_key": "some_key",
+                "aws_secret_key": "some_secret_key",
+            }
+        if non_anonymous:
+            params["non_anonymous"] = True
+        return params
+
+    @pytest.mark.parametrize("use_secret", [True, False])
+    @pytest.mark.parametrize("non_anonymous", [True, False])
+    def test_auto_mount_s3(self, use_secret, non_anonymous, rundb_mock):
+        s3_params = self._setup_s3_mount(use_secret, non_anonymous)
+        mlconf.storage.auto_mount_params = ",".join(
+            [f"{key}={value}" for key, value in s3_params.items()]
+        )
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_s3_mount_configured(s3_params)

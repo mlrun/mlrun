@@ -249,7 +249,7 @@ def test_get_project_owner(
         project.metadata.name,
     )
     assert project_owner.username == owner_username
-    assert project_owner.session == owner_access_key
+    assert project_owner.access_key == owner_access_key
 
 
 def test_list_project_with_updated_after(
@@ -499,6 +499,54 @@ def test_update_project(
         session,
         project.metadata.name,
         project,
+    )
+
+
+def test_update_project_remove_labels_and_annotations(
+    api_url: str,
+    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    project = _generate_project(name="empty-labels", labels={}, annotations={})
+    project_without_labels = _generate_project(name="no-labels")
+    project_without_labels.metadata.labels = None
+    project_without_labels.metadata.annotations = None
+    session = "1234"
+
+    def verify_empty_labels_and_annotations(request, context):
+        request_body = request.json()
+        assert request_body["data"]["attributes"]["labels"] == []
+        assert request_body["data"]["attributes"]["annotations"] == []
+
+        context.status_code = http.HTTPStatus.OK.value
+        return {"data": _build_project_response(iguazio_client, project)}
+
+    def verify_no_labels_and_annotations_in_request(request, context):
+        request_body = request.json()
+        assert "labels" not in request_body["data"]["attributes"]
+        assert "annotations" not in request_body["data"]["attributes"]
+
+        context.status_code = http.HTTPStatus.OK.value
+        return {"data": _build_project_response(iguazio_client, project)}
+
+    requests_mock.put(
+        f"{api_url}/api/projects/__name__/{project.metadata.name}",
+        json=verify_empty_labels_and_annotations,
+    )
+    requests_mock.put(
+        f"{api_url}/api/projects/__name__/{project_without_labels.metadata.name}",
+        json=verify_no_labels_and_annotations_in_request,
+    )
+
+    iguazio_client.update_project(
+        session,
+        project.metadata.name,
+        project,
+    )
+    iguazio_client.update_project(
+        session,
+        project_without_labels.metadata.name,
+        project_without_labels,
     )
 
 

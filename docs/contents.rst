@@ -4,9 +4,9 @@
 
    index
    mlops-dev-flow
-   quick-start/quick-start
-   howto/index
    install
+   tutorial/index
+   
 
 .. toctree::
    :maxdepth: 1

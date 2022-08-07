@@ -499,7 +499,7 @@ def ingest(
             spark_context,
             featureset,
             source,
-            targets,
+            targets_to_ingest,
             infer_options=infer_options,
             mlrun_context=mlrun_context,
             namespace=namespace,

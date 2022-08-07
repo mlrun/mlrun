@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from storey import MapClass
 
-from mlrun.errors import MLRunInvalidArgumentError
+import mlrun.errors
 from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
@@ -166,7 +166,7 @@ class OneHotEncoder(StepToDict, MapClass):
         for values in mapping.values():
             for val in values:
                 if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
-                    raise MLRunInvalidArgumentError(
+                    raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
 

@@ -40,7 +40,7 @@ from mlrun.datastore.targets import (
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import FeaturesetValidator
+from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
 
@@ -2573,7 +2573,6 @@ class TestFeatureStore(TestMLRunSystem):
             assert key in expected
 
     def test_set_event_with_spaces_or_hyphens(self):
-        from mlrun.feature_store.steps import OneHotEncoder
 
         lst_1 = [
             " Private",
@@ -2607,8 +2606,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert df_res.equals(expected_df)
 
     def test_onehot_with_int_values(self):
-        from mlrun.feature_store.steps import OneHotEncoder
-
         lst_1 = [0, 0, 1, 0]
         lst_2 = [0, 1, 2, 3]
         lst_3 = [25, 38, 28, 44]
@@ -2636,8 +2633,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert df_res.equals(expected_df)
 
     def test_onehot_with_array_values(self):
-        from mlrun.feature_store.steps import OneHotEncoder
-
         lst_1 = [[1, 2], [1, 2], [0, 1], [1, 2]]
         lst_2 = [0, 1, 2, 3]
         lst_3 = [25, 38, 28, 44]
@@ -2655,6 +2650,7 @@ class TestFeatureStore(TestMLRunSystem):
             data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
     @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 

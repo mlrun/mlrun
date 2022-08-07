@@ -1,5 +1,5 @@
 (data-feature-store)=
-# Data
+# Data and artifacts
 
 One of the biggest challenge in distributed systems is handling data given the different access methods, APIs, and 
 authentication mechanisms across types and providers.
@@ -12,7 +12,7 @@ MLRun provides three main abstractions to access structured and unstructured dat
 ```{toctree}
 :maxdepth: 1
 
+data-items
 ../store/artifacts
 ../store/datastore
-data-items
 ```

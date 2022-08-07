@@ -49,10 +49,10 @@
    :caption: Model serving
 
    serving/custom-model-serving-class
+   serving/test-deploy-model-server
    serving/built-in-model-serving
    serving/model-serving-get-started
    feature-store/training-serving
-   serving/test-deploy-model-server
    serving/model-api
 
 .. toctree::

@@ -14,6 +14,7 @@ jobs-overview
 mlrun-execution-context
 submitting-tasks-jobs-to-functions
 ../runtimes/mlrun_jobs
+using-tasks-secrets
 scheduled-jobs
 ../runtimes/distributed
 node-affinity

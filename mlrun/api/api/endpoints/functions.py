@@ -508,7 +508,8 @@ def _build_function(
         if fn.kind in RuntimeKinds.nuclio_runtimes():
 
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn, auth_info, perform_auto_mount=False
+                fn,
+                auth_info,
             )
 
             if fn.kind == RuntimeKinds.serving:
@@ -611,7 +612,8 @@ def _start_function(
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                function, auth_info, perform_auto_mount=False
+                function,
+                auth_info,
             )
 
             #  resp = resource["start"](fn)  # TODO: handle resp?

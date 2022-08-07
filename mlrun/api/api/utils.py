@@ -185,6 +185,14 @@ def apply_enrichment_and_validation_on_function(
     mask_sensitive_data: bool = True,
     ensure_security_context: bool = True,
 ):
+    """
+    This function is utilized in several flows as a consequence of different endpoints in MLRun for deploying different
+    runtimes such as dask and nuclio, depends on the flow and runtime we decide which util functions we
+    want to apply on the runtime.
+
+    When adding a new util function, go through the other flows that utilize the function
+    and make sure to specify the appropriate flag for each runtime.
+    """
     # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
     # be able to communicate with the api
     if ensure_auth:

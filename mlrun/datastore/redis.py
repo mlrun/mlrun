@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
-from .base import DataStore
 from enum import Enum
+
 import redis
 import rediscluster
+
+import mlrun
+
+from .base import DataStore
 
 
 class RedisType(Enum):
@@ -81,7 +84,6 @@ class RedisStore(DataStore):
         new_path = "projects" + path[len("redis:///projects") :]
         ns_keys = "storey:" + new_path + "*"
         for key in self.redis.scan_iter(ns_keys):
-            # print (f"delete key {key}", flush=True)
             self.redis.delete(key)
             count += 1
-        print(f"deleted {count} keys")
+        # print(f"deleted {count} keys")

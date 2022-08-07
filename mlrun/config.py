@@ -138,8 +138,13 @@ default_config = {
                 "default": "e30=",  # encoded empty dict
                 # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
-                # default 65534 (nogroup), set to -1 to use the user unix id
+                # default 65534 (nogroup), set to -1 to use the user unix id or
+                # function.spec.security_context.pipelines.kfp_pod_user_unix_id for kfp pods
                 "enrichment_group_id": 65534,
+                "pipelines": {
+                    # sets the user id to be used for kfp pods when enrichment mode is not disabled
+                    "kfp_pod_user_unix_id": 5,
+                },
             },
             "service_account": {"default": None},
         },
@@ -557,6 +562,23 @@ class Config:
     @staticmethod
     def is_running_on_iguazio() -> bool:
         return config.igz_version is not None and config.igz_version != ""
+
+    @staticmethod
+    def get_security_context_enrichment_group_id(user_unix_id: int) -> int:
+        enrichment_group_id = int(
+            config.function.spec.security_context.enrichment_group_id
+        )
+
+        # if enrichment group id is -1 we set group id to user unix id
+        if enrichment_group_id == -1:
+            if user_unix_id is None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "User unix id is required to populate group id when enrichment group id is -1."
+                    "See mlrun.config.function.spec.security_context.enrichment_group_id for more details."
+                )
+            return user_unix_id
+
+        return enrichment_group_id
 
     @staticmethod
     def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:

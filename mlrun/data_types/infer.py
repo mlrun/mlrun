@@ -96,6 +96,7 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     ).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
+            # TODO: why is 50% excluded from the results?
             if stat != "50%":
                 if isinstance(val, (float, np.floating, np.float64)):
                     stats_dict[stat] = float(val)

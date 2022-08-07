@@ -186,6 +186,8 @@ def apply_enrichment_and_validation_on_function(
     ensure_security_context: bool = True,
 ):
     """
+    This function should be used only on server side.
+
     This function is utilized in several flows as a consequence of different endpoints in MLRun for deploying different
     runtimes such as dask and nuclio, depends on the flow and runtime we decide which util functions we
     want to apply on the runtime.

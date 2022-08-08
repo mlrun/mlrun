@@ -784,9 +784,8 @@ class BatchProcessor:
             self.batch_dict[EventFieldType.HOURS],
             self.batch_dict[EventFieldType.DAYS],
         )
-        start_time = (
-            datetime.datetime.now()
-            - datetime.timedelta(minutes=minutes, hours=hours, days=days)
+        start_time = datetime.datetime.now() - datetime.timedelta(
+            minutes=minutes, hours=hours, days=days
         )
         end_time = datetime.datetime.now()
         return start_time, end_time

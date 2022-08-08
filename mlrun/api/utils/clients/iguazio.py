@@ -290,12 +290,23 @@ class Client(
         name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
-            session, name, include_owner_session=True
+            session, name, enrich_owner_access_key=True
         )
         iguazio_project = response.json()["data"]
+        owner_username = iguazio_project.get("attributes", {}).get(
+            "owner_username", None
+        )
+        owner_access_key = iguazio_project.get("attributes", {}).get(
+            "owner_access_key", None
+        )
+        if not owner_username:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Unable to enrich project owner for project {name},"
+                f" because project has no owner configured"
+            )
         return mlrun.api.schemas.ProjectOwner(
-            username=iguazio_project["attributes"]["owner_username"],
-            session=iguazio_project["attributes"]["owner_access_key"],
+            username=owner_username,
+            access_key=owner_access_key,
         )
 
     def format_as_leader_project(
@@ -358,10 +369,10 @@ class Client(
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio_without_parsing(
-        self, session: str, name: str, include_owner_session: bool = False
+        self, session: str, name: str, enrich_owner_access_key: bool = False
     ):
         params = {"include": "owner"}
-        if include_owner_session:
+        if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
         return self._send_request_to_api(
             "GET",

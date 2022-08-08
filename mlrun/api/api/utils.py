@@ -487,8 +487,8 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         or function.kind == mlrun.runtimes.RuntimeKinds.spark
         # We do not enrich remote spark security context,
-        # as its image contains dirs and files with user 1000(iguazio) as owner,
-        # so the running user must either be 1000 or root
+        # as its image currently supports running only with user 1000 or root
+        # and by default it runs with user 1000 (even when not setting security context)
         or function.kind == mlrun.runtimes.RuntimeKinds.remotespark
         or not mlrun.mlconf.is_running_on_iguazio()
     ):

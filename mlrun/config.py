@@ -38,6 +38,7 @@ import semver
 import yaml
 
 import mlrun.errors
+from mlrun.api.schemas import SecurityContextEnrichmentModes
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -593,6 +594,24 @@ class Config:
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
+    def verify_security_context_enrichment_mode_is_allowed(self):
+        if (
+            config.function.spec.security_context.enrichment_mode
+            == SecurityContextEnrichmentModes.disabled.value
+        ):
+            return
+
+        igz_version = self.get_parsed_igz_version()
+        if not igz_version:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
+            )
+
+        if igz_version < semver.VersionInfo.parse("3.5.1-b1"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Security context enrichment mode enabled (override/retain) is not allowed for iguazio version < 3.5.1"
+            )
+
     def resolve_kfp_url(self, namespace=None):
         if config.kfp_url:
             return config.kfp_url
@@ -868,6 +887,8 @@ def _validate_config(config):
         )
     except AttributeError:
         pass
+
+    config.verify_security_context_enrichment_mode_is_allowed()
 
 
 def _convert_resources_to_str(config: dict = None):

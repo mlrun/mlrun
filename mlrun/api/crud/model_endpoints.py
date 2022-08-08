@@ -884,7 +884,7 @@ class ModelEndpoints:
         minutes, hours, day, _, _ = tuple(
             map(
                 _parse_intervals_from_cron_format,
-                tracking_policy["batch_intervals"].split(" "),
+                tracking_policy["default_batch_intervals"].split(" "),
             )
         )
         batch_dict = {"minutes": minutes, "hours": hours, "days": day}
@@ -892,7 +892,7 @@ class ModelEndpoints:
 
         data = {
             "task": task.to_dict(),
-            "schedule": tracking_policy["batch_intervals"],
+            "schedule": tracking_policy["default_batch_intervals"],
         }
 
         logger.info(

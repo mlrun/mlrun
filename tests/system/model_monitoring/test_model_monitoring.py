@@ -520,7 +520,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
         # Define tracking policy
-        tracking_policy = {"batch_intervals": "0 */3 * * *"}
+        tracking_policy = {"default_batch_intervals": "0 */3 * * *"}
 
         # Enable model monitoring
         serving_fn.set_tracking(tracking_policy=tracking_policy)

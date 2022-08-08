@@ -131,19 +131,20 @@ class TrackingPolicy(ModelObj):
 
     def __init__(
         self,
-        batch_intervals: str = "0 */1 * * *",
-        batch_image: str = "mlrun/mlrun",
+        default_batch_intervals: str = "0 */1 * * *",
+        default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
     ):
         """
         Initialize TrackingPolicy object.
-        :param batch_intervals: Model monitoring batch scheduling policy. By default, executed on the hour every hour.
-                                The time format is based on ScheduleCronTrigger expression: minute, hour, day of month,
-                                month, day of week.
-        :param batch_image:     The image of the model monitoring batch job. By default, the image is mlrun/mlrun.
-        :param stream_image:    The image of the model monitoring stream real-time function. By default, the image
-                                is mlrun/mlrun.
+        :param default_batch_intervals:     Model monitoring batch scheduling policy. By default, executed on the hour
+                                            every hour. The time format is based on ScheduleCronTrigger expression:
+                                            minute, hour, day of month, month, day of week.
+        :param default_batch_image:         The default image of the model monitoring batch job. By default, the image
+                                            is mlrun/mlrun.
+        :param stream_image:                The image of the model monitoring stream real-time function. By default,
+                                            the image is mlrun/mlrun.
         """
-        self.batch_intervals = batch_intervals
-        self.batch_image = batch_image
+        self.default_batch_intervals = default_batch_intervals
+        self.default_batch_image = default_batch_image
         self.stream_image = stream_image

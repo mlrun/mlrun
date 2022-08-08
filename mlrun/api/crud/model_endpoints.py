@@ -875,6 +875,21 @@ class ModelEndpoints:
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri
 
+        # Apply batching interval params
+        def _parse_intervals_from_cron_format(element: str):
+            # Get the interval value from the cron time format
+            res = element.partition("/")[-1].strip(" ")
+            return 0 if res == "" else float(res)
+
+        minutes, hours, day, _, _ = tuple(
+            map(
+                _parse_intervals_from_cron_format,
+                tracking_policy["batch_intervals"].split(" "),
+            )
+        )
+        batch_dict = {"minutes": minutes, "hours": hours, "days": day}
+        task.spec.parameters["batch_intervals_dict"] = batch_dict
+
         data = {
             "task": task.to_dict(),
             "schedule": tracking_policy["batch_intervals"],

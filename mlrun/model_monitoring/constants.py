@@ -24,7 +24,11 @@ class EventFieldType:
     LAST_REQUEST = "last_request"
     METRICS = "metrics"
     BATCH_TIMESTAMP = "batch_timestamp"
-    TIME_FORMAT: str = "%Y-%m-%d %H:%M:%S.%f"
+    TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
+    BATCH_INTERVALS_DICT = "batch_intervals_dict"
+    MINUTES = "minutes"
+    HOURS = "hours"
+    DAYS = "days"
 
 
 class EventLiveStats:

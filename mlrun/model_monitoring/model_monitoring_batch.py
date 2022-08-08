@@ -19,9 +19,8 @@ import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.utils import logger
-
-_TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
 
 class DriftStatus(Enum):
@@ -498,11 +497,11 @@ class BatchProcessor:
             model_monitoring_access_key or v3io_access_key
         )
 
-        # initialize virtual drift object
+        # Initialize virtual drift object
         self.virtual_drift = VirtualDrift(inf_capping=10)
 
-        # define the required paths for the project objects.
-        # note that the kv table, tsdb, and the input stream paths are located at the default location
+        # Define the required paths for the project objects.
+        # Note that the kv table, tsdb, and the input stream paths are located at the default location
         # while the parquet path is located at the user-space location
         template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
@@ -543,7 +542,7 @@ class BatchProcessor:
             stream_path=self.stream_path,
         )
 
-        # get drift thresholds from the model monitoring configuration
+        # Get drift thresholds from the model monitoring configuration
         self.default_possible_drift_threshold = (
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
@@ -551,10 +550,10 @@ class BatchProcessor:
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
 
-        # get a runtime database
+        # Get a runtime database
         self.db = mlrun.get_run_db()
 
-        # get the frames clients based on the v3io configuration
+        # Get the frames clients based on the v3io configuration
         # it will be used later for writing the results into the tsdb
         self.v3io = mlrun.utils.v3io_clients.get_v3io_client(
             access_key=self.v3io_access_key
@@ -565,8 +564,11 @@ class BatchProcessor:
             token=self.v3io_access_key,
         )
 
-        # if an error occurs, it will be raised using the following argument
+        # If an error occurs, it will be raised using the following argument
         self.exception = None
+
+        # Get the batch interval range
+        self.batch_dict = context.parameters[EventFieldType.BATCH_INTERVALS_DICT]
 
     def post_init(self):
         """
@@ -638,9 +640,13 @@ class BatchProcessor:
                 m_fs = fstore.get_feature_set(
                     f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
                 )
+
+                # Getting batch interval start time and end time
+                start_time, end_time = self.get_interval_range()
+
                 df = m_fs.to_dataframe(
-                    start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
-                    end_time=datetime.datetime.now(),
+                    start_time=start_time,
+                    end_time=end_time,
                     time_column="timestamp",
                 )
 
@@ -749,7 +755,9 @@ class BatchProcessor:
                 # Update the results in tsdb:
                 tsdb_drift_measures = {
                     "endpoint_id": endpoint_id,
-                    "timestamp": pd.to_datetime(timestamp, format=_TIME_FORMAT),
+                    "timestamp": pd.to_datetime(
+                        timestamp, format=EventFieldType.TIME_FORMAT
+                    ),
                     "record_type": "drift_measures",
                     "tvd_mean": drift_result["tvd_mean"],
                     "kld_mean": drift_result["kld_mean"],
@@ -768,6 +776,20 @@ class BatchProcessor:
             except Exception as e:
                 logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
+
+    def get_interval_range(self):
+        # Getting batch interval time range
+        minutes, hours, days = (
+            self.batch_dict[EventFieldType.MINUTES],
+            self.batch_dict[EventFieldType.HOURS],
+            self.batch_dict[EventFieldType.DAYS],
+        )
+        start_time = (
+            datetime.datetime.now()
+            - datetime.timedelta(minutes=minutes, hours=hours, days=days),
+        )
+        end_time = datetime.datetime.now()
+        return start_time, end_time
 
 
 def handler(context: mlrun.run.MLClientCtx):

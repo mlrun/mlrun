@@ -156,7 +156,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "with_security_context is not supported with spark operator"
+            "with_security_context is not supported with remote spark"
         )
 
     @property

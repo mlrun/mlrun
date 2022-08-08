@@ -113,12 +113,11 @@ html_theme_options = {
     "path_to_docs": "docs",
     "home_page_in_toc": False,
     "repository_branch": "development",
-    "show_navbar_depth": 0,
+    "show_navbar_depth": 1,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
     "google_analytics_id": "",
-    "collapse_navigation": False,
-    }
+}
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
 
@@ -168,4 +167,3 @@ def setup(app):
 #        'jupyter', 'nbconvert',
 #        '--output', f'{project_root}/docs/external/basics.html',
 #        f'{project_root}/examples/mlrun_basics.ipynb',
-#    ])

@@ -726,8 +726,9 @@ class ParquetTarget(BaseStoreTarget):
             )
             after_step = after_step or after_state
 
+        self.path = path
         if partitioned is None:
-            partitioned = True
+            partitioned = not self.is_single_file()
 
         super().__init__(
             name,

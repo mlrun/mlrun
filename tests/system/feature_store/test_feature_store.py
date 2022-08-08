@@ -42,6 +42,7 @@ from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator
 from mlrun.features import MinMaxValidator
+from mlrun.utils import default_time_partitioning_granularity
 from tests.system.base import TestMLRunSystem
 
 from .data_sample import quotes, stocks, trades
@@ -831,7 +832,7 @@ class TestFeatureStore(TestMLRunSystem):
                 time_partitioning_granularity,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = default_time_partitioning_granularity
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
                 expected_partitions.append(unit)

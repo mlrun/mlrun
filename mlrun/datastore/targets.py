@@ -28,6 +28,7 @@ import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
+from mlrun.utils.helpers import default_time_partitioning_granularity, legal_time_units
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
@@ -513,7 +514,9 @@ class BaseStoreTarget(DataTargetBase):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity
                 if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = "hour"
+                    time_partitioning_granularity = (
+                        default_time_partitioning_granularity
+                    )
                 for unit, fmt in [
                     ("year", "%Y"),
                     ("month", "%m"),
@@ -743,14 +746,12 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             time_partitioning_granularity is not None
-            and time_partitioning_granularity not in self._legal_time_units
+            and time_partitioning_granularity not in legal_time_units
         ):
             raise errors.MLRunInvalidArgumentError(
-                f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
+                f"time_partitioning_granularity parameter must be one of {','.join(legal_time_units)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
@@ -810,10 +811,10 @@ class ParquetTarget(BaseStoreTarget):
                 self.partition_cols,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = default_time_partitioning_granularity
         if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
-            for time_unit in self._legal_time_units:
+            for time_unit in legal_time_units:
                 partition_cols.append(f"${time_unit}")
                 if time_unit == time_partitioning_granularity:
                     break
@@ -863,9 +864,9 @@ class ParquetTarget(BaseStoreTarget):
                 and self.partitioned
                 and not self.partition_cols
             ):
-                time_partitioning_granularity = "hour"
+                time_partitioning_granularity = default_time_partitioning_granularity
             if time_partitioning_granularity:
-                for unit in self._legal_time_units:
+                for unit in legal_time_units:
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break

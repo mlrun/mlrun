@@ -20,6 +20,7 @@ from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
 import mlrun.api.schemas
+from mlrun.utils.helpers import default_time_partitions, legal_time_units
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
@@ -796,16 +797,16 @@ class FeatureSet(ModelObj):
         )
         drop_cols = []
         if target.time_partitioning_granularity:
-            for col in target._legal_time_units:
+            for col in legal_time_units:
                 drop_cols.append(col)
-                if col in target.time_partitioning_granularity:
+                if col == target.time_partitioning_granularity:
                     break
         elif (
             target.partitioned
             and not target.partition_cols
             and not target.key_bucketing_number
         ):
-            drop_cols = ["year", "month", "day", "hour"]
+            drop_cols = default_time_partitions
         if drop_cols:
             result.drop(columns=drop_cols, inplace=True)
         return result

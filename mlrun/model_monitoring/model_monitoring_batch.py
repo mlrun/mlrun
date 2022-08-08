@@ -786,7 +786,7 @@ class BatchProcessor:
         )
         start_time = (
             datetime.datetime.now()
-            - datetime.timedelta(minutes=minutes, hours=hours, days=days),
+            - datetime.timedelta(minutes=minutes, hours=hours, days=days)
         )
         end_time = datetime.datetime.now()
         return start_time, end_time

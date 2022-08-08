@@ -1,118 +1,121 @@
-# Documenting mlrun
+# Contributing To MLRun
 
-This document describe how to write the external documentation for `mlrun`, the
-one you can view at https://mlrun.readthedocs.io
 
-## Technology
-
-We use [sphinx](https://www.sphinx-doc.org/en/master/) for documentation.
-The documentation files are in
-[reStructuredText](https://docutils.sourceforge.io/rst.html) format.
-The master document is `docs/index.rst`. Every file included in the `.. toctree::`
-section publishes as a separate HTML page.
-
-The configuration is at: `docs/conf.py`.
-
-To build the doc, run `make html-docs`, then open `docs/_build/html/index.html`
-
-## "External" Documentation
-In order to avoid duplication, the `setup` function in `docs/conf.py` copies
-over some markdown files into `docs/external/`. It also generates HTML from a
-notebook in the `examples` directory which is embedded in `docs/examples.rst`.
-
-## readthedocs
-There's a git hook in `readthedocs` that builds the documentation.
-See https://readthedocs.org/projects/mlrun/ for more details.
-Ask @yaronha to add you to the project if you don't have access.
-
-## Structure 
-
-The master file is `docs/index.rst`
-
-## Language (usage) guidelines
-
-**One idea per sentence**<br>
-Don’t join multiple ideas with commas. 
-This 1 sentence needs to be split into 3. Every comma should be a period:
-In many cases the features can have null values (None, NaN, Inf, ..), the Enrichment routers can substitute the null value with fixed or 
-statistical value per feature, this is done through the impute_policy parameter which accepts the impute policy per feature (where * is 
-used to specify the default), the value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical values.
-
-**Hyphens, dashes**<br>
-- To join two nouns, use a - (hyphen). <br>
-- Use colons or &mdash; when separating text (not hyphen):
-   - Yes: `v3io` storage through API: 
-   - Yes: `v3io` storage through API&mdash; 
-   - No: `v3io` storage through API - 
-- For a range of numbers, use the &ndash;  For example: The range is 2&ndash;4. 
-
-**Commas**<br>
-The commas in the docs were (almost) standardized with what is called the Oxford comma. That is the comma before the "and":
-- Yes: The feature store supports using Spark for ingesting, transforming, and writing results to data targets.
-- No: The feature store supports using Spark for ingesting, transforming and writing results to data targets.
-(It’s acceptable to write both with and without that comma. But the docs now use it.)
-
-Use commas before an independent clause:
-- Yes: While each of those layers is independent, the integration provides much greater value and simplicity.
-- As mentioned above, don't use commas to string together multiple independent phrases to make a (very long) sentence.
-
-**That vs. which**<br>
-It depends on your sentence. Use **which** after a comma.
-- Yes: There is also an open marketplace that stores many pre-developed functions for...
-- Yes: If you update the project object you need to run project.save(), which updates the project.yaml file....
-- No: There is also an open marketplace which stores many pre-developed functions for...
-
-**Lists**<br>
-- Use numbered lists for steps that are executed in a specific order.
-- Use bullets for lists that have no specific order.
-
-**Tense**<br>
-Use present, active tense.
-- Yes: Use the beat meat for your stew.
-- No: The best meat can be used for your stew.
-- No: The best meat could be used for your stew.
-- No: You’ll use the best meat for your stew.
-
-**Person**<br>
-- Use you and yours, not we and ours.
-     You can blah blah… Your system blah blah….
-
-**May, might, can**<br>
-- Can implies what is possible. For the docs, you can do something because the system supports it.
-- Might implies options. 
-- May implies permission. Rarely used.<br>
-Do not use may in place of can! 
-- Yes: You can update the code using...
-- Yes: As use-cases evolve, other types of storage access might be needed.
-- No: As use-cases evolve, other types of storage access may be needed.
-
-## Documenting APIs
-
-`docs/api.rst` is the general documentation and `docs/mlrun.rst` contains the
-code documentation.
-
-To add a module to be documented. Add it to `docs/mlrun.rst`, for example:
-```rst
-mlrun.run module
-----------------
-
-.. automodule:: mlrun.run
-   :members:
-   :show-inheritance:
+## Creating a development environment
+1. clone your fork and cd into the repo directory
+    ```shell script
+    git clone git@github.com:<your username>/mlrun.git
+    cd mlrun
+    ```
+2. Set up a virtualenv for running tests (we recommend using venv)
+    ```shell script
+    python -m venv venv
+    source venv/bin/activate
+    ```
+3. Install mlrun, dependencies and test dependencies
+    ```shell script
+    make install-requirements
+    pip install -e '.[complete]'
+    ```
+   
+## Formatting
+We use [black](https://github.com/psf/black) as our formatter, you can basically write your code 
+how ever you want, and when you finish black will simply format it for you by running 
+```shell script
+make fmt
 ```
 
-When the object is import in `__init__.py` from a sub module, you'll need to
-tell sphinx a bit more one how to document it and *must* add the object to
-`__all__`. For example:
+## Testing
+* Lint
+    ```shell script
+    make lint
+    ```
+* Unit tests
+    ```shell script
+    make test-dockerized
+    ```
+* System tests - see dedicated section below
 
-```rst
-mlrun.projects module
----------------------
+## Pull requests
+* **Title** - our convention for the pull request title (used as the squashed commit message) is to have it starting with 
+[\<scope\>] e.g. "[API] Adding endpoint to list runs"
+* **Description** - It's much easier to review when there is a detailed description of the changes, and especially the why-s,
+please put effort in writing good description
+* **Tests** - we care a lot about tests! if your PR will include good test coverage higher chances it will be merged fast
 
-.. automodule:: mlrun.projects
-   :members:
-   :show-inheritance:
+## System Tests
+In the `tests/system/` directory exist test suites to run against a running system, in order to test full MLRun flows.
 
-.. autoclass:: MlrunProject
-   :members:
+### Adding System Tests
+To add new system tests, all that is required is to create a test suite class which inherits the `TestMLRunSystem`
+class from `tests.system.base`. In addition, a special `skip` annotation must be added to the suite, so it won't run 
+if the `env.yml` isn't filled. If the test can only run on a full iguazio system and not on an MLRun Kit instance, add
+the `enterprise` marker under the `skip` annotation or on the test method itself. If the `enterprise` marker is added
+to a specific test method, the `skip` annotation must be added above it in addition to the annotation over the test 
+suite. This is because enterprise tests and open source tests require different env vars to be set in the `env.yml`.
+
+For example:
+```python
+import pytest
+from tests.system.base import TestMLRunSystem
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestSomeFunctionality(TestMLRunSystem):
+    def test_the_functionality(self):
+        pass
 ```
+
+Example of a suite with two tests, one of them meant for enterprise only
+```python
+import pytest
+from tests.system.base import TestMLRunSystem
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestSomeFunctionality(TestMLRunSystem):
+
+    def test_open_source_features(self):
+        pass
+
+    @TestMLRunSystem.skip_test_if_env_not_configured
+    @pytest.mark.enterprise
+    def test_enterprise_features(self):
+        pass
+```
+
+If some setup or teardown is required for the tests in the suite, add these following functions to the suite:
+```python
+from tests.system.base import TestMLRunSystem
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestSomeFunctionality(TestMLRunSystem):
+    
+    def custom_setup(self):
+        pass
+    
+    def custom_teardown(self):
+        pass
+    
+    def test_the_functionality(self):
+        pass
+```
+
+From here, just use the MLRun sdk within the setup/teardown functions and the tests themselves with regular pytest
+functionality. The MLRun SDK will work against the live system you configured, and you can write the tests as you would
+any other pytest test.
+
+#### Running System Tests Locally
+>**Note** - Running system tests locally is helpful only when adding new tests, and not when testing
+> regression on new code changes. For that, see the section below.
+1. Ensure you have a running system which is accessible via HTTPS from where you are running the tests.
+2. Fill the `tests/system/env.yml` with the `MLRUN_DBPATH`, `V3IO_API`, `V3IO_FRAMESD`, `V3IO_USERNAME` and 
+   `V3IO_ACCESS_KEY` (at this moment, `V3IO_PASSWORD` isn't required).
+3. Run the system tests by running `make test-system`.
+
+### Checking system test regression on new code
+Currently, this can only be done by one of the maintainers, the process is:
+1. Push your changes to a branch in the upstream repo
+2. Go to the [build action](https://github.com/mlrun/mlrun/actions?query=workflow%3ABuild) and trigger it for the branch 
+(leave all options default)
+3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger 
+it for the branch, change "Take tested code from action REF" to `true`

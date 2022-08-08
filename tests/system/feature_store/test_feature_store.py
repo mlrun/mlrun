@@ -1605,7 +1605,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
-        targets = [ParquetTarget(columns=columns)]
+        targets = [ParquetTarget(columns=columns, partitioned=False)]
         quotes_set, _ = prepare_feature_set(
             "forced-columns", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -1625,7 +1625,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(csv_vec)
         csv_vec_df = resp.to_dataframe()
 
-        targets = [ParquetTarget()]
+        targets = [ParquetTarget(partitioned=False)]
         parquet_align_set, _ = prepare_feature_set(
             "parquet-align", "ticker", quotes, timestamp_key="time", targets=targets
         )

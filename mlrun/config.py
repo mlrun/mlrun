@@ -37,8 +37,8 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.api
 import mlrun.errors
-from mlrun.api.schemas import SecurityContextEnrichmentModes
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -597,7 +597,7 @@ class Config:
     def verify_security_context_enrichment_mode_is_allowed(self):
         if (
             config.function.spec.security_context.enrichment_mode
-            == SecurityContextEnrichmentModes.disabled.value
+            == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
         ):
             return
 

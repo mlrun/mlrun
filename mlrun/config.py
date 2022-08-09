@@ -608,7 +608,7 @@ class Config:
 
         if igz_version < semver.VersionInfo.parse("3.5.1-b1"):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Security context enrichment mode enabled (override/retain) is not allowed for iguazio version < 3.5.1"
+                f"Security context enrichment mode enabled (override/retain) is not allowed for iguazio version: {igz_version} < 3.5.1"
             )
 
     def resolve_kfp_url(self, namespace=None):

@@ -1269,7 +1269,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        data_target = ParquetTarget()
+        data_target = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[data_target])
 
@@ -1377,7 +1377,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget()
+        target2 = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
@@ -1394,7 +1394,7 @@ class TestFeatureStore(TestMLRunSystem):
             timestamp_key="time",
         )
 
-        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet", partitioned=False)]
 
         fs.ingest(
             feature_set,

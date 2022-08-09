@@ -2610,7 +2610,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert df_res.equals(expected_df)
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(

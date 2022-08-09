@@ -138,8 +138,13 @@ default_config = {
                 "default": "e30=",  # encoded empty dict
                 # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
-                # default 65534 (nogroup), set to -1 to use the user unix id
+                # default 65534 (nogroup), set to -1 to use the user unix id or
+                # function.spec.security_context.pipelines.kfp_pod_user_unix_id for kfp pods
                 "enrichment_group_id": 65534,
+                "pipelines": {
+                    # sets the user id to be used for kfp pods when enrichment mode is not disabled
+                    "kfp_pod_user_unix_id": 5,
+                },
             },
             "service_account": {"default": None},
         },
@@ -196,6 +201,7 @@ default_config = {
         "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
+        "retry_api_call_on_exception": "enabled",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -558,6 +564,23 @@ class Config:
         return config.igz_version is not None and config.igz_version != ""
 
     @staticmethod
+    def get_security_context_enrichment_group_id(user_unix_id: int) -> int:
+        enrichment_group_id = int(
+            config.function.spec.security_context.enrichment_group_id
+        )
+
+        # if enrichment group id is -1 we set group id to user unix id
+        if enrichment_group_id == -1:
+            if user_unix_id is None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "User unix id is required to populate group id when enrichment group id is -1."
+                    "See mlrun.config.function.spec.security_context.enrichment_group_id for more details."
+                )
+            return user_unix_id
+
+        return enrichment_group_id
+
+    @staticmethod
     def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
         if not config.igz_version:
             return None
@@ -569,6 +592,25 @@ class Config:
             # like 3.0_b177_20210806003728
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
+
+    def verify_security_context_enrichment_mode_is_allowed(self):
+
+        # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
+        #  importing mlrun.api
+        if config.function.spec.security_context.enrichment_mode == "disabled":
+            return
+
+        igz_version = self.get_parsed_igz_version()
+        if not igz_version:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
+            )
+
+        if igz_version < semver.VersionInfo.parse("3.5.1-b1"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Security context enrichment mode enabled (override/retain) "
+                f"is not allowed for iguazio version: {igz_version} < 3.5.1"
+            )
 
     def resolve_kfp_url(self, namespace=None):
         if config.kfp_url:
@@ -845,6 +887,8 @@ def _validate_config(config):
         )
     except AttributeError:
         pass
+
+    config.verify_security_context_enrichment_mode_is_allowed()
 
 
 def _convert_resources_to_str(config: dict = None):

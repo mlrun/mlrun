@@ -11,7 +11,7 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
     def __init__(self) -> None:
         super().__init__()
         self.db_session = None
-        self.project_owner_session = ""
+        self.project_owner_access_key = ""
         self._project_role = mlrun.api.schemas.ProjectsRole.nop
 
     def create_project(
@@ -98,5 +98,5 @@ class Member(mlrun.api.utils.projects.remotes.leader.Member):
     ) -> mlrun.api.schemas.ProjectOwner:
         project = self.get_project(session, name)
         return mlrun.api.schemas.ProjectOwner(
-            username=project.spec.owner, session=self.project_owner_session
+            username=project.spec.owner, access_key=self.project_owner_access_key
         )

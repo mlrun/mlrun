@@ -73,7 +73,8 @@ def default_target_names():
 def get_default_targets():
     """initialize the default feature set targets list"""
     return [
-        DataTargetBase(target, name=str(target)) for target in default_target_names()
+        DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
+        for target in default_target_names()
     ]
 
 

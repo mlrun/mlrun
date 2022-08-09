@@ -535,8 +535,8 @@ def test_verify_security_context_enrichment_mode_is_allowed_failure():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         mlconf.config.verify_security_context_enrichment_mode_is_allowed()
     assert (
-        f"Security context enrichment mode enabled (override/retain) is not allowed for iguazio version: {igz_version} < 3.5.1"
-        in str(exc.value)
+        f"Security context enrichment mode enabled (override/retain) "
+        f"is not allowed for iguazio version: {igz_version} < 3.5.1" in str(exc.value)
     )
 
     igz_version = "3.4.2-b1"
@@ -544,8 +544,8 @@ def test_verify_security_context_enrichment_mode_is_allowed_failure():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         mlconf.config.verify_security_context_enrichment_mode_is_allowed()
     assert (
-        f"Security context enrichment mode enabled (override/retain) is not allowed for iguazio version: {igz_version} < 3.5.1"
-        in str(exc.value)
+        f"Security context enrichment mode enabled (override/retain) "
+        f"is not allowed for iguazio version: {igz_version} < 3.5.1" in str(exc.value)
     )
 
     mlconf.config.igz_version = ""

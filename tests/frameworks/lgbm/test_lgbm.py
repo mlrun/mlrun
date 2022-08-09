@@ -32,10 +32,10 @@ def test_training_api_training(algorithm_functionality: str):
     print(json.dumps(train_run.outputs, indent=4))
 
     # Validate artifacts (model artifact shouldn't be counted, hence the '-1'):
-    assert len(train_run.status.artifacts) - 1 == 2
+    assert len(train_run.status.artifacts) - 1 > 0
 
     # Validate results (context parameters shouldn't be counted, hence the '-1'):
-    assert len(train_run.status.results) - 1 == 2
+    assert len(train_run.status.results) - 1 > 0
 
 
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)

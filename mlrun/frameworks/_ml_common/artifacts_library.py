@@ -9,7 +9,7 @@ from .plans import (
     FeatureImportancePlan,
     ROCCurvePlan,
 )
-from .utils import AlgorithmFunctionality, MLTypes
+from .utils import MLTypes, MLUtils
 
 
 class MLArtifactsLibrary(ArtifactsLibrary, ABC):
@@ -43,9 +43,7 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
         :return: The default artifacts plans list.
         """
         # Discover the algorithm functionality of the provided model:
-        algorithm_functionality = AlgorithmFunctionality.get_algorithm_functionality(
-            model=model, y=y
-        )
+        algorithm_functionality = MLUtils.get_algorithm_functionality(model=model, y=y)
 
         # Initialize the plans list:
         plans = [DatasetPlan(purpose=DatasetPlan.Purposes.TEST)]

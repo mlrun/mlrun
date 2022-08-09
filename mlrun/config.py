@@ -595,7 +595,7 @@ class Config:
 
     def verify_security_context_enrichment_mode_is_allowed(self):
 
-        # TODO: move SecurityContextEnrichmentModes to different package so that we could use it here without
+        # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
         #  importing mlrun.api
         if config.function.spec.security_context.enrichment_mode == "disabled":
             return

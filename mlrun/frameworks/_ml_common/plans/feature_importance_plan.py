@@ -50,19 +50,17 @@ class FeatureImportancePlan(MLPlotPlan):
 
         :return: The produced feature importance artifact in an artifacts dictionary.
         """
-        # Validate the 'feature_importances_' or 'coef_' fields are available for the given model:
-        if not (hasattr(model, "feature_importances_") or hasattr(model, "coef_")):
+        # Get the importance score:
+        if hasattr(model, "feature_importances_"):  # Tree-based feature importance
+            importance_score = model.feature_importances_
+        elif hasattr(model, "feature_importance"):  # Booster feature importance
+            importance_score = model.feature_importance()
+        elif hasattr(model, "coef_"):  # Coefficient-based importance
+            importance_score = model.coef_[0]
+        else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "This model cannot be used for Feature Importance plotting."
             )
-
-        # Get the importance score:
-        if hasattr(model, "feature_importances_"):
-            # Tree-based feature importance
-            importance_score = model.feature_importances_
-        else:
-            # Coefficient-based importance
-            importance_score = model.coef_[0]
 
         # Create a table of features and their importance:
         df = pd.DataFrame(

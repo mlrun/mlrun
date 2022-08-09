@@ -79,7 +79,7 @@ class Project(pydantic.BaseModel):
 
 class ProjectOwner(pydantic.BaseModel):
     username: str
-    session: str
+    access_key: str
 
 
 class ProjectSummary(pydantic.BaseModel):

@@ -217,6 +217,7 @@ class TestProject(TestMLRunSystem):
             "-w",
             "-p",
             f"v3io:///projects/{name}",
+            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -240,7 +241,8 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         print(out)
-
+        project2 = mlrun.load_project(project_dir)
+        project2.save()
         # exec the workflow
         args = [
             "-n",
@@ -252,6 +254,7 @@ class TestProject(TestMLRunSystem):
             "remote",
             "-p",
             f"v3io:///projects/{name}",
+            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)

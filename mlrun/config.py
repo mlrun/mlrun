@@ -37,7 +37,6 @@ import dotenv
 import semver
 import yaml
 
-import mlrun.api
 import mlrun.errors
 
 env_prefix = "MLRUN_"
@@ -595,10 +594,10 @@ class Config:
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
-        if (
-            config.function.spec.security_context.enrichment_mode
-            == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
-        ):
+
+        # TODO: move SecurityContextEnrichmentModes to different package so that we could use it here without
+        #  importing mlrun.api
+        if config.function.spec.security_context.enrichment_mode == "disabled":
             return
 
         igz_version = self.get_parsed_igz_version()

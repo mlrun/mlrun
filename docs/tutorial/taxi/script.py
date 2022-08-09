@@ -1,11 +1,8 @@
-import datetime as dt
 import gc
-import os
 
 import lightgbm as lgbm
 import numpy as np
 import pandas as pd
-import scipy as scipy
 from sklearn.model_selection import train_test_split
 
 # [MLRun] Import MLRun:
@@ -68,14 +65,11 @@ def sphere_dist_bear(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
     """
     Return distance along great radius between pickup and dropoff coordinates.
     """
-    # Define earth radius (km)
-    R_earth = 6371
     # Convert degrees to radians
     pickup_lat, pickup_lon, dropoff_lat, dropoff_lon = map(
         np.radians, [pickup_lat, pickup_lon, dropoff_lat, dropoff_lon]
     )
     # Compute distances along lat, lon dimensions
-    dlat = dropoff_lat - pickup_lat
     dlon = pickup_lon - dropoff_lon
 
     # Compute bearing distance

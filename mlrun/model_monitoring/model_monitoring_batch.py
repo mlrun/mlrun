@@ -659,6 +659,9 @@ class BatchProcessor:
                         )
                         continue
 
+                # TODO: The below warn will be removed once the state of the Feature Store target is updated
+                #       as expected. In that case, the existence of the file will be checked before trying to get
+                #       the offline data from the feature set.
                 # Continue if not enough events provided since the deployment of the model endpoint
                 except FileNotFoundError:
                     logger.warn(

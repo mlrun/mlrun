@@ -552,6 +552,6 @@ def test_verify_security_context_enrichment_mode_is_allowed_failure():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
         mlconf.config.verify_security_context_enrichment_mode_is_allowed()
     assert (
-        f"Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
+        "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
         in str(exc.value)
     )

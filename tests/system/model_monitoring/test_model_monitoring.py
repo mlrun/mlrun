@@ -24,6 +24,7 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.model_monitoring import EndpointType
 from mlrun.utils.v3io_clients import get_frames_client
@@ -520,7 +521,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
         # Define tracking policy
-        tracking_policy = {"default_batch_intervals": "0 */3 * * *"}
+        tracking_policy = {EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"}
 
         # Enable model monitoring
         serving_fn.set_tracking(tracking_policy=tracking_policy)

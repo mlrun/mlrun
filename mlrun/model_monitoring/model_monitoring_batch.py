@@ -800,7 +800,7 @@ class BatchProcessor:
                 logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
 
-    def get_interval_range(self):
+    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         # Getting batch interval time range
         minutes, hours, days = (
             self.batch_dict[EventFieldType.MINUTES],

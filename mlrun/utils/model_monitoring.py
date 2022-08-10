@@ -4,11 +4,10 @@ from dataclasses import dataclass
 from typing import Optional
 
 import mlrun
+import mlrun.model
 from mlrun.config import config
 from mlrun.platforms.iguazio import parse_v3io_path
 from mlrun.utils import parse_versioned_object_uri
-
-from ..model import ModelObj
 
 
 @dataclass
@@ -122,7 +121,7 @@ class EndpointType(enum.IntEnum):
     LEAF_EP = 3  # end point that is a child of a router
 
 
-class TrackingPolicy(ModelObj):
+class TrackingPolicy(mlrun.model.ModelObj):
     """
     Modified model monitoring configurations. By using TrackingPolicy, the user can apply his model monitoring
     requirements, such as setting the scheduling policy of the model monitoring batch job or changing the image of the

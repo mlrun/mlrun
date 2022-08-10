@@ -323,8 +323,9 @@ class ServingRuntime(RemoteRuntime):
         self.spec.track_models = True
         self.spec.tracking_policy = model_monitoring.TrackingPolicy()
         if tracking_policy:
-            for key in tracking_policy:
-                setattr(self.spec.tracking_policy, key, tracking_policy[key])
+            self.spec.tracking_policy = self.spec.tracking_policy.from_dict(
+                tracking_policy
+            )
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:

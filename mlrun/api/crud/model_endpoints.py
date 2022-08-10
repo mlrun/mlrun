@@ -24,6 +24,7 @@ import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.utils import logger
 
 
@@ -876,23 +877,19 @@ class ModelEndpoints:
         task.spec.function = function_uri
 
         # Apply batching interval params
-        def _parse_intervals_from_cron_format(element: str):
-            # Get the interval value from the cron time format
-            res = element.partition("/")[-1].strip(" ")
-            return 0 if res == "" else float(res)
-
         minutes, hours, day, _, _ = tuple(
             map(
-                _parse_intervals_from_cron_format,
-                tracking_policy["default_batch_intervals"].split(" "),
+                lambda element: float(f"0{element.partition('/')[-1].strip(' ')}"),
+                tracking_policy[EventFieldType.DEFAULT_BATCH_INTERVALS].split(" "),
             )
         )
+
         batch_dict = {"minutes": minutes, "hours": hours, "days": day}
-        task.spec.parameters["batch_intervals_dict"] = batch_dict
+        task.spec.parameters[EventFieldType.BATCH_INTERVALS_DICT] = batch_dict
 
         data = {
             "task": task.to_dict(),
-            "schedule": tracking_policy["default_batch_intervals"],
+            "schedule": tracking_policy[EventFieldType.DEFAULT_BATCH_INTERVALS],
         }
 
         logger.info(

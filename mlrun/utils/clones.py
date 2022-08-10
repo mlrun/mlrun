@@ -14,7 +14,6 @@ from .helpers import logger
 
 
 def _remove_directory_contents(target_dir):
-    # target_path = os.path.abspath(target_dir)
     for filename in os.listdir(target_dir):
         file_path = os.path.join(target_dir, filename)
         if os.path.isfile(file_path) or os.path.islink(file_path):

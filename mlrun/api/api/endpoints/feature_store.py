@@ -314,6 +314,10 @@ def ingest_feature_set(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    """
+    This endpoint is being called only through the UI, this is mainly for enrichment of the feature set
+    that already being happen on client side
+    """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,

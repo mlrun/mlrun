@@ -13,11 +13,21 @@ import mlrun
 from .helpers import logger
 
 
+def _remove_directory_contents(target_dir):
+    # target_path = os.path.abspath(target_dir)
+    for filename in os.listdir(target_dir):
+        file_path = os.path.join(target_dir, filename)
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
+
+
 def _prep_dir(source, target_dir, suffix, secrets, clone):
     if not target_dir:
         raise ValueError("please specify a target (context) directory for clone")
     if clone and path.exists(target_dir) and path.isdir(target_dir):
-        shutil.rmtree(target_dir)
+        _remove_directory_contents(target_dir)
 
     temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
     mlrun.get_dataitem(source, secrets).download(temp_file)

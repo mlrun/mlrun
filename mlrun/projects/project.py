@@ -223,9 +223,9 @@ def load_project(
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
+            clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
-            clone_zip(url, context, secrets)
+            clone_zip(url, context, secrets, clone)
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context

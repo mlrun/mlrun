@@ -358,6 +358,8 @@ def ingest_feature_set(
             auth_info,
         )
     # Need to override the default rundb since we're in the server.
+    # this is done so further down the flow when running the function created for ingestion we won't access the httpdb
+    # but rather "understand" that we are running on server side and call the DB.
     feature_set._override_run_db(db_session)
 
     if ingest_parameters.targets:

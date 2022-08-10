@@ -365,6 +365,8 @@ def ingest_feature_set(
     run_config = RunConfig(
         owner=username,
         credentials=mlrun.model.Credentials(ingest_parameters.credentials.access_key),
+        # setting auth_info to indicate that we are running on server side
+        auth_info=auth_info,
     )
 
     # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and

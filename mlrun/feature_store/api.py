@@ -373,8 +373,7 @@ def ingest(
             "feature set and source must be specified"
         )
 
-    # expected to enter here when running on server side because we are always creating run_config
-    # note that the above comment doesn't mean that we are not entering this on client side.
+    # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(

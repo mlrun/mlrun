@@ -235,7 +235,7 @@ class RunConfig:
         :param code:        function source code (as string)
         :param requirements: python requirements file path or list of packages
         :param extra_spec:  additional dict with function spec fields/values to add to the function
-        :param auth_info:   used when running on server side
+        :param auth_info:   authentication info. *For internal use* when running on server
         """
         self._function = None
         self._modifiers = []

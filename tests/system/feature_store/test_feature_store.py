@@ -1928,7 +1928,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     # After moving to run on a new system test environment this test was running for 75 min and then failing
     # skipping until it get fixed as this results all the suite to run much longer
-    @pytest.mark.skip("FIX_ME")
+    @pytest.mark.timeout(180)
     def test_purge_nosql(self):
         def get_v3io_api_host():
             """Return only the host out of v3io_api
@@ -1971,7 +1971,9 @@ class TestFeatureStore(TestMLRunSystem):
                 with_defaults=False,
                 targets=test_target,
             )
+            self._logger.info(f"ingesting with target {tar.name}")
             fs.ingest(fset, source)
+            self._logger.info(f"purging target {tar.name}")
             verify_purge(fset, test_target)
 
     def test_ingest_dataframe_index(self):

@@ -217,6 +217,7 @@ class TestProject(TestMLRunSystem):
             "-w",
             "-p",
             f"v3io:///projects/{name}",
+            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -252,6 +253,7 @@ class TestProject(TestMLRunSystem):
             "remote",
             "-p",
             f"v3io:///projects/{name}",
+            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)

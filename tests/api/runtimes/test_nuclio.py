@@ -456,11 +456,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
-
+        auth_info = mlrun.api.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, None, function)
+        _build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa1"
         )
@@ -468,12 +468,12 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function.spec.service_account = "bad-sa"
         with pytest.raises(HTTPException):
-            _build_function(db, None, function)
+            _build_function(db, auth_info, function)
 
         # verify that project SA overrides the global SA
         mlconf.function.spec.service_account.default = "some-other-sa"
         function.spec.service_account = "sa2"
-        _build_function(db, None, function)
+        _build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa2"
         )
@@ -509,11 +509,11 @@ class TestNuclioRuntime(TestRuntimeBase):
     ):
         service_account_name = "default-sa"
         mlconf.function.spec.service_account.default = service_account_name
-
+        auth_info = mlrun.api.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, None, function)
+        _build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name,
             expected_service_account=service_account_name,

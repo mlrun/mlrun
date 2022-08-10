@@ -644,14 +644,37 @@ class BatchProcessor:
                 # Getting batch interval start time and end time
                 start_time, end_time = self.get_interval_range()
 
-                df = m_fs.to_dataframe(
-                    start_time=start_time,
-                    end_time=end_time,
-                    time_column="timestamp",
-                )
+                try:
+                    df = m_fs.to_dataframe(
+                        start_time=start_time,
+                        end_time=end_time,
+                        time_column="timestamp",
+                    )
 
-                # continue if no input provided in the previous hour
-                if len(df) == 0:
+                    if len(df) == 0:
+                        logger.warn(
+                            "Not enough model events since the beginning of the batch interval",
+                            parquet_target=m_fs.status.targets[0].path,
+                            endpoint=endpoint_id,
+                            min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                            start_time=str(
+                                datetime.datetime.now() - datetime.timedelta(hours=1)
+                            ),
+                            end_time=str(datetime.datetime.now()),
+                        )
+                        continue
+
+                # TODO: The below warn will be removed once the state of the Feature Store target is updated
+                #       as expected. In that case, the existence of the file will be checked before trying to get
+                #       the offline data from the feature set.
+                # Continue if not enough events provided since the deployment of the model endpoint
+                except FileNotFoundError:
+                    logger.warn(
+                        "Parquet not found, probably due to not enough model events",
+                        parquet_target=m_fs.status.targets[0].path,
+                        endpoint=endpoint_id,
+                        min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                    )
                     continue
 
                 # get feature names from monitoring feature set

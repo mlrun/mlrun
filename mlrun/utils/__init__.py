@@ -14,5 +14,6 @@
 
 from .azure_vault import AzureVaultStore  # noqa
 from .helpers import *  # noqa
+from .http import *  # noqa
 from .logger import *  # noqa
 from .vault import *  # noqa

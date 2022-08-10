@@ -42,8 +42,6 @@ from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
-from mlrun.utils import default_time_partitioning_granularity
-from mlrun.utils.helpers import default_time_partitions
 from tests.system.base import TestMLRunSystem
 
 from .data_sample import quotes, stocks, trades
@@ -833,7 +831,9 @@ class TestFeatureStore(TestMLRunSystem):
                 time_partitioning_granularity,
             ]
         ):
-            time_partitioning_granularity = default_time_partitioning_granularity
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
                 expected_partitions.append(unit)
@@ -1493,7 +1493,9 @@ class TestFeatureStore(TestMLRunSystem):
         side_file_out = pd.read_csv(side_file_path)
         default_file_out = pd.read_parquet(default_file_path)
         # default parquet target is partitioned
-        default_file_out.drop(columns=default_time_partitions, inplace=True)
+        default_file_out.drop(
+            columns=mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS, inplace=True
+        )
         self._split_graph_expected_default.set_index("ticker", inplace=True)
 
         assert all(self._split_graph_expected_default == default_file_out.round(2))

@@ -265,8 +265,10 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     # when running on server side there are multiple enrichments and validations to be applied on a function,
     # auth_info is an attribute which is been added only on server side.
     if run_config.auth_info:
-        # apply_enrichment_and_validation_on_function is a server side function we don't want to import it on client
+        # using from to not conflict with other mlrun imports
         from mlrun.api.api.utils import apply_enrichment_and_validation_on_function
+
+        # apply_enrichment_and_validation_on_function is a server side function we don't want to import it on client
         apply_enrichment_and_validation_on_function(function, run_config.auth_info)
 
     run = function.run(

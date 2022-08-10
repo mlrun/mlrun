@@ -3,7 +3,6 @@ import typing
 
 import fastapi
 import requests.adapters
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
@@ -28,12 +27,11 @@ class Client(
 
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            # when the request is forwarded to the chief, if we receive a 500 error, the code will be forwarded to the
+            # client, and the client will retry the request. So no need to retry the request to the chief here.
+            retry_on_status=False,
         )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
         # remove backslash from end of api url
         self._api_url = (

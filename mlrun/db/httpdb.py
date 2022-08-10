@@ -198,7 +198,10 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         if not self.session:
-            self.session = mlrun.utils.SessionWithRetry()
+            self.session = mlrun.utils.HTTPSessionWithRetry(
+                retry_on_exception=mlrun.config.config.httpdb.retry_api_call_on_exception
+                == "enabled"
+            )
 
         try:
             response = self.session.request(

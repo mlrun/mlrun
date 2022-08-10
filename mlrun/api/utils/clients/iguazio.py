@@ -59,7 +59,10 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session = mlrun.utils.SessionWithRetry()
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=mlrun.mlconf.projects.retry_leader_request_on_exception
+            == "enabled"
+        )
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds

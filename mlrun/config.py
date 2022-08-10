@@ -274,6 +274,7 @@ default_config = {
         },
         "projects": {
             "leader": "mlrun",
+            "retry_leader_request_on_exception": "enabled",
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",

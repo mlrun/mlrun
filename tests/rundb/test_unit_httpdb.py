@@ -85,6 +85,7 @@ def test_connection_reset_causes_retries(
 ):
     mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
     db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()
     requests.Session.request.side_effect = exception_type(exception_message)
 
@@ -94,3 +95,4 @@ def test_connection_reset_causes_retries(
             db.api_call("GET", "some-path")
 
     assert requests.Session.request.call_count == call_amount
+    requests.Session.request = original_request

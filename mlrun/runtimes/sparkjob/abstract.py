@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import typing
-from copy import copy, deepcopy
+from copy import deepcopy
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
@@ -44,7 +44,7 @@ from ...utils import (
 from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import generate_resources
+from ..utils import generate_resources, get_item_name
 
 _service_account = "sparkapp"
 _sparkjob_template = {
@@ -141,6 +141,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         affinity=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -169,6 +170,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             affinity=affinity,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -214,6 +216,8 @@ class AbstractSparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
+
+    # the dot will make the api prefix the configured registry to the image name
     default_mlrun_image = ".spark-job-default-image"
     gpu_suffix = "-cuda"
     code_script = "spark-function-code.py"
@@ -389,6 +393,9 @@ class AbstractSparkRuntime(KubejobRuntime):
             self.spec.replicas or 1,
             int,
         )
+        if self.spec.image_pull_secret:
+            update_in(job, "spec.imagePullSecrets", [self.spec.image_pull_secret])
+
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
 
@@ -605,16 +612,21 @@ with ctx:
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
         self._update_igz_jars(deps=self._get_igz_deps())
-        additional_executor_volume_mounts = copy(self.spec.volume_mounts)
-        self.apply(mount_v3io_extended())
+        self.apply(mount_v3io_extended(name="v3io"))
 
-        # move volume_mounts to driver and executor specific fields and leave v3io mounts
-        # out of executor mounts if mount_v3io_to_executor=False
-        self.spec.driver_volume_mounts += self.spec.volume_mounts
-        if mount_v3io_to_executor:
-            additional_executor_volume_mounts = self.spec.volume_mounts
-        self.spec.executor_volume_mounts += additional_executor_volume_mounts
-        self.spec.volume_mounts = []
+        # if we only want to mount v3io on the driver, move v3io
+        # mounts from common volume mounts to driver volume mounts
+        if not mount_v3io_to_executor:
+            v3io_mounts = []
+            non_v3io_mounts = []
+            for mount in self.spec.volume_mounts:
+                if get_item_name(mount) == "v3io":
+                    v3io_mounts.append(mount)
+                else:
+                    non_v3io_mounts.append(mount)
+            self.spec.volume_mounts = non_v3io_mounts
+            self.spec.driver_volume_mounts += v3io_mounts
+
         self.apply(
             mount_v3iod(
                 namespace=config.namespace,

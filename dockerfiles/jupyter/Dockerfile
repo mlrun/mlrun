@@ -2,11 +2,7 @@ FROM jupyter/scipy-notebook:python-3.8.8
 
 USER root
 RUN apt-get update && \
-    apt-get -s dist-upgrade | \
-    grep "^Inst" | \
-    grep -i securi | \
-    awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -29,10 +25,6 @@ COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
-ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.0.x https://github.com/mlrun/demos.git $HOME/demos
-RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
-
 RUN mkdir data
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/requirements.txt /tmp/requirements/jupyter-requirements.txt
@@ -47,6 +39,11 @@ RUN python -m pip install \
 
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
+
+# This will usually cause a cache miss - so keep it in the last layers
+ARG MLRUN_CACHE_DATE=initial
+RUN git clone --branch 1.0.x https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \

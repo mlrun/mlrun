@@ -481,6 +481,7 @@ def _build_function(
             mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
             mlrun.api.api.utils.process_function_service_account(fn)
             mlrun.api.api.utils.mask_sensitive_data(fn, auth_info)
+            mlrun.api.api.utils.ensure_function_security_context(fn, auth_info)
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -581,6 +582,7 @@ def _start_function(
             mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
             mlrun.api.api.utils.process_function_service_account(function)
             mlrun.api.api.utils.mask_sensitive_data(function, auth_info)
+            mlrun.api.api.utils.ensure_function_security_context(function, auth_info)
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function, client_version=client_version)
             function.save(versioned=False)
@@ -724,7 +726,7 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 db_session, project_name
             )
 
-            secret_value = project_owner.session
+            secret_value = project_owner.access_key
             if not secret_value:
                 raise MLRunRuntimeError(
                     f"No model monitoring access key. Failed to generate one for owner of project {project_name}",

@@ -61,7 +61,8 @@ class Client(
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-            == "enabled"
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+            verbose=True,
         )
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job

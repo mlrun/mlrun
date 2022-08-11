@@ -19,7 +19,7 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session = mlrun.utils.HTTPSessionWithRetry()
+        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.config.config.nuclio_dashboard_url
 
     def create_project(

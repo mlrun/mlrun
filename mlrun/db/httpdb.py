@@ -200,7 +200,7 @@ class HTTPRunDB(RunDBInterface):
         if not self.session:
             self.session = mlrun.utils.HTTPSessionWithRetry(
                 retry_on_exception=mlrun.config.config.httpdb.retry_api_call_on_exception
-                == "enabled"
+                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
             )
 
         try:

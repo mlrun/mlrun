@@ -31,6 +31,7 @@ class Client(
             # when the request is forwarded to the chief, if we receive a 500 error, the code will be forwarded to the
             # client, and the client will retry the request. So no need to retry the request to the chief here.
             retry_on_status=False,
+            verbose=True,
         )
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
         # remove backslash from end of api url

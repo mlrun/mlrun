@@ -19,7 +19,7 @@ class Provider(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session = mlrun.utils.HTTPSessionWithRetry()
+        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path

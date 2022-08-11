@@ -196,6 +196,7 @@ class RunConfig:
         code: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         extra_spec: dict = None,
+        auth_info=None,
     ):
         """class for holding function and run specs for jobs and serving functions
 
@@ -234,6 +235,7 @@ class RunConfig:
         :param code:        function source code (as string)
         :param requirements: python requirements file path or list of packages
         :param extra_spec:  additional dict with function spec fields/values to add to the function
+        :param auth_info:   authentication info. *For internal use* when running on server
         """
         self._function = None
         self._modifiers = []
@@ -251,6 +253,7 @@ class RunConfig:
         self.code = code or ""
         self.requirements = requirements
         self.extra_spec = extra_spec
+        self.auth_info = auth_info
 
     @property
     def function(self):

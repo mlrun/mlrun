@@ -14,12 +14,13 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api import schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.schemas import SecretProviderName
+from mlrun.api.schemas import SecretProviderName, SecurityContextEnrichmentModes
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -47,6 +48,22 @@ def project_logs_path(project) -> Path:
 
 
 def get_obj_path(schema, path, user=""):
+    """
+    Perform standardization and validation on paths, which may be provided with an inline schema or not, and may point
+    at FUSE mounted paths, which should be adjusted - these paths are replaced with schema-based paths that can be
+    accessed by MLRun's data-store mechanism and are not dependent on a specific mount configuration. Also, it validates
+    that the path is allowed access through APIs.
+
+    This method does the following:
+    - Merges `schema` provided as parameter with the schema given as part of path (if given)
+    - Changes User FUSE paths (beginning with `/User`) to v3io paths pointing at the user in the `users` container
+    - Changes v3io FUSE paths (beginning with `/v3io`) to v3io schema paths
+    - Replace paths in the `data_volume` configured in the MLRun config (if specified) to begin with `real_path`
+    - Validate that the path is allowed - allowed paths are those beginning with `v3io://`, `real_path` if specified,
+      and any path specified in the `httpdb.allowed_file_paths` config param
+    On success, the path returned will always be in the format `<schema>://<path>`
+    """
+    real_path = config.httpdb.real_path
     if path.startswith("/User/"):
         user = user or environ.get("V3IO_USERNAME", "admin")
         path = "v3io:///users/" + user + path[5:]
@@ -58,19 +75,27 @@ def get_obj_path(schema, path, user=""):
         data_volume_prefix = config.httpdb.data_volume
         if data_volume_prefix.endswith("/"):
             data_volume_prefix = data_volume_prefix[:-1]
-        if config.httpdb.real_path:
+        if real_path:
             path_from_volume = path[len(data_volume_prefix) :]
             if path_from_volume.startswith("/"):
                 path_from_volume = path_from_volume[1:]
-            path = str(Path(config.httpdb.real_path) / Path(path_from_volume))
+            path = str(Path(real_path) / Path(path_from_volume))
     if schema:
         schema_prefix = schema + "://"
         if not path.startswith(schema_prefix):
             path = f"{schema_prefix}{path}"
-    if not path.startswith("v3io://") and (
-        not config.httpdb.real_path
-        or (config.httpdb.real_path and not path.startswith(config.httpdb.real_path))
-    ):
+
+    # Check if path is allowed - v3io:// is always allowed, and also the real_path parameter if specified.
+    # We never allow local files in the allowed paths list. Allowed paths must contain a schema (://)
+    allowed_file_paths = config.httpdb.allowed_file_paths or ""
+    allowed_paths_list = [
+        path.strip() for path in allowed_file_paths.split(",") if "://" in path
+    ]
+    if real_path:
+        allowed_paths_list.append(real_path)
+    allowed_paths_list.append("v3io://")
+
+    if not any(path.startswith(allowed_path) for allowed_path in allowed_paths_list):
         raise mlrun.errors.MLRunAccessDeniedError("Unauthorized path")
     return path
 
@@ -139,18 +164,8 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
-    # be able to communicate with the api
-    ensure_function_has_auth_set(function, auth_info)
+    apply_enrichment_and_validation_on_function(function, auth_info)
 
-    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
-    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
-    try_perform_auto_mount(function, auth_info)
-
-    # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
-    process_function_service_account(function)
-
-    mask_sensitive_data(function, auth_info)
     return function, task
 
 
@@ -161,7 +176,47 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     return response
 
 
-def mask_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
+def apply_enrichment_and_validation_on_function(
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    ensure_auth: bool = True,
+    perform_auto_mount: bool = True,
+    validate_service_account: bool = True,
+    mask_sensitive_data: bool = True,
+    ensure_security_context: bool = True,
+):
+    """
+    This function should be used only on server side.
+
+    This function is utilized in several flows as a consequence of different endpoints in MLRun for deploying different
+    runtimes such as dask and nuclio, depends on the flow and runtime we decide which util functions we
+    want to apply on the runtime.
+
+    When adding a new util function, go through the other flows that utilize the function
+    and make sure to specify the appropriate flag for each runtime.
+    """
+    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+    # be able to communicate with the api
+    if ensure_auth:
+        ensure_function_has_auth_set(function, auth_info)
+
+    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
+    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+    if perform_auto_mount:
+        try_perform_auto_mount(function, auth_info)
+
+    # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
+    if validate_service_account:
+        process_function_service_account(function)
+
+    if mask_sensitive_data:
+        mask_function_sensitive_data(function, auth_info)
+
+    if ensure_security_context:
+        ensure_function_security_context(function, auth_info)
+
+
+def mask_function_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         _mask_v3io_access_key_env_var(function, auth_info)
         _mask_v3io_volume_credentials(function)
@@ -363,6 +418,12 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                 auth_info.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
                     auth_info.session
                 )
+                # created an access key with control and data session plane, so enriching auth_info with those planes
+                auth_info.planes = [
+                    mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                    mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+                ]
+
             function.metadata.credentials.access_key = auth_info.access_key
         if not function.metadata.credentials.access_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -449,6 +510,11 @@ def process_function_service_account(function):
         allow_internal_secrets=True,
     )
 
+    # If default SA was not configured for the project, try to retrieve it from global config (if exists)
+    default_service_account = (
+        default_service_account or mlrun.mlconf.function.spec.service_account.default
+    )
+
     # Sanity check on project configuration
     if (
         default_service_account
@@ -463,6 +529,102 @@ def process_function_service_account(function):
     function.validate_and_enrich_service_account(
         allowed_service_accounts, default_service_account
     )
+
+
+def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):
+    """
+    For iguazio we enforce that pods run with user id and group id depending on
+    mlrun.mlconf.function.spec.security_context.enrichment_mode
+    and mlrun.mlconf.function.spec.security_context.enrichment_group_id
+    """
+
+    # if security context is not required.
+    # security context is not yet supported with spark runtime since it requires spark 3.2+
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == SecurityContextEnrichmentModes.disabled.value
+        or mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or function.kind == mlrun.runtimes.RuntimeKinds.spark
+        # remote spark image currently requires running with user 1000 or root
+        # and by default it runs with user 1000 (when security context is not set)
+        or function.kind == mlrun.runtimes.RuntimeKinds.remotespark
+        or not mlrun.mlconf.is_running_on_iguazio()
+    ):
+        return
+
+    function: mlrun.runtimes.pod.KubeResource
+
+    # TODO: enrich old functions being triggered after upgrading mlrun with project owner uid.
+    #  Enrichment with retain enrichment mode should occur on function creation only.
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == SecurityContextEnrichmentModes.retain.value
+        and function.spec.security_context is not None
+        and function.spec.security_context.run_as_user is not None
+        and function.spec.security_context.run_as_group is not None
+    ):
+        logger.debug(
+            "Security context is already set",
+            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
+            function_name=function.metadata.name,
+        )
+        return
+
+    if mlrun.mlconf.function.spec.security_context.enrichment_mode in [
+        SecurityContextEnrichmentModes.override.value,
+        SecurityContextEnrichmentModes.retain.value,
+    ]:
+
+        # before iguazio 3.6 the user unix id is not passed in the session verification response headers
+        # so we need to request it explicitly
+        if auth_info.user_unix_id is None:
+            iguazio_client = mlrun.api.utils.clients.iguazio.Client()
+            if (
+                mlrun.api.utils.clients.iguazio.SessionPlanes.control
+                not in auth_info.planes
+            ):
+                logger.warning(
+                    "Auth info doesn't contain a session tagged as a control session plane, trying to get user unix id",
+                    function_name=function.metadata.name,
+                )
+                try:
+                    auth_info.user_unix_id = iguazio_client.get_user_unix_id(
+                        auth_info.session
+                    )
+                    # if we were able to get the user unix id it means we have a control session plane so adding that
+                    # to the auth info
+                    auth_info.planes.append(
+                        mlrun.api.utils.clients.iguazio.SessionPlanes.control
+                    )
+                except Exception as exc:
+                    raise mlrun.errors.MLRunUnauthorizedError(
+                        "Were unable to enrich user unix id, missing control plane session"
+                    ) from exc
+            else:
+                auth_info.user_unix_id = iguazio_client.get_user_unix_id(
+                    auth_info.session
+                )
+
+        # if enrichment group id is -1 we set group id to user unix id
+        enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
+            auth_info.user_unix_id
+        )
+        logger.debug(
+            "Enriching/overriding security context",
+            mode=mlrun.mlconf.function.spec.security_context.enrichment_mode,
+            function_name=function.metadata.name,
+            enriched_group_id=enriched_group_id,
+            user_unix_id=auth_info.user_unix_id,
+        )
+        function.spec.security_context = kubernetes.client.V1SecurityContext(
+            run_as_user=auth_info.user_unix_id,
+            run_as_group=enriched_group_id,
+        )
+
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
+        )
 
 
 def _submit_run(

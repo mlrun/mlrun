@@ -23,6 +23,7 @@ import yaml
 
 import mlrun.errors
 from mlrun import config as mlconf
+from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.db.httpdb import HTTPRunDB
 
 namespace_env_key = f"{mlconf.env_prefix}NAMESPACE"
@@ -507,3 +508,50 @@ def test_setting_dbpath_trigger_connect(requests_mock: requests_mock_package.Moc
     assert "" == mlconf.config.remote_host
     mlconf.config.dbpath = api_url
     assert remote_host == mlconf.config.remote_host
+
+
+def test_verify_security_context_enrichment_mode_is_allowed_success():
+    mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+
+    mlconf.config.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    mlconf.config.igz_version = "3.5.1-b1"
+    mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+
+    mlconf.config.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    mlconf.config.igz_version = "3.6.0-b1"
+    mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+
+
+def test_verify_security_context_enrichment_mode_is_allowed_failure():
+    igz_version = "3.5.0-b1"
+    mlconf.config.igz_version = igz_version
+    mlconf.config.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+    assert (
+        f"Security context enrichment mode enabled (override/retain) "
+        f"is not allowed for iguazio version: {igz_version} < 3.5.1" in str(exc.value)
+    )
+
+    igz_version = "3.4.2-b1"
+    mlconf.config.igz_version = igz_version
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+    assert (
+        f"Security context enrichment mode enabled (override/retain) "
+        f"is not allowed for iguazio version: {igz_version} < 3.5.1" in str(exc.value)
+    )
+
+    mlconf.config.igz_version = ""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        mlconf.config.verify_security_context_enrichment_mode_is_allowed()
+    assert (
+        "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
+        in str(exc.value)
+    )

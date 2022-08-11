@@ -60,7 +60,7 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(
-            retry_on_exception=mlrun.mlconf.projects.retry_leader_request_on_exception
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
             == "enabled"
         )
         self._api_url = mlrun.mlconf.iguazio_api_url

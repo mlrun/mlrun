@@ -29,6 +29,7 @@ class HTTPSessionWithRetry(requests.Session):
         retry_backoff_factor=DEFAULT_RETRY_BACKOFF,
         retry_on_exception=True,
         retry_on_status=True,
+        retry_on_post=False,
     ):
         super().__init__()
 
@@ -42,6 +43,9 @@ class HTTPSessionWithRetry(requests.Session):
                     total=self.max_retries,
                     backoff_factor=self.retry_backoff_factor,
                     status_forcelist=[500, 502, 503, 504],
+                    method_whitelist=False
+                    if retry_on_post
+                    else urllib3.util.retry.Retry.DEFAULT_METHOD_WHITELIST,
                     # we want to retry but not to raise since we do want that last response (to parse details on the
                     # error from response body) we'll handle raising ourselves
                     raise_on_status=False,

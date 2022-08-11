@@ -158,9 +158,10 @@ class RemoteStep(storey.SendToHttp):
         if not self._session:
             self._session = mlrun.utils.HTTPSessionWithRetry(
                 self.retries,
-                self.backoff_factor,
+                self.backoff_factor or mlrun.utils.DEFAULT_RETRY_BACKOFF,
                 retry_on_exception=False,
                 retry_on_status=self.retries > 0,
+                retry_on_post=True,
             )
 
         body = _extract_input_data(self._input_path, event.body)

@@ -38,7 +38,9 @@ from .utils import (
     run_keys,
 )
 
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
+# default KFP artifacts and output (ui metadata, metrics etc.)
+# directories to /tmp to allow running with security context
+KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 
 project_annotation = "mlrun/project"
@@ -419,8 +421,8 @@ def mlrun_op(
         command=cmd + [command],
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": "/mlpipeline-metrics.json",
+            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
+            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
         },
     )
     cop = add_default_function_resources(cop)

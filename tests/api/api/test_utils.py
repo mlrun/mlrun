@@ -1037,7 +1037,7 @@ def test_ensure_function_security_context_unknown_enrichment_mode(
     )
 
 
-def test_ensure_function_security_context_missing_control_plane_session(
+def test_ensure_function_security_context_missing_control_plane_session_tag(
     db: Session, client: TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
@@ -1052,11 +1052,30 @@ def test_ensure_function_security_context_missing_control_plane_session(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    logger.info("Session missing control plane, should fail")
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunHTTPError()
+    )
+    logger.info(
+        "Session missing control plane, and it is actually only a data plane session, expected to fail"
+    )
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)
-    assert "Missing control plane session" in str(exc.value)
+    assert "Were unable to enrich user unix id" in str(exc.value)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+
+    user_unix_id = 1000
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(planes=[])
+    logger.info(
+        "Session missing control plane, but actually just because it wasn't enriched, expected to succeed"
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert auth_info.planes == [mlrun.api.utils.clients.iguazio.SessionPlanes.control]
 
 
 def test_ensure_function_security_context_get_user_unix_id(

@@ -40,7 +40,7 @@ from mlrun.datastore.targets import (
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import FeaturesetValidator
+from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
 
@@ -641,7 +641,7 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
         path = str(self.results_path / _generate_random_name())
-        target = ParquetTarget(path=path)
+        target = ParquetTarget(path=path, partitioned=False)
 
         fset = fs.FeatureSet(
             name="test", entities=[Entity("patient_id")], timestamp_key="timestamp"
@@ -831,7 +831,9 @@ class TestFeatureStore(TestMLRunSystem):
                 time_partitioning_granularity,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
                 expected_partitions.append(unit)
@@ -1268,7 +1270,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        data_target = ParquetTarget()
+        data_target = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[data_target])
 
@@ -1376,7 +1378,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget()
+        target2 = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
@@ -1393,7 +1395,7 @@ class TestFeatureStore(TestMLRunSystem):
             timestamp_key="time",
         )
 
-        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet", partitioned=False)]
 
         fs.ingest(
             feature_set,
@@ -1490,6 +1492,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         side_file_out = pd.read_csv(side_file_path)
         default_file_out = pd.read_parquet(default_file_path)
+        # default parquet target is partitioned
+        default_file_out.drop(
+            columns=mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS, inplace=True
+        )
         self._split_graph_expected_default.set_index("ticker", inplace=True)
 
         assert all(self._split_graph_expected_default == default_file_out.round(2))
@@ -1604,7 +1610,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
-        targets = [ParquetTarget(columns=columns)]
+        targets = [ParquetTarget(columns=columns, partitioned=False)]
         quotes_set, _ = prepare_feature_set(
             "forced-columns", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -1624,7 +1630,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(csv_vec)
         csv_vec_df = resp.to_dataframe()
 
-        targets = [ParquetTarget()]
+        targets = [ParquetTarget(partitioned=False)]
         parquet_align_set, _ = prepare_feature_set(
             "parquet-align", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -1926,6 +1932,9 @@ class TestFeatureStore(TestMLRunSystem):
         targets_to_purge = targets[:-1]
         verify_purge(fset, targets_to_purge)
 
+    # After moving to run on a new system test environment this test was running for 75 min and then failing
+    # skipping until it get fixed as this results all the suite to run much longer
+    @pytest.mark.timeout(180)
     def test_purge_nosql(self):
         def get_v3io_api_host():
             """Return only the host out of v3io_api
@@ -1968,7 +1977,9 @@ class TestFeatureStore(TestMLRunSystem):
                 with_defaults=False,
                 targets=test_target,
             )
+            self._logger.info(f"ingesting with target {tar.name}")
             fs.ingest(fset, source)
+            self._logger.info(f"purging target {tar.name}")
             verify_purge(fset, test_target)
 
     def test_ingest_dataframe_index(self):
@@ -2573,7 +2584,6 @@ class TestFeatureStore(TestMLRunSystem):
             assert key in expected
 
     def test_set_event_with_spaces_or_hyphens(self):
-        from mlrun.feature_store.steps import OneHotEncoder
 
         lst_1 = [
             " Private",
@@ -2606,7 +2616,53 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert df_res.equals(expected_df)
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    def test_onehot_with_int_values(self):
+        lst_1 = [0, 0, 1, 0]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": list(data["workclass"].unique())}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+
+        df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        expected_df = pd.DataFrame(
+            list(zip([1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
+            columns=["workclass_0", "workclass_1", "age"],
+        )
+
+        assert df_res.equals(expected_df)
+
+    def test_onehot_with_array_values(self):
+        lst_1 = [[1, 2], [1, 2], [0, 1], [1, 2]]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": [[1, 2], [0, 1]]}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+        with pytest.raises(ValueError):
+            data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+            data_set.set_targets()
+            fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(

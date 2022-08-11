@@ -13,6 +13,7 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
 import tests.api.api.utils
@@ -22,7 +23,9 @@ from mlrun.api.api.utils import (
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
     ensure_function_has_auth_set,
+    ensure_function_security_context,
 )
+from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.utils import logger
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
@@ -844,6 +847,278 @@ def test_mask_v3io_volume_credentials(
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
 
 
+def test_ensure_function_security_context_no_enrichment(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    mlrun.mlconf.igz_version = "3.6"
+
+    logger.info("Enrichment mode is disabled, nothing should be changed")
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.disabled.value
+    )
+    _, _, _, original_function_dict_job_kind = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    logger.info("Local function, nothing should be changed")
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    _, _, _, original_function_dict_local_kind = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.local
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict_local_kind)
+    function = mlrun.new_function(runtime=original_function_dict_local_kind)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    logger.info("Not running on iguazio, nothing should be changed")
+    mlrun.mlconf.igz_version = ""
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    _, _, _, original_function_dict_job_kind = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    function = mlrun.new_function(runtime=original_function_dict_job_kind)
+    ensure_function_security_context(function, mlrun.api.schemas.AuthInfo())
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_ensure_function_security_context_override_enrichment_mode(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+
+    logger.info("Enrichment mode is override, security context should be enriched")
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+
+    # assert user unix id was not fetched from iguazio
+    assert mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.called == 0
+
+    # assert function was changed
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        != {}
+    )
+
+    # the enrichment that should be done
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=int(
+            mlrun.mlconf.function.spec.security_context.enrichment_group_id
+        ),
+    )
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_ensure_function_security_context_enrichment_group_id(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override.value
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    logger.info("Change enrichment group id and validate it is being enriched")
+    group_id = 2000
+    mlrun.mlconf.function.spec.security_context.enrichment_group_id = group_id
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=group_id,
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    logger.info("Enrichment group id is -1, user unix id should be used as group id")
+    mlrun.mlconf.function.spec.security_context.enrichment_group_id = -1
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=auth_info.user_unix_id,
+        run_as_group=auth_info.user_unix_id,
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_ensure_function_security_context_unknown_enrichment_mode(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = "not a real mode"
+    auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=1000)
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    logger.info("Unknown enrichment mode, should fail")
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        ensure_function_security_context(function, auth_info)
+    assert (
+        f"Invalid security context enrichment mode {mlrun.mlconf.function.spec.security_context.enrichment_mode}"
+        in str(exc.value)
+    )
+
+
+def test_ensure_function_security_context_missing_control_plane_session_tag(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(
+        planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.data]
+    )
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunHTTPError()
+    )
+    logger.info(
+        "Session missing control plane, and it is actually only a data plane session, expected to fail"
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
+        ensure_function_security_context(function, auth_info)
+    assert "Were unable to enrich user unix id" in str(exc.value)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+
+    user_unix_id = 1000
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(planes=[])
+    logger.info(
+        "Session missing control plane, but actually just because it wasn't enriched, expected to succeed"
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert auth_info.planes == [mlrun.api.utils.clients.iguazio.SessionPlanes.control]
+
+
+def test_ensure_function_security_context_get_user_unix_id(
+    db: Session, client: TestClient
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.igz_version = "3.6"
+    user_unix_id = 1000
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        SecurityContextEnrichmentModes.override
+    )
+
+    # set auth info with control plane and without user unix id so that it will be fetched
+    auth_info = mlrun.api.schemas.AuthInfo(
+        planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.control]
+    )
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
+    )
+
+    logger.info("No user unix id in headers, should fetch from iguazio")
+    _, _, _, original_function_dict = _generate_original_function(
+        kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    original_function = mlrun.new_function(runtime=original_function_dict)
+    original_function.spec.security_context = kubernetes.client.V1SecurityContext(
+        run_as_user=user_unix_id,
+        run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+    )
+
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
 def test_generate_function_and_task_from_submit_run_body_imported_function_project_assignment(
     db: Session, client: TestClient, monkeypatch
 ):
@@ -921,15 +1196,38 @@ def test_get_obj_path(db: Session, client: TestClient):
             "data_volume": "/home/jovyan/data",
             "expect_error": True,
         },
+        {
+            "path": "gcs://bucket/and/path",
+            "allowed_paths": "http://, gcs:// ",
+            "expected_path": "gcs://bucket/and/path",
+        },
+        {
+            "path": "bucket/and/path",
+            "schema": "gs",
+            "allowed_paths": " gs://, gcs:// ",
+            "expected_path": "gs://bucket/and/path",
+        },
+        {
+            "path": "gcs://bucket/and/path",
+            "expect_error": True,
+        },
+        {
+            "path": "/local/file/security/breach",
+            "allowed_paths": "/local",
+            "expect_error": True,
+        },
     ]
     for case in cases:
         logger.info("Testing case", case=case)
         old_real_path = mlrun.mlconf.httpdb.real_path
         old_data_volume = mlrun.mlconf.httpdb.data_volume
+        old_allowed_file_paths = mlrun.mlconf.httpdb.allowed_file_paths
         if case.get("real_path"):
             mlrun.mlconf.httpdb.real_path = case["real_path"]
         if case.get("data_volume"):
             mlrun.mlconf.httpdb.data_volume = case["data_volume"]
+        if case.get("allowed_paths"):
+            mlrun.mlconf.httpdb.allowed_file_paths = case["allowed_paths"]
         if case.get("expect_error"):
             with pytest.raises(
                 mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
@@ -946,6 +1244,8 @@ def test_get_obj_path(db: Session, client: TestClient):
                 mlrun.mlconf.httpdb.real_path = old_real_path
             if case.get("data_volume"):
                 mlrun.mlconf.httpdb.data_volume = old_data_volume
+            if case.get("allowed_paths"):
+                mlrun.mlconf.httpdb.allowed_file_paths = old_allowed_file_paths
 
 
 def _mock_import_function(monkeypatch):

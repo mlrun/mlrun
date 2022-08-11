@@ -1,10 +1,9 @@
+import os
 import pathlib
 import re
 import shutil
 import sys
-import traceback
-from subprocess import PIPE, run
-from sys import executable, stderr
+from sys import executable
 
 import pytest
 from kfp import dsl
@@ -22,15 +21,10 @@ projects_dir = f"{out_path}/proj"
 funcs = mlrun.projects.pipeline_context.functions
 
 
-def exec_project(args, cwd=None):
+def exec_project(args):
     cmd = [executable, "-m", "mlrun", "project"] + args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
-    if out.returncode != 0:
-        print(out.stderr.decode("utf-8"), file=stderr)
-        print(out.stdout.decode("utf-8"), file=stderr)
-        print(traceback.format_exc())
-        raise Exception(out.stderr.decode("utf-8"))
-    return out.stdout.decode("utf-8")
+    out = os.popen(" ".join(cmd)).read()
+    return out
 
 
 # pipeline for inline test (run pipeline from handler)
@@ -179,6 +173,17 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         self._delete_test_project(name)
 
+    @staticmethod
+    def _assert_cli_output(output: str, project_name: str):
+        m = re.search(" Pipeline run id=(.+),", output)
+        assert m, "pipeline id is not in output"
+
+        run_id = m.group(1).strip()
+        db = mlrun.get_run_db()
+        pipeline = db.get_pipeline(run_id, project=project_name)
+        state = pipeline["run"]["status"]
+        assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+
     def test_run_cli(self):
         # load project from git
         name = "pipe4"
@@ -193,7 +198,7 @@ class TestProject(TestMLRunSystem):
             "git://github.com/mlrun/project-demo.git",
             project_dir,
         ]
-        out = exec_project(args, projects_dir)
+        out = exec_project(args)
         print(out)
 
         # load the project from local dir and change a workflow
@@ -212,19 +217,48 @@ class TestProject(TestMLRunSystem):
             "-w",
             "-p",
             f"v3io:///projects/{name}",
+            "--ensure-project",
             project_dir,
         ]
-        out = exec_project(args, projects_dir)
-        m = re.search(" Pipeline run id=(.+),", out)
-        assert m, "pipeline id is not in output"
-
-        run_id = m.group(1).strip()
-        db = mlrun.get_run_db()
-        pipeline = db.get_pipeline(run_id, project=name)
-        state = pipeline["run"]["status"]
-        assert state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        out = exec_project(args)
+        self._assert_cli_output(out, name)
         self._delete_test_project(name)
         self._delete_test_project(project2.metadata.name)
+
+    def test_cli_with_remote(self):
+        # load project from git
+        name = "pipermtcli"
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # clone a project to local dir
+        args = [
+            "-n",
+            name,
+            "-u",
+            "git://github.com/mlrun/project-demo.git",
+            project_dir,
+        ]
+        out = exec_project(args)
+        print(out)
+
+        # exec the workflow
+        args = [
+            "-n",
+            name,
+            "-r",
+            "main",
+            "-w",
+            "--engine",
+            "remote",
+            "-p",
+            f"v3io:///projects/{name}",
+            "--ensure-project",
+            project_dir,
+        ]
+        out = exec_project(args)
+        self._assert_cli_output(out, name)
+        self._delete_test_project(name)
 
     def test_inline_pipeline(self):
         name = "pipe5"
@@ -288,6 +322,73 @@ class TestProject(TestMLRunSystem):
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
 
+    def _test_remote_pipeline_from_github(
+        self, name, workflow_name, engine=None, local=None, watch=False
+    ):
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = mlrun.load_project(
+            project_dir, "git://github.com/mlrun/project-demo.git", name=name
+        )
+        # Skipping until mlrun/project-demo will contain newflow workflow in project
+        workflow_names = [workflow["name"] for workflow in project.spec.workflows]
+        if workflow_name not in workflow_names:
+            self._delete_test_project()
+            return
+        run = project.run(
+            workflow_name,
+            watch=watch,
+            local=local,
+            engine=engine,
+        )
+
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+        self._delete_test_project()
+
+    def test_remote_pipeline_with_kfp_engine_from_github(self):
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-kfp-github",
+            workflow_name="main",
+            engine="remote",
+            watch=True,
+        )
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-kfp-github", workflow_name="main", engine="remote:kfp"
+        )
+
+    def test_remote_pipeline_with_local_engine_from_github(self):
+        self._test_remote_pipeline_from_github(
+            name="rmtpipe-local-github",
+            workflow_name="newflow",
+            engine="remote:local",
+            watch=True,
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            self._test_remote_pipeline_from_github(
+                name="rmtpipe-local-github",
+                workflow_name="newflow",
+                engine="remote",
+                local=True,
+            )
+
+    def test_remote_from_archive(self):
+        name = "pipe6"
+        project = self._create_project(name)
+        archive_path = f"v3io:///projects/{project.name}/archive1.zip"
+        project.export(archive_path)
+        project.spec.source = archive_path
+        project.save()
+        print(project.to_yaml())
+        run = project.run(
+            "main",
+            watch=True,
+            engine="remote",
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        assert run.run_id, "workflow's run id failed to fetch"
+        self._delete_test_project()
+
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"
@@ -314,7 +415,7 @@ class TestProject(TestMLRunSystem):
             f"v3io:///projects/{name}",
             str(self.assets_path),
         ]
-        out = exec_project(args, projects_dir)
+        out = exec_project(args)
         print("OUT:\n", out)
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
         self._delete_test_project(name)

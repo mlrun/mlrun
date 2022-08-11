@@ -30,8 +30,9 @@ class S3Store(DataStore):
         access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
 
-        if access_key or secret_key:
+        if access_key or secret_key or force_non_anonymous:
             self.s3 = boto3.resource(
                 "s3",
                 region_name=region,
@@ -71,8 +72,11 @@ class S3Store(DataStore):
     def get_storage_options(self):
         key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
 
-        storage_options = dict(anon=not (key and secret), key=key, secret=secret)
+        storage_options = dict(
+            anon=not (force_non_anonymous or (key and secret)), key=key, secret=secret
+        )
 
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         if endpoint_url:

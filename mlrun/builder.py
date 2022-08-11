@@ -182,8 +182,11 @@ def make_kaniko_pod(
 
     # when using ECR we need init container to create the image repository
     # example URL: <aws_account_id>.dkr.ecr.<region>.amazonaws.com
-    if ".ecr." in registry and registry.endswith(".amazonaws.com"):
-        repo = dest[dest.find("/") + 1 : dest.find(":")]
+    if ".ecr." in registry and ".amazonaws.com" in registry:
+        end = dest.find(":")
+        if end == -1:
+            end = len(dest)
+        repo = dest[dest.find("/") + 1 : end]
         configure_kaniko_ecr_init_container(kpod, registry, repo)
 
     # mount regular docker config secret
@@ -196,9 +199,12 @@ def make_kaniko_pod(
 
 def configure_kaniko_ecr_init_container(kpod, registry, repo):
     region = registry.split(".")[3]
+
+    # fail silently in order to ignore "repository already exists" errors
+    # if any other error occurs - kaniko will fail similarly
     command = (
-        f"aws ecr create-repository --region {region} --repository-name {repo} "
-        f"|| if [ $? -eq 254 ]; then echo 'Ignoring repository already exits'; else exit $?; fi"
+        f"aws ecr create-repository --region {region} --repository-name {repo} || true"
+        + f" && aws ecr create-repository --region {region} --repository-name {repo}/cache || true"
     )
     init_container_env = {}
 
@@ -234,7 +240,7 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
         command=["/bin/sh"],
         args=["-c", command],
         env=init_container_env,
-        name="create-repo",
+        name="create-repos",
     )
 
 
@@ -252,7 +258,7 @@ def upload_tarball(source_dir, target, secrets=None):
 def build_image(
     auth_info: mlrun.api.schemas.AuthInfo,
     project: str,
-    dest,
+    image_target,
     commands=None,
     source="",
     mounter="v3io",
@@ -274,18 +280,9 @@ def build_image(
     runtime_spec=None,
 ):
     builder_env = builder_env or {}
-    if registry:
-        dest = "/".join([registry, dest])
-    elif dest.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
-        dest = dest[1:]
-        registry, _ = get_parsed_docker_registry()
-        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
-        if not registry:
-            raise ValueError(
-                "Default docker registry is not defined, set "
-                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
-            )
-        dest = "/".join([registry, dest])
+    image_target, secret_name = _resolve_image_target_and_registry_secret(
+        image_target, registry, secret_name
+    )
 
     if isinstance(requirements, list):
         requirements_list = requirements
@@ -353,7 +350,7 @@ def build_image(
     kpod = make_kaniko_pod(
         project,
         context,
-        dest,
+        image_target,
         dockertext=dock,
         inline_code=inline_code,
         inline_path=inline_path,
@@ -538,3 +535,31 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
+
+
+def _resolve_image_target_and_registry_secret(
+    image_target: str, registry: str = None, secret_name: str = None
+) -> (str, str):
+    if registry:
+        return "/".join([registry, image_target]), secret_name
+
+    # if dest starts with a dot, we add the configured registry to the start of the dest
+    if image_target.startswith(IMAGE_NAME_ENRICH_REGISTRY_PREFIX):
+
+        # remove prefix from image name
+        image_target = image_target[len(IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :]
+
+        registry, repository = get_parsed_docker_registry()
+        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
+        if not registry:
+            raise ValueError(
+                "Default docker registry is not defined, set "
+                "MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY/MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY_SECRET env vars"
+            )
+        image_target_components = [registry, image_target]
+        if repository and repository not in image_target:
+            image_target_components = [registry, repository, image_target]
+
+        return "/".join(image_target_components), secret_name
+
+    return image_target, secret_name

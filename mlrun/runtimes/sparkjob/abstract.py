@@ -141,6 +141,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         affinity=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -169,6 +170,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             affinity=affinity,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -214,6 +216,8 @@ class AbstractSparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
+
+    # the dot will make the api prefix the configured registry to the image name
     default_mlrun_image = ".spark-job-default-image"
     gpu_suffix = "-cuda"
     code_script = "spark-function-code.py"
@@ -419,6 +423,9 @@ class AbstractSparkRuntime(KubejobRuntime):
             self.spec.replicas or 1,
             int,
         )
+        if self.spec.image_pull_secret:
+            update_in(job, "spec.imagePullSecrets", [self.spec.image_pull_secret])
+
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
 

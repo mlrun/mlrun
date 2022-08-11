@@ -65,9 +65,10 @@ If the `name` parameter is not specified, features are produced in `{column_name
 These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 
-```{admonition} Note
-Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
-aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
+```{admonition} Notes
+- Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
+   aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
+- The timestamp column must be part of the feature set definition (for aggregation).
 ```
 
 Aggregations that are supported using this function are:

@@ -6,7 +6,7 @@ from sklearn.preprocessing import LabelBinarizer
 
 import mlrun.errors
 
-from .._ml_common import AlgorithmFunctionality
+from .._ml_common import MLUtils
 from .metric import Metric
 from .utils import SKLearnTypes
 
@@ -161,9 +161,7 @@ class MetricsLibrary(ABC):
         :return: The default metrics list.
         """
         # Discover the algorithm functionality of the provided model:
-        algorithm_functionality = AlgorithmFunctionality.get_algorithm_functionality(
-            model=model, y=y
-        )
+        algorithm_functionality = MLUtils.get_algorithm_functionality(model=model, y=y)
 
         # Initialize the metrics list:
         metrics = []  # type: List[Metric]

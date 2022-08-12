@@ -14,5 +14,4 @@ MLRun provides three main abstractions to access structured and unstructured dat
 
 data-items
 ../store/artifacts
-../store/datastore
 ```

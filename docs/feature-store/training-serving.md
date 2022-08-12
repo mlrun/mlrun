@@ -1,5 +1,5 @@
 (training-serving)=
-# Feature store online access
+# Serving with the feature store
 
 **In this section**
 - [Get online features](#get-online-features)

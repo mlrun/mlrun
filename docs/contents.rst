@@ -29,6 +29,7 @@
    :maxdepth: 1
    :caption: Data collection and preparation
    
+   store/datastore
    data-collect-prep/ingesting_data
    data-collect-prep/logging_datasets
    feature-store/feature-store-data-ingestion

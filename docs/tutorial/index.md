@@ -14,6 +14,7 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 02-model-training
 03-model-serving
 04-pipeline
+./taxi/apply-mlrun-on-existing-code
 ../feature-store/basic-demo
 ../feature-store/end-to-end-demo/index
 

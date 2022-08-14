@@ -1,9 +1,13 @@
 (jobs-overview)=
-# Jobs Overview
+# Jobs overview
 
-A `Job` is simply something that you would like to run once to completion. For example, running a simple Python script can be similar to a `Job` in that the script runs once to completion and then returns. In an ML workflow, sometimes running a simple Python script is not enough and additional functionality is required. For example giving cluster resources, specifying dependencies and a Docker image, integrating with Git repo, etc. 
+**In this section**
+- [Create a job](#create-a-job)
+- [Run a job locally](#run-a-job-locally)
+- [Run a job on the cluster](#run-a-job-on-the-cluster)
+- [Configure the job](#configure-the-job)
 
-## Create a Job
+## Create a job
 
 MLRun can add all of the above features, and more, when running a `job`. To showcase this, the following job runs the code below, which resides in a file titled `code.py`:
 
@@ -12,7 +16,7 @@ def hello(context):
     print("You just ran a job!")
 ```
 
-To create the Job, use the `code_to_function` syntax and specify the `kind` like below:
+To create the job, use the `code_to_function` syntax and specify the `kind` like below:
 
 ```python
 import mlrun
@@ -28,32 +32,34 @@ job = mlrun.code_to_function(
 
 Read more about the {py:meth}`~mlrun.run.code_to_function` syntax.
 
-## Run a Job Locally
+## Run a job locally
 
-When prototyping, it is often useful to test the `Job` locally on your laptop or Jupyter environment before running on the larger cluster. This lets you ensure the job does what you want without using cluster resources.
+When prototyping, it is often useful to test the `job` locally on your laptop or Jupyter environment before running on the larger cluster. 
+In this way you can ensure that that the job does what you want without using cluster resources.
 
-To do this, run the job and specify the `local=True` flag 
+To do this, run the job and specify the `local=True` flag: 
 
 ```python
 run = job.run(local=True)
 ```
 
-## Run a Job on the Cluster
+## Run a job on the cluster
 
-Finally, you can execute your job using cluster resources. This is usually the end goal when creating a job because it gives you much more flexibility into the configuration of the job.
+Finally, you can execute your job using cluster resources. This is usually the end goal when creating a job because it gives you much more 
+flexibility into the configuration of the job.
 
-To do this, run the job and specify the `local=False` flag or omit the `local` flag all together:
+To do this, run the job and specify the `local=False` flag or omit the `local` flag altogether:
 
 ```python
 run = job.run(local=False)
 ```
 
-## Configure the Job
+## Configure the job
 
-There are many configurations you can add to the `Job`. You can read more about them here:
-- [Customize Docker image and dependencies](#) **PAGE DOES NOT EXIST**
-- [Add CPU, GPU, Memory resources](https://github.com/mlrun/mlrun/pull/2166/runtimes/configuring-job-resources.html)
-- Use alternative runtimes including [Dask](https://github.com/mlrun/mlrun/pull/2166/runtimes/dask-overview.html), [Horovod](https://github.com/mlrun/mlrun/pull/2166/runtimes/horovod.html), and [Spark](https://github.com/mlrun/mlrun/pull/2166/runtimes/spark-operator.html)
-- [Schedule a Job](https://github.com/mlrun/mlrun/pull/2166/files/scheduled-jobs.html)
-- [Attach storage to a Job](https://github.com/mlrun/mlrun/pull/2166/runtimes/function-storage.html)
-- [Run a Job with a Git repo](https://github.com/mlrun/mlrun/pull/2166/runtimes/code-archive.html#using-code-from-git)
+There are many configurations you can add to the `Job`. Read more about them here:
+<!-- [Customize Docker image and dependencies](#) **PAGE DOES NOT EXIST** -->
+- {ref}`configuring-job-resources`
+- Use alternative runtimes including {ref}`Dask <dask-overview>`, {ref}`Horovod <horovod>`, {ref}`Spark <spark-operator>`
+- {ref}`scheduled-jobs`
+- {ref}`Attach storage to a job <Function_storage_auto_mount>`
+- [Run a Job with a Git repo](../runtimes/code-archive.html#using-code-from-git)

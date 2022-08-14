@@ -451,6 +451,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         data_set = fs.FeatureSet(
             name_spark,
             entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
             engine="spark",
         )
 
@@ -487,6 +488,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set = fs.FeatureSet(
             name_storey,
+            timestamp_key="time",
             entities=[Entity("first_name"), Entity("last_name")],
         )
 

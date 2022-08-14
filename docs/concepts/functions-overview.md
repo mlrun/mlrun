@@ -1,10 +1,10 @@
-(Function_runtimes)=
-# Function Runtimes
+(function_runtimes)=
+# Function runtimes
 
 When you create an MLRun function you need to specify a runtime kind (e.g. `kind='job'`). Each runtime supports 
 its own specific attributes (e.g. Jars for Spark, Triggers for Nuclio, Auto-scaling for Dask, etc.).
 
-MLRun supports these runtimes:
+MLRun supports real-time and batch runtimes.
 
 Real-time runtimes:
 * **nuclio** - real-time serverless functions over Nuclio

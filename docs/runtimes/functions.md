@@ -27,15 +27,15 @@ use in your projects.
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>
 
-**For more details and examples:**
+**In this section:**
 
 ```{toctree}
 :maxdepth: 1
+
+../concepts/functions-overview
 using-functions
 mlrun_code_annotations
 code-archive
-mlrun_jobs
-configuring-job-resources
 function-storage
-load-from-marketplace
+images
 ```

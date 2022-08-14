@@ -204,10 +204,11 @@ def test_build_project_from_minimal_dict():
     "url,project_name,project_files",
     [
         ("./assets/project.zip", "pipe2", ["prep_data.py", "project.yaml"]),
+        ("./assets/project.tar.gz", "pipe2", ["prep_data.py", "project.yaml"]),
         (
             "git://github.com/mlrun/project-demo.git",
             "pipe",
-            ["prep_data.py", "project.yaml"],
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
         ),
     ],
 )
@@ -224,10 +225,11 @@ def test_load_project(context, url, project_name, project_files):
     "url,project_name,project_files",
     [
         ("./assets/project.zip", "pipe2", ["prep_data.py", "project.yaml"]),
+        ("./assets/project.tar.gz", "pipe2", ["prep_data.py", "project.yaml"]),
         (
             "git://github.com/mlrun/project-demo.git",
             "pipe",
-            ["prep_data.py", "project.yaml"],
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
         ),
     ],
 )

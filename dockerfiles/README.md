@@ -33,12 +33,12 @@ Where:<br>
 
 
 For example, running `MLRUN_VERSION=1.0.4 make docker-images` will generate the following images:
-  * `mlrun/mlrun-api:1.0.4`
-  * `mlrun/mlrun:1.0.4`
-  * `mlrun/jupyter:1.0.4`
-  * `mlrun/ml-base:1.0.4`
-  * `mlrun/ml-models:1.0.4`
-  * `mlrun/ml-models-gpu:1.0.4` 
+  * `mlrun/mlrun-api:1.0.5`
+  * `mlrun/mlrun:1.0.5`
+  * `mlrun/jupyter:1.0.5`
+  * `mlrun/ml-base:1.0.5`
+  * `mlrun/ml-models:1.0.5`
+  * `mlrun/ml-models-gpu:1.0.5` 
 
 It's also possible to build only a specific image - `make api` (will build only the api image)<br>
 Or a set of images - `make mlrun jupyter base`

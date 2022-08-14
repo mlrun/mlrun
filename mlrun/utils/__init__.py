@@ -15,4 +15,5 @@
 from .azure_vault import AzureVaultStore  # noqa
 from .helpers import *  # noqa
 from .logger import *  # noqa
+from .model_monitoring import *  # noqa
 from .vault import *  # noqa

@@ -2,36 +2,33 @@
 
 API Gateway is a service that allows you to expose your functions as a web service.
 Essentially, it is a proxy that forwards requests to your functions and returns the response.
-It can be used to invoke your functions, and can provide authentication, canary deployments and other features.
-
-Creating API Gateways from the UI is really simple.
-Inside your project page, go to the **API Gateways** tab, and click **NEW API Gateway**.
-
-There, you can create an API Gateway with the following parameters:
-
-- *Name*: The name of the API Gateway.
-- *Description*: A description of the API Gateway.
-- *Host*: The host of the API Gateway.
-- *Path*: The path of the API Gateway.
-- *Authentication Mode*: The authentication mode of the API Gateway.
-- *Function*: The function that will be triggered via the API Gateway. 
-              You can also add a canary function and determine the percentage of traffic that will be sent to the canary function.
+It can be used to invoke your functions, and can provide authentication, canary deployments, and other features.
 
 **In this section**
 
-- [No Authentication](#none-auth)
-- [Basic Authentication](#basic-auth)
+- [Create an API gateway](#create-gateway)
+- [Canary function](#canary-function)
 
-<a id="none-auth"></a>
-### No Authentication
+<a id="create-gateway"></a>
+## Create an API gateway
 
-![api-gateway](/docs/assets/images/api-gateway-ui.png)
+To create an API gateway in the UI:
+1. In your project page, press **API Gateways** tab, then press **NEW API Gateway**.
+2. Select an **Authentication Mode**:
+   - None
+   - Basic
+   - Access key
+   - OAuth2
+2. Type in the API Gateway parameters:
+   - **Name**: The name of the API Gateway. Required
+   - **Description**: A description of the API Gateway.
+   - **Host**: The host of the API Gateway. (Relevant for open-source only.)
+   - **Path**: The path of the API Gateway.
+2. In **Primary**, type in the function that is triggered via the API Gateway. 
 
-To invoke the function using the api gateway, see [invoking API Gateways](/docs/references/api-gateway/http.md#invoke-none).
+## Canary function
 
-<a id="basic-auth"></a>
-### With Basic Authentication
+You can add a canary function to the API gateway, for testing purposes. You control the percentage of traffic that goes to a canary function by changing the percentage of the upstream. As you see that the canary function works well, gradually increase its percentage. When you are satisfied with its performance, turn it into a production function, and remove it as a canary function.
 
-![api-gateway-basic-auth](/docs/assets/images/api-gateway-ui-basic-auth.png)
-
-To invoke the function using the api gateway, see [invoking API Gateways with basic authentication](/docs/references/api-gateway/http.md#invoke-basic).
+1. Press **Create a canary function** and type in the function name. 
+2. Adjust the percentage of traffic that is sent to the canary function.

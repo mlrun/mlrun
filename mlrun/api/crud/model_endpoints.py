@@ -19,12 +19,12 @@ import mlrun.config
 import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.helpers
 import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.utils import logger
 
 
@@ -880,16 +880,22 @@ class ModelEndpoints:
         minutes, hours, day, _, _ = tuple(
             map(
                 lambda element: float(f"0{element.partition('/')[-1].strip(' ')}"),
-                tracking_policy[EventFieldType.DEFAULT_BATCH_INTERVALS].split(" "),
+                tracking_policy[
+                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                ].split(" "),
             )
         )
 
         batch_dict = {"minutes": minutes, "hours": hours, "days": day}
-        task.spec.parameters[EventFieldType.BATCH_INTERVALS_DICT] = batch_dict
+        task.spec.parameters[
+            model_monitoring_constants.EventFieldType.BATCH_INTERVALS_DICT
+        ] = batch_dict
 
         data = {
             "task": task.to_dict(),
-            "schedule": tracking_policy[EventFieldType.DEFAULT_BATCH_INTERVALS],
+            "schedule": tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ],
         }
 
         logger.info(

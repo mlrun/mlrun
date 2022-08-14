@@ -8,10 +8,10 @@ import mlrun.api.crud.secrets
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.feature_store as fs
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers
-from mlrun.model_monitoring.constants import EventFieldType
 
 _CURRENT_FILE_PATH = pathlib.Path(__file__)
 _STREAM_PROCESSING_FUNCTION_PATH = _CURRENT_FILE_PATH.parent / "stream_processing_fs.py"
@@ -53,7 +53,7 @@ def initial_model_monitoring_stream_processing_function(
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image=tracking_policy[EventFieldType.STREAM_IMAGE],
+        image=tracking_policy[model_monitoring_constants.EventFieldType.STREAM_IMAGE],
     )
 
     # Create monitoring serving graph
@@ -115,7 +115,9 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image=tracking_policy[EventFieldType.DEFAULT_BATCH_IMAGE],
+        image=tracking_policy[
+            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_IMAGE
+        ],
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

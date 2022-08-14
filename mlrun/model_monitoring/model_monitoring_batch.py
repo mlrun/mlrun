@@ -15,11 +15,11 @@ import mlrun
 import mlrun.api.schemas
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.utils import logger
 
 
@@ -568,7 +568,9 @@ class BatchProcessor:
         self.exception = None
 
         # Get the batch interval range
-        self.batch_dict = context.parameters[EventFieldType.BATCH_INTERVALS_DICT]
+        self.batch_dict = context.parameters[
+            model_monitoring_constants.EventFieldType.BATCH_INTERVALS_DICT
+        ]
 
     def post_init(self):
         """
@@ -779,7 +781,8 @@ class BatchProcessor:
                 tsdb_drift_measures = {
                     "endpoint_id": endpoint_id,
                     "timestamp": pd.to_datetime(
-                        timestamp, format=EventFieldType.TIME_FORMAT
+                        timestamp,
+                        format=model_monitoring_constants.EventFieldType.TIME_FORMAT,
                     ),
                     "record_type": "drift_measures",
                     "tvd_mean": drift_result["tvd_mean"],
@@ -803,9 +806,9 @@ class BatchProcessor:
     def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         # Getting batch interval time range
         minutes, hours, days = (
-            self.batch_dict[EventFieldType.MINUTES],
-            self.batch_dict[EventFieldType.HOURS],
-            self.batch_dict[EventFieldType.DAYS],
+            self.batch_dict[model_monitoring_constants.EventFieldType.MINUTES],
+            self.batch_dict[model_monitoring_constants.EventFieldType.HOURS],
+            self.batch_dict[model_monitoring_constants.EventFieldType.DAYS],
         )
         start_time = datetime.datetime.now() - datetime.timedelta(
             minutes=minutes, hours=hours, days=days

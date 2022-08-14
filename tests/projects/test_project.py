@@ -1,5 +1,7 @@
 import os
 import pathlib
+import shutil
+import tempfile
 import zipfile
 
 import deepdiff
@@ -10,6 +12,14 @@ import mlrun
 import mlrun.errors
 import mlrun.projects.project
 import tests.conftest
+
+
+@pytest.fixture()
+def context():
+    context = os.path.join(".", "test")
+    yield context
+
+    shutil.rmtree(context)
 
 
 def test_sync_functions():
@@ -188,6 +198,62 @@ def test_build_project_from_minimal_dict():
         "status": {"state": "online"},
     }
     mlrun.projects.MlrunProject.from_dict(project_dict)
+
+
+@pytest.mark.parametrize(
+    "url,project_name,project_files",
+    [
+        ("./assets/project.zip", "pipe2", ["prep_data.py", "project.yaml"]),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml"],
+        ),
+    ],
+)
+def test_load_project(context, url, project_name, project_files):
+    project = mlrun.load_project(context=context, url=url, save=False)
+    assert project.name == project_name
+    assert project.spec.context == context
+    assert project.spec.source == url
+    for project_file in project_files:
+        assert os.path.exists(os.path.join(context, project_file))
+
+
+@pytest.mark.parametrize(
+    "url,project_name,project_files",
+    [
+        ("./assets/project.zip", "pipe2", ["prep_data.py", "project.yaml"]),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml"],
+        ),
+    ],
+)
+def test_clone_project(context, url, project_name, project_files):
+
+    # create random files
+    os.makedirs(context, exist_ok=True)
+    temp_file1 = tempfile.NamedTemporaryFile(dir=context, delete=False).name
+    temp_file2 = tempfile.NamedTemporaryFile(dir=context, delete=False).name
+    temp_file3 = tempfile.NamedTemporaryFile(dir=context, delete=False).name
+    assert os.path.exists(os.path.join(context, temp_file1))
+    assert os.path.exists(os.path.join(context, temp_file2))
+    assert os.path.exists(os.path.join(context, temp_file3))
+
+    project = mlrun.load_project(context=context, url=url, clone=True, save=False)
+
+    # verify that the directory was cleaned
+    assert not os.path.exists(os.path.join(context, temp_file1))
+    assert not os.path.exists(os.path.join(context, temp_file2))
+    assert not os.path.exists(os.path.join(context, temp_file3))
+
+    assert project.name == project_name
+    assert project.spec.context == context
+    assert project.spec.source == url
+    for project_file in project_files:
+        assert os.path.exists(os.path.join(context, project_file))
 
 
 def _assert_project_function_objects(project, expected_function_objects):

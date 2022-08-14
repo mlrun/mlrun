@@ -19,6 +19,7 @@ def context():
     context = os.path.join(".", "test")
     yield context
 
+    # clean up
     shutil.rmtree(context)
 
 
@@ -246,7 +247,7 @@ def test_clone_project(context, url, project_name, project_files):
 
     project = mlrun.load_project(context=context, url=url, clone=True, save=False)
 
-    # verify that the directory was cleaned
+    # verify that the context directory was cleaned
     assert not os.path.exists(os.path.join(context, temp_file1))
     assert not os.path.exists(os.path.join(context, temp_file2))
     assert not os.path.exists(os.path.join(context, temp_file3))

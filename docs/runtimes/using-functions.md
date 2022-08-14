@@ -1,5 +1,5 @@
 (using-functions)=
-# Configuring Functions
+# Configuring functions
 
 **MLRun Functions** (function objects) can be created by using any of the following methods:
 

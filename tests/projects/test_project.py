@@ -282,7 +282,8 @@ def test_build_project_from_minimal_dict():
             True,
             "",
             True,
-            "Failed to load project from git, context directory is not empty",
+            "Failed to load project from git, context directory is not empty. "
+            "Set clone param to True to remove the contents of the context directory.",
         ),
         (
             "git://github.com/mlrun/project-demo.git",

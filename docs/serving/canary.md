@@ -1,6 +1,10 @@
 (canary)=
 # Canary deployment
 
+```{admonition} Note
+Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/) (**"the platform"**).
+```
+
 Canary deployment is enabled by the API Gateway. The API gateway is a service that exposes your function as a web 
 service. Essentially, it is a proxy that forwards requests to your functions and returns the response.
 You can configure authentication on the gateway.

@@ -78,6 +78,10 @@ def clone_git(url, context, secrets=None, clone=True):
         if clone:
             shutil.rmtree(context)
         else:
+            if os.path.exists(context) and len(os.listdir(context)) > 0:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Failed to load project from git, context directory is not empty"
+                )
             try:
                 repo = Repo(context)
                 return get_repo_url(repo), repo

@@ -16,7 +16,7 @@ import tests.conftest
 
 @pytest.fixture()
 def context():
-    context = os.path.join(".", "test")
+    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
     yield context
 
     # clean up
@@ -217,44 +217,144 @@ def test_load_project(context, url, project_name, project_files):
     project = mlrun.load_project(context=context, url=url, save=False)
     assert project.name == project_name
     assert project.spec.context == context
-    assert project.spec.source == url
+    assert project.spec.source == str(url)
     for project_file in project_files:
         assert os.path.exists(os.path.join(context, project_file))
 
 
 @pytest.mark.parametrize(
-    "url,project_name,project_files",
+    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,expect_error,error_msg",
     [
-        ("./assets/project.zip", "pipe2", ["prep_data.py", "project.yaml"]),
-        ("./assets/project.tar.gz", "pipe2", ["prep_data.py", "project.yaml"]),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            False,
+            "",
+        ),
         (
             "git://github.com/mlrun/project-demo.git",
             "pipe",
             ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            True,
+            3,
+            True,
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            3,
+            True,
+            True,
+            "Failed to load project from git, context directory is not empty",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            False,
+            0,
+            False,
+            False,
+            "",
         ),
     ],
 )
-def test_clone_project(context, url, project_name, project_files):
+def test_clone_project(
+    context,
+    url,
+    project_name,
+    project_files,
+    clone,
+    num_of_files_to_create,
+    create_child_dir,
+    expect_error,
+    error_msg,
+):
 
     # create random files
-    os.makedirs(context, exist_ok=True)
-    temp_file1 = tempfile.NamedTemporaryFile(dir=context, delete=False).name
-    temp_file2 = tempfile.NamedTemporaryFile(dir=context, delete=False).name
-    temp_file3 = tempfile.NamedTemporaryFile(dir=context, delete=False).name
-    assert os.path.exists(os.path.join(context, temp_file1))
-    assert os.path.exists(os.path.join(context, temp_file2))
-    assert os.path.exists(os.path.join(context, temp_file3))
+    temp_files = []
+    child_dir = os.path.join(context, "child")
+    if num_of_files_to_create:
+        context.mkdir()
+        temp_files = [
+            tempfile.NamedTemporaryFile(dir=context, delete=False).name
+            for _ in range(num_of_files_to_create)
+        ]
+        for temp_file in temp_files:
+            assert os.path.exists(os.path.join(context, temp_file))
 
-    project = mlrun.load_project(context=context, url=url, clone=True, save=False)
+    if create_child_dir:
+        os.mkdir(child_dir)
 
-    # verify that the context directory was cleaned
-    assert not os.path.exists(os.path.join(context, temp_file1))
-    assert not os.path.exists(os.path.join(context, temp_file2))
-    assert not os.path.exists(os.path.join(context, temp_file3))
+    if expect_error:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+
+    for temp_file in temp_files:
+
+        # verify that the context directory was cleaned if clone is True
+        assert os.path.exists(os.path.join(context, temp_file)) is not clone
+
+    if create_child_dir:
+        assert os.path.exists(child_dir) is not clone
 
     assert project.name == project_name
     assert project.spec.context == context
-    assert project.spec.source == url
+    assert project.spec.source == str(url)
     for project_file in project_files:
         assert os.path.exists(os.path.join(context, project_file))
 

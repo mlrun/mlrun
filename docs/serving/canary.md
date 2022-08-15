@@ -5,9 +5,16 @@
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/) (**"the platform"**).
 ```
 
-Canary deployment is enabled by the API Gateway. The API gateway is a service that exposes your function as a web 
-service. Essentially, it is a proxy that forwards requests to your functions and returns the response.
+Canary functions are used to test model deployments, based on an actual production deployment. Using this method, you can 
+test the model behavior with minimal impact on the existing production. 
+
+Canary functions are defined using an API gateway. The API gateway is a service that exposes your function as a 
+web service. Essentially, it is a proxy that forwards requests to your functions and returns the response.
 You can configure authentication on the gateway.
+
+The API traffic is randomly directed to the two functions at the percentages you specify. Start with a low 
+percentage for the canary function. Verify that the canary function works as expected (or modify it until it does 
+work as desired). Then gradually increase its percentage until you turn it into a production function. 
 
 **In this section**
 
@@ -34,11 +41,6 @@ To create an API gateway in the UI:
 2. In **Primary**, type in the function that is triggered via the API Gateway. 
 
 ## Create and use a canary function
-
-Use a canary function to test a modified configuration of the Primary function. 
-The API traffic is randomly directed to the two functions at the percentages you specify. Start with a low 
-percentage for the canary function.  As you see that the canary function works as expected, gradually increase its 
-percentage until you turn it into a production function. 
 
 1. Press **Create a canary function** and type in the function name. 
 2. Leave the percentages at 5% and 95% to get started, and verify that the canary function works as expected.

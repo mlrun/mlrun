@@ -242,7 +242,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:1.0.5
+    base_image: mlrun/mlrun:1.0.6
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -272,7 +272,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.0.5
+    base_image: mlrun/mlrun:1.0.6
     source: git://github.com/mlrun/ci-demo.git
 ```
 
@@ -300,7 +300,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.0.5
+    base_image: mlrun/mlrun:1.0.6
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

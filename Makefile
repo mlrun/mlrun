@@ -127,7 +127,7 @@ ifndef MLRUN_OLD_VERSION
 endif
 	echo $(MLRUN_OLD_VERSION_ESCAPED)
 	find . \( ! -regex '.*/\..*' \) -a \( -iname \*.md -o -iname \*.txt -o -iname \*.yaml -o -iname \*.yml \)  \
-	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g'
+	-type f -print0 | xargs -0 sed -i '' -e 's/:$(MLRUN_OLD_VERSION_ESCAPED)/:$(MLRUN_NEW_VERSION)/g' -e 's/:-$(MLRUN_OLD_VERSION_ESCAPED)/:-$(MLRUN_NEW_VERSION)/g'
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file

@@ -18,7 +18,7 @@ services:
   mlrun-ui:
     image: "mlrun/mlrun-ui:${TAG:-1.0.6}"
     ports:
-      - "8060:80"
+      - "8060:8090"
     environment:
       MLRUN_API_PROXY_URL: http://jupyter:8080
       MLRUN_NUCLIO_MODE: enable

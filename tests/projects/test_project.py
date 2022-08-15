@@ -324,11 +324,13 @@ def test_load_project(
     expect_error,
     error_msg,
 ):
-
-    # create random files
     temp_files = []
     child_dir = os.path.join(context, "child")
+
+    # use override context to test invalid paths - it will not be deleted on teardown
     context = override_context or context
+
+    # create random files
     if num_of_files_to_create:
         context.mkdir()
         temp_files = [

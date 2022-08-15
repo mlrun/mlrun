@@ -140,19 +140,8 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
-    # be able to communicate with the api
-    ensure_function_has_auth_set(function, auth_info)
+    apply_enrichment_and_validation_on_function(function, auth_info)
 
-    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
-    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
-    try_perform_auto_mount(function, auth_info)
-
-    # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
-    process_function_service_account(function)
-
-    mask_sensitive_data(function, auth_info)
-    ensure_function_security_context(function, auth_info)
     return function, task
 
 
@@ -163,7 +152,47 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     return response
 
 
-def mask_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
+def apply_enrichment_and_validation_on_function(
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    ensure_auth: bool = True,
+    perform_auto_mount: bool = True,
+    validate_service_account: bool = True,
+    mask_sensitive_data: bool = True,
+    ensure_security_context: bool = True,
+):
+    """
+    This function should be used only on server side.
+
+    This function is utilized in several flows as a consequence of different endpoints in MLRun for deploying different
+    runtimes such as dask and nuclio, depends on the flow and runtime we decide which util functions we
+    want to apply on the runtime.
+
+    When adding a new util function, go through the other flows that utilize the function
+    and make sure to specify the appropriate flag for each runtime.
+    """
+    # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+    # be able to communicate with the api
+    if ensure_auth:
+        ensure_function_has_auth_set(function, auth_info)
+
+    # if this was triggered by the UI, we will need to attempt auto-mount based on auto-mount config and params passed
+    # in the auth_info. If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+    if perform_auto_mount:
+        try_perform_auto_mount(function, auth_info)
+
+    # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
+    if validate_service_account:
+        process_function_service_account(function)
+
+    if mask_sensitive_data:
+        mask_function_sensitive_data(function, auth_info)
+
+    if ensure_security_context:
+        ensure_function_security_context(function, auth_info)
+
+
+def mask_function_sensitive_data(function, auth_info: mlrun.api.schemas.AuthInfo):
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         _mask_v3io_access_key_env_var(function, auth_info)
         _mask_v3io_volume_credentials(function)

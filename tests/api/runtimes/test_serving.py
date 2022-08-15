@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
@@ -9,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
@@ -229,6 +231,7 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
         orig_function = get_k8s()._get_project_secrets_raw_data
         get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
 

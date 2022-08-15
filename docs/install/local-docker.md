@@ -24,9 +24,11 @@ You can select a specific MLRun version with the `TAG` variable and Nuclio versi
 Add the `-d` flag to `docker-compose` for running in detached mode (in the background).
 
 ```{admonition} Note
-We added support for running as a non-root user in 1.0.5, hence the underlaying exposed port was changed.
+Support for running as a non-root user was added in 1.0.5, hence the underlaying exposed port was changed.
 If you want to use previous mlrun versions, modify the mlrun-ui port from 8090 back to 80.
 ```
+**Watch the installation:**
+[![MLRun install](../_static/images/mlrun-page.png)](https://www.youtube.com/watch?v=_MLaLZBa4UY)
 
 ## Use MLRun with your own client
 

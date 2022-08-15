@@ -203,27 +203,6 @@ def test_build_project_from_minimal_dict():
 
 
 @pytest.mark.parametrize(
-    "url,project_name,project_files",
-    [
-        ("./assets/project.zip", "pipe2", ["prep_data.py", "project.yaml"]),
-        ("./assets/project.tar.gz", "pipe2", ["prep_data.py", "project.yaml"]),
-        (
-            "git://github.com/mlrun/project-demo.git",
-            "pipe",
-            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
-        ),
-    ],
-)
-def test_load_project(context, url, project_name, project_files):
-    project = mlrun.load_project(context=context, url=url, save=False)
-    assert project.name == project_name
-    assert project.spec.context == context
-    assert project.spec.source == str(url)
-    for project_file in project_files:
-        assert os.path.exists(os.path.join(context, project_file))
-
-
-@pytest.mark.parametrize(
     "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
     "override_context,expect_error,error_msg",
     [
@@ -332,7 +311,7 @@ def test_load_project(context, url, project_name, project_files):
         ),
     ],
 )
-def test_clone_project(
+def test_load_project(
     context,
     url,
     project_name,

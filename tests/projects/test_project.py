@@ -20,7 +20,8 @@ def context():
     yield context
 
     # clean up
-    shutil.rmtree(context)
+    if context.exists():
+        shutil.rmtree(context)
 
 
 def test_sync_functions():
@@ -223,7 +224,8 @@ def test_load_project(context, url, project_name, project_files):
 
 
 @pytest.mark.parametrize(
-    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,expect_error,error_msg",
+    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "override_context,expect_error,error_msg",
     [
         (
             pathlib.Path(tests.conftest.tests_root_directory)
@@ -235,6 +237,7 @@ def test_load_project(context, url, project_name, project_files):
             True,
             3,
             True,
+            "",
             False,
             "",
         ),
@@ -248,6 +251,7 @@ def test_load_project(context, url, project_name, project_files):
             True,
             3,
             True,
+            "",
             False,
             "",
         ),
@@ -258,6 +262,7 @@ def test_load_project(context, url, project_name, project_files):
             True,
             3,
             True,
+            "",
             False,
             "",
         ),
@@ -271,6 +276,7 @@ def test_load_project(context, url, project_name, project_files):
             False,
             3,
             True,
+            "",
             False,
             "",
         ),
@@ -284,6 +290,7 @@ def test_load_project(context, url, project_name, project_files):
             False,
             3,
             True,
+            "",
             False,
             "",
         ),
@@ -294,8 +301,23 @@ def test_load_project(context, url, project_name, project_files):
             False,
             3,
             True,
+            "",
             True,
             "Failed to load project from git, context directory is not empty",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            0,
+            False,
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "body.txt",
+            True,
+            "projects/assets/body.txt' already exists and is not an empty directory",
         ),
         (
             "git://github.com/mlrun/project-demo.git",
@@ -304,6 +326,7 @@ def test_load_project(context, url, project_name, project_files):
             False,
             0,
             False,
+            "",
             False,
             "",
         ),
@@ -317,6 +340,7 @@ def test_clone_project(
     clone,
     num_of_files_to_create,
     create_child_dir,
+    override_context,
     expect_error,
     error_msg,
 ):
@@ -324,6 +348,7 @@ def test_clone_project(
     # create random files
     temp_files = []
     child_dir = os.path.join(context, "child")
+    context = override_context or context
     if num_of_files_to_create:
         context.mkdir()
         temp_files = [
@@ -337,7 +362,7 @@ def test_clone_project(
         os.mkdir(child_dir)
 
     if expect_error:
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        with pytest.raises(Exception) as exc:
             mlrun.load_project(context=context, url=url, clone=clone, save=False)
         assert error_msg in str(exc.value)
         return

@@ -18,6 +18,8 @@ Model monitoring provides warning alerts that can be sent to stakeholders for pr
 The model monitoring data can be viewed using Iguazio's user interface or through Grafana dashboards. Grafana is an interactive web 
 application visualization tool that can be added as a service in the Iguazio platform. See [Model monitoring using Grafana dashboards](./model-monitoring-deployment.html#model-monitoring-using-grafana-dashboards) for more details.
 
+You can also use the {ref}`canary` for model monitoring (when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/) (**"the platform"**)).
+
 **In this section**
   
 ```{toctree}

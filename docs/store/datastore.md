@@ -1,6 +1,8 @@
 (datastore)=
 # Data stores
 
+A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
+
 **In this section**
 - [Shared data stores](#shared-data-stores)
 - [Storage credentials and parameters](#storage-credentials-and-parameters)

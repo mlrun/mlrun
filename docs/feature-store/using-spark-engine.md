@@ -201,7 +201,7 @@ One-time setup:
    from mlrun.runtimes import RemoteSparkRuntime
    RemoteSparkRuntime.deploy_default_image()
    ```
-2. Store your S3 credentials in a k8s [secret](../secrets.md):
+2. Store your S3 credentials in a k8s [secret](../secrets.html#kubernetes-project-secrets):
    ```python
    import mlrun
    secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}

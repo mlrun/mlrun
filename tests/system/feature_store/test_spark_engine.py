@@ -451,6 +451,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         data_set = fs.FeatureSet(
             name_spark,
             entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
             engine="spark",
         )
 
@@ -487,6 +488,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         storey_data_set = fs.FeatureSet(
             name_storey,
+            timestamp_key="time",
             entities=[Entity("first_name"), Entity("last_name")],
         )
 
@@ -687,13 +689,32 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self, should_succeed, is_parquet, is_partitioned, target_path
     ):
         fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="spark")
+
+        source = (
+            "v3io:///bigdata/test_different_paths_for_ingest_on_spark_engines.parquet"
+        )
+        fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
+        stocks.to_parquet(path=source, filesystem=fsys)
+        source = ParquetSource(
+            "myparquet",
+            path=source,
+        )
+
         target = (
             ParquetTarget(name="tar", path=target_path, partitioned=is_partitioned)
             if is_parquet
             else CSVTarget(name="tar", path=target_path)
         )
+
         if should_succeed:
-            fs.ingest(fset, source=stocks, targets=[target])
+            fs.ingest(
+                fset,
+                run_config=fs.RunConfig(local=False),
+                spark_context=self.spark_service,
+                source=source,
+                targets=[target],
+            )
+
             if fset.get_target_path().endswith(fset.status.targets[0].run_id + "/"):
                 store, _ = mlrun.store_manager.get_or_create_store(
                     fset.get_target_path()
@@ -702,7 +723,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                fs.ingest(fset, source=stocks, targets=[target])
+                fs.ingest(fset, source=source, targets=[target])
 
     def test_error_is_properly_propagated(self):
         key = "patient_id"

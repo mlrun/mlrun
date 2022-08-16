@@ -158,7 +158,8 @@ class RemoteStep(storey.SendToHttp):
         if not self._session:
             self._session = mlrun.utils.HTTPSessionWithRetry(
                 self.retries,
-                self.backoff_factor or mlrun.config.config.http_retry_defaults.backoff_factor,
+                self.backoff_factor
+                or mlrun.config.config.http_retry_defaults.backoff_factor,
                 retry_on_exception=False,
                 retry_on_status=self.retries > 0,
                 retry_on_post=True,

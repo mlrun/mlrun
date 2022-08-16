@@ -1,3 +1,4 @@
+(secrets)=
 # Working with secrets  <!-- omit in toc -->
 When executing jobs through MLRun, the code might need access to specific secrets, for example to access data 
 residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
@@ -151,8 +152,10 @@ Users with the Editor or Admin role can add, modify, and delete secrets, and ass
 Viewers can only view the secret keys. The values themselves are not visible to any users.
 
 ##### Accessing the secrets
-By default, any runtime not executed locally automatically gains access to all the secrets of the project it 
-belongs to, so no configuration is required to enable that. It is possible to limit access of an executing job to a 
+By default, any runtime not executed locally (`local=False`) automatically gains access to all the secrets of the project it 
+belongs to, so no configuration is required to enable that. 
+**Jobs that are executed locally (`local=True`) do not have access to the project secrets.**
+It is possible to limit access of an executing job to a 
 subset of these secrets by calling the following function with a list of the secrets to be accessed:
 
 ```python

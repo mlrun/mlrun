@@ -321,6 +321,23 @@ class TestNuclioRuntime(TestRuntimeBase):
         else:
             assert deploy_spec.get("tolerations") is None
 
+    def assert_security_context(
+        self,
+        security_context=None,
+    ):
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        if security_context:
+            assert (
+                mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
+                    "security_context", deploy_spec.get("securityContext")
+                )
+                == security_context
+            )
+        else:
+            assert deploy_spec.get("securityContext") is None
+
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
         Expect no ingress template to be created, thought its mode is "always",
@@ -435,15 +452,15 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name, expected_env_from_secrets=expected_secrets
         )
 
-    def test_deploy_with_service_accounts(
+    def test_deploy_with_project_service_accounts(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
     ):
         k8s_secrets_mock.set_service_account_keys(self.project, "sa1", ["sa1", "sa2"])
-
+        auth_info = mlrun.api.schemas.AuthInfo()
         function = self._generate_runtime(self.runtime_kind)
         # Need to call _build_function, since service-account enrichment is happening only on server side, before the
         # call to deploy_nuclio_function
-        _build_function(db, None, function)
+        _build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa1"
         )
@@ -451,13 +468,57 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         function.spec.service_account = "bad-sa"
         with pytest.raises(HTTPException):
-            _build_function(db, None, function)
+            _build_function(db, auth_info, function)
 
+        # verify that project SA overrides the global SA
+        mlconf.function.spec.service_account.default = "some-other-sa"
         function.spec.service_account = "sa2"
-        _build_function(db, None, function)
+        _build_function(db, auth_info, function)
         self._assert_deploy_called_basic_config(
             expected_class=self.class_name, expected_service_account="sa2"
         )
+        mlconf.function.spec.service_account.default = None
+
+    def test_deploy_with_security_context_enrichment(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        user_unix_id = 1000
+        auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=user_unix_id)
+        mlrun.mlconf.igz_version = "3.6"
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.api.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        _build_function(db, auth_info, function)
+        self.assert_security_context({})
+
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.api.schemas.function.SecurityContextEnrichmentModes.override.value
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        _build_function(db, auth_info, function)
+        self.assert_security_context(
+            self._generate_security_context(
+                run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+                run_as_user=user_unix_id,
+            )
+        )
+
+    def test_deploy_with_global_service_account(
+        self, db: Session, k8s_secrets_mock: K8sSecretsMock
+    ):
+        service_account_name = "default-sa"
+        mlconf.function.spec.service_account.default = service_account_name
+        auth_info = mlrun.api.schemas.AuthInfo()
+        function = self._generate_runtime(self.runtime_kind)
+        # Need to call _build_function, since service-account enrichment is happening only on server side, before the
+        # call to deploy_nuclio_function
+        _build_function(db, auth_info, function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name,
+            expected_service_account=service_account_name,
+        )
+        mlconf.function.spec.service_account.default = None
 
     def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
@@ -1013,6 +1074,46 @@ class TestNuclioRuntime(TestRuntimeBase):
         self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings()  # noqa: E501
+
+    def test_deploy_with_security_context(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
+        self.assert_security_context()
+
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+        default_security_context = self._generate_security_context(
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
+        )
+        function = self._generate_runtime(self.runtime_kind)
+        self.execute_function(function)
+
+        self._assert_deploy_called_basic_config(
+            call_count=2, expected_class=self.class_name
+        )
+        self.assert_security_context(default_security_context)
+
+        function = self._generate_runtime(self.runtime_kind)
+        other_security_context = self._generate_security_context(
+            2000,
+            2000,
+        )
+
+        function.with_security_context(other_security_context)
+        self.execute_function(function)
+
+        self._assert_deploy_called_basic_config(
+            call_count=3, expected_class=self.class_name
+        )
+        self.assert_security_context(other_security_context)
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

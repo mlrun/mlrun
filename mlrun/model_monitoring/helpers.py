@@ -19,7 +19,7 @@ _MONIOTINRG_BATCH_FUNCTION_PATH = (
 )
 
 
-def get_model_monitoring_stream_processing_function(
+def initial_model_monitoring_stream_processing_function(
     project: str, model_monitoring_access_key: str, db_session: sqlalchemy.orm.Session
 ):
     """
@@ -33,7 +33,7 @@ def get_model_monitoring_stream_processing_function(
 
     """
 
-    # initialize Stream Processor object
+    # Initialize Stream Processor object
     stream_processor = mlrun.model_monitoring.stream_processing_fs.EventStreamProcessor(
         project=project,
         model_monitoring_access_key=model_monitoring_access_key,
@@ -42,7 +42,7 @@ def get_model_monitoring_stream_processing_function(
 
     http_source = mlrun.datastore.sources.HttpSource()
 
-    # create a new serving function for the streaming process
+    # Create a new serving function for the streaming process
     function = mlrun.code_to_function(
         name="model-monitoring-stream",
         project=project,
@@ -51,13 +51,13 @@ def get_model_monitoring_stream_processing_function(
         image="mlrun/mlrun",
     )
 
-    # create monitoring serving graph
-    stream_processor.apply_serving_graph(function)
+    # Create monitoring serving graph
+    stream_processor.apply_monitoring_serving_graph(function)
 
-    # set the project to the serving function
+    # Set the project to the serving function
     function.metadata.project = project
 
-    # add v3io stream trigger
+    # Add v3io stream trigger
     stream_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind="stream"
     )
@@ -65,7 +65,7 @@ def get_model_monitoring_stream_processing_function(
         stream_path=stream_path, name="monitoring_stream_trigger"
     )
 
-    # set model monitoring access key for managing permissions
+    # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
@@ -102,7 +102,7 @@ def get_model_monitoring_batch_function(
 
     """
 
-    # create job function runtime for the model monitoring batch
+    # Create job function runtime for the model monitoring batch
     function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
         name="model-monitoring-batch",
         project=project,
@@ -113,10 +113,10 @@ def get_model_monitoring_batch_function(
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
 
-    # set the project to the job function
+    # Set the project to the job function
     function.metadata.project = project
 
-    # set model monitoring access key for managing permissions
+    # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
         "MODEL_MONITORING_ACCESS_KEY",
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),

@@ -238,8 +238,8 @@ def test_get_project_owner(
     nop_leader: mlrun.api.utils.projects.remotes.leader.Member,
 ):
     owner = "some-username"
-    owner_session = "some-session"
-    nop_leader.project_owner_session = owner_session
+    owner_access_key = "some-access-key"
+    nop_leader.project_owner_access_key = owner_access_key
     project = _generate_project(owner=owner)
     projects_follower.create_project(
         db,
@@ -247,7 +247,7 @@ def test_get_project_owner(
     )
     project_owner = projects_follower.get_project_owner(db, project.metadata.name)
     assert project_owner.username == owner
-    assert project_owner.session == owner_session
+    assert project_owner.access_key == owner_access_key
 
 
 def test_list_project(

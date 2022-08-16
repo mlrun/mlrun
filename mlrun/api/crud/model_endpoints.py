@@ -85,9 +85,12 @@ class ModelEndpoints:
                 model_endpoint.spec.algorithm = model_obj.algorithm
 
             # Create monitoring feature set if monitoring found in model endpoint object
-            if model_endpoint.spec.monitoring_mode == "enabled":
+            if (
+                model_endpoint.spec.monitoring_mode
+                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+            ):
                 self.create_monitoring_feature_set(
-                    model_endpoint, model_obj, db_session
+                    model_endpoint, model_obj, db_session, run_db
                 )
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
@@ -142,17 +145,19 @@ class ModelEndpoints:
         model_endpoint: mlrun.api.schemas.ModelEndpoint,
         model_obj: mlrun.artifacts.ModelArtifact,
         db_session: sqlalchemy.orm.Session,
+        run_db: mlrun.db.sqldb.SQLDB,
     ):
         """
         Create monitoring feature set with the relevant parquet target.
 
-        :param model_endpoint:    An object representing the model endpoint
-        :param model_obj:         An object representing the deployed model
-        :param db_session:        A session that manages the current dialog with the database
-
+        :param model_endpoint:    An object representing the model endpoint.
+        :param model_obj:         An object representing the deployed model.
+        :param db_session:        A session that manages the current dialog with the database.
+        :param run_db:            A run db instance which will be used for retrieving the feature vector in case
+                                  the features are not found in the model object.
         """
 
-        # define a new feature set
+        # Define a new feature set
         _, serving_function_name, _, _ = mlrun.utils.helpers.parse_versioned_object_uri(
             model_endpoint.spec.function_uri
         )
@@ -172,7 +177,7 @@ class ModelEndpoints:
             "model_class": model_endpoint.spec.model_class,
         }
 
-        # add features to the feature set according to the model object
+        # Add features to the feature set according to the model object
         if model_obj.inputs.values():
             for feature in model_obj.inputs.values():
                 feature_set.add_feature(
@@ -180,25 +185,28 @@ class ModelEndpoints:
                         name=feature.name, value_type=feature.value_type
                     )
                 )
-        # check if features can be found within the feature vector
+        # Check if features can be found within the feature vector
         elif model_obj.feature_vector:
-            fv = mlrun.feature_store.common.get_feature_vector_by_uri(
-                model_obj.feature_vector, project=model_endpoint.metadata.project
+            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
+                model_obj.feature_vector
             )
-            for feature in fv.status.features.values():
-                feature_set.add_feature(
-                    mlrun.feature_store.Feature(
-                        name=feature.name, value_type=feature.value_type
+            fv = run_db.get_feature_vector(
+                name=name, project=model_endpoint.metadata.project, tag=tag
+            )
+            for feature in fv.status.features:
+                if feature["name"] != fv.status.label_column:
+                    feature_set.add_feature(
+                        mlrun.feature_store.Feature(
+                            name=feature["name"], value_type=feature["value_type"]
+                        )
                     )
-                )
         else:
             logger.info(
                 "Could not find any features in the model object and in the Feature Vector"
             )
             return
 
-        # define parquet target for this feature set
-
+        # Define parquet target for this feature set
         parquet_path = (
             f"v3io:///projects/{model_endpoint.metadata.project}"
             f"/model-endpoints/parquet/key={model_endpoint.metadata.uid}"
@@ -211,7 +219,7 @@ class ModelEndpoints:
             with_defaults=False,
         )
 
-        # save the new feature set
+        # Save the new feature set
         feature_set._override_run_db(db_session)
         feature_set.save()
         logger.info(
@@ -799,7 +807,7 @@ class ModelEndpoints:
                 "Deploying model monitoring stream processing function", project=project
             )
 
-        fn = mlrun.model_monitoring.helpers.get_model_monitoring_stream_processing_function(
+        fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
             project, model_monitoring_access_key, db_session
         )
 
@@ -851,13 +859,10 @@ class ModelEndpoints:
             auth_info=auth_info,
         )
 
-        # get the function uri
+        # Get the function uri
         function_uri = fn.save(versioned=True)
         function_uri = function_uri.replace("db://", "")
 
-        logger.info(
-            "Deploying model monitoring batch processing function", project=project
-        )
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri
 
@@ -865,6 +870,10 @@ class ModelEndpoints:
             "task": task.to_dict(),
             "schedule": "0 */1 * * *",
         }
+
+        logger.info(
+            "Deploying model monitoring batch processing function", project=project
+        )
 
         # add job schedule policy (every hour by default)
         mlrun.api.api.utils._submit_run(

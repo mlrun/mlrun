@@ -63,7 +63,7 @@ from .frontend_spec import (
     PreemptionNodesFeatureFlag,
     ProjectMembershipFeatureFlag,
 )
-from .function import FunctionState, PreemptionModes
+from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,
@@ -89,6 +89,7 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringMode,
     ModelMonitoringStoreKinds,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus

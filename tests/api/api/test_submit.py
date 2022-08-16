@@ -212,6 +212,16 @@ def test_submit_job_service_accounts(
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa3")
 
+    # Validate that a global service account works as expected
+    pod_create_mock.reset_mock()
+    mlconf.function.spec.service_account.default = "some-sa"
+    function.spec.service_account = None
+    submit_job_body = _create_submit_job_body(function, project)
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp
+    _assert_pod_service_account(pod_create_mock, "some-sa")
+    mlconf.function.spec.service_account.default = None
+
 
 def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     db: sqlalchemy.orm.Session,

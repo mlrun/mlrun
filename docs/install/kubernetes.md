@@ -1,3 +1,4 @@
+(install-on-kubernetes)=
 # Install MLRun on a Kubernetes Cluster
 
 **In this section**
@@ -13,14 +14,15 @@
 ## Prerequisites
 
 - Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation 
-on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases up to, and including, 1.21.
+on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases 1.22 and 1.23.
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
+- Storage: 7Gi
 
-```{admonition} Note
-These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+``` {admonition} Note
+The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
 <a id="docker-desktop-installation"></a>
@@ -54,6 +56,10 @@ To learn about the various UI options and their usage, see:
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
+
+```{admonition} Note
+These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+```
 
 Create a namespace for the deployed components:
 

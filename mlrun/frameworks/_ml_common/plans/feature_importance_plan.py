@@ -6,9 +6,8 @@ import plotly.graph_objects as go
 import mlrun
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType, to_dataframe
+from ..utils import MLTypes, MLUtils
 
 
 class FeatureImportancePlan(MLPlotPlan):
@@ -29,8 +28,8 @@ class FeatureImportancePlan(MLPlotPlan):
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """
-        Check whether or not the plan is fit for production by the given stage and prediction probabilities. The
-        feature importance is ready post training.
+        Check whether the plan is fit for production by the given stage and prediction probabilities. The feature
+        importance is ready post training.
 
         :param stage:            The stage to check if the plan is ready.
         :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
@@ -41,7 +40,7 @@ class FeatureImportancePlan(MLPlotPlan):
         return stage == MLPlanStages.POST_FIT
 
     def produce(
-        self, model: ModelType, x: DatasetType, **kwargs
+        self, model: MLTypes.ModelType, x: MLTypes.DatasetType, **kwargs
     ) -> Dict[str, Artifact]:
         """
         Produce the feature importance according to the given model and dataset ('x').
@@ -51,24 +50,22 @@ class FeatureImportancePlan(MLPlotPlan):
 
         :return: The produced feature importance artifact in an artifacts dictionary.
         """
-        # Validate the 'feature_importances_' or 'coef_' fields are available for the given model:
-        if not (hasattr(model, "feature_importances_") or hasattr(model, "coef_")):
+        # Get the importance score:
+        if hasattr(model, "feature_importances_"):  # Tree-based feature importance
+            importance_score = model.feature_importances_
+        elif hasattr(model, "feature_importance"):  # Booster feature importance
+            importance_score = model.feature_importance()
+        elif hasattr(model, "coef_"):  # Coefficient-based importance
+            importance_score = model.coef_[0]
+        else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "This model cannot be used for Feature Importance plotting."
             )
 
-        # Get the importance score:
-        if hasattr(model, "feature_importances_"):
-            # Tree-based feature importance
-            importance_score = model.feature_importances_
-        else:
-            # Coefficient-based importance
-            importance_score = model.coef_[0]
-
         # Create a table of features and their importance:
         df = pd.DataFrame(
             {
-                "features": to_dataframe(x).columns,
+                "features": MLUtils.to_dataframe(dataset=x).columns,
                 "feature_importance": importance_score,
             }
         ).sort_values(by="feature_importance", ascending=False)

@@ -291,11 +291,11 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     # at this point the schedule is inside the scheduler without auth_info, so the first trigger should try to generate
     # auth info, mock the functions for this
     username = "some-username"
-    session = "some-session"
+    access_key = "some-access_key"
     mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = (
         unittest.mock.Mock(
             return_value=mlrun.api.schemas.ProjectOwner(
-                username=username, session=session
+                username=username, access_key=access_key
             )
         )
     )

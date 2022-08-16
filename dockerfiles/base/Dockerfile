@@ -3,11 +3,7 @@ ARG MLRUN_PYTHON_VERSION=3.7.13
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
 RUN apt-get update && \
-    apt-get -s dist-upgrade | \
-    grep "^Inst" | \
-    grep -i securi | \
-    awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 # need to be redeclared since used in the from
@@ -27,6 +23,9 @@ RUN apt update -qqq \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun
+
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
 
 # install miniconda
 RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \

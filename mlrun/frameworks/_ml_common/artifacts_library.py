@@ -1,7 +1,6 @@
 from abc import ABC
 from typing import List
 
-from .._common import ModelType
 from .._common.artifacts_library import ArtifactsLibrary, Plan
 from .plans import (
     CalibrationCurvePlan,
@@ -10,7 +9,7 @@ from .plans import (
     FeatureImportancePlan,
     ROCCurvePlan,
 )
-from .utils import AlgorithmFunctionality, DatasetType
+from .utils import MLTypes, MLUtils
 
 
 class MLArtifactsLibrary(ArtifactsLibrary, ABC):
@@ -33,7 +32,7 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
 
     @classmethod
     def default(
-        cls, model: ModelType, y: DatasetType = None, *args, **kwargs
+        cls, model: MLTypes.ModelType, y: MLTypes.DatasetType = None, *args, **kwargs
     ) -> List[Plan]:
         """
         Get the default artifacts plans list of this framework's library.
@@ -44,9 +43,7 @@ class MLArtifactsLibrary(ArtifactsLibrary, ABC):
         :return: The default artifacts plans list.
         """
         # Discover the algorithm functionality of the provided model:
-        algorithm_functionality = AlgorithmFunctionality.get_algorithm_functionality(
-            model=model, y=y
-        )
+        algorithm_functionality = MLUtils.get_algorithm_functionality(model=model, y=y)
 
         # Initialize the plans list:
         plans = [DatasetPlan(purpose=DatasetPlan.Purposes.TEST)]

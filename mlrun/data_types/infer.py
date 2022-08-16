@@ -29,7 +29,7 @@ def infer_schema_from_df(
             entities[name] = {"name": name, "value_type": value_type}
 
     # remove index column if no name provided
-    if not df.index.name:
+    if not df.index.name and df.index.is_numeric():
         df = df.reset_index().drop("index", axis=1)
 
     schema = pyarrow.Schema.from_pandas(df)
@@ -96,6 +96,7 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     ).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
+            # TODO: why is 50% excluded from the results?
             if stat != "50%":
                 if isinstance(val, (float, np.floating, np.float64)):
                     stats_dict[stat] = float(val)

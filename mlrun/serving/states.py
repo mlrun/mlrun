@@ -538,7 +538,7 @@ class RouterStep(TaskStep):
         :param function:   function this step should run in
         """
 
-        if not route and not class_name:
+        if not route and not class_name and not handler:
             raise MLRunInvalidArgumentError("route or class_name must be specified")
         if not route:
             route = TaskStep(class_name, class_args, handler=handler)
@@ -618,11 +618,15 @@ class QueueStep(BaseStep):
         name: str = None,
         path: str = None,
         after: list = None,
+        shards: int = None,
+        retention_in_hours: int = None,
         trigger_args: dict = None,
         **options,
     ):
         super().__init__(name, after)
         self.path = path
+        self.shards = shards
+        self.retention_in_hours = retention_in_hours
         self.options = options
         self.trigger_args = trigger_args
         self._stream = None
@@ -633,6 +637,8 @@ class QueueStep(BaseStep):
         if self.path:
             self._stream = get_stream_pusher(
                 self.path,
+                shards=self.shards,
+                retention_in_hours=self.retention_in_hours,
                 **self.options,
             )
         self._set_error_handler()
@@ -947,8 +953,8 @@ class FlowStep(BaseStep):
             if step.on_error and step.on_error in start_steps:
                 start_steps.remove(step.on_error)
             if step.after:
-                prev_step = step.after[0]
-                self[prev_step].set_next(step.name)
+                for prev_step in step.after:
+                    self[prev_step].set_next(step.name)
         if self.on_error and self.on_error in start_steps:
             start_steps.remove(self.on_error)
 

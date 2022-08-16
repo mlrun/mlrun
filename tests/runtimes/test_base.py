@@ -158,21 +158,25 @@ class TestAutoMount:
             runtime.apply(mlrun.auto_mount())
 
     @staticmethod
-    def _setup_s3_mount(use_secret):
+    def _setup_s3_mount(use_secret, non_anonymous):
         mlconf.storage.auto_mount_type = "s3"
         if use_secret:
-            return {
+            params = {
                 "secret_name": "s3_secret",
             }
         else:
-            return {
+            params = {
                 "aws_access_key": "some_key",
                 "aws_secret_key": "some_secret_key",
             }
+        if non_anonymous:
+            params["non_anonymous"] = True
+        return params
 
     @pytest.mark.parametrize("use_secret", [True, False])
-    def test_auto_mount_s3(self, use_secret, rundb_mock):
-        s3_params = self._setup_s3_mount(use_secret)
+    @pytest.mark.parametrize("non_anonymous", [True, False])
+    def test_auto_mount_s3(self, use_secret, non_anonymous, rundb_mock):
+        s3_params = self._setup_s3_mount(use_secret, non_anonymous)
         mlconf.storage.auto_mount_params = ",".join(
             [f"{key}={value}" for key, value in s3_params.items()]
         )

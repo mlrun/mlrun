@@ -6,6 +6,18 @@ on:
       version:
         description: 'The version to release, without prefix v (e.g. 1.1.0)'
         required: true
+      skip_images:
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
+        required: false
+        default: ''
+      skip_publish_pypi:
+        description: 'Whether to skip publishing the python package to Pypi, (true/false)'
+        required: false
+        default: 'false'
+      skip_create_tag_release:
+        description: 'Whether to skip creating tag & release in Github, (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   trigger-and-wait-for-mlrun-image-building:
@@ -21,11 +33,12 @@ jobs:
           workflow_file_name: build.yaml
           ref: ${{ github.ref_name }}
           wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}"}'
+          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}", "skip_images": "${{ github.event.inputs.skip_images }}"}'
 
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
 
     steps:
       - uses: convictional/trigger-workflow-and-wait@v1.6.3
@@ -41,6 +54,7 @@ jobs:
   publish-to-pypi:
     name: Publish package to pypi
     runs-on: ubuntu-latest
+    if: github.event.inputs.skip_publish_pypi != 'true'
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
     steps:
@@ -58,8 +72,9 @@ jobs:
           MLRUN_VERSION=${{ github.event.inputs.version }} make publish-package
 
   create-releases:
-    name: Create release & tag
+    name: Create release & tag v${{ github.event.inputs.version }}
     runs-on: ubuntu-latest
+    if: github.event.inputs.skip_create_tag_release != 'true'
     needs: publish-to-pypi
     steps:
       - uses: ncipollo/release-action@v1

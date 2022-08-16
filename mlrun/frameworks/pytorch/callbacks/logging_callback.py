@@ -6,9 +6,10 @@ from torch.nn import Module, Parameter
 
 import mlrun
 
-from ..._common import TrackableType
-from ..._dl_common.loggers import Logger, LoggerMode
-from .callback import Callback, MetricFunctionType, MetricValueType
+from ..._common import LoggingMode
+from ..._dl_common.loggers import Logger
+from ..utils import PyTorchTypes
+from .callback import Callback
 
 
 class HyperparametersKeys:
@@ -45,10 +46,14 @@ class LoggingCallback(Callback):
         self,
         context: mlrun.MLClientCtx = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -118,7 +123,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.validation_results
 
-    def get_static_hyperparameters(self) -> Dict[str, TrackableType]:
+    def get_static_hyperparameters(self) -> Dict[str, PyTorchTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -127,7 +132,9 @@ class LoggingCallback(Callback):
         """
         return self._logger.static_hyperparameters
 
-    def get_dynamic_hyperparameters(self) -> Dict[str, List[TrackableType]]:
+    def get_dynamic_hyperparameters(
+        self,
+    ) -> Dict[str, List[PyTorchTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
@@ -283,10 +290,10 @@ class LoggingCallback(Callback):
         """
         if self._is_training is None:
             self._is_training = False
-            self._logger.set_mode(mode=LoggerMode.EVALUATION)
+            self._logger.set_mode(mode=LoggingMode.EVALUATION)
 
     def on_validation_end(
-        self, loss_value: MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the
@@ -336,7 +343,7 @@ class LoggingCallback(Callback):
         """
         self._logger.log_validation_iteration()
 
-    def on_train_loss_end(self, loss_value: MetricValueType):
+    def on_train_loss_end(self, loss_value: PyTorchTypes.MetricValueType):
         """
         After the training calculation of the loss, this method will be called to log the loss value.
 
@@ -350,7 +357,7 @@ class LoggingCallback(Callback):
             result=float(loss_value),
         )
 
-    def on_validation_loss_end(self, loss_value: MetricValueType):
+    def on_validation_loss_end(self, loss_value: PyTorchTypes.MetricValueType):
         """
         After the validating calculation of the loss, this method will be called to log the loss value.
 
@@ -364,7 +371,7 @@ class LoggingCallback(Callback):
             result=float(loss_value),
         )
 
-    def on_train_metrics_end(self, metric_values: List[MetricValueType]):
+    def on_train_metrics_end(self, metric_values: List[PyTorchTypes.MetricValueType]):
         """
         After the training calculation of the metrics, this method will be called to log the metrics values.
 
@@ -380,7 +387,9 @@ class LoggingCallback(Callback):
                 result=float(metric_value),
             )
 
-    def on_validation_metrics_end(self, metric_values: List[MetricValueType]):
+    def on_validation_metrics_end(
+        self, metric_values: List[PyTorchTypes.MetricValueType]
+    ):
         """
         After the validating calculation of the metrics, this method will be called to log the metrics values.
 
@@ -407,45 +416,48 @@ class LoggingCallback(Callback):
             self._logger.log_context_parameters()
 
         # Add batch size:
-        bath_size_key = "batch_size"
-        if bath_size_key not in self._static_hyperparameters_keys:
+        if "batch_size" not in self._static_hyperparameters_keys:
             if self._objects[self._ObjectKeys.TRAINING_SET] is not None and hasattr(
                 self._objects[self._ObjectKeys.TRAINING_SET], "batch_size"
             ):
-                self._static_hyperparameters_keys[bath_size_key] = getattr(
+                self._static_hyperparameters_keys["batch_size"] = getattr(
                     self._objects[self._ObjectKeys.TRAINING_SET], "batch_size"
                 )
             elif self._objects[self._ObjectKeys.VALIDATION_SET] is not None and hasattr(
                 self._objects[self._ObjectKeys.VALIDATION_SET], "batch_size"
             ):
-                self._static_hyperparameters_keys[bath_size_key] = getattr(
+                self._static_hyperparameters_keys["batch_size"] = getattr(
                     self._objects[self._ObjectKeys.VALIDATION_SET], "batch_size"
                 )
 
         # Add learning rate:
-        learning_rate_key = "lr"
         learning_rate_key_chain = (
             HyperparametersKeys.OPTIMIZER,
             ["param_groups", 0, "lr"],
         )
-        if learning_rate_key not in self._dynamic_hyperparameters_keys:
+        if (
+            "lr" not in self._dynamic_hyperparameters_keys
+            and "learning_rate" not in self._dynamic_hyperparameters_keys
+        ):
             if self._objects[self._ObjectKeys.OPTIMIZER] is not None:
                 try:
+                    # Try to get the learning rate value:
                     self._get_hyperparameter(
                         source=learning_rate_key_chain[0],
                         key_chain=learning_rate_key_chain[1],
                     )
-                    self._dynamic_hyperparameters_keys[
-                        learning_rate_key
-                    ] = learning_rate_key_chain
+                    # If it passes without raising an exception, store the keychain ot it:
+                    self._dynamic_hyperparameters_keys["lr"] = learning_rate_key_chain
                 except (TypeError, KeyError, IndexError, ValueError):
                     pass
 
     def _get_hyperparameter(
         self,
         source: str,
-        key_chain: Union[List[Union[str, int]], Callable[[], TrackableType]],
-    ) -> TrackableType:
+        key_chain: Union[
+            List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
+        ],
+    ) -> PyTorchTypes.TrackableType:
         """
         Access the hyperparameter from the source using the given key chain.
 
@@ -476,11 +488,7 @@ class LoggingCallback(Callback):
             value = self._objects[source]
             for key in key_chain:
                 try:
-                    if (
-                        isinstance(value, dict)
-                        or isinstance(value, list)
-                        or isinstance(value, tuple)
-                    ):
+                    if isinstance(value, (dict, list, tuple)):
                         value = value[key]
                     else:
                         value = getattr(value, key)
@@ -491,7 +499,7 @@ class LoggingCallback(Callback):
                     )
 
         # Parse the value:
-        if isinstance(value, Tensor) or isinstance(value, Parameter):
+        if isinstance(value, (Tensor, Parameter)):
             if value.numel() == 1:
                 value = float(value)
             else:
@@ -507,12 +515,7 @@ class LoggingCallback(Callback):
                     f"The parameter with the following key chain: {key_chain} is a numpy.ndarray with {value.size} "
                     f"elements. numpy arrays are trackable only if they have 1 element."
                 )
-        elif not (
-            isinstance(value, float)
-            or isinstance(value, int)
-            or isinstance(value, str)
-            or isinstance(value, bool)
-        ):
+        elif not isinstance(value, (float, int, str, bool)):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"The parameter with the following key chain: {key_chain} is of type '{type(value)}'. "
                 f"The only trackable types are: float, int, str and bool."
@@ -520,7 +523,7 @@ class LoggingCallback(Callback):
         return value
 
     @staticmethod
-    def _get_metric_name(metric_function: MetricFunctionType):
+    def _get_metric_name(metric_function: PyTorchTypes.MetricFunctionType):
         """
         Get the given metric name.
 

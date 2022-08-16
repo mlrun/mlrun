@@ -74,7 +74,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
-    project_name = "nuclio-stream-project"
+    project_name = "stream-project"
     stream_container = "bigdata"
     stream_path = "/test_nuclio/test_serving_with_child_function/"
 
@@ -116,7 +116,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
-    project_name = "nuclio-kafka-project"
+    project_name = "kafka-project"
     topic_uuid_part = uuid.uuid4()
     topic = f"TestNuclioRuntimeWithKafka-{topic_uuid_part}"
     topic_out = f"TestNuclioRuntimeWithKafka-out-{topic_uuid_part}"
@@ -171,8 +171,19 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             name="child", class_name="Identity", function="child"
         ).to(">>", "out", path=self.topic_out, kafka_bootstrap_servers=self.brokers)
 
+        graph.add_step(
+            name="other-child", class_name="Augment", after="q1", function="other-child"
+        )
+
+        graph["out"].after_step("other-child")
+
         function.add_child_function(
             "child",
+            child_code_path,
+            image="mlrun/mlrun",
+        )
+        function.add_child_function(
+            "other-child",
             child_code_path,
             image="mlrun/mlrun",
         )
@@ -186,8 +197,17 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         self._logger.debug("Waiting for data to arrive in output topic")
         kafka_consumer.subscribe([self.topic_out])
-        record = next(kafka_consumer)
-        assert record.value == b'{"hello": "world"}'
+        record1 = next(kafka_consumer)
+        assert (
+            record1.value == b'{"hello": "world"}'
+            or record1.value == b'{"hello": "world", "more_stuff": 5}'
+        )
+        record2 = next(kafka_consumer)
+        assert (
+            record2.value == b'{"hello": "world"}'
+            or record2.value == b'{"hello": "world", "more_stuff": 5}'
+        )
+        assert record1 != record2
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

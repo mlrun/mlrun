@@ -3,7 +3,8 @@ import dataclasses
 import datetime
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from enum import Enum
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -23,6 +24,20 @@ from mlrun.utils import logger
 _TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
 
+class DriftStatus(Enum):
+    """
+    Enum for the drift status values.
+    """
+
+    NO_DRIFT = "NO_DRIFT"
+    DRIFT_DETECTED = "DRIFT_DETECTED"
+    POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
+
+
+# A type for representing a drift result, a tuple of the status and the drift mean:
+DriftResultType = Tuple[DriftStatus, float]
+
+
 @dataclasses.dataclass
 class TotalVarianceDistance:
     """
@@ -36,6 +51,8 @@ class TotalVarianceDistance:
 
     distrib_t: np.ndarray
     distrib_u: np.ndarray
+
+    NAME: ClassVar[str] = "tvd"
 
     def compute(self) -> float:
         """
@@ -61,15 +78,15 @@ class HellingerDistance:
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
+    NAME: ClassVar[str] = "hellinger"
+
     def compute(self) -> float:
         """
         Calculate Hellinger Distance
 
         :returns: Hellinger Distance
         """
-        return np.sqrt(
-            0.5 * ((np.sqrt(self.distrib_u) - np.sqrt(self.distrib_t)) ** 2).sum()
-        )
+        return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
 
 
 @dataclasses.dataclass
@@ -86,12 +103,13 @@ class KullbackLeiblerDivergence:
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
+    NAME: ClassVar[str] = "kld"
+
     def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
         """
-        :param capping:              A bounded value for the KL Divergence. For infinite distance, the result
-                                     is replaced with the capping value which indicates a huge differences between
-                                     the distributions.
-        :param kld_scaling:          Will be used to replace 0 values for executing the logarithmic operation.
+        :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
+                             the capping value which indicates a huge differences between the distributions.
+        :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
 
         :returns: KL Divergence
         """
@@ -137,53 +155,49 @@ class VirtualDrift:
         inf_capping: Optional[float] = 10,
     ):
         """
-        Initialize a Virtual Drift object
+        Initialize a Virtual Drift object.
 
-        :param prediction_col:          The name of the dataframe column which represents the predictions of the model.
-                                        If provided, it will be used for calculating drift over the predictions.
-        :param label_col:               The name of the dataframe column which represents the labels of the model.
-                                        If provided, it will be used for calculating drift over the labels.
-        :param feature_weights:         Weights that can be applied to the features and to be considered during the
-                                        drift analysis.
-        :param inf_capping:             A bounded value for the results of the statistical metric.
-                                        For example, when calculating KL divergence and getting infinite distance
-                                        between the two distributions, the result will be replaced with the
-                                        capping value.
+        :param prediction_col:  The name of the dataframe column which represents the predictions of the model. If
+                                provided, it will be used for calculating drift over the predictions. The name of the
+                                dataframe column which represents the labels of the model. If provided, it will be used
+                                for calculating drift over the labels.
+        :param feature_weights: Weights that can be applied to the features and to be considered during the drift
+                                analysis.
+        :param inf_capping:     A bounded value for the results of the statistical metric. For example, when calculating
+                                KL divergence and getting infinite distance between the two distributions, the result
+                                will be replaced with the capping value.
         """
         self.prediction_col = prediction_col
         self.label_col = label_col
         self.feature_weights = feature_weights
         self.capping = inf_capping
 
-        # initialize objects of the current metrics
+        # Initialize objects of the current metrics
         self.metrics = {
-            "tvd": TotalVarianceDistance,
-            "hellinger": HellingerDistance,
-            "kld": KullbackLeiblerDivergence,
+            TotalVarianceDistance.NAME: TotalVarianceDistance,
+            HellingerDistance.NAME: HellingerDistance,
+            KullbackLeiblerDivergence.NAME: KullbackLeiblerDivergence,
         }
 
-    def dict_to_histogram(
-        self, histogram_dict: Dict[str, Dict[str, Any]]
-    ) -> pd.DataFrame:
+    @staticmethod
+    def dict_to_histogram(histogram_dict: Dict[str, Dict[str, Any]]) -> pd.DataFrame:
         """
         Convert histogram dictionary to pandas DataFrame with feature histograms as columns
 
-        :param histogram_dict:          Histogram dictionary
+        :param histogram_dict: Histogram dictionary
 
-        :returns:                        Histogram dataframe
+        :returns: Histogram dataframe
         """
 
-        # create a dictionary with feature histograms as values
+        # Create a dictionary with feature histograms as values
         histograms = {}
         for feature, stats in histogram_dict.items():
             if "hist" in stats:
-                histograms[feature] = stats["hist"][0]
+                # Normalize to probability distribution of each feature
+                histograms[feature] = np.array(stats["hist"][0]) / stats["count"]
 
-        # convert the dictionary to pandas DataFrame
+        # Convert the dictionary to pandas DataFrame
         histograms = pd.DataFrame(histograms)
-
-        # normalize to probability distribution of each feature
-        histograms = histograms / histograms.sum()
 
         return histograms
 
@@ -193,18 +207,17 @@ class VirtualDrift:
         latest_histogram: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Dict[str, Any]]:
         """
-        Calculate metrics values for each feature
-
-        :param base_histogram:          histogram dataframe that represents the distribution of the features from the
-                                        original training set
-        :param latest_histogram:        histogram dataframe that represents the distribution of the features from the
-                         Ï              latest input batch
-
-        :returns: A dictionary in which for each metric (key) we assign the values for each feature.
+        Calculate metrics values for each feature.
 
         For example:
         {tvd: {feature_1: 0.001, feature_2: 0.2: ,...}}
 
+        :param base_histogram:   histogram dataframe that represents the distribution of the features from the original
+                                 training set.
+        :param latest_histogram: Histogram dataframe that represents the distribution of the features from the latest
+                                 input batch.
+
+        :returns: A dictionary in which for each metric (key) we assign the values for each feature.
         """
 
         # compute the different metrics for each feature distribution and store the results in dictionary
@@ -226,11 +239,10 @@ class VirtualDrift:
     ) -> Dict[str, Dict[str, Any]]:
         """
         Compare the distributions of both the original features data and the latest input data
-        :param feature_stats:           Histogram dictionary of the original feature dataset that was used in the
-                                        model training.
-        :param current_stats:           Histogram dictionary of the recent input data
+        :param feature_stats: Histogram dictionary of the original feature dataset that was used in the model training.
+        :param current_stats: Histogram dictionary of the recent input data
 
-        :returns:                        A dictionary that includes the drift results for each feature.
+        :returns: A dictionary that includes the drift results for each feature.
 
         """
 
@@ -312,6 +324,148 @@ class VirtualDrift:
 
         return drift_result
 
+    @staticmethod
+    def check_for_drift_per_feature(
+        metrics_results_dictionary: Dict[str, Union[float, dict]],
+        possible_drift_threshold: float = 0.5,
+        drift_detected_threshold: float = 0.7,
+    ) -> Dict[str, DriftResultType]:
+        """
+        Check for drift based on the defined decision rule and the calculated results of the statistical metrics per
+        feature.
+
+        :param metrics_results_dictionary: Dictionary of statistical metrics results per feature and the total means of
+                                           all features.
+        :param possible_drift_threshold:   Threshold for the calculated result to be in a possible drift status.
+                                           Defaulted to 0.5.
+        :param drift_detected_threshold:   Threshold for the calculated result to be in a drift detected status.
+                                           Defaulted to 0.7.
+
+        :returns: A dictionary of all the features and their drift status and results tuples, tuple of:
+                  [0] = Drift status enum based on the thresholds given.
+                  [1] = The drift result (float) based on the mean of the Total Variance Distance and the Hellinger
+                        distance.
+        """
+        # Initialize the drift results dictionary:
+        drift_results = {}
+
+        # Calculate the result per feature:
+        for feature, results in metrics_results_dictionary.items():
+            # A feature result must be a dictionary, otherwise it's the total mean (float):
+            if not isinstance(results, dict):
+                continue
+            # Calculate the feature's drift mean:
+            tvd = results[TotalVarianceDistance.NAME]
+            hellinger = results[HellingerDistance.NAME]
+            metrics_results_dictionary = (tvd + hellinger) / 2
+            # Decision rule for drift detection:
+            drift_status = VirtualDrift._get_drift_status(
+                drift_result=metrics_results_dictionary,
+                possible_drift_threshold=possible_drift_threshold,
+                drift_detected_threshold=drift_detected_threshold,
+            )
+            # Collect the drift result:
+            drift_results[feature] = (drift_status, metrics_results_dictionary)
+
+        return drift_results
+
+    @staticmethod
+    def check_for_drift(
+        metrics_results_dictionary: Dict[str, Union[float, dict]],
+        possible_drift_threshold: float = 0.5,
+        drift_detected_threshold: float = 0.7,
+    ) -> DriftResultType:
+        """
+        Check for drift based on the defined decision rule and the calculated results of the statistical metrics by the
+        mean of all features.
+
+        :param metrics_results_dictionary: Dictionary of statistical metrics results per feature and the total means of
+                                           all features.
+        :param possible_drift_threshold:   Threshold for the calculated result to be in a possible drift status.
+                                           Defaulted to 0.5.
+        :param drift_detected_threshold:   Threshold for the calculated result to be in a drift detected status.
+                                           Defaulted to 0.7.
+
+        :returns: A tuple of:
+                  [0] = Drift status enum based on the thresholds given.
+                  [1] = The drift result (float) based on the mean of the Total Variance Distance and the Hellinger
+                        distance.
+        """
+        # Calculate the mean drift result:
+        tvd_mean = metrics_results_dictionary[f"{TotalVarianceDistance.NAME}_mean"]
+        hellinger_mean = metrics_results_dictionary.get(
+            f"{HellingerDistance.NAME}_mean"
+        )
+        drift_result = 0.0
+        if tvd_mean and hellinger_mean:
+            drift_result = (tvd_mean + hellinger_mean) / 2
+
+        # Decision rule for drift detection:
+        drift_status = VirtualDrift._get_drift_status(
+            drift_result=drift_result,
+            possible_drift_threshold=possible_drift_threshold,
+            drift_detected_threshold=drift_detected_threshold,
+        )
+
+        return drift_status, drift_result
+
+    @staticmethod
+    def _get_drift_status(
+        drift_result: float,
+        possible_drift_threshold: float,
+        drift_detected_threshold: float,
+    ) -> DriftStatus:
+        """
+        Get the drift status according to the result and thresholds given.
+
+        :param drift_result:             The drift result.
+        :param possible_drift_threshold: Threshold for the calculated result to be in a possible drift status.
+        :param drift_detected_threshold: Threshold for the calculated result to be in a drift detected status.
+
+        :returns: The figured drift status.
+        """
+        drift_status = DriftStatus.NO_DRIFT
+        if drift_result >= drift_detected_threshold:
+            drift_status = DriftStatus.DRIFT_DETECTED
+        elif drift_result >= possible_drift_threshold:
+            drift_status = DriftStatus.POSSIBLE_DRIFT
+
+        return drift_status
+
+
+def calculate_inputs_statistics(
+    sample_set_statistics: dict, inputs: pd.DataFrame
+) -> dict:
+    """
+    Calculate the inputs data statistics for drift monitoring purpose.
+
+    :param sample_set_statistics: The sample set (stored end point's dataset to reference) statistics. The bins of the
+                                  histograms of each feature will be used to recalculate the histograms of the inputs.
+    :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
+                                  sample set.
+
+    :returns: The calculated statistics of the inputs data.
+    """
+    # Use `DFDataInfer` to calculate the statistics over the inputs:
+    inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
+        df=inputs,
+        options=mlrun.data_types.infer.InferOptions.Histogram,
+    )
+
+    # Recalculate the histograms over the bins that are set in the sample-set of the end point:
+    for feature in inputs_statistics.keys():
+        if feature in sample_set_statistics:
+            counts, bins = np.histogram(
+                inputs[feature].to_numpy(),
+                bins=sample_set_statistics[feature]["hist"][1],
+            )
+            inputs_statistics[feature]["hist"] = [
+                counts.tolist(),
+                bins.tolist(),
+            ]
+
+    return inputs_statistics
+
 
 class BatchProcessor:
     """
@@ -331,11 +485,10 @@ class BatchProcessor:
         """
         Initialize Batch Processor object.
 
-        :param context:                         a MLRun context.
-        :param project:                         project name.
-        :param model_monitoring_access_key:     access key to apply the model monitoring process.
-        :param v3io_access_key:                 token key for v3io.
-
+        :param context:                     An MLRun context.
+        :param project:                     Project name.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
+        :param v3io_access_key:             Token key for v3io.
         """
         self.context = context
         self.project = project
@@ -416,7 +569,9 @@ class BatchProcessor:
         self.exception = None
 
     def post_init(self):
-        """pre-process of the batch processing"""
+        """
+        Preprocess of the batch processing.
+        """
 
         # create v3io stream based on the input stream
         response = self.v3io.create_stream(
@@ -431,9 +586,10 @@ class BatchProcessor:
             response.raise_for_status([409, 204, 403])
 
     def run(self):
-        """Main method for manage the drift analysis and write the results into tsdb and KV table"""
-
-        # get model endpoints (each deployed project has at least 1 serving model)
+        """
+        Main method for manage the drift analysis and write the results into tsdb and KV table.
+        """
+        # Get model endpoints (each deployed project has at least 1 serving model):
         try:
             endpoints = self.db.list_model_endpoints(self.project)
         except Exception as e:
@@ -442,19 +598,23 @@ class BatchProcessor:
 
         active_endpoints = set()
         for endpoint in endpoints.endpoints:
-            if endpoint.spec.active and endpoint.spec.monitoring_mode == "enabled":
+            if (
+                endpoint.spec.active
+                and endpoint.spec.monitoring_mode
+                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+            ):
                 active_endpoints.add(endpoint.metadata.uid)
 
         # perform drift analysis for each model endpoint
         for endpoint_id in active_endpoints:
             try:
 
-                # get model endpoint object
+                # Get model endpoint object:
                 endpoint = self.db.get_model_endpoint(
                     project=self.project, endpoint_id=endpoint_id
                 )
 
-                # skip router endpoint
+                # Skip router endpoint:
                 if (
                     endpoint.status.endpoint_type
                     == mlrun.utils.model_monitoring.EndpointType.ROUTER
@@ -478,14 +638,38 @@ class BatchProcessor:
                 m_fs = fstore.get_feature_set(
                     f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
                 )
-                df = m_fs.to_dataframe(
-                    start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
-                    end_time=datetime.datetime.now(),
-                    time_column="timestamp",
-                )
+                try:
+                    df = m_fs.to_dataframe(
+                        start_time=datetime.datetime.now()
+                        - datetime.timedelta(hours=1),
+                        end_time=datetime.datetime.now(),
+                        time_column="timestamp",
+                    )
 
-                # continue if no input provided in the previous hour
-                if len(df) == 0:
+                    if len(df) == 0:
+                        logger.warn(
+                            "Not enough model events since the beginning of the batch interval",
+                            parquet_target=m_fs.status.targets[0].path,
+                            endpoint=endpoint_id,
+                            min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                            start_time=str(
+                                datetime.datetime.now() - datetime.timedelta(hours=1)
+                            ),
+                            end_time=str(datetime.datetime.now()),
+                        )
+                        continue
+
+                # TODO: The below warn will be removed once the state of the Feature Store target is updated
+                #       as expected. In that case, the existence of the file will be checked before trying to get
+                #       the offline data from the feature set.
+                # Continue if not enough events provided since the deployment of the model endpoint
+                except FileNotFoundError:
+                    logger.warn(
+                        "Parquet not found, probably due to not enough model events",
+                        parquet_target=m_fs.status.targets[0].path,
+                        endpoint=endpoint_id,
+                        min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                    )
                     continue
 
                 # get feature names from monitoring feature set
@@ -510,42 +694,53 @@ class BatchProcessor:
                     options=mlrun.data_types.infer.InferOptions.all_stats(),
                 )
 
-                # save feature set to apply changes
+                # Save feature set to apply changes
                 m_fs.save()
 
-                # get the timestamp of the latest request
+                # Get the timestamp of the latest request:
                 timestamp = df["timestamp"].iloc[-1]
 
-                # get the current stats that are represented by histogram of each feature within the dataset.
-                # in the following dictionary, each key is a feature with dictionary of stats
-                # (including histogram distribution) as a value
-                current_stats = mlrun.data_types.infer.DFDataInfer.get_stats(
-                    df=named_features_df,
-                    options=mlrun.data_types.infer.InferOptions.Histogram,
+                # Get the current stats:
+                current_stats = calculate_inputs_statistics(
+                    sample_set_statistics=endpoint.status.feature_stats,
+                    inputs=named_features_df,
                 )
 
-                # compute the drift based on the histogram of the current stats and the histogram of
-                # the original feature stats that can be found in the model endpoint object
+                # Compute the drift based on the histogram of the current stats and the histogram of the original
+                # feature stats that can be found in the model endpoint object:
                 drift_result = self.virtual_drift.compute_drift_from_histograms(
                     feature_stats=endpoint.status.feature_stats,
                     current_stats=current_stats,
                 )
                 logger.info("Drift result", drift_result=drift_result)
 
-                # check for possible drift based on the results of the statistical metrics defined above
-                drift_status, drift_measure = self.check_for_drift(
-                    drift_result=drift_result, endpoint=endpoint
+                # Get drift thresholds from the model configuration:
+                monitor_configuration = endpoint.spec.monitor_configuration or {}
+                possible_drift = monitor_configuration.get(
+                    "possible_drift", self.default_possible_drift_threshold
+                )
+                drift_detected = monitor_configuration.get(
+                    "drift_detected", self.default_drift_detected_threshold
                 )
 
+                # Check for possible drift based on the results of the statistical metrics defined above:
+                drift_status, drift_measure = self.virtual_drift.check_for_drift(
+                    metrics_results_dictionary=drift_result,
+                    possible_drift_threshold=possible_drift,
+                    drift_detected_threshold=drift_detected,
+                )
                 logger.info(
                     "Drift status",
                     endpoint_id=endpoint_id,
-                    drift_status=drift_status,
+                    drift_status=drift_status.value,
                     drift_measure=drift_measure,
                 )
 
-                # if drift was detected, add the results to the input stream
-                if drift_status == "POSSIBLE_DRIFT" or drift_status == "DRIFT_DETECTED":
+                # If drift was detected, add the results to the input stream
+                if (
+                    drift_status == DriftStatus.POSSIBLE_DRIFT
+                    or drift_status == DriftStatus.DRIFT_DETECTED
+                ):
                     self.v3io.stream.put_records(
                         container=self.stream_container,
                         stream_path=self.stream_path,
@@ -554,7 +749,7 @@ class BatchProcessor:
                                 "data": json.dumps(
                                     {
                                         "endpoint_id": endpoint_id,
-                                        "drift_status": drift_status,
+                                        "drift_status": drift_status.value,
                                         "drift_measure": drift_measure,
                                         "drift_per_feature": {**drift_result},
                                     }
@@ -563,7 +758,7 @@ class BatchProcessor:
                         ],
                     )
 
-                # update the results in the KV table
+                # Update the results in the KV table:
                 self.v3io.kv.update(
                     container=self.kv_container,
                     table_path=self.kv_path,
@@ -571,11 +766,11 @@ class BatchProcessor:
                     attributes={
                         "current_stats": json.dumps(current_stats),
                         "drift_measures": json.dumps(drift_result),
-                        "drift_status": drift_status,
+                        "drift_status": drift_status.value,
                     },
                 )
 
-                # update the results in tsdb
+                # Update the results in tsdb:
                 tsdb_drift_measures = {
                     "endpoint_id": endpoint_id,
                     "timestamp": pd.to_datetime(timestamp, format=_TIME_FORMAT),
@@ -597,48 +792,6 @@ class BatchProcessor:
             except Exception as e:
                 logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
-
-    def check_for_drift(
-        self,
-        drift_result: Dict[str, Dict[str, Any]],
-        endpoint: mlrun.api.schemas.ModelEndpoint,
-    ) -> Tuple[str, float]:
-        """
-        Check for drift based on the defined decision rule and the calculated results of the statistical metrics
-
-        :param drift_result:           dictionary of statistical metrics results per feature
-        :param endpoint:               model endpoint
-
-        :returns: Tuple with:
-            1. drift status (str) based on the decision rule
-            2. drift mean (float) based on the mean of the Total Variance Distance and the Hellinger distance
-        """
-
-        # calculate the mean of the drift based on TVD and Hellinger distance
-        tvd_mean = drift_result.get("tvd_mean")
-        hellinger_mean = drift_result.get("hellinger_mean")
-        drift_mean = 0.0
-        if tvd_mean and hellinger_mean:
-            drift_mean = (tvd_mean + hellinger_mean) / 2
-
-        # get drift thresholds from the model configuration
-        monitor_configuration = endpoint.spec.monitor_configuration or {}
-
-        possible_drift = monitor_configuration.get(
-            "possible_drift", self.default_possible_drift_threshold
-        )
-        drift_detected = monitor_configuration.get(
-            "possible_drift", self.default_drift_detected_threshold
-        )
-
-        # decision rule for drift detection
-        drift_status = "NO_DRIFT"
-        if drift_mean >= drift_detected:
-            drift_status = "DRIFT_DETECTED"
-        elif drift_mean >= possible_drift:
-            drift_status = "POSSIBLE_DRIFT"
-
-        return drift_status, drift_mean
 
 
 def handler(context: mlrun.run.MLClientCtx):

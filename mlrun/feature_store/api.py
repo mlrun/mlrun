@@ -373,10 +373,11 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "DataFrame source is illegal in with RunConfig"
+                "DataFrame source is illegal in conjunction with run_config"
             )
         # remote job execution
         verify_feature_set_permissions(
@@ -499,7 +500,7 @@ def ingest(
             spark_context,
             featureset,
             source,
-            targets,
+            targets_to_ingest,
             infer_options=infer_options,
             mlrun_context=mlrun_context,
             namespace=namespace,
@@ -780,16 +781,14 @@ def _ingest_with_spark(
 
         key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
-        if not targets:
-            if not featureset.spec.targets:
-                featureset.set_targets()
-            targets = featureset.spec.targets
-            targets = [get_target_driver(target, featureset) for target in targets]
+        targets = targets or featureset.spec.targets
 
         targets_to_ingest = copy.deepcopy(targets)
         featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
 
         for target in targets_to_ingest or []:
+            if type(target) is DataTargetBase:
+                target = get_target_driver(target, featureset)
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -843,7 +842,7 @@ def _ingest_with_spark(
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
-                if len(df_to_write) > 0:
+                if df_to_write.count() > 0:
                     df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
             target.update_resource_status("ready")
@@ -863,7 +862,7 @@ def _ingest_with_spark(
         if created_spark_context:
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
-            return
+            df = None
     return df
 
 

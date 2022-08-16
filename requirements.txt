@@ -7,11 +7,11 @@ aiohttp~=3.8
 # 8.1.0+ breaks dask/distributed versions older than 2022.04.0, see here - https://github.com/dask/distributed/pull/6018
 click~=8.0.0
 # fastapi 0.78.0 requires starlette 0.19.1 which requires typing_extensions>=3.10.0
-# kfp 1.8.1 requires typing-extensions>=3.7.4,<4
+# kfp 1.8.13 requires typing-extensions>=3.7.4,<5
 # for some reason when installing mlrun on a venv that already had typing-extensions==3.7.4.3 it didn't upgrade it to
 # >=3.10.0 although it was installing starlette 0.19.1
 # therefore adding it explictly
-typing-extensions>=3.10.0,<4
+typing-extensions>=3.10.0,<5
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.8.0
@@ -49,7 +49,7 @@ fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=1.1.4
+storey~=1.1.7
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

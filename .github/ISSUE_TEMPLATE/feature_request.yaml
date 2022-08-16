@@ -1,0 +1,51 @@
+name: Feature Request
+description: Suggest an idea for MLRun
+title: "[Feature Request]: "
+
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Feature Type
+      description: Please check what type of feature request you would like to propose.
+      options:
+        - label: >
+            Adding new functionality to MLRun
+        - label: >
+            Changing existing functionality in MLRun
+        - label: >
+            Removing existing functionality in MLRun
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem Description
+      description: >
+        Please describe what problem the feature would solve, e.g. "I wish I could use MLRun to ..."
+      placeholder: >
+        I wish I could use MLRun to serve a PyTorch model.
+    validations:
+      required: true
+  - type: textarea
+    id: feature
+    attributes:
+      label: Feature Description
+      description: >
+        Please describe how the new feature would be implemented, using psudocode if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternative
+    attributes:
+      label: Alternative Solutions
+      description: >
+        Please describe any alternative solution (existing functionality, 3rd party package, etc.)
+        that would satisfy the feature request.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: >
+        Please provide any relevant Github issues, code examples or references that help describe and support
+        the feature request.

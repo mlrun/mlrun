@@ -47,6 +47,10 @@ _missing = object()
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
 
+LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
+DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
+DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
 
 class StorePrefix:
     """map mlrun store objects to prefixes"""

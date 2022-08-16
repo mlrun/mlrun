@@ -1,3 +1,4 @@
+(install-local-docker)=
 # Install MLRun locally using Docker
 
 You can install and use MLRun and Nuclio locally on your computer. This does not include all the services and elastic 
@@ -21,6 +22,11 @@ It is recommended to set the `HOST_IP` variable with your computer IP address (r
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
 
 Add the `-d` flag to `docker-compose` for running in detached mode (in the background).
+
+```{admonition} Note
+We added support for running as a non-root user in 1.0.5, hence the underlaying exposed port was changed.
+If you want to use previous mlrun versions, modify the mlrun-ui port from 8090 back to 80.
+```
 
 ## Use MLRun with your own client
 

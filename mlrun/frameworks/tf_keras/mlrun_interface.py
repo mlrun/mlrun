@@ -1,7 +1,8 @@
 import importlib
 import os
 from abc import ABC
-from typing import List, Tuple, Union
+from types import ModuleType
+from typing import List, Set, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -17,8 +18,9 @@ from tensorflow.keras.optimizers import Optimizer
 
 import mlrun
 
-from .._common import MLRunInterface, RestorationInformation
+from .._common import MLRunInterface
 from .callbacks import LoggingCallback
+from .utils import TFKerasTypes
 
 
 class TFKerasMLRunInterface(MLRunInterface, ABC):
@@ -32,11 +34,11 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     # Attributes to be inserted so the MLRun interface will be fully enabled.
     _PROPERTIES = {
         # Logging callbacks list:
-        "_logging_callbacks": set(),  # > type: Set[Callback]
+        "_logging_callbacks": set(),  # type: Set[Callback]
         # Variable to hold the horovod module:
-        "_hvd": None,  # > type: ModuleType
+        "_hvd": None,  # type: ModuleType
         # List of all the callbacks that should only be applied on rank 0 when using horovod:
-        "_RANK_0_ONLY_CALLBACKS": {  # > type: Set[str]
+        "_RANK_0_ONLY_CALLBACKS": {  # type: Set[str]
             "LoggingCallback",
             "MLRunLoggingCallback",
             "TensorboardLoggingCallback",
@@ -63,18 +65,18 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     def add_interface(
         cls,
         obj: keras.Model,
-        restoration_information: RestorationInformation = None,
+        restoration: TFKerasTypes.MLRunInterfaceRestorationType = None,
     ):
         """
-        Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
-        features.
+        Enrich the object with this interface properties, methods and functions, so it will have this TensorFlow.Keras
+        MLRun's features.
 
         :param obj:                     The object to enrich his interface.
-        :param restoration_information: Restoration information tuple as returned from 'remove_interface' in order to
+        :param restoration: Restoration information tuple as returned from 'remove_interface' in order to
                                         add the interface in a certain state.
         """
         super(TFKerasMLRunInterface, cls).add_interface(
-            obj=obj, restoration_information=restoration_information
+            obj=obj, restoration=restoration
         )
 
     def mlrun_compile(self, *args, **kwargs):

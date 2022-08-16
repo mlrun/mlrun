@@ -2,5 +2,5 @@
 
 .. _genindex:
 
-API Index
+API index
 =========

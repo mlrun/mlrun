@@ -4,7 +4,7 @@ Learn how to retrieve and use data with the feature store.
 
 **In this section**
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 feature-vectors
 retrieve-offline-data

@@ -223,9 +223,9 @@ def load_project(
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
+            clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
-            clone_zip(url, context, secrets)
+            clone_zip(url, context, secrets, clone)
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
@@ -608,12 +608,14 @@ class ProjectSpec(ModelObj):
             del self._function_definitions[name]
 
     @property
-    def workflows(self) -> list:
-        """list of workflows specs used in this project"""
-        return [workflow for workflow in self._workflows.values()]
+    def workflows(self) -> typing.List[dict]:
+        """
+        :returns: list of workflows specs dicts used in this project
+        """
+        return [workflow.to_dict() for workflow in self._workflows.values()]
 
     @workflows.setter
-    def workflows(self, workflows):
+    def workflows(self, workflows: typing.List[typing.Union[dict, WorkflowSpec]]):
         if not workflows:
             workflows = []
         if not isinstance(workflows, list):
@@ -621,20 +623,30 @@ class ProjectSpec(ModelObj):
 
         workflows_dict = {}
         for workflow in workflows:
-            if not isinstance(workflow, dict):
-                raise ValueError("workflow must be a dict")
-            name = workflow.get("name", "")
+            if not isinstance(workflow, dict) and not isinstance(
+                workflow, WorkflowSpec
+            ):
+                raise ValueError(
+                    f"workflow must be a dict or `WorkflowSpec` type. Given: {type(workflow)}"
+                )
+            if isinstance(workflow, dict):
+                workflow = WorkflowSpec.from_dict(workflow)
+            name = workflow.name
             # todo: support steps dsl as code alternative
             if not name:
                 raise ValueError('workflow "name" must be specified')
-            if "path" not in workflow and "code" not in workflow:
+            if not workflow.path and not workflow.code:
                 raise ValueError('workflow source "path" or "code" must be specified')
             workflows_dict[name] = workflow
 
         self._workflows = workflows_dict
 
     def set_workflow(self, name, workflow):
-        self._workflows[name] = workflow
+        self._workflows[name] = (
+            workflow
+            if isinstance(workflow, WorkflowSpec)
+            else WorkflowSpec.from_dict(workflow)
+        )
 
     def remove_workflow(self, name):
         if name in self._workflows:
@@ -1009,6 +1021,8 @@ class MlrunProject(ModelObj):
         engine=None,
         args_schema: typing.List[EntrypointParam] = None,
         handler=None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        ttl=None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1019,6 +1033,11 @@ class MlrunProject(ModelObj):
         :param engine:        workflow processing engine ("kfp" or "local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
+        :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
+                              (which will be converted to the class using its `from_crontab` constructor),
+                              see this link for help:
+                              https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
         if not workflow_path:
@@ -1042,6 +1061,9 @@ class MlrunProject(ModelObj):
             ]
             workflow["args_schema"] = args_schema
         workflow["engine"] = engine
+        workflow["schedule"] = schedule
+        if ttl:
+            workflow["ttl"] = ttl
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1842,19 +1864,20 @@ class MlrunProject(ModelObj):
 
     def run(
         self,
-        name=None,
-        workflow_path=None,
-        arguments=None,
-        artifact_path=None,
-        workflow_handler=None,
-        namespace=None,
-        sync=False,
-        watch=False,
-        dirty=False,
-        ttl=None,
-        engine=None,
-        local=None,
-        timeout=None,
+        name: str = None,
+        workflow_path: str = None,
+        arguments: typing.Dict[str, typing.Any] = None,
+        artifact_path: str = None,
+        workflow_handler: typing.Union[str, typing.Callable] = None,
+        namespace: str = None,
+        sync: bool = False,
+        watch: bool = False,
+        dirty: bool = False,
+        ttl: int = None,
+        engine: str = None,
+        local: bool = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
+        timeout: int = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1873,10 +1896,16 @@ class MlrunProject(ModelObj):
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
         :param ttl:       pipeline ttl in secs (after that the pods will be removed)
-        :param engine:    workflow engine running the workflow. supported values are 'kfp' (default) or 'local'
+        :param engine:    workflow engine running the workflow.
+                          supported values are 'kfp' (default), 'local' or 'remote'.
+                          for setting engine for remote running use 'remote:local' or 'remote:kfp'.
         :param local:     run local pipeline with local functions (set local=True in function.run())
+        :param schedule:  ScheduleCronTrigger class instance or a standard crontab expression string
+                          (which will be converted to the class using its `from_crontab` constructor),
+                          see this link for help:
+                          https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                          for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-
         :returns: run id
         """
 
@@ -1907,15 +1936,33 @@ class MlrunProject(ModelObj):
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
         else:
-            workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
+            workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
             workflow_spec.ttl = ttl or workflow_spec.ttl
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
+
+        if schedule:
+            # Schedule = True -> use workflow_spec.schedule
+            if not isinstance(schedule, bool):
+                workflow_spec.schedule = schedule
+        else:
+            workflow_spec.schedule = None
+
+        inner_engine = None
+        if engine and engine.startswith("remote"):
+            if ":" in engine:
+                engine, inner_engine = engine.split(":")
+        elif workflow_spec.schedule:
+            inner_engine = engine
+            engine = "remote"
+        # The default engine is kfp if not given:
         workflow_engine = get_workflow_engine(engine or workflow_spec.engine, local)
-        workflow_spec.engine = workflow_engine.engine
+        if not inner_engine and engine == "remote":
+            inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
+        workflow_spec.engine = inner_engine or workflow_engine.engine
 
         run = workflow_engine.run(
             self,
@@ -1926,9 +1973,15 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
         )
+        run_msg = f"started run workflow {name} "
+        # run is None when scheduling
+        if run:
+            run_msg += f"with run id = '{run.run_id}' "
+        run_msg += f"by {workflow_engine.engine} engine"
+        logger.info(run_msg)
         workflow_spec.clear_tmp()
-        if watch and workflow_engine.engine == "kfp":
-            self.get_run_status(run, timeout=timeout)
+        if watch and not workflow_spec.schedule:
+            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -1944,55 +1997,10 @@ class MlrunProject(ModelObj):
         if not name or name not in self.spec._workflows:
             raise ValueError(f"workflow {name} not found")
 
-        workflow_spec = WorkflowSpec.from_dict(self.spec._workflows[name])
+        workflow_spec = self.spec._workflows[name]
         self.sync_functions()
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
-
-    def get_run_status(
-        self,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: RunNotifications = None,
-    ):
-        if timeout is None:
-            timeout = 60 * 60
-
-        state = ""
-        raise_error = None
-        try:
-            if timeout:
-                logger.info("waiting for pipeline run completion")
-                state = run.wait_for_completion(
-                    timeout=timeout, expected_statuses=expected_statuses
-                )
-        except RuntimeError as exc:
-            # push runs table also when we have errors
-            raise_error = exc
-
-        mldb = mlrun.db.get_run_db(secrets=self._secrets)
-        runs = mldb.list_runs(
-            project=self.metadata.name, labels=f"workflow={run.run_id}"
-        )
-
-        had_errors = 0
-        for r in runs:
-            if r["status"].get("state", "") == "error":
-                had_errors += 1
-
-        text = f"Workflow {run.run_id} finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-
-        notifiers = notifiers or self._notifiers
-        notifiers.push(text, runs)
-
-        if raise_error:
-            raise raise_error
-        return state, had_errors, text
 
     def clear_context(self):
         """delete all files and clear the context dir"""

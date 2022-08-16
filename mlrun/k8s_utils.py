@@ -523,7 +523,7 @@ class BasePod:
             "mlrun/project": self.project,
         }
         self._annotations = {}
-        self._init_container = None
+        self._init_containers = []
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
         self.default_pod_spec_attributes = default_pod_spec_attributes
         self.resources = resources
@@ -533,25 +533,33 @@ class BasePod:
         return self._get_spec()
 
     @property
-    def init_container(self):
-        return self._init_container
+    def init_containers(self):
+        return self._init_containers
 
-    @init_container.setter
-    def init_container(self, container):
-        self._init_container = container
+    @init_containers.setter
+    def init_containers(self, containers):
+        self._init_containers = containers
 
-    def set_init_container(
-        self, image, command=None, args=None, env=None, image_pull_policy="IfNotPresent"
+    def append_init_container(
+        self,
+        image,
+        command=None,
+        args=None,
+        env=None,
+        image_pull_policy="IfNotPresent",
+        name="init",
     ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
-        self._init_container = client.V1Container(
-            name="init",
-            image=image,
-            env=env,
-            command=command,
-            args=args,
-            image_pull_policy=image_pull_policy,
+        self._init_containers.append(
+            client.V1Container(
+                name=name,
+                image=image,
+                env=env,
+                command=command,
+                args=args,
+                image_pull_policy=image_pull_policy,
+            )
         )
 
     def add_label(self, key, value):
@@ -637,9 +645,9 @@ class BasePod:
             if not getattr(pod_spec, key, None):
                 setattr(pod_spec, key, val)
 
-        if self._init_container:
-            self._init_container.volume_mounts = self._mounts
-            pod_spec.init_containers = [self._init_container]
+        for init_containers in self._init_containers:
+            init_containers.volume_mounts = self._mounts
+        pod_spec.init_containers = self._init_containers
 
         pod = pod_obj(
             metadata=client.V1ObjectMeta(

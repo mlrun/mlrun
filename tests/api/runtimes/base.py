@@ -280,6 +280,16 @@ class TestRuntimeBase:
             ),
         )
 
+    def _generate_security_context(
+        self,
+        run_as_user: typing.Optional[int] = None,
+        run_as_group: typing.Optional[int] = None,
+    ) -> k8s_client.V1SecurityContext:
+        return k8s_client.V1SecurityContext(
+            run_as_user=run_as_user,
+            run_as_group=run_as_group,
+        )
+
     def _mock_create_namespaced_pod(self):
         def _generate_pod(namespace, pod):
             terminated_container_state = client.V1ContainerStateTerminated(
@@ -769,6 +779,12 @@ class TestRuntimeBase:
         node_selector=None,
         affinity=None,
         tolerations=None,
+    ):
+        pass
+
+    def assert_security_context(
+        self,
+        security_context=None,
     ):
         pass
 

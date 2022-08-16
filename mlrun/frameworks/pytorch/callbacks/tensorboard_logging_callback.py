@@ -11,9 +11,9 @@ from torch.utils.tensorboard.summary import hparams
 
 import mlrun
 
-from ..._common import TrackableType
 from ..._dl_common.loggers import TensorboardLogger
-from .logging_callback import LoggingCallback, MetricFunctionType, MetricValueType
+from ..utils import PyTorchTypes
+from .logging_callback import LoggingCallback
 
 
 class _MLRunSummaryWriter(SummaryWriter):
@@ -240,10 +240,14 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -363,7 +367,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
     ):
         """
@@ -455,7 +459,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         super(TensorboardLoggingCallback, self).on_run_end()
 
     def on_validation_end(
-        self, loss_value: MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the

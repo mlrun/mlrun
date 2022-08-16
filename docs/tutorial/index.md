@@ -5,6 +5,18 @@ The following tutorials provide a hands-on introduction to using MLRun to implem
 
 Make sure you start with the [**Quick start tutorial**](./01-mlrun-basics.html) to understand the basics.
 
+````{card} Quick-start tutorial
+Click to view the tutorial
+^^^
+```{button-link} ./01-mlrun-basics.html
+:color: primary
+:shadow:
+:expand:
+:click-parent:
+Introduction to MLRun - Use serverless functions to train and deploy models
+```
+````
+
 Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 
 ```{toctree}
@@ -22,12 +34,6 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 
 ````{grid} 2
 :gutter: 2
-```{grid-item-card} Quick-start tutorial
-:link: ./01-mlrun-basics.html
-
-Introduction to MLRun - Use serverless functions to train and deploy models.
-```
-
 ```{grid-item-card} Train, Compare, and Register Models
 :link: ./02-model-training.html
 
@@ -46,10 +52,22 @@ How to serve standard ML/DL models using MLRun Serving.
 How to work with projects, source control (git), and automating the ML pipeline.
 ```
 
+```{grid-item-card} Apply MLRun on Existing Code
+:link: ./taxi/apply-mlrun-on-existing-code.html
+
+Use MLRun to execute existing code on a remote cluster with experiment tracking.
+```
+
 ```{grid-item-card} Feature store example (stocks)
 :link: ../feature-store/basic-demo.html
 
 Build features with complex transformations in batch and serve in real-time.
+```
+
+```{grid-item-card} Feature Store End-to-End Demo
+:link: ../feature-store/end-to-end-demo/index.html
+
+Use the feature store with data ingestion, model training, model serving and automated pipeline.
 ```
 
 ````

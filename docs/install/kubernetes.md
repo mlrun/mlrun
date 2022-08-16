@@ -25,6 +25,9 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
+**Watch the installation:**
+[![MLRun install](../_static/images/mlrun-page.png)](https://www.youtube.com/watch?v=Z6mTw7_n8iE&list=PLH8M0UOY0uy7moj_wXouzm3nYMnJ9sdlk&index=8Y)
+
 <a id="docker-desktop-installation"></a>
 ## Installing on Docker Desktop
 

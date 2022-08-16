@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import os
 import traceback
 import uuid
 
@@ -54,6 +55,21 @@ app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 # so new users won't use the old un-versioned api
 # TODO: remove when 0.9.x versions are no longer relevant
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
+
+
+def start_debugging() -> None:
+    if "enabled" not in os.environ.get("MLRUN_API_DEBUG_MODE", "").lower():
+        return
+
+    # pydevd_pycharm is installed only on development image. do not move this import to top
+    import pydevd_pycharm
+
+    pydevd_pycharm.settrace(
+        os.environ.get("MLRUN_API_DEBUG_HOST", "localhost"),
+        port=int(os.environ.get("MLRUN_API_DEBUG_PORT", 40000)),
+        stdoutToServer=True,
+        stderrToServer=True,
+    )
 
 
 @app.exception_handler(Exception)
@@ -322,6 +338,7 @@ def _cleanup_runtimes():
 
 
 def main():
+    start_debugging()
     if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:
         init_data()
     elif (

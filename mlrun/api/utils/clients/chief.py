@@ -28,8 +28,10 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         self._session = mlrun.utils.HTTPSessionWithRetry(
-            # when the request is forwarded to the chief, if we receive a 500 error, the code will be forwarded to the
-            # client, and the client will retry the request. So no need to retry the request to the chief here.
+            # when the request is forwarded to the chief, if we receive a 5XX error, the code will be forwarded to the
+            # client. if the client is the SDK, it will retry the request. if the client is UI, it will receive the
+            # error without retry. so no need to retry the request to the chief on status codes, only exceptions for
+            # failed handshakes.
             retry_on_status=False,
             verbose=True,
         )

@@ -45,21 +45,21 @@ def test_api_call_enum_conversion():
             ConnectionError,
             "Connection aborted",
             # one try + the max retries
-            1 + mlrun.utils.DEFAULT_RETRY_COUNT,
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionResetError,
             "Connection reset by peer",
             # one try + the max retries
-            1 + mlrun.utils.DEFAULT_RETRY_COUNT,
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionRefusedError,
             "Connection refused",
             # one try + the max retries
-            1 + mlrun.utils.DEFAULT_RETRY_COUNT,
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         # feature disabled
         ("disabled", Exception, "some-error", 1),

@@ -403,6 +403,11 @@ default_config = {
         # encoded empty list
         "tolerations": "W10=",
     },
+    "http_retry_defaults": {
+        "max_retries": 3,
+        "backoff_factor": 1,
+        "status_codes": [500, 502, 503, 504],
+    },
 }
 
 

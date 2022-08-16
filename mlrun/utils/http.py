@@ -7,9 +7,6 @@ import urllib3.util.retry
 from ..config import config
 from . import logger
 
-DEFAULT_RETRY_COUNT = 3
-DEFAULT_RETRY_BACKOFF = 1
-
 
 class HTTPSessionWithRetry(requests.Session):
     """
@@ -28,8 +25,8 @@ class HTTPSessionWithRetry(requests.Session):
 
     def __init__(
         self,
-        max_retries=DEFAULT_RETRY_COUNT,
-        retry_backoff_factor=DEFAULT_RETRY_BACKOFF,
+        max_retries=config.http_retry_defaults.max_retries,
+        retry_backoff_factor=config.http_retry_defaults.backoff_factor,
         retry_on_exception=True,
         retry_on_status=True,
         retry_on_post=False,
@@ -56,7 +53,7 @@ class HTTPSessionWithRetry(requests.Session):
                 max_retries=urllib3.util.retry.Retry(
                     total=self.max_retries,
                     backoff_factor=self.retry_backoff_factor,
-                    status_forcelist=[500, 502, 503, 504],
+                    status_forcelist=config.http_retry_defaults.status_codes,
                     method_whitelist=self._get_retry_methods(retry_on_post),
                     # we want to retry but not to raise since we do want that last response (to parse details on the
                     # error from response body) we'll handle raising ourselves
@@ -76,24 +73,20 @@ class HTTPSessionWithRetry(requests.Session):
                 return response
             except tuple(self.HTTP_RETRYABLE_EXCEPTIONS.keys()) as exc:
                 if not self.retry_on_exception:
-                    logger.warning(
+                    self._log_exception(
+                        "warning",
+                        exc,
                         f"{method} {url} request failed, http retries disabled, raising exception: {exc}",
-                        exception_type=type(exc),
-                        exception_message=str(exc),
-                        retry_interval=self.retry_backoff_factor,
-                        retry_count=retry_count,
-                        max_retries=self.max_retries,
+                        retry_count,
                     )
                     raise exc
 
                 if retry_count >= self.max_retries:
-                    logger.warning(
-                        f"Maximum retries exhausted for {method} {url} request",
-                        exception_type=type(exc),
-                        exception_message=str(exc),
-                        retry_interval=self.retry_backoff_factor,
-                        retry_count=retry_count,
-                        max_retries=self.max_retries,
+                    self._log_exception(
+                        "warning",
+                        exc,
+                        f"{method} {url} request failed, max retries reached, raising exception: {exc}",
+                        retry_count,
                     )
                     raise exc
 
@@ -106,22 +99,21 @@ class HTTPSessionWithRetry(requests.Session):
                 )
 
                 if not exception_is_retryable:
-                    logger.warning(
-                        f"{method} {url} request failed on non-retryable exception",
-                        exception_type=type(exc),
-                        exception_message=str(exc),
+                    self._log_exception(
+                        "warning",
+                        exc,
+                        f"{method} {url} request failed on non-retryable exception, raising exception: {exc}",
+                        retry_count,
                     )
                     raise exc
 
                 if self.verbose:
-                    logger.debug(
+                    self._log_exception(
+                        "debug",
+                        exc,
                         f"{method} {url} request failed on retryable exception, "
                         f"retrying in {self.retry_backoff_factor} seconds",
-                        exception_type=type(exc),
-                        exception_message=str(exc),
-                        retry_interval=self.retry_backoff_factor,
-                        retry_count=retry_count,
-                        max_retries=self.max_retries,
+                        retry_count,
                     )
                 retry_count += 1
                 time.sleep(self.retry_backoff_factor)
@@ -133,4 +125,14 @@ class HTTPSessionWithRetry(requests.Session):
             False
             if retry_on_post
             else urllib3.util.retry.Retry.DEFAULT_METHOD_WHITELIST
+        )
+
+    def _log_exception(self, level, exc, message, retry_count):
+        getattr(logger, level)(
+            message,
+            exception_type=type(exc),
+            exception_message=str(exc),
+            retry_interval=self.retry_backoff_factor,
+            retry_count=retry_count,
+            max_retries=self.max_retries,
         )

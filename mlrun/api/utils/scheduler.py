@@ -622,7 +622,7 @@ class Scheduler:
         }
         schedule = schemas.ScheduleOutput(**schedule_dict)
 
-        # schedules are running only on chief there for we querying next_run_time from the scheduler only when
+        # schedules are running only on chief Therefore we querying next_run_time from the scheduler only when
         # running on chief
         if (
             mlrun.mlconf.httpdb.clusterization.role

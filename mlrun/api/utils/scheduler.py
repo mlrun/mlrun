@@ -122,7 +122,7 @@ class Scheduler:
         )
         job_id = self._resolve_job_id(project, name)
         job = self._scheduler.get_job(job_id)
-        if job:
+        if job and job.next_run_time:
             logger.info(
                 "updating schedule with next_run_time",
                 job=job,
@@ -622,6 +622,8 @@ class Scheduler:
         }
         schedule = schemas.ScheduleOutput(**schedule_dict)
 
+        # schedules are running only on chief there for we querying next_run_time from the scheduler only when
+        # running on chief
         if (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.api.schemas.ClusterizationRole.chief

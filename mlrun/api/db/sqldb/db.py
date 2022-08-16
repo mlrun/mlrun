@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
+import dateutil.tz
 import fastapi.concurrency
 import mergedeep
 import pytz
@@ -2743,6 +2744,9 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
         schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
+        schedule.next_run_time = schedule.next_run_time.replace(
+            tzinfo=dateutil.tz.tzlocal()
+        )
         return schedule
 
     @staticmethod

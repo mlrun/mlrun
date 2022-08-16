@@ -120,6 +120,17 @@ class Scheduler:
             concurrency_limit,
             auth_info,
         )
+        job_id = self._resolve_job_id(project, name)
+        job = self._scheduler.get_job(job_id)
+        logger.info(
+            "updating schedule with next_run_time",
+            job=job,
+            next_run_time=job.next_run_time,
+        )
+        if job:
+            get_db().update_schedule(
+                db_session, project, name, next_run_time=job.next_run_time
+            )
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
     def update_schedule(
@@ -188,6 +199,7 @@ class Scheduler:
             "Getting schedules", project=project, name=name, labels=labels, kind=kind
         )
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
+        logger.info("schedules", db_schedules=db_schedules)
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(
@@ -765,11 +777,15 @@ class Scheduler:
         run_uri = RunObject.create_uri(
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
+        # update every finish of a run the next run time so it would be accessible for worker instances
+        job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
+        job = scheduler._scheduler.get_job(job_id)
         get_db().update_schedule(
             db_session,
             run_metadata["project"],
             schedule_name,
             last_run_uri=run_uri,
+            next_run_time=job.next_run_time if job else None,
         )
 
         close_session(db_session)

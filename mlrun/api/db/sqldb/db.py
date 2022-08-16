@@ -860,6 +860,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        next_run_time: str = None,
     ):
         schedule = self._get_schedule_record(session, project, name)
 
@@ -878,6 +879,9 @@ class SQLDB(DBInterface):
 
         if concurrency_limit is not None:
             schedule.concurrency_limit = concurrency_limit
+
+        if next_run_time is not None:
+            schedule.next_run_time = next_run_time
 
         logger.debug(
             "Updating schedule in db",
@@ -923,6 +927,7 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
+        logger.info("schedule record", schedule_record=schedule_record)
         if not schedule_record:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
@@ -2738,6 +2743,7 @@ class SQLDB(DBInterface):
         schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
+        logger.info("schedule", schedule=schedule, schedule_object=schedule_record)
         schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         return schedule
 

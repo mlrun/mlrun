@@ -194,6 +194,7 @@ class DBInterface(ABC):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        next_run_time: str = None,
     ):
         pass
 

@@ -184,6 +184,13 @@ class Scheduler:
             updated_schedule.concurrency_limit,
             auth_info,
         )
+        if updated_schedule.next_run_time:
+            get_db().update_schedule(
+                db_session,
+                project,
+                name,
+                next_run_time=updated_schedule.next_run_time,
+            )
 
     def list_schedules(
         self,
@@ -615,10 +622,14 @@ class Scheduler:
         }
         schedule = schemas.ScheduleOutput(**schedule_dict)
 
-        job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
-        job = self._scheduler.get_job(job_id)
-        if job:
-            schedule.next_run_time = job.next_run_time
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            == mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
+            job = self._scheduler.get_job(job_id)
+            if job:
+                schedule.next_run_time = job.next_run_time
 
         if include_last_run:
             self._enrich_schedule_with_last_run(db_session, schedule)

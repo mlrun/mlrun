@@ -860,7 +860,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        next_run_time: str = None,
+        next_run_time: datetime = None,
     ):
         schedule = self._get_schedule_record(session, project, name)
 

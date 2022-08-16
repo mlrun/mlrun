@@ -1,3 +1,4 @@
+import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
@@ -416,7 +417,7 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        next_run_time: str = None,
+        next_run_time: datetime.datetime = None,
     ):
         raise NotImplementedError()
 

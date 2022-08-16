@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import datetime
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
@@ -194,7 +194,7 @@ class DBInterface(ABC):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        next_run_time: str = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 

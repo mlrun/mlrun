@@ -34,4 +34,4 @@ To add a schedule, run the job and specify the `schedule` parameter using Cron s
 job.run(schedule="0 * * * *")
 ```
 
-This runs the job every hour. An execellent resource for generating Cron schedules is [Crontab.guru](https://crontab.guru/).
+This runs the job every hour. An excellent resource for generating Cron schedules is [Crontab.guru](https://crontab.guru/).

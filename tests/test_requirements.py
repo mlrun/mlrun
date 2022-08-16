@@ -113,6 +113,7 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=1,<7"},
         "nbclassic": {">=0.2.8"},
+        "pydevd-pycharm": {"~=222.3345.131"},
     }
 
     for (

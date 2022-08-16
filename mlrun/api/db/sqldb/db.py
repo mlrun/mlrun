@@ -927,7 +927,6 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
-        logger.info("schedule record", schedule_record=schedule_record)
         if not schedule_record:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
@@ -2743,7 +2742,6 @@ class SQLDB(DBInterface):
         schedule_record: Schedule,
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
-        logger.info("schedule", schedule=schedule, schedule_object=schedule_record)
         schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
         return schedule
 

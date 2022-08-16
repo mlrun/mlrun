@@ -122,12 +122,12 @@ class Scheduler:
         )
         job_id = self._resolve_job_id(project, name)
         job = self._scheduler.get_job(job_id)
-        logger.info(
-            "updating schedule with next_run_time",
-            job=job,
-            next_run_time=job.next_run_time,
-        )
         if job:
+            logger.info(
+                "updating schedule with next_run_time",
+                job=job,
+                next_run_time=job.next_run_time,
+            )
             get_db().update_schedule(
                 db_session, project, name, next_run_time=job.next_run_time
             )

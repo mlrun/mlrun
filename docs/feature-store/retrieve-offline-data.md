@@ -48,7 +48,7 @@ def my_training_function(context, # MLRun context
                          dataset, # our feature vector reference
                          **kwargs):
     
-    # retreieve the dataset
+    # retrieve the dataset
     df = dataset.as_df()
 
     # The rest of your training code...

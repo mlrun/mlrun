@@ -55,7 +55,7 @@ _sparkjob_template = {
         "mode": "cluster",
         "image": "",
         "mainApplicationFile": "",
-        "sparkVersion": "2.4.5",
+        "sparkVersion": "3.1.2",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 0,

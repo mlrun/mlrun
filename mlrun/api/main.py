@@ -1,6 +1,5 @@
 import asyncio
 import concurrent.futures
-import os
 import traceback
 import uuid
 

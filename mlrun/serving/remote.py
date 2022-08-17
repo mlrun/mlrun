@@ -7,6 +7,7 @@ import storey
 from storey.flow import _ConcurrentJobExecution
 
 import mlrun
+import mlrun.config
 from mlrun.utils import logger
 
 from .utils import (

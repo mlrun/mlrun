@@ -35,6 +35,7 @@ def _get_runtime():
             "disable_auto_mount": False,
             "priority_class_name": "",
             "tolerations": None,
+            "security_context": None,
         },
         "verbose": False,
     }

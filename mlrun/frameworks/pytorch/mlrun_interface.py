@@ -17,12 +17,11 @@ import mlrun
 from .callbacks import (
     Callback,
     HyperparametersKeys,
-    MetricFunctionType,
-    MetricValueType,
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )
 from .callbacks_handler import CallbacksHandler
+from .utils import PyTorchTypes
 
 
 class PyTorchMLRunInterface:
@@ -56,7 +55,7 @@ class PyTorchMLRunInterface:
         self._loss_function = None  # type: Module
         self._optimizer = None  # type: Optimizer
         self._validation_set = None  # type: DataLoader
-        self._metric_functions = None  # type: List[MetricFunctionType]
+        self._metric_functions = None  # type: List[PyTorchTypes.MetricFunctionType]
         self._scheduler = None
         self._scheduler_step_frequency = None  # type: int
         self._epochs = None  # type: int
@@ -96,7 +95,7 @@ class PyTorchMLRunInterface:
         loss_function: Module,
         optimizer: Optimizer,
         validation_set: DataLoader = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
@@ -127,10 +126,9 @@ class PyTorchMLRunInterface:
         :param validation_iterations:    Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                          the entire validation set will be used.
         :param callbacks:                The callbacks to use on this run.
-        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
-                                         True.
-        :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
-                                         None, meaning it will be read from context if available and if not - False.
+        :param use_cuda:                 Whether to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param use_horovod:              Whether to use horovod - a distributed training framework. Defaulted to None,
+                                         meaning it will be read from context if available and if not - False.
         """
         # Load the input:
         self._parse_and_store(
@@ -149,7 +147,7 @@ class PyTorchMLRunInterface:
             use_horovod=use_horovod,
         )
 
-        # Setup the inner attributes (initializing horovod and creating the callbacks handler):
+        # Set up the inner attributes (initializing horovod and creating the callbacks handler):
         self._setup()
 
         # Beginning of run callbacks:
@@ -209,12 +207,12 @@ class PyTorchMLRunInterface:
         self,
         dataset: DataLoader,
         loss_function: Module = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         iterations: int = None,
         callbacks: List[Callback] = None,
         use_cuda: bool = True,
         use_horovod: bool = None,
-    ) -> List[MetricValueType]:
+    ) -> List[PyTorchTypes.MetricValueType]:
         """
         Initiate an evaluation process on this interface configuration.
 
@@ -390,7 +388,7 @@ class PyTorchMLRunInterface:
         loss_function: Module = None,
         optimizer: Optimizer = None,
         validation_set: DataLoader = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
@@ -722,7 +720,7 @@ class PyTorchMLRunInterface:
 
     def _validate(
         self, is_evaluation: bool = False
-    ) -> Tuple[MetricValueType, List[MetricValueType]]:
+    ) -> Tuple[PyTorchTypes.MetricValueType, List[PyTorchTypes.MetricValueType]]:
         """
         Initiate a single epoch validation.
 
@@ -871,7 +869,7 @@ class PyTorchMLRunInterface:
         self._loss_function = None  # type: Module
         self._optimizer = None  # type: Optimizer
         self._validation_set = None  # type: DataLoader
-        self._metric_functions = None  # type: List[MetricFunctionType]
+        self._metric_functions = None  # type: List[PyTorchTypes.MetricFunctionType]
         self._scheduler = None
         self._scheduler_step_frequency = None  # type: int
         self._epochs = None  # type: int
@@ -968,7 +966,7 @@ class PyTorchMLRunInterface:
         return tensor
 
     @staticmethod
-    def _get_metric_name(metric: MetricFunctionType) -> str:
+    def _get_metric_name(metric: PyTorchTypes.MetricFunctionType) -> str:
         """
         Get the given metric function name.
 
@@ -985,7 +983,7 @@ class PyTorchMLRunInterface:
         dataset: DataLoader,
         iterations: int,
         description: str,
-        metrics: List[MetricFunctionType],
+        metrics: List[PyTorchTypes.MetricFunctionType],
     ) -> tqdm:
         """
         Create a progress bar for training and validating / evaluating.
@@ -1016,8 +1014,8 @@ class PyTorchMLRunInterface:
     @staticmethod
     def _update_progress_bar(
         progress_bar: tqdm,
-        metrics: List[MetricFunctionType],
-        values: List[MetricValueType],
+        metrics: List[PyTorchTypes.MetricFunctionType],
+        values: List[PyTorchTypes.MetricValueType],
     ):
         """
         Update the progress bar metrics results.

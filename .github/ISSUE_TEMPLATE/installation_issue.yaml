@@ -1,0 +1,92 @@
+name: Installation Issue
+description: Report issues installing the MLRun Kit on your system
+title: "[Installation]: "
+
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Installation check
+      options:
+        - label: >
+            I have read the [installation guide](https://docs.mlrun.org/en/latest/install.html).
+          required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Installation OS
+      description: >
+        Please provide the OS you are installing on.
+      options:
+        - Mac
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: method
+    attributes:
+      label: Installation Method
+      description: >
+        Please provide how you tried to install MLRun.
+      options:
+        - Docker
+        - Kubernetes
+    validations:
+      required: true
+  - type: dropdown
+    id: k8s_cluster_type
+    attributes:
+      label: Kubernetes Cluster Type
+      description: >
+        Please select how you are running Kubernetes.
+      options:
+        - N/A - Docker
+        - Kubernetes for Docker Desktop
+        - Minikube
+        - KinD
+        - MicroK8s
+        - K3s
+        - K3d
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: helm_chart_version
+    attributes:
+      label: MLRun Kit Helm Chart Version
+      description: >
+        Please provide the version of the MLRun Helm chart with ``helm search repo v3io-stable | grep mlrun-kit | awk '{print $2}'``.
+    validations:
+      required: true
+  - type: textarea
+    id: issue_description
+    attributes:
+      label: Issue Description
+      description: >
+        Please provide a description of the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Installation Logs
+      description: >
+        Please copy and paste the installation logs when attempting to install MLRun.
+      value: >
+        <details>
+
+
+        Replace this line with the installation logs.
+
+
+        </details>
+    validations:
+      required: true
+  - type: textarea
+    id: additional_information
+    attributes:
+      label: Additional Information
+      description: >
+        Please add any aditional information you think may be relevant.

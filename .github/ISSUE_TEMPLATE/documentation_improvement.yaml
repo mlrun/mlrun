@@ -1,0 +1,40 @@
+name: Documentation Improvement
+description: Report wrong or missing documentation
+title: "[Docs]: "
+
+body:
+  - type: checkboxes
+    attributes:
+      label: MLRun Kit version checks
+      options:
+        - label: >
+            I have checked that the issue still exists on the latest versions of the docs
+            [here](https://docs.mlrun.org/en/latest/)
+          required: true
+  - type: textarea
+    id: location
+    attributes:
+      label: Location of the documentation
+      description: >
+        Please provide the location of the documentation, e.g. "mlrun.get_or_create_project" or the
+        URL of the documentation, e.g.
+        "https://docs.mlrun.org/en/latest/projects/create-load-import-project.html"
+      placeholder: https://docs.mlrun.org/en/latest/projects/create-load-import-project.html
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Documentation problem
+      description: >
+        Please provide a description of what documentation you believe needs to be fixed/improved
+    validations:
+      required: true
+  - type: textarea
+    id: suggested-fix
+    attributes:
+      label: Suggested fix for documentation
+      description: >
+        Please explain the suggested fix and **why** it's better than the existing documentation
+    validations:
+      required: true

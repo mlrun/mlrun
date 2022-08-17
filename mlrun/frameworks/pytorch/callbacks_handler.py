@@ -5,7 +5,8 @@ from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from .callbacks import Callback, MetricFunctionType, MetricValueType
+from .callbacks import Callback
+from .utils import PyTorchTypes
 
 
 class _CallbackInterface:
@@ -99,7 +100,7 @@ class CallbacksHandler:
         validation_set: DataLoader,
         loss_function: Module,
         optimizer: Optimizer,
-        metric_functions: List[MetricFunctionType],
+        metric_functions: List[PyTorchTypes.MetricFunctionType],
         scheduler,
         callbacks: List[str] = None,
     ) -> bool:
@@ -234,7 +235,7 @@ class CallbacksHandler:
 
     def on_validation_end(
         self,
-        loss_value: MetricValueType,
+        loss_value: PyTorchTypes.MetricValueType,
         metric_values: List[float],
         callbacks: List[str] = None,
     ) -> bool:
@@ -415,7 +416,7 @@ class CallbacksHandler:
         )
 
     def on_train_loss_end(
-        self, loss_value: MetricValueType, callbacks: List[str] = None
+        self, loss_value: PyTorchTypes.MetricValueType, callbacks: List[str] = None
     ) -> bool:
         """
         Call the 'on_train_loss_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -447,7 +448,7 @@ class CallbacksHandler:
         )
 
     def on_validation_loss_end(
-        self, loss_value: MetricValueType, callbacks: List[str] = None
+        self, loss_value: PyTorchTypes.MetricValueType, callbacks: List[str] = None
     ) -> bool:
         """
         Call the 'on_validation_loss_end' method of every callback in the callbacks list. If the list is 'None'
@@ -479,7 +480,9 @@ class CallbacksHandler:
         )
 
     def on_train_metrics_end(
-        self, metric_values: List[MetricValueType], callbacks: List[str] = None
+        self,
+        metric_values: List[PyTorchTypes.MetricValueType],
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_train_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -511,7 +514,9 @@ class CallbacksHandler:
         )
 
     def on_validation_metrics_end(
-        self, metric_values: List[MetricValueType], callbacks: List[str] = None
+        self,
+        metric_values: List[PyTorchTypes.MetricValueType],
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_validation_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -635,7 +640,7 @@ class CallbacksHandler:
         :param method_name: The name of the method to run. Should be given from the 'CallbackInterface'.
         :param callbacks:   List of all the callbacks names to run the method.
 
-        :return: True if all of the callbacks called returned True and False if not.
+        :return: True if all the callbacks called returned True and False if not.
         """
         all_result = True
         for callback in callbacks:

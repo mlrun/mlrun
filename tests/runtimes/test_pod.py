@@ -33,6 +33,9 @@ def test_runtimes_inheritance():
             mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
+        mlrun.runtimes.function.NuclioSpec: [
+            mlrun.runtimes.serving.ServingSpec,
+        ],
         mlrun.runtimes.base.FunctionStatus: [
             mlrun.runtimes.daskjob.DaskStatus,
             mlrun.runtimes.function.NuclioStatus,
@@ -51,9 +54,9 @@ def test_runtimes_inheritance():
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
         ],
     }
-    checked_classes = set()
     invalid_classes = {}
     for base_class, inheriting_classes in classes_map.items():
+        checked_classes = set()
         for inheriting_class in inheriting_classes:
             for class_ in inspect.getmro(inheriting_class):
                 if base_class == class_:

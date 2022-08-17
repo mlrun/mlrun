@@ -156,6 +156,43 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         assert actual["gpu"]["name"] == expected["gpu_type"]
         assert actual["gpu"]["quantity"] == expected["gpus"]
 
+    def _assert_security_context(
+        self,
+        expected_driver_security_context=None,
+        expected_executor_security_context=None,
+    ):
+
+        body = self._get_custom_object_creation_body()
+
+        if expected_driver_security_context:
+            assert (
+                body["spec"]["driver"].get("securityContext")
+                == expected_driver_security_context
+            )
+        else:
+            assert body["spec"]["driver"].get("securityContext") is None
+
+        if expected_executor_security_context:
+            assert (
+                body["spec"]["executor"].get("securityContext")
+                == expected_executor_security_context
+            )
+        else:
+            assert body["spec"]["executor"].get("securityContext") is None
+
+    def _assert_image_pull_secret(
+        self,
+        expected_image_pull_secret=None,
+    ):
+
+        body = self._get_custom_object_creation_body()
+        if expected_image_pull_secret:
+            assert body["spec"].get("imagePullSecrets") == mlrun.utils.helpers.as_list(
+                expected_image_pull_secret
+            )
+        else:
+            assert body["spec"].get("imagePullSecrets") is None
+
     def _sanitize_list_for_serialization(self, list_: list):
         kubernetes_api_client = kubernetes.client.ApiClient()
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
@@ -412,3 +449,27 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_driver_volume_mounts=expected_driver_mounts,
             expected_executor_volume_mounts=expected_executor_mounts,
         )
+
+    def test_deploy_with_image_pull_secret(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+
+        # no image pull secret
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        self._assert_image_pull_secret()
+
+        # default image pull secret
+        mlrun.config.config.function.spec.image_pull_secret.default = "my_secret"
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        self._assert_image_pull_secret(
+            mlrun.config.config.function.spec.image_pull_secret.default,
+        )
+
+        # override default image pull secret
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        new_image_pull_secret = "my_new_secret"
+        runtime.spec.image_pull_secret = new_image_pull_secret
+        self.execute_function(runtime)
+        self._assert_image_pull_secret(new_image_pull_secret)

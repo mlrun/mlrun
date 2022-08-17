@@ -5,10 +5,10 @@ from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from sklearn.svm import SVC, LinearSVC
 
 import mlrun
-import mlrun.frameworks.sklearn as mlrun_sklearn
-from mlrun.frameworks._ml_common.utils import AlgorithmFunctionality, ModelType
+from mlrun.frameworks._ml_common import AlgorithmFunctionality
+from mlrun.frameworks.sklearn import SKLearnTypes, apply_mlrun
 
-from ..functions import MLFunctions
+from ..ml_functions import MLFunctions
 
 
 class SKLearnFunctions(MLFunctions):
@@ -17,16 +17,14 @@ class SKLearnFunctions(MLFunctions):
         context: mlrun.MLClientCtx, algorithm_functionality: str, model_name: str = None
     ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
-        model = SKLearnFunctions._get_model(
+        model = SKLearnFunctions.get_model(
             algorithm_functionality=algorithm_functionality
         )
-        x_train, x_test, y_train, y_test = SKLearnFunctions._get_dataset(
+        x_train, x_test, y_train, y_test = SKLearnFunctions.get_dataset(
             algorithm_functionality=algorithm_functionality, for_training=True
         )
 
-        mlrun_sklearn.apply_mlrun(
-            model=model, model_name=model_name, x_test=x_test, y_test=y_test
-        )
+        apply_mlrun(model=model, model_name=model_name, x_test=x_test, y_test=y_test)
         model.fit(x_train, y_train)
 
     @staticmethod
@@ -34,15 +32,17 @@ class SKLearnFunctions(MLFunctions):
         context: mlrun.MLClientCtx, algorithm_functionality: str, model_path: str
     ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
-        x, y = SKLearnFunctions._get_dataset(
+        x, y = SKLearnFunctions.get_dataset(
             algorithm_functionality=algorithm_functionality, for_training=False
         )
-        model_handler = mlrun_sklearn.apply_mlrun(model_path=model_path, y_test=y)
+        model_handler = apply_mlrun(model_path=model_path, y_test=y)
         model = model_handler.model
         model.predict(x)
 
     @staticmethod
-    def _get_model(algorithm_functionality: AlgorithmFunctionality) -> ModelType:
+    def get_model(
+        algorithm_functionality: AlgorithmFunctionality,
+    ) -> SKLearnTypes.ModelType:
         if algorithm_functionality == AlgorithmFunctionality.BINARY_CLASSIFICATION:
             return RandomForestClassifier()
         if algorithm_functionality == AlgorithmFunctionality.MULTICLASS_CLASSIFICATION:

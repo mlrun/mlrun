@@ -2,15 +2,19 @@ import base64
 import json
 import os
 import unittest
+import unittest.mock
 
 from dask import distributed
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.api.endpoints.functions
+import mlrun.api.schemas
 from mlrun import mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -110,6 +114,23 @@ class TestDaskRuntime(TestRuntimeBase):
             expected_scheduler_limits,
             expected_scheduler_requests,
         )
+
+    def assert_security_context(
+        self,
+        security_context=None,
+        worker=True,
+        scheduler=True,
+    ):
+        if worker:
+            pod = self._get_pod_creation_args()
+            assert pod.spec.security_context == (
+                security_context or {}
+            ), "Failed asserting security context in worker pod"
+        if scheduler:
+            scheduler_pod = self._get_scheduler_pod_creation_args()
+            assert scheduler_pod.spec.security_context == (
+                security_context or {}
+            ), "Failed asserting security context in scheduler pod"
 
     def test_dask_runtime(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
@@ -312,4 +333,68 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_create_pod_called=False,
             assert_namespace_env_variable=False,
             expected_node_selector=node_selector,
+        )
+
+    def test_dask_with_default_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+        self.kube_cluster_mock.assert_called_once()
+        self.assert_security_context()
+
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
+        default_security_context = self._generate_security_context(
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
+        )
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+
+        _ = runtime.client
+        assert self.kube_cluster_mock.call_count == 2
+        self.assert_security_context(default_security_context)
+
+    def test_dask_with_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        other_security_context = self._generate_security_context(
+            2000,
+            2000,
+        )
+
+        # override security context
+        runtime.with_security_context(other_security_context)
+        _ = runtime.client
+        self.assert_security_context(other_security_context)
+
+    def test_deploy_dask_function_with_enriched_security_context(
+        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+    ):
+        runtime = self._generate_runtime()
+        user_unix_id = 1000
+        auth_info = mlrun.api.schemas.AuthInfo(user_unix_id=user_unix_id)
+        mlrun.mlconf.igz_version = "3.6"
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.api.schemas.function.SecurityContextEnrichmentModes.disabled.value
+        )
+        _ = mlrun.api.api.endpoints.functions._start_function(runtime, auth_info)
+        pod = self._get_pod_creation_args()
+        print(pod)
+        self.assert_security_context()
+
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            mlrun.api.schemas.function.SecurityContextEnrichmentModes.override.value
+        )
+        runtime = self._generate_runtime()
+        _ = mlrun.api.api.endpoints.functions._start_function(runtime, auth_info)
+        self.assert_security_context(
+            self._generate_security_context(
+                run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,
+                run_as_user=user_unix_id,
+            )
         )

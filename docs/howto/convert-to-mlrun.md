@@ -1,3 +1,4 @@
+(convert-to-mlrun)=
 # Converting Research Notebook to Operational Pipeline With MLRun
 
 [Overview](#overview)&nbsp;| [Running the Demo](#demo-run)&nbsp;| [Demo Flow](#demo-flow)&nbsp;| [Pipeline Output](#pipeline-output)&nbsp;| [Notebooks and Code](#notebooks-and-code)
@@ -10,7 +11,7 @@ The demo implements an MLRun project for taxi ride-fare prediction based on a [K
 <a id="demo-run"></a>
 ## Running the Demo
 
-To run the demo, simply open the [**mlrun-code.ipynb**](convert-mlrun-code.ipynb) notebook from an environment with a running MLRun service and run the code cells.
+To run the demo, simply open the [**mlrun-code.ipynb**](convert-mlrun-code.html) notebook from an environment with a running MLRun service and run the code cells.
 
 <a id="demo-flow"></a>
 ## Demo Flow

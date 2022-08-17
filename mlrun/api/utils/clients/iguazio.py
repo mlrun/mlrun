@@ -8,7 +8,6 @@ import urllib.parse
 
 import fastapi
 import requests.adapters
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
@@ -60,12 +59,11 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+            verbose=True,
         )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds
@@ -130,6 +128,16 @@ class Client(
             session,
         )
         return self._generate_auth_info_from_session_verification_response(response)
+
+    def get_user_unix_id(self, session: str) -> str:
+        response = self._send_request_to_api(
+            "GET",
+            "self",
+            "Failed get iguazio user",
+            session,
+        )
+        response_json = response.json()
+        return response_json["data"]["attributes"]["uid"]
 
     def get_or_create_access_key(
         self, session: str, planes: typing.List[str] = None
@@ -279,12 +287,23 @@ class Client(
         name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
-            session, name, include_owner_session=True
+            session, name, enrich_owner_access_key=True
         )
         iguazio_project = response.json()["data"]
+        owner_username = iguazio_project.get("attributes", {}).get(
+            "owner_username", None
+        )
+        owner_access_key = iguazio_project.get("attributes", {}).get(
+            "owner_access_key", None
+        )
+        if not owner_username:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Unable to enrich project owner for project {name},"
+                f" because project has no owner configured"
+            )
         return mlrun.api.schemas.ProjectOwner(
-            username=iguazio_project["attributes"]["owner_username"],
-            session=iguazio_project["attributes"]["owner_access_key"],
+            username=owner_username,
+            access_key=owner_access_key,
         )
 
     def format_as_leader_project(
@@ -347,10 +366,10 @@ class Client(
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio_without_parsing(
-        self, session: str, name: str, include_owner_session: bool = False
+        self, session: str, name: str, enrich_owner_access_key: bool = False
     ):
         params = {"include": "owner"}
-        if include_owner_session:
+        if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
         return self._send_request_to_api(
             "GET",
@@ -466,11 +485,19 @@ class Client(
         if planes:
             planes = planes.split(",")
         planes = planes or []
+        user_unix_id = None
+        x_unix_uid = response.headers.get("x-unix-uid")
+        # x-unix-uid may be 'Unknown' in case it is missing or in case of enrichment failures
+        if x_unix_uid and x_unix_uid.lower() != "unknown":
+            user_unix_id = int(x_unix_uid)
+
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],
             session=response.headers["x-v3io-session-key"],
             user_id=response.headers.get("x-user-id"),
             user_group_ids=gids or [],
+            user_unix_id=user_unix_id,
+            planes=planes,
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session

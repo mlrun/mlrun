@@ -4,9 +4,7 @@ import json
 import aiohttp
 import requests
 import storey
-from requests.adapters import HTTPAdapter
 from storey.flow import _ConcurrentJobExecution
-from urllib3.util.retry import Retry
 
 import mlrun
 from mlrun.utils import logger
@@ -20,21 +18,6 @@ from .utils import (
 
 default_retries = 6
 default_backoff_factor = 1
-
-
-def get_http_adapter(retries, backoff_factor):
-    if retries != 0:
-        retry = Retry(
-            total=retries or default_retries,
-            backoff_factor=default_backoff_factor
-            if backoff_factor is None
-            else backoff_factor,
-            status_forcelist=[500, 502, 503, 504],
-            method_whitelist=False,
-        )
-    else:
-        retry = Retry(0, read=False)
-    return HTTPAdapter(max_retries=retry)
 
 
 class RemoteStep(storey.SendToHttp):
@@ -173,10 +156,14 @@ class RemoteStep(storey.SendToHttp):
     def do_event(self, event):
         # sync implementation (without storey)
         if not self._session:
-            self._session = requests.Session()
-            http_adapter = get_http_adapter(self.retries, self.backoff_factor)
-            self._session.mount("http://", http_adapter)
-            self._session.mount("https://", http_adapter)
+            self._session = mlrun.utils.HTTPSessionWithRetry(
+                self.retries,
+                self.backoff_factor
+                or mlrun.config.config.http_retry_defaults.backoff_factor,
+                retry_on_exception=False,
+                retry_on_status=self.retries > 0,
+                retry_on_post=True,
+            )
 
         body = _extract_input_data(self._input_path, event.body)
         method, url, headers, body = self._generate_request(event, body)

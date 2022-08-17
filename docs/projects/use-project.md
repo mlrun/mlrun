@@ -13,7 +13,7 @@ Projects can also be loaded and workflows/pipelines can be executed using the CL
 
 **In this section**
 - [Updating and using project functions](#updating-and-using-project-functions)
-- [Run, Build, and Deploy functions](#run-build-and-deploy-functions)
+- [Run, build, and deploy functions](#run-build-and-deploy-functions)
 
 
 ## Updating and using project functions

@@ -5,9 +5,8 @@ from sklearn.calibration import calibration_curve
 
 from mlrun.artifacts import Artifact, PlotlyArtifact
 
-from ..._common import ModelType
 from ..plan import MLPlanStages, MLPlotPlan
-from ..utils import DatasetType
+from ..utils import MLTypes
 
 
 class CalibrationCurvePlan(MLPlotPlan):
@@ -59,10 +58,10 @@ class CalibrationCurvePlan(MLPlotPlan):
 
     def produce(
         self,
-        y: DatasetType,
-        y_pred: DatasetType = None,
-        model: ModelType = None,
-        x: DatasetType = None,
+        y: MLTypes.DatasetType,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
         **kwargs
     ) -> Dict[str, Artifact]:
         """

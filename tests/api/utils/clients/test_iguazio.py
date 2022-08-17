@@ -249,7 +249,7 @@ def test_get_project_owner(
         project.metadata.name,
     )
     assert project_owner.username == owner_username
-    assert project_owner.session == owner_access_key
+    assert project_owner.access_key == owner_access_key
 
 
 def test_list_project_with_updated_after(

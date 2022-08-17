@@ -1,3 +1,4 @@
+(install-setup-guide)=
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 

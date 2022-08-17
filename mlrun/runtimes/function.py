@@ -165,6 +165,7 @@ class NuclioSpec(KubeResourceSpec):
         image_pull_secret=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -193,6 +194,7 @@ class NuclioSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self.base_spec = base_spec or {}
@@ -1216,6 +1218,14 @@ def compile_function_config(
 
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
+
+    if function.spec.security_context:
+        nuclio_spec.set_config(
+            "spec.securityContext",
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                function.spec, "security_context"
+            ),
+        )
 
     if (
         function.spec.base_spec

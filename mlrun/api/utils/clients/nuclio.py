@@ -5,7 +5,6 @@ import typing
 
 import requests.adapters
 import sqlalchemy.orm
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
@@ -20,12 +19,7 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
-        )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
+        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.config.config.nuclio_dashboard_url
 
     def create_project(

@@ -2,11 +2,7 @@ FROM jupyter/scipy-notebook:python-3.8.8
 
 USER root
 RUN apt-get update && \
-    apt-get -s dist-upgrade | \
-    grep "^Inst" | \
-    grep -i securi | \
-    awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install --no-install-recommends -y \

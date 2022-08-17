@@ -7,7 +7,6 @@ import storey
 from storey.flow import _ConcurrentJobExecution
 
 import mlrun
-import mlrun.config
 from mlrun.utils import logger
 
 from .utils import (
@@ -160,7 +159,7 @@ class RemoteStep(storey.SendToHttp):
             self._session = mlrun.utils.HTTPSessionWithRetry(
                 self.retries,
                 self.backoff_factor
-                or mlrun.config.config.http_retry_defaults.backoff_factor,
+                or mlrun.mlconf.http_retry_defaults.backoff_factor,
                 retry_on_exception=False,
                 retry_on_status=self.retries > 0,
                 retry_on_post=True,

@@ -319,7 +319,7 @@ def test_log_plot_with_mlrun():
     print(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1 + 2  # return + my_plt, my_sns
+    assert len(run_object.outputs) == 1 + 1  # return + my_plot
     assert os.path.basename(run_object.artifact("my_plot").local()) == "my_plot.html"
 
     # Clean the test outputs:

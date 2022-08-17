@@ -296,7 +296,7 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
-        tracking_policy: dict = None,
+        tracking_policy: Union[model_monitoring.TrackingPolicy, dict] = None,
     ):
         """set tracking parameters:
 
@@ -305,10 +305,10 @@ class ServingRuntime(RemoteRuntime):
         :param batch:           Micro batch size (send micro batches of N records at a time).
         :param sample:          Sample size (send only one of N records).
         :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
-        :param tracking_policy: Dictionary that will be converted into a tracking policy object. By using
-                                TrackingPolicy, the user can apply his model monitoring requirements, such as setting
-                                the scheduling policy of the model monitoring batch job or changing the image of the
-                                model monitoring stream.
+        :param tracking_policy: Tracking policy object or a dictionary that will be converted into a tracking policy
+                                object. By using TrackingPolicy, the user can apply his model monitoring requirements,
+                                such as setting the scheduling policy of the model monitoring batch job or changing
+                                the image of the model monitoring stream.
 
                                 example::
                                 # initialize a new serving function

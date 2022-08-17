@@ -1,10 +1,12 @@
 import enum
 import hashlib
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 import mlrun
+import mlrun.api.schemas.schedule as schedule
 import mlrun.model
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
 import mlrun.utils
 
@@ -129,22 +131,60 @@ class TrackingPolicy(mlrun.model.ModelObj):
     model monitoring stream.
     """
 
+    _dict_fields = [
+        "default_batch_image",
+        "stream_image",
+    ]
+
     def __init__(
         self,
-        default_batch_intervals: str = "0 */1 * * *",
+        default_batch_intervals: Union[
+            schedule.ScheduleCronTrigger, str
+        ] = schedule.ScheduleCronTrigger(minute="0", hour="*/1"),
         default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
     ):
         """
         Initialize TrackingPolicy object.
         :param default_batch_intervals:     Model monitoring batch scheduling policy. By default, executed on the hour
-                                            every hour. The time format is based on ScheduleCronTrigger expression:
-                                            minute, hour, day of month, month, day of week.
+                                            every hour. Can be either a string or a ScheduleCronTrigger object. The
+                                            string time format is based on ScheduleCronTrigger expression:
+                                            minute, hour, day of month, month, day of week. It will be converted into
+                                            a ScheduleCronTrigger object.
         :param default_batch_image:         The default image of the model monitoring batch job. By default, the image
                                             is mlrun/mlrun.
         :param stream_image:                The image of the model monitoring stream real-time function. By default,
                                             the image is mlrun/mlrun.
         """
+        if isinstance(default_batch_intervals, str):
+            default_batch_intervals = schedule.ScheduleCronTrigger.from_crontab(
+                default_batch_intervals
+            )
         self.default_batch_intervals = default_batch_intervals
         self.default_batch_image = default_batch_image
         self.stream_image = stream_image
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super().from_dict(
+            struct, fields=cls._dict_fields, deprecated_fields=deprecated_fields
+        )
+        # Convert default batch interval into ScheduleCronTrigger object
+        if model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS in struct:
+            new_obj.default_batch_intervals = schedule.ScheduleCronTrigger.from_crontab(
+                struct[
+                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                ]
+            )
+        return new_obj
+
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(
+            fields,
+            exclude=[model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS],
+        )
+        if self.default_batch_intervals:
+            struct[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ] = self.default_batch_intervals.dict()
+        return struct

@@ -822,8 +822,8 @@ class ModelEndpoints:
             db_session=db_session, auth_info=auto_info, function=fn
         )
 
-    @staticmethod
     def deploy_model_monitoring_batch_processing(
+        self,
         project: str,
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
@@ -877,25 +877,31 @@ class ModelEndpoints:
         task.spec.function = function_uri
 
         # Apply batching interval params
-        minutes, hours, day, _, _ = tuple(
-            map(
-                lambda element: float(f"0{element.partition('/')[-1].strip(' ')}"),
-                tracking_policy[
-                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-                ].split(" "),
-            )
-        )
+        interval_list = [
+            tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ]["minute"],
+            tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ]["hour"],
+            tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ]["day"],
+        ]
+        minutes, hours, days = self._get_batching_interval_param(interval_list)
+        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
 
-        batch_dict = {"minutes": minutes, "hours": hours, "days": day}
         task.spec.parameters[
             model_monitoring_constants.EventFieldType.BATCH_INTERVALS_DICT
         ] = batch_dict
 
         data = {
             "task": task.to_dict(),
-            "schedule": tracking_policy[
-                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
-            ],
+            "schedule": self._convert_to_cron_string(
+                tracking_policy[
+                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                ]
+            ),
         }
 
         logger.info(
@@ -980,3 +986,30 @@ class ModelEndpoints:
         if not access_key:
             raise mlrun.errors.MLRunBadRequestError("Data session is missing")
         return access_key
+
+    @staticmethod
+    def _get_batching_interval_param(intervals_list):
+        """Converting each value in the intervals list into a float number. None
+        Values will be converted into 0.0.
+
+        example::
+        Applying the function on a scheduling policy that is based on every hour exactly
+        _get_batching_interval_param(intervals_list=[0, '*/1', None])
+        The result will be: (0.0, 1.0, 0.0)
+
+        """
+        return tuple(
+            map(
+                lambda element: 0.0
+                if isinstance(element, (float, int)) or element is None
+                else float(f"0{element.partition('/')[-1]}"),
+                intervals_list,
+            )
+        )
+
+    @staticmethod
+    def _convert_to_cron_string(cron_trigger):
+        """Converting the batch interval dictionary into a ScheduleCronTrigger expression"""
+        return "{} {} {} * *".format(
+            cron_trigger["minute"], cron_trigger["hour"], cron_trigger["day"]
+        ).replace("None", "*")

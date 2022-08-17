@@ -527,9 +527,6 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 @pytest.mark.asyncio
 async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Scheduler):
     cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
-    start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
-        number_of_jobs=1, seconds_interval=1
-    )
     schedule_name = "schedule-name"
     project = config.default_project
     scheduler.create_schedule(

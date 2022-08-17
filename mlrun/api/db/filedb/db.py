@@ -404,6 +404,7 @@ class FileDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
+        next_run_time: datetime = None,
     ):
         raise NotImplementedError()
 
@@ -417,7 +418,7 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        next_run_time: datetime.datetime = None,
+        next_run_time: datetime = None,
     ):
         raise NotImplementedError()
 

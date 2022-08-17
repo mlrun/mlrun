@@ -202,11 +202,7 @@ class Scheduler:
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> schemas.SchedulesOutput:
-        logger.debug(
-            "Getting schedules", project=project, name=name, labels=labels, kind=kind
-        )
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
-        logger.info("schedules", db_schedules=db_schedules)
         schedules = []
         for db_schedule in db_schedules:
             schedule = self._transform_and_enrich_db_schedule(

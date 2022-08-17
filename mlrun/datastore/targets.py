@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import os
 import random
 import time
@@ -59,6 +60,7 @@ class TargetTypes:
             TargetTypes.dataframe,
             TargetTypes.custom,
             TargetTypes.mongodb,
+            TargetTypes.sql
         ]
 
 
@@ -1550,7 +1552,9 @@ class MongoDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
-        from storey import MongoDBDriver, Table
+        from storey import Table  # , MongoDBTarget
+
+        from mlrun.datastore.tempFromStorey import MongoDBDriver
 
         # TODO use options/cred
         (
@@ -1562,7 +1566,7 @@ class MongoDBTarget(BaseStoreTarget):
             f"{db}/{collection}",
             MongoDBDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-            support_aggr=False,
+            support_full_aggregation_query=False,
         )
 
     def add_writer_step(
@@ -1659,6 +1663,7 @@ class SqlDBTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
+    _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
 
     def __init__(
         self,
@@ -1666,7 +1671,8 @@ class SqlDBTarget(BaseStoreTarget):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_step=None,
-        columns=None,
+        schema: typing.Dict[str, type] = None,
+        primary_key_column: str = None,
         partitioned: bool = False,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
@@ -1677,8 +1683,9 @@ class SqlDBTarget(BaseStoreTarget):
         storage_options: typing.Dict[str, str] = None,
         db_path: str = None,
         collection_name: str = None,
+        if_exists: bool = False,  # {‘fail’, ‘replace’, ‘append’},
         create_collection: bool = False,
-        override_collection: bool = False,
+        create_according_to_data: bool = False,
     ):
         """
         Write to MongoDB as output target for a flow.
@@ -1698,43 +1705,56 @@ class SqlDBTarget(BaseStoreTarget):
         :param override_collection: pass True if you want to override all the documents on the
                                     collection named by collection_name on current database.
         """
-        _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
-        db_path = db_path or os.getenv(_SQL_DB_PATH_STRING_ENV_VAR)
+        db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None:
             attr = {}
         else:
             # check for collection existence and acts according to the user input
-            from pymongo import MongoClient
+            self._primary_key_column = primary_key_column
+            import sqlalchemy as db
+            engine = db.create_engine(db_path)
+            sql_connection = engine.connect()
+            metadata = db.MetaData()
+            collection_exists = engine.dialect.has_table(sql_connection, collection_name)
+            if not collection_exists and not create_collection:
+                raise ValueError(f"Collection named {collection_name} is not exist")
 
-            mongodb_client = MongoClient(connection_string)
-            all_dbs = mongodb_client.list_database_names()
-            if db_name not in all_dbs:
-                if create_collection:
-                    pass
-                else:
-                    raise ValueError(f"DataBase named {db_name} is not exist")
-            db = mongodb_client[db_name]
-            all_collections = db.list_collection_names()
-            if collection_name not in all_collections:
-                if create_collection:
-                    # creat new collection with the given name
-                    collection = db[collection_name]
-                    collection.insert_one({"test": "test"})
-                    collection.delete_one({"test": "test"})
-                else:
-                    raise ValueError(
-                        f"Collection named {collection_name} is not exist in {db_name} database"
-                    )
-            elif override_collection:
-                # override all the collection's documents
-                db[collection_name].delete_many({})
+            elif not collection_exists and create_collection:
+                # creat new collection with the given name
+                columns = []
+                for col, col_type in schema.items():
+                    if col_type == int:
+                        col_type = db.Integer
+                    elif col_type == str:
+                        col_type = db.String
+                    elif col_type == datetime.datetime or col_type == pd.Timestamp:
+                        col_type = db.DateTime
+                    elif col_type == bool:
+                        col_type = db.Boolean
+                    elif col_type == float:
+                        col_type = db.Float
+                    else:
+                        raise TypeError(f"{col_type} unsupported type")
+                    columns.append(db.Column(col, col_type, primary_key=(col == primary_key_column)))
+
+                if 'index' not in schema.keys():
+                    columns.append(db.Column('index', db.Integer))
+                db.Table(
+                    collection_name, metadata,
+                    *columns
+                )
+                metadata.create_all(engine)
+                if_exists = 'append'
+
             attr = {
                 "collection_name": collection_name,
-                "db_name": db_name,
-                "connection_string": connection_string,
+                "db_path": db_path,
+                'create_according_to_data': create_according_to_data,
+                'if_exists': if_exists
             }
-            path = f"mdb:///{connection_string}///{db_name}///{collection_name}"
-            mongodb_client.close()
+            path = f"mlrunSql://@{db_path}//@{collection_name}//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}"
+            sql_connection.close()
+
         if attributes:
             attributes.update(attr)
         else:
@@ -1745,7 +1765,7 @@ class SqlDBTarget(BaseStoreTarget):
             path,
             attributes,
             after_step,
-            columns,
+            [*schema.keys()] if schema is not None else None,
             partitioned,
             key_bucketing_number,
             partition_cols,
@@ -1768,19 +1788,17 @@ class SqlDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
-        from storey import MongoDBDriver, Table
-
+        from storey import Table
+        from mlrun.datastore.tempFromStorey import SqlDBDriver
         # TODO use options/cred
         (
-            endpoint,
-            db,
-            collection,
+            db_path, collection_name, _, _, primary_key
         ) = self._parse_url()
         return Table(
-            f"{db}/{collection}",
-            MongoDBDriver(webapi=endpoint),
+            f"{db_path}/{collection_name}",
+            SqlDBDriver(db_path=db_path, primary_key=primary_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-            support_aggr=False,
+            support_full_aggregation_query=False,
         )
 
     def add_writer_step(
@@ -1798,7 +1816,7 @@ class SqlDBTarget(BaseStoreTarget):
         )
         table = self._resource.uri
         graph.add_step(
-            name=self.name or "MongoDBTarget",
+            name=self.name or "SqlTarget",
             after=after,
             graph_shape="cylinder",
             class_name="storey.NoSqlTarget",
@@ -1820,53 +1838,40 @@ class SqlDBTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        query = {}
-        if time_column:
-            # creat time query and adding it to the existed query.
-            time_query = {time_column: {}}
-            if start_time:
-                time_query[time_column]["$gte"] = start_time
-            if end_time:
-                time_query[time_column]["$lt"] = end_time
-            if time_query[time_column] and query:
-                query.update(time_query)
-            elif time_query[time_column] and not query:
-                query = time_query
+        import sqlalchemy as db
 
-        from pymongo import MongoClient
-
-        connection_string, db_name, collection_string = self._parse_url()
-        mongodb_client = MongoClient(connection_string)
-        db = mongodb_client[db_name]
-        collection = db[collection_string]
-        cursor = collection.find(query)
-
-        df = pd.DataFrame(list(cursor))
-        if "_id" in df.columns:
-            df["_id"] = str(df["_id"])
-        mongodb_client.close()
+        db_path, collection_name, _, _ = self._parse_url()
+        engine = db.create_engine(db_path)
+        sql_connection = engine.connect()
+        metadata = db.MetaData()
+        temp = db.Table(collection_name, metadata, autoload=True, autoload_with=engine)
+        results = sql_connection.execute(db.select([temp])).fetchall()
+        sql_connection.close()
+        df = pd.DataFrame(results, columns=temp.columns.keys())
+        if columns:
+            df = df[columns]
         return df
 
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
+        import sqlalchemy as db
+        # {‘fail’, ‘replace’, ‘append’} #
         if hasattr(df, "rdd"):
             raise ValueError("Spark is not supported")
         else:
-            from pymongo import MongoClient
-
-            connection_string, db_name, collection_string = self._parse_url()
-            mongodb_client = MongoClient(connection_string)
-            db = mongodb_client[db_name]
-            collection = db[collection_string]
-
-            data = df.to_dict(orient="records")
-            collection.insert_many(data)
-            mongodb_client.close()
+            db_path, collection_name, create_according_to_data, if_exists = self._parse_url()
+            create_according_to_data = bool(create_according_to_data)
+            engine = db.create_engine("sqlite:///stockmarket.db", echo=True)
+            sqlite_connection = engine.connect()
+            if create_according_to_data:
+                # todo : create according to fist row.
+                pass
+            df.to_sql(collection_name, sqlite_connection, if_exists=if_exists)
 
     def _parse_url(self):
-        path = self.path[len("mdb:///") :]
-        return path.split("///")
+        path = self.path[len("mlrunSql:///") :]
+        return path.split("//@")
 
     def purge(self):
         pass
@@ -1882,6 +1887,7 @@ kind_to_driver = {
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
     TargetTypes.mongodb: MongoDBTarget,
+    TargetTypes.sql: SqlDBTarget
 }
 
 

@@ -932,7 +932,7 @@ class MongoDBSource(BaseSourceDriver):
         )
         if connection_string is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without connection_string arg or secret {_MONGO_CONNECTION_STRING_ENV_VAR}"
+                f"cannot specify without connection_string arg or secret {self._MONGO_CONNECTION_STRING_ENV_VAR}"
             )
         attrs = {
             "query": query,
@@ -983,13 +983,14 @@ class MongoDBSource(BaseSourceDriver):
         return return_val
 
     def to_step(self, key_field=None, time_field=None, context=None):
-        import storey
+        # import storey
+        import mlrun.datastore.tempFromStorey as ts
 
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
 
-        return storey.sources.MongoDBSource(
+        return ts.MongoDBSourceStorey(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
@@ -1030,6 +1031,7 @@ class SqlDBSource(BaseSourceDriver):
     kind = "sqldb"
     support_storey = True
     support_spark = False
+    _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
 
     def __init__(
         self,
@@ -1046,11 +1048,11 @@ class SqlDBSource(BaseSourceDriver):
         collection_name: str = None,
         spark_options: dict = None,
     ):
-        _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
-        db_path = db_path or os.getenv(_SQL_DB_PATH_STRING_ENV_VAR)
+
+        db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without db_path arg or secret {_SQL_DB_PATH_STRING_ENV_VAR}"
+                f"cannot specify without db_path arg or secret {self._SQL_DB_PATH_STRING_ENV_VAR}"
             )
         attrs = {
             "query": query,
@@ -1102,16 +1104,16 @@ class SqlDBSource(BaseSourceDriver):
             )
 
     def to_step(self, key_field=None, time_field=None, context=None):
-        import storey
+        from mlrun.datastore.tempFromStorey import SqlDBSourceStorey
 
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
 
-        return storey.sources.SqlDBSource(
+        return SqlDBSourceStorey(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
-            storage_options=self._get_store().get_storage_options(),
+            # storage_options=self._get_store().get_storage_options(),
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,

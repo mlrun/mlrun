@@ -180,7 +180,7 @@ class DBInterface(ABC):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
-        next_run_time: datetime = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 

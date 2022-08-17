@@ -7,7 +7,6 @@ import cloudpickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
@@ -286,24 +285,21 @@ def test_log_object_with_mlrun():
 
 @mlrun.function_decorator(
     log_outputs=[
-        (mlrun.ArtifactType.PLOT, "my_plt"),
-        ("plot", "my_sns"),
+        (mlrun.ArtifactType.PLOT, "my_plot"),
     ]
 )
-def log_plot() -> Tuple[plt.Figure, plt.Axes]:
-    my_plt, axes = plt.subplots()
+def log_plot() -> plt.Figure:
+    my_plot, axes = plt.subplots()
     axes.plot([1, 2, 3, 4])
-    my_sns = sns.lineplot(data=[1, 2, 3, 4])
-    return my_plt, my_sns
+    return my_plot
 
 
 def test_log_plot_without_mlrun():
     """
     Run the `log_plot` function without MLRun to see the decorator is transparent.
     """
-    my_plt, my_sns = log_plot()
-    assert isinstance(my_plt, plt.Figure)
-    assert isinstance(my_sns, plt.Axes)
+    my_plot = log_plot()
+    assert isinstance(my_plot, plt.Figure)
 
 
 def test_log_plot_with_mlrun():
@@ -324,8 +320,7 @@ def test_log_plot_with_mlrun():
 
     # Assertion:
     assert len(run_object.outputs) == 1 + 2  # return + my_plt, my_sns
-    assert os.path.basename(run_object.artifact("my_plt").local()) == "my_plt.html"
-    assert os.path.basename(run_object.artifact("my_sns").local()) == "my_sns.html"
+    assert os.path.basename(run_object.artifact("my_plot").local()) == "my_plot.html"
 
     # Clean the test outputs:
     artifact_path.cleanup()

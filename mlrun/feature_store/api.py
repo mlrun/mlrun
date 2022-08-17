@@ -196,6 +196,7 @@ def get_offline_features(
             run_config=run_config,
             drop_columns=drop_columns,
             with_indexes=with_indexes,
+            query=query,
         )
 
     start_time = str_to_timestamp(start_time)

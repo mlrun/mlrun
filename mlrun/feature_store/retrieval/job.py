@@ -16,6 +16,7 @@ def run_merge_job(
     run_config=None,
     drop_columns=None,
     with_indexes=None,
+    query=None,
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -43,6 +44,7 @@ def run_merge_job(
             "timestamp_column": timestamp_column,
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
+            "query": query,
         },
         inputs={"entity_rows": entity_rows},
     )

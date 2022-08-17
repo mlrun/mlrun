@@ -17,7 +17,6 @@ from mlrun import code_to_function, store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.feature_store import FeatureSet
-from mlrun.feature_store.steps import OneHotEncoder
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
@@ -30,6 +29,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
+    pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
         True  # Set to True if you want to avoid the image building phase
@@ -49,6 +49,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if without_prefix:
             path = ""
         path += "/bigdata/" + self.pq_source
+        return path
+
+    def get_remote_pq_target_path(self, without_prefix=False):
+        path = "v3io://"
+        if without_prefix:
+            path = ""
+        path += "/bigdata/" + self.pq_target
         return path
 
     def get_local_csv_source_path(self):
@@ -722,79 +729,45 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
-    #
-    # @pytest.mark.parametrize("engine", ["spark"])
-    # def test_get_offline_features_with_filter(self, engine):
-    #     engine_args = {
-    #         # "spark": self.spark_service,
-    #         "named_view": True,
-    #     }
-    #
-    #     data = pd.DataFrame(
-    #         {
-    #             "name": ["A", "B", "C", "D", "E"],
-    #             "age": [33, 4, 76, 90, 24],
-    #             "department": ["IT", "RD", "RD", "Marketing", "IT"],
-    #         },
-    #         index=[0, 1, 2, 3, 4],
-    #     )
-    #     data["id"] = data.index
-    #
-    #     source = ParquetSource(path=self.get_remote_pq_source_path())
-    #     data.to_parquet(source.path)
-    #     one_hot_encoder_mapping = {
-    #         "department": list(data["department"].unique()),
-    #     }
-    #     data_set = FeatureSet(
-    #         "fs-new", entities=[Entity("id")], description="feature set"
-    #     )
-    #     data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
-    #     data_set.set_targets()
-    #     data_set.plot(rankdir="LR", with_targets=True)
-    #
-    #     filename = str(
-    #         pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
-    #         / "spark_ingest_remote_test_code.py"
-    #     )
-    #     func = code_to_function("func", kind="remote-spark", filename=filename)
-    #     run_config = fs.RunConfig(local=False, function=func, handler="ingest_handler")
-    #     fs.ingest(
-    #         data_set,
-    #         source,
-    #         return_df=True,
-    #         spark_context=self.spark_service,
-    #         run_config=run_config,
-    #     )
-    #     # fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
-    #
-    #     fv_name = "new-fv"
-    #     features = [
-    #         "fs-new.name",
-    #         "fs-new.age",
-    #         "fs-new.department_RD",
-    #         "fs-new.department_IT",
-    #         "fs-new.department_Marketing",
-    #     ]
-    #
-    #     my_fv = fs.FeatureVector(fv_name, features, description="my feature vector")
-    #     my_fv.save()
-    #     train_dataset = fs.get_offline_features(
-    #         fv_name,
-    #         target=ParquetTarget(),
-    #         query="age>6 and department_RD==1",
-    #         engine=engine,
-    #         engine_args=engine_args,
-    #     )
-    #     df_res = train_dataset.to_dataframe()
-    #     expected_df = pd.DataFrame(
-    #         {
-    #             "name": ["C"],
-    #             "age": [76],
-    #             "department_RD": [1],
-    #             "department_IT": [0],
-    #             "department_Marketing": [0],
-    #         },
-    #         index=[0],
-    #     )
-    #
-    #     assert df_res.equals(expected_df)
+
+    @pytest.mark.parametrize("engine", ["spark"])
+    def test_get_offline_features_with_filter(self, engine):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        fs.ingest(
+            measurements,
+            source,
+            return_df=True,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        assert measurements.status.targets[0].run_id is not None
+
+        fv_name = "measurements-fv"
+        features = [
+            # "measurements.patient_id",
+            "measurements.bad",
+            "measurements.department",
+        ]
+
+        my_fv = fs.FeatureVector(fv_name, features, description="my feature vector", )
+        my_fv.save()
+        target = ParquetTarget('mytarget', path=self.get_remote_pq_target_path())
+        fs.get_offline_features(
+            fv_name,
+            target=target,
+            query="bad>6 and bad<8",
+            engine="spark",
+            run_config=fs.RunConfig(local=False)
+        )
+        df_res = target.as_df()
+        df = source.to_dataframe()
+        expected_df = df[df['bad'] == 7]['bad', 'department']
+
+        assert True

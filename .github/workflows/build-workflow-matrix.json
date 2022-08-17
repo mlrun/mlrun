@@ -6,9 +6,6 @@
     "image-name":"api"
   },
   {
-    "image-name": "api-dev"
-  }
-  {
     "image-name":"base"
   },
   {

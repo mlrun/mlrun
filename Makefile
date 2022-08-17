@@ -318,10 +318,8 @@ push-jupyter: jupyter ## Push mlrun jupyter docker image
 
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
-MLRUN_API_DEV_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api-dev
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME):$(MLRUN_DOCKER_TAG)
-MLRUN_API_DEV_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME)-dev:$(MLRUN_DOCKER_TAG)
 MLRUN_API_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_API_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_API_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_API_CACHE_IMAGE_NAME_TAGGED) || true,)
@@ -344,20 +342,6 @@ api: update-version-file ## Build mlrun-api docker image
 push-api: api ## Push api docker image
 	docker push $(MLRUN_API_IMAGE_NAME_TAGGED)
 	$(MLRUN_API_CACHE_IMAGE_PUSH_COMMAND)
-
-
-.PHONY: api-dev
-api-dev: api ## Build mlrun-api development docker image
-	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
-	docker build \
-		--file dockerfiles/mlrun-api/Dockerfile.dev \
-		--build-arg MLRUN_API_IMAGE_NAME_TAGGED=$(MLRUN_API_IMAGE_NAME_TAGGED) \
-		--tag $(MLRUN_API_DEV_IMAGE_NAME_TAGGED) .
-
-.PHONY: push-api-dev
-push-api-dev: api-dev ## Push api-dev docker image
-	docker push $(MLRUN_API_DEV_IMAGE_NAME_TAGGED)
-
 
 MLRUN_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test
 MLRUN_TEST_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/test

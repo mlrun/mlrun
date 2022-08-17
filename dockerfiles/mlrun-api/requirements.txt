@@ -2,3 +2,6 @@ uvicorn~=0.17.0
 dask-kubernetes~=0.11.0
 apscheduler~=3.6
 sqlite3-to-mysql~=1.4
+
+# remote debugging
+pydevd-pycharm~=222.3345.131

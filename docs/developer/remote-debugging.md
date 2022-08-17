@@ -2,9 +2,6 @@
 
 ### MLRun API
 
-Remotely debugging MLRun is possible using PyCharm and `pydevd_pycharm`, 
-which is installed on MLRun's API image name with "-dev" as its suffix.
-
 Prerequisites:
 
 1. Open PyCharm, [create](https://www.jetbrains.com/help/pycharm/remote-debugging-with-product.html#create-remote-debug-config) a run debug configuration
@@ -29,12 +26,7 @@ Prerequisites:
 
 5. Start `Remote Debugging` run configuration created previously
 
-6. Using `kubectl`, patch your mlrun deployment with "dev" image tag.
-    ```bash
-    kubectl set image deployment/mlrun-api-chief mlrun-api=quay.io/mlrun/mlrun-api-dev:1.1.0-rcX
-    ```
-
-7. Once the deployment is patched with new dev image, the new running pod will try connecting to your PyCharm server. 
+6. Once the deployment is patched with new dev image, the new running pod will try connecting to your PyCharm server. 
     Once it is connected, you will see on your IDE console `Connected to pydev debugger (build ...)`.
 
-8. You can now use breaking points while running a remote MLRun API instance.
+7. You can now use breaking points while running a remote MLRun API instance.

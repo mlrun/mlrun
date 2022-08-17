@@ -1,5 +1,7 @@
 import os
 import pathlib
+import shutil
+import tempfile
 import zipfile
 
 import deepdiff
@@ -10,6 +12,16 @@ import mlrun
 import mlrun.errors
 import mlrun.projects.project
 import tests.conftest
+
+
+@pytest.fixture()
+def context():
+    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
+    yield context
+
+    # clean up
+    if context.exists():
+        shutil.rmtree(context)
 
 
 def test_sync_functions():
@@ -188,6 +200,170 @@ def test_build_project_from_minimal_dict():
         "status": {"state": "online"},
     }
     mlrun.projects.MlrunProject.from_dict(project_dict)
+
+
+@pytest.mark.parametrize(
+    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "override_context,expect_error,error_msg",
+    [
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            3,
+            True,
+            "",
+            True,
+            "Failed to load project from git, context directory is not empty. "
+            "Set clone param to True to remove the contents of the context directory.",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            0,
+            False,
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "body.txt",
+            True,
+            "projects/assets/body.txt' already exists and is not an empty directory",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            False,
+            0,
+            False,
+            "",
+            False,
+            "",
+        ),
+    ],
+)
+def test_load_project(
+    context,
+    url,
+    project_name,
+    project_files,
+    clone,
+    num_of_files_to_create,
+    create_child_dir,
+    override_context,
+    expect_error,
+    error_msg,
+):
+    temp_files = []
+    child_dir = os.path.join(context, "child")
+
+    # use override context to test invalid paths - it will not be deleted on teardown
+    context = override_context or context
+
+    # create random files
+    if num_of_files_to_create:
+        context.mkdir()
+        temp_files = [
+            tempfile.NamedTemporaryFile(dir=context, delete=False).name
+            for _ in range(num_of_files_to_create)
+        ]
+        for temp_file in temp_files:
+            assert os.path.exists(os.path.join(context, temp_file))
+
+    if create_child_dir:
+        os.mkdir(child_dir)
+
+    if expect_error:
+        with pytest.raises(Exception) as exc:
+            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+
+    for temp_file in temp_files:
+
+        # verify that the context directory was cleaned if clone is True
+        assert os.path.exists(os.path.join(context, temp_file)) is not clone
+
+    if create_child_dir:
+        assert os.path.exists(child_dir) is not clone
+
+    assert project.name == project_name
+    assert project.spec.context == context
+    assert project.spec.source == str(url)
+    for project_file in project_files:
+        assert os.path.exists(os.path.join(context, project_file))
 
 
 def _assert_project_function_objects(project, expected_function_objects):

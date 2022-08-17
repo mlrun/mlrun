@@ -64,6 +64,7 @@ from .frontend_spec import (
     ProjectMembershipFeatureFlag,
 )
 from .function import FunctionState, PreemptionModes, SecurityContextEnrichmentModes
+from .http import HTTPSessionRetryMode
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .marketplace import (
     IndexedMarketplaceSource,

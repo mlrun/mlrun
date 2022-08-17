@@ -1,7 +1,13 @@
 (feature-store)=
 # Feature store 
 
-The feature store is a centralized and versioned catalog where everyone can engineer and store features along with their metadata and statistics, share them and reuse them, and analyze their impact on existing models. The feature store plugs seamlessly into the data ingestion, model training, model serving, and model monitoring components, eliminating significant development and operations overhead, and delivering exceptional performance. Users can simply group together independent features into vectors, and use those from their jobs or real-time services. Iguazio’s high performance engines take care of automatically joining and accurately computing the features.
+The feature store is a centralized and versioned catalog where everyone can engineer and store features along with their metadata and statistics, share them and reuse them, and analyze their impact on existing models. The feature store plugs seamlessly into the data ingestion, model training, model serving, and model monitoring components, eliminating significant development and operations overhead, and delivering exceptional performance. Users can simply group together independent features into vectors, and use those from their jobs or real-time services. Iguazio’s high performance engines take care of automatically joining and accurately computing the features.<br>
+You can use the feature store throughout the MLOps flow:
+1. {ref}`Ingesting data <feature-store-data-ingestion>`
+2. {ref}`Training <model-training>`
+2. {ref}`Model serving <model_serving>`
+
+See also the feature store tutorial {ref}`basic-demo`.
 
 **In this section**
 - [Overview](#overview)
@@ -34,15 +40,15 @@ The feature store is comprised of the following:
 - **Feature** &mdash; In machine-learning, a feature is an individual measurable property or characteristic of a phenomenon being observed. 
 This can be raw data (e.g., transaction amount, image pixel, etc.) or a calculation derived from one or more other features (e.g., deviation 
 from average, pattern on image, etc.).
-- **Feature set** &mdash;  A grouping of features that are ingested together and stored in a logical group. Feature sets take data from 
+- **{ref}`feature-sets`** &mdash;  A grouping of features that are ingested together and stored in a logical group. Feature sets take data from 
 offline or online sources, build a list of features through a set of transformations, and store the resulting features, along with the 
 associated metadata and statistics. For example, a transaction may be grouped by the ID of a person performing the transfer or by the device 
 identifier used to perform the transaction. You can also define in the timestamp source in the feature set, and ingest data into a 
-feature set. See more details in [feature sets](./feature-sets.html).
-- **Execution graph** &mdash; A set of operations performed on the data while it is ingested. The graph contains steps that represent 
-data sources and targets, and can also contain steps that transform and enrich the data that is passed through the feature set.
-- **Feature vector** &mdash; A set of features, taken from one or more feature sets. The feature vector is defined prior to model training 
-and serves as the input to the model training process. During model serving, the feature values in the vector are obtained from an online service.
+feature set.
+- **[Execution](./feature-sets.html#add-transformations)** &mdash; A set of operations performed on the data while it is 
+ingested. The graph contains steps that represent data sources and targets, and can also contain steps that transform and enrich the data that is passed through the feature set. For a deeper dive, see {ref}`transformations`.
+- **{ref}`Feature vectors <create-use-feature-vectors>`** &mdash; A set of features, taken from one or more feature sets. The feature vector is defined prior to model 
+training and serves as the input to the model training process. During model serving, the feature values in the vector are obtained from an online service.
 
 ## How the feature store works
 
@@ -89,4 +95,9 @@ point, and the offline datasets that were created to train each model.
 
 ## Further reading
 
-For more information, see [Feature store: data ingestion](../feature-store/feature-store-data-ingestion.html) and [Feature store: data retrieval](../feature-store/feature-store-data-retrieval.html), as well as the [Feature Store tutorials](../feature-store/feature-store-tutorials.html).
+For more information, see: 
+- {ref}`create-use-feature-vectors`
+- {ref}`feature-store-data-ingestion`
+- {ref}`training-fs`
+- {ref}`training-serving`
+- {ref}`basic-demo`

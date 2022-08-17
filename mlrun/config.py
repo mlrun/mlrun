@@ -274,6 +274,7 @@ default_config = {
         },
         "projects": {
             "leader": "mlrun",
+            "retry_leader_request_on_exception": "enabled",
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
@@ -401,6 +402,11 @@ default_config = {
         "node_selector": "e30=",
         # encoded empty list
         "tolerations": "W10=",
+    },
+    "http_retry_defaults": {
+        "max_retries": 3,
+        "backoff_factor": 1,
+        "status_codes": [500, 502, 503, 504],
     },
 }
 

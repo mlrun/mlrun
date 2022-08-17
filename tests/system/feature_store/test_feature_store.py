@@ -641,7 +641,7 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
         path = str(self.results_path / _generate_random_name())
-        target = ParquetTarget(path=path)
+        target = ParquetTarget(path=path, partitioned=False)
 
         fset = fs.FeatureSet(
             name="test", entities=[Entity("patient_id")], timestamp_key="timestamp"
@@ -831,7 +831,9 @@ class TestFeatureStore(TestMLRunSystem):
                 time_partitioning_granularity,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
                 expected_partitions.append(unit)
@@ -1268,7 +1270,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        data_target = ParquetTarget()
+        data_target = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[data_target])
 
@@ -1376,7 +1378,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget()
+        target2 = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
@@ -1393,7 +1395,7 @@ class TestFeatureStore(TestMLRunSystem):
             timestamp_key="time",
         )
 
-        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet", partitioned=False)]
 
         fs.ingest(
             feature_set,
@@ -1490,6 +1492,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         side_file_out = pd.read_csv(side_file_path)
         default_file_out = pd.read_parquet(default_file_path)
+        # default parquet target is partitioned
+        default_file_out.drop(
+            columns=mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS, inplace=True
+        )
         self._split_graph_expected_default.set_index("ticker", inplace=True)
 
         assert all(self._split_graph_expected_default == default_file_out.round(2))
@@ -1604,7 +1610,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
-        targets = [ParquetTarget(columns=columns)]
+        targets = [ParquetTarget(columns=columns, partitioned=False)]
         quotes_set, _ = prepare_feature_set(
             "forced-columns", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -1624,7 +1630,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(csv_vec)
         csv_vec_df = resp.to_dataframe()
 
-        targets = [ParquetTarget()]
+        targets = [ParquetTarget(partitioned=False)]
         parquet_align_set, _ = prepare_feature_set(
             "parquet-align", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -2656,7 +2662,7 @@ class TestFeatureStore(TestMLRunSystem):
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(

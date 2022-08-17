@@ -26,7 +26,7 @@ from ..datastore import get_store_uri
 from ..datastore.targets import (
     TargetTypes,
     convert_wasb_schema_to_az,
-    default_target_names,
+    get_default_targets,
     get_offline_target,
     get_online_target,
     get_target_driver,
@@ -391,7 +391,7 @@ class FeatureSet(ModelObj):
             )
         targets = targets or []
         if with_defaults:
-            targets.extend(default_target_names())
+            targets.extend(get_default_targets())
 
         validate_target_list(targets=targets)
 
@@ -780,12 +780,12 @@ class FeatureSet(ModelObj):
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
-        driver = get_offline_target(self, name=target_name)
-        if not driver:
+        target = get_offline_target(self, name=target_name)
+        if not target:
             raise mlrun.errors.MLRunNotFoundError(
                 "there are no offline targets for this feature set"
             )
-        return driver.as_df(
+        result = target.as_df(
             columns=columns,
             df_module=df_module,
             entities=entities,
@@ -794,6 +794,21 @@ class FeatureSet(ModelObj):
             time_column=time_column,
             **kwargs,
         )
+        drop_cols = []
+        if target.time_partitioning_granularity:
+            for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
+                drop_cols.append(col)
+                if col == target.time_partitioning_granularity:
+                    break
+        elif (
+            target.partitioned
+            and not target.partition_cols
+            and not target.key_bucketing_number
+        ):
+            drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
+        if drop_cols:
+            result.drop(columns=drop_cols, inplace=True)
+        return result
 
     def save(self, tag="", versioned=False):
         """save to mlrun db"""

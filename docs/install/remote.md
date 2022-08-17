@@ -22,10 +22,9 @@ You can write your code on a local machine while running your functions on a rem
 
 Before you begin, ensure that the following prerequisites are met:
 
-1. Applications:
-   - Supports pip and conda 
-   - Recommended pip 22.x+
-   - Python 3.8   
+1. Python:
+   - Python 3.7
+   - pip 22.x or later
 
 2. Install MLRun locally.
 

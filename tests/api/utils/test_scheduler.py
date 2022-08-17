@@ -552,10 +552,7 @@ async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Schedu
     assert worker_schedule.next_run_time is not None
     assert chief_schedule.next_run_time == worker_schedule.next_run_time
 
-    # simulating when running in worker
-    # mlrun.mlconf.httpdb.clusterization.role = (
-    #     mlrun.api.schemas.ClusterizationRole.chief
-    # )
+
 @pytest.mark.asyncio
 async def test_get_schedule_failure_not_found(db: Session, scheduler: Scheduler):
     schedule_name = "schedule-name"

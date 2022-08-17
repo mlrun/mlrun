@@ -100,6 +100,7 @@ class ScheduleRecord(ScheduleInput):
     last_run_uri: Optional[str]
     state: Optional[str]
     labels: Optional[List[LabelRecord]]
+    next_run_time: Optional[datetime]
 
     class Config:
         orm_mode = True

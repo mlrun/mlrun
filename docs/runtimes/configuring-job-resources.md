@@ -134,7 +134,7 @@ When an MLRun job is running on a spot node and it fails, it won't get back up a
 is brought up by Kubernetes.
 ```
 
-Kuberenetes has a few methods for configuring which nodes to run on. To get a deeper understanding , see [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
+Kuberenetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
 Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
 
 ### Stateless and Stateful Applications 

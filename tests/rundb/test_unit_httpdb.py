@@ -4,6 +4,7 @@ import enum
 import unittest.mock
 
 import pytest
+import requests
 
 import mlrun.config
 import mlrun.db.httpdb
@@ -44,21 +45,21 @@ def test_api_call_enum_conversion():
             ConnectionError,
             "Connection aborted",
             # one try + the max retries
-            1 + mlrun.db.httpdb.HTTP_RETRY_COUNT,
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionResetError,
             "Connection reset by peer",
             # one try + the max retries
-            1 + mlrun.db.httpdb.HTTP_RETRY_COUNT,
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         (
             "enabled",
             ConnectionRefusedError,
             "Connection refused",
             # one try + the max retries
-            1 + mlrun.db.httpdb.HTTP_RETRY_COUNT,
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
         # feature disabled
         ("disabled", Exception, "some-error", 1),
@@ -84,12 +85,14 @@ def test_connection_reset_causes_retries(
 ):
     mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
     db = mlrun.db.httpdb.HTTPRunDB("fake-url")
-    db.session = unittest.mock.Mock()
-    db.session.request.side_effect = exception_type(exception_message)
+    original_request = requests.Session.request
+    requests.Session.request = unittest.mock.Mock()
+    requests.Session.request.side_effect = exception_type(exception_message)
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
         with pytest.raises(exception_type):
             db.api_call("GET", "some-path")
 
-    assert db.session.request.call_count == call_amount
+    assert requests.Session.request.call_count == call_amount
+    requests.Session.request = original_request

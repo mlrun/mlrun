@@ -43,7 +43,7 @@ app = fastapi.FastAPI(
     title="MLRun",
     description="Machine Learning automation and tracking",
     version=config.version,
-    debug=config.httpdb.debug,
+    debug=config.httpdb.debug.enabled,
     # adding /api prefix
     openapi_url=f"{BASE_VERSIONED_API_PREFIX}/openapi.json",
     docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
@@ -58,15 +58,23 @@ app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
 
 def start_debugging() -> None:
-    if "enabled" not in os.environ.get("MLRUN_API_DEBUG_MODE", "").lower():
+
+    # debug mode
+    if not config.httpdb.debug:
         return
 
-    # pydevd_pycharm is installed only on development image. do not move this import to top
+    # pydevd is not enabled
+    if not (
+        config.httpdb.debug.pydevd_pycharm
+        and config.httpdb.debug.pydevd_pycharm.enabled
+    ):
+        return
+
     import pydevd_pycharm
 
     pydevd_pycharm.settrace(
-        os.environ.get("MLRUN_API_DEBUG_HOST", "localhost"),
-        port=int(os.environ.get("MLRUN_API_DEBUG_PORT", 40000)),
+        config.httpdb.debug.pydevd_pycharm.host,
+        port=config.httpdb.debug.pydevd_pycharm.port,
         stdoutToServer=True,
         stderrToServer=True,
     )
@@ -359,7 +367,7 @@ def main():
         "mlrun.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
-        debug=config.httpdb.debug,
+        debug=config.httpdb.debug.enabled,
         access_log=False,
     )
 

@@ -20,9 +20,10 @@ Prerequisites:
     ```
 
 4. Add envvars to MLRun's API deployment (or use `mlrun-override-env` configmap) with below envvars
-   - `MLRUN_API_DEBUG_MODE` - Whether to enable debugging or not (e.g.: `enabled`)
-   - `MLRUN_API_DEBUG_HOST` - The host returned by ngrok (e.g.: `7.tcp.eu.ngrok.io`)
-   - `MLRUN_REMOTE_DEBUG_PORT` - The port returned by ngrok (e.g.: `13209`)
+   - `MLRUN_HTTPDB__DEBUG__ENABLED` - Enable debug mode (e.g.: `true`)
+   - `MLRUN_HTTPDB__DEBUG__PYDEVD_PYCHARM__ENABLED` - Enable pycharm remote debugging (e.g.: `true`)
+   - `MLRUN_HTTPDB__DEBUG__PYDEVD_PYCHARM__HOST` - The host returned by ngrok (e.g.: `7.tcp.eu.ngrok.io`)
+   - `MLRUN_HTTPDB__DEBUG__PYDEVD_PYCHARM__PORT` - The port returned by ngrok (e.g.: `13209`)
 
 5. Start `Remote Debugging` run configuration created previously
 

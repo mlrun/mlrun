@@ -186,7 +186,15 @@ default_config = {
         "dirpath": expanduser("~/.mlrun/db"),
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
         "old_dsn": "",
-        "debug": False,
+        "debug": {
+            "enabled": False,
+            # when enabled, pydevd-pycharm will be started trying to connect to the host & port specified
+            "pydevd_pycharm": {
+                "enabled": False,
+                "port": 4000,
+                "host": "localhost",
+            },
+        },
         "user": "",
         "password": "",
         "token": "",
@@ -209,7 +217,7 @@ default_config = {
             "conflict_retry_interval": None,
             # Whether to perform data migrations on initialization. enabled or disabled
             "data_migrations_mode": "enabled",
-            # Whether or not to perform database migration from sqlite to mysql on initialization
+            # Whether to perform database migration from sqlite to mysql on initialization
             "database_migration_mode": "enabled",
             "backup": {
                 # Whether or not to use db backups on initialization

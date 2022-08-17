@@ -32,7 +32,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -768,6 +768,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         df_res = target.as_df()
         df = source.to_dataframe()
-        expected_df = df[df['bad'] == 7]['bad', 'department']
+        expected_df = df[df['bad'] == 7][['bad', 'department']]
+        expected_df.reset_index(drop=True, inplace=True)
 
-        assert True
+        assert df_res.equals(expected_df)

@@ -134,7 +134,7 @@ def new_project(
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
     :param save:         whether to save the created project in the DB
-    :param override:     override project if already exists
+    :param override:     override project if project with name exists
 
     :returns: project object
     """
@@ -155,19 +155,14 @@ def new_project(
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
     else:
-
-        project = None
         if override:
             try:
-
-                # delete project from the DB if exists
-                project = _delete_project_from_db(name, secrets, user_project)
+                _delete_project_from_db(name, secrets, user_project)
                 logger.info(f"Deleted project {name} from MLRun DB")
             except mlrun.errors.MLRunNotFoundError:
                 logger.debug(f"Project {name} does not exist, creating")
 
-        if not project:
-            project = MlrunProject(name=name)
+        project = MlrunProject(name=name)
     project.spec.context = context
     project.spec.subpath = subpath or project.spec.subpath
 
@@ -183,7 +178,7 @@ def new_project(
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
-        project.save(create=True)
+        project.save(create_only=True)
     return project
 
 
@@ -2033,17 +2028,17 @@ class MlrunProject(ModelObj):
         ):
             shutil.rmtree(self.spec.context)
 
-    def save(self, filepath=None, create=False):
+    def save(self, filepath=None, create_only=False):
         self.export(filepath)
-        self.save_to_db(create)
+        self.save_to_db(create_only)
         return self
 
-    def save_to_db(self, create=False):
+    def save_to_db(self, create_only=False):
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        if create:
-            db.create_project(self.to_dict())
-        else:
-            db.store_project(self.metadata.name, self.to_dict())
+        if create_only:
+            return db.create_project(self.to_dict())
+
+        return db.store_project(self.metadata.name, self.to_dict())
 
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)

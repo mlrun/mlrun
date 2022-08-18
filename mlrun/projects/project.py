@@ -97,6 +97,7 @@ def new_project(
     description: str = None,
     subpath: str = None,
     save: bool = True,
+    override: bool = False,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -133,6 +134,7 @@ def new_project(
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
     :param save:         whether to save the created project in the DB
+    :param override:     override project if already exists
 
     :returns: project object
     """
@@ -153,7 +155,19 @@ def new_project(
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
     else:
-        project = MlrunProject(name=name)
+
+        project = None
+        if override:
+            try:
+
+                # delete project from the DB if exists
+                project = _delete_project_from_db(name, secrets, user_project)
+                logger.info(f"Deleted project {name} from MLRun DB")
+            except mlrun.errors.MLRunNotFoundError:
+                logger.debug(f"Project {name} does not exist, creating")
+
+        if not project:
+            project = MlrunProject(name=name)
     project.spec.context = context
     project.spec.subpath = subpath or project.spec.subpath
 
@@ -169,7 +183,7 @@ def new_project(
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
-        project.save()
+        project.save(create=True)
     return project
 
 
@@ -398,6 +412,14 @@ def _load_project_from_db(url, secrets, user_project=False):
         url.replace("db://", ""), user_project
     )
     return db.get_project(project_name)
+
+
+def _delete_project_from_db(url, secrets, user_project=False):
+    db = mlrun.db.get_run_db(secrets=secrets)
+    project_name = _add_username_to_project_name_if_needed(
+        url.replace("db://", ""), user_project
+    )
+    return db.delete_project(project_name)
 
 
 def _load_project_file(url, name="", secrets=None):
@@ -2011,14 +2033,17 @@ class MlrunProject(ModelObj):
         ):
             shutil.rmtree(self.spec.context)
 
-    def save(self, filepath=None):
+    def save(self, filepath=None, create=False):
         self.export(filepath)
-        self.save_to_db()
+        self.save_to_db(create)
         return self
 
-    def save_to_db(self):
+    def save_to_db(self, create=False):
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.store_project(self.metadata.name, self.to_dict())
+        if create:
+            db.create_project(self.to_dict())
+        else:
+            db.store_project(self.metadata.name, self.to_dict())
 
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)

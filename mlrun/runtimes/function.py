@@ -528,6 +528,8 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
+            self.metadata = data["data"].get("metadata")
+            self.spec = data["data"].get("spec")
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort

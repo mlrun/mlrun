@@ -751,7 +751,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         fv_name = "measurements-fv"
         features = [
-            # "measurements.patient_id",
             "measurements.bad",
             "measurements.department",
         ]

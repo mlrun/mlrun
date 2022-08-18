@@ -120,6 +120,17 @@ class Scheduler:
             concurrency_limit,
             auth_info,
         )
+        job_id = self._resolve_job_id(project, name)
+        job = self._scheduler.get_job(job_id)
+        if job and job.next_run_time:
+            logger.info(
+                "updating schedule with next_run_time",
+                job=job,
+                next_run_time=job.next_run_time,
+            )
+            get_db().update_schedule(
+                db_session, project, name, next_run_time=job.next_run_time
+            )
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
     def update_schedule(
@@ -173,6 +184,13 @@ class Scheduler:
             updated_schedule.concurrency_limit,
             auth_info,
         )
+        if updated_schedule.next_run_time:
+            get_db().update_schedule(
+                db_session,
+                project,
+                name,
+                next_run_time=updated_schedule.next_run_time,
+            )
 
     def list_schedules(
         self,
@@ -184,9 +202,6 @@ class Scheduler:
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> schemas.SchedulesOutput:
-        logger.debug(
-            "Getting schedules", project=project, name=name, labels=labels, kind=kind
-        )
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
@@ -603,10 +618,16 @@ class Scheduler:
         }
         schedule = schemas.ScheduleOutput(**schedule_dict)
 
-        job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
-        job = self._scheduler.get_job(job_id)
-        if job:
-            schedule.next_run_time = job.next_run_time
+        # schedules are running only on chief Therefore we querying next_run_time from the scheduler only when
+        # running on chief
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            == mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
+            job = self._scheduler.get_job(job_id)
+            if job:
+                schedule.next_run_time = job.next_run_time
 
         if include_last_run:
             self._enrich_schedule_with_last_run(db_session, schedule)
@@ -765,11 +786,15 @@ class Scheduler:
         run_uri = RunObject.create_uri(
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
+        # update every finish of a run the next run time so it would be accessible for worker instances
+        job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
+        job = scheduler._scheduler.get_job(job_id)
         get_db().update_schedule(
             db_session,
             run_metadata["project"],
             schedule_name,
             last_run_uri=run_uri,
+            next_run_time=job.next_run_time if job else None,
         )
 
         close_session(db_session)

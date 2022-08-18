@@ -3,8 +3,6 @@ import datetime
 import typing
 
 import humanfriendly
-import requests.adapters
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.auth.providers.base
@@ -21,12 +19,7 @@ class Provider(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
-        )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
+        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path

@@ -1,6 +1,6 @@
 services:
   jupyter:
-    image: "mlrun/jupyter:${TAG:-1.0.5}"
+    image: "mlrun/jupyter:${TAG:-1.0.6}"
     ports:
       - "8080:8080"
       - "8888:8888"
@@ -16,7 +16,7 @@ services:
       - mlrun
 
   mlrun-ui:
-    image: "mlrun/mlrun-ui:${TAG:-1.0.5}"
+    image: "mlrun/mlrun-ui:${TAG:-1.0.6}"
     ports:
       - "8060:8090"
     environment:

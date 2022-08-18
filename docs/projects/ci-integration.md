@@ -111,7 +111,7 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'mlrun/mlrun:1.0.0'
+                    image 'mlrun/mlrun:1.0.6'
                 }
             }
             steps {

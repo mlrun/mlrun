@@ -824,13 +824,20 @@ class SQLDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
+        next_run_time: datetime = None,
     ):
+        if next_run_time is not None:
+            # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
+            # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
+            next_run_time = next_run_time.astimezone(pytz.utc)
+
         schedule = Schedule(
             project=project,
             name=name,
             kind=kind.value,
             creation_time=datetime.now(timezone.utc),
             concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
             # these are properties of the object that map manually (using getters and setters) to other column of the
             # table and therefore Pycharm yells that they're unexpected
             scheduled_object=scheduled_object,
@@ -847,6 +854,7 @@ class SQLDB(DBInterface):
             kind=kind,
             cron_trigger=cron_trigger,
             concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
         )
         self._upsert(session, [schedule])
 
@@ -860,6 +868,7 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        next_run_time: datetime = None,
     ):
         schedule = self._get_schedule_record(session, project, name)
 
@@ -878,6 +887,11 @@ class SQLDB(DBInterface):
 
         if concurrency_limit is not None:
             schedule.concurrency_limit = concurrency_limit
+
+        if next_run_time is not None:
+            # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
+            # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
+            schedule.next_run_time = next_run_time.astimezone(pytz.utc)
 
         logger.debug(
             "Updating schedule in db",
@@ -2739,6 +2753,7 @@ class SQLDB(DBInterface):
     ) -> schemas.ScheduleRecord:
         schedule = schemas.ScheduleRecord.from_orm(schedule_record)
         schedule.creation_time = self._add_utc_timezone(schedule.creation_time)
+        schedule.next_run_time = self._add_utc_timezone(schedule.next_run_time)
         return schedule
 
     @staticmethod
@@ -2747,8 +2762,9 @@ class SQLDB(DBInterface):
         sqlalchemy losing timezone information with sqlite so we're returning it
         https://stackoverflow.com/questions/6991457/sqlalchemy-losing-timezone-information-with-sqlite
         """
-        if time_value.tzinfo is None:
-            return pytz.utc.localize(time_value)
+        if time_value:
+            if time_value.tzinfo is None:
+                return pytz.utc.localize(time_value)
         return time_value
 
     @staticmethod

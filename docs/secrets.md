@@ -358,5 +358,5 @@ function.mount_secret("my-secret", "/mnt/secrets/")
 ```
 
 This creates two files in the function pod, called `/mnt/secrets/secret1` and `/mnt/secrets/secret2`. Reading these
-files provides the values. It is possible to limit the keys mounted to the function - see the documentation
+files provide the values. It is possible to limit the keys mounted to the function - see the documentation
 of {py:func}`~mlrun.platforms.mount_secret` for more details.

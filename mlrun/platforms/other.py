@@ -14,6 +14,9 @@
 #
 # this file is based on the code from kubeflow pipelines git
 import os
+from typing import Dict
+
+import kfp.dsl
 
 import mlrun
 from mlrun.config import config
@@ -258,3 +261,20 @@ def mount_s3(
             )
 
     return _use_s3_cred
+
+
+def mount_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
+    env_data = env_vars_dict.copy() if env_vars_dict else {}
+    for key, value in kwargs.items():
+        env_data[key] = value
+
+    def _mount_env_variables(container_op: kfp.dsl.ContainerOp):
+        from kubernetes import client as k8s_client
+
+        for _key, _value in env_data.items():
+            container_op.container.add_env_variable(
+                k8s_client.V1EnvVar(name=_key, value=_value)
+            )
+        return container_op
+
+    return _mount_env_variables

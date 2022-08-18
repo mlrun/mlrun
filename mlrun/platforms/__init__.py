@@ -29,6 +29,7 @@ from .iguazio import (
 from .other import (
     auto_mount,
     mount_configmap,
+    mount_env_variables,
     mount_hostpath,
     mount_pvc,
     mount_s3,

@@ -100,3 +100,33 @@ def test_mount_s3():
             "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "s"}
         },
     }
+
+
+def test_mount_env_variables():
+    env_variables = {
+        "some_env_1": "some-value",
+        "SOMETHING": "ELSE",
+        "and_another": "like_this",
+    }
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    assert function.spec.env == []
+
+    # Using a dictionary
+    function.apply(mlrun.platforms.mount_env_variables(env_variables))
+    env_dict = {var["name"]: var.get("value") for var in function.spec.env}
+
+    assert env_dict == env_variables
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    assert function.spec.env == []
+
+    # And using key=value parameters
+    function.apply(mlrun.platforms.mount_env_variables(**env_variables))
+    env_dict = {var["name"]: var.get("value") for var in function.spec.env}
+
+    assert env_dict == env_variables

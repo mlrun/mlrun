@@ -1387,7 +1387,7 @@ class _ContextHandler:
         @staticmethod
         def log_plot(context: MLClientCtx, obj, key: str, logging_kwargs: dict):
             """
-            Log an object as a plot. currently supporting plots produced by one the following modules: `matplotlib`,
+            Log an object as a plot. Currently, supporting plots produced by one the following modules: `matplotlib`,
             `seaborn`, `plotly` and `bokeh`.
 
             :param context:        The MLRun context to log with.
@@ -1564,7 +1564,7 @@ class _ContextHandler:
         """
         Initialize a context handler.
         """
-        self._context = None  # type: MLClientCtx
+        self._context: MLClientCtx = None
 
     def look_for_context(self, args: tuple, kwargs: dict):
         """

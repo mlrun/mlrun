@@ -51,7 +51,7 @@ def test_set_labels_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.metadata.labels)
+    mlrun.utils.logger.info(run_object.metadata.labels)
 
     # Assertion:
     assert len(run_object.metadata.labels) == 3 + 3  # kind, owner, host + a, b, c
@@ -105,7 +105,7 @@ def test_log_dataset_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert (
@@ -159,7 +159,7 @@ def test_log_directory_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert len(run_object.outputs) == 1 + 1  # return + my_dir
@@ -213,7 +213,7 @@ def test_log_file_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert len(run_object.outputs) == 1 + 1  # return + my_file
@@ -268,7 +268,7 @@ def test_log_object_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert len(run_object.outputs) == 1 + 1  # return + my_file
@@ -316,7 +316,7 @@ def test_log_plot_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert len(run_object.outputs) == 1 + 1  # return + my_plot
@@ -363,7 +363,7 @@ def test_log_result_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert (
@@ -436,7 +436,7 @@ def test_parse_inputs_from_type_hints_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert len(run_object.outputs) == 1  # return
@@ -500,7 +500,7 @@ def test_parse_inputs_from_decorator_with_mlrun():
     )
 
     # Manual validation:
-    print(run_object.outputs)
+    mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
     assert len(run_object.outputs) == 1  # return

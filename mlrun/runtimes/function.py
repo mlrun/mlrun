@@ -993,7 +993,9 @@ class RemoteRuntime(KubeResource):
             return f"http://{self.status.address}/{path}"
 
     def _update_credentials_from_remote_build(self, remote_data):
-        self.metadata.credentials = remote_data.get("metadata", {}).get("credentials", {})
+        self.metadata.credentials = remote_data.get("metadata", {}).get(
+            "credentials", {}
+        )
 
         credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
         new_env = []
@@ -1009,7 +1011,6 @@ class RemoteRuntime(KubeResource):
                 new_env.append(remote_env)
 
         self.spec.env = new_env
-
 
 
 def parse_logs(logs):

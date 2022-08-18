@@ -756,19 +756,23 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "measurements.department",
         ]
 
-        my_fv = fs.FeatureVector(fv_name, features, description="my feature vector", )
+        my_fv = fs.FeatureVector(
+            fv_name,
+            features,
+            description="my feature vector",
+        )
         my_fv.save()
-        target = ParquetTarget('mytarget', path=self.get_remote_pq_target_path())
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
         fs.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
             engine="spark",
-            run_config=fs.RunConfig(local=False)
+            run_config=fs.RunConfig(local=False),
         )
         df_res = target.as_df()
         df = source.to_dataframe()
-        expected_df = df[df['bad'] == 7][['bad', 'department']]
+        expected_df = df[df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
 
         assert df_res.equals(expected_df)

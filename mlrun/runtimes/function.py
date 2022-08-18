@@ -527,6 +527,10 @@ class RemoteRuntime(KubeResource):
             db = self._get_db()
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
+
+            # updating the function's metadata and spec (in addition to the status) according to the remote build
+            # result, so any enrichment / masking done by the remote build will be applied to the function later when
+            # saved.
             self.status = data["data"].get("status")
             self.metadata = data["data"].get("metadata")
             self.spec = data["data"].get("spec")

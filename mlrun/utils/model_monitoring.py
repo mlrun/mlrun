@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import mlrun
-import mlrun.api.schemas
 import mlrun.model
 import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
 import mlrun.utils
+from mlrun.api.schemas.schedule import ScheduleCronTrigger
 
 
 @dataclass
@@ -138,9 +138,9 @@ class TrackingPolicy(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        default_batch_intervals: Union[
-            mlrun.api.schemas.schedule.ScheduleCronTrigger, str
-        ] = mlrun.api.schemas.schedule.ScheduleCronTrigger(minute="0", hour="*/1"),
+        default_batch_intervals: Union[ScheduleCronTrigger, str] = ScheduleCronTrigger(
+            minute="0", hour="*/1"
+        ),
         default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
     ):
@@ -157,10 +157,8 @@ class TrackingPolicy(mlrun.model.ModelObj):
                                             the image is mlrun/mlrun.
         """
         if isinstance(default_batch_intervals, str):
-            default_batch_intervals = (
-                mlrun.api.schemas.schedule.ScheduleCronTrigger.from_crontab(
-                    default_batch_intervals
-                )
+            default_batch_intervals = ScheduleCronTrigger.from_crontab(
+                default_batch_intervals
             )
         self.default_batch_intervals = default_batch_intervals
         self.default_batch_image = default_batch_image
@@ -173,7 +171,7 @@ class TrackingPolicy(mlrun.model.ModelObj):
         )
         # Convert default batch interval into ScheduleCronTrigger object
         if model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS in struct:
-            new_obj.default_batch_intervals = mlrun.api.schemas.schedule.ScheduleCronTrigger.from_crontab(
+            new_obj.default_batch_intervals = ScheduleCronTrigger.from_crontab(
                 struct[
                     model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
                 ]

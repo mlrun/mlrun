@@ -15,7 +15,6 @@
 from enum import Enum
 
 import redis
-import rediscluster
 
 import mlrun
 

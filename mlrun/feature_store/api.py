@@ -113,23 +113,7 @@ def get_offline_features(
     for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
 
-    examples_1::
-
-        features = [
-            "stock-quotes.bid",
-            "stock-quotes.asks_sum_5h",
-            "stock-quotes.ask as mycol",
-            "stocks.*",
-        ]
-        vector = FeatureVector(features=features)
-        resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time"
-        )
-        print(resp.to_dataframe())
-        print(vector.get_stats_table())
-        resp.to_parquet("./out.parquet")
-
-    examples_2::
+    example::
 
         features = [
             "stock-quotes.bid",

@@ -8,7 +8,6 @@ import urllib.parse
 
 import fastapi
 import requests.adapters
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
@@ -60,13 +59,11 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+            verbose=True,
         )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds

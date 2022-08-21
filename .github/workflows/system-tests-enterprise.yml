@@ -160,7 +160,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        test_component: [api,runtimes,projects,model_monitoring,examples,demos,backwards_compatibility,feature_store]
+        test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
     steps:
     - uses: actions/checkout@v2
     - name: Set up python 3.7

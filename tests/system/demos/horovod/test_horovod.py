@@ -8,6 +8,7 @@ from tests.system.demos.base import TestDemo
 
 
 # Marked as enterprise because of v3io mount and pipelines
+@pytest.mark.skip("not up to date demos needs to run demos from mlrun/demos repo")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestHorovodTFv2(TestDemo):

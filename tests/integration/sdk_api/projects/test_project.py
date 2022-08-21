@@ -17,7 +17,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
-    def test_create_existing_project_failure(self):
+    def test_create_project_failure_already_exists(self):
         project_name = "some-project"
         mlrun.new_project(project_name)
 
@@ -42,8 +42,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_load_project_from_db(self):
         project_name = "some-project"
-        project = mlrun.new_project(project_name)
-        project.save_to_db()
+        mlrun.new_project(project_name)
         mlrun.load_project(".", f"db://{project_name}")
 
     def test_load_project_with_save(self):

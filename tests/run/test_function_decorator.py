@@ -14,7 +14,7 @@ from sklearn.preprocessing import OrdinalEncoder
 import mlrun
 
 
-@mlrun.function_decorator(labels={"a": 1, "b": "a test", "c": [1, 2, 3]})
+@mlrun.function_decorator(set_labels={"a": 1, "b": "a test", "c": [1, 2, 3]})
 def set_labels(arg1, arg2=23):
     return arg1 - arg2
 

@@ -1589,14 +1589,13 @@ class _ContextHandler:
                 return
 
         # Search if the function was triggered from an MLRun RunTime object by looking at the call stack:
-        # Index 0 - the current frame.
-        # Index 1 - the decorator's frame.
-        # Index 2 - If it is from mlrun.runtimes we can be sure its ran via MLRun, otherwise not.
-        if (
-            os.path.join("mlrun", "mlrun", "runtimes", "")
-            in inspect.getouterframes(inspect.currentframe())[2].filename
-        ):
-            self._context = mlrun.get_or_create_ctx("context")
+        # Index 0: the current frame.
+        # Index 1: the decorator's frame.
+        # Index 2 - ...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
+        for callstack_frame in inspect.getouterframes(inspect.currentframe()):
+            if os.path.join("mlrun", "runtimes", "") in callstack_frame.filename:
+                self._context = mlrun.get_or_create_ctx("context")
+                break
 
     def is_context_available(self) -> bool:
         """
@@ -1730,7 +1729,7 @@ class _ContextHandler:
 
 
 def function_decorator(
-    labels: Dict[str, Any] = None,
+    set_labels: Dict[str, Any] = None,
     log_outputs: List[
         Union[Tuple[Union[ArtifactType, str], Union[str, Dict[str, Any]]], None]
     ] = None,
@@ -1739,7 +1738,7 @@ def function_decorator(
     """
     MLRun's function decorator to wrap a function and enable automatic `mlrun.DataItem` parsing and outputs logging.
 
-    :param labels:       Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
+    :param set_labels:   Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
                          None.
     :param log_outputs:  Logging configurations for the function's returned values. Expecting a list of tuples and None
                          values:
@@ -1786,11 +1785,11 @@ def function_decorator(
 
     def decorator(func: Callable):
         def wrapper(*args: tuple, **kwargs: dict):
-            nonlocal labels
+            nonlocal set_labels
             nonlocal log_outputs
             nonlocal parse_inputs
 
-            print(labels)  # TODO: Remove post debugging
+            print(set_labels)  # TODO: Remove post debugging
             print(log_outputs)  # TODO: Remove post debugging
             print(parse_inputs)  # TODO: Remove post debugging
 
@@ -1821,8 +1820,8 @@ def function_decorator(
 
             # If an MLRun context is found, set the given labels and log the returning values to MLRun via the context:
             if context_handler.is_context_available():
-                if labels:
-                    context_handler.set_labels(labels=labels)
+                if set_labels:
+                    context_handler.set_labels(labels=set_labels)
                 if log_outputs:
                     context_handler.log_outputs(
                         outputs=outputs if isinstance(outputs, tuple) else [outputs],

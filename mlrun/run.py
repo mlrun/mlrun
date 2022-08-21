@@ -1591,7 +1591,7 @@ class _ContextHandler:
         # Search if the function was triggered from an MLRun RunTime object by looking at the call stack:
         # Index 0: the current frame.
         # Index 1: the decorator's frame.
-        # Index 2 - ...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
+        # Index 2-...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
         for callstack_frame in inspect.getouterframes(inspect.currentframe()):
             if os.path.join("mlrun", "runtimes", "") in callstack_frame.filename:
                 self._context = mlrun.get_or_create_ctx("context")
@@ -1668,7 +1668,7 @@ class _ContextHandler:
             # Log:
             self._log_output(obj=obj, artifact_type=log_tuple[0], key=log_tuple[1])
 
-    def set_labels(self, labels: Dict[str, Any]):
+    def set_labels(self, labels: Dict[str, str]):
         """
         Set the given labels with the stored context.
 
@@ -1729,7 +1729,7 @@ class _ContextHandler:
 
 
 def function_decorator(
-    set_labels: Dict[str, Any] = None,
+    set_labels: Dict[str, str] = None,
     log_outputs: List[
         Union[Tuple[Union[ArtifactType, str], Union[str, Dict[str, Any]]], None]
     ] = None,
@@ -1788,10 +1788,6 @@ def function_decorator(
             nonlocal set_labels
             nonlocal log_outputs
             nonlocal parse_inputs
-
-            print(set_labels)  # TODO: Remove post debugging
-            print(log_outputs)  # TODO: Remove post debugging
-            print(parse_inputs)  # TODO: Remove post debugging
 
             # Set `parse_inputs` defaults - inspect the full signature and add the user's input on top of it:
             if parse_inputs:

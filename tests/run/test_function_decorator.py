@@ -54,7 +54,6 @@ def test_set_labels_with_mlrun():
     mlrun.utils.logger.info(run_object.metadata.labels)
 
     # Assertion:
-    assert len(run_object.metadata.labels) == 3 + 3  # kind, owner, host + a, b, c
     assert run_object.metadata.labels["a"] == "1"
     assert run_object.metadata.labels["b"] == "a test"
     assert run_object.metadata.labels["c"] == "[1, 2, 3]"

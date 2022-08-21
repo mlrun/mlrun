@@ -437,11 +437,14 @@ class DaskCluster(KubejobRuntime):
         cpu: str = None,
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
-        override: bool = True,
+        patch: bool = False,
     ):
-        """set scheduler pod resources limits"""
+        """
+        set scheduler pod resources limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
         self.spec._verify_and_set_limits(
-            "scheduler_resources", mem, cpu, gpus, gpu_type, override=override
+            "scheduler_resources", mem, cpu, gpus, gpu_type, patch=patch
         )
 
     def with_worker_limits(
@@ -450,11 +453,14 @@ class DaskCluster(KubejobRuntime):
         cpu: str = None,
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
-        override: bool = True,
+        patch: bool = False,
     ):
-        """set worker pod resources limits"""
+        """
+        set worker pod resources limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
         self.spec._verify_and_set_limits(
-            "worker_resources", mem, cpu, gpus, gpu_type, override=override
+            "worker_resources", mem, cpu, gpus, gpu_type, patch=patch
         )
 
     def with_requests(self, mem=None, cpu=None):
@@ -471,20 +477,22 @@ class DaskCluster(KubejobRuntime):
         self.with_worker_requests(mem, cpu)
 
     def with_scheduler_requests(
-        self, mem: str = None, cpu: str = None, override: bool = True
+        self, mem: str = None, cpu: str = None, patch: bool = False
     ):
-        """set scheduler pod resources requests"""
-        self.spec._verify_and_set_requests(
-            "scheduler_resources", mem, cpu, override=override
-        )
+        """
+        set scheduler pod resources requests
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("scheduler_resources", mem, cpu, patch=patch)
 
     def with_worker_requests(
-        self, mem: str = None, cpu: str = None, override: bool = True
+        self, mem: str = None, cpu: str = None, patch: bool = False
     ):
-        """set worker pod resources requests"""
-        self.spec._verify_and_set_requests(
-            "worker_resources", mem, cpu, override=override
-        )
+        """
+        set worker pod resources requests
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("worker_resources", mem, cpu, patch=patch)
 
     def _run(self, runobj: RunObject, execution):
 

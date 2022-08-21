@@ -149,9 +149,7 @@ class TestDaskRuntime(TestRuntimeBase):
         )
         self._assert_scheduler_pod_args()
 
-    def test_dask_runtime_with_resources_override(
-        self, db: Session, client: TestClient
-    ):
+    def test_dask_runtime_with_resources_patch(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
         runtime.with_scheduler_requests(mem="2G", cpu="3")
         runtime.with_worker_requests(mem="2G", cpu="3")
@@ -160,11 +158,11 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime.with_scheduler_limits(mem="4G", cpu="5", gpu_type=gpu_type, gpus=2)
         runtime.with_worker_limits(mem="4G", cpu="5", gpu_type=gpu_type, gpus=2)
 
-        runtime.with_scheduler_limits(gpus=3)  # default override = True
-        runtime.with_scheduler_requests(cpu="4", override=False)
+        runtime.with_scheduler_limits(gpus=3)  # default patch = False
+        runtime.with_scheduler_requests(cpu="4", patch=True)
 
-        runtime.with_worker_limits(cpu="10", override=False)
-        runtime.with_worker_requests(mem="3G")  # default override = True
+        runtime.with_worker_limits(cpu="10", patch=True)
+        runtime.with_worker_requests(mem="3G")  # default patch = False
         _ = runtime.client
 
         self.kube_cluster_mock.assert_called_once()

@@ -158,11 +158,11 @@ def test_with_requests():
     )
 
 
-def test_with_request_override():
+def test_with_request_patch():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
     function = mlrun.new_function(runtime=runtime)
-    function.with_requests(mem="9G", override=False)
+    function.with_requests(mem="9G", patch=True)
     expected = {
         "requests": {"cpu": "50mi", "memory": "9G"},
         "limits": {},
@@ -175,7 +175,7 @@ def test_with_request_override():
         )
         == {}
     )
-    function.with_requests(cpu="15")  # default override = True
+    function.with_requests(cpu="15")  # default patch = False
     expected = {
         "requests": {"cpu": "15"},
         "limits": {},
@@ -190,7 +190,7 @@ def test_with_request_override():
     )
 
 
-def test_with_limits_override():
+def test_with_limits_patch():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
     mlrun.mlconf.default_function_pod_resources = {
@@ -198,7 +198,7 @@ def test_with_limits_override():
         "limits": {"cpu": "1", "memory": "1G", "gpu": None},
     }
     function = mlrun.new_function(runtime=runtime)
-    function.with_limits(mem="9G", override=False)
+    function.with_limits(mem="9G", patch=True)
     expected = {
         "requests": {"cpu": "50mi", "memory": "1M"},
         "limits": {"cpu": "1", "memory": "9G"},
@@ -212,7 +212,7 @@ def test_with_limits_override():
         == {}
     )
 
-    function.with_limits(mem="9G")  # default override = True
+    function.with_limits(mem="9G")  # default patch = False
     expected = {
         "requests": {"cpu": "50mi", "memory": "1M"},
         "limits": {"memory": "9G"},

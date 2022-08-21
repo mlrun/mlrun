@@ -287,12 +287,12 @@ class KubeResourceSpec(FunctionSpec):
         cpu: str = None,
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
-        override: bool = True,
+        patch: bool = False,
     ):
         resources = verify_limits(
             resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
         )
-        if override:
+        if not patch:
             update_in(
                 getattr(self, resources_field_name),
                 "limits",
@@ -319,10 +319,10 @@ class KubeResourceSpec(FunctionSpec):
         resources_field_name,
         mem: str = None,
         cpu: str = None,
-        override: bool = True,
+        patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
-        if override:
+        if not patch:
             update_in(
                 getattr(self, resources_field_name),
                 "requests",
@@ -342,16 +342,20 @@ class KubeResourceSpec(FunctionSpec):
         cpu: str = None,
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
-        override: bool = True,
+        patch: bool = False,
     ):
-        """set pod cpu/memory/gpu limits"""
-        self._verify_and_set_limits(
-            "resources", mem, cpu, gpus, gpu_type, override=override
-        )
+        """
+        set pod cpu/memory/gpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem: str = None, cpu: str = None, override: bool = True):
-        """set requested (desired) pod cpu/memory resources"""
-        self._verify_and_set_requests("resources", mem, cpu, override)
+    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+        """
+        set requested (desired) pod cpu/memory resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self._verify_and_set_requests("resources", mem, cpu, patch)
 
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
@@ -966,14 +970,25 @@ class KubeResource(BaseRuntime):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
     def with_limits(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", override=True
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
     ):
-        """set pod cpu/memory/gpu limits"""
-        self.spec.with_limits(mem, cpu, gpus, gpu_type, override=override)
+        """
+        set pod cpu/memory/gpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem=None, cpu=None, override=True):
-        """set requested (desired) pod cpu/memory resources"""
-        self.spec.with_requests(mem, cpu, override=override)
+    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+        """
+        set requested (desired) pod cpu/memory resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec.with_requests(mem, cpu, patch=patch)
 
     def with_node_selection(
         self,

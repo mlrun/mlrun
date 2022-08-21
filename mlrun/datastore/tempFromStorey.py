@@ -340,17 +340,18 @@ class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID)
         results = connection.execute(db.select([collection])).fetchall()
         df = pandas.DataFrame(results)
         df.columns = results[0].keys()
+        df.set_index('index', inplace=True)
         connection.close()
 
         for namedtuple in df.itertuples():
             create_event = True
             body = namedtuple._asdict()
-            index = body.pop('Index')
-            if len(df.index.names) > 1:
-                for i, index_column in enumerate(df.index.names):
-                    body[index_column] = index[i]
-            elif df.index.names[0] is not None:
-                body[df.index.names[0]] = index
+            body.pop('Index')
+            # if len(df.index.names) > 1:
+            #     for i, index_column in enumerate(df.index.names):
+            #         body[index_column] = index[i]
+            # elif df.index.names[0] is not None:
+            #     body[df.index.names[0]] = index
             key = None
             if self._key_field:
                 if isinstance(self._key_field, list):
@@ -440,8 +441,6 @@ class SqlDBDriver(storey.Driver):
 
     async def _load_aggregates_by_key(self, container, table_path, key):
         self._lazy_init()
-        # mongodb_key = self.make_key(table_path, key)
-        # table_path = f"/{table_path[1:].split('/')[0]}"
         collection = self.collection(table_path)
         try:
             agg_val, values = await self._get_all_fields(key, collection)
@@ -455,22 +454,16 @@ class SqlDBDriver(storey.Driver):
 
     async def _load_by_key(self, container, table_path, key, attribute):
         self._lazy_init()
-        # mongodb_key = self.make_key(table_path, key)
-        collection = self.collection(container, table_path)
+        collection = self.collection(table_path)
         if attribute == "*":
             _, values = await self._get_all_fields(key, collection)
         else:
             print(1)
-            pass
-            # values = await self._get_specific_fields(mongodb_key, attribute, collection)
+            values = None
         return values
 
     async def close(self):
         pass
-
-    # def make_key(self, table_path, key):
-    #
-    #     return "{}{}{}".format(self._key_prefix, table_path[1:].split("/")[0], key)
 
     async def _get_all_fields(self, key: str, collection):
 
@@ -490,12 +483,13 @@ class SqlDBDriver(storey.Driver):
     async def _get_specific_fields(
         self, mongodb_key: str, collection, attributes: List[str]
     ):
-        try:
-            response = collection.find_one(
-                filter={self._storey_key: {"$eq": mongodb_key}}
-            )
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to get key {mongodb_key}. Response error was: {e}"
-            )
-        return {key: val for key, val in response.items() if key in attributes}
+        # try:
+        #     response = collection.find_one(
+        #         filter={self._storey_key: {"$eq": mongodb_key}}
+        #     )
+        # except Exception as e:
+        #     raise RuntimeError(
+        #         f"Failed to get key {mongodb_key}. Response error was: {e}"
+        #     )
+        # return {key: val for key, val in response.items() if key in attributes}
+        pass

@@ -27,7 +27,7 @@ def _are_mongodb_connection_string_not_set() -> bool:
 )
 @pytest.mark.enterprise
 class TestFeatureStoreMongoDB(TestMLRunSystem):
-    project_name = "fs-system-test-mongodb"
+    project_name = "income-classification2-davids"
 
     @classmethod
     def _init_env_from_file(cls):

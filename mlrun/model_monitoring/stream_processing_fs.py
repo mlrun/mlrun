@@ -962,7 +962,17 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
     ):
         """Adding name-value pairs to event dictionary based on two provided lists of names and values. These pairs
         will be used mainly for the Parquet target file. In addition, this function creates a new mapping dictionary of
-        these pairs which will be unpacked in ProcessBeforeTSDB step"""
+        these pairs which will be unpacked in ProcessBeforeTSDB step
+
+        :param event:               A dictionary that includes details about the current event such as endpoint_id
+                                    and input names and values.
+        :param named_iters:         List of names to match to the list of values.
+        :param values_iters:        List of values to match to the list of names.
+        :param mapping_dictionary:  Name of the new dictionary that will be stored in the current event. The new
+                                    dictionary includes name-value pairs based on the provided named_iters and
+                                    values_iters lists.
+
+        """
         event[mapping_dictionary] = {}
         for name, value in zip(named_iters, values_iters):
             event[name] = value

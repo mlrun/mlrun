@@ -23,7 +23,10 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         with pytest.raises(mlrun.errors.MLRunConflictError) as exc:
             mlrun.new_project(project_name)
-        assert "Conflict - Project already exists: some-project" in str(exc.value)
+        assert (
+            f"Project with name {project_name} already exists. Use override=True to override the existing project."
+            in str(exc.value)
+        )
 
     def test_override_project(self):
         project_name = "some-project"

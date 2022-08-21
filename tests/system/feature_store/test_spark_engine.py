@@ -730,8 +730,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fs.RunConfig(local=False),
             )
 
-    @pytest.mark.parametrize("engine", ["spark"])
-    def test_get_offline_features_with_filter(self, engine):
+    def test_get_offline_features_with_filter(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
             "measurements",
@@ -743,7 +742,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fs.ingest(
             measurements,
             source,
-            return_df=True,
             spark_context=self.spark_service,
             run_config=fs.RunConfig(local=False),
         )

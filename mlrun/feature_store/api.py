@@ -131,32 +131,19 @@ def get_offline_features(
 
     examples_2::
 
-        names = ['A', 'B', 'C', 'D', 'E']
-        ages = [33, 4, 76, 90, 24]
-        department = ['IT', 'RD', 'RD', 'Marketing', 'IT']
-        data = pd.DataFrame({'name': names, 'age': ages, 'department': department}, index=[0,1,2,3,4])
-        one_hot_encoder_mapping = {
-            "department": list(data["department"].unique()),
-        }
-        data_set = fstore.FeatureSet("fs-new",
-                                     entities=[fstore.Entity("id")],
-                                     description="feature set")
-        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
-        data_set.set_targets()
-        data_set.plot(rankdir="LR", with_targets=True)
-        df = fstore.ingest(data_set, data,
-                           infer_options=fstore.InferOptions.default())
-
-        fv_name = 'new-fv'
-        features = ['fs-new.name', 'fs-new.age', 'fs-new.department_RD', 'fs-new.department_IT',
-                    'fs-new.department_Marketing']
-        transactions_fv = fstore.FeatureVector(fv_name,
-                                               features,
-                                               description='my feature vector')
-        transactions_fv.save()
-        train_dataset = fstore.get_offline_features(fv_name, target=ParquetTarget(),
-                                                    filter="age>6 and department_RD==1")
-        print(train_dataset.to_dataframe()).head(3))
+        features = [
+            "stock-quotes.bid",
+            "stock-quotes.asks_sum_5h",
+            "stock-quotes.ask as mycol",
+            "stocks.*",
+        ]
+        vector = FeatureVector(features=features)
+        resp = get_offline_features(
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+        )
+        print(resp.to_dataframe())
+        print(vector.get_stats_table())
+        resp.to_parquet("./out.parquet")
 
     :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
                             permissions
@@ -174,7 +161,7 @@ def get_offline_features(
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
-    :param query:          The query string to filter unnecessary rows
+    :param query:          The query string used to filter rows
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True

@@ -2609,7 +2609,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
         data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
         data_set.set_targets()
-        data_set.plot(rankdir="LR", with_targets=True)
         fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
         fv_name = "new-fv"
@@ -2623,14 +2622,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         my_fv = fs.FeatureVector(fv_name, features, description="my feature vector")
         my_fv.save()
-        train_dataset = fs.get_offline_features(
-            fv_name,
-            target=ParquetTarget(),
-            query="age>6 and department_RD==1",
-            engine=engine,
-            engine_args=engine_args,
-        )
-        df_res = train_dataset.to_dataframe()
+        # expected data frame
         expected_df = pd.DataFrame(
             {
                 "name": ["C"],
@@ -2642,7 +2634,28 @@ class TestFeatureStore(TestMLRunSystem):
             index=[0],
         )
 
-        assert df_res.equals(expected_df)
+        # different tests
+        result_1 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="age>6 and department_RD==1",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_1 = result_1.to_dataframe()
+
+        assert df_res_1.equals(expected_df)
+
+        result_2 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="name in ['C']",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_2 = result_2.to_dataframe()
+
+        assert df_res_2.equals(expected_df)
 
     def test_set_event_with_spaces_or_hyphens(self):
         from mlrun.feature_store.steps import OneHotEncoder

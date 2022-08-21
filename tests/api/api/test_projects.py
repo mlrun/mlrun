@@ -617,6 +617,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
+    mlrun.mlconf.namespace = "test-namespace"
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
         spec=mlrun.api.schemas.ProjectSpec(),

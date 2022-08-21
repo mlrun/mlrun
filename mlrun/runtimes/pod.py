@@ -283,11 +283,11 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_limits(
         self,
         resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
-        override=True,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        override: bool = True,
     ):
         resources = verify_limits(
             resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
@@ -317,9 +317,9 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem=None,
-        cpu=None,
-        override=True,
+        mem: str = None,
+        cpu: str = None,
+        override: bool = True,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
         if override:
@@ -337,14 +337,19 @@ class KubeResourceSpec(FunctionSpec):
                 )
 
     def with_limits(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", override=True
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        override: bool = True,
     ):
         """set pod cpu/memory/gpu limits"""
         self._verify_and_set_limits(
             "resources", mem, cpu, gpus, gpu_type, override=override
         )
 
-    def with_requests(self, mem=None, cpu=None, override=True):
+    def with_requests(self, mem: str = None, cpu: str = None, override: bool = True):
         """set requested (desired) pod cpu/memory resources"""
         self._verify_and_set_requests("resources", mem, cpu, override)
 

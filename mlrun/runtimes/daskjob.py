@@ -432,7 +432,12 @@ class DaskCluster(KubejobRuntime):
         self.with_worker_limits(mem, cpu, gpus, gpu_type)
 
     def with_scheduler_limits(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", override=True
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        override: bool = True,
     ):
         """set scheduler pod resources limits"""
         self.spec._verify_and_set_limits(
@@ -440,7 +445,12 @@ class DaskCluster(KubejobRuntime):
         )
 
     def with_worker_limits(
-        self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", override=True
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        override: bool = True,
     ):
         """set worker pod resources limits"""
         self.spec._verify_and_set_limits(
@@ -460,13 +470,17 @@ class DaskCluster(KubejobRuntime):
         self.with_scheduler_requests(mem, cpu)
         self.with_worker_requests(mem, cpu)
 
-    def with_scheduler_requests(self, mem=None, cpu=None, override=True):
+    def with_scheduler_requests(
+        self, mem: str = None, cpu: str = None, override: bool = True
+    ):
         """set scheduler pod resources requests"""
         self.spec._verify_and_set_requests(
             "scheduler_resources", mem, cpu, override=override
         )
 
-    def with_worker_requests(self, mem=None, cpu=None, override=True):
+    def with_worker_requests(
+        self, mem: str = None, cpu: str = None, override: bool = True
+    ):
         """set worker pod resources requests"""
         self.spec._verify_and_set_requests(
             "worker_resources", mem, cpu, override=override

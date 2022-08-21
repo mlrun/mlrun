@@ -703,14 +703,20 @@ with ctx:
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
-    def with_executor_requests(self, mem=None, cpu=None, override=True):
+    def with_executor_requests(
+        self, mem: str = None, cpu: str = None, override: bool = True
+    ):
         """set executor pod required cpu/memory/gpu resources"""
         self.spec._verify_and_set_requests(
             "executor_resources", mem, cpu, override=override
         )
 
     def with_executor_limits(
-        self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", override=True
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        override: bool = True,
     ):
         """set executor pod limits"""
         # in spark operator there is only use of mem passed through requests,
@@ -719,14 +725,20 @@ with ctx:
             "executor_resources", None, cpu, gpus, gpu_type, override=override
         )
 
-    def with_driver_requests(self, mem=None, cpu=None, override=True):
+    def with_driver_requests(
+        self, mem: str = None, cpu: str = None, override: bool = True
+    ):
         """set driver pod required cpu/memory/gpu resources"""
         self.spec._verify_and_set_requests(
             "driver_resources", mem, cpu, override=override
         )
 
     def with_driver_limits(
-        self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", override=True
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        override: bool = True,
     ):
         """set driver pod cpu limits"""
         # in spark operator there is only use of mem passed through requests,

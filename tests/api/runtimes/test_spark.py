@@ -231,11 +231,11 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             set_resources=False
         )
 
-        expected_executor = {
+        expected_executor_resources = {
             "requests": {"cpu": "1", "mem": "1G"},
             "limits": {"cpu": "2", "gpu_type": "nvidia.com/gpu", "gpus": 1},
         }
-        expected_driver = {
+        expected_driver_resources = {
             "requests": {"cpu": "2", "mem": "512m"},
             "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
         }
@@ -254,8 +254,77 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self.execute_function(runtime)
         self._assert_custom_object_creation_config(
-            expected_driver_resources=expected_driver,
-            expected_executor_resources=expected_executor,
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
+            expected_cores=expected_cores,
+        )
+
+    def test_run_with_limits_and_requests_override(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        runtime.with_executor_limits(cpu="3")
+        runtime.with_executor_requests(cpu="1", mem="1G")
+
+        runtime.with_executor_limits(gpus=1, override=False)
+        expected_executor_resources = {
+            "requests": {"cpu": "1", "mem": "1G"},
+            "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+        }
+
+        runtime.with_driver_requests(cpu="2")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+        # override = False
+        runtime.with_driver_requests(mem="512m", override=False)
+        expected_driver_resources = {
+            "requests": {"cpu": "2", "mem": "512m"},
+            "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+        }
+
+        expected_cores = {
+            "executor": 8,
+            "driver": 2,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
+            expected_cores=expected_cores,
+        )
+
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        runtime.with_executor_limits(cpu="3")
+        runtime.with_executor_requests(cpu="1", mem="1G")
+
+        runtime.with_driver_requests(cpu="2")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+
+        # default override = True
+        runtime.with_driver_limits(gpus=2)
+        runtime.with_driver_requests(cpu="5")
+        expected_driver_resources = {
+            "requests": {"cpu": "5"},
+            "limits": {"gpu_type": "nvidia.com/gpu", "gpus": 2},
+        }
+
+        runtime.with_executor_limits(cpu="5")
+        runtime.with_executor_requests(mem="2G")
+        expected_executor_resources = {
+            "requests": {"mem": "2G"},
+            "limits": {"cpu": "5"},
+        }
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
             expected_cores=expected_cores,
         )
 

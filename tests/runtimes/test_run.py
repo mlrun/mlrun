@@ -158,6 +158,75 @@ def test_with_requests():
     )
 
 
+def test_with_request_override():
+    runtime = _get_runtime()
+    runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
+    function = mlrun.new_function(runtime=runtime)
+    function.with_requests(mem="9G", override=False)
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "9G"},
+        "limits": {},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+    function.with_requests(cpu="15")  # default override = True
+    expected = {
+        "requests": {"cpu": "15"},
+        "limits": {},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_with_limits_override():
+    runtime = _get_runtime()
+    runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+    }
+    function = mlrun.new_function(runtime=runtime)
+    function.with_limits(mem="9G", override=False)
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "1M"},
+        "limits": {"cpu": "1", "memory": "9G"},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    function.with_limits(mem="9G")  # default override = True
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "1M"},
+        "limits": {"memory": "9G"},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
 def test_with_limits():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}

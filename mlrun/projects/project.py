@@ -157,7 +157,7 @@ def new_project(
     else:
         if override:
             try:
-                _delete_project_from_db(name, secrets, user_project)
+                _delete_project_from_db(name, secrets)
                 logger.info(f"Deleted project {name} from MLRun DB")
             except mlrun.errors.MLRunNotFoundError:
                 logger.debug(f"Project {name} does not exist, creating")
@@ -415,11 +415,8 @@ def _load_project_from_db(url, secrets, user_project=False):
     return db.get_project(project_name)
 
 
-def _delete_project_from_db(url, secrets, user_project=False):
+def _delete_project_from_db(project_name, secrets):
     db = mlrun.db.get_run_db(secrets=secrets)
-    project_name = _add_username_to_project_name_if_needed(
-        url.replace("db://", ""), user_project
-    )
     return db.delete_project(project_name)
 
 

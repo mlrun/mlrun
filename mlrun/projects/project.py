@@ -2010,7 +2010,8 @@ class MlrunProject(ModelObj):
         notifiers: RunNotifications = None,
     ):
         warnings.warn(
-            "This method is deprecated. Use `timeout` parameter in `project.run()` method instead",
+            "This will be deprecated in 1.4.0, and will be removed in 1.6.0"
+            "Use `timeout` parameter in `project.run()` method instead",
             PendingDeprecationWarning,
         )
         return run._engine.get_run_status(

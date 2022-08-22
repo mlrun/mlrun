@@ -1,7 +1,7 @@
 import pathlib
-import pytest
 import sys
 
+import pytest
 from deepdiff import DeepDiff
 
 import mlrun

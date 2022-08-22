@@ -1002,7 +1002,14 @@ class RemoteRuntime(KubeResource):
 
         # remove existing credentials env vars
         for env in self.spec.env:
-            if env["name"] not in credentials_env_var_names:
+            if isinstance(env, dict):
+                env_name = env["name"]
+            elif isinstance(env, client.V1EnvVar):
+                env_name = env.name
+            else:
+                continue
+
+            if env_name not in credentials_env_var_names:
                 new_env.append(env)
 
         # add credentials env vars from remote build

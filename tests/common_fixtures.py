@@ -205,7 +205,13 @@ class RunDBMock:
             state="ready",
             nuclio_name="test-nuclio-name",
         )
-        return {"data": {"status": status.to_dict()}}
+        return {
+            "data": {
+                "status": status.to_dict(),
+                "metadata": self._function.get("metadata"),
+                "spec": self._function.get("spec"),
+            }
+        }
 
     def get_builder_status(
         self,

@@ -1,6 +1,7 @@
 import pathlib
 import sys
 
+import pytest
 from deepdiff import DeepDiff
 
 import mlrun
@@ -161,3 +162,28 @@ def test_resolve_git_reference_from_source():
     ]
     for source, expected in cases:
         assert expected == _resolve_git_reference_from_source(source)
+
+
+@pytest.mark.parametrize("function_kind", ["serving", "remote"])
+def test_update_credentials_from_remote_build(function_kind):
+    secret_name = "secret-name"
+    remote_data = {
+        "metadata": {"credentials": {"access_key": secret_name}},
+        "spec": {
+            "env": [
+                {"name": "V3IO_ACCESS_KEY", "value": secret_name},
+                {"name": "MLRUN_AUTH_SESSION", "value": secret_name},
+            ],
+        },
+    }
+
+    function = mlrun.new_function("tst", kind=function_kind)
+    function.metadata.credentials.access_key = "access_key"
+    function.spec.env = [
+        {"name": "V3IO_ACCESS_KEY", "value": "access_key"},
+        {"name": "MLRUN_AUTH_SESSION", "value": "access_key"},
+    ]
+    function._update_credentials_from_remote_build(remote_data)
+
+    assert function.metadata.credentials.access_key == secret_name
+    assert function.spec.env == remote_data["spec"]["env"]

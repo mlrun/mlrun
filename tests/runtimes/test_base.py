@@ -57,7 +57,6 @@ class TestAutoMount:
         runtime = self._generate_runtime(disable_auto_mount=True)
         self._execute_run(runtime)
         rundb_mock.assert_no_mount_or_creds_configured()
-        rundb_mock.reset()
 
     def test_fill_credentials(self, rundb_mock):
         os.environ[

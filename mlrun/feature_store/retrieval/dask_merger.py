@@ -23,6 +23,7 @@ class DaskFeatureMerger(BaseMerger):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        query=None,
     ):
         # init the dask client if needed
         if not self.client:
@@ -54,6 +55,10 @@ class DaskFeatureMerger(BaseMerger):
             dfs.append(df)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+
+        # filter joined data frame by the query param
+        if query:
+            self._result_df = self._result_df.query(query)
 
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"

@@ -120,6 +120,12 @@ class ModelEndpoints:
                 else:
                     clean_name = self._clean_feature_name(feature)
                 clean_feature_stats[clean_name] = stats
+                # Exclude the label columns from the feature names
+                if (
+                    model_endpoint.spec.label_names
+                    and clean_name in model_endpoint.spec.label_names
+                ):
+                    continue
                 clean_feature_names.append(clean_name)
             model_endpoint.status.feature_stats = clean_feature_stats
             model_endpoint.spec.feature_names = clean_feature_names

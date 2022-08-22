@@ -99,6 +99,7 @@ def get_offline_features(
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
+    query: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -111,7 +112,7 @@ def get_offline_features(
     "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
     for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
-
+    Another option to filter the data is by the `query` argument - can be seen in the example.
     example::
 
         features = [
@@ -122,7 +123,7 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time"
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -144,6 +145,7 @@ def get_offline_features(
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
+    :param query:          The query string used to filter rows
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -165,6 +167,7 @@ def get_offline_features(
             run_config=run_config,
             drop_columns=drop_columns,
             with_indexes=with_indexes,
+            query=query,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -187,6 +190,7 @@ def get_offline_features(
         end_time=end_time,
         with_indexes=with_indexes,
         update_stats=update_stats,
+        query=query,
     )
 
 

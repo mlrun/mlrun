@@ -548,6 +548,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         assert batch_job.cron_trigger.hour == "*/3"
 
+        # TODO: uncomment the following assertion once the auto trainer function
+        #  from mlrun marketplace is upgraded to 1.0.8
+        # assert len(model_obj.spec.feature_stats) == len(
+        #     model_endpoint.spec.feature_names
+        # ) + len(model_endpoint.spec.label_names)
+
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
         return mlrun.api.schemas.AuthInfo(

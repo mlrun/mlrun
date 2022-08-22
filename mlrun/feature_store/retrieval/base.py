@@ -39,6 +39,7 @@ class BaseMerger(abc.ABC):
         end_time=None,
         with_indexes=None,
         update_stats=None,
+        query=None,
     ):
         self._target = target
 
@@ -76,6 +77,7 @@ class BaseMerger(abc.ABC):
             feature_set_fields=feature_set_fields,
             start_time=start_time,
             end_time=end_time,
+            query=query,
         )
 
     def _write_to_target(self):
@@ -118,6 +120,7 @@ class BaseMerger(abc.ABC):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        query=None,
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 

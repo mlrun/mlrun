@@ -2583,6 +2583,88 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_get_offline_features_with_filter(self, engine):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+
+        data = pd.DataFrame(
+            {
+                "name": ["A", "B", "C", "D", "E"],
+                "age": [33, 4, 76, 90, 24],
+                "department": ["IT", "RD", "RD", "Marketing", "IT"],
+            },
+            index=[0, 1, 2, 3, 4],
+        )
+        data["id"] = data.index
+
+        one_hot_encoder_mapping = {
+            "department": list(data["department"].unique()),
+        }
+        data_set = FeatureSet(
+            "fs-new", entities=[Entity("id")], description="feature set"
+        )
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+        fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        fv_name = "new-fv"
+        features = [
+            "fs-new.name",
+            "fs-new.age",
+            "fs-new.department_RD",
+            "fs-new.department_IT",
+            "fs-new.department_Marketing",
+        ]
+
+        my_fv = fs.FeatureVector(fv_name, features, description="my feature vector")
+        my_fv.save()
+        # expected data frame
+        expected_df = pd.DataFrame(
+            {
+                "name": ["C"],
+                "age": [76],
+                "department_RD": [1],
+                "department_IT": [0],
+                "department_Marketing": [0],
+            },
+            index=[0],
+        )
+
+        # different tests
+        result_1 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="age>6 and department_RD==1",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_1 = result_1.to_dataframe()
+
+        assert df_res_1.equals(expected_df)
+
+        result_2 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="name in ['C']",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_2 = result_2.to_dataframe()
+
+        assert df_res_2.equals(expected_df)
+
     def test_set_event_with_spaces_or_hyphens(self):
 
         lst_1 = [

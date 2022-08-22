@@ -29,6 +29,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
+    pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -48,6 +49,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if without_prefix:
             path = ""
         path += "/bigdata/" + self.pq_source
+        return path
+
+    def get_remote_pq_target_path(self, without_prefix=False):
+        path = "v3io://"
+        if without_prefix:
+            path = ""
+        path += "/bigdata/" + self.pq_target
         return path
 
     def get_local_csv_source_path(self):
@@ -742,3 +750,47 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
+
+    def test_get_offline_features_with_filter(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        fs.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        assert measurements.status.targets[0].run_id is not None
+
+        fv_name = "measurements-fv"
+        features = [
+            "measurements.bad",
+            "measurements.department",
+        ]
+
+        my_fv = fs.FeatureVector(
+            fv_name,
+            features,
+            description="my feature vector",
+        )
+        my_fv.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        fs.get_offline_features(
+            fv_name,
+            target=target,
+            query="bad>6 and bad<8",
+            engine="spark",
+            run_config=fs.RunConfig(local=False),
+        )
+        df_res = target.as_df()
+        df = source.to_dataframe()
+        expected_df = df[df["bad"] == 7][["bad", "department"]]
+        expected_df.reset_index(drop=True, inplace=True)
+
+        assert df_res.equals(expected_df)

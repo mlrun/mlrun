@@ -683,22 +683,25 @@ class BatchProcessor:
                     )
                     continue
 
-                # get feature names from monitoring feature set
+                # Get feature names from monitoring feature set
                 feature_names = [
                     feature_name["name"]
                     for feature_name in m_fs.spec.features.to_dict()
                 ]
 
-                # create DataFrame based on the input features
+                # Create DataFrame based on the input features
                 stats_columns = [
                     "timestamp",
                     *feature_names,
-                    "prediction",
                 ]
+
+                # Add label names if provided
+                if endpoint.spec.label_names:
+                    stats_columns.extend(endpoint.spec.label_names)
 
                 named_features_df = df[stats_columns].copy()
 
-                # infer feature set stats and schema
+                # Infer feature set stats and schema
                 fstore.api._infer_from_static_df(
                     named_features_df,
                     m_fs,

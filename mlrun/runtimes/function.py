@@ -1000,6 +1000,15 @@ class RemoteRuntime(KubeResource):
         credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
         new_env = []
 
+        # the env vars in the local spec and remote spec are in the format of a list of dicts
+        # e.g.:
+        # env = [
+        #   {
+        #     "name": "V3IO_ACCESS_KEY",
+        #     "value": "some-value"
+        #   },
+        #   ...
+        # ]
         # remove existing credentials env vars
         for env in self.spec.env:
             if isinstance(env, dict):

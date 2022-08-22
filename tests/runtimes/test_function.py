@@ -1,4 +1,5 @@
 import pathlib
+import pytest
 import sys
 
 from deepdiff import DeepDiff
@@ -163,7 +164,8 @@ def test_resolve_git_reference_from_source():
         assert expected == _resolve_git_reference_from_source(source)
 
 
-def test_update_credentials_from_remote_build():
+@pytest.mark.parametrize("function_kind", ["serving", "remote"])
+def test_update_credentials_from_remote_build(function_kind):
     secret_name = "secret-name"
     remote_data = {
         "metadata": {"credentials": {"access_key": secret_name}},
@@ -175,7 +177,7 @@ def test_update_credentials_from_remote_build():
         },
     }
 
-    function = mlrun.new_function("tst", kind="nuclio")
+    function = mlrun.new_function("tst", kind=function_kind)
     function.metadata.credentials.access_key = "access_key"
     function.spec.env = [
         {"name": "V3IO_ACCESS_KEY", "value": "access_key"},

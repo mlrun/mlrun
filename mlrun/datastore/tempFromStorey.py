@@ -27,17 +27,17 @@ class MongoDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUI
     """
 
     def __init__(
-        self,
-        db_name: str = None,
-        connection_string: str = None,
-        collection_name: str = None,
-        query: dict = None,
-        key_field: Union[str, List[str]] = None,
-        start_filter: datetime = None,
-        end_filter: datetime = None,
-        time_field: str = None,
-        id_field: str = None,
-        **kwargs,
+            self,
+            db_name: str = None,
+            connection_string: str = None,
+            collection_name: str = None,
+            query: dict = None,
+            key_field: Union[str, List[str]] = None,
+            start_filter: datetime = None,
+            end_filter: datetime = None,
+            time_field: str = None,
+            id_field: str = None,
+            **kwargs,
     ):
         if query is None:
             query = {}
@@ -152,12 +152,12 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
     """Abstract class for database connection"""
 
     def __init__(
-        self,
-        # redis_type: RedisType = RedisType.STANDALONE,
-        key_prefix: str = None,
-        webapi: Optional[str] = None,
-        aggregation_attribute_prefix: str = "aggr_",
-        aggregation_time_attribute_prefix: str = "_",
+            self,
+            # redis_type: RedisType = RedisType.STANDALONE,
+            key_prefix: str = None,
+            webapi: Optional[str] = None,
+            aggregation_attribute_prefix: str = "aggr_",
+            aggregation_time_attribute_prefix: str = "_",
     ):
 
         NeedsMongoDBAccess.__init__(self, webapi)
@@ -188,7 +188,7 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
         return None
 
     async def _save_key(
-        self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
+            self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
     ):
         self._lazy_init()
         mongodb_key = self.make_key(table_path, key)
@@ -212,6 +212,9 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
             return [agg_val, values]
         except Exception:
             return [None, None]
+
+    def supports_aggregations(self):
+        return False
 
     async def _load_by_key(self, container, table_path, key, attribute):
         self._lazy_init()
@@ -245,11 +248,11 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
             key: val
             for key, val in response.items()
             if key is not self._storey_key
-            and not key.startswith(self._aggregation_attribute_prefix)
+               and not key.startswith(self._aggregation_attribute_prefix)
         }
 
     async def _get_specific_fields(
-        self, mongodb_key: str, collection, attributes: List[str]
+            self, mongodb_key: str, collection, attributes: List[str]
     ):
         try:
             response = collection.find_one(
@@ -393,11 +396,11 @@ class SqlDBDriver(storey.Driver):
     """Abstract class for database connection"""
 
     def __init__(
-        self,
-        primary_key: str,
-        db_path: str ,
-        aggregation_attribute_prefix: str = "aggr_",
-        aggregation_time_attribute_prefix: str = "_",
+            self,
+            primary_key: str,
+            db_path: str,
+            aggregation_attribute_prefix: str = "aggr_",
+            aggregation_time_attribute_prefix: str = "_",
     ):
         self._db_path = db_path
         self._sql_connection = None
@@ -430,14 +433,20 @@ class SqlDBDriver(storey.Driver):
         return None
 
     async def _save_key(
-        self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
+            self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
     ):
+        from sqlalchemy import exc
         self._lazy_init()
 
         collection = self.collection(table_path)
-        return self._sql_connection.execute(collection.insert(), [
-            dict(additional_data, **{self._primary_key: key})
-        ])
+        return_val = None
+        try:
+            return_val = self._sql_connection.execute(collection.insert(), [
+                additional_data
+            ])
+        except exc.IntegrityError:
+            print(1)
+        return return_val
 
     async def _load_aggregates_by_key(self, container, table_path, key):
         self._lazy_init()
@@ -469,6 +478,7 @@ class SqlDBDriver(storey.Driver):
 
         try:
             response = collection.select().where(collection.c[self._primary_key] == key)
+            # result = self._sql_connection.execute(response)
         except Exception as e:
             raise RuntimeError(
                 f"Failed to get key {key}. Response error was: {e}"
@@ -477,11 +487,11 @@ class SqlDBDriver(storey.Driver):
             key: val
             for key, val in response.items()
             if key is not self._storey_key
-            and not key.startswith(self._aggregation_attribute_prefix)
+               and not key.startswith(self._aggregation_attribute_prefix)
         }
 
     async def _get_specific_fields(
-        self, mongodb_key: str, collection, attributes: List[str]
+            self, mongodb_key: str, collection, attributes: List[str]
     ):
         # try:
         #     response = collection.find_one(
@@ -493,3 +503,6 @@ class SqlDBDriver(storey.Driver):
         #     )
         # return {key: val for key, val in response.items() if key in attributes}
         pass
+
+    def supports_aggregations(self):
+        return False

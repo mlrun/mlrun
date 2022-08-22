@@ -1566,7 +1566,7 @@ class MongoDBTarget(BaseStoreTarget):
             f"{db}/{collection}",
             MongoDBDriver(webapi=endpoint),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-            support_full_aggregation_query=False,
+            # support_full_aggregation_query=False,
         )
 
     def add_writer_step(
@@ -1706,7 +1706,7 @@ class SqlDBTarget(BaseStoreTarget):
                                     collection named by collection_name on current database.
         """
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
-        if db_path is None:
+        if db_path is None or collection_name is None:
             attr = {}
         else:
             # check for collection existence and acts according to the user input
@@ -1737,8 +1737,6 @@ class SqlDBTarget(BaseStoreTarget):
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(db.Column(col, col_type, primary_key=(col == primary_key_column)))
 
-                if 'index' not in schema.keys():
-                    columns.append(db.Column('index', db.Integer))
                 db.Table(
                     collection_name, metadata,
                     *columns
@@ -1796,9 +1794,9 @@ class SqlDBTarget(BaseStoreTarget):
         ) = self._parse_url()
         return Table(
             f"{db_path}/{collection_name}",
-            SqlDBDriver(db_path=db_path, primary_key=primary_key),
+            SqlDBDriver(db_path=db_path, primary_key=primary_key.split('/')[0]),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-            support_full_aggregation_query=False,
+            # support_full_aggregation_query=False,
         )
 
     def add_writer_step(
@@ -1840,7 +1838,7 @@ class SqlDBTarget(BaseStoreTarget):
     ):
         import sqlalchemy as db
 
-        db_path, collection_name, _, _ = self._parse_url()
+        db_path, collection_name, _, _, _ = self._parse_url()
         engine = db.create_engine(db_path)
         sql_connection = engine.connect()
         metadata = db.MetaData()
@@ -1848,6 +1846,8 @@ class SqlDBTarget(BaseStoreTarget):
         results = sql_connection.execute(db.select([temp])).fetchall()
         sql_connection.close()
         df = pd.DataFrame(results, columns=temp.columns.keys())
+        if self._primary_key_column:
+            df.set_index(self._primary_key_column, inplace=True)
         if columns:
             df = df[columns]
         return df

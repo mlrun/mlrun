@@ -5,12 +5,12 @@ import pytest
 from pymongo import MongoClient
 
 import mlrun.feature_store as fs
-import mlrun.feature_store as fstore
 from mlrun.datastore.sources import SqlDBSource, ParquetSource
-from mlrun.datastore.targets import ParquetTarget
+from mlrun.datastore.targets import SqlDBTarget
 from mlrun.feature_store.steps import FeaturesetValidator, MapClass, OneHotEncoder
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
+import sqlalchemy as db
 
 CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_MONGODB_CONNECTION_STRING"
 
@@ -51,6 +51,31 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             return self.trades
         else:
             return None
+    @staticmethod
+    def get_schema(data_name):
+        if data_name == 'stocks':
+            return {"ticker": str, 'name': str, 'exchange': str}
+        elif data_name == 'quotes':
+            return {'time': pd.Timestamp, 'ticker': str,
+                    'bid': float, 'ask': float, 'ind': int}
+        elif data_name == 'trades':
+            return {'time': pd.Timestamp, 'ticker': str,
+                    'price': float, 'quantity': int, 'ind': int}
+        else:
+            return None
+
+    @pytest.fixture(autouse=True)
+    def run_around_tests(self):
+        yield
+        # drop all the collection on self.db
+        engine = db.create_engine(self.db)
+        sql_connection = engine.connect()
+        metadata = db.MetaData()
+        metadata.reflect(bind=engine)
+        # and drop them, if they exist
+        metadata.drop_all(bind=engine, checkfirst=True)
+        engine.dispose()
+        sql_connection.close()
 
     @pytest.mark.parametrize("source_name, key", [('stocks', 'ticker'), ('trades', 'ind'),
                                                   ('quotes', 'ind')])
@@ -65,7 +90,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             collection_name=source_name, db_path=self.db, key_field=key
         )
 
-        feature_set = fs.FeatureSet(f'fs-{source_name}', entities=[fstore.Entity(key)])
+        feature_set = fs.FeatureSet(f'fs-{source_name}', entities=[fs.Entity(key)])
         df = fs.ingest(feature_set, source=source)
         df.reset_index(drop=True, inplace=True)
         origin_df.drop(columns=[key], inplace=True)
@@ -87,7 +112,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         source = SqlDBSource(
             collection_name=source_name, db_path=self.db, key_field=key
         )
-        feature_set = fs.FeatureSet(f'fs-{source_name}', entities=[fstore.Entity(key)])
+        feature_set = fs.FeatureSet(f'fs-{source_name}', entities=[fs.Entity(key)])
         one_hot_encoder_mapping = {
             encoder_col: list(origin_df[encoder_col].unique()),
         }
@@ -95,7 +120,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         df = fs.ingest(feature_set, source=source)
 
         # reference source
-        feature_set_ref = fs.FeatureSet(f'fs-{source_name}-ref', entities=[fstore.Entity(key)])
+        feature_set_ref = fs.FeatureSet(f'fs-{source_name}-ref', entities=[fs.Entity(key)])
         feature_set_ref.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
         df_ref = fs.ingest(feature_set_ref, origin_df)
 
@@ -115,19 +140,67 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         source = SqlDBSource(
             collection_name=source_name, db_path=self.db, key_field=key
         )
-        feature_set = fs.FeatureSet(f'fs-{source_name}', entities=[fstore.Entity(key)])
+        feature_set = fs.FeatureSet(f'fs-{source_name}', entities=[fs.Entity(key)])
         feature_set.add_aggregation(aggr_col, ["sum", "max"], "1h", "10m", name=f'{aggr_col}1')
         df = fs.ingest(feature_set, source=source)
 
         # reference source
-        feature_set_ref = fs.FeatureSet(f'fs-{source_name}-ref', entities=[fstore.Entity(key)])
+        feature_set_ref = fs.FeatureSet(f'fs-{source_name}-ref', entities=[fs.Entity(key)])
         feature_set_ref.add_aggregation(aggr_col, ["sum", "max"], "1h", "10m", name=f'{aggr_col}1')
         df_ref = fs.ingest(feature_set_ref, origin_df)
 
         assert df.equals(df_ref)
 
+    @pytest.mark.parametrize("target_name, key", [('stocks', 'ticker'),
+                                                  ('trades', 'ind'),
+                                                  ('quotes', 'ind')
+                                                  ])
+    def test_sql_target_basic(self, target_name, key):
+        origin_df = self.get_data(target_name)
+        schema = self.get_schema(target_name)
 
+        target = SqlDBTarget(
+            collection_name=target_name, db_path=self.db, create_collection=True,
+            schema=schema, primary_key_column=key
+        )
+        feature_set = fs.FeatureSet(f'fs-{target_name}-tr', entities=[fs.Entity(key)])
+        fs.ingest(feature_set, source=origin_df, targets=[target])
+        df = target.as_df()
 
+        origin_df.set_index(key, inplace=True)
+        columns = [*schema.keys()]
+        columns.remove(key)
+        df.sort_index(inplace=True), origin_df.sort_index(inplace=True)
+
+        assert df[columns].equals(origin_df[columns])
+
+    @pytest.mark.parametrize("target_name, key", [
+        # ('stocks', 'ticker'),
+                                                  ('trades', 'ind'),
+                                                  ('quotes', 'ind')
+                                                  ])
+    def test_sql_get_online_feature_basic(self, target_name, key):
+        origin_df = self.get_data(target_name)
+        schema = self.get_schema(target_name)
+
+        target = SqlDBTarget(
+            collection_name=target_name, db_path=self.db, create_collection=True,
+            schema=schema, primary_key_column=key
+        )
+        feature_set = fs.FeatureSet(f'fs-{target_name}-tr', entities=[fs.Entity(key)])
+        fs.ingest(feature_set, source=origin_df, targets=[target])
+        columns = [*schema.keys()]
+        columns.remove(key)
+        features = [
+            f'fs-{target_name}-tr.{columns[0]}',
+            f'fs-{target_name}-tr.{columns[1]}'
+        ]
+
+        vector = fs.FeatureVector(
+            f"{target_name}-vec", features, description="my test vector"
+        )
+        service = fs.get_online_feature_service(vector)
+        print(service.get([{key: 1}], as_list=True))
 
 
     #
@@ -297,6 +370,57 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
 
     def prepare_data(self):
         import pandas as pd
+        self.quotes = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.030"),
+                    pd.Timestamp("2016-05-25 13:30:00.041"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.049"),
+                    pd.Timestamp("2016-05-25 13:30:00.072"),
+                    pd.Timestamp("2016-05-25 13:30:00.075"),
+                ],
+                "ticker": [
+                    "GOOG",
+                    "MSFT",
+                    "MSFT",
+                    "MSFT",
+                    "GOOG",
+                    "AAPL",
+                    "GOOG",
+                    "MSFT",
+                ],
+                "bid": [720.50, 51.95, 51.97, 51.99, 720.50, 97.99, 720.50, 52.01],
+                "ask": [720.93, 51.96, 51.98, 52.00, 720.93, 98.01, 720.88, 52.03],
+                "ind": [1, 2, 3, 4, 5, 6, 7, 8],
+            }
+        )
+
+        self.trades = pd.DataFrame(
+            {
+                "time": [
+                    pd.Timestamp("2016-05-25 13:30:00.023"),
+                    pd.Timestamp("2016-05-25 13:30:00.038"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                    pd.Timestamp("2016-05-25 13:30:00.048"),
+                ],
+                "ticker": ["MSFT", "MSFT", "GOOG", "GOOG", "AAPL"],
+                "price": [51.95, 51.95, 720.77, 720.92, 98.0],
+                "quantity": [75, 155, 100, 100, 100],
+                "ind": [1, 2, 3, 4, 5],
+            }
+        )
+
+        self.stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
+            }
+        )
 
         self.quotes = pd.DataFrame(
             {

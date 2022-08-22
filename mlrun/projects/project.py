@@ -2018,7 +2018,7 @@ class MlrunProject(ModelObj):
             run=run,
             timeout=timeout,
             expected_statuses=expected_statuses,
-            notifiers=notifiers
+            notifiers=notifiers,
         )
 
     def clear_context(self):

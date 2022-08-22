@@ -1022,24 +1022,16 @@ class CSVTarget(BaseStoreTarget):
         return True
 
 
-class NoSqlTarget(BaseStoreTarget):
-    kind = TargetTypes.nosql
-    is_table = True
-    is_online = True
-    support_spark = True
-    support_storey = True
-    support_append = True
+class NoSqlBaseTarget(BaseStoreTarget):
+    writer_step_name = 'base_name'
+
+    def __new__(cls, *args, **kwargs):
+        if cls is NoSqlBaseTarget:
+            raise TypeError(f"only children of '{cls.__name__}' may be instantiated")
+        return object.__new__(cls, *args, **kwargs)
 
     def get_table_object(self):
-        from storey import Table, V3ioDriver
-
-        # TODO use options/cred
-        endpoint, uri = parse_path(self.get_target_path())
-        return Table(
-            uri,
-            V3ioDriver(webapi=endpoint),
-            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-        )
+        raise NotImplementedError()
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -1080,7 +1072,7 @@ class NoSqlTarget(BaseStoreTarget):
             ]
 
         graph.add_step(
-            name=self.name or "NoSqlTarget",
+            name=self.name or self.writer_step_name,
             after=after,
             graph_shape="cylinder",
             class_name="storey.NoSqlTarget",
@@ -1146,89 +1138,46 @@ class NoSqlTarget(BaseStoreTarget):
             frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
 
 
-class RedisNoSqlTarget(BaseStoreTarget):
+class NoSqlTarget(NoSqlBaseTarget):
+    kind = TargetTypes.nosql
+    is_table = True
+    is_online = True
+    support_spark = True
+    support_storey = True
+    support_append = True
+    writer_step_name = 'NoSqlTarget'
+
+    def get_table_object(self):
+        from storey import Table, V3ioDriver
+
+        # TODO use options/cred
+        endpoint, uri = parse_path(self.get_target_path())
+        return Table(
+            uri,
+            V3ioDriver(webapi=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
+
+
+class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
     is_table = True
     is_online = True
     support_spark = False
     support_storey = True
     support_append = True
+    writer_step_name = 'RedisNoSqlTarget'
 
     def get_table_object(self):
-        from storey import RedisDriver, Table
+        from storey import Table
+        from storey.redis_driver import RedisDriver
 
-        # TODO use options/cred
         endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
-            RedisDriver(redis_url=endpoint),
+            RedisDriver(redis_url=endpoint, key_prefix='/'),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
-
-    def add_writer_state(
-        self, graph, after, features, key_columns=None, timestamp_key=None
-    ):
-        warnings.warn(
-            "This method is deprecated. Use add_writer_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        """add storey writer state to graph"""
-        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
-
-    def add_writer_step(
-        self,
-        graph,
-        after,
-        features,
-        key_columns=None,
-        timestamp_key=None,
-        featureset_status=None,
-    ):
-        key_columns = list(key_columns.keys())
-        table = self._resource.uri
-        column_list = self._get_column_list(
-            features=features,
-            timestamp_key=None,
-            key_columns=key_columns,
-            with_type=True,
-        )
-        if not self.columns:
-            aggregate_features = (
-                [key for key, feature in features.items() if feature.aggregate]
-                if features
-                else []
-            )
-            column_list = [
-                col for col in column_list if col[0] not in aggregate_features
-            ]
-
-        graph.add_step(
-            name=self.name or "NoSqlTarget",
-            after=after,
-            graph_shape="cylinder",
-            class_name="storey.NoSqlTarget",
-            columns=column_list,
-            table=table,
-            **self.attributes,
-        )
-
-    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        raise NotImplementedError()
-
-    def get_dask_options(self):
-        return {"format": "csv"}
-
-    def as_df(self, columns=None, df_module=None, **kwargs):
-        raise NotImplementedError()
-
-    def prepare_spark_df(self, df):
-        raise NotImplementedError()
-
-    def write_dataframe(
-        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
-    ):
-        raise NotImplementedError()
 
 
 class StreamTarget(BaseStoreTarget):

@@ -960,10 +960,6 @@ def read_env(env=None, prefix=env_prefix):
     elif is_remote_mlrun:
         config["v3io_api"] = env_dbpath.replace("https://mlrun-api.", "https://webapi.")
 
-    redis_url = env.get("REDIS_URL")
-    if redis_url:
-        config["redis_url"] = redis_url
-
     # It's already a standard to set this env var to configure the v3io framesd, so we're supporting it (instead
     # of MLRUN_V3IO_FRAMESD), in remote usage this can be auto detected from the DBPATH
     v3io_framesd = env.get("V3IO_FRAMESD")

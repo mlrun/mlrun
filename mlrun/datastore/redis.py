@@ -12,51 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
-
-import redis
-
 import mlrun
-
 from .base import DataStore
-
-
-class RedisType(Enum):
-    STANDALONE = 1
-    CLUSTER = 2
+import redis
+import redis.cluster
+from storey.redis_driver import RedisType 
 
 
 class RedisStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
+    """
+    Partial implementation of DataStore - for use only to delete keys
+    """
+    def __init__(self, parent, schema, name, endpoint="", redis_type: RedisType = RedisType.STANDALONE):
         super().__init__(parent, name, schema, endpoint)
-        self.endpoint = self.endpoint or mlrun.mlconf.redis_url
         self.headers = None
 
-        self._type = RedisType.STANDALONE  # TODO support cluster
+        self.endpoint = self.endpoint or mlrun.mlconf.redis_url
 
-        if self.endpoint.startswith("redis://"):
+        if self.endpoint.startswith("rediss://"):
+            self.endpoint = self.endpoint[len("rediss://") :]
+            self.secure = True
+        elif self.endpoint.startswith("redis://"):
             self.endpoint = self.endpoint[len("redis://") :]
+            self.secure = False
+        else:
+            raise NotImplementedError(f'invalid endpoint: {endpoint}')
 
-        # TODO
-        self.auth = None
-        self.token = None
-        self.secure = False
+        self._redis_url = f'{schema}://{self.endpoint}'
 
-    @property
-    def url(self):
-        schema = "redis"
-        return f"{schema}://{self.endpoint}"
+        self._redis = None
+        self._type = redis_type
+
 
     @property
     def redis(self):
-        if hasattr(self, "_redis"):
-            return self._redis
-        if self._type is RedisType.STANDALONE:
-            self._redis = redis.Redis.from_url(self.url, decode_responses=True)
-        else:
-            self._redis = rediscluster.RedisCluster.from_url(
-                self.url, decode_response=True
-            )
+        if self._redis is None:
+            if self._type is RedisType.STANDALONE:
+                self._redis = redis.Redis.from_url(self._redis_url, decode_responses=True)
+            else:
+                self._redis = redis.cluster.RedisCluster.from_url(self._redis_url, decode_response=True)
         return self._redis
 
     def get_filesystem(self, silent):
@@ -78,11 +72,19 @@ class RedisStore(DataStore):
         raise NotImplementedError()
 
     def rm(self, path, recursive=False, maxdepth=None):
-        """delete all keys under a prefix"""
+        """
+        delete keys, possibly recursively
+        """
+        if maxdepth is not None:
+            raise NotImplementedError('maxdepth is not supported')
+
+        path = path[len("redis://") :]
         count = 0
-        new_path = "projects" + path[len("redis:///projects") :]
-        ns_keys = "storey:" + new_path + "*"
-        for key in self.redis.scan_iter(ns_keys):
-            self.redis.delete(key)
+        if recursive:
+            for key in self.redis.scan_iter(path + "*"):
+                self.redis.delete(key)
+                count += 1
+        else:
+            self.redis.delete(path)
             count += 1
-        # print(f"deleted {count} keys")
+        # print(f'deleted {count} redis keys', flush=True)

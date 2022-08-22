@@ -68,7 +68,7 @@ class ResourceCache:
     def get_table(self, uri):
         """get storey Table object by uri"""
         try:
-            from storey import Driver, RedisDriver, Table, V3ioDriver
+            from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
         if uri in self._tabels:
@@ -87,10 +87,11 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("redis://"):
+            from storey.redis_driver import RedisDriver
             endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
-                RedisDriver(redis_url=endpoint),
+                RedisDriver(redis_url=endpoint, key_prefix='/'),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
             return self._tabels[uri]

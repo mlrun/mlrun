@@ -1974,9 +1974,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.ingest(fset, source)
 
-        targets_to_purge = (
-            targets if NoSqlTarget() not in targets else targets.remove(NoSqlTarget())
-        )
+        targets_to_purge = targets[:-1]
 
         verify_purge(fset, targets_to_purge)
 
@@ -2005,11 +2003,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.ingest(fset, source)
 
-        targets_to_purge = (
-            targets
-            if RedisNoSqlTarget() not in targets
-            else targets.remove(RedisNoSqlTarget())
-        )
+        targets_to_purge = targets[:-1]
+
         verify_purge(fset, targets_to_purge)
 
     # After moving to run on a new system test environment this test was running for 75 min and then failing

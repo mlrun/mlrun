@@ -646,9 +646,11 @@ def parse_path(url, suffix="/"):
             prefix = "http"
         elif scheme == "redis":
             prefix = "redis"
+        elif scheme == "rediss":
+            prefix = "rediss"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "url must start with v3io/v3ios/redis, got " + url
+                "url must start with v3io/v3ios/redis/rediss, got " + url
             )
         endpoint = f"{prefix}://{parsed_url.netloc}"
     else:

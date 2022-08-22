@@ -97,7 +97,7 @@ def new_project(
     description: str = None,
     subpath: str = None,
     save: bool = True,
-    override: bool = False,
+    overwrite: bool = False,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -134,12 +134,18 @@ def new_project(
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
     :param save:         whether to save the created project in the DB
-    :param override:     override project if project with name exists
+    :param overwrite:    overwrite project if project with name exists
 
     :returns: project object
     """
     context = context or "./"
     name = _add_username_to_project_name_if_needed(name, user_project)
+
+    if overwrite:
+        logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+        _delete_project_from_db(
+            name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
+        )
 
     if from_template:
         if from_template.endswith(".yaml"):
@@ -155,10 +161,6 @@ def new_project(
             raise ValueError("template must be a path to .yaml or .zip file")
         project.metadata.name = name
     else:
-        if override:
-            logger.info(f"Deleting project {name} from MLRun DB due to override")
-            _delete_project_from_db(name, secrets)
-
         project = MlrunProject(name=name)
     project.spec.context = context
     project.spec.subpath = subpath or project.spec.subpath
@@ -176,16 +178,16 @@ def new_project(
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
         try:
-            project.save(create_only=True)
+            project.save(store=False)
         except mlrun.errors.MLRunConflictError as exc:
             raise mlrun.errors.MLRunConflictError(
                 f"Project with name {name} already exists. "
-                "Use override=True to override the existing project."
+                "Use overwrite=True to overwrite the existing project."
             ) from exc
         logger.info(
             f"Created and saved project {name}",
             from_template=from_template,
-            override=override,
+            overwrite=overwrite,
             context=context,
             save=save,
         )
@@ -419,9 +421,9 @@ def _load_project_from_db(url, secrets, user_project=False):
     return db.get_project(project_name)
 
 
-def _delete_project_from_db(project_name, secrets):
+def _delete_project_from_db(project_name, secrets, deletion_strategy):
     db = mlrun.db.get_run_db(secrets=secrets)
-    return db.delete_project(project_name)
+    return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
 def _load_project_file(url, name="", secrets=None):
@@ -2035,17 +2037,17 @@ class MlrunProject(ModelObj):
         ):
             shutil.rmtree(self.spec.context)
 
-    def save(self, filepath=None, create_only=False):
+    def save(self, filepath=None, store=True):
         self.export(filepath)
-        self.save_to_db(create_only)
+        self.save_to_db(store)
         return self
 
-    def save_to_db(self, create_only=False):
+    def save_to_db(self, store=True):
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        if create_only:
-            return db.create_project(self.to_dict())
+        if store:
+            return db.store_project(self.metadata.name, self.to_dict())
 
-        return db.store_project(self.metadata.name, self.to_dict())
+        return db.create_project(self.to_dict())
 
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)

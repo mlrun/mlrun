@@ -1,3 +1,4 @@
+import json
 import pathlib
 
 import deepdiff
@@ -28,21 +29,87 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             in str(exc.value)
         )
 
-    def test_override_project(self):
+    def test_overwrite_project(self):
         project_name = "some-project"
 
-        # verify override does not fail if project does not exist
-        mlrun.new_project(project_name, override=True)
-        projects = mlrun.get_run_db().list_projects()
+        # verify overwrite does not fail if project does not exist
+        project = mlrun.new_project(project_name, overwrite=True)
+        db = mlrun.get_run_db()
+
+        # create several functions with several tags
+        labels = {
+            "name": "value",
+            "name2": "value2",
+        }
+        function = {
+            "test": "function",
+            "metadata": {"labels": labels},
+            "spec": {"asd": "asdasd"},
+            "status": {"bla": "blabla"},
+        }
+        function_names = ["function_name_1", "function_name_2", "function_name_3"]
+        function_tags = ["some_tag", "some_tag2", "some_tag3"]
+        for function_name in function_names:
+            for function_tag in function_tags:
+                db.store_function(
+                    function,
+                    function_name,
+                    project.metadata.name,
+                    tag=function_tag,
+                    versioned=True,
+                )
+
+        # create several artifacts with several tags
+        artifact = {
+            "test": "artifact",
+            "labels": labels,
+            "status": {"bla": "blabla"},
+        }
+        artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
+        for artifact_key in artifact_keys:
+            db.store_artifact(
+                artifact_key,
+                artifact,
+                "some_uid",
+                tag="some_tag",
+                project=project.metadata.name,
+            )
+
+        projects = db.list_projects()
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
+
+        # verify artifacts and functions were created
+        project_artifacts = project.list_functions()
+        assert len(project_artifacts) == len(artifact_keys)
+        assert project_artifacts == projects[0].list_artifacts()
+
+        project_functions = project.list_functions()
+        assert len(project_functions) == len(function_names) * len(function_tags)
+        assert len(project_functions) == len(projects[0].list_functions())
+
         old_creation_time = projects[0].metadata.created
 
-        mlrun.new_project(project_name, override=True)
-        projects = mlrun.get_run_db().list_projects()
+        mlrun.new_project(project_name, overwrite=True)
+        projects = db.list_projects()
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
+        # ensure cascade deletion strategy
+        assert projects[0].list_artifacts() is None
+        assert projects[0].list_functions() is None
+        assert projects[0].metadata.created > old_creation_time
+
+        old_creation_time = projects[0].metadata.created
+
+        # overwrite empty project
+        mlrun.new_project(project_name, overwrite=True)
+        projects = db.list_projects()
+        assert len(projects) == 1
+        assert projects[0].metadata.name == project_name
+
+        assert projects[0].list_artifacts() is None
+        assert projects[0].list_functions() is None
         assert projects[0].metadata.created > old_creation_time
 
     def test_load_project_from_db(self):

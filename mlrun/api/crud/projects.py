@@ -136,7 +136,8 @@ class Projects(
         mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
 
         # delete project secrets - passing None will delete all secrets
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
+        if mlrun.mlconf.is_api_running_on_k8s():
+            mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

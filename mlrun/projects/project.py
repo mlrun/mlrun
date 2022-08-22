@@ -156,11 +156,8 @@ def new_project(
         project.metadata.name = name
     else:
         if override:
-            try:
-                _delete_project_from_db(name, secrets)
-                logger.info(f"Deleted project {name} from MLRun DB")
-            except mlrun.errors.MLRunNotFoundError:
-                logger.debug(f"Project {name} does not exist, creating")
+            logger.info(f"Deleting project {name} from MLRun DB due to override")
+            _delete_project_from_db(name, secrets)
 
         project = MlrunProject(name=name)
     project.spec.context = context
@@ -179,12 +176,19 @@ def new_project(
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
         try:
+            logger.debug(f"Creating project {name}")
             project.save(create_only=True)
         except mlrun.errors.MLRunConflictError as exc:
             raise mlrun.errors.MLRunConflictError(
                 f"Project with name {name} already exists. "
                 "Use override=True to override the existing project."
             ) from exc
+        logger.debug(
+            f"Created project {name}",
+            from_template=from_template,
+            override=override,
+            context=context,
+        )
     return project
 
 

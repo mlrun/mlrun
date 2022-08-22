@@ -1,4 +1,5 @@
 import pathlib
+import time
 
 import deepdiff
 import pytest
@@ -30,18 +31,20 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_override_project(self):
         project_name = "some-project"
-        mlrun.new_project(project_name)
+
+        # verify override does not fail if project does not exist
+        mlrun.new_project(project_name, override=True)
         projects = mlrun.get_run_db().list_projects()
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
-        old_created_time = projects[0].metadata.created
+        old_creation_time = projects[0].metadata.created
 
         mlrun.new_project(project_name, override=True)
         projects = mlrun.get_run_db().list_projects()
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
-        assert projects[0].metadata.created > old_created_time
+        assert projects[0].metadata.created > old_creation_time
 
     def test_load_project_from_db(self):
         project_name = "some-project"

@@ -2002,6 +2002,25 @@ class MlrunProject(ModelObj):
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
 
+    def get_run_status(
+            self,
+            run,
+            timeout=None,
+            expected_statuses=None,
+            notifiers: RunNotifications = None,
+    ):
+        warnings.warn(
+            "This method is deprecated. Use `timeout` parameter in `project.run()` method instead",
+            PendingDeprecationWarning,
+        )
+        return run._engine.get_run_status(
+            project=self,
+            run=run,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            notifiers=notifiers
+        )
+
     def clear_context(self):
         """delete all files and clear the context dir"""
         if (

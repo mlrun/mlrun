@@ -56,7 +56,7 @@ class DaskFeatureMerger(BaseMerger):
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
-        # filter joined data frame
+        # filter joined data frame by the query param
         if query:
             self._result_df = self._result_df.query(query)
 

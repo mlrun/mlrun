@@ -112,7 +112,7 @@ def get_offline_features(
     "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
     for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
-
+    Another option to filter the data is by the `query` argument - can be seen in the example.
     example::
 
         features = [

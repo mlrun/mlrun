@@ -1728,7 +1728,7 @@ class _ContextHandler:
         )
 
 
-def function_decorator(
+def function_wrapper(
     set_labels: Dict[str, str] = None,
     log_outputs: List[
         Union[Tuple[Union[ArtifactType, str], Union[str, Dict[str, Any]]], None]
@@ -1736,7 +1736,8 @@ def function_decorator(
     parse_inputs: Union[bool, Dict[str, Type]] = True,
 ):
     """
-    MLRun's function decorator to wrap a function and enable automatic `mlrun.DataItem` parsing and outputs logging.
+    MLRun's function wrapper is a decorator to wrap a function and enable automatic `mlrun.DataItem` parsing and outputs
+    logging.
 
     :param set_labels:   Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
                          None.
@@ -1767,7 +1768,7 @@ def function_decorator(
     example::
         import mlrun
 
-        @mlrun.function_decorator(log_outputs=["my_array", None, "my_multiplier"])
+        @mlrun.function_wrapper(log_outputs=["my_array", None, "my_multiplier"])
         def my_function(array: np.ndarray, m: int):
             array = array * m
             m += 1

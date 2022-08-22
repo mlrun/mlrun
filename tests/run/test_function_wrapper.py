@@ -14,14 +14,14 @@ from sklearn.preprocessing import OrdinalEncoder
 import mlrun
 
 
-@mlrun.function_decorator(set_labels={"a": 1, "b": "a test", "c": [1, 2, 3]})
+@mlrun.function_wrapper(set_labels={"a": 1, "b": "a test", "c": [1, 2, 3]})
 def set_labels(arg1, arg2=23):
     return arg1 - arg2
 
 
 def test_set_labels_without_mlrun():
     """
-    Run the `set_labels` function without MLRun to see the decorator is transparent.
+    Run the `set_labels` function without MLRun to see the wrapper is transparent.
     """
     returned_result = set_labels(24)
     assert returned_result == 1
@@ -38,7 +38,7 @@ def test_set_labels_without_mlrun():
 
 def test_set_labels_with_mlrun():
     """
-    Run the `set_labels` function with MLRun to see the decorator is setting the required labels.
+    Run the `set_labels` function with MLRun to see the wrapper is setting the required labels.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -62,7 +62,46 @@ def test_set_labels_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(
+@mlrun.function_wrapper(set_labels={"wrapper_label": "2"})
+def set_labels_from_function_and_wrapper(context: mlrun.MLClientCtx = None):
+    if context:
+        context.set_label("context_label", 1)
+
+
+def test_set_labels_from_function_and_wrapper_without_mlrun():
+    """
+    Run the `set_labels_from_function_and_wrapper` function without MLRun to see the wrapper is transparent.
+    """
+    returned_result = set_labels_from_function_and_wrapper()
+    assert returned_result is None
+
+
+def test_set_labels_from_function_and_wrapper_with_mlrun():
+    """
+    Run the `set_labels_from_function_and_wrapper` function with MLRun to see the wrapper is setting the required
+    labels without interrupting to the ones set via the context by the user.
+    """
+    # Create the function and run:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+    run_object = mlrun_function.run(
+        handler="set_labels_from_function_and_wrapper",
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Manual validation:
+    mlrun.utils.logger.info(run_object.metadata.labels)
+
+    # Assertion:
+    assert run_object.metadata.labels["context_label"] == "1"
+    assert run_object.metadata.labels["wrapper_label"] == "2"
+
+    # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+@mlrun.function_wrapper(
     log_outputs=[
         (mlrun.ArtifactType.DATASET, "my_array"),
         ("dataset", "my_df"),
@@ -81,7 +120,7 @@ def log_dataset() -> Tuple[np.ndarray, pd.DataFrame, dict, list]:
 
 def test_log_dataset_without_mlrun():
     """
-    Run the `log_dataset` function without MLRun to see the decorator is transparent.
+    Run the `log_dataset` function without MLRun to see the wrapper is transparent.
     """
     my_array, my_df, my_dict, my_list = log_dataset()
     assert isinstance(my_array, np.ndarray)
@@ -92,7 +131,7 @@ def test_log_dataset_without_mlrun():
 
 def test_log_dataset_with_mlrun():
     """
-    Run the `log_dataset` function with MLRun to see the decorator is logging the returned values as datasets artifacts.
+    Run the `log_dataset` function with MLRun to see the wrapper is logging the returned values as datasets artifacts.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -119,7 +158,7 @@ def test_log_dataset_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(
+@mlrun.function_wrapper(
     log_outputs=[
         (mlrun.ArtifactType.DIRECTORY, "my_dir"),
     ]
@@ -135,7 +174,7 @@ def log_directory(path: str) -> str:
 
 def test_log_directory_without_mlrun():
     """
-    Run the `log_directory` function without MLRun to see the decorator is transparent.
+    Run the `log_directory` function without MLRun to see the wrapper is transparent.
     """
     temp_dir = tempfile.TemporaryDirectory()
     my_dir = log_directory(temp_dir.name)
@@ -145,7 +184,7 @@ def test_log_directory_without_mlrun():
 
 def test_log_directory_with_mlrun():
     """
-    Run the `log_directory` function with MLRun to see the decorator is logging the directory as a zip file.
+    Run the `log_directory` function with MLRun to see the wrapper is logging the directory as a zip file.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -176,7 +215,7 @@ def test_log_directory_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(
+@mlrun.function_wrapper(
     log_outputs=[
         (mlrun.ArtifactType.FILE, "my_file"),
     ]
@@ -189,7 +228,7 @@ def log_file(path: str) -> str:
 
 def test_log_file_without_mlrun():
     """
-    Run the `log_file` function without MLRun to see the decorator is transparent.
+    Run the `log_file` function without MLRun to see the wrapper is transparent.
     """
     temp_dir = tempfile.TemporaryDirectory()
     my_file = log_file(temp_dir.name)
@@ -199,7 +238,7 @@ def test_log_file_without_mlrun():
 
 def test_log_file_with_mlrun():
     """
-    Run the `log_file` function with MLRun to see the decorator is logging the file.
+    Run the `log_file` function with MLRun to see the wrapper is logging the file.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -222,7 +261,7 @@ def test_log_file_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(
+@mlrun.function_wrapper(
     log_outputs=[
         (mlrun.ArtifactType.OBJECT, "my_object"),
     ]
@@ -243,7 +282,7 @@ def log_object() -> Pipeline:
 
 def test_log_object_without_mlrun():
     """
-    Run the `log_object` function without MLRun to see the decorator is transparent.
+    Run the `log_object` function without MLRun to see the wrapper is transparent.
     """
     temp_dir = tempfile.TemporaryDirectory()
     my_object = log_object()
@@ -254,7 +293,7 @@ def test_log_object_without_mlrun():
 
 def test_log_object_with_mlrun():
     """
-    Run the `log_object` function with MLRun to see the decorator is logging the object as pickle.
+    Run the `log_object` function with MLRun to see the wrapper is logging the object as pickle.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -282,7 +321,7 @@ def test_log_object_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(
+@mlrun.function_wrapper(
     log_outputs=[
         (mlrun.ArtifactType.PLOT, "my_plot"),
     ]
@@ -295,7 +334,7 @@ def log_plot() -> plt.Figure:
 
 def test_log_plot_without_mlrun():
     """
-    Run the `log_plot` function without MLRun to see the decorator is transparent.
+    Run the `log_plot` function without MLRun to see the wrapper is transparent.
     """
     my_plot = log_plot()
     assert isinstance(my_plot, plt.Figure)
@@ -303,7 +342,7 @@ def test_log_plot_without_mlrun():
 
 def test_log_plot_with_mlrun():
     """
-    Run the `log_plot` function with MLRun to see the decorator is logging the plots as html files.
+    Run the `log_plot` function with MLRun to see the wrapper is logging the plots as html files.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -325,7 +364,7 @@ def test_log_plot_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(
+@mlrun.function_wrapper(
     log_outputs=[
         (mlrun.ArtifactType.RESULT, "my_int"),
         ("result", "my_float"),
@@ -339,7 +378,7 @@ def log_result() -> Tuple[int, float, dict, np.ndarray]:
 
 def test_log_result_without_mlrun():
     """
-    Run the `log_result` function without MLRun to see the decorator is transparent.
+    Run the `log_result` function without MLRun to see the wrapper is transparent.
     """
     my_int, my_float, my_dict, my_array = log_result()
     assert isinstance(my_int, int)
@@ -350,7 +389,7 @@ def test_log_result_without_mlrun():
 
 def test_log_result_with_mlrun():
     """
-    Run the `log_result` function with MLRun to see the decorator is logging the returned values as results.
+    Run the `log_result` function with MLRun to see the wrapper is logging the returned values as results.
     """
     # Create the function and run:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -377,7 +416,59 @@ def test_log_result_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator()
+@mlrun.function_wrapper(
+    log_outputs=[
+        ("dataset", "wrapper_dataset"),
+        (mlrun.ArtifactType.RESULT, "wrapper_result"),
+    ]
+)
+def log_from_function_and_wrapper(context: mlrun.MLClientCtx = None):
+    if context:
+        context.log_result(key="context_result", value=1)
+        context.log_dataset(key="context_dataset", df=pd.DataFrame(np.arange(10)))
+    return [1, 2, 3, 4], "hello"
+
+
+def test_log_from_function_and_wrapper_without_mlrun():
+    """
+    Run the `log_from_function_and_wrapper` function without MLRun to see the wrapper is transparent.
+    """
+    my_dataset, my_result = log_from_function_and_wrapper()
+    assert isinstance(my_dataset, list)
+    assert isinstance(my_result, str)
+
+
+def test_log_from_function_and_wrapper_with_mlrun():
+    """
+    Run the `log_from_function_and_wrapper` function with MLRun to see the wrapper is logging the returned values
+    among the other values logged via the context manually inside the function.
+    """
+    # Create the function and run:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+    run_object = mlrun_function.run(
+        handler="log_from_function_and_wrapper",
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Manual validation:
+    mlrun.utils.logger.info(run_object.outputs)
+
+    # Assertion:
+    assert (
+        len(run_object.outputs) == 1 + 4
+    )  # return + context_dataset, context_result, wrapper_dataset, wrapper_result
+    assert run_object.artifact("context_dataset").as_df().shape == (10, 1)
+    assert run_object.outputs["context_result"] == 1
+    assert run_object.artifact("wrapper_dataset").as_df().shape == (4, 1)
+    assert run_object.outputs["wrapper_result"] == "hello"
+
+    # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+@mlrun.function_wrapper()
 def parse_inputs_from_type_hints(
     my_data: list,
     my_encoder: Pipeline,
@@ -391,7 +482,7 @@ def parse_inputs_from_type_hints(
 
 def test_parse_inputs_from_type_hints_without_mlrun():
     """
-    Run the `parse_inputs_from_type_hints` function without MLRun to see the decorator is transparent.
+    Run the `parse_inputs_from_type_hints` function without MLRun to see the wrapper is transparent.
     """
     _, _, _, my_data = log_dataset()
     my_encoder = log_object()
@@ -404,7 +495,7 @@ def test_parse_inputs_from_type_hints_without_mlrun():
 
 def test_parse_inputs_from_type_hints_with_mlrun():
     """
-    Run the `parse_inputs_from_type_hints` function with MLRun to see the decorator is parsing the given inputs
+    Run the `parse_inputs_from_type_hints` function with MLRun to see the wrapper is parsing the given inputs
     (`DataItem`s) to the written type hints.
     """
     # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
@@ -445,8 +536,8 @@ def test_parse_inputs_from_type_hints_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_decorator(parse_inputs={"my_data": np.ndarray})
-def parse_inputs_from_decorator(my_data, my_encoder, add, mul: int = 2):
+@mlrun.function_wrapper(parse_inputs={"my_data": np.ndarray})
+def parse_inputs_from_wrapper(my_data, my_encoder, add, mul: int = 2):
     if isinstance(my_encoder, mlrun.DataItem):
         my_encoder = my_encoder.local()
         with open(my_encoder, "rb") as pickle_file:
@@ -454,23 +545,23 @@ def parse_inputs_from_decorator(my_data, my_encoder, add, mul: int = 2):
     return (my_encoder.transform(my_data) + add * mul).tolist()
 
 
-def test_parse_inputs_from_decorator_without_mlrun():
+def test_parse_inputs_from_wrapper_without_mlrun():
     """
-    Run the `parse_inputs_from_decorator` function without MLRun to see the decorator is transparent.
+    Run the `parse_inputs_from_wrapper` function without MLRun to see the wrapper is transparent.
     """
     _, _, _, my_data = log_dataset()
     my_encoder = log_object()
-    result = parse_inputs_from_decorator(
+    result = parse_inputs_from_wrapper(
         pd.DataFrame(my_data), my_encoder=my_encoder, add=1
     )
     assert isinstance(result, list)
     assert result == [[2], [3], [4]]
 
 
-def test_parse_inputs_from_decorator_with_mlrun():
+def test_parse_inputs_from_wrapper_with_mlrun():
     """
-    Run the `parse_inputs_from_decorator` function with MLRun to see the decorator is parsing the given inputs
-    (`DataItem`s) to the written configuration provided to the decorator.
+    Run the `parse_inputs_from_wrapper` function with MLRun to see the wrapper is parsing the given inputs
+    (`DataItem`s) to the written configuration provided to the wrapper.
     """
     # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -488,7 +579,7 @@ def test_parse_inputs_from_decorator_with_mlrun():
 
     # Run the function that will parse the data items:
     run_object = mlrun_function.run(
-        handler="parse_inputs_from_decorator",
+        handler="parse_inputs_from_wrapper",
         inputs={
             "my_data": log_dataset_run.outputs["my_list"],
             "my_encoder": log_object_run.outputs["my_object"],

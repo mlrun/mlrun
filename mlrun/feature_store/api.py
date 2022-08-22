@@ -13,7 +13,7 @@
 # limitations under the License.
 import copy
 from datetime import datetime
-from typing import List, Union
+from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -300,7 +300,7 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> Union[pd.DataFrame, None]:
+) -> Optional[pd.DataFrame]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets

@@ -176,18 +176,18 @@ def new_project(
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
         try:
-            logger.debug(f"Creating project {name}")
             project.save(create_only=True)
         except mlrun.errors.MLRunConflictError as exc:
             raise mlrun.errors.MLRunConflictError(
                 f"Project with name {name} already exists. "
                 "Use override=True to override the existing project."
             ) from exc
-        logger.debug(
-            f"Created project {name}",
+        logger.info(
+            f"Created and saved project {name}",
             from_template=from_template,
             override=override,
             context=context,
+            save=save,
         )
     return project
 

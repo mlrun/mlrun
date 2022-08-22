@@ -1,4 +1,3 @@
-import json
 import pathlib
 
 import deepdiff
@@ -25,7 +24,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         with pytest.raises(mlrun.errors.MLRunConflictError) as exc:
             mlrun.new_project(project_name)
         assert (
-            f"Project with name {project_name} already exists. Use override=True to override the existing project."
+            f"Project with name {project_name} already exists. Use overwrite=True to override the existing project."
             in str(exc.value)
         )
 

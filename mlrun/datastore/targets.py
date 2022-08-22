@@ -610,6 +610,7 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+        target.partitioned = self.partitioned
 
         self._resource.status.update_target(target)
         return target

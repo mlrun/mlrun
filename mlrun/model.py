@@ -1234,6 +1234,7 @@ class DataTarget(DataTargetBase):
         "size",
         "last_written",
         "run_id",
+        "partitioned",
     ]
 
     def __init__(

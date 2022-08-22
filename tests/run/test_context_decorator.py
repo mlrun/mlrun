@@ -14,7 +14,7 @@ from sklearn.preprocessing import OrdinalEncoder
 import mlrun
 
 
-@mlrun.function_wrapper(set_labels={"a": 1, "b": "a test", "c": [1, 2, 3]})
+@mlrun.context(set_labels={"a": 1, "b": "a test", "c": [1, 2, 3]})
 def set_labels(arg1, arg2=23):
     return arg1 - arg2
 
@@ -62,7 +62,7 @@ def test_set_labels_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(set_labels={"wrapper_label": "2"})
+@mlrun.context(set_labels={"wrapper_label": "2"})
 def set_labels_from_function_and_wrapper(context: mlrun.MLClientCtx = None):
     if context:
         context.set_label("context_label", 1)
@@ -101,7 +101,7 @@ def test_set_labels_from_function_and_wrapper_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         (mlrun.ArtifactType.DATASET, "my_array"),
         ("dataset", "my_df"),
@@ -158,7 +158,7 @@ def test_log_dataset_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         (mlrun.ArtifactType.DIRECTORY, "my_dir"),
     ]
@@ -215,7 +215,7 @@ def test_log_directory_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         (mlrun.ArtifactType.FILE, "my_file"),
     ]
@@ -261,7 +261,7 @@ def test_log_file_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         (mlrun.ArtifactType.OBJECT, "my_object"),
     ]
@@ -321,7 +321,7 @@ def test_log_object_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         (mlrun.ArtifactType.PLOT, "my_plot"),
     ]
@@ -364,7 +364,7 @@ def test_log_plot_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         (mlrun.ArtifactType.RESULT, "my_int"),
         ("result", "my_float"),
@@ -416,7 +416,7 @@ def test_log_result_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(
+@mlrun.context(
     log_outputs=[
         ("dataset", "wrapper_dataset"),
         (mlrun.ArtifactType.RESULT, "wrapper_result"),
@@ -468,7 +468,7 @@ def test_log_from_function_and_wrapper_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper()
+@mlrun.context()
 def parse_inputs_from_type_hints(
     my_data: list,
     my_encoder: Pipeline,
@@ -536,7 +536,7 @@ def test_parse_inputs_from_type_hints_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.function_wrapper(parse_inputs={"my_data": np.ndarray})
+@mlrun.context(parse_inputs={"my_data": np.ndarray})
 def parse_inputs_from_wrapper(my_data, my_encoder, add, mul: int = 2):
     if isinstance(my_encoder, mlrun.DataItem):
         my_encoder = my_encoder.local()

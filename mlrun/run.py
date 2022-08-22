@@ -1728,7 +1728,7 @@ class _ContextHandler:
         )
 
 
-def function_wrapper(
+def context(
     set_labels: Dict[str, str] = None,
     log_outputs: List[
         Union[Tuple[Union[ArtifactType, str], Union[str, Dict[str, Any]]], None]
@@ -1736,8 +1736,8 @@ def function_wrapper(
     parse_inputs: Union[bool, Dict[str, Type]] = True,
 ):
     """
-    MLRun's function wrapper is a decorator to wrap a function and enable automatic `mlrun.DataItem` parsing and outputs
-    logging.
+    MLRun's context is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
+    outputs logging.
 
     :param set_labels:   Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
                          None.

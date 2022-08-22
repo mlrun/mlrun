@@ -19,7 +19,7 @@ __all__ = [
     "set_environment",
     "code_to_function",
     "import_function",
-    "function_wrapper",
+    "context",
     "ArtifactType",
 ]
 
@@ -56,7 +56,7 @@ from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     ArtifactType,
     code_to_function,
-    function_wrapper,
+    context,
     function_to_module,
     get_dataitem,
     get_object,

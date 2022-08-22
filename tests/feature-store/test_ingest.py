@@ -78,4 +78,4 @@ def test_return_df(rundb_mock):
 
     result_df = fs.ingest(fset, df, targets=[DFTarget()])
 
-    assert result_df
+    assert isinstance(result_df, pd.DataFrame)

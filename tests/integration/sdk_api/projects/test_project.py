@@ -80,13 +80,26 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert projects[0].metadata.name == project_name
 
         # verify artifacts and functions were created
-        project_artifacts = project.list_functions()
+        project_artifacts = project.list_artifacts()
+        loaded_project_artifacts = projects[0].list_artifacts()
         assert len(project_artifacts) == len(artifact_keys)
-        assert project_artifacts == projects[0].list_artifacts()
+        assert len(project_artifacts) == len(loaded_project_artifacts)
+        assert project_artifacts == loaded_project_artifacts
 
         project_functions = project.list_functions()
+        loaded_project_functions = projects[0].list_functions()
         assert len(project_functions) == len(function_names) * len(function_tags)
-        assert len(project_functions) == len(projects[0].list_functions())
+        assert len(project_functions) == len(loaded_project_functions)
+
+        loaded_project_functions_dicts = [
+            func.to_dict() for func in loaded_project_functions
+        ]
+        assert all(
+            [
+                func.to_dict() in loaded_project_functions_dicts
+                for func in project_functions
+            ]
+        )
 
         old_creation_time = projects[0].metadata.created
 
@@ -96,10 +109,22 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert projects[0].metadata.name == project_name
 
         # ensure cascade deletion strategy
-        assert projects[0].list_artifacts() is None
+        assert projects[0].list_artifacts() == []
         assert projects[0].list_functions() is None
         assert projects[0].metadata.created > old_creation_time
 
+    def test_overwrite_empty_project(self):
+        project_name = "some-project"
+
+        mlrun.new_project(project_name)
+        db = mlrun.get_run_db()
+
+        projects = db.list_projects()
+        assert len(projects) == 1
+        assert projects[0].metadata.name == project_name
+
+        assert projects[0].list_artifacts() == []
+        assert projects[0].list_functions() is None
         old_creation_time = projects[0].metadata.created
 
         # overwrite empty project
@@ -108,7 +133,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
-        assert projects[0].list_artifacts() is None
+        assert projects[0].list_artifacts() == []
         assert projects[0].list_functions() is None
         assert projects[0].metadata.created > old_creation_time
 

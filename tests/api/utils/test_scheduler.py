@@ -525,6 +525,32 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
 
 
 @pytest.mark.asyncio
+async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Scheduler):
+    cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+    chief_schedule = scheduler.get_schedule(db, project, schedule_name)
+    assert chief_schedule.next_run_time is not None
+
+    # simulating when running in worker
+    mlrun.mlconf.httpdb.clusterization.role = (
+        mlrun.api.schemas.ClusterizationRole.worker
+    )
+    worker_schedule = scheduler.get_schedule(db, project, schedule_name)
+    assert worker_schedule.next_run_time is not None
+    assert chief_schedule.next_run_time == worker_schedule.next_run_time
+
+
+@pytest.mark.asyncio
 async def test_get_schedule_failure_not_found(db: Session, scheduler: Scheduler):
     schedule_name = "schedule-name"
     project = config.default_project

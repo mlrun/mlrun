@@ -156,6 +156,7 @@ def test_delete_project_with_resources(
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+    mlrun.mlconf.namespace = "test-namespace"
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)

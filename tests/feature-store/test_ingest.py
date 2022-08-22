@@ -56,7 +56,7 @@ def test_return_df(rundb_mock):
         {
             "ticker": ["GOOG", "MSFT"],
             "bid (accepted)": [720.50, 51.95],
-            "bid_accepted": [720.93, 51.96],
+            "ask": [720.93, 51.96],
             "with space": [True, False],
         }
     )

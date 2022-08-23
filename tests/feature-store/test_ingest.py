@@ -63,3 +63,32 @@ def test_columns_with_illegal_characters_error():
 
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         fs.ingest(fset, df)
+
+
+def test_set_targets_with_string():
+    fset = fs.FeatureSet(
+        "myset",
+        entities=[fs.Entity("ticker")],
+    )
+
+    fset.set_targets(["parquet", "nosql"], with_defaults=False)
+
+    targets = fset.spec.targets
+
+    assert len(targets) == 2
+
+    parquet_target = None
+    nosql_target = None
+    for target in fset.spec.targets:
+        if target.name == "parquet":
+            parquet_target = target
+        elif target.name == "nosql":
+            nosql_target = target
+
+    assert parquet_target.name == "parquet"
+    assert parquet_target.kind == "parquet"
+    assert parquet_target.partitioned
+
+    assert nosql_target.name == "nosql"
+    assert nosql_target.kind == "nosql"
+    assert not nosql_target.partitioned

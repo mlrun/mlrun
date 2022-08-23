@@ -55,8 +55,10 @@ class TestProject(TestMLRunSystem):
             / "assets"
         )
 
-    def _create_project(self, project_name, with_repo=False):
-        proj = mlrun.new_project(project_name, str(self.assets_path))
+    def _create_project(self, project_name, with_repo=False, overwrite=False):
+        proj = mlrun.new_project(
+            project_name, str(self.assets_path), overwrite=overwrite
+        )
         proj.set_function(
             "prep_data.py",
             "prep-data",
@@ -293,6 +295,67 @@ class TestProject(TestMLRunSystem):
         project = mlrun.get_or_create_project(name, project_dir)
         assert project.spec.description == "mytest", "failed to get project"
         self._delete_test_project(name)
+
+    def test_new_project_overwrite(self):
+        # create project and save to DB
+        project_dir = f"{projects_dir}/{self.project_name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = self._create_project(self.project_name, overwrite=True)
+
+        db = mlrun.get_run_db()
+        project.sync_functions(save=True)
+        project.register_artifacts()
+
+        # get project from db for creation time
+        project = db.get_project(name=self.project_name)
+
+        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
+        old_creation_time = project.metadata.created
+
+        project = mlrun.new_project(
+            self.project_name, str(self.assets_path), overwrite=True
+        )
+        project.sync_functions(save=True)
+        project.register_artifacts()
+        project = db.get_project(name=self.project_name)
+
+        assert (
+            project.metadata.created > old_creation_time
+        ), "creation time is not after overwritten project's creation time"
+
+        # ensure cascading delete
+        assert project.list_functions() is None, "project should not have functions"
+        assert len(project.list_artifacts()) == 0, "artifacts count mismatch"
+
+    def test_overwrite_project_failure(self):
+        # create project and save to DB
+        project_dir = f"{projects_dir}/{self.project_name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+        project = self._create_project(self.project_name, overwrite=True)
+
+        db = mlrun.get_run_db()
+        project.sync_functions(save=True)
+        project.register_artifacts()
+
+        # get project from db for creation time
+        project = db.get_project(name=self.project_name)
+
+        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
+        old_creation_time = project.metadata.created
+
+        # overwrite with invalid from_template value
+        with pytest.raises(ValueError):
+            mlrun.new_project(self.project_name, from_template="bla", overwrite=True)
+
+        # ensure project was not deleted
+        project = db.get_project(name=self.project_name)
+        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
+        assert (
+            project.metadata.created == old_creation_time
+        ), "creation time was changed"
 
     def _test_new_pipeline(self, name, engine):
         project = self._create_project(name)

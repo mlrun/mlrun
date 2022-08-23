@@ -136,6 +136,27 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert projects[0].list_functions() is None
         assert projects[0].metadata.created > old_creation_time
 
+    def test_overwrite_project_failure(self):
+        project_name = "some-project"
+
+        mlrun.new_project(project_name)
+        db = mlrun.get_run_db()
+
+        projects = db.list_projects()
+        assert len(projects) == 1
+        assert projects[0].metadata.name == project_name
+        old_creation_time = projects[0].metadata.created
+
+        # overwrite with invalid from_template value
+        with pytest.raises(ValueError):
+            mlrun.new_project(project_name, from_template="bla", overwrite=True)
+
+        # ensure project was not deleted
+        projects = db.list_projects()
+        assert len(projects) == 1
+        assert projects[0].metadata.name == project_name
+        assert projects[0].metadata.created == old_creation_time
+
     def test_load_project_from_db(self):
         project_name = "some-project"
         mlrun.new_project(project_name)

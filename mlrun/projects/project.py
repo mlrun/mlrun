@@ -134,18 +134,13 @@ def new_project(
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
     :param save:         whether to save the created project in the DB
-    :param overwrite:    overwrite project if project with name exists
+    :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
+                         if project with name exists
 
     :returns: project object
     """
     context = context or "./"
     name = _add_username_to_project_name_if_needed(name, user_project)
-
-    if overwrite:
-        logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
-        _delete_project_from_db(
-            name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
-        )
 
     if from_template:
         if from_template.endswith(".yaml"):
@@ -177,6 +172,12 @@ def new_project(
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
+        if overwrite:
+            logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+            _delete_project_from_db(
+                name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
+            )
+
         try:
             project.save(store=False)
         except mlrun.errors.MLRunConflictError as exc:
@@ -2038,11 +2039,19 @@ class MlrunProject(ModelObj):
             shutil.rmtree(self.spec.context)
 
     def save(self, filepath=None, store=True):
+        """export project to yaml and save project to database
+
+        :store: if True, allow updating in case project already exists
+        """
         self.export(filepath)
         self.save_to_db(store)
         return self
 
     def save_to_db(self, store=True):
+        """save project to database
+
+        :store: if True, allow updating in case project already exists
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         if store:
             return db.store_project(self.metadata.name, self.to_dict())

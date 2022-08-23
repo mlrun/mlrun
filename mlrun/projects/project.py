@@ -2039,7 +2039,7 @@ class MlrunProject(ModelObj):
             shutil.rmtree(self.spec.context)
 
     def save(self, filepath=None, store=True):
-        """export project to yaml and save project to database
+        """export project to yaml file and save project in database
 
         :store: if True, allow updating in case project already exists
         """

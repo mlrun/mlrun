@@ -44,9 +44,14 @@ def pipe_test():
 @pytest.mark.enterprise
 class TestProject(TestMLRunSystem):
     project_name = "project-system-test-project"
+    custom_project_names_to_delete = []
 
     def custom_setup(self):
         pass
+
+    def custom_teardown(self):
+        for name in self.custom_project_names_to_delete:
+            self._delete_test_project(name)
 
     @property
     def assets_path(self):
@@ -86,6 +91,7 @@ class TestProject(TestMLRunSystem):
 
     def test_run(self):
         name = "pipe1"
+        self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)
 
@@ -112,10 +118,9 @@ class TestProject(TestMLRunSystem):
         assert len(functions) == 3  # prep-data, train, test
         assert functions[0].metadata.project == name
 
-        self._delete_test_project(name)
-
     def test_run_artifact_path(self):
         name = "pipe1"
+        self.custom_project_names_to_delete.append(name)
         # create project in context
         self._create_project(name)
 
@@ -134,11 +139,11 @@ class TestProject(TestMLRunSystem):
                 run_object = db.read_run(uid=graph_step["run_uid"], project=name)
                 output_path = run_object["spec"]["output_path"]
                 assert output_path == f"v3io:///projects/{name}/{run_id}"
-        self._delete_test_project(name)
 
     def test_run_git_load(self):
         # load project from git
         name = "pipe2"
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 
@@ -152,10 +157,10 @@ class TestProject(TestMLRunSystem):
         run = project2.run("main", artifact_path=f"v3io:///projects/{name}")
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
-        self._delete_test_project(name)
 
     def test_run_git_build(self):
         name = "pipe3"
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 
@@ -173,7 +178,6 @@ class TestProject(TestMLRunSystem):
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
-        self._delete_test_project(name)
 
     @staticmethod
     def _assert_cli_output(output: str, project_name: str):
@@ -189,6 +193,7 @@ class TestProject(TestMLRunSystem):
     def test_run_cli(self):
         # load project from git
         name = "pipe4"
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 
@@ -205,6 +210,7 @@ class TestProject(TestMLRunSystem):
 
         # load the project from local dir and change a workflow
         project2 = mlrun.load_project(project_dir)
+        self.custom_project_names_to_delete.append(project2.metadata.name)
         project2.spec.workflows = {}
         project2.set_workflow("kf", "./kflow.py")
         project2.save()
@@ -224,12 +230,11 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         self._assert_cli_output(out, name)
-        self._delete_test_project(name)
-        self._delete_test_project(project2.metadata.name)
 
     def test_cli_with_remote(self):
         # load project from git
         name = "pipermtcli"
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
 
@@ -260,10 +265,10 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         self._assert_cli_output(out, name)
-        self._delete_test_project(name)
 
     def test_inline_pipeline(self):
         name = "pipe5"
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
         project = self._create_project(name, True)
@@ -273,11 +278,11 @@ class TestProject(TestMLRunSystem):
         )
         run.wait_for_completion()
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
-        self._delete_test_project(name)
 
     def test_get_or_create(self):
         # create project and save to DB
         name = "newproj73"
+        self.custom_project_names_to_delete.append(name)
         project_dir = f"{projects_dir}/{name}"
         shutil.rmtree(project_dir, ignore_errors=True)
         project = mlrun.get_or_create_project(name, project_dir)
@@ -294,7 +299,6 @@ class TestProject(TestMLRunSystem):
         # get project should read from context (project.yaml)
         project = mlrun.get_or_create_project(name, project_dir)
         assert project.spec.description == "mytest", "failed to get project"
-        self._delete_test_project(name)
 
     def test_new_project_overwrite(self):
         # create project and save to DB
@@ -359,6 +363,7 @@ class TestProject(TestMLRunSystem):
 
     def _test_new_pipeline(self, name, engine):
         project = self._create_project(name)
+        self.custom_project_names_to_delete.append(name)
         project.set_function(
             "gen_iris.py",
             "gen-iris",
@@ -377,7 +382,6 @@ class TestProject(TestMLRunSystem):
         fn = project.get_function("gen-iris", ignore_cache=True)
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
-        self._delete_test_project(name)
 
     def test_local_pipeline(self):
         self._test_new_pipeline("lclpipe", engine="local")
@@ -437,6 +441,7 @@ class TestProject(TestMLRunSystem):
 
     def test_remote_from_archive(self):
         name = "pipe6"
+        self.custom_project_names_to_delete.append(name)
         project = self._create_project(name)
         archive_path = f"v3io:///projects/{project.name}/archive1.zip"
         project.export(archive_path)
@@ -450,11 +455,11 @@ class TestProject(TestMLRunSystem):
         )
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
-        self._delete_test_project()
 
     def test_local_cli(self):
         # load project from git
         name = "lclclipipe"
+        self.custom_project_names_to_delete.append(name)
         project = self._create_project(name)
         project.set_function(
             "gen_iris.py",
@@ -481,11 +486,11 @@ class TestProject(TestMLRunSystem):
         out = exec_project(args)
         print("OUT:\n", out)
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
-        self._delete_test_project(name)
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)
         name = "buildandrun"
+        self.custom_project_names_to_delete.append(name)
         project = mlrun.new_project(name, context=str(self.assets_path))
 
         # test with user provided function object
@@ -527,10 +532,9 @@ class TestProject(TestMLRunSystem):
         assert fn.spec.image, "image path got cleared"
         assert run_result.output("score")
 
-        self._delete_test_project(name)
-
     def test_set_secrets(self):
         name = "set-secrets"
+        self.custom_project_names_to_delete.append(name)
         project = mlrun.new_project(name, context=str(self.assets_path))
         project.save()
         env_file = str(self.assets_path / "envfile")
@@ -539,7 +543,3 @@ class TestProject(TestMLRunSystem):
         project.set_secrets(file_path=env_file)
         secrets = db.list_project_secret_keys(name, provider="kubernetes")
         assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
-
-        # Cleanup
-        self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
-        self._delete_test_project(name)

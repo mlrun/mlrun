@@ -18,5 +18,5 @@
     {
     "**/*.py": "# Copyright 2022 Iguazio",
     "**.Dockerfile": "# Copyright 2022 Iguazio"
-  },
+  }
 ]

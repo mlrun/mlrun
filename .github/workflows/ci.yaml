@@ -194,3 +194,11 @@ jobs:
         run: |
           cd head/mlrun
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+
+  check-license:
+    name: Check License existent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check License Lines
+        uses: kt3k/license_checker@v1.0.6

@@ -610,6 +610,15 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+        # Copy partitioning-related fields to the status, since these are needed if reading the actual data that
+        # is related to the specific target.
+        # TODO - instead of adding more fields to the status targets, we should consider changing any functionality
+        #       that depends on "spec-fields" to use a merge between the status and the spec targets. One such place
+        #       is the fset.to_dataframe() function.
+        target.partitioned = self.partitioned
+        target.key_bucketing_number = self.key_bucketing_number
+        target.partition_cols = self.partition_cols
+        target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)
         return target

@@ -55,6 +55,7 @@
    serving/built-in-model-serving
    serving/model-serving-get-started
    feature-store/training-serving
+   serving/canary
    serving/model-api
 
 .. toctree::

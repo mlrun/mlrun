@@ -9,7 +9,7 @@ Batch inference or offline inference addresses the need to run machine learning 
 Batch, or offline, inference is the process of generating predictions on a batch of observations. The batch jobs are typically generated on a schedule (e.g. 
 hourly, daily). These predictions are then stored in a database or a file and can be made available to developers or end users. Batch inference can also take 
 advantage of big data technologies, such as Spark, to generate predictions. This allows data scientists and machine learning engineers to take advantage of scalable 
-compute resources to generate many predictions at once. As opposed to real time inference (where the goal is usually to optimize the number of transactions per 
+compute resources to generate many predictions simultaneously. As opposed to real time inference (where the goal is usually to optimize the number of transactions per 
 second that the model can process), the goal of batch inference is usually tied to time constraints and the service-level agreement (SLA) for the job. 
 In addition, the output of batch inference goes to a file or a table in a database vs. sending a response back to an online application.
 

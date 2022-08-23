@@ -5,8 +5,9 @@
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/) (**"the platform"**).
 ```
 
-Canary functions are used to test model deployments, based on an actual production deployment. Using this method, you can 
-test the model behavior with minimal impact on the existing production. 
+Canary rollout is a known practice to first test a software update on a small number of users before rolling it 
+out to all users. In machine learning, the main usage is to test a new model on a small subset of users before 
+rolling it out to all users. 
 
 Canary functions are defined using an API gateway. The API gateway is a service that exposes your function as a 
 web service. Essentially, it is a proxy that forwards requests to your functions and returns the response.

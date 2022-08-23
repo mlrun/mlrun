@@ -492,9 +492,7 @@ class Client(
     def _generate_auth_info_from_session_verification_response(
         response: requests.Response,
     ) -> mlrun.api.schemas.AuthInfo:
-        gids = response.headers.get("x-user-group-ids")
-        if gids:
-            gids = gids.split(",")
+
         planes = response.headers.get("x-v3io-session-planes")
         if planes:
             planes = planes.split(",")
@@ -505,11 +503,34 @@ class Client(
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 
+        # get user and group ids from response body
+        response_body = response.json()
+        context_auth = (
+            response_body.get("data", {})
+            .get("attributes", {})
+            .get("context", {})
+            .get("authentication", {})
+        )
+        user_id = context_auth.get("user_id", None)
+        if user_id is None:
+            user_id = response.headers.get("x-user-id")
+        gids = context_auth.get("group_ids", None)
+        group_ids = []
+        if gids is None:
+            gids = response.headers.get("x-user-group-ids")
+            # "x-user-group-ids" header is a comma separated list of group ids
+            if gids:
+                group_ids = gids.split(",")
+        else:
+            for gid in gids:
+                # some gids can be a comma separated list of group ids
+                group_ids.extend(gid.split(","))
+
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],
             session=response.headers["x-v3io-session-key"],
-            user_id=response.headers.get("x-user-id"),
-            user_group_ids=gids or [],
+            user_id=user_id,
+            user_group_ids=group_ids,
             user_unix_id=user_unix_id,
             planes=planes,
         )

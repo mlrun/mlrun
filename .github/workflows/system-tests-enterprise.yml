@@ -184,7 +184,7 @@ jobs:
     # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v2
       with:
-        ref: "${{ needs.outputs.mlrunCommitHash }}"
+        ref: "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunCommitHash }}"
     - name: Set up python 3.7
       uses: actions/setup-python@v1
       with:
@@ -206,7 +206,7 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
     - name: Run System Tests
       run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.outputs.mlrunSystemTestsCleanResources }}" \
-        MLRUN_VERSION="${{ needs.outputs.mlrunVersion }}" \
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
+        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
           make test-system-dockerized

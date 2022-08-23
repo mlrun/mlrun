@@ -1235,6 +1235,9 @@ class DataTarget(DataTargetBase):
         "last_written",
         "run_id",
         "partitioned",
+        "key_bucketing_number",
+        "partition_cols",
+        "time_partitioning_granularity",
     ]
 
     def __init__(

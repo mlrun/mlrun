@@ -35,7 +35,7 @@ These are the parameters for running the function:
 * `drift_threshold` (optional) &mdash; The threshold at which to mark drifts. Defaults to 0.7.
 * `possible_drift_threshold` (optional) &mdash; The threshold at which to mark possible drifts. Defaults to 0.5.
 
-The output of the model is saved, by default, to the project artifact path. You can change it by changing the `artifact_path` parameters when you run the job. See {ref}`artifacts`.
+The output of the model is saved, by default, to the project artifact path. You can change it by changing the `artifact_path` parameter when you run the job. See {ref}`artifacts`.
 
 
 ```python
@@ -66,20 +66,6 @@ DATASET_URL = 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/x
 mlrun.get_dataitem(DATASET_URL).show()
 ```
 
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -194,11 +180,9 @@ mlrun.get_dataitem(DATASET_URL).show()
     </tr>
   </tbody>
 </table>
-<p>10000 rows × 6 columns</p>
-</div>
 
 
-Next, drop the label column:
+### Drop the label column
 
 
 ```python
@@ -331,21 +315,6 @@ predict_run.outputs
 predict_run.artifact(result_set).show()
 ```
 
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -432,10 +401,10 @@ predict_run = auto_trainer.run(
 ## Viewing the drift result
 
 By default, the auto_trainer function analyzes drift by comparing the input and the sample dataset statistics.  
-It triggers a drift analysis job that generates 3 output files that can be viewed under the **Artifacts** tab for the prediction job:
-* drift_table_plot &mdash; shows the expected vs. actual statistics for every feature as a plot.
-* drift_results &mdash; shows the drift result per feature as a JSON format so you can use it to process this data and apply your logic on top of it.
-* dataset_statistics &mdash; shows the statistics of the input dataset.
+It triggers a drift analysis job that generates 3 output files that you can view under the **Artifacts** tab for the prediction job:
+* drift_table_plot &mdash; Shows the expected vs. actual statistics for every feature as a plot.
+* drift_results &mdash; Shows the drift result per feature as a JSON format so you can use it to process this data and apply your logic on top of it.
+* dataset_statistics &mdash; Shows the statistics of the input dataset.
 
 ### Drift table plot example
 

@@ -92,3 +92,32 @@ def test_set_targets_with_string():
     assert nosql_target.name == "nosql"
     assert nosql_target.kind == "nosql"
     assert not nosql_target.partitioned
+
+
+def test_return_df(rundb_mock):
+    fset = fs.FeatureSet(
+        "myset",
+        entities=[fs.Entity("ticker")],
+    )
+
+    df = pd.DataFrame(
+        {
+            "ticker": ["GOOG", "MSFT"],
+            "bid (accepted)": [720.50, 51.95],
+            "ask": [720.93, 51.96],
+            "with space": [True, False],
+        }
+    )
+    fset._run_db = rundb_mock
+
+    fset.reload = unittest.mock.Mock()
+    fset.save = unittest.mock.Mock()
+    fset.purge_targets = unittest.mock.Mock()
+
+    result_df = fs.ingest(fset, df, targets=[DFTarget()], return_df=False)
+
+    assert result_df is None
+
+    result_df = fs.ingest(fset, df, targets=[DFTarget()])
+
+    assert isinstance(result_df, pd.DataFrame)

@@ -1,41 +1,41 @@
 # Batch inference 
 
-This topic describes how to run a batch predict job along with drift analysis
+This topic describes how to run a batch predict job along with drift analysis.
 
 ## Overview
 
-Batch inference or offline inference addresses the need to run machine learning model on large datasets. <br> 
+Batch inference or offline inference addresses the need to run machine learning model on large datasets.  
 
-It is the process of generating predictions on a batch of observations. The batch jobs are typically generated on some recurring schedule (e.g. hourly, daily). <br>
-These predictions are then stored in a database or a file and can be made available to developers or end users. Batch inference may sometimes take advantage <br>
-of big data technologies such as Spark to generate predictions. This allows data scientists and machine learning engineers to take advantage of scalable compute <br>
-resources to generate many predictions at once. As opposed to real time inference real-time inference where the goal is usually to optimize the number of transactions per second <br>
-that the model can process,  With batch inference, the goal is usually tied to time constraints and the service-level agreement (SLA) for the job.  <br>
-in addition, the output of batch inference goes to a file or a table in a database vs sending a response back to an online application
+Batch, or offline, inference is the process of generating predictions on a batch of observations. The batch jobs are typically generated on some a schedule (e.g. 
+hourly, daily). These predictions are then stored in a database or a file and can be made available to developers or end users. Batch inference can also take 
+advantage of big data technologies, such as Spark, to generate predictions. This allows data scientists and machine learning engineers to take advantage of scalable 
+compute resources to generate many predictions at once. As opposed to real time inference (where the goal is usually to optimize the number of transactions per 
+second that the model can process), the goal of batch inference is usually tied to time constraints and the service-level agreement (SLA) for the job. 
+In addition, the output of batch inference goes to a file or a table in a database vs. sending a response back to an online application.
 
 ## Auto-traininer function for prediction
 
-The [Auto-trainer](https://www.mlrun.org/marketplace/functions/master/auto_trainer/latest/example/) is a function in the mlrun marketplace that is used for both training and prediction. <br>
-This function saves you the need to write your own predict function and in addition it also runs a drift analysis by default. <br>
-The drift compares the prediction data with the sample/test dataset <br>
-In order to run batch predict one should use the predict handler <br>
+The [Auto-trainer](https://www.mlrun.org/marketplace/functions/master/auto_trainer/latest/example/) is a function in the mlrun marketplace that is used for both 
+training and prediction. This function saves you the need to write your own predict function, and it also runs a drift analysis by default. 
+The drift compares the prediction data with the sample/test dataset.
+To run batch predict you should use the predict handler.
 
 The function supports the following frameworks:
 * XGBoost
 * sklearn
 * LightGBM  
 
-Here are the parameters for running the function:
-* `input` - Can be either be a URI, a FeatureVector or a sample in a shape of a list/dict.
-* `model` - The model Store path
-* `label column` - The target label(s) of the column(s) in the dataset. for Regression or Classification tasks.
-* `drop column` (optional) - str/int or a list of strings/ints that represent the column names/indices to drop. When the dataset is a list/dict this parameter should be represented by integers.
-* `result_set` - the name of the artifact with the result dataset.
-* `param sample_set_statistics` (optional) - The statistics of the sample set logged along a model.
-* `drift_threshold` (optional) - The threshold of which to mark drifts. Defaulted to 0.7
-* `possible_drift_threshold` (optional) - The threshold of which to mark possible drifts. Defaulted to 0.5.
+These are the parameters for running the function:
+* `input` &mdash; Can be either be a URI, a FeatureVector or a sample in a shape of a list/dict.
+* `model` &mdash; The model Store path.
+* `label column` &mdash; The target label(s) of the column(s) in the dataset. for Regression or Classification tasks.
+* `drop column` (optional) &mdash; str/int or a list of strings/ints that represent the column names/indices to drop. When the dataset is a list/dict, this parameter should be represented by integers.
+* `result_set` &mdash; the name of the artifact with the result dataset.
+* `param sample_set_statistics` (optional) &mdash; The statistics of the sample set logged along a model.
+* `drift_threshold` (optional) &mdash; The threshold at which to mark drifts. Defaults to 0.7.
+* `possible_drift_threshold` (optional) &mdash; The threshold at which to mark possible drifts. Defaults to 0.5.
 
-The output of the model is saved by default to the project artifact path but you can change it by changing the artifact_path parameters when you run the job. see [managing artifacts](https://docs.mlrun.org/en/latest/store/artifacts.html)
+The output of the model is saved, by default, to the project artifact path. You can change it by changing the `artifact_path` parameters when you run the job. See {ref}`artifacts`.
 
 
 ```python
@@ -47,16 +47,16 @@ import mlrun
 mlrun.get_or_create_project('batch-inference', context="./", user_project=True)
 ```
 
-### Import auto-traininer function from the marketplace
+### Import the auto-traininer function from the marketplace
 
 
 ```python
 auto_trainer = mlrun.import_function("hub://auto_trainer")
 ```
 
-### Input dataset
+### Input the dataset
 
-In this example we're using a csv file (stored on wassabi object store) as an input dataset for the prediction <br>
+This example uses using a csv file (stored on wassabi object store) as an input dataset for the prediction.
 
 ```python
 DATASET_URL = 'https://s3.wasabisys.com/iguazio/data/function-marketplace-data/xgb_trainer/classifier-data.csv'
@@ -198,7 +198,7 @@ mlrun.get_dataitem(DATASET_URL).show()
 </div>
 
 
-Next, we drop the label column 
+Next, drop the label column:
 
 
 ```python
@@ -244,7 +244,7 @@ sample
 
 ## Run prediction
 
-you can either use a trained model that is already registered in MLRun or just pass the model URI
+You can either use a trained model that is already registered in MLRun or just pass the model URI:
 
 
 ```python
@@ -253,7 +253,7 @@ model_path = 'store://artifacts/auto-trainer-admin/MyModel:cf9538d81a2a4ce9a2035
 
 ### Making a prediction
 
-Choosing the `predict` handler with all other paramters as described above
+Choosing the `predict` handler with all other paramters as described above:
 
 
 ```python
@@ -485,7 +485,7 @@ function closePanel(el) {
 > 2022-08-11 06:01:00,573 [info] run executed, status=completed
 
 
-#### Showing the predeiction results
+#### Showing the prediction results
 
 
 ```python
@@ -567,17 +567,15 @@ predict_run.artifact(result_set).show()
 ### View the results in the UI 
 
 The output is saved as a parquet file under the project artifact path.
-in the UI you can go to the prediction job --> artifact tab to view the details
+In the UI, go to the prediction job --> Artifacts tab to view the details.
 
 <img src="../_static/images/prediction-results.png" alt="Jobs" width="1400"/>
 
-[Back to the top](#XGBoost-trainer)
-
 ### How to scehdule a batch job
 
-To schedule a job, you can set the schedule parameter of the run method. The scheduling is done by using a crontab format.
+To schedule a job, set the schedule parameter of the run method. The scheduling is done by using a crontab format.
 
-You can also schedule jobs from the dashboard. On the Projects > Jobs and Workflows page, you can create a new job using the New Job wizard. At the end of the wizard you can set the job scheduling. In the following example, the job is set to run every 30 minutes.
+You can also schedule jobs from the dashboard. On the **Projects > Jobs and Workflows** page, you can create a new job using the **New Job** wizard. At the end of the wizard you can set the job scheduling. In the following example, the job is set to run every 30 minutes.
 
 
 ```python
@@ -600,11 +598,11 @@ predict_run = auto_trainer.run(
 
 ## Viewing the drift result
 
-By default, the auto_trainer functions analyze drift by comparing the input and the sample dataset statistics. <br> 
-it triggers a drift analysis job which generates 3 output files that can be viewed under the artifacts tab for the prediction job
-* drift_table_plot - shows expected vs actual statistics for every feature as a plot.
-* drift_results - shows the drift result per feature as a JSON format so you can use it to process this data and apply your logic on top of it.
-* dataset_statistics - shows the statistics of the input dataset.
+By default, the auto_trainer function analyzes drift by comparing the input and the sample dataset statistics.  
+It triggers a drift analysis job that generates 3 output files that can be viewed under the **Artifacts** tab for the prediction job:
+* drift_table_plot &mdash; shows expected vs. actual statistics for every feature as a plot.
+* drift_results &mdash; shows the drift result per feature as a JSON format so you can use it to process this data and apply your logic on top of it.
+* dataset_statistics &mdash; shows the statistics of the input dataset.
 
 ### Drift table plot example
 

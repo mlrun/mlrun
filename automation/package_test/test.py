@@ -68,9 +68,7 @@ class PackageTester:
                 + f"{azure_key_vault_import}; {google_cloud_storage_import}; {targets_import}",
                 "perform_vulnerability_check": True,
             },
-            "[redis]": {
-                "import_test_command": f"{basic_import}; {redis_import}"
-            },
+            "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},
         }
 
     def run(self):

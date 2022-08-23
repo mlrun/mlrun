@@ -1023,7 +1023,7 @@ class CSVTarget(BaseStoreTarget):
 
 
 class NoSqlBaseTarget(BaseStoreTarget):
-    writer_step_name = 'base_name'
+    writer_step_name = "base_name"
 
     def __new__(cls, *args, **kwargs):
         if cls is NoSqlBaseTarget:
@@ -1145,7 +1145,7 @@ class NoSqlTarget(NoSqlBaseTarget):
     support_spark = True
     support_storey = True
     support_append = True
-    writer_step_name = 'NoSqlTarget'
+    writer_step_name = "NoSqlTarget"
 
     def get_table_object(self):
         from storey import Table, V3ioDriver
@@ -1166,7 +1166,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     support_spark = False
     support_storey = True
     support_append = True
-    writer_step_name = 'RedisNoSqlTarget'
+    writer_step_name = "RedisNoSqlTarget"
 
     def get_table_object(self):
         from storey import Table
@@ -1175,7 +1175,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         endpoint, uri = parse_path(self.get_target_path())
         return Table(
             uri,
-            RedisDriver(redis_url=endpoint, key_prefix='/'),
+            RedisDriver(redis_url=endpoint, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 

@@ -12,18 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
-from .base import DataStore
 import redis
 import redis.cluster
-from storey.redis_driver import RedisType 
+from storey.redis_driver import RedisType
+
+import mlrun
+
+from .base import DataStore
 
 
 class RedisStore(DataStore):
     """
     Partial implementation of DataStore - for use only to delete keys
     """
-    def __init__(self, parent, schema, name, endpoint="", redis_type: RedisType = RedisType.STANDALONE):
+
+    def __init__(
+        self,
+        parent,
+        schema,
+        name,
+        endpoint="",
+        redis_type: RedisType = RedisType.STANDALONE,
+    ):
         super().__init__(parent, name, schema, endpoint)
         self.headers = None
 
@@ -36,21 +46,24 @@ class RedisStore(DataStore):
             self.endpoint = self.endpoint[len("redis://") :]
             self.secure = False
         else:
-            raise NotImplementedError(f'invalid endpoint: {endpoint}')
+            raise NotImplementedError(f"invalid endpoint: {endpoint}")
 
-        self._redis_url = f'{schema}://{self.endpoint}'
+        self._redis_url = f"{schema}://{self.endpoint}"
 
         self._redis = None
         self._type = redis_type
-
 
     @property
     def redis(self):
         if self._redis is None:
             if self._type is RedisType.STANDALONE:
-                self._redis = redis.Redis.from_url(self._redis_url, decode_responses=True)
+                self._redis = redis.Redis.from_url(
+                    self._redis_url, decode_responses=True
+                )
             else:
-                self._redis = redis.cluster.RedisCluster.from_url(self._redis_url, decode_response=True)
+                self._redis = redis.cluster.RedisCluster.from_url(
+                    self._redis_url, decode_response=True
+                )
         return self._redis
 
     def get_filesystem(self, silent):
@@ -76,7 +89,7 @@ class RedisStore(DataStore):
         delete keys, possibly recursively
         """
         if maxdepth is not None:
-            raise NotImplementedError('maxdepth is not supported')
+            raise NotImplementedError("maxdepth is not supported")
 
         path = path[len("redis://") :]
         count = 0

@@ -528,6 +528,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
+            self._update_credentials_from_remote_build(data["data"])
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
@@ -990,6 +991,42 @@ class RemoteRuntime(KubeResource):
             return f"http://{self.status.external_invocation_urls[0]}/{path}"
         else:
             return f"http://{self.status.address}/{path}"
+
+    def _update_credentials_from_remote_build(self, remote_data):
+        self.metadata.credentials = remote_data.get("metadata", {}).get(
+            "credentials", {}
+        )
+
+        credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
+        new_env = []
+
+        # the env vars in the local spec and remote spec are in the format of a list of dicts
+        # e.g.:
+        # env = [
+        #   {
+        #     "name": "V3IO_ACCESS_KEY",
+        #     "value": "some-value"
+        #   },
+        #   ...
+        # ]
+        # remove existing credentials env vars
+        for env in self.spec.env:
+            if isinstance(env, dict):
+                env_name = env["name"]
+            elif isinstance(env, client.V1EnvVar):
+                env_name = env.name
+            else:
+                continue
+
+            if env_name not in credentials_env_var_names:
+                new_env.append(env)
+
+        # add credentials env vars from remote build
+        for remote_env in remote_data.get("spec", {}).get("env", []):
+            if remote_env.get("name") in credentials_env_var_names:
+                new_env.append(remote_env)
+
+        self.spec.env = new_env
 
 
 def parse_logs(logs):

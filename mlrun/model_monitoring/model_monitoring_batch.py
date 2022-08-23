@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import dataclasses
 import datetime
@@ -672,22 +686,25 @@ class BatchProcessor:
                     )
                     continue
 
-                # get feature names from monitoring feature set
+                # Get feature names from monitoring feature set
                 feature_names = [
                     feature_name["name"]
                     for feature_name in m_fs.spec.features.to_dict()
                 ]
 
-                # create DataFrame based on the input features
+                # Create DataFrame based on the input features
                 stats_columns = [
                     "timestamp",
                     *feature_names,
-                    "prediction",
                 ]
+
+                # Add label names if provided
+                if endpoint.spec.label_names:
+                    stats_columns.extend(endpoint.spec.label_names)
 
                 named_features_df = df[stats_columns].copy()
 
-                # infer feature set stats and schema
+                # Infer feature set stats and schema
                 fstore.api._infer_from_static_df(
                     named_features_df,
                     m_fs,

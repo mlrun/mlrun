@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import dask.dataframe as dd
 import pandas as pd
 from dask.dataframe.multi import merge, merge_asof
@@ -23,6 +37,7 @@ class DaskFeatureMerger(BaseMerger):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        query=None,
     ):
         # init the dask client if needed
         if not self.client:
@@ -54,6 +69,10 @@ class DaskFeatureMerger(BaseMerger):
             dfs.append(df)
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+
+        # filter joined data frame by the query param
+        if query:
+            self._result_df = self._result_df.query(query)
 
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"

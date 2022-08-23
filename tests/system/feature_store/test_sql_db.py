@@ -1,4 +1,5 @@
 import datetime
+import typing
 
 import pandas as pd
 import pytest
@@ -38,7 +39,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         self._init_env_from_file()
         self.prepare_data()
 
-    def get_data(self, data_name):
+    def get_data(self, data_name: str):
         if data_name == "stocks":
             return self.stocks
         elif data_name == "quotes":
@@ -49,7 +50,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             return None
 
     @staticmethod
-    def get_schema(data_name):
+    def get_schema(data_name: str):
         if data_name == "stocks":
             return {"ticker": str, "name": str, "exchange": str}
         elif data_name == "quotes":
@@ -87,7 +88,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
     @pytest.mark.parametrize(
         "source_name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
     )
-    def test_sql_source_basic(self, source_name, key):
+    def test_sql_source_basic(self, source_name: str, key: str):
         engine = db.create_engine(self.db, echo=True)
         sqlite_connection = engine.connect()
         origin_df = self.get_data(source_name)
@@ -112,7 +113,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             ("quotes", "ind", "ticker"),
         ],
     )
-    def test_sql_source_with_step(self, source_name, key, encoder_col):
+    def test_sql_source_with_step(self, source_name: str, key: str, encoder_col: str):
         engine = db.create_engine(self.db, echo=True)
         sqlite_connection = engine.connect()
         origin_df = self.get_data(source_name)
@@ -143,7 +144,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         "source_name, key, aggr_col",
         [("quotes", "ind", "ask"), ("trades", "ind", "price")],
     )
-    def test_sql_source_with_aggregation(self, source_name, key, aggr_col):
+    def test_sql_source_with_aggregation(self, source_name: str, key: str, aggr_col: str):
         engine = db.create_engine(self.db, echo=True)
         sqlite_connection = engine.connect()
         origin_df = self.get_data(source_name)
@@ -174,7 +175,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
     @pytest.mark.parametrize(
         "target_name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
     )
-    def test_sql_target_basic(self, target_name, key):
+    def test_sql_target_basic(self, target_name: str, key: str):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
@@ -199,7 +200,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
     @pytest.mark.parametrize(
         "target_name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
     )
-    def test_sql_target_without_create(self, target_name, key):
+    def test_sql_target_without_create(self, target_name: str, key: str):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
         engine = db.create_engine(self.db, echo=True)
@@ -226,7 +227,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         assert df[columns].equals(origin_df[columns])
 
     @pytest.mark.parametrize("target_name, key", [("trades", "ind"), ("quotes", "ind")])
-    def test_sql_get_online_feature_basic(self, target_name, key):
+    def test_sql_get_online_feature_basic(self, target_name: str, key: str):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
@@ -273,7 +274,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
     @pytest.mark.parametrize(
         "name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
     )
-    def test_sql_source_and_target_basic(self, name, key):
+    def test_sql_source_and_target_basic(self, name: str, key: str):
         origin_df = self.get_data(name)
         schema = self.get_schema(name)
 
@@ -367,7 +368,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             }
         )
 
-    def _create(self, schema, collection_name, metadata, engine, key):
+    def _create(self, schema: typing.Dict[str, typing], collection_name: str, metadata, engine, key: str):
         columns = []
         for col, col_type in schema.items():
             if col_type == int:

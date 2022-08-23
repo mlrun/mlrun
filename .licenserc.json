@@ -1,3 +1,8 @@
 {
-  "**/*.py": "# Copyright 2018 Iguazio"
+  "**/*.py": [
+    "# Copyright 2018 Iguazio",
+    "# Copyright 2019 Iguazio",
+    "# Copyright 2020 Iguazio",
+    "# Copyright 2021 Iguazio",
+    "# Copyright 2022 Iguazio"]
 }

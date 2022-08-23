@@ -1230,7 +1230,7 @@ def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
 
 class ArtifactType(Enum):
     """
-    Possible artifact types to log using the MLRun `function_decorator`.
+    Possible artifact types to log using the MLRun `context` decorator.
     """
 
     DATASET = "dataset"
@@ -1243,7 +1243,7 @@ class ArtifactType(Enum):
 
 class _ContextHandler:
     """
-    Private class for handling an MLRun context of a function that is wrapped in MLRun's `function_decorator`.
+    Private class for handling an MLRun context of a function that is wrapped in MLRun's `context` decorator.
 
     The context handler have 3 duties:
       1. Check if the user used MLRun to run the wrapped function and if so, get the MLRun context.
@@ -1259,7 +1259,7 @@ class _ContextHandler:
 
         @staticmethod
         def log_dataset(
-            context: MLClientCtx,
+            ctx: MLClientCtx,
             obj: Union[pd.DataFrame, np.ndarray, pd.Series, dict, list],
             key: str,
             logging_kwargs: dict,
@@ -1268,7 +1268,7 @@ class _ContextHandler:
             Log an object as a dataset. The dataset wil lbe cast to a `pandas.DataFrame`. Supporting casting from
             `pandas.Series`, `numpy.ndarray`, `dict` and `list`.
 
-            :param context:        The MLRun context to log with.
+            :param ctx:            The MLRun context to log with.
             :param obj:            The data to log.
             :param key:            The key of the artifact.
             :param logging_kwargs: Additional keyword arguments to pass to the `context.log_dataset`
@@ -1287,11 +1287,11 @@ class _ContextHandler:
                     )
 
             # Log the DataFrame object as a dataset:
-            context.log_dataset(**logging_kwargs, key=key, df=obj)
+            ctx.log_dataset(**logging_kwargs, key=key, df=obj)
 
         @staticmethod
         def log_directory(
-            context: MLClientCtx,
+            ctx: MLClientCtx,
             obj: Union[str, Path],
             key: str,
             logging_kwargs: dict,
@@ -1300,7 +1300,7 @@ class _ContextHandler:
             Log a directory as a zip file. The zip file will be created at the current working directory. Once logged,
             it will be deleted.
 
-            :param context:        The MLRun context to log with.
+            :param ctx:            The MLRun context to log with.
             :param obj:            The directory to zip path.
             :param key:            The key of the artifact.
             :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
@@ -1328,16 +1328,14 @@ class _ContextHandler:
             )
 
             # Log the zip file:
-            context.log_artifact(
-                **logging_kwargs, item=key, local_path=directory_zip_path
-            )
+            ctx.log_artifact(**logging_kwargs, item=key, local_path=directory_zip_path)
 
             # Delete the zip file:
             os.remove(directory_zip_path)
 
         @staticmethod
         def log_file(
-            context: MLClientCtx,
+            ctx: MLClientCtx,
             obj: Union[str, Path],
             key: str,
             logging_kwargs: dict,
@@ -1345,7 +1343,7 @@ class _ContextHandler:
             """
             Log a file to MLRun.
 
-            :param context:        The MLRun context to log with.
+            :param ctx:            The MLRun context to log with.
             :param obj:            The path of the file to log.
             :param key:            The key of the artifact.
             :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
@@ -1366,31 +1364,31 @@ class _ContextHandler:
                 )
 
             # Log the zip file:
-            context.log_artifact(
+            ctx.log_artifact(
                 **logging_kwargs, item=key, local_path=os.path.abspath(obj)
             )
 
         @staticmethod
-        def log_object(context: MLClientCtx, obj, key: str, logging_kwargs: dict):
+        def log_object(ctx: MLClientCtx, obj, key: str, logging_kwargs: dict):
             """
             Log an object as a pickle.
 
-            :param context:        The MLRun context to log with.
+            :param ctx:            The MLRun context to log with.
             :param obj:            The object to log.
             :param key:            The key of the artifact.
             :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
             """
-            context.log_artifact(
+            ctx.log_artifact(
                 **logging_kwargs, item=key, body=cloudpickle.dumps(obj), format="pkl"
             )
 
         @staticmethod
-        def log_plot(context: MLClientCtx, obj, key: str, logging_kwargs: dict):
+        def log_plot(ctx: MLClientCtx, obj, key: str, logging_kwargs: dict):
             """
             Log an object as a plot. Currently, supporting plots produced by one the following modules: `matplotlib`,
             `seaborn`, `plotly` and `bokeh`.
 
-            :param context:        The MLRun context to log with.
+            :param ctx:            The MLRun context to log with.
             :param obj:            The plot to log.
             :param key:            The key of the artifact.
             :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact`.
@@ -1456,11 +1454,11 @@ class _ContextHandler:
                     f"the following modules: `matplotlib`, `seaborn`, `plotly` and `bokeh`. You may try to save the "
                     f"plot to file and log it as a file instead."
                 )
-            context.log_artifact(**logging_kwargs, item=artifact)
+            ctx.log_artifact(**logging_kwargs, item=artifact)
 
         @staticmethod
         def log_result(
-            context: MLClientCtx,
+            ctx: MLClientCtx,
             obj: Union[int, float, str, list, tuple, dict, np.ndarray],
             key: str,
             logging_kwargs: dict,
@@ -1469,12 +1467,12 @@ class _ContextHandler:
             Log an object as a result. The objects value will be cast to a serializable version of itself. Supporting:
             int, float, str, list, tuple, dict, numpy.ndarray
 
-            :param context:        The MLRun context to log with.
+            :param ctx:            The MLRun context to log with.
             :param obj:            The value to log.
             :param key:            The key of the artifact.
             :param logging_kwargs: Additional keyword arguments to pass to the `context.log_result` method.
             """
-            context.log_result(**logging_kwargs, key=key, value=obj)
+            ctx.log_result(**logging_kwargs, key=key, value=obj)
 
     # The map to use for logging an object by its type:
     LOGGER_MAP = {
@@ -1721,7 +1719,7 @@ class _ContextHandler:
 
         # Use the logging map to log the object:
         self.LOGGER_MAP[artifact_type.value](
-            context=self._context,
+            ctx=self._context,
             obj=obj,
             key=key,
             logging_kwargs=logging_kwargs,
@@ -1768,7 +1766,7 @@ def context(
     example::
         import mlrun
 
-        @mlrun.function_wrapper(log_outputs=["my_array", None, "my_multiplier"])
+        @mlrun.context(log_outputs=["my_array", None, "my_multiplier"])
         def my_function(array: np.ndarray, m: int):
             array = array * m
             m += 1
@@ -1827,7 +1825,7 @@ def context(
 
             return outputs
 
-        # Make sure to pass the wrapped function's signature (argument list, types and doc strings) to the wrapper:
+        # Make sure to pass the wrapped function's signature (argument list, type hints and doc strings) to the wrapper:
         wrapper = functools.wraps(func)(wrapper)
 
         return wrapper

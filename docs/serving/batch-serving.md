@@ -28,9 +28,9 @@ The function supports the following frameworks:
 These are the parameters for running the function:
 * `input` &mdash; Can be either be a URI, a FeatureVector or a sample in a shape of a list/dict.
 * `model` &mdash; The model Store path.
-* `label column` &mdash; The target label(s) of the column(s) in the dataset. for Regression or Classification tasks.
+* `label column` &mdash; The target label(s) of the column(s) in the dataset, for Regression or Classification tasks.
 * `drop column` (optional) &mdash; str/int or a list of strings/ints that represent the column names/indices to drop. When the dataset is a list/dict, this parameter should be represented by integers.
-* `result_set` &mdash; the name of the artifact with the result dataset.
+* `result_set` &mdash; The name of the artifact with the result dataset.
 * `param sample_set_statistics` (optional) &mdash; The statistics of the sample set logged along a model.
 * `drift_threshold` (optional) &mdash; The threshold at which to mark drifts. Defaults to 0.7.
 * `possible_drift_threshold` (optional) &mdash; The threshold at which to mark possible drifts. Defaults to 0.5.
@@ -253,7 +253,7 @@ model_path = 'store://artifacts/auto-trainer-admin/MyModel:cf9538d81a2a4ce9a2035
 
 ### Making a prediction
 
-Choosing the `predict` handler with all other paramters as described above:
+Choose the `predict` handler with all of the other parameters as described above:
 
 
 ```python
@@ -281,158 +281,6 @@ predict_run = auto_trainer.run(
     > 2022-08-11 06:01:00,104 [info] run executed, status=completed
     X does not have valid feature names, but RandomForestClassifier was fitted with feature names
     final state: completed
-
-
-
-<style>
-.dictlist {
-  background-color: #4EC64B;
-  text-align: center;
-  margin: 4px;
-  border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;}
-.artifact {
-  cursor: pointer;
-  background-color: #4EC64B;
-  text-align: left;
-  margin: 4px; border-radius: 3px; padding: 0px 3px 1px 3px; display: inline-block;
-}
-div.block.hidden {
-  display: none;
-}
-.clickable {
-  cursor: pointer;
-}
-.ellipsis {
-  display: inline-block;
-  max-width: 60px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.master-wrapper {
-  display: flex;
-  flex-flow: row nowrap;
-  justify-content: flex-start;
-  align-items: stretch;
-}
-.master-tbl {
-  flex: 3
-}
-.master-wrapper > div {
-  margin: 4px;
-  padding: 10px;
-}
-iframe.fileview {
-  border: 0 none;
-  height: 100%;
-  width: 100%;
-  white-space: pre-wrap;
-}
-.pane-header-title {
-  width: 80%;
-  font-weight: 500;
-}
-.pane-header {
-  line-height: 1;
-  background-color: #4EC64B;
-  padding: 3px;
-}
-.pane-header .close {
-  font-size: 20px;
-  font-weight: 700;
-  float: right;
-  margin-top: -5px;
-}
-.master-wrapper .right-pane {
-  border: 1px inset silver;
-  width: 40%;
-  min-height: 300px;
-  flex: 3
-  min-width: 500px;
-}
-.master-wrapper * {
-  box-sizing: border-box;
-}
-</style><script>
-function copyToClipboard(fld) {
-    if (document.queryCommandSupported && document.queryCommandSupported('copy')) {
-        var textarea = document.createElement('textarea');
-        textarea.textContent = fld.innerHTML;
-        textarea.style.position = 'fixed';
-        document.body.appendChild(textarea);
-        textarea.select();
-
-        try {
-            return document.execCommand('copy'); // Security exception may be thrown by some browsers.
-        } catch (ex) {
-
-        } finally {
-            document.body.removeChild(textarea);
-        }
-    }
-}
-function expandPanel(el) {
-  const panelName = "#" + el.getAttribute('paneName');
-  console.log(el.title);
-
-  document.querySelector(panelName + "-title").innerHTML = el.title
-  iframe = document.querySelector(panelName + "-body");
-
-  const tblcss = `<style> body { font-family: Arial, Helvetica, sans-serif;}
-    #csv { margin-bottom: 15px; }
-    #csv table { border-collapse: collapse;}
-    #csv table td { padding: 4px 8px; border: 1px solid silver;} </style>`;
-
-  function csvToHtmlTable(str) {
-    return '<div id="csv"><table><tr><td>' +  str.replace(/[\n\r]+$/g, '').replace(/[\n\r]+/g, '</td></tr><tr><td>')
-      .replace(/,/g, '</td><td>') + '</td></tr></table></div>';
-  }
-
-  function reqListener () {
-    if (el.title.endsWith(".csv")) {
-      iframe.setAttribute("srcdoc", tblcss + csvToHtmlTable(this.responseText));
-    } else {
-      iframe.setAttribute("srcdoc", this.responseText);
-    }
-    console.log(this.responseText);
-  }
-
-  const oReq = new XMLHttpRequest();
-  oReq.addEventListener("load", reqListener);
-  oReq.open("GET", el.title);
-  oReq.send();
-
-
-  //iframe.src = el.title;
-  const resultPane = document.querySelector(panelName + "-pane");
-  if (resultPane.classList.contains("hidden")) {
-    resultPane.classList.remove("hidden");
-  }
-}
-function closePanel(el) {
-  const panelName = "#" + el.getAttribute('paneName')
-  const resultPane = document.querySelector(panelName + "-pane");
-  if (!resultPane.classList.contains("hidden")) {
-    resultPane.classList.add("hidden");
-  }
-}
-
-</script>
-<div class="master-wrapper">
-  <div class="block master-tbl"><div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -465,23 +313,8 @@ function closePanel(el) {
     </tr>
   </tbody>
 </table>
-</div></div>
-  <div id="resultf96b3f2d-pane" class="right-pane block hidden">
-    <div class="pane-header">
-      <span id="resultf96b3f2d-title" class="pane-header-title">Title</span>
-      <span onclick="closePanel(this)" paneName="resultf96b3f2d" class="close clickable">&times;</span>
-    </div>
-    <iframe class="fileview" id="resultf96b3f2d-body"></iframe>
-  </div>
-</div>
 
-
-
-    
-
-
-
-<b> > to track results use the .show() or .logs() methods  or <a href="https://dashboard.default-tenant.app.product-3-4-2.iguazio-cd0.com/mlprojects/batch-inference-admin/jobs/monitor/b13cb0f4bc794771819500ae146dffa7/overview" target="_blank">click here</a> to open in UI</b>
+<b> > To track results use the .show() or .logs() methods  or <a href="https://dashboard.default-tenant.app.product-3-4-2.iguazio-cd0.com/mlprojects/batch-inference-admin/jobs/monitor/b13cb0f4bc794771819500ae146dffa7/overview" target="_blank">click here</a> to open in UI</b>
 > 2022-08-11 06:01:00,573 [info] run executed, status=completed
 
 
@@ -567,15 +400,15 @@ predict_run.artifact(result_set).show()
 ### View the results in the UI 
 
 The output is saved as a parquet file under the project artifact path.
-In the UI, go to the prediction job --> Artifacts tab to view the details.
+In the UI, go to the **prediction** job --> **Artifacts** tab to view the details.
 
 <img src="../_static/images/prediction-results.png" alt="Jobs" width="1400"/>
 
-### How to scehdule a batch job
+### How to schedule a batch job
 
 To schedule a job, set the schedule parameter of the run method. The scheduling is done by using a crontab format.
 
-You can also schedule jobs from the dashboard. On the **Projects > Jobs and Workflows** page, you can create a new job using the **New Job** wizard. At the end of the wizard you can set the job scheduling. In the following example, the job is set to run every 30 minutes.
+You can also schedule jobs from the dashboard. On the **Projects > Jobs and Workflows** page, create a new job using the **New Job** wizard. At the end of the wizard you can set the job scheduling. In the following example, the job is set to run every 30 minutes.
 
 
 ```python
@@ -600,7 +433,7 @@ predict_run = auto_trainer.run(
 
 By default, the auto_trainer function analyzes drift by comparing the input and the sample dataset statistics.  
 It triggers a drift analysis job that generates 3 output files that can be viewed under the **Artifacts** tab for the prediction job:
-* drift_table_plot &mdash; shows expected vs. actual statistics for every feature as a plot.
+* drift_table_plot &mdash; shows the expected vs. actual statistics for every feature as a plot.
 * drift_results &mdash; shows the drift result per feature as a JSON format so you can use it to process this data and apply your logic on top of it.
 * dataset_statistics &mdash; shows the statistics of the input dataset.
 

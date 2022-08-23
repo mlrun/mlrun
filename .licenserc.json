@@ -1,22 +1,4 @@
-[
-  {
-    "**/*.py": "# Copyright 2018 Iguazio",
-    "**.Dockerfile": "# Copyright 2018 Iguazio"
-  },
-    {
-    "**/*.py": "# Copyright 2019 Iguazio",
-    "**.Dockerfile": "# Copyright 2019 Iguazio"
-  },
-    {
-    "**/*.py": "# Copyright 2020 Iguazio",
-    "**.Dockerfile": "# Copyright 2020 Iguazio"
-  },
-    {
-    "**/*.py": "# Copyright 2021 Iguazio",
-    "**.Dockerfile": "# Copyright 2021 Iguazio"
-  },
-    {
-    "**/*.py": "# Copyright 2022 Iguazio",
-    "**.Dockerfile": "# Copyright 2022 Iguazio"
-  }
-]
+{
+  "**/*{.py}": "Licensed under the Apache License, Version 2.0",
+  "**/{Dockerfile,Makefile}": "Licensed under the Apache License, Version 2.0"
+}

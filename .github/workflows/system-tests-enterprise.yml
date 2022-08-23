@@ -181,6 +181,7 @@ jobs:
       matrix:
         test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
     steps:
+    # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v2
       with:
         ref: "${{ needs.outputs.mlrunCommitHash }}"

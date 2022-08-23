@@ -1,5 +1,5 @@
-from datetime import datetime
 import os
+from datetime import datetime
 from typing import List, Optional, Union
 
 import pandas
@@ -27,17 +27,17 @@ class MongoDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUI
     """
 
     def __init__(
-            self,
-            db_name: str = None,
-            connection_string: str = None,
-            collection_name: str = None,
-            query: dict = None,
-            key_field: Union[str, List[str]] = None,
-            start_filter: datetime = None,
-            end_filter: datetime = None,
-            time_field: str = None,
-            id_field: str = None,
-            **kwargs,
+        self,
+        db_name: str = None,
+        connection_string: str = None,
+        collection_name: str = None,
+        query: dict = None,
+        key_field: Union[str, List[str]] = None,
+        start_filter: datetime = None,
+        end_filter: datetime = None,
+        time_field: str = None,
+        id_field: str = None,
+        **kwargs,
     ):
         if query is None:
             query = {}
@@ -152,12 +152,12 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
     """Abstract class for database connection"""
 
     def __init__(
-            self,
-            # redis_type: RedisType = RedisType.STANDALONE,
-            key_prefix: str = None,
-            webapi: Optional[str] = None,
-            aggregation_attribute_prefix: str = "aggr_",
-            aggregation_time_attribute_prefix: str = "_",
+        self,
+        # redis_type: RedisType = RedisType.STANDALONE,
+        key_prefix: str = None,
+        webapi: Optional[str] = None,
+        aggregation_attribute_prefix: str = "aggr_",
+        aggregation_time_attribute_prefix: str = "_",
     ):
 
         NeedsMongoDBAccess.__init__(self, webapi)
@@ -188,7 +188,7 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
         return None
 
     async def _save_key(
-            self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
+        self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
     ):
         self._lazy_init()
         mongodb_key = self.make_key(table_path, key)
@@ -248,11 +248,11 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
             key: val
             for key, val in response.items()
             if key is not self._storey_key
-               and not key.startswith(self._aggregation_attribute_prefix)
+            and not key.startswith(self._aggregation_attribute_prefix)
         }
 
     async def _get_specific_fields(
-            self, mongodb_key: str, collection, attributes: List[str]
+        self, mongodb_key: str, collection, attributes: List[str]
     ):
         try:
             response = collection.find_one(
@@ -268,32 +268,32 @@ class MongoDBDriver(NeedsMongoDBAccess, storey.Driver):
 class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID):
     """Use mongodb collection as input source for a flow.
 
-        :parameter key_field: column to be used as key for events. can be list of columns
-        :parameter time_field: column to be used as time for events.
-        :parameter id_field: column to be used as ID for events.
-        :parameter db_name: the name of the database to access
-        :parameter connection_string: your mongodb connection string
-        :parameter collection_name: the name of the collection to access,
-                                    from the current database
-        :parameter query: dictionary query for mongodb
-        :parameter start_filter: If not None, the results will be filtered by partitions and 'filter_column' > start_filter.
-                                Default is None
-        :parameter end_filter:  If not None, the results will be filtered by partitions 'filter_column' <= end_filter.
-                                Default is None
+    :parameter key_field: column to be used as key for events. can be list of columns
+    :parameter time_field: column to be used as time for events.
+    :parameter id_field: column to be used as ID for events.
+    :parameter db_name: the name of the database to access
+    :parameter connection_string: your mongodb connection string
+    :parameter collection_name: the name of the collection to access,
+                                from the current database
+    :parameter query: dictionary query for mongodb
+    :parameter start_filter: If not None, the results will be filtered by partitions and 'filter_column' > start_filter.
+                            Default is None
+    :parameter end_filter:  If not None, the results will be filtered by partitions 'filter_column' <= end_filter.
+                            Default is None
 
-        """
+    """
 
     def __init__(
-            self,
-            db_path: str = None,
-            collection_name: str = None,
-            query: dict = None,
-            key_field: Optional[Union[str, List[str]]] = None,
-            start_filter: Optional[datetime] = None,
-            end_filter: Optional[datetime] = None,
-            time_field: Optional[str] = None,
-            id_field: Optional[str] = None,
-            **kwargs,
+        self,
+        db_path: str = None,
+        collection_name: str = None,
+        query: dict = None,
+        key_field: Optional[Union[str, List[str]]] = None,
+        start_filter: Optional[datetime] = None,
+        end_filter: Optional[datetime] = None,
+        time_field: Optional[str] = None,
+        id_field: Optional[str] = None,
+        **kwargs,
     ):
         # if query is None:
         #     query = {}
@@ -316,40 +316,41 @@ class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID)
         storey.sources.WithUUID.__init__(self)
 
         if not all([db_path, collection_name]):
-            raise ValueError(
-                "cannot specify without db_path and collection_name args"
-            )
+            raise ValueError("cannot specify without db_path and collection_name args")
 
         self.query = query
         self.collection_name = collection_name
         self.db_path = db_path
 
         self._key_field = key_field
-        if isinstance(time_field, str) and '.' in time_field:
+        if isinstance(time_field, str) and "." in time_field:
             self._time_field = time_field.split(".")
         else:
             self._time_field = time_field
-        if isinstance(id_field, str) and '.' in id_field:
+        if isinstance(id_field, str) and "." in id_field:
             self._id_field = id_field.split(".")
         else:
             self._id_field = id_field
 
     async def _run_loop(self):
         import sqlalchemy as db
+
         engine = db.create_engine(self.db_path)
         metadata = db.MetaData()
         connection = engine.connect()
-        collection = db.Table(self.collection_name, metadata, autoload=True, autoload_with=engine)
+        collection = db.Table(
+            self.collection_name, metadata, autoload=True, autoload_with=engine
+        )
         results = connection.execute(db.select([collection])).fetchall()
         df = pandas.DataFrame(results)
         df.columns = results[0].keys()
-        df.set_index('index', inplace=True)
+        df.set_index("index", inplace=True)
         connection.close()
 
         for namedtuple in df.itertuples():
             create_event = True
             body = namedtuple._asdict()
-            body.pop('Index')
+            body.pop("Index")
             # if len(df.index.names) > 1:
             #     for i, index_column in enumerate(df.index.names):
             #         body[index_column] = index[i]
@@ -396,11 +397,11 @@ class SqlDBDriver(storey.Driver):
     """Abstract class for database connection"""
 
     def __init__(
-            self,
-            primary_key: str,
-            db_path: str,
-            aggregation_attribute_prefix: str = "aggr_",
-            aggregation_time_attribute_prefix: str = "_",
+        self,
+        primary_key: str,
+        db_path: str,
+        aggregation_attribute_prefix: str = "aggr_",
+        aggregation_time_attribute_prefix: str = "_",
     ):
         self._db_path = db_path
         self._sql_connection = None
@@ -421,8 +422,14 @@ class SqlDBDriver(storey.Driver):
 
     def collection(self, table_path):
         import sqlalchemy as db
+
         metadata = db.MetaData()
-        return db.Table(table_path[3:].split('/')[1], metadata, autoload=True, autoload_with=self._engine)
+        return db.Table(
+            table_path[3:].split("/")[1],
+            metadata,
+            autoload=True,
+            autoload_with=self._engine,
+        )
 
     async def _save_schema(self, container, table_path, schema):
         self._lazy_init()
@@ -433,19 +440,20 @@ class SqlDBDriver(storey.Driver):
         return None
 
     async def _save_key(
-            self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
+        self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
     ):
         from sqlalchemy import exc
+
         self._lazy_init()
 
         collection = self.collection(table_path)
         return_val = None
         try:
-            return_val = self._sql_connection.execute(collection.insert(), [
-                additional_data
-            ])
+            return_val = self._sql_connection.execute(
+                collection.insert(), [additional_data]
+            )
         except exc.IntegrityError:
-            print(1)
+            pass
         return return_val
 
     async def _load_aggregates_by_key(self, container, table_path, key):
@@ -467,7 +475,6 @@ class SqlDBDriver(storey.Driver):
         if attribute == "*":
             _, values = await self._get_all_fields(key, collection)
         else:
-            print(1)
             values = None
         return values
 
@@ -477,21 +484,17 @@ class SqlDBDriver(storey.Driver):
     async def _get_all_fields(self, key: str, collection):
 
         try:
-            response = collection.select().where(collection.c[self._primary_key] == key)
-            # result = self._sql_connection.execute(response)
+            my_query = f"SELECT * FROM {collection} where {self._primary_key}={key}"
+            results = self._sql_connection.execute(my_query).fetchall()
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to get key {key}. Response error was: {e}"
-            )
+            raise RuntimeError(f"Failed to get key {key}. Response error was: {e}")
+
         return None, {
-            key: val
-            for key, val in response.items()
-            if key is not self._storey_key
-               and not key.startswith(self._aggregation_attribute_prefix)
+            results[0]._fields[i]: results[0][i] for i in range(len(results[0]))
         }
 
     async def _get_specific_fields(
-            self, mongodb_key: str, collection, attributes: List[str]
+        self, mongodb_key: str, collection, attributes: List[str]
     ):
         # try:
         #     response = collection.find_one(

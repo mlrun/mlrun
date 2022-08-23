@@ -60,7 +60,7 @@ class TargetTypes:
             TargetTypes.dataframe,
             TargetTypes.custom,
             TargetTypes.mongodb,
-            TargetTypes.sql
+            TargetTypes.sql,
         ]
 
 
@@ -1671,8 +1671,6 @@ class SqlDBTarget(BaseStoreTarget):
         path=None,
         attributes: typing.Dict[str, str] = None,
         after_step=None,
-        schema: typing.Dict[str, type] = None,
-        primary_key_column: str = None,
         partitioned: bool = False,
         key_bucketing_number: typing.Optional[int] = None,
         partition_cols: typing.Optional[typing.List[str]] = None,
@@ -1683,27 +1681,35 @@ class SqlDBTarget(BaseStoreTarget):
         storage_options: typing.Dict[str, str] = None,
         db_path: str = None,
         collection_name: str = None,
-        if_exists: bool = False,  # {‘fail’, ‘replace’, ‘append’},
+        schema: typing.Dict[str, type] = {},
+        primary_key_column: str = "",
+        if_exists: bool = False,
         create_collection: bool = False,
         create_according_to_data: bool = False,
     ):
         """
-        Write to MongoDB as output target for a flow.
+        Write to SqlDB as output target for a flow.
 
         example::
-             connection_string = "???"
-             query = {age: {"$gt: 5}}
-             MongoDBTarget(connection_string=connection_string, collection_name="coll",
-             db_name="my_dataset", chunksize=5, query=query)
+             db_path = "sqlite:///stockmarket.db"
+             schema = {'time': datetime.datetime, 'ticker': str,
+                    'bid': float, 'ask': float, 'ind': int}
+             target = SqlDBTarget(collection_name=f'{name}-tatget', db_path=db_path, create_collection=True,
+                                   schema=schema, primary_key_column=key)
 
-        :param db_name:             the name of the database to access
-        :param connection_string:   your mongodb connection string
-        :param collection_name:     the name of the collection to access,
-                                    from the current database
-        :param create_collection:   pass True if you want to create new collection named by
-                                    collection_name on current database.
-        :param override_collection: pass True if you want to override all the documents on the
-                                    collection named by collection_name on current database.
+        :param db_path:                     the name of the database to access
+        :param collection_name:             the name of the collection to access,
+                                            from the current database
+        :param schema:                      the schema of the collection (must pass when
+                                            create_collection=True)
+        :param primary_key_column:          the primary key of the collection (must pass always)
+        :param if_exists:                   {'fail', 'replace', 'append'}, default 'fail'
+                                            - fail: If table exists, do nothing.
+                                            - replace: If table exists, drop it, recreate it, and insert data.
+                                            - append: If table exists, insert data. Create if does not exist.
+        :param create_collection:           pass True if you want to create new collection named by
+                                            collection_name with schema on current database.
+        :param create_according_to_data:    (not valid)
         """
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None or collection_name is None:
@@ -1712,10 +1718,13 @@ class SqlDBTarget(BaseStoreTarget):
             # check for collection existence and acts according to the user input
             self._primary_key_column = primary_key_column
             import sqlalchemy as db
+
             engine = db.create_engine(db_path)
             sql_connection = engine.connect()
             metadata = db.MetaData()
-            collection_exists = engine.dialect.has_table(sql_connection, collection_name)
+            collection_exists = engine.dialect.has_table(
+                sql_connection, collection_name
+            )
             if not collection_exists and not create_collection:
                 raise ValueError(f"Collection named {collection_name} is not exist")
 
@@ -1735,20 +1744,21 @@ class SqlDBTarget(BaseStoreTarget):
                         col_type = db.Float
                     else:
                         raise TypeError(f"{col_type} unsupported type")
-                    columns.append(db.Column(col, col_type, primary_key=(col == primary_key_column)))
+                    columns.append(
+                        db.Column(
+                            col, col_type, primary_key=(col == primary_key_column)
+                        )
+                    )
 
-                db.Table(
-                    collection_name, metadata,
-                    *columns
-                )
+                db.Table(collection_name, metadata, *columns)
                 metadata.create_all(engine)
-                if_exists = 'append'
+                if_exists = "append"
 
             attr = {
                 "collection_name": collection_name,
                 "db_path": db_path,
-                'create_according_to_data': create_according_to_data,
-                'if_exists': if_exists
+                "create_according_to_data": create_according_to_data,
+                "if_exists": if_exists,
             }
             path = f"mlrunSql://@{db_path}//@{collection_name}//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}"
             sql_connection.close()
@@ -1787,16 +1797,15 @@ class SqlDBTarget(BaseStoreTarget):
 
     def get_table_object(self):
         from storey import Table
+
         from mlrun.datastore.tempFromStorey import SqlDBDriver
+
         # TODO use options/cred
-        (
-            db_path, collection_name, _, _, primary_key
-        ) = self._parse_url()
+        (db_path, collection_name, _, _, primary_key) = self._parse_url()
         return Table(
             f"{db_path}/{collection_name}",
-            SqlDBDriver(db_path=db_path, primary_key=primary_key.split('/')[0]),
+            SqlDBDriver(db_path=db_path, primary_key=primary_key.split("/")[0]),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-            # support_full_aggregation_query=False,
         )
 
     def add_writer_step(
@@ -1856,13 +1865,19 @@ class SqlDBTarget(BaseStoreTarget):
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
         import sqlalchemy as db
+
         # {‘fail’, ‘replace’, ‘append’} #
         if hasattr(df, "rdd"):
             raise ValueError("Spark is not supported")
         else:
-            db_path, collection_name, create_according_to_data, if_exists = self._parse_url()
+            (
+                db_path,
+                collection_name,
+                create_according_to_data,
+                if_exists,
+            ) = self._parse_url()
             create_according_to_data = bool(create_according_to_data)
-            engine = db.create_engine("sqlite:///stockmarket.db", echo=True)
+            engine = db.create_engine(db_path, echo=True)
             sqlite_connection = engine.connect()
             if create_according_to_data:
                 # todo : create according to fist row.
@@ -1887,7 +1902,7 @@ kind_to_driver = {
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
     TargetTypes.mongodb: MongoDBTarget,
-    TargetTypes.sql: SqlDBTarget
+    TargetTypes.sql: SqlDBTarget,
 }
 
 

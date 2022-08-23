@@ -505,7 +505,7 @@ class SqlDBDriver(storey.Driver):
         #         f"Failed to get key {mongodb_key}. Response error was: {e}"
         #     )
         # return {key: val for key, val in response.items() if key in attributes}
-        pass
+        raise NotImplementedError
 
     def supports_aggregations(self):
         return False

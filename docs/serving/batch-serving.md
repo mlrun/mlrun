@@ -6,7 +6,7 @@ This topic describes how to run a batch predict job along with drift analysis.
 
 Batch inference or offline inference addresses the need to run machine learning model on large datasets.  
 
-Batch, or offline, inference is the process of generating predictions on a batch of observations. The batch jobs are typically generated on some a schedule (e.g. 
+Batch, or offline, inference is the process of generating predictions on a batch of observations. The batch jobs are typically generated on a schedule (e.g. 
 hourly, daily). These predictions are then stored in a database or a file and can be made available to developers or end users. Batch inference can also take 
 advantage of big data technologies, such as Spark, to generate predictions. This allows data scientists and machine learning engineers to take advantage of scalable 
 compute resources to generate many predictions at once. As opposed to real time inference (where the goal is usually to optimize the number of transactions per 

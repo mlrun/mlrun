@@ -13,7 +13,7 @@
 # limitations under the License.
 import copy
 from datetime import datetime
-from typing import List, Union
+from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -304,7 +304,7 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> pd.DataFrame:
+) -> Optional[pd.DataFrame]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -348,7 +348,7 @@ def ingest(
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
                                     False for scheduled ingest - does not delete the target)
-
+    :return:              if return_df is True, a dataframe will be returned based on the graph
     """
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
@@ -509,6 +509,7 @@ def ingest(
             mlrun_context=mlrun_context,
             namespace=namespace,
             overwrite=overwrite,
+            return_df=return_df,
         )
 
     if isinstance(source, str):
@@ -527,7 +528,8 @@ def ingest(
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
-    return_df = return_df or infer_stats != InferOptions.Null
+    # Check if dataframe is already calculated (for feature set graph):
+    calculate_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
     df = init_featureset_graph(
@@ -535,7 +537,7 @@ def ingest(
         featureset,
         namespace,
         targets=targets_to_ingest,
-        return_df=return_df,
+        return_df=calculate_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
@@ -556,8 +558,8 @@ def ingest(
                 target.last_written = source.start_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)
-
-    return df
+    if return_df:
+        return df
 
 
 def preview(
@@ -754,6 +756,7 @@ def _ingest_with_spark(
     mlrun_context=None,
     namespace=None,
     overwrite=None,
+    return_df=None,
 ):
     created_spark_context = False
     try:
@@ -867,7 +870,8 @@ def _ingest_with_spark(
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             df = None
-    return df
+    if return_df:
+        return df
 
 
 def _post_ingestion(context, featureset, spark=None):

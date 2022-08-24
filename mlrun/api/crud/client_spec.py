@@ -38,6 +38,7 @@ class ClientSpec(
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=resolve_nuclio_version(),
+            spark_operator_version=config.spark_operator_version,
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default
@@ -63,9 +64,6 @@ class ClientSpec(
             ),
             auto_mount_params=self._get_config_value_if_not_default(
                 "storage.auto_mount_params"
-            ),
-            spark_operator_version=self._get_config_value_if_not_default(
-                "spark_operator_version"
             ),
             default_tensorboard_logs_path=self._get_config_value_if_not_default(
                 "default_tensorboard_logs_path"

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import json
 
@@ -158,8 +172,7 @@ class RemoteStep(storey.SendToHttp):
         if not self._session:
             self._session = mlrun.utils.HTTPSessionWithRetry(
                 self.retries,
-                self.backoff_factor
-                or mlrun.config.config.http_retry_defaults.backoff_factor,
+                self.backoff_factor or mlrun.mlconf.http_retry_defaults.backoff_factor,
                 retry_on_exception=False,
                 retry_on_status=self.retries > 0,
                 retry_on_post=True,

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import datetime
 import json
@@ -868,7 +882,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             feature_names = endpoint_record.get(EventFieldType.FEATURE_NAMES)
             feature_names = json.loads(feature_names) if feature_names else None
 
-            label_columns = endpoint_record.get(EventFieldType.LABEL_COLUMNS)
+            label_columns = endpoint_record.get(EventFieldType.LABEL_NAMES)
             label_columns = json.loads(label_columns) if label_columns else None
 
             # Ff feature names were not found,
@@ -930,26 +944,53 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
             )
 
+        # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
-        features = event[EventFieldType.FEATURES]
+        feature_values = event[EventFieldType.FEATURES]
+        self._map_dictionary_values(
+            event=event,
+            named_iters=feature_names,
+            values_iters=feature_values,
+            mapping_dictionary=EventFieldType.NAMED_FEATURES,
+        )
 
-        # Create named_features dict that will be used later for the Parquet target
-        event[EventFieldType.NAMED_FEATURES] = {
-            name: feature for name, feature in zip(feature_names, features)
-        }
+        # Add label_name:value pairs along with a mapping dictionary of all of these pairs
+        label_names = self.label_columns[endpoint_id]
+        label_values = event[EventFieldType.PREDICTION]
+        self._map_dictionary_values(
+            event=event,
+            named_iters=label_names,
+            values_iters=label_values,
+            mapping_dictionary=EventFieldType.NAMED_PREDICTIONS,
+        )
 
-        # Create key-value pairs of (feature name: feature value)
-        for name, feature in zip(feature_names, features):
-            event[name] = feature
-
-        # Create name_predictions dict that will be used later for the Parquet target
-        label_columns = self.label_columns[endpoint_id]
-        prediction = event[EventFieldType.PREDICTION]
-        event[EventFieldType.NAMED_PREDICTIONS] = {
-            name: prediction for name, prediction in zip(label_columns, prediction)
-        }
         logger.info("Mapped event", event=event)
         return event
+
+    @staticmethod
+    def _map_dictionary_values(
+        event: typing.Dict,
+        named_iters: typing.List,
+        values_iters: typing.List,
+        mapping_dictionary: str,
+    ):
+        """Adding name-value pairs to event dictionary based on two provided lists of names and values. These pairs
+        will be used mainly for the Parquet target file. In addition, this function creates a new mapping dictionary of
+        these pairs which will be unpacked in ProcessBeforeTSDB step
+
+        :param event:               A dictionary that includes details about the current event such as endpoint_id
+                                    and input names and values.
+        :param named_iters:         List of names to match to the list of values.
+        :param values_iters:        List of values to match to the list of names.
+        :param mapping_dictionary:  Name of the new dictionary that will be stored in the current event. The new
+                                    dictionary includes name-value pairs based on the provided named_iters and
+                                    values_iters lists.
+
+        """
+        event[mapping_dictionary] = {}
+        for name, value in zip(named_iters, values_iters):
+            event[name] = value
+            event[mapping_dictionary][name] = value
 
 
 class WriteToKV(mlrun.feature_store.steps.MapClass):

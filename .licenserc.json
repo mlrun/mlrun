@@ -1,0 +1,8 @@
+{
+  "**/*.{py,yaml,yml}": "Licensed under the Apache License, Version 2.0",
+  "**/{Dockerfile,Makefile}": "Licensed under the Apache License, Version 2.0",
+  "ignore": [
+    "docs/",
+    "vendor/"
+  ]
+}

@@ -503,7 +503,7 @@ class Client(
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 
-        user_id, group_ids = Client._resolve_user_and_group_ids(response)
+        user_id, group_ids = Client._resolve_params_from_response_body(response)
 
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],
@@ -518,7 +518,7 @@ class Client(
         return auth_info
 
     @staticmethod
-    def _resolve_user_and_group_ids(response: requests.Response):
+    def _resolve_params_from_response_body(response: requests.Response):
 
         # from iguazio version >= 3.5.2, user and group ids are included in the response body
         # if not, get them from the headers

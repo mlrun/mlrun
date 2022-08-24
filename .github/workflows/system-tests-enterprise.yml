@@ -136,6 +136,7 @@ jobs:
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
@@ -210,5 +211,5 @@ jobs:
           -o StrictHostKeyChecking=no \
           -o ServerAliveInterval=180 \
           -o ServerAliveCountMax=3 \
-          iguazio@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
           kubectl -n default-tenant rollout restart deployment docker-registry

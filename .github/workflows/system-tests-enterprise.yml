@@ -200,3 +200,15 @@ jobs:
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
           make test-system-dockerized
+    - name: System Test Cleanup
+      # SSH to datanode and delete all docker images created by the system
+      # tests by restarting the docker-registry deployment
+      run: |  
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=180 \
+          -o ServerAliveCountMax=3 \
+          iguazio@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          kubectl -n default-tenant rollout restart deployment docker-registry

@@ -95,13 +95,6 @@ jobs:
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
-        echo "::set-output name=mlrun_hash::$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-upstream)"
         echo "::set-output name=ui_hash::$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
@@ -162,7 +155,6 @@ jobs:
 
 
     outputs:
-      mlrunCommitHash: $GITHUB_SHA
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
@@ -183,8 +175,6 @@ jobs:
     steps:
     # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v2
-      with:
-        ref: "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunCommitHash }}"
     - name: Set up python 3.7
       uses: actions/setup-python@v1
       with:

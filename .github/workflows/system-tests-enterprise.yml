@@ -162,7 +162,6 @@ jobs:
 
 
     outputs:
-      mlrunCommitHash:
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 

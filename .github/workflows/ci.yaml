@@ -38,8 +38,6 @@ jobs:
         python-version: [3.7, 3.8]
     steps:
     - uses: actions/checkout@v2
-      with:
-        ref: 546ba7cd
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v1
       with:
@@ -196,11 +194,3 @@ jobs:
         run: |
           cd head/mlrun
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
-
-  check-copyright:
-    name: Check Copyright Existent
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Check License Lines
-        uses: kt3k/license_checker@v1.0.6

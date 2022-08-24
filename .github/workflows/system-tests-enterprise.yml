@@ -162,7 +162,7 @@ jobs:
 
 
     outputs:
-      mlrunCommitHash: $GITHUB_SHA
+      mlrunCommitHash:
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 
@@ -184,7 +184,7 @@ jobs:
     # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v2
       with:
-        ref: "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunCommitHash }}"
+        ref: ${{ github.sha }}
     - name: Set up python 3.7
       uses: actions/setup-python@v1
       with:

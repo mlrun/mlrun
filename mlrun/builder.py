@@ -91,6 +91,7 @@ def make_kaniko_pod(
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
+        logger.info("ALON", attribute=attribute, value=attr_value)
         if attr_value:
             extra_runtime_spec[attribute] = attr_value
 

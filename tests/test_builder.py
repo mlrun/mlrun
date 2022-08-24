@@ -781,7 +781,6 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
         "some-tag",
         image="mlrun/mlrun",
         kind="job",
-        requirements=["some-package"],
     )
     mlrun.builder.build_runtime(
         mlrun.api.schemas.AuthInfo(),
@@ -811,7 +810,6 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
         "some-tag",
         image="mlrun/mlrun",
         kind="job",
-        requirements=["some-package"],
     )
     service_account = "my-actual-sa"
     function.spec.service_account = service_account

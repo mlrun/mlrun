@@ -28,7 +28,7 @@ import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-from mlrun.utils import logger
+from mlrun.utils import get_in, logger
 
 
 class JobStates:
@@ -505,26 +505,27 @@ class Client(
 
         # get user and group ids from response body
         response_body = response.json()
-        context_auth = (
-            response_body.get("data", {})
-            .get("attributes", {})
-            .get("context", {})
-            .get("authentication", {})
+        context_auth = get_in(
+            response_body, "data.attributes.context.authentication", {}
         )
         user_id = context_auth.get("user_id", None)
         if user_id is None:
             user_id = response.headers.get("x-user-id")
-        gids = context_auth.get("group_ids", None)
-        group_ids = []
-        if gids is None:
+
+        gids = context_auth.get("group_ids", [])
+
+        # fallback to header if no GIDs are found in response body
+        if not gids:
             gids = response.headers.get("x-user-group-ids")
             # "x-user-group-ids" header is a comma separated list of group ids
             if gids:
-                group_ids = gids.split(",")
-        else:
-            for gid in gids:
-                # some gids can be a comma separated list of group ids
-                group_ids.extend(gid.split(","))
+                gids = gids.split(",")
+
+        # some gids can be a comma separated list of group ids
+        # (if taken from the headers, the next split will have no effect)
+        group_ids = []
+        for gid in gids:
+            group_ids.extend(gid.split(","))
 
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],

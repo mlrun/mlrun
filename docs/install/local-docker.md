@@ -23,6 +23,13 @@ You can select a specific MLRun version with the `TAG` variable and Nuclio versi
 
 Add the `-d` flag to `docker-compose` for running in detached mode (in the background).
 
+```{admonition} Note
+Support for running as a non-root user was added in 1.0.5, hence the underlying exposed port was changed.
+If you want to use previous mlrun versions, modify the mlrun-ui port from 8090 back to 80.
+```
+**Watch the installation:**
+[![MLRun install](../_static/images/mlrun-page.png)](https://www.youtube.com/watch?v=_MLaLZBa4UY)
+
 ## Use MLRun with your own client
 
 The following commands install MLRun + Nuclio for work with your own IDE or notebook. 
@@ -34,7 +41,8 @@ The following commands install MLRun + Nuclio for work with your own IDE or note
    ```
 ````
 
-````{tabbed} Linux/Mac
+`````{tab-set}
+````{tab-item} Linux/Mac
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
@@ -42,10 +50,10 @@ mkdir $SHARED_DIR -p
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface).
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface).
 ````
 
-````{tabbed} Windows (cmd)
+````{tab-item} Windows (cmd)
 ```sh
 set HOST_IP=<your host IP address>
 set SHARED_DIR=c:\mlrun-data
@@ -53,8 +61,22 @@ mkdir %SHARED_DIR%
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
+
+````{tab-item} Powershell
+```sh
+$Env:HOST_IP=<your host IP address>
+$Env:SHARED_DIR="~/mlrun-data"
+mkdir $Env:SHARED_DIR
+docker-compose -f compose.yaml up
+``` 
+
+Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+````
+
+`````
+
 
 This creates 3 services:
 - MLRun API (in [http://localhost:8080](http://localhost:8080))
@@ -75,7 +97,8 @@ For the quickest experience with MLRun you can deploy MLRun with a pre integrate
    ```
 ````
 
-````{tabbed} Linux/Mac
+`````{tab-set}
+````{tab-item} Linux/Mac
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
@@ -83,10 +106,10 @@ mkdir $SHARED_DIR -p
 docker-compose -f compose.with-jupyter.yaml up
 ```
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recomended to select an address that does not change dynamically (for example the IP of the bridge interface). 
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
-````{tabbed} Windows (cmd)
+````{tab-item} Windows (cmd)
 ```sh
 set HOST_IP=<your host IP address>
 set SHARED_DIR=c:\mlrun-data
@@ -94,8 +117,22 @@ mkdir %SHARED_DIR%
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recomended to select an address which does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
+
+````{tab-item} Powershell
+```sh
+$Env:HOST_IP=<your host IP address>
+$Env:SHARED_DIR="~/mlrun-data"
+mkdir $Env:SHARED_DIR
+docker-compose -f compose.with-jupyter.yaml up
+``` 
+
+Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+````
+
+`````
+
 
 This creates 4 services:
 - Jupyter lab (in [http://localhost:8888](http://localhost:8888))

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 name: System Tests Enterprise
 
 on:
@@ -81,13 +95,6 @@ jobs:
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
-        echo "::set-output name=mlrun_hash::$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-upstream)"
         echo "::set-output name=ui_hash::$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
@@ -147,6 +154,10 @@ jobs:
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
 
 
+    outputs:
+      mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
+      mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
+
   run-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
     timeout-minutes: 360
@@ -160,8 +171,9 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        test_component: [api,runtimes,projects,model_monitoring,examples,demos,backwards_compatibility,feature_store]
+        test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
     steps:
+    # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v2
     - name: Set up python 3.7
       uses: actions/setup-python@v1
@@ -171,71 +183,6 @@ jobs:
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Install curl and jq
       run: sudo apt-get install curl jq
-    - name: Extract git branch
-      id: git_info
-      run: |
-        echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
-    - name: Extract git hash from action mlrun version
-      if: ${{ github.event.inputs.test_code_from_action == 'true' }}
-      id: git_action_info
-      run: |
-        echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"
-    - name: Extract git hash from action mlrun version
-      if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
-      id: git_action_ui_info
-      run: |
-        echo "::set-output name=ui_hash::$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.git_info.outputs.branch }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)"
-    - name: Extract git hashes from upstream and latest version
-      id: git_upstream_info
-      run: |
-        echo "::set-output name=mlrun_hash::$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-upstream)"
-        echo "::set-output name=ui_hash::$( \
-          cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)"
-        echo "::set-output name=unstable_version_prefix::$(cat automation/version/unstable_version_prefix)"
-    - name: Set computed versions params
-      id: computed_params
-      run: |
-        action_mlrun_hash=${{ steps.git_action_info.outputs.mlrun_hash }} && \
-        upstream_mlrun_hash=${{ steps.git_upstream_info.outputs.mlrun_hash }} && \
-        export mlrun_hash=${action_mlrun_hash:-`echo $upstream_mlrun_hash`}
-        echo "::set-output name=mlrun_hash::$(echo $mlrun_hash)"
-        action_mlrun_ui_hash=${{ steps.git_action_ui_info.outputs.ui_hash }} && \
-        upstream_mlrun_ui_hash=${{ steps.git_upstream_info.outputs.ui_hash }} && \
-        export ui_hash=${action_mlrun_ui_hash:-`echo $upstream_mlrun_ui_hash`}
-        echo "::set-output name=ui_hash::$(echo $ui_hash)"
-        echo "::set-output name=mlrun_version::$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}+$mlrun_hash)"
-        echo "::set-output name=mlrun_docker_tag::$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)"
-        echo "::set-output name=mlrun_ui_version::${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash"
-        echo "::set-output name=mlrun_docker_repo::$( \
-          input_docker_repo=${{ github.event.inputs.docker_repo }} && \
-          echo ${input_docker_repo:-mlrun})"
-        echo "::set-output name=mlrun_docker_registry::$( \
-          input_docker_registry=${{ github.event.inputs.docker_registry }} && \
-          echo ${input_docker_registry:-ghcr.io/})"
-        echo "::set-output name=mlrun_system_tests_clean_resources::$( \
-          input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
-          echo ${input_system_tests_clean_resources:-true})"
-        echo "::set-output name=iguazio_version::$( \
-          override_iguazio_version=${{ github.event.inputs.override_iguazio_version }} && \
-          iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
-          resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)"
     - name: Prepare System Test env.yaml and MLRun installation from current branch
       timeout-minutes: 5
       run: |
@@ -249,7 +196,7 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
     - name: Run System Tests
       run: |
-        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}" \
-        MLRUN_VERSION="${{ steps.computed_params.outputs.mlrun_version }}" \
+        MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
+        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
           make test-system-dockerized

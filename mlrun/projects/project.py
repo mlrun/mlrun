@@ -223,9 +223,9 @@ def load_project(
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
+            clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
-            clone_zip(url, context, secrets)
+            clone_zip(url, context, secrets, clone)
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
@@ -2001,6 +2001,26 @@ class MlrunProject(ModelObj):
         self.sync_functions()
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
+
+    def get_run_status(
+        self,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        warnings.warn(
+            "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "
+            "Use `timeout` parameter in `project.run()` method instead",
+            PendingDeprecationWarning,
+        )
+        return run._engine.get_run_status(
+            project=self,
+            run=run,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            notifiers=notifiers,
+        )
 
     def clear_context(self):
         """delete all files and clear the context dir"""

@@ -260,6 +260,7 @@ with warnings.catch_warnings():
         struct = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
+        next_run_time = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"

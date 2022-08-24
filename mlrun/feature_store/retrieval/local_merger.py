@@ -30,6 +30,7 @@ class LocalFeatureMerger(BaseMerger):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        query=None,
     ):
 
         feature_sets = []
@@ -69,6 +70,9 @@ class LocalFeatureMerger(BaseMerger):
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]
             )
+        # filter joined data frame by the query param
+        if query:
+            self._result_df.query(query, inplace=True)
 
         if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)

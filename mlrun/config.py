@@ -72,7 +72,7 @@ default_config = {
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
-    "spark_operator_version": "spark-2",  # the version of the spark operator in use
+    "spark_operator_version": "spark-3",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
@@ -274,6 +274,7 @@ default_config = {
         },
         "projects": {
             "leader": "mlrun",
+            "retry_leader_request_on_exception": "enabled",
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
@@ -401,6 +402,11 @@ default_config = {
         "node_selector": "e30=",
         # encoded empty list
         "tolerations": "W10=",
+    },
+    "http_retry_defaults": {
+        "max_retries": 3,
+        "backoff_factor": 1,
+        "status_codes": [500, 502, 503, 504],
     },
 }
 

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import datetime
 import enum
@@ -8,7 +22,6 @@ import urllib.parse
 
 import fastapi
 import requests.adapters
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
@@ -60,13 +73,11 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+            verbose=True,
         )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
-        self._session.mount("https://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds

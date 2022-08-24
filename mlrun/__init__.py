@@ -14,7 +14,14 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__all__ = ["get_version", "set_environment", "code_to_function", "import_function"]
+__all__ = [
+    "get_version",
+    "set_environment",
+    "code_to_function",
+    "import_function",
+    "context",
+    "ArtifactType",
+]
 
 import getpass
 from os import environ, path
@@ -47,7 +54,9 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
+    ArtifactType,
     code_to_function,
+    context,
     function_to_module,
     get_dataitem,
     get_object,

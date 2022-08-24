@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 from kubernetes import client
 
+import mlrun.api.schemas
 import mlrun.errors
 import mlrun.runtimes.utils
 

@@ -524,6 +524,7 @@ def resolve_project_default_service_account(project_name: str):
             service_account.strip()
             for service_account in allowed_service_accounts.split(",")
         ]
+
     default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project_name,
         SecretProviderName.kubernetes,
@@ -533,10 +534,12 @@ def resolve_project_default_service_account(project_name: str):
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )
+
     # If default SA was not configured for the project, try to retrieve it from global config (if exists)
     default_service_account = (
         default_service_account or mlrun.mlconf.function.spec.service_account.default
     )
+
     # Sanity check on project configuration
     if (
         default_service_account
@@ -547,6 +550,7 @@ def resolve_project_default_service_account(project_name: str):
             f"Default service account {default_service_account} is not in list of allowed "
             + f"service accounts {allowed_service_accounts}"
         )
+
     return allowed_service_accounts, default_service_account
 
 

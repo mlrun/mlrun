@@ -390,6 +390,7 @@ def get_kaniko_spec_attributes_from_runtime():
         "affinity",
         "tolerations",
         "priority_class_name",
+        "service_account",
     ]
 
 

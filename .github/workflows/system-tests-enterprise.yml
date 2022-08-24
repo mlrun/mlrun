@@ -162,7 +162,7 @@ jobs:
 
 
     outputs:
-      mlrunCommitHash: ${{ steps.computed_params.outputs.mlrun_hash }}
+      mlrunCommitHash: $GITHUB_SHA
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrunSystemTestsCleanResources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
 

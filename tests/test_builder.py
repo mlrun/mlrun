@@ -761,6 +761,68 @@ def test_resolve_registry_secret(
     assert secret_name == expected_secret_name
 
 
+def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+
+    service_account = "my-service-account"
+    mlrun.api.api.utils.resolve_project_default_service_account = (
+        unittest.mock.MagicMock()
+    )
+    mlrun.api.api.utils.resolve_project_default_service_account.return_value = (
+        [],
+        service_account,
+    )
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+    assert pod_spec.service_account == service_account
+
+
+def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+
+    default_service_account = "my-default-service-account"
+    mlrun.api.api.utils.resolve_project_default_service_account = (
+        unittest.mock.MagicMock()
+    )
+    mlrun.api.api.utils.resolve_project_default_service_account.return_value = (
+        [],
+        default_service_account,
+    )
+
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind="job",
+        requirements=["some-package"],
+    )
+    service_account = "my-actual-sa"
+    function.spec.service_account = service_account
+    mlrun.builder.build_runtime(
+        mlrun.api.schemas.AuthInfo(),
+        function,
+    )
+    pod_spec = _create_pod_mock_pod_spec()
+    assert pod_spec.service_account == service_account
+
+
 def _get_target_image_from_create_pod_mock():
     return _create_pod_mock_pod_spec().containers[0].args[5]
 

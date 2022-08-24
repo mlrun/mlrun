@@ -499,8 +499,19 @@ def process_function_service_account(function):
     if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         return
 
+    (
+        allowed_service_accounts,
+        default_service_account,
+    ) = resolve_project_default_service_account(function.metadata.project)
+
+    function.validate_and_enrich_service_account(
+        allowed_service_accounts, default_service_account
+    )
+
+
+def resolve_project_default_service_account(project_name: str):
     allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_project_secret(
-        function.metadata.project,
+        project_name,
         SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
@@ -513,9 +524,8 @@ def process_function_service_account(function):
             service_account.strip()
             for service_account in allowed_service_accounts.split(",")
         ]
-
     default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
-        function.metadata.project,
+        project_name,
         SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
@@ -523,12 +533,10 @@ def process_function_service_account(function):
         allow_secrets_from_k8s=True,
         allow_internal_secrets=True,
     )
-
     # If default SA was not configured for the project, try to retrieve it from global config (if exists)
     default_service_account = (
         default_service_account or mlrun.mlconf.function.spec.service_account.default
     )
-
     # Sanity check on project configuration
     if (
         default_service_account
@@ -539,10 +547,7 @@ def process_function_service_account(function):
             f"Default service account {default_service_account} is not in list of allowed "
             + f"service accounts {allowed_service_accounts}"
         )
-
-    function.validate_and_enrich_service_account(
-        allowed_service_accounts, default_service_account
-    )
+    return allowed_service_accounts, default_service_account
 
 
 def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):

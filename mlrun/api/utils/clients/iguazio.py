@@ -503,29 +503,7 @@ class Client(
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 
-        # get user and group ids from response body
-        response_body = response.json()
-        context_auth = get_in(
-            response_body, "data.attributes.context.authentication", {}
-        )
-        user_id = context_auth.get("user_id", None)
-        if user_id is None:
-            user_id = response.headers.get("x-user-id")
-
-        gids = context_auth.get("group_ids", [])
-
-        # fallback to header if no GIDs are found in response body
-        if not gids:
-            gids = response.headers.get("x-user-group-ids")
-            # "x-user-group-ids" header is a comma separated list of group ids
-            if gids:
-                gids = gids.split(",")
-
-        # some gids can be a comma separated list of group ids
-        # (if taken from the headers, the next split will have no effect)
-        group_ids = []
-        for gid in gids:
-            group_ids.extend(gid.split(","))
+        user_id, group_ids = Client._resolve_user_and_group_ids(response)
 
         auth_info = mlrun.api.schemas.AuthInfo(
             username=response.headers["x-remote-user"],
@@ -538,6 +516,36 @@ class Client(
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session
         return auth_info
+
+    @staticmethod
+    def _resolve_user_and_group_ids(response: requests.Response):
+
+        # from iguazio version >= 3.5.2, user and group ids are included in the response body
+        # if not, get them from the headers
+        response_body = response.json()
+        context_auth = get_in(
+            response_body, "data.attributes.context.authentication", {}
+        )
+        user_id = context_auth.get("user_id", None)
+        if user_id is None:
+            user_id = response.headers.get("x-user-id")
+
+        gids = context_auth.get("group_ids", [])
+
+        # fallback to header if no GIDs are found in response body
+        if not gids:
+            gids = response.headers.get("x-user-group-ids", [])
+            # "x-user-group-ids" header is a comma separated list of group ids
+            if gids:
+                gids = gids.split(",")
+
+        # some gids can be a comma separated list of group ids
+        # (if taken from the headers, the next split will have no effect)
+        group_ids = []
+        for gid in gids:
+            group_ids.extend(gid.split(","))
+
+        return user_id, group_ids
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_project(

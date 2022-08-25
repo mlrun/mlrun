@@ -498,9 +498,18 @@ class Client(
             session,
             planes,
             user_unix_id,
+            user_id,
+            gids,
         ) = self._resolve_params_from_response_headers(response)
 
-        user_id, group_ids = self._resolve_params_from_response_body(response)
+        user_id_from_body, group_ids = self._resolve_params_from_response_body(response)
+
+        # from iguazio version >= 3.5.2, user and group ids are included in the response body
+        # if not, get them from the headers
+        if user_id_from_body:
+            user_id = user_id_from_body
+        if not group_ids:
+            group_ids = gids
 
         auth_info = mlrun.api.schemas.AuthInfo(
             username=username,
@@ -517,8 +526,14 @@ class Client(
     @staticmethod
     def _resolve_params_from_response_headers(response: requests.Response):
 
-        username = response.headers["x-remote-user"]
-        session = response.headers["x-v3io-session-key"]
+        username = response.headers.get("x-remote-user")
+        session = response.headers.get("x-v3io-session-key")
+        user_id = response.headers.get("x-user-id")
+
+        gids = response.headers.get("x-user-group-ids", [])
+        # "x-user-group-ids" header is a comma separated list of group ids
+        if gids:
+            gids = gids.split(",")
 
         planes = response.headers.get("x-v3io-session-planes")
         if planes:
@@ -530,29 +545,18 @@ class Client(
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 
-        return username, session, planes, user_unix_id
+        return username, session, planes, user_unix_id, user_id, gids
 
     @staticmethod
     def _resolve_params_from_response_body(response: requests.Response):
 
-        # from iguazio version >= 3.5.2, user and group ids are included in the response body
-        # if not, get them from the headers
         response_body = response.json()
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}
         )
         user_id = context_auth.get("user_id", None)
-        if user_id is None:
-            user_id = response.headers.get("x-user-id")
 
         gids = context_auth.get("group_ids", [])
-
-        # fallback to header if no GIDs are found in response body
-        if not gids:
-            gids = response.headers.get("x-user-group-ids", [])
-            # "x-user-group-ids" header is a comma separated list of group ids
-            if gids:
-                gids = gids.split(",")
 
         # some gids can be a comma separated list of group ids
         # (if taken from the headers, the next split will have no effect)

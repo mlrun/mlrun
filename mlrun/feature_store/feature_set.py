@@ -810,6 +810,7 @@ class FeatureSet(ModelObj):
             ):
                 drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
             if drop_cols:
+                # if these columns aren't present for some reason, that's no reason to fail
                 result.drop(columns=drop_cols, inplace=True, errors="ignore")
         return result
 

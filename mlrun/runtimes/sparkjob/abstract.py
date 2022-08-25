@@ -55,7 +55,7 @@ _sparkjob_template = {
         "mode": "cluster",
         "image": "",
         "mainApplicationFile": "",
-        "sparkVersion": "2.4.5",
+        "sparkVersion": "3.1.2",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 0,
@@ -141,6 +141,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
         affinity=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -169,6 +170,7 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             affinity=affinity,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -214,6 +216,8 @@ class AbstractSparkRuntime(KubejobRuntime):
     apiVersion = group + "/" + version
     kind = "spark"
     plural = "sparkapplications"
+
+    # the dot will make the api prefix the configured registry to the image name
     default_mlrun_image = ".spark-job-default-image"
     gpu_suffix = "-cuda"
     code_script = "spark-function-code.py"
@@ -419,6 +423,9 @@ class AbstractSparkRuntime(KubejobRuntime):
             self.spec.replicas or 1,
             int,
         )
+        if self.spec.image_pull_secret:
+            update_in(job, "spec.imagePullSecrets", [self.spec.image_pull_secret])
+
         if self.spec.node_selector:
             update_in(job, "spec.nodeSelector", self.spec.node_selector)
 
@@ -696,27 +703,57 @@ with ctx:
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
-    def with_executor_requests(self, mem=None, cpu=None):
-        """set executor pod required cpu/memory/gpu resources"""
-        self.spec._verify_and_set_requests("executor_resources", mem, cpu)
+    def with_executor_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
+        """
+        set executor pod required cpu/memory/gpu resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("executor_resources", mem, cpu, patch=patch)
 
-    def with_executor_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        """set executor pod limits"""
+    def with_executor_limits(
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set executor pod limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
         # in spark operator there is only use of mem passed through requests,
         # limits is set to the same value so passing mem=None
         self.spec._verify_and_set_limits(
-            "executor_resources", None, cpu, gpus, gpu_type
+            "executor_resources", None, cpu, gpus, gpu_type, patch=patch
         )
 
-    def with_driver_requests(self, mem=None, cpu=None):
-        """set driver pod required cpu/memory/gpu resources"""
-        self.spec._verify_and_set_requests("driver_resources", mem, cpu)
+    def with_driver_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
+        """
+        set driver pod required cpu/memory/gpu resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("driver_resources", mem, cpu, patch=patch)
 
-    def with_driver_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        """set driver pod cpu limits"""
+    def with_driver_limits(
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set driver pod cpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
         # in spark operator there is only use of mem passed through requests,
         # limits is set to the same value so passing mem=None
-        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type)
+        self.spec._verify_and_set_limits(
+            "driver_resources", None, cpu, gpus, gpu_type, patch=patch
+        )
 
     def with_restart_policy(
         self,

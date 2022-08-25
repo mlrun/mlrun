@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import enum
 import typing
 
@@ -93,7 +107,9 @@ class AuthInfo(pydantic.BaseModel):
     access_key: typing.Optional[str] = None
     user_id: typing.Optional[str] = None
     user_group_ids: typing.List[str] = []
+    user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
+    planes: typing.List[str] = []
 
     def to_nuclio_auth_info(self):
         if self.session != "":

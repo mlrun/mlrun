@@ -1,13 +1,27 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Callable, Dict, List, Tuple, Type, Union
 
 import mlrun
 from mlrun.artifacts import get_model
 
-from .._common import ModelHandler, ModelType
+from .._common import CommonTypes, ModelHandler
 
 
-def get_framework_by_instance(model: ModelType) -> str:
+def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
     """
     Get the framework name of the given model by its instance.
 
@@ -103,7 +117,7 @@ def get_framework_by_instance(model: ModelType) -> str:
     )
 
 
-def get_framework_by_class_name(model: ModelType) -> str:
+def get_framework_by_class_name(model: CommonTypes.ModelType) -> str:
     """
     Get the framework name of the given model by its class name.
 
@@ -247,7 +261,7 @@ class AutoMLRun:
 
     @staticmethod
     def _get_framework(
-        model: ModelType = None, model_path: str = None
+        model: CommonTypes.ModelType = None, model_path: str = None
     ) -> Union[Tuple[str, dict]]:
         """
         Try to get the framework from the model or model path provided. The framework can be read from the model path
@@ -397,7 +411,7 @@ class AutoMLRun:
 
     @staticmethod
     def apply_mlrun(
-        model: ModelType = None,
+        model: CommonTypes.ModelType = None,
         model_name: str = None,
         tag: str = "",
         model_path: str = None,

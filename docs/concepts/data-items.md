@@ -1,4 +1,7 @@
+(data-items)=
 # Data items
+
+A data item can be one item or a or collection of items (file, dir, table, etc.).
 
 When running jobs or pipelines, data is passed using the {py:class}`~mlrun.datastore.DataItem` objects. Data items objects abstract away 
 the data backend implementation, provide a set of convenience methods (`.as_df`, `.get`, `.show`, ..), and enable auto logging/versioning 
@@ -25,7 +28,7 @@ prep_data_run = data_prep_func.run(name='prep_data',
 
 In order to call the function with an `input` you can use the `inputs` dictionary attribute. In order to pass
 a simple parameter, use the `params` dictionary attribute. The input value is the specific item uri 
-(per data store schema) as explained in [Shared data stores](../store/datastore#shared-data-stores).
+(per data store schema) as explained in [Shared data stores](../store/datastore.html#shared-data-stores).
 
 Reading the data results from the run, you can easily get a run output artifact as a `DataItem` (so that you can view/use the artifact) using:
 
@@ -38,12 +41,12 @@ The {py:class}`~mlrun.datastore.DataItem` supports multiple convenience methods 
 * **get()**, **put()** - to read/write data
 * **download()**, **upload()** - to download/upload files
 * **as_df()** - to convert the data to a DataFrame object
-* **local** - to get a local file link to the data (will be downloaded locally if needed)
+* **local** - to get a local file link to the data (that is downloaded locally if needed)
 * **listdir()**, **stat** - file system like methods
 * **meta** - access to the artifact metadata (in case of an artifact uri)
 * **show()** - visualizes the data in Jupyter (as image, html, etc.)
 
-See the **{py:class}`~mlrun.datastore.DataItem`** class [documentation](../api/mlrun.datastore#mlrun.datastore.DataItem) for details.
+See the **{py:class}`~mlrun.datastore.DataItem`** class [documentation](../api/mlrun.datastore#mlrun.datastore.DataItem) for details.  mlrun.datastore.DataItem
 
 In order to get a DataItem object from a url use {py:func}`~mlrun.run.get_dataitem` or 
 {py:func}`~mlrun.run.get_object` (returns the `DataItem.get()`).

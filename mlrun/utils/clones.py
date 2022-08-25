@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import shutil
 import tarfile
@@ -13,11 +27,20 @@ import mlrun
 from .helpers import logger
 
 
+def _remove_directory_contents(target_dir):
+    for filename in os.listdir(target_dir):
+        file_path = os.path.join(target_dir, filename)
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            shutil.rmtree(file_path)
+
+
 def _prep_dir(source, target_dir, suffix, secrets, clone):
     if not target_dir:
         raise ValueError("please specify a target (context) directory for clone")
     if clone and path.exists(target_dir) and path.isdir(target_dir):
-        shutil.rmtree(target_dir)
+        _remove_directory_contents(target_dir)
 
     temp_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False).name
     mlrun.get_dataitem(source, secrets).download(temp_file)
@@ -67,8 +90,13 @@ def clone_git(url, context, secrets=None, clone=True):
 
     if path.exists(context) and path.isdir(context):
         if clone:
-            shutil.rmtree(context)
+            _remove_directory_contents(context)
         else:
+            if os.path.exists(context) and len(os.listdir(context)) > 0:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Failed to load project from git, context directory is not empty. "
+                    "Set clone param to True to remove the contents of the context directory."
+                )
             try:
                 repo = Repo(context)
                 return get_repo_url(repo), repo
@@ -97,14 +125,21 @@ def clone_git(url, context, secrets=None, clone=True):
         clone_path = f"https://{host}{url_obj.path}"
 
     branch = None
+    tag = None
     if url_obj.fragment:
         refs = url_obj.fragment
-        if refs.startswith("refs/"):
-            branch = refs[refs.rfind("/") + 1 :]
+        if refs.startswith("refs/heads/"):
+            branch = refs.replace("refs/heads/", "")
+        elif refs.startswith("refs/tags/"):
+            tag = refs.replace("refs/tags/", "")
         else:
             url = url.replace("#" + refs, f"#refs/heads/{refs}")
+            branch = refs
 
     repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
+    if tag:
+        repo.git.checkout(tag)
+
     return url, repo
 
 

@@ -58,6 +58,7 @@ class MPIResourceSpec(KubeResourceSpec):
         pythonpath=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -85,6 +86,7 @@ class MPIResourceSpec(KubeResourceSpec):
             pythonpath=pythonpath,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
         self.mpi_args = mpi_args or [
             "-x",

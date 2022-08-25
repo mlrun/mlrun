@@ -1,9 +1,10 @@
+(run-track-compare-jobs)=
 # Run, track, and compare jobs
 
 
 **In this section**
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 run-simple-jobs
 ../hyper-params

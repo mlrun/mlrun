@@ -13,7 +13,7 @@
 # limitations under the License.
 ARG CUDA_VER=11.2
 
-FROM nvidia/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
+FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -120,4 +120,9 @@ RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
 COPY . .
+
+# non-recursive chmod for the run to be able to create the handler file with any security context
+# at the end of the Dockerfile for docker caching
+RUN chmod 777 /mlrun
+
 RUN python -m pip install .[complete]

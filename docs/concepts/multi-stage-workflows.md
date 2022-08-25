@@ -1,4 +1,5 @@
-# Multi-stage workflows
+(multi-stage-workflows)=
+# Workflows
 
 A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a DAG. A workflow 
 can reference the project’s params, secrets, artifacts, etc. It can also use a function execution output as a function execution 
@@ -12,4 +13,4 @@ directives like conditions and branches are not supported by the `local` engine.
 Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
 Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-See full details in [Project workflows and automation](../projects/workflows.html).
+See full details in {ref}`projects-workflows`.

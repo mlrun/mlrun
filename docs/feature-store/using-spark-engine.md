@@ -10,17 +10,17 @@ To use Spark as the transformation engine in ingestion, follow these steps:
 When constructing the {py:class}`~mlrun.feature_store.FeatureSet` object, pass an `engine` parameter and set it 
    to `spark`. For example:
    
-    ```python
-    feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
-    ```
+```python
+feature_set = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")], engine="spark")
+```
 To use a remote execution engine, pass a `RunConfig` object as the `run_config` parameter for 
 the `ingest` API. The actual remote function to execute depends on the object passed:
    
-    - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
+   - A default `RunConfig`, in which case the ingestion code either generates a new MLRun function runtime
        of type `remote-spark`, or utilizes the function specified in `feature_set.spec.function` (in which case,
        it has to be of runtime type `remote-spark` or `spark`).
       
-    - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
+   - A `RunConfig` that has a function configured within it. As mentioned, the function runtime must be of 
        type `remote-spark` or `spark`.
        
 Spark execution can be done locally, utilizing a local Spark session provided to the ingestion call. To use a local Spark session, pass a 
@@ -201,7 +201,7 @@ One-time setup:
    from mlrun.runtimes import RemoteSparkRuntime
    RemoteSparkRuntime.deploy_default_image()
    ```
-2. Store your S3 credentials in a k8s [secret](../secrets.md):
+2. Store your S3 credentials in a k8s [secret](../secrets.html#kubernetes-project-secrets):
    ```python
    import mlrun
    secrets = {'s3_access_key': AWS_ACCESS_KEY, 's3_secret_key': AWS_SECRET_KEY}
@@ -272,7 +272,13 @@ fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spar
 
 ## Spark ingestion from Snowflake example
 
-Spark ingestion from Snowflake can be executed both remotely and locally. The following code executes local data ingestion from Snowflake.
+Spark ingestion from Snowflake can be executed both remotely and locally. 
+
+```{admonition} Note
+`Entity` is case sensitive.
+```
+
+The following code executes local data ingestion from Snowflake.
 
 ```
 from pyspark.sql import SparkSession

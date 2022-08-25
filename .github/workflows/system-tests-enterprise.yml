@@ -35,14 +35,6 @@ on:
         description: 'Docker repo to pull images from (default: mlrun)'
         required: true
         default: 'mlrun'
-      test_code_from_action:
-        description: 'Take tested code from action REF (default: false - take from upstream) (note that test code will be taken from the action REF anyways)'
-        required: true
-        default: 'false'
-      ui_code_from_action:
-        description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
-        required: true
-        default: 'false'
       clean_resources_in_teardown:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
@@ -50,12 +42,20 @@ on:
       override_iguazio_version:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically by the mlrun version)'
         required: false
+      test_code_from_action:
+        description: 'Take tested code from action REF rather than upstream (default: true). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
+        required: true
+        default: 'true'
+      ui_code_from_action:
+        description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
+        required: true
+        default: 'false'
 
 concurrency: one-at-a-time
 jobs:
   prepare-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
-    timeout-minutes: 50
+    timeout-minutes: 55
     name: Prepare System Tests Enterprise
     runs-on: ubuntu-latest
 
@@ -95,6 +95,13 @@ jobs:
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
+        echo "::set-output name=mlrun_hash::$( \
+          cd /tmp && \
+          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          cd mlrun-upstream && \
+          git rev-parse --short=8 HEAD && \
+          cd .. && \
+          rm -rf mlrun-upstream)"
         echo "::set-output name=ui_hash::$( \
           cd /tmp && \
           git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
@@ -131,7 +138,7 @@ jobs:
           iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
           resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)"
     - name: Prepare System Test env.yaml and MLRun installation from current branch
-      timeout-minutes: 45
+      timeout-minutes: 50
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \

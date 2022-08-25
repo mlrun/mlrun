@@ -112,7 +112,12 @@ class Projects(
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
         # Therefore, this check should remain at the end of the verification flow.
-        if mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(project):
+        if (
+            mlrun.mlconf.is_api_running_on_k8s()
+            and mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(
+                project
+            )
+        ):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project} can not be deleted since related resources found: project secrets"
             )
@@ -145,7 +150,8 @@ class Projects(
         mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
 
         # delete project secrets - passing None will delete all secrets
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
+        if mlrun.mlconf.is_api_running_on_k8s():
+            mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

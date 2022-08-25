@@ -55,7 +55,7 @@ concurrency: one-at-a-time
 jobs:
   prepare-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
-    timeout-minutes: 50
+    timeout-minutes: 55
     name: Prepare System Tests Enterprise
     runs-on: ubuntu-latest
 
@@ -138,7 +138,7 @@ jobs:
           iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
           resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)"
     - name: Prepare System Test env.yaml and MLRun installation from current branch
-      timeout-minutes: 40
+      timeout-minutes: 50
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \

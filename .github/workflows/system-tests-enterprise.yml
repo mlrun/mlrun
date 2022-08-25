@@ -131,7 +131,7 @@ jobs:
           iguazio_system_version=`echo "3.4.2-b149.20220705184806"` && \
           resolved_iguazio_version=${override_iguazio_version:-$iguazio_system_version} && echo $resolved_iguazio_version)"
     - name: Prepare System Test env.yaml and MLRun installation from current branch
-      timeout-minutes: 45
+      timeout-minutes: 80
       run: |
         python automation/system_test/prepare.py run \
           "${{ steps.computed_params.outputs.mlrun_version }}" \

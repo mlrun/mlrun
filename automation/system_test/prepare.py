@@ -466,7 +466,7 @@ class SystemTestPreparer:
         self._run_and_wait_until_successful(
             command=f"grep 'Patch archive prepared' {provctl_create_patch_log}",
             command_name="provctl create patch",
-            max_retries=20,
+            max_retries=50,
             interval=60,
         )
         # print provctl create patch log
@@ -494,7 +494,7 @@ class SystemTestPreparer:
         self._run_and_wait_until_successful(
             command=f"grep 'Finished patching appservice' {provctl_patch_mlrun_log}",
             command_name="provctl patch mlrun",
-            max_retries=20,
+            max_retries=50,
             interval=60,
         )
         # print provctl patch mlrun log

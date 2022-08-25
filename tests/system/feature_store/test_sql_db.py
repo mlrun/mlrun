@@ -1,5 +1,4 @@
 import datetime
-import typing
 
 import pandas as pd
 import pytest
@@ -144,7 +143,9 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         "source_name, key, aggr_col",
         [("quotes", "ind", "ask"), ("trades", "ind", "price")],
     )
-    def test_sql_source_with_aggregation(self, source_name: str, key: str, aggr_col: str):
+    def test_sql_source_with_aggregation(
+        self, source_name: str, key: str, aggr_col: str
+    ):
         engine = db.create_engine(self.db, echo=True)
         sqlite_connection = engine.connect()
         origin_df = self.get_data(source_name)
@@ -368,7 +369,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
             }
         )
 
-    def _create(self, schema: typing.Dict[str, typing], collection_name: str, metadata, engine, key: str):
+    def _create(self, schema, collection_name, metadata, engine, key):
         columns = []
         for col, col_type in schema.items():
             if col_type == int:

@@ -54,11 +54,11 @@ def get_source_step(source, key_fields=None, time_field=None, context=None):
 class _MondoDBIterator:
     def __init__(self, collection, iter_chunksize, iter_query):
         """
-        Iterate over given collection
+        Iterate over given mongoDB collection
 
-        :param query: dictionary query for mongodb
-        :param chunksize: number of rows per chunk
-        :param collection: a mongodb collection
+        :param iter_query:       dictionary query for mongodb
+        :param iter_chunksize:   number of rows per chunk
+        :param collection:  a mongodb collection
         """
         self.my_collection_iter = collection.find_raw_batches(
             iter_query, batch_size=iter_chunksize
@@ -78,15 +78,13 @@ class _MondoDBIterator:
 class _SqlDBIterator:
     def __init__(self, collection, iter_chunksize, iter_query=None):
         """
-        Iterate over given collection
+        Iterate over given Sql collection
 
-        :param query: ???
-        :param chunksize: number of rows per chunk
-        :param collection: sql collection
+        :param iter_chunksize:   number of rows per chunk
+        :param collection:  sql collection
         """
         self.collection = collection
         self.iter_chunksize = iter_chunksize
-        self.iter_query = iter_query
         self.keys = self.collection.keys()
 
     def __iter__(self):
@@ -920,11 +918,10 @@ class MongoDBSource(BaseSourceDriver):
         :param end_time:            filters out data after this time
         :param schedule:            string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
                                     cause the job to run every 30 minutes
+        :param connection_string:   string connection to mongodb database.
+                                    If not set, the MONGODB_CONNECTION_STR environment variable will be used.
         :param db_name:             the name of the database to access
-        :param connection_string:   your mongodb connection string
-        :param collection_name:     the name of the collection to access,
-                                        from the current database
-        :param spark_options:       additional spark read options
+        :param collection_name:     the name of the collection to access, from the current database
         """
 
         connection_string = connection_string or os.getenv(
@@ -984,13 +981,13 @@ class MongoDBSource(BaseSourceDriver):
 
     def to_step(self, key_field=None, time_field=None, context=None):
         # import storey
-        import mlrun.datastore.tempFromStorey as ts
+        from mlrun.datastore.storeySourse import MongoDBSourceStorey
 
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
 
-        return ts.MongoDBSourceStorey(
+        return MongoDBSourceStorey(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
@@ -1005,28 +1002,6 @@ class MongoDBSource(BaseSourceDriver):
 
 
 class SqlDBSource(BaseSourceDriver):
-    """
-    Reads MongoDB as input source for a flow.
-    example::
-         connection_string = "???"
-         query = {age: {"$gt: 5}}
-         MongoDBSource(connection_string=connection_string, collection_name="coll",
-         db_name="my_dataset", chunksize=5, query=query)
-    :parameter name:  source name
-    :parameter query: dictionary query for mongodb
-    :parameter chunksize: number of rows per chunk (default large single chunk)
-    :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-    :parameter start_time: filters out data before this time
-    :parameter end_time: filters out data after this time
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-         cause the job to run every 30 minutes
-    :parameter db_name: the name of the database to access
-    :parameter connection_string: your mongodb connection string
-    :parameter collection_name: the name of the collection to access,
-                                    from the current database
-    :parameter spark_options: additional spark read options
-    """
 
     kind = "sqldb"
     support_storey = True
@@ -1037,7 +1012,6 @@ class SqlDBSource(BaseSourceDriver):
         self,
         name: str = "",
         max_results_for_table: int = None,
-        query: dict = None,
         chunksize: int = None,
         key_field: str = None,
         time_field: str = None,
@@ -1048,6 +1022,29 @@ class SqlDBSource(BaseSourceDriver):
         collection_name: str = None,
         spark_options: dict = None,
     ):
+        """
+        Reads SqlDB as input source for a flow.
+
+        example::
+            db_path = "sqlite:///stockmarket.db"
+            source = SqlDBSource(
+                collection_name='source_name', db_path=self.db, key_field='key'
+            )
+
+        :parameter name:            source name
+        :parameter chunksize:       number of rows per chunk (default large single chunk)
+        :parameter key_field:       the column to be used as the key for the collection.
+        :parameter time_field:      the column to be parsed as the timestamp for events. Defaults to None
+        :parameter start_time:      filters out data before this time
+        :parameter end_time:        filters out data after this time
+        :parameter schedule:        string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+                                    cause the job to run every 30 minutes
+        :param db_path:             url string connection to sql database.
+                                    If not set, the SQL_DB_PATH_STRING environment variable will be used.
+        :parameter collection_name: the name of the collection to access,
+                                    from the current database
+        :parameter spark_options:   additional spark read options
+        """
 
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None:
@@ -1055,7 +1052,6 @@ class SqlDBSource(BaseSourceDriver):
                 f"cannot specify without db_path arg or secret {self._SQL_DB_PATH_STRING_ENV_VAR}"
             )
         attrs = {
-            "query": query,
             "max_results": max_results_for_table,
             "chunksize": chunksize,
             "spark_options": spark_options,
@@ -1104,7 +1100,7 @@ class SqlDBSource(BaseSourceDriver):
             )
 
     def to_step(self, key_field=None, time_field=None, context=None):
-        from mlrun.datastore.tempFromStorey import SqlDBSourceStorey
+        from mlrun.datastore.storeySourse import SqlDBSourceStorey
 
         attributes = self.attributes or {}
         if context:

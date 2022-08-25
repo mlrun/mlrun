@@ -1472,8 +1472,9 @@ class MongoDBTarget(BaseStoreTarget):
              MongoDBTarget(connection_string=connection_string, collection_name="coll",
              db_name="my_dataset", chunksize=5, query=query)
 
+        :param connection_string:   string connection to mongodb database.
+                                    If not set, the MONGODB_CONNECTION_STR environment variable will be used.
         :param db_name:             the name of the database to access
-        :param connection_string:   your mongodb connection string
         :param collection_name:     the name of the collection to access,
                                     from the current database
         :param create_collection:   pass True if you want to create new collection named by
@@ -1554,7 +1555,7 @@ class MongoDBTarget(BaseStoreTarget):
     def get_table_object(self):
         from storey import Table  # , MongoDBTarget
 
-        from mlrun.datastore.tempFromStorey import MongoDBDriver
+        from mlrun.datastore.storeyDriver import MongoDBDriver
 
         # TODO use options/cred
         (
@@ -1697,7 +1698,8 @@ class SqlDBTarget(BaseStoreTarget):
              target = SqlDBTarget(collection_name=f'{name}-tatget', db_path=db_path, create_collection=True,
                                    schema=schema, primary_key_column=key)
 
-        :param db_path:                     the name of the database to access
+        :param db_path:                     url string connection to sql database.
+                                            If not set, the SQL_DB_PATH_STRING environment variable will be used.
         :param collection_name:             the name of the collection to access,
                                             from the current database
         :param schema:                      the schema of the collection (must pass when
@@ -1798,7 +1800,7 @@ class SqlDBTarget(BaseStoreTarget):
     def get_table_object(self):
         from storey import Table
 
-        from mlrun.datastore.tempFromStorey import SqlDBDriver
+        from mlrun.datastore.storeyDriver import SqlDBDriver
 
         # TODO use options/cred
         (db_path, collection_name, _, _, primary_key) = self._parse_url()

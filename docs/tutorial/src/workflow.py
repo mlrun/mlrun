@@ -6,7 +6,7 @@ import mlrun
 # Create a Kubeflow Pipelines pipeline
 @dsl.pipeline(name="breast-cancer-demo")
 def pipeline(model_name="cancer_classifier"):
-#     change to 'keras' to try the 2nd option
+    # change to 'keras' to try the 2nd option
     framework = 'sklearn'
     if framework == "sklearn":
         serving_class = 'mlrun.frameworks.sklearn.SklearnModelServer'
@@ -21,7 +21,7 @@ def pipeline(model_name="cancer_classifier"):
         outputs=["dataset"],
     )
 
-#     Train a model
+    # Train a model
     train = mlrun.run_function(
         "trainer",
         inputs={"dataset": ingest.outputs["dataset"]},

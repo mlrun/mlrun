@@ -68,14 +68,44 @@ def test_verify_request_session_success(
         context.headers = mock_response_headers
         return {}
 
-    requests_mock.post(
-        f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
-        json=_verify_session_mock,
-    )
-    auth_info = iguazio_client.verify_request_session(mock_request)
-    _assert_auth_info_from_session_verification_mock_response_headers(
-        auth_info, mock_response_headers
-    )
+    def _verify_session_with_body_mock(request, context):
+        for header_key, header_value in mock_request_headers.items():
+            assert request.headers[header_key] == header_value
+        context.headers = mock_response_headers
+        return {
+            "data": {
+                "attributes": {
+                    "username": "some-user",
+                    "context": {
+                        "authentication": {
+                            "user_id": "some-user-id",
+                            "tenant_id": "some-tenant-id",
+                            "group_ids": [
+                                "some-group-id-1,some-group-id-2",
+                            ],
+                            "mode": "normal",
+                        }
+                    },
+                }
+            }
+        }
+
+    for test_case in [
+        {
+            "response_json": _verify_session_mock,
+        },
+        {
+            "response_json": _verify_session_with_body_mock,
+        },
+    ]:
+        requests_mock.post(
+            f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
+            json=test_case["response_json"],
+        )
+        auth_info = iguazio_client.verify_request_session(mock_request)
+        _assert_auth_info_from_session_verification_mock_response_headers(
+            auth_info, mock_response_headers
+        )
 
 
 def test_verify_request_session_failure(

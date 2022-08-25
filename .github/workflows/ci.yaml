@@ -196,7 +196,7 @@ jobs:
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
 
   check-copyright:
-    name: Check Copyright Existent
+    name: Check Copyright Existence
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

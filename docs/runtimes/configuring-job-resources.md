@@ -9,7 +9,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Volumes](#volumes)
-- [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
+- [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs.-on-demand-nodes)
 - [Pod priority](#pod-priority-for-user-jobs)
 - [Node affinity (node selectors)](#node-affinity-node-selectors)
 

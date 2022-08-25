@@ -499,17 +499,18 @@ class Client(
             planes,
             user_unix_id,
             user_id,
-            gids,
+            group_ids,
         ) = self._resolve_params_from_response_headers(response)
 
-        user_id_from_body, group_ids = self._resolve_params_from_response_body(response)
+        (
+            user_id_from_body,
+            group_ids_from_body,
+        ) = self._resolve_params_from_response_body(response)
 
         # from iguazio version >= 3.5.2, user and group ids are included in the response body
         # if not, get them from the headers
-        if user_id_from_body:
-            user_id = user_id_from_body
-        if not group_ids:
-            group_ids = gids
+        user_id = user_id_from_body or user_id
+        group_ids = group_ids_from_body or group_ids
 
         auth_info = mlrun.api.schemas.AuthInfo(
             username=username,

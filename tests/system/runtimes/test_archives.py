@@ -205,7 +205,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         project.set_function(
             name="myjob",
             handler="rootfn.job_handler",
-            image="mlrun/mlrun",
+            image=base_image,
             kind="job",
             with_repo=True,
         )
@@ -223,7 +223,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         project.set_function(
             name="mynuclio",
             handler="rootfn:nuclio_handler",
-            image="mlrun/mlrun",
+            image=base_image,
             kind="nuclio",
             with_repo=True,
         )

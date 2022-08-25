@@ -17,3 +17,4 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
         feats = np.asarray(body["inputs"])
         result: np.ndarray = self.model.predict(feats)
         return result.tolist()
+    

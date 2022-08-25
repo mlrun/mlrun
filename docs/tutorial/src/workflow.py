@@ -7,11 +7,11 @@ import mlrun
 @dsl.pipeline(name="breast-cancer-demo")
 def pipeline(model_name="cancer_classifier"):
     # change to 'keras' to try the 2nd option
-    framework = 'sklearn'
+    framework = "sklearn"
     if framework == "sklearn":
-        serving_class = 'mlrun.frameworks.sklearn.SklearnModelServer'
+        serving_class = "mlrun.frameworks.sklearn.SklearnModelServer"
     else:
-        serving_class = 'mlrun.frameworks.tf_keras.TFKerasModelServer'
+        serving_class = "mlrun.frameworks.tf_keras.TFKerasModelServer"
 
     # run the ingestion function with the new image and params
     ingest = mlrun.run_function(

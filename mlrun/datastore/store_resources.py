@@ -86,7 +86,7 @@ class ResourceCache:
             )
             return self._tabels[uri]
 
-        if uri.startswith("redis://"):
+        if uri.startswith("redis://") or uri.startswith("rediss://"):
             from storey.redis_driver import RedisDriver
 
             endpoint, uri = parse_path(uri)

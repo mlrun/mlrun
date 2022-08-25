@@ -61,14 +61,14 @@ class PackageTester:
             "[google-cloud-storage]": {
                 "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
             },
+            "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},
             # TODO: this won't actually fail if the requirement is missing
             "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {targets_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {redis_import}; {targets_import}",
                 "perform_vulnerability_check": True,
             },
-            "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},
         }
 
     def run(self):

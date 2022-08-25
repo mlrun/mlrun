@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import redis
 import redis.cluster
 from storey.redis_driver import RedisType
@@ -23,7 +25,10 @@ from .base import DataStore
 
 class RedisStore(DataStore):
     """
-    Partial implementation of DataStore - for use only to delete keys
+    Partial implementation of DataStore over the Redis KV store
+
+    - no support for filesystem
+    - key and value sizes are limited to 512MB
     """
 
     def __init__(
@@ -32,7 +37,6 @@ class RedisStore(DataStore):
         schema,
         name,
         endpoint="",
-        redis_type: RedisType = RedisType.STANDALONE,
     ):
         super().__init__(parent, name, schema, endpoint)
         self.headers = None
@@ -51,12 +55,16 @@ class RedisStore(DataStore):
         self._redis_url = f"{schema}://{self.endpoint}"
 
         self._redis = None
-        self._type = redis_type
+
+        if os.environ.get("MLRUN_REDIS_TYPE") == "cluster":
+            self._redis_type = RedisType.CLUSTER
+        else:
+            self._redis_type = RedisType.STANDALONE
 
     @property
     def redis(self):
         if self._redis is None:
-            if self._type is RedisType.STANDALONE:
+            if self._redis_type is RedisType.STANDALONE:
                 self._redis = redis.Redis.from_url(
                     self._redis_url, decode_responses=True
                 )
@@ -70,19 +78,37 @@ class RedisStore(DataStore):
         return None  # no support for fsspec
 
     def upload(self, key, src_path):
-        raise NotImplementedError()
+        with open(src_path, "rb") as f:
+            while True:
+                data = f.read(1000 * 1000)
+                if not data:
+                    break
+                self.redis.append(key, data)
 
-    def get(self, key, size, offset):
-        raise NotImplementedError()
+    def get(self, key, size=-1, offset=0):
+        if offset or size:
+            end_offset = size if size == -1 else offset + size - 1
+            return self.redis.getrange(key, offset, end_offset)
+        else:
+            return self.redis.get(key)
 
-    def put(self, key, data, append):
-        raise NotImplementedError()
+    def put(self, key, data, append=None):
+        if append is None:
+            self.redis.set(key, data)
+        else:
+            self.redis.append(key, data)
 
     def stat(self, key):
         raise NotImplementedError()
 
     def listdir(self, key):
-        raise NotImplementedError()
+        """
+        list all keys with prefix key
+        """
+        response = []
+        for key in self.redis.scan_iter(key + "*"):
+            response.append(key)
+        return response
 
     def rm(self, path, recursive=False, maxdepth=None):
         """
@@ -91,13 +117,13 @@ class RedisStore(DataStore):
         if maxdepth is not None:
             raise NotImplementedError("maxdepth is not supported")
 
-        path = path[len("redis://") :]
-        count = 0
+        if path.startswith("redis://"):
+            path = path[len("redis://") :]
+        elif path.startswith("rediss://"):
+            path = path[len("redis://") :]
+
         if recursive:
             for key in self.redis.scan_iter(path + "*"):
                 self.redis.delete(key)
-                count += 1
         else:
             self.redis.delete(path)
-            count += 1
-        # print(f'deleted {count} redis keys', flush=True)

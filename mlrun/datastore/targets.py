@@ -1023,6 +1023,10 @@ class CSVTarget(BaseStoreTarget):
 
 
 class NoSqlBaseTarget(BaseStoreTarget):
+    is_table = True
+    is_online = True
+    support_append = True
+    support_storey = True
     writer_step_name = "base_name"
 
     def __new__(cls, *args, **kwargs):
@@ -1140,11 +1144,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
 
 class NoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.nosql
-    is_table = True
-    is_online = True
     support_spark = True
-    support_storey = True
-    support_append = True
     writer_step_name = "NoSqlTarget"
 
     def get_table_object(self):
@@ -1161,11 +1161,7 @@ class NoSqlTarget(NoSqlBaseTarget):
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
-    is_table = True
-    is_online = True
     support_spark = False
-    support_storey = True
-    support_append = True
     writer_step_name = "RedisNoSqlTarget"
 
     def get_table_object(self):

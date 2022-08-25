@@ -25,4 +25,3 @@ if __name__ == "__main__":
         "breast_cancer_generator", upload_artifacts=True
     ) as context:
         breast_cancer_generator(context, context.get_param("format", "csv"))
-        

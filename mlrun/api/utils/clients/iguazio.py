@@ -488,10 +488,37 @@ class Client(
             mlrun.errors.raise_for_status(response, error_message)
         return response
 
-    @staticmethod
     def _generate_auth_info_from_session_verification_response(
+        self,
         response: requests.Response,
     ) -> mlrun.api.schemas.AuthInfo:
+
+        (
+            username,
+            session,
+            planes,
+            user_unix_id,
+        ) = self._resolve_params_from_response_headers(response)
+
+        user_id, group_ids = self._resolve_params_from_response_body(response)
+
+        auth_info = mlrun.api.schemas.AuthInfo(
+            username=username,
+            session=session,
+            user_id=user_id,
+            user_group_ids=group_ids,
+            user_unix_id=user_unix_id,
+            planes=planes,
+        )
+        if SessionPlanes.data in planes:
+            auth_info.data_session = auth_info.session
+        return auth_info
+
+    @staticmethod
+    def _resolve_params_from_response_headers(response: requests.Response):
+
+        username = response.headers["x-remote-user"]
+        session = response.headers["x-v3io-session-key"]
 
         planes = response.headers.get("x-v3io-session-planes")
         if planes:
@@ -503,19 +530,7 @@ class Client(
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 
-        user_id, group_ids = Client._resolve_params_from_response_body(response)
-
-        auth_info = mlrun.api.schemas.AuthInfo(
-            username=response.headers["x-remote-user"],
-            session=response.headers["x-v3io-session-key"],
-            user_id=user_id,
-            user_group_ids=group_ids,
-            user_unix_id=user_unix_id,
-            planes=planes,
-        )
-        if SessionPlanes.data in planes:
-            auth_info.data_session = auth_info.session
-        return auth_info
+        return username, session, planes, user_unix_id
 
     @staticmethod
     def _resolve_params_from_response_body(response: requests.Response):

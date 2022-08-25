@@ -1778,8 +1778,10 @@ class SqlDBTarget(BaseStoreTarget):
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
             }
-            path = f"mlrunSql://@{db_path}//@{collection_name}" \
-                   f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}"
+            path = (
+                f"mlrunSql://@{db_path}//@{collection_name}"
+                f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}"
+            )
             sql_connection.close()
 
         if attributes:

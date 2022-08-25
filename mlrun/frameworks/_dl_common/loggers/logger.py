@@ -1,18 +1,23 @@
-from enum import Enum
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict, List
 
 import mlrun
 
-from ..._common import TrackableType
-
-
-class LoggerMode(Enum):
-    """
-    The logger's mode, can be training or evaluation.
-    """
-
-    TRAINING = "Training"
-    EVALUATION = "Evaluation"
+from ..._common import LoggingMode
+from ..utils import DLTypes
 
 
 class Logger:
@@ -29,26 +34,28 @@ class Logger:
         # Save the context:
         self._context = context
 
-        # Setup the logger's mode (defaulted to Training):
-        self._mode = LoggerMode.TRAINING
+        # Set up the logger's mode (defaulted to Training):
+        self._mode = LoggingMode.TRAINING
 
-        # Setup the results dictionaries - a dictionary of metrics for all the iteration results by their epochs:
+        # Set up the results dictionaries - a dictionary of metrics for all the iteration results by their epochs:
         # [Metric: str] -> [Epoch: int] -> [Iteration: int] -> [value: float]
         self._training_results = {}  # type: Dict[str, List[List[float]]]
         self._validation_results = {}  # type: Dict[str, List[List[float]]]
 
-        # Setup the metrics summary dictionaries - a dictionary of all metrics averages by epochs:
+        # Set up the metrics summary dictionaries - a dictionary of all metrics averages by epochs:
         # [Metric: str] -> [Epoch: int] -> [value: float]:
         self._training_summaries = {}  # type: Dict[str, List[float]]
         self._validation_summaries = {}  # type: Dict[str, List[float]]
 
         # Store the static hyperparameters given - a dictionary of parameters and their values to note:
         # [Parameter: str] -> [value: Union[str, bool, float, int]]
-        self._static_hyperparameters = {}  # type: Dict[str, TrackableType]
+        self._static_hyperparameters = {}  # type: Dict[str, DLTypes.TrackableType]
 
         # Setup the dynamic hyperparameters dictionary - a dictionary of all tracked hyperparameters by epochs:
         # [Hyperparameter: str] -> [Epoch: int] -> [value: Union[str, bool, float, int]]
-        self._dynamic_hyperparameters = {}  # type: Dict[str, List[TrackableType]]
+        self._dynamic_hyperparameters = (
+            {}
+        )  # type: Dict[str, List[DLTypes.TrackableType]]
 
         # Setup the iterations counter:
         self._epochs = 0
@@ -65,7 +72,7 @@ class Logger:
         return self._context
 
     @property
-    def mode(self) -> LoggerMode:
+    def mode(self) -> LoggingMode:
         """
         Get the logger's mode.
 
@@ -116,7 +123,7 @@ class Logger:
         return self._validation_summaries
 
     @property
-    def static_hyperparameters(self) -> Dict[str, TrackableType]:
+    def static_hyperparameters(self) -> Dict[str, DLTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -126,7 +133,7 @@ class Logger:
         return self._static_hyperparameters
 
     @property
-    def dynamic_hyperparameters(self) -> Dict[str, List[TrackableType]]:
+    def dynamic_hyperparameters(self) -> Dict[str, List[DLTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
@@ -162,7 +169,7 @@ class Logger:
         """
         return self._validation_iterations
 
-    def set_mode(self, mode: LoggerMode):
+    def set_mode(self, mode: LoggingMode):
         """
         Set the logger's mode.
 
@@ -241,7 +248,9 @@ class Logger:
         """
         self._validation_summaries[metric_name].append(result)
 
-    def log_static_hyperparameter(self, parameter_name: str, value: TrackableType):
+    def log_static_hyperparameter(
+        self, parameter_name: str, value: DLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the static hyperparameters dictionary.
 
@@ -250,7 +259,9 @@ class Logger:
         """
         self._static_hyperparameters[parameter_name] = value
 
-    def log_dynamic_hyperparameter(self, parameter_name: str, value: TrackableType):
+    def log_dynamic_hyperparameter(
+        self, parameter_name: str, value: DLTypes.TrackableType
+    ):
         """
         Log the given parameter value in the dynamic hyperparameters dictionary at the current epoch (if its a new
         parameter it will be epoch 0). If the parameter appears in the static hyperparameters dictionary, it will be
@@ -269,6 +280,7 @@ class Logger:
         else:
             self._dynamic_hyperparameters[parameter_name].append(value)
 
+    # TODO: Move to MLRun logger
     def log_context_parameters(self):
         """
         Log the context given parameters as static hyperparameters. Should be called once as the context parameters do
@@ -276,19 +288,17 @@ class Logger:
         """
         for parameter_name, parameter_value in self._context.parameters.items():
             # Check if the parameter is a trackable value:
-            if (
-                isinstance(parameter_value, str)
-                or isinstance(parameter_value, bool)
-                or isinstance(parameter_value, float)
-                or isinstance(parameter_value, int)
-            ):
+            if isinstance(parameter_value, (str, bool, float, int)):
                 self.log_static_hyperparameter(
                     parameter_name=parameter_name, value=parameter_value
                 )
             else:
                 # See if its string representation length is below the maximum value length:
                 string_value = str(parameter_value)
-                if len(string_value) < 30:
+                if (
+                    len(string_value) < 30
+                ):  # Temporary to no log to long variables into the UI.
+                    # TODO: Make the user specify the parameters and take them all by default.
                     self.log_static_hyperparameter(
                         parameter_name=parameter_name, value=parameter_value
                     )

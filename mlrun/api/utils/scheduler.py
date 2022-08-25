@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import copy
 import json
@@ -13,6 +27,7 @@ from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
 import mlrun.errors
 from mlrun.api import schemas
@@ -119,6 +134,17 @@ class Scheduler:
             concurrency_limit,
             auth_info,
         )
+        job_id = self._resolve_job_id(project, name)
+        job = self._scheduler.get_job(job_id)
+        if job and job.next_run_time:
+            logger.info(
+                "updating schedule with next_run_time",
+                job=job,
+                next_run_time=job.next_run_time,
+            )
+            get_db().update_schedule(
+                db_session, project, name, next_run_time=job.next_run_time
+            )
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
     def update_schedule(
@@ -172,6 +198,13 @@ class Scheduler:
             updated_schedule.concurrency_limit,
             auth_info,
         )
+        if updated_schedule.next_run_time:
+            get_db().update_schedule(
+                db_session,
+                project,
+                name,
+                next_run_time=updated_schedule.next_run_time,
+            )
 
     def list_schedules(
         self,
@@ -183,9 +216,6 @@ class Scheduler:
         include_last_run: bool = False,
         include_credentials: bool = False,
     ) -> schemas.SchedulesOutput:
-        logger.debug(
-            "Getting schedules", project=project, name=name, labels=labels, kind=kind
-        )
         db_schedules = get_db().list_schedules(db_session, project, name, labels, kind)
         schedules = []
         for db_schedule in db_schedules:
@@ -258,6 +288,7 @@ class Scheduler:
         db_schedule = await fastapi.concurrency.run_in_threadpool(
             get_db().get_schedule, db_session, project, name
         )
+        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,
@@ -286,6 +317,11 @@ class Scheduler:
                     auth_info.session
                 )
             )
+            # created an access key with control and data session plane, so enriching auth_info with those planes
+            auth_info.planes = [
+                mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+            ]
 
     def _store_schedule_secrets(
         self,
@@ -567,7 +603,12 @@ class Scheduler:
                     db_schedule.cron_trigger,
                     db_schedule.concurrency_limit,
                     mlrun.api.schemas.AuthInfo(
-                        username=username, access_key=access_key
+                        username=username,
+                        access_key=access_key,
+                        # enriching with control plane tag because scheduling a function requires control plane
+                        planes=[
+                            mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                        ],
                     ),
                 )
             except Exception as exc:
@@ -591,10 +632,16 @@ class Scheduler:
         }
         schedule = schemas.ScheduleOutput(**schedule_dict)
 
-        job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
-        job = self._scheduler.get_job(job_id)
-        if job:
-            schedule.next_run_time = job.next_run_time
+        # schedules are running only on chief Therefore we querying next_run_time from the scheduler only when
+        # running on chief
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            == mlrun.api.schemas.ClusterizationRole.chief
+        ):
+            job_id = self._resolve_job_id(schedule_record.project, schedule_record.name)
+            job = self._scheduler.get_job(job_id)
+            if job:
+                schedule.next_run_time = job.next_run_time
 
         if include_last_run:
             self._enrich_schedule_with_last_run(db_session, schedule)
@@ -736,7 +783,12 @@ class Scheduler:
             scheduler.update_schedule(
                 db_session,
                 mlrun.api.schemas.AuthInfo(
-                    username=project_owner.username, access_key=project_owner.session
+                    username=project_owner.username,
+                    access_key=project_owner.access_key,
+                    # enriching with control plane tag because scheduling a function requires control plane
+                    planes=[
+                        mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                    ],
                 ),
                 project_name,
                 schedule_name,
@@ -748,11 +800,15 @@ class Scheduler:
         run_uri = RunObject.create_uri(
             run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
         )
+        # update every finish of a run the next run time so it would be accessible for worker instances
+        job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
+        job = scheduler._scheduler.get_job(job_id)
         get_db().update_schedule(
             db_session,
             run_metadata["project"],
             schedule_name,
             last_run_uri=run_uri,
+            next_run_time=job.next_run_time if job else None,
         )
 
         close_session(db_session)

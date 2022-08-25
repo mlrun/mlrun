@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import pathlib
 import time
@@ -291,11 +305,11 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     # at this point the schedule is inside the scheduler without auth_info, so the first trigger should try to generate
     # auth info, mock the functions for this
     username = "some-username"
-    session = "some-session"
+    access_key = "some-access_key"
     mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = (
         unittest.mock.Mock(
             return_value=mlrun.api.schemas.ProjectOwner(
-                username=username, session=session
+                username=username, access_key=access_key
             )
         )
     )
@@ -522,6 +536,32 @@ async def test_get_schedule(db: Session, scheduler: Scheduler):
         year_datetime,
         labels_2,
     )
+
+
+@pytest.mark.asyncio
+async def test_get_schedule_next_run_time_from_db(db: Session, scheduler: Scheduler):
+    cron_trigger = schemas.ScheduleCronTrigger(minute="*/10")
+    schedule_name = "schedule-name"
+    project = config.default_project
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.local_function,
+        do_nothing,
+        cron_trigger,
+    )
+    chief_schedule = scheduler.get_schedule(db, project, schedule_name)
+    assert chief_schedule.next_run_time is not None
+
+    # simulating when running in worker
+    mlrun.mlconf.httpdb.clusterization.role = (
+        mlrun.api.schemas.ClusterizationRole.worker
+    )
+    worker_schedule = scheduler.get_schedule(db, project, schedule_name)
+    assert worker_schedule.next_run_time is not None
+    assert chief_schedule.next_run_time == worker_schedule.next_run_time
 
 
 @pytest.mark.asyncio

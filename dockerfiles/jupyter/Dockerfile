@@ -1,12 +1,22 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 FROM jupyter/scipy-notebook:python-3.8.8
 
 USER root
 RUN apt-get update && \
-    apt-get -s dist-upgrade | \
-    grep "^Inst" | \
-    grep -i securi | \
-    awk -F " " {'print $2'} | \
-    xargs apt-get install -y --no-install-recommends && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -44,7 +54,8 @@ RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.0.x https://github.com/mlrun/demos.git $HOME/demos
+RUN git clone --branch 1.1.x https://github.com/mlrun/demos.git $HOME/demos && \
+    cd $HOME/demos && ./community_edition_align.sh && cd -
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \

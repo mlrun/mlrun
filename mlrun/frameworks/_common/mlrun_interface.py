@@ -1,20 +1,28 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import functools
 import inspect
 from abc import ABC
-from types import MethodType
-from typing import Any, Dict, Generic, List, Tuple
+from types import FunctionType, MethodType
+from typing import Any, Dict, Generic, List, Tuple, Union
 
-from .utils import MLRunInterfaceableType
-
-RestorationInformation = Tuple[
-    Dict[str, Any],  # Interface properties.
-    Dict[str, Any],  # Replaced properties.
-    List[str],  # Replaced methods and functions.
-]
+from .utils import CommonTypes
 
 
-class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
+class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     """
     An abstract class for enriching an object interface with the properties, methods and functions written below.
 
@@ -23,8 +31,8 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
     In order to replace object's attributes, the attributes to replace are needed to be added to the attributes:
     '_REPLACED_PROPERTIES', '_REPLACED_METHODS' and '_REPLACED_FUNCTIONS'. The original attribute will be kept in a
-    backup attribute with the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME'. Replacing functions / methods will be the one
-    located by looking for the prefix noted in '_REPLACING_ATTRIBUTE_NAME'. The replacing function / method can be a
+    backup attribute with the prefix noted in '_ORIGINAL_ATTRIBUTE_NAME'. The replacing functions / methods will be
+    located by looking for the prefix noted in '_REPLACING_ATTRIBUTE_NAME'. The replacing function / method can be an
     MLRunInterface class method that return a function / method.
 
     For example: if "x" is in the list then the method "object.x" will be stored as "object.original_x" and "object.x"
@@ -42,6 +50,8 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
     _REPLACED_METHODS = []  # type: List[str]
     _REPLACED_FUNCTIONS = []  # type: List[str]
 
+    # TODO: Add _OPTIONALLY_REPLACED_PROPERTIES, _OPTIONALLY_REPLACED_METHODS and _OPTIONALLY_REPLACED_FUNCTIONS
+
     # Name template for the replaced attribute to be stored as in the object.
     _ORIGINAL_ATTRIBUTE_NAME = "original_{}"
 
@@ -51,38 +61,40 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
     @classmethod
     def add_interface(
         cls,
-        obj: MLRunInterfaceableType,
-        restoration_information: RestorationInformation = None,
+        obj: CommonTypes.MLRunInterfaceableType,
+        restoration: CommonTypes.MLRunInterfaceRestorationType = None,
     ):
         """
         Enrich the object with this interface properties, methods and functions so it will have this framework MLRun's
         features.
 
-        :param obj:                     The object to enrich his interface.
-        :param restoration_information: Restoration information tuple as returned from 'remove_interface' in order to
-                                        add the interface in a certain state.
+        :param obj:         The object to enrich his interface.
+        :param restoration: Restoration information tuple as returned from 'remove_interface' in order to add the
+                            interface in a certain state.
         """
         # Set default value to the restoration data:
-        if restoration_information is None:
-            restoration_information = (None, None, None)
+        if restoration is None:
+            restoration = (None, None, None)
 
         # Add the MLRun properties:
         cls._insert_properties(
             obj=obj,
-            properties=restoration_information[0],
+            properties=restoration[0],
         )
 
         # Replace the object's properties in MLRun's properties:
-        cls._replace_properties(obj=obj, properties=restoration_information[1])
+        cls._replace_properties(obj=obj, properties=restoration[1])
 
         # Add the MLRun functions:
         cls._insert_functions(obj=obj)
 
         # Replace the object's functions / methods in MLRun's functions / methods:
-        cls._replace_functions(obj=obj, functions=restoration_information[2])
+        cls._replace_functions(obj=obj, functions=restoration[2])
 
     @classmethod
-    def remove_interface(cls, obj: MLRunInterfaceableType) -> RestorationInformation:
+    def remove_interface(
+        cls, obj: CommonTypes.MLRunInterfaceableType
+    ) -> CommonTypes.MLRunInterfaceRestorationType:
         """
         Remove the MLRun features from the given object. The properties and replaced attributes found in the object will
         be returned.
@@ -134,7 +146,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
         return properties, replaced_properties, replaced_functions
 
     @classmethod
-    def is_applied(cls, obj: MLRunInterfaceableType) -> bool:
+    def is_applied(cls, obj: CommonTypes.MLRunInterfaceableType) -> bool:
         """
         Check if the given object has MLRun interface attributes in it. Interface is applied if all of its attributes
         are found in the object. If only replaced attributes are configured in the interface, then the interface is
@@ -160,7 +172,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
     @classmethod
     def _insert_properties(
         cls,
-        obj: MLRunInterfaceableType,
+        obj: CommonTypes.MLRunInterfaceableType,
         properties: Dict[str, Any] = None,
     ):
         """
@@ -201,7 +213,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
             setattr(obj, property_name, value)
 
     @classmethod
-    def _insert_functions(cls, obj: MLRunInterfaceableType):
+    def _insert_functions(cls, obj: CommonTypes.MLRunInterfaceableType):
         """
         Insert the functions / methods of the interface to the object.
 
@@ -226,7 +238,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
     @classmethod
     def _replace_properties(
-        cls, obj: MLRunInterfaceableType, properties: Dict[str, Any] = None
+        cls, obj: CommonTypes.MLRunInterfaceableType, properties: Dict[str, Any] = None
     ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
@@ -270,7 +282,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
 
     @classmethod
     def _replace_functions(
-        cls, obj: MLRunInterfaceableType, functions: List[str] = None
+        cls, obj: CommonTypes.MLRunInterfaceableType, functions: List[str] = None
     ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
@@ -309,7 +321,7 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
     @classmethod
     def _replace_property(
         cls,
-        obj: MLRunInterfaceableType,
+        obj: CommonTypes.MLRunInterfaceableType,
         property_name: str,
         property_value: Any = None,
         include_none: bool = False,
@@ -340,7 +352,9 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
         setattr(obj, property_name, property_value)
 
     @classmethod
-    def _replace_function(cls, obj: MLRunInterfaceableType, function_name: str):
+    def _replace_function(
+        cls, obj: CommonTypes.MLRunInterfaceableType, function_name: str
+    ):
         """
         Replace the method / function in the object with the configured method / function in this interface. The
         original method / function will be stored in a backup attribute with the prefix noted in
@@ -378,7 +392,9 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
         setattr(obj, function_name, replacing_function)
 
     @classmethod
-    def _restore_attribute(cls, obj: MLRunInterfaceableType, attribute_name: str):
+    def _restore_attribute(
+        cls, obj: CommonTypes.MLRunInterfaceableType, attribute_name: str
+    ):
         """
         Restore the replaced attribute (property, method or function) in the object, removing the backup attribute as
         well.
@@ -396,3 +412,56 @@ class MLRunInterface(ABC, Generic[MLRunInterfaceableType]):
         # Remove the original backup attribute:
         setattr(obj, original_attribute_name, None)
         delattr(obj, original_attribute_name)
+
+    @staticmethod
+    def _get_function_argument(
+        func: FunctionType,
+        argument_name: str,
+        passed_args: tuple = None,
+        passed_kwargs: dict = None,
+        default_value: Any = None,
+    ) -> Tuple[Any, Union[str, int, None]]:
+        """
+        Get a passed argument (from *args or **kwargs) to a function. If the argument was not found the default value
+        will be returned. In addition, the keyword of the argument in `kwargs` or the index of the argument in `args`
+        will be returned as well.
+
+        :param func:          The function that is being called.
+        :param argument_name: The argument name to get.
+        :param passed_args:   The passed arguments to the function (*args).
+        :param passed_kwargs: The passed keyword arguments to the function (*kwargs).
+        :param default_value: The default value to use in case it was not passed.
+
+        :return: A tuple of:
+                 [0] = The argument value or the default value if it was not found in any of the arguments.
+                 [1] = If it was found in `kwargs` - the keyword of the argument. If it was found in `args` - the index
+                       of the argument. If it was not found, None.
+        """
+        # Set default values for arguments data structures:
+        if passed_args is None:
+            passed_args = []
+        if passed_kwargs is None:
+            passed_kwargs = {}
+
+        # Check in the key word arguments first:
+        if argument_name in passed_kwargs:
+            return passed_kwargs[argument_name], argument_name
+
+        # Check in the arguments, inspecting the function's parameters to get the right index:
+        func_parameters = {
+            parameter_name: i
+            for i, parameter_name in enumerate(
+                inspect.signature(func).parameters.keys()
+            )
+        }
+        if (
+            argument_name in func_parameters
+            and len(passed_args) >= func_parameters[argument_name] + 1
+        ):
+            return (
+                passed_args[func_parameters[argument_name]],
+                func_parameters[argument_name],
+            )
+
+        # The argument name was not found:
+        return default_value, None

@@ -1,5 +1,5 @@
-
-# Github/Gitlab/Jenkins and CI/CD integration
+(ci-integration)=
+# CI/CD, rolling upgrades, git
 
 MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
 and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
@@ -111,7 +111,7 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'mlrun/mlrun:1.0.0'
+                    image 'mlrun/mlrun:1.0.6'
                 }
             }
             steps {

@@ -77,7 +77,7 @@ jobs:
       run: |
         echo "::set-output name=branch::$(echo ${GITHUB_REF#refs/heads/})"
     - name: Extract git hash from action mlrun version
-      if: ${{ github.event.inputs.test_code_from_action == 'true' }}
+      if: ${{ github.event.inputs.test_code_from_action != 'false' }}
       id: git_action_info
       run: |
         echo "::set-output name=mlrun_hash::$(git rev-parse --short=8 $GITHUB_SHA)"

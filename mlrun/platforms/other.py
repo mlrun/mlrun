@@ -267,6 +267,7 @@ def set_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
     as either a dictionary of name-value pairs, or as arguments to the function.
+    See `KubeResource.apply` for more information on modifiers.
 
     Usage::
 

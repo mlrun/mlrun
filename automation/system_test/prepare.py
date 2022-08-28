@@ -34,8 +34,6 @@ logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
 class SystemTestPreparer:
     class Constants:
-        ssh_username = "iguazio"
-
         ci_dir_name = "mlrun-automation"
         homedir = pathlib.Path("/home/iguazio/")
         workdir = homedir / ci_dir_name
@@ -55,6 +53,7 @@ class SystemTestPreparer:
         override_image_repo: str = None,
         override_mlrun_images: str = None,
         data_cluster_ip: str = None,
+        data_cluster_ssh_username: str = None,
         data_cluster_ssh_password: str = None,
         app_cluster_ssh_password: str = None,
         github_access_token: str = None,
@@ -80,6 +79,7 @@ class SystemTestPreparer:
         self._override_image_repo = override_image_repo
         self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
+        self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
@@ -108,7 +108,7 @@ class SystemTestPreparer:
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
             self._ssh_client.connect(
                 self._data_cluster_ip,
-                username=self.Constants.ssh_username,
+                username=self._data_cluster_ssh_username,
                 password=self._data_cluster_ssh_password,
             )
 
@@ -466,7 +466,7 @@ class SystemTestPreparer:
         self._run_and_wait_until_successful(
             command=f"grep 'Patch archive prepared' {provctl_create_patch_log}",
             command_name="provctl create patch",
-            max_retries=20,
+            max_retries=25,
             interval=60,
         )
         # print provctl create patch log
@@ -494,7 +494,7 @@ class SystemTestPreparer:
         self._run_and_wait_until_successful(
             command=f"grep 'Finished patching appservice' {provctl_patch_mlrun_log}",
             command_name="provctl patch mlrun",
-            max_retries=20,
+            max_retries=25,
             interval=60,
         )
         # print provctl patch mlrun log
@@ -533,6 +533,7 @@ def main():
     help="The commit (in mlrun/mlrun) of the tested mlrun version.",
 )
 @click.argument("data-cluster-ip", type=str, required=True)
+@click.argument("data-cluster-ssh-username", type=str, required=True)
 @click.argument("data-cluster-ssh-password", type=str, required=True)
 @click.argument("app-cluster-ssh-password", type=str, required=True)
 @click.argument("github-access-token", type=str, required=True)
@@ -557,6 +558,7 @@ def run(
     override_image_repo: str,
     override_mlrun_images: str,
     data_cluster_ip: str,
+    data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
     app_cluster_ssh_password: str,
     github_access_token: str,
@@ -577,6 +579,7 @@ def run(
         override_image_repo,
         override_mlrun_images,
         data_cluster_ip,
+        data_cluster_ssh_username,
         data_cluster_ssh_password,
         app_cluster_ssh_password,
         github_access_token,

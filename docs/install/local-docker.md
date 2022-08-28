@@ -10,7 +10,8 @@ Using Docker is limited to local, Nuclio, serving runtimes, and local pipelines.
 
 ## Prerequisites
 
-- Storage - 7Gi
+- Memory: 8GB
+- Storage: 7GB
 
 ## Overview
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,

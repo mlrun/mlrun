@@ -842,7 +842,7 @@ class BatchProcessor:
         characters_to_remove = "{} "
         pattern = "[" + characters_to_remove + "]"
         # Remove unnecessary characters from the provided string
-        batch_list = re.sub(pattern, "", self.batch_dict)
+        batch_list = re.sub(pattern, "", self.batch_dict).split(",")
         # Initialize the dictionary of batch interval ranges
         self.batch_dict = {}
         for pair in batch_list:

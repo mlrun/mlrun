@@ -13,8 +13,7 @@ Using Docker is limited to local, Nuclio, serving runtimes, and local pipelines.
 
 ## Overview
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
-
-MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, nuclio, and  
+MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, Nuclio, and  
 Jupyter, do not have default resources. This means that they are set with the default cluster/namespace resources limits. These can be modified.
 
 There are two installation options:

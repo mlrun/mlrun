@@ -411,10 +411,6 @@ class TestProject(TestMLRunSystem):
         project = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git", name=name
         )
-        # Skipping until mlrun/project-demo will contain newflow workflow in project
-        workflow_names = [workflow["name"] for workflow in project.spec.workflows]
-        if workflow_name not in workflow_names:
-            return
         run = project.run(
             workflow_name,
             watch=watch,

@@ -414,7 +414,6 @@ class TestProject(TestMLRunSystem):
         # Skipping until mlrun/project-demo will contain newflow workflow in project
         workflow_names = [workflow["name"] for workflow in project.spec.workflows]
         if workflow_name not in workflow_names:
-            self._delete_test_project()
             return
         run = project.run(
             workflow_name,
@@ -425,29 +424,34 @@ class TestProject(TestMLRunSystem):
 
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
         assert run.run_id, "workflow's run id failed to fetch"
-        self._delete_test_project()
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
+        project_name = "rmtpipe-kfp-github"
+        self.custom_project_names_to_delete.append(project_name)
+
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-kfp-github",
+            name=project_name,
             workflow_name="main",
             engine="remote",
             watch=True,
         )
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-kfp-github", workflow_name="main", engine="remote:kfp"
+            name=project_name, workflow_name="main", engine="remote:kfp"
         )
 
     def test_remote_pipeline_with_local_engine_from_github(self):
+        project_name = "rmtpipe-local-github"
+        self.custom_project_names_to_delete.append(project_name)
+
         self._test_remote_pipeline_from_github(
-            name="rmtpipe-local-github",
+            name=project_name,
             workflow_name="newflow",
             engine="remote:local",
             watch=True,
         )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             self._test_remote_pipeline_from_github(
-                name="rmtpipe-local-github",
+                name=project_name,
                 workflow_name="newflow",
                 engine="remote",
                 local=True,

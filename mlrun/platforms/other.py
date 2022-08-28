@@ -264,6 +264,20 @@ def mount_s3(
 
 
 def set_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
+    """
+    Modifier function to apply a set of environment variables to a runtime. Variables may be passed
+    as either a dictionary of name-value pairs, or as arguments to the function.
+
+    Usage::
+
+        function.apply(set_env_variables({"ENV1": "value1", "ENV2": "value2"}))
+        or
+        function.apply(set_env_variables(ENV1=value1, ENV2=value2))
+
+    :param env_vars_dict: dictionary of env. variables
+    :param kwargs: environment variables passed as args
+    """
+
     env_data = env_vars_dict.copy() if env_vars_dict else {}
     for key, value in kwargs.items():
         env_data[key] = value

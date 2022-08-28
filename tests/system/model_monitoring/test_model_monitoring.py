@@ -332,7 +332,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         stat = mlrun.get_run_db().get_builder_status(base_runtime)
 
-        # Wait 20 sec if model monitoring stream function is still on building process
+        # Wait 20 sec if model monitoring stream function is still in building process
         if base_runtime.status.state in ("building", "waitingForResourceConfiguration"):
             sleep(20)
             stat = mlrun.get_run_db().get_builder_status(base_runtime)

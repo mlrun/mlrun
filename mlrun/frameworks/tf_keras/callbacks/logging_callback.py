@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Callable, Dict, List, Union
 
 import numpy as np
@@ -7,8 +21,9 @@ from tensorflow.keras.callbacks import Callback
 
 import mlrun
 
-from ..._common import TrackableType
-from ..._dl_common.loggers import Logger, LoggerMode
+from ..._common import LoggingMode
+from ..._dl_common.loggers import Logger
+from ..utils import TFKerasTypes
 
 
 class LoggingCallback(Callback):
@@ -22,10 +37,10 @@ class LoggingCallback(Callback):
         self,
         context: mlrun.MLClientCtx = None,
         dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TrackableType]]
+            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, List[Union[str, int]]]
+            str, Union[TFKerasTypes.TrackableType, List[Union[str, int]]]
         ] = None,
         auto_log: bool = False,
     ):
@@ -116,7 +131,7 @@ class LoggingCallback(Callback):
         """
         return self._logger.validation_summaries
 
-    def get_static_hyperparameters(self) -> Dict[str, TrackableType]:
+    def get_static_hyperparameters(self) -> Dict[str, TFKerasTypes.TrackableType]:
         """
         Get the static hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is his logged value.
@@ -125,7 +140,9 @@ class LoggingCallback(Callback):
         """
         return self._logger.static_hyperparameters
 
-    def get_dynamic_hyperparameters(self) -> Dict[str, List[TrackableType]]:
+    def get_dynamic_hyperparameters(
+        self,
+    ) -> Dict[str, List[TFKerasTypes.TrackableType]]:
         """
         Get the dynamic hyperparameters logged. The hyperparameters will be stored in a dictionary where each key is the
         hyperparameter name and the value is a list of his logged values per epoch.
@@ -179,7 +196,7 @@ class LoggingCallback(Callback):
         # Check if needed to mark this run as evaluation:
         if self._is_training is None:
             self._is_training = False
-            self._logger.set_mode(mode=LoggerMode.EVALUATION)
+            self._logger.set_mode(mode=LoggingMode.EVALUATION)
 
         # If this callback is part of evaluation and not training, need to check if the run was setup:
         if not self._is_training:
@@ -379,8 +396,11 @@ class LoggingCallback(Callback):
                 pass
 
     def _get_hyperparameter(
-        self, key_chain: Union[Callable[[], TrackableType], List[Union[str, int]]]
-    ) -> TrackableType:
+        self,
+        key_chain: Union[
+            Callable[[], TFKerasTypes.TrackableType], List[Union[str, int]]
+        ],
+    ) -> TFKerasTypes.TrackableType:
         """
         Access the hyperparameter from the model stored in this callback using the given key chain.
 

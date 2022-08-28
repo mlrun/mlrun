@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import inspect
 
 import kubernetes.client
@@ -33,6 +47,9 @@ def test_runtimes_inheritance():
             mlrun.runtimes.sparkjob.spark2job.Spark2JobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
+        mlrun.runtimes.function.NuclioSpec: [
+            mlrun.runtimes.serving.ServingSpec,
+        ],
         mlrun.runtimes.base.FunctionStatus: [
             mlrun.runtimes.daskjob.DaskStatus,
             mlrun.runtimes.function.NuclioStatus,
@@ -51,9 +68,9 @@ def test_runtimes_inheritance():
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
         ],
     }
-    checked_classes = set()
     invalid_classes = {}
     for base_class, inheriting_classes in classes_map.items():
+        checked_classes = set()
         for inheriting_class in inheriting_classes:
             for class_ in inspect.getmro(inheriting_class):
                 if base_class == class_:

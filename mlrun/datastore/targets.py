@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import random
+import re
 import time
 import typing
 import warnings
@@ -249,6 +250,15 @@ def validate_target_list(targets):
                 targets_with_same_path
             )
         )
+
+
+def convert_wasb_schema_to_az(target):
+    # wasbs pattern: wasbs://<CONTAINER>@<ACCOUNT_NAME>.blob.core.windows.net/<PATH_OBJ_IN_CONTAINER>
+    m = re.match(
+        r"^(?P<schema>.*)://(?P<cont>.*)@(?P<account>.*?)\..*?/(?P<obj_path>.*?)$",
+        target.path,
+    )
+    target.path = "az://" + m.groupdict()["cont"] + "/" + m.groupdict()["obj_path"]
 
 
 def validate_target_placement(graph, final_step, targets):
@@ -504,7 +514,9 @@ class BaseStoreTarget(DataTargetBase):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity
                 if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = "hour"
+                    time_partitioning_granularity = (
+                        mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                    )
                 for unit, fmt in [
                     ("year", "%Y"),
                     ("month", "%m"),
@@ -598,6 +610,15 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+        # Copy partitioning-related fields to the status, since these are needed if reading the actual data that
+        # is related to the specific target.
+        # TODO - instead of adding more fields to the status targets, we should consider changing any functionality
+        #       that depends on "spec-fields" to use a merge between the status and the spec targets. One such place
+        #       is the fset.to_dataframe() function.
+        target.partitioned = self.partitioned
+        target.key_bucketing_number = self.key_bucketing_number
+        target.partition_cols = self.partition_cols
+        target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)
         return target
@@ -714,18 +735,9 @@ class ParquetTarget(BaseStoreTarget):
             )
             after_step = after_step or after_state
 
+        self.path = path
         if partitioned is None:
-            if all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            ):
-                partitioned = False
-            else:
-                partitioned = True
+            partitioned = not self.is_single_file()
 
         super().__init__(
             name,
@@ -744,14 +756,14 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             time_partitioning_granularity is not None
-            and time_partitioning_granularity not in self._legal_time_units
+            and time_partitioning_granularity
+            not in mlrun.utils.helpers.LEGAL_TIME_UNITS
         ):
             raise errors.MLRunInvalidArgumentError(
-                f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
+                f"time_partitioning_granularity parameter must be one of "
+                f"{','.join(mlrun.utils.helpers.LEGAL_TIME_UNITS)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
@@ -811,10 +823,12 @@ class ParquetTarget(BaseStoreTarget):
                 self.partition_cols,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
-            for time_unit in self._legal_time_units:
+            for time_unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                 partition_cols.append(f"${time_unit}")
                 if time_unit == time_partitioning_granularity:
                     break
@@ -864,9 +878,11 @@ class ParquetTarget(BaseStoreTarget):
                 and self.partitioned
                 and not self.partition_cols
             ):
-                time_partitioning_granularity = "hour"
+                time_partitioning_granularity = (
+                    mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                )
             if time_partitioning_granularity:
-                for unit in self._legal_time_units:
+                for unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break

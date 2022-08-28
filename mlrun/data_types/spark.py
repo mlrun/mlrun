@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from os import environ
 
 import numpy as np
@@ -115,24 +129,39 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
 
     # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
 
-    summary_df = df.summary().toPandas()
+    # if a column named "summary" already exists, we have to rename it to something else and back
+    summary_renamed = False
+    df_for_summary = df
+    if "summary" in df.columns:
+        df_for_summary = df.withColumnRenamed("summary", "__summary_internal__")
+        summary_renamed = True
+    summary_df = df_for_summary.summary().toPandas()
     summary_df.set_index(["summary"], drop=True, inplace=True)
+    if summary_renamed:
+        summary_df.rename(columns={"__summary_internal__": "summary"}, inplace=True)
+    # pandas df.describe() returns std, while spark returns stddev
+    # we therefore need to rename stddev to std for compatibility with pandas
+    # TODO: we may want to consider changing std to stddev in 1.2 and beyond (this requires a change to mlrun-ui)
+    summary_df.rename(index={"stddev": "std"}, inplace=True)
+
     results_dict = {}
     hist_columns = []
+    # Spark summary() returns strings, unlike pandas describe() which returns numerical values where
+    # applicable. For compatibility, we therefore convert values to numerical types in these cases.
+    numerical_spark_types = {"int", "bigint", "float", "double", "bigdecimal"}
     for col, values in summary_df.items():
+        original_type = None
+        for col_name, col_type in df.dtypes:
+            if col_name == col:
+                original_type = col_type
+                break
         stats_dict = {}
         for stat, val in values.dropna().items():
-            if stat != "50%":
-                if isinstance(val, (float, np.floating, np.float64)):
-                    stats_dict[stat] = float(val)
-                elif isinstance(val, (int, np.integer, np.int64)):
-                    # boolean values are considered subclass of int
-                    if isinstance(val, bool):
-                        stats_dict[stat] = bool(val)
-                    else:
-                        stats_dict[stat] = int(val)
-                else:
-                    stats_dict[stat] = str(val)
+            if stat in ["min", "max"] and original_type not in numerical_spark_types:
+                stats_dict[stat] = val
+                # TODO: we exclude 50% for compatibility with the pandas implementation, but why?
+            elif stat != "50%":
+                stats_dict[stat] = float(val)
         results_dict[col] = stats_dict
 
         if (

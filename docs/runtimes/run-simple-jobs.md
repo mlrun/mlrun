@@ -1,3 +1,4 @@
+(run-simple-jobs)=
 # Running simple jobs
 
 ## Run with CLI locally: CSV output

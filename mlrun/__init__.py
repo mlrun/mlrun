@@ -14,7 +14,14 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__all__ = ["get_version", "set_environment", "code_to_function", "import_function"]
+__all__ = [
+    "get_version",
+    "set_environment",
+    "code_to_function",
+    "import_function",
+    "context",
+    "ArtifactType",
+]
 
 import getpass
 from os import environ, path
@@ -24,7 +31,7 @@ import dotenv
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
-from .errors import MLRunInvalidArgumentError
+from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
@@ -47,7 +54,9 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
+    ArtifactType,
     code_to_function,
+    context,
     function_to_module,
     get_dataitem,
     get_object,
@@ -194,6 +203,9 @@ def set_env_from_file(env_file: str, return_dict: bool = False):
     :param return_dict: set to True to return the env as a dict
     :return: None or env dict
     """
+    env_file = path.expanduser(env_file)
+    if not path.isfile(env_file):
+        raise MLRunNotFoundError(f"env file {env_file} does not exist")
     env_vars = dotenv.dotenv_values(env_file)
     if None in env_vars.values():
         raise MLRunInvalidArgumentError("env file lines must be in the form key=value")

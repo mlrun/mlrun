@@ -1,5 +1,5 @@
-(training)=
-# Retrieve offline data and use it for training
+(retrieve-offline-data)=
+# Retrieve offline data
 
 **In this section**
 - [Creating an offline dataset](#creating-an-offline-dataset)
@@ -7,7 +7,7 @@
 
 ## Creating an offline dataset
 
-An offline dataset is a specific instance of the feature vector definition. To create this instance, use the feature store's 
+An offline dataset is a specific instance of the {ref}`feature vector definition <create-use-feature-vectors>`. To create this instance, use the feature store's 
 `get_offline_features(<feature_vector>, <target>)` function on the feature vector using the `store://<project_name>/<feature_vector>` 
 reference and an offline target (as in Parquet, CSV, etc.).
 
@@ -48,7 +48,7 @@ def my_training_function(context, # MLRun context
                          dataset, # our feature vector reference
                          **kwargs):
     
-    # retreieve the dataset
+    # retrieve the dataset
     df = dataset.as_df()
 
     # The rest of your training code...

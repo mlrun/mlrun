@@ -867,8 +867,10 @@ class BaseRuntime(ModelObj):
         image = enrich_image_url(image, client_version)
         if not image.startswith("."):
             return image
-        registry, _ = get_parsed_docker_registry()
+        registry, repository = get_parsed_docker_registry()
         if registry:
+            if repository and repository not in image:
+                return f"{registry}/{repository}/{image[1:]}"
             return f"{registry}/{image[1:]}"
         namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
         if namespace_domain is not None:

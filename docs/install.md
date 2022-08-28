@@ -1,3 +1,4 @@
+(install-setup-guide)=
 # Installation and setup guide <!-- omit in toc -->
 
 This guide outlines the steps for installing and running MLRun. 
@@ -15,7 +16,7 @@ There are several deployment options:
 - [Kubernetes cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html): Deploy an MLRun server on Kubernetes.
    This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
   
-- [Iguazio's Managed  Service](https://www.iguazio.com): A commerical offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 
 

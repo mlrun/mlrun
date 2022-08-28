@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Any, Dict, List, Tuple, Union
 
@@ -7,11 +21,12 @@ from torch.utils.data import DataLoader
 
 import mlrun
 
-from .callbacks import Callback, MetricFunctionType, MetricValueType
+from .callbacks import Callback
 from .callbacks_handler import CallbacksHandler
 from .mlrun_interface import PyTorchMLRunInterface
 from .model_handler import PyTorchModelHandler
 from .model_server import PyTorchModelServer
+from .utils import PyTorchTypes, PyTorchUtils
 
 
 def train(
@@ -20,7 +35,7 @@ def train(
     loss_function: Module,
     optimizer: Optimizer,
     validation_set: DataLoader = None,
-    metric_functions: List[MetricFunctionType] = None,
+    metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
     scheduler=None,
     scheduler_step_frequency: Union[int, float, str] = "epoch",
     epochs: int = 1,
@@ -190,7 +205,7 @@ def evaluate(
     dataset: DataLoader,
     model: Module = None,
     loss_function: Module = None,
-    metric_functions: List[MetricFunctionType] = None,
+    metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
     iterations: int = None,
     callbacks_list: List[Callback] = None,
     use_cuda: bool = True,
@@ -202,7 +217,7 @@ def evaluate(
     custom_objects_directory: str = None,
     mlrun_callback_kwargs: Dict[str, Any] = None,
     context: mlrun.MLClientCtx = None,
-) -> Tuple[PyTorchModelHandler, List[MetricValueType]]:
+) -> Tuple[PyTorchModelHandler, List[PyTorchTypes.MetricValueType]]:
     """
     Use MLRun's PyTorch interface to evaluate the model with the given parameters. For more information and further
     options regarding the auto logging, see 'PyTorchMLRunInterface' documentation. Notice for auto-logging: In order to

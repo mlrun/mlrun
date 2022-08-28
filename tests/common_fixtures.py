@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import unittest
 from http import HTTPStatus
 from os import environ
@@ -205,7 +219,13 @@ class RunDBMock:
             state="ready",
             nuclio_name="test-nuclio-name",
         )
-        return {"data": {"status": status.to_dict()}}
+        return {
+            "data": {
+                "status": status.to_dict(),
+                "metadata": self._function.get("metadata"),
+                "spec": self._function.get("spec"),
+            }
+        }
 
     def get_builder_status(
         self,
@@ -295,12 +315,12 @@ class RunDBMock:
         env_list = self._function["spec"]["env"]
         param_names = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
         secret_name = s3_params.get("secret_name")
+        non_anonymous = s3_params.get("non_anonymous")
 
-        attr_name = "valueFrom" if secret_name else "value"
         env_dict = {
-            item["name"]: item[attr_name]
+            item["name"]: item["valueFrom"] if "valueFrom" in item else item["value"]
             for item in env_list
-            if item["name"] in param_names
+            if item["name"] in param_names + ["S3_NON_ANONYMOUS"]
         }
 
         if secret_name:
@@ -313,6 +333,8 @@ class RunDBMock:
                 "AWS_ACCESS_KEY_ID": s3_params["aws_access_key"],
                 "AWS_SECRET_ACCESS_KEY": s3_params["aws_secret_key"],
             }
+        if non_anonymous:
+            expected_envs["S3_NON_ANONYMOUS"] = "true"
         assert expected_envs == env_dict
 
     def verify_authorization(

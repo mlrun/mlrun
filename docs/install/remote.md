@@ -1,3 +1,4 @@
+(install-remote)=
 # Set up your client environment <!-- omit in toc -->
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
@@ -134,7 +135,7 @@ function.set_envs(file_path=env_file)
 
 1. Create an env file similar to the example, with lines in the form KEY=VALUE, and comment lines starting with "#".
 2. Use `--env-file <env file path>` in mlrun run/build/deploy/project CLI commands to load the config and credential env vars from file.
-2. Set the `MLRUN_SET_ENV_FILE=<env file path>` env var to point to a default env file (which will be loaded on import).
+2. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which will be loaded on import).
    If the `MLRUN_DBPATH` points to a remote iguazio cluster and the `V3IO_API` and/or `V3IO_FRAMESD` vars are not set, they will be inferred from the DBPATH.
 2. Add the default `env` file template in the Jupyter container `~/env` (to allow quick setup of remote demos).
 

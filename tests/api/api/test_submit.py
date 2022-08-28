@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 import unittest.mock
 from http import HTTPStatus
@@ -211,6 +225,16 @@ def test_submit_job_service_accounts(
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
     _assert_pod_service_account(pod_create_mock, "sa3")
+
+    # Validate that a global service account works as expected
+    pod_create_mock.reset_mock()
+    mlconf.function.spec.service_account.default = "some-sa"
+    function.spec.service_account = None
+    submit_job_body = _create_submit_job_body(function, project)
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp
+    _assert_pod_service_account(pod_create_mock, "some-sa")
+    mlconf.function.spec.service_account.default = None
 
 
 def test_redirection_from_worker_to_chief_only_if_schedules_in_job(

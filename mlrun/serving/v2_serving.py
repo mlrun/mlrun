@@ -22,6 +22,7 @@ from mlrun.api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringMode,
 )
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
@@ -473,6 +474,9 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
                     project=project, kind="stream"
                 ),
                 active=True,
+                monitoring_mode=ModelMonitoringMode.enabled
+                if model.context.server.track_models
+                else ModelMonitoringMode.disabled,
             ),
             status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
         )

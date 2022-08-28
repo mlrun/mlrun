@@ -1,6 +1,6 @@
 (model_monitoring)=
 
-# Model monitoring overview (beta)
+# Model monitoring (beta)
 
 ```{note}
 Model monitoring is based on Iguazio's streaming technology. Contact Iguazio to enable this feature.
@@ -16,12 +16,12 @@ Two monitoring types are supported:
 Model monitoring provides warning alerts that can be sent to stakeholders for processing.
 
 The model monitoring data can be viewed using Iguazio's user interface or through Grafana dashboards. Grafana is an interactive web 
-application visualization tool that can be added as a service in the Iguazio platform. See [Model Monitoring Using Grafana Dashboards](./model-monitoring-deployment.html#model-monitoring-using-grafana-dashboards) for more details.
+application visualization tool that can be added as a service in the Iguazio platform. See [Model monitoring using Grafana dashboards](./model-monitoring-deployment.html#model-monitoring-using-grafana-dashboards) for more details.
 
 **In this section**
   
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 model-monitoring-deployment
 initial-setup-configuration

@@ -402,7 +402,9 @@ class FeatureSet(ModelObj):
                     f"target kind is not supported, use one of: {','.join(TargetTypes.all())}"
                 )
             if not hasattr(target, "kind"):
-                target = DataTargetBase(target, name=str(target))
+                target = DataTargetBase(
+                    target, name=str(target), partitioned=(target == "parquet")
+                )
             if target.path is not None and (
                 target.path.startswith("wasb") or target.path.startswith("wasbs")
             ):

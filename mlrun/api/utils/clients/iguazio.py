@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import datetime
 import enum
@@ -14,7 +28,7 @@ import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-from mlrun.utils import logger
+from mlrun.utils import get_in, logger
 
 
 class JobStates:
@@ -474,13 +488,54 @@ class Client(
             mlrun.errors.raise_for_status(response, error_message)
         return response
 
-    @staticmethod
     def _generate_auth_info_from_session_verification_response(
+        self,
         response: requests.Response,
     ) -> mlrun.api.schemas.AuthInfo:
-        gids = response.headers.get("x-user-group-ids")
+
+        (
+            username,
+            session,
+            planes,
+            user_unix_id,
+            user_id,
+            group_ids,
+        ) = self._resolve_params_from_response_headers(response)
+
+        (
+            user_id_from_body,
+            group_ids_from_body,
+        ) = self._resolve_params_from_response_body(response)
+
+        # from iguazio version >= 3.5.2, user and group ids are included in the response body
+        # if not, get them from the headers
+        user_id = user_id_from_body or user_id
+        group_ids = group_ids_from_body or group_ids
+
+        auth_info = mlrun.api.schemas.AuthInfo(
+            username=username,
+            session=session,
+            user_id=user_id,
+            user_group_ids=group_ids,
+            user_unix_id=user_unix_id,
+            planes=planes,
+        )
+        if SessionPlanes.data in planes:
+            auth_info.data_session = auth_info.session
+        return auth_info
+
+    @staticmethod
+    def _resolve_params_from_response_headers(response: requests.Response):
+
+        username = response.headers.get("x-remote-user")
+        session = response.headers.get("x-v3io-session-key")
+        user_id = response.headers.get("x-user-id")
+
+        gids = response.headers.get("x-user-group-ids", [])
+        # "x-user-group-ids" header is a comma separated list of group ids
         if gids:
             gids = gids.split(",")
+
         planes = response.headers.get("x-v3io-session-planes")
         if planes:
             planes = planes.split(",")
@@ -491,17 +546,26 @@ class Client(
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
 
-        auth_info = mlrun.api.schemas.AuthInfo(
-            username=response.headers["x-remote-user"],
-            session=response.headers["x-v3io-session-key"],
-            user_id=response.headers.get("x-user-id"),
-            user_group_ids=gids or [],
-            user_unix_id=user_unix_id,
-            planes=planes,
+        return username, session, planes, user_unix_id, user_id, gids
+
+    @staticmethod
+    def _resolve_params_from_response_body(response: requests.Response):
+
+        response_body = response.json()
+        context_auth = get_in(
+            response_body, "data.attributes.context.authentication", {}
         )
-        if SessionPlanes.data in planes:
-            auth_info.data_session = auth_info.session
-        return auth_info
+        user_id = context_auth.get("user_id", None)
+
+        gids = context_auth.get("group_ids", [])
+
+        # some gids can be a comma separated list of group ids
+        # (if taken from the headers, the next split will have no effect)
+        group_ids = []
+        for gid in gids:
+            group_ids.extend(gid.split(","))
+
+        return user_id, group_ids
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_project(

@@ -10,6 +10,10 @@ services:
       MLRUN_NUCLIO_DASHBOARD_URL: http://nuclio:8070
       MLRUN_HTTPDB__DSN: "sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false"
       MLRUN_UI__URL: http://localhost:8060
+      # using local storage, meaning files / artifacts are stored locally, so we want to allow access to them
+      MLRUN_HTTPDB__REAL_PATH: "/home/jovyan/data"
+      # not running on k8s meaning no need to store secrets
+      MLRUN_SECRET_STORES__KUBERNETES__AUTO_ADD_PROJECT_SECRETS: "false"
     volumes:
       - "${SHARED_DIR:?err}:/home/jovyan/data"
     networks:

@@ -22,13 +22,16 @@ You can write your code on a local machine while running your functions on a rem
 
 Before you begin, ensure that the following prerequisites are met:
 
-1. Python:
-   - Python 3.7
-   - pip 22.x or later
+1. Applications:
+   - Supports pip and conda 
+   - Recommended pip 22.x+
+   - Python 3.8   
 
 2. Install MLRun locally.
 
-    You need to install MLRun locally. Make sure the that the MLRun version you install is the same as the MLRun service version. Install a specific version using the following command; replace the `<version>`  placeholder with the MLRun version number (e.g., `1.0.0`):
+    You need to install MLRun locally. Make sure the that the MLRun version you install is the same as the MLRun 
+    service version. Install a specific version using the following command; replace the `<version>`  placeholder 
+    with the MLRun version number (e.g., `1.0.0`):
  
     ```sh
     pip install mlrun==<version>
@@ -51,7 +54,7 @@ Before you begin, ensure that the following prerequisites are met:
 2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
-    pip install mlrun==<version> -u
+    pip install -U mlrun==<version>
     ```
 
 2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).

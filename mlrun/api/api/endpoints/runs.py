@@ -226,31 +226,48 @@ def delete_runs(
     name: str = None,
     labels: List[str] = Query([], alias="label"),
     state: str = None,
-    days_ago: int = 0,
+    days_ago: int = None,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-        days=days_ago
-    )
-    runs = mlrun.api.crud.Runs().list_runs(
-        db_session,
-        name,
-        project=project,
-        labels=labels,
-        states=[state] if state is not None else None,
-        start_time_from=start_time_from,
-    )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.run,
-        runs,
-        lambda run: (
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            run.get("metadata", {}).get("uid"),
-        ),
-        mlrun.api.schemas.AuthorizationAction.delete,
-        auth_info,
-    )
+    if (project and project != "*") or not project:
+        # Currently we don't differentiate between runs permissions inside a project.
+        # Meaning there is no reason at the moment to query the permission for each run under the project
+        # TODO check for every run when we will manage permission per run inside a project
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            project or mlrun.mlconf.default_project,
+            "",
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+    else:
+        start_time_from = None
+        if days_ago:
+            start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+                days=days_ago
+            )
+        runs = mlrun.api.crud.Runs().list_runs(
+            db_session,
+            name,
+            project=project,
+            labels=labels,
+            states=[state] if state is not None else None,
+            start_time_from=start_time_from if days_ago else None,
+        )
+        logger.info(runs)
+
+        projects = set(run.get("metadata", {}).get("project", mlrun.mlconf.default_project) for run in runs)
+        logger.info("projects", projects=projects)
+        for run_project in projects:
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+                mlrun.api.schemas.AuthorizationResourceTypes.run,
+                run_project,
+                "",
+                mlrun.api.schemas.AuthorizationAction.delete,
+                auth_info,
+            )
+
     mlrun.api.crud.Runs().delete_runs(
         db_session,
         name,

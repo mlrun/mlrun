@@ -116,7 +116,7 @@ def test_mount_s3():
     }
 
 
-def test_mount_env_variables():
+def test_set_env_variables():
     env_variables = {
         "some_env_1": "some-value",
         "SOMETHING": "ELSE",
@@ -129,7 +129,7 @@ def test_mount_env_variables():
     assert function.spec.env == []
 
     # Using a dictionary
-    function.apply(mlrun.platforms.mount_env_variables(env_variables))
+    function.apply(mlrun.platforms.set_env_variables(env_variables))
     env_dict = {var["name"]: var.get("value") for var in function.spec.env}
 
     assert env_dict == env_variables
@@ -140,7 +140,7 @@ def test_mount_env_variables():
     assert function.spec.env == []
 
     # And using key=value parameters
-    function.apply(mlrun.platforms.mount_env_variables(**env_variables))
+    function.apply(mlrun.platforms.set_env_variables(**env_variables))
     env_dict = {var["name"]: var.get("value") for var in function.spec.env}
 
     assert env_dict == env_variables

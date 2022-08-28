@@ -263,12 +263,12 @@ def mount_s3(
     return _use_s3_cred
 
 
-def mount_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
+def set_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
     env_data = env_vars_dict.copy() if env_vars_dict else {}
     for key, value in kwargs.items():
         env_data[key] = value
 
-    def _mount_env_variables(container_op: kfp.dsl.ContainerOp):
+    def _set_env_variables(container_op: kfp.dsl.ContainerOp):
         from kubernetes import client as k8s_client
 
         for _key, _value in env_data.items():
@@ -277,4 +277,4 @@ def mount_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
             )
         return container_op
 
-    return _mount_env_variables
+    return _set_env_variables

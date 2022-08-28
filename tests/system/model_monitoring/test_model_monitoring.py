@@ -27,6 +27,7 @@ import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.artifacts.model
 import mlrun.feature_store
@@ -107,6 +108,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
         assert len(endpoints_out.endpoints) == 0
+
+    def test_getting_batch_interval(self):
+        interval_list = mlrun.api.crud.ModelEndpoints()._get_batching_interval_param(
+            [0, "*/1", None]
+        )
+        assert interval_list == (0.0, 1.0, 0.0)
+        interval_list = mlrun.api.crud.ModelEndpoints()._get_batching_interval_param(
+            ["3/2", "*/1", 1]
+        )
+        assert interval_list == (2.0, 1.0, 0.0)
 
     def test_list_endpoints(self):
         db = mlrun.get_run_db()

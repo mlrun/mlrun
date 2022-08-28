@@ -332,6 +332,11 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         stat = mlrun.get_run_db().get_builder_status(base_runtime)
 
+        # Wait 20 sec if model monitoring stream function is still on building process
+        if base_runtime.status.state in ("building", "waitingForResourceConfiguration"):
+            sleep(20)
+            stat = mlrun.get_run_db().get_builder_status(base_runtime)
+
         assert base_runtime.status.state == "ready", stat
 
         # invoke the model before running the model monitoring batch job
@@ -353,7 +358,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
-        sleep(75)
+        sleep(60)
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(

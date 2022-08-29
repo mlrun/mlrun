@@ -141,19 +141,6 @@ You can specify the input `arguments` for the workflow and can override the syst
 Workflows are asynchronous by default. You can set the `watch` flag to True and the run operation blocks until 
 completion and prints out the workflow progress. Alternatively, you can use `.wait_for_completion()` on the run object.
 
-Instead of waiting for completion, you can set up a notification in Slack with the results summary, similar to: <br>
-<img src="../_static/images/slack-results.png" alt="slack notification"/>
-
-Use one of:
-```
-# If you want to get slack notification after the run with the results summary, use
-# project.notifiers.slack(webhook="https://<webhook>")
-```
-or in a Jupyter notebook with the %env magic command:
-```
-%env SLACK_WEBHOOK=<slack webhook url>
-```
-
 The default workflow engine is `kfp`. You can override it by specifying the `engine` in the `run()` or `set_workflow()` methods. 
 Using the `local` engine executes the workflow state machine locally (its functions still run as cluster jobs).
 If you set the `local` flag to True, the workflow uses the `local` engine AND the functions run as local process.
@@ -174,3 +161,17 @@ Examples:
     
     # run workflow in local debug mode
     run = project.run(workflow_handler=my_pipe, local=True, arguments={"param1": 6})
+    
+### Notification
+Instead of waiting for completion, you can set up a notification in Slack with a results summary, similar to: <br>
+<img src="../_static/images/slack-results.png" alt="slack notification"/>
+
+Use one of:
+```
+# If you want to get slack notification after the run with the results summary, use
+# project.notifiers.slack(webhook="https://<webhook>")
+```
+or in a Jupyter notebook with the` %env` magic command:
+```
+%env SLACK_WEBHOOK=<slack webhook url>
+```

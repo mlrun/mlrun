@@ -274,6 +274,9 @@ fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spar
 
 Spark ingestion from Snowflake can be executed both remotely and locally. 
 
+When running aggregations, they actually run on Spark and require Spark compute resources.<br>
+The queries from the database are "regular" snowflake queries and they use Snowflake compute resources.
+
 ```{admonition} Note
 `Entity` is case sensitive.
 ```

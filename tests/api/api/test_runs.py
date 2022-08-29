@@ -361,7 +361,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid=None, project=second_project)
     all_runs = mlrun.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
-    response = client.delete(f"/api/runs?project=*")
+    response = client.delete("/api/runs?project=*")
     assert response.status_code == HTTPStatus.OK.value
     runs = mlrun.api.crud.Runs().list_runs(db, project="*")
     assert len(runs) == 0
@@ -389,7 +389,7 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     assert len(runs) == 1
 
     # try delete runs from all projects with no permissions
-    response = client.delete(f"/api/runs?project=*")
+    response = client.delete("/api/runs?project=*")
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1

@@ -255,13 +255,10 @@ def delete_runs(
             states=[state] if state is not None else None,
             start_time_from=start_time_from if days_ago else None,
         )
-        logger.info(runs)
-
         projects = set(
             run.get("metadata", {}).get("project", mlrun.mlconf.default_project)
             for run in runs
         )
-        logger.info("projects", projects=projects)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO Delete only runs from projects that user has permissions to

@@ -13,7 +13,6 @@
 # limitations under the License.
 import os
 import random
-import re
 import time
 import typing
 import warnings
@@ -252,15 +251,6 @@ def validate_target_list(targets):
                 targets_with_same_path
             )
         )
-
-
-def convert_wasb_schema_to_az(target):
-    # wasbs pattern: wasbs://<CONTAINER>@<ACCOUNT_NAME>.blob.core.windows.net/<PATH_OBJ_IN_CONTAINER>
-    m = re.match(
-        r"^(?P<schema>.*)://(?P<cont>.*)@(?P<account>.*?)\..*?/(?P<obj_path>.*?)$",
-        target.path,
-    )
-    target.path = "az://" + m.groupdict()["cont"] + "/" + m.groupdict()["obj_path"]
 
 
 def validate_target_placement(graph, final_step, targets):

@@ -794,6 +794,7 @@ class AutoMountType(str, Enum):
     v3io_fuse = "v3io_fuse"
     pvc = "pvc"
     s3 = "s3"
+    env = "env"
 
     @classmethod
     def _missing_(cls, value):
@@ -817,6 +818,7 @@ class AutoMountType(str, Enum):
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
             mlrun.platforms.mount_s3.__name__,
+            mlrun.platforms.set_env_variables.__name__,
         ]
 
     @classmethod
@@ -850,6 +852,7 @@ class AutoMountType(str, Enum):
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun.platforms.mount_s3,
+            AutoMountType.env: mlrun.platforms.set_env_variables,
         }[self]
 
 
@@ -892,6 +895,15 @@ class KubeResource(BaseRuntime):
         return struct
 
     def apply(self, modify):
+        """
+        Apply a modifier to the runtime which is used to change the runtime's k8s object's spec.
+        Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
+        a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
+        one after the other.
+
+        :param modify: a modifier runnable object
+        :return: the runtime (self) after the modifications
+        """
 
         # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
         # we remove the hook to suppress kubeflow op registration and return it after the apply()

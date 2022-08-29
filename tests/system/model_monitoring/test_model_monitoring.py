@@ -30,6 +30,7 @@ import mlrun
 import mlrun.api.schemas
 import mlrun.artifacts.model
 import mlrun.feature_store
+import mlrun.utils
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -330,14 +331,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 name="model-monitoring-stream", project=self.project_name, tag=""
             )
         )
-        stat = mlrun.get_run_db().get_builder_status(base_runtime)
 
         # Wait 20 sec if model monitoring stream function is still in building process
-        if base_runtime.status.state in ("building", "waitingForResourceConfiguration"):
-            sleep(20)
-            stat = mlrun.get_run_db().get_builder_status(base_runtime)
-
-        assert base_runtime.status.state == "ready", stat
+        mlrun.utils.helpers.retry_until_successful(
+            2,
+            20,
+            mlrun.utils.logger,
+            False,
+            self._check_monitoring_building_state,
+            base_runtime=base_runtime,
+        )
 
         # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
@@ -584,3 +587,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             ),
             status=ModelEndpointStatus(state=state),
         )
+
+    def _check_monitoring_building_state(self, base_runtime):
+        # Check if model monitoring stream function is ready
+        stat = mlrun.get_run_db().get_builder_status(base_runtime)
+        assert base_runtime.status.state == "ready", stat

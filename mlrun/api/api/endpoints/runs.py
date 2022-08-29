@@ -230,7 +230,7 @@ def delete_runs(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if (project and project != "*") or not project:
+    if not project or project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
         # TODO check for every run when we will manage permission per run inside a project
@@ -253,7 +253,7 @@ def delete_runs(
             project=project,
             labels=labels,
             states=[state] if state is not None else None,
-            start_time_from=start_time_from if days_ago else None,
+            start_time_from=start_time_from,
         )
         projects = set(
             run.get("metadata", {}).get("project", mlrun.mlconf.default_project)

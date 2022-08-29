@@ -263,6 +263,8 @@ def delete_runs(
         )
         logger.info("projects", projects=projects)
         for run_project in projects:
+            # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
+            # TODO Delete only runs from projects that user has permissions to
             mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
                 mlrun.api.schemas.AuthorizationResourceTypes.run,
                 run_project,

@@ -337,6 +337,13 @@ class RunDBMock:
             expected_envs["S3_NON_ANONYMOUS"] = "true"
         assert expected_envs == env_dict
 
+    def assert_env_variables(self, expected_env_dict):
+        env_list = self._function["spec"]["env"]
+        env_dict = {item["name"]: item["value"] for item in env_list}
+
+        for key, value in expected_env_dict.items():
+            assert env_dict[key] == value
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,

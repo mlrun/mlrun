@@ -796,20 +796,22 @@ class FeatureSet(ModelObj):
             time_column=time_column,
             **kwargs,
         )
-        drop_cols = []
-        if target.time_partitioning_granularity:
-            for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
-                drop_cols.append(col)
-                if col == target.time_partitioning_granularity:
-                    break
-        elif (
-            target.partitioned
-            and not target.partition_cols
-            and not target.key_bucketing_number
-        ):
-            drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
-        if drop_cols:
-            result.drop(columns=drop_cols, inplace=True)
+        if not columns:
+            drop_cols = []
+            if target.time_partitioning_granularity:
+                for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
+                    drop_cols.append(col)
+                    if col == target.time_partitioning_granularity:
+                        break
+            elif (
+                target.partitioned
+                and not target.partition_cols
+                and not target.key_bucketing_number
+            ):
+                drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
+            if drop_cols:
+                # if these columns aren't present for some reason, that's no reason to fail
+                result.drop(columns=drop_cols, inplace=True, errors="ignore")
         return result
 
     def save(self, tag="", versioned=False):

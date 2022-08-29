@@ -1657,6 +1657,36 @@ class TestFeatureStore(TestMLRunSystem):
         assert all(csv_df == parquet_df)
         assert all(csv_vec_df == parquet_vec_df)
 
+    @pytest.mark.parametrize("with_columns", [False, True])
+    def test_parquet_target_to_dataframe(self, with_columns):
+        measurements_partitioned = None
+        measurements_nonpartitioned = None
+        for partitioned in [False, True]:
+            name = f"measurements_{uuid.uuid4()}_{partitioned}"
+            key = "patient_id"
+            measurements = fs.FeatureSet(
+                name, entities=[Entity(key)], timestamp_key="timestamp"
+            )
+            if partitioned:
+                measurements_partitioned = measurements
+            else:
+                measurements_nonpartitioned = measurements
+
+            source = CSVSource(
+                "mycsv",
+                path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+                time_field="timestamp",
+            )
+
+            fs.ingest(
+                measurements, source, targets=[ParquetTarget(partitioned=partitioned)]
+            )
+
+        columns = ["department", "room"] if with_columns else None
+        df_from_partitioned = measurements_partitioned.to_dataframe(columns)
+        df_from_nonpartitioned = measurements_nonpartitioned.to_dataframe(columns)
+        assert df_from_partitioned.equals(df_from_nonpartitioned)
+
     def test_sync_pipeline(self):
         stocks_set = fs.FeatureSet(
             "stocks-sync",

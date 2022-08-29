@@ -5,18 +5,25 @@ You can install and use MLRun and Nuclio locally on your computer. This does not
 scaling capabilities, which you can get with the Kubernetes based deployment, but it is much simpler to start with.
 
 ```{admonition} Note
-Using Docker is limited to local, Nuclio, and Serving runtimes and local pipelines.
+Using Docker is limited to local, Nuclio, serving runtimes, and local pipelines.
 ```
 
+## Prerequisites
+
+- Memory: 8GB
+- Storage: 7GB
+
+## Overview
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
-MLRun UI, Nuclio serverless engine, and optionally the Jupyter server.
+MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, Nuclio, and  
+Jupyter, do not have default resources. This means that they are set with the default cluster/namespace resources limits. These can be modified.
 
 There are two installation options:
 - [**Use MLRun with your own client (PyCharm, VSCode, Jupyter)**](#use-mlrun-with-your-own-client)
 - [**Use MLRun with MLRun Jupyter image (pre loaded with examples/demos)**](#use-mlrun-with-mlrun-jupyter-image)
 
 In both cases you need to set the `SHARED_DIR` environment variable to point to a host path for storing MLRun artifacts and DB, 
-for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows), make sure the directory exists.
+for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows). Make sure the directory exists.
 
 It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
@@ -32,7 +39,7 @@ If you want to use previous mlrun versions, modify the mlrun-ui port from 8090 b
 
 ## Use MLRun with your own client
 
-The following commands install MLRun + Nuclio for work with your own IDE or notebook. 
+The following commands install MLRun and Nuclio for work with your own IDE or notebook. 
 
 **{Download}`[Download here]<./compose.yaml>`** the `compose.yaml` file, save it to the working dir and type:
 ````{dropdown} show the compose.yaml file

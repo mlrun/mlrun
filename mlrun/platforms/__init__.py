@@ -33,6 +33,7 @@ from .other import (
     mount_pvc,
     mount_s3,
     mount_secret,
+    set_env_variables,
 )
 
 

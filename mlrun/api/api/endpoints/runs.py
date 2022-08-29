@@ -244,9 +244,9 @@ def delete_runs(
     else:
         start_time_from = None
         if days_ago:
-            start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-                days=days_ago
-            )
+            start_time_from = datetime.datetime.now(
+                datetime.timezone.utc
+            ) - datetime.timedelta(days=days_ago)
         runs = mlrun.api.crud.Runs().list_runs(
             db_session,
             name,
@@ -257,7 +257,10 @@ def delete_runs(
         )
         logger.info(runs)
 
-        projects = set(run.get("metadata", {}).get("project", mlrun.mlconf.default_project) for run in runs)
+        projects = set(
+            run.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+            for run in runs
+        )
         logger.info("projects", projects=projects)
         for run_project in projects:
             mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

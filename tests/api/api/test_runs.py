@@ -14,6 +14,7 @@
 #
 import time
 import unittest.mock
+import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
 
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 import mlrun.errors
 import mlrun.runtimes.constants
 from mlrun.api.db.sqldb.models import Run
@@ -336,6 +338,71 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
     response = client.get("/api/runs?partition-by=key&partition-sort-by=name")
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+
+
+def test_delete_runs_with_permissions(db: Session, client: TestClient):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.Mock()
+    )
+
+    # delete runs from specific project
+    project = "some-project"
+    _store_run(db, uid="some-uid", project=project)
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+    response = client.delete(f"/api/runs?project={project}")
+    assert response.status_code == HTTPStatus.OK.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 0
+
+    # delete runs from all projects
+    second_project = "some-project2"
+    _store_run(db, uid=None, project=project)
+    _store_run(db, uid=None, project=second_project)
+    all_runs = mlrun.api.crud.Runs().list_runs(db, project="*")
+    assert len(all_runs) == 2
+    response = client.delete(f"/api/runs?project=*")
+    assert response.status_code == HTTPStatus.OK.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project="*")
+    assert len(runs) == 0
+
+
+def test_delete_runs_without_permissions(db: Session, client: TestClient):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError())
+    )
+
+    # try delete runs with no permission to project (project doesn't contain any runs)
+    project = "some-project"
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 0
+    response = client.delete(f"/api/runs?project={project}")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED.value
+
+    # try delete runs with no permission to project (project contains runs)
+    _store_run(db, uid="some-uid", project=project)
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+    response = client.delete(f"/api/runs?project={project}")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+
+    # try delete runs from all projects with no permissions
+    response = client.delete(f"/api/runs?project=*")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED.value
+    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    assert len(runs) == 1
+
+
+def _store_run(db, uid, project="some-project"):
+    run_with_nan_float = {
+        "metadata": {"name": "run-name"},
+        "status": {"artifacts": [{"preview": [[0.0, float("Nan"), 1.3]]}]},
+    }
+    if not uid:
+        uid = str(uuid.uuid4())
+    return mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
 
 
 def _list_and_assert_objects(client: TestClient, params, expected_number_of_runs: int):

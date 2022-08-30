@@ -23,8 +23,19 @@ import tests.system.base
 git_uri = "git://github.com/mlrun/test-git-load.git"
 base_image = "mlrun/mlrun"
 tags = ["main", "refs/heads/tst"]
+tags_with_commits = [
+    "refs/heads/tst#06b8d3b0ef9476704673ae5ed1eec34e7e054c31",
+    "main#e877891a964f8890050a49bae654bbde78968660",
+]
 codepaths = [(None, "rootfn"), ("subdir", "func")]
 
+job_cases_with_commit_ids = {
+    # name: (command, workdir, handler, tag)
+    "root-hndlr": ("", None, "rootfn.job_handler", tags_with_commits[0]),
+    "subdir-hndlr": ("", "subdir", "func.job_handler", tags_with_commits[0]),
+    "subdir-hndlr-ref": ("", "subdir", "func.job_handler", tags_with_commits[1]),
+    "root-cmd": ("rootfn.py", None, "job_handler", tags_with_commits[1]),
+}
 job_cases = {
     # name: (command, workdir, handler, tag)
     "root-hndlr": ("", None, "rootfn.job_handler", tags[0]),
@@ -119,6 +130,23 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag") == tag
+
+    @pytest.mark.parametrize("load_mode", ["run", "build"])
+    @pytest.mark.parametrize("case", job_cases_with_commit_ids.keys())
+    def test_job_git_with_commit_id(self, load_mode, case):
+        command, workdir, handler, tag = job_cases_with_commit_ids[case]
+        fn = self._new_function("job", f"{load_mode}-{case}", command)
+        fn.with_source_archive(
+            f"{git_uri}#{tag}",
+            workdir=workdir,
+            handler=handler,
+            pull_at_runtime=load_mode == "run",
+        )
+        fn.spec.image_pull_policy = "Always"
+        if load_mode == "build":
+            mlrun.build_function(fn)
+        run = mlrun.run_function(fn)
+        assert run.state() == "completed"
 
     @pytest.mark.parametrize("codepath", [(None, "rootfn"), ("subdir", "func")])
     @pytest.mark.parametrize("tag", tags)

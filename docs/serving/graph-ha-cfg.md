@@ -1,15 +1,16 @@
+(graph-ha-cfg)=
 # Serving graph high availability configuration
 
 This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:
 <img src="../_static/images/graph-flow.png" alt="graph-flow" width="600"/>
 
-As explained in [MLRun Serving Graphs](./serving-graph.md), the serving graph is based on Nuclio functions. 
+As explained in {ref}`serving`, the serving graph is based on Nuclio functions. 
 
 **In this section**
-- [Using Nuclio with stream triggers](#Using-Nuclio-with-stream-triggers)
-- [Consumer function configuration](#Consumer-function-configuration)
-- [Remote function retry mechanism](#Remote-function-retry-mechanism)
-- [Configuration considerations](#Configuration-considerations)
+- [Using Nuclio with stream triggers](#using-Nuclio-with-stream-triggers)
+- [Consumer function configuration](#consumer-function-configuration)
+- [Remote function retry mechanism](#remote-function-retry-mechanism)
+- [Configuration considerations](#configuration-considerations)
  
 ## Using Nuclio with stream triggers
 
@@ -108,7 +109,7 @@ and parameters that provide high availability, using a non-default configuration
 Make sure you thoroughly understand your serving graph and its functions before defining the `ack_window_size`. Its value depends on the 
 entire graph flow. You need to understand which steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects the window size.
       
-See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger) and an [example](../runtimes/function.html#RemoteRuntime.add_v3io_stream_trigger).
+See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2

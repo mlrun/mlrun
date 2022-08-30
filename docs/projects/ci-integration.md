@@ -1,5 +1,5 @@
-
-# Github/Gitlab and CI/CD integration
+(ci-integration)=
+# CI/CD, rolling upgrades, git
 
 MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
 and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
@@ -21,6 +21,7 @@ When the workflow runs inside the Git CI system it reports the pipeline progress
 **Contents**
 * [**Using GitHub Actions**](#using-github-actions)
 * [**Using GitLab CI/CD**](#using-gitlab-ci-cd)
+* [**Using Jenkins Pipeline**](#using-jenkins-pipeline)
 
 ## Using GitHub Actions
 
@@ -81,3 +82,75 @@ run:
 ```
 
 See the full example in [**https://gitlab.com/yhaviv/test2**](https://gitlab.com/yhaviv/test2)
+
+## Using Jenkins Pipeline
+
+When using [Jenkins Pipeline](https://www.jenkins.io/doc/book/pipeline/) you need to set up the credentials/secrets in Jenkins and 
+and update the script `Jenkinsfile` in your codebase. You can trigger the Jenkins pipeline either through Jenkins triggers or through the GitHub webhooks. 
+
+Example `Jenkinesfile` that is invoked when you start a Jenkins pipeline (via triggers or GitHub webhooks):
+
+```Groovy
+pipeline {
+   agent any
+    environment {
+      RELEASE='1.0.0'
+      PROJECT_NAME='project-demo'
+    }
+   stages {
+      stage('Audit tools') {
+         steps{
+            auditTools()
+         }
+      }
+      stage('Build') {
+            environment {
+               MLRUN_DBPATH='https://mlrun-api.default-tenant.app.us-sales-341.iguazio-cd1.com'
+               V3IO_ACCESS_KEY=credentials('V3IO_ACCESS_KEY')
+               V3IO_USERNAME='xingsheng'
+            }
+            agent {
+                docker {
+                    image 'mlrun/mlrun:1.0.6'
+                }
+            }
+            steps {
+               echo "Building release ${RELEASE} for project ${PROJECT_NAME}..."
+               sh 'chmod +x build.sh'
+               withCredentials([string(credentialsId: 'an-api-key', variable: 'API_KEY')]) {
+                  sh '''
+                     ./build.sh
+                  '''
+               }
+            }
+        }
+        stage('Test') {
+            steps {
+               echo "Testing release ${RELEASE}"
+            }
+        }
+   }
+   post {
+      success {
+         slackSend channel: '#builds',
+                   color: 'good',
+                   message: "Project ${env.PROJECT_NAME}, success: ${currentBuild.fullDisplayName}."
+      }
+      failure {
+         slackSend channel: '#builds',
+                   color: 'danger',
+                   message: "Project ${env.PROJECT_NAME}, FAILED: ${currentBuild.fullDisplayName}."
+      }
+   }
+}
+
+void auditTools() {
+   sh '''
+      git version
+      docker version
+   '''
+}
+```
+After the Jenkins pipeline is complete, you can see the MLRun job in the MLRun UI.
+
+See the full example in [**https://github.com/mlrun/project-demo**](https://github.com/mlrun/project-demo).

@@ -6,18 +6,23 @@ GitPython~=3.0
 aiohttp~=3.8
 # 8.1.0+ breaks dask/distributed versions older than 2022.04.0, see here - https://github.com/dask/distributed/pull/6018
 click~=8.0.0
+# fastapi 0.78.0 requires starlette 0.19.1 which requires typing_extensions>=3.10.0
+# kfp 1.8.13 requires typing-extensions>=3.7.4,<5
+# for some reason when installing mlrun on a venv that already had typing-extensions==3.7.4.3 it didn't upgrade it to
+# >=3.10.0 although it was installing starlette 0.19.1
+# therefore adding it explictly
+typing-extensions>=3.10.0,<5
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.8.0
 nest-asyncio~=1.0
 ipython~=7.0
 nuclio-jupyter~=0.9.1
-# >=1.16.5 from pandas 1.2.1 and <1.20.0 because we're hitting the same issue as this one
-# https://github.com/Azure/MachineLearningNotebooks/issues/1314
-numpy>=1.16.5, <1.22.0
+# >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
+numpy>=1.16.5, <1.23.0
 pandas~=1.2
 # used as a the engine for parquet files by pandas
-pyarrow>=1,<6
+pyarrow>=1,<7
 pyyaml~=5.1
 requests~=2.22
 sqlalchemy~=1.3
@@ -39,15 +44,12 @@ kubernetes~=12.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
-# fastapi fail to present docs. happen due to fastapi changes in 0.68.0
-# the breaking PR is: https://github.com/tiangolo/fastapi/commit/97fa743ecb5a716fa0223a7463cb83f3f0df494c
-# the bug report on: https://github.com/tiangolo/fastapi/issues/3782
-fastapi~=0.67.0
+fastapi~=0.78.0
 fsspec~=2021.8.1
 v3iofs~=0.1.7
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=1.0.4
+storey~=1.1.8
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

@@ -1,7 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import pathlib
+
 import pytest
 
 import mlrun
 import mlrun.artifacts
+import tests.conftest
 import tests.projects.base_pipeline
 
 
@@ -17,7 +34,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         )
 
     def test_set_artifact(self):
-        self.project = mlrun.new_project("test-sa")
+        self.project = mlrun.new_project("test-sa", save=False)
         self.project.set_artifact(
             "data1", mlrun.artifacts.Artifact(target_path=self.data_url)
         )
@@ -32,6 +49,33 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
 
         artifacts = self.project.list_artifacts(tag="x")
         assert len(artifacts) == 1
+
+    def test_import_artifacts(self):
+        results_path = str(pathlib.Path(tests.conftest.results) / "project")
+        project = mlrun.new_project(
+            "test-sa2", context=str(self.assets_path), save=False
+        )
+        project.spec.artifact_path = results_path
+        # use inline body (in the yaml)
+        project.set_artifact("y", "artifact.yaml")
+        # use body from the project context dir
+        project.set_artifact("z", mlrun.artifacts.Artifact(src_path="body.txt"))
+        project.register_artifacts()
+
+        artifacts = project.list_artifacts().objects()
+        assert len(artifacts) == 2
+
+        expected_body_map = {"y": "123", "z": b"ABC"}
+        for artifact in artifacts:
+            assert artifact.metadata.key in expected_body_map
+            assert expected_body_map[artifact.metadata.key] == artifact._get_file_body()
+
+            some_artifact = project.get_artifact(artifact.metadata.key)
+            assert some_artifact.metadata.key == artifact.metadata.key
+            assert (
+                some_artifact._get_file_body()
+                == expected_body_map[artifact.metadata.key]
+            )
 
     def test_run_alone(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

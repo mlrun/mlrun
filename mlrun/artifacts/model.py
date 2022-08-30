@@ -24,7 +24,7 @@ from ..data_types import InferOptions, get_infer_interface
 from ..datastore import is_store_uri, store_manager
 from ..features import Feature
 from ..model import ObjectList
-from ..utils import StorePrefix
+from ..utils import StorePrefix, is_relative_path
 from .base import Artifact, ArtifactSpec, LegacyArtifact, upload_extra_data
 
 model_spec_filename = "model_spec.yaml"
@@ -132,12 +132,17 @@ class ModelArtifact(Artifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        model_dir=None,
         **kwargs,
     ):
 
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
+        if model_file and "://" in model_file:
+            model_dir = path.dirname(model_file)
+            model_file = path.basename(model_file)
 
         self.spec.model_file = model_file
+        self.spec.src_path = model_dir
         self.spec.parameters = parameters or {}
         self.spec.metrics = metrics or {}
         self.spec.inputs = inputs or []
@@ -411,8 +416,19 @@ class ModelArtifact(Artifact):
         spec_path = path.join(self.spec.target_path, model_spec_filename)
         store_manager.object(url=spec_path).put(self.to_yaml())
 
+    def _get_file_body(self):
+        body = self.spec.get_body()
+        if body:
+            return body
+        src_model_path = _get_src_path(self, self.spec.model_file)
+        if src_model_path and path.isfile(src_model_path):
+            with open(src_model_path, "rb") as fp:
+                return fp.read()
+        target_model_path = path.join(self.spec.target_path, self.spec.model_file)
+        return mlrun.get_dataitem(target_model_path).get()
 
-class LegacyModelArtifact(Artifact):
+
+class LegacyModelArtifact(LegacyArtifact):
     """ML Model artifact
 
     Store link to ML model file(s) along with the model metrics, parameters, schema, and stats
@@ -626,7 +642,7 @@ def _load_model_spec(spec_path):
 
 
 def _get_file_path(base_path: str, name: str, isdir=False):
-    if name.startswith("/") or "://" in name:
+    if not is_relative_path(name):
         return name
     if not isdir:
         base_path = path.dirname(base_path)

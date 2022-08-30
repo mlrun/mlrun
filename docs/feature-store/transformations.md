@@ -3,7 +3,7 @@
 
 A feature set contains an execution graph of operations that are performed when data is ingested, or 
 when simulating data flow for inferring its metadata. This graph utilizes MLRun's
-[serving graph](../serving/serving-graph.md).
+{ref}`serving`.
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
 purpose is transformations and enrichment of the data passed through the feature set. These transformations
@@ -33,7 +33,7 @@ UI, where the full graph can be seen and specific step properties can be observe
 <br><img src="../_static/images/mlrun-ui-feature-set-graph.png" alt="ui-feature-set-graph" width="800"/><br>
 
 For a full end-to-end example of feature-store and usage of the functionality described in this page, refer
-to the [feature store example](./basic-demo).
+to the [feature store example](./basic-demo.html).
 
 **In this section**
 - [Aggregations](#aggregations)
@@ -65,9 +65,10 @@ If the `name` parameter is not specified, features are produced in `{column_name
 These features can then be fed into predictive models or be used for additional 
 processing and feature generation.
 
-```{admonition} Note
-Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
-aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
+```{admonition} Notes
+- Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
+   aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
+- The timestamp column must be part of the feature set definition (for aggregation).
 ```
 
 Aggregations that are supported using this function are:
@@ -87,12 +88,14 @@ documentation.
 
 ## Built-in transformations
 
-MLRun, and the associated `storey` package, have a built-in library of transformation functions that can be 
+MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.html) that can be 
 applied as steps in the feature-set's internal execution graph. In order to add steps to the graph, it should be 
 referenced from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
 list of existing functions). The transformations are also accessible directly from the `storey` module.
+
+See the [built-in steps](./serving/available-steps.html).
 
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 

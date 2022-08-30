@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import deepdiff
 import numpy
 import pandas
@@ -866,9 +880,9 @@ def test_data_migration_fix_datasets_large_previews(
             exclude_paths=[
                 "root['metadata']['updated']",
                 "root['spec']['header']",
-                "root['spec']['stats']",
+                "root['status']['stats']",
                 "root['spec']['schema']",
-                "root['spec']['preview']",
+                "root['status']['preview']",
                 "root['metadata']['tag']",
                 "root['spec']['db_key']",
             ],
@@ -880,11 +894,11 @@ def test_data_migration_fix_datasets_large_previews(
         == mlrun.artifacts.dataset.max_preview_columns
     )
     assert (
-        len(artifact_with_invalid_preview_after_migration["spec"]["stats"])
+        len(artifact_with_invalid_preview_after_migration["status"]["stats"])
         == mlrun.artifacts.dataset.max_preview_columns - 1
     )
     assert (
-        len(artifact_with_invalid_preview_after_migration["spec"]["preview"][0])
+        len(artifact_with_invalid_preview_after_migration["status"]["preview"][0])
         == mlrun.artifacts.dataset.max_preview_columns
     )
     assert (

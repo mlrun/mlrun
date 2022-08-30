@@ -1,9 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import unittest.mock
 
 import pytest
 from pandas import Timedelta, Timestamp
 
 import mlrun.errors
+import mlrun.utils.regex
 import mlrun.utils.version
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
@@ -19,7 +34,6 @@ from mlrun.utils.helpers import (
     verify_field_regex,
     verify_list_items_type,
 )
-from mlrun.utils.regex import run_name
 
 
 def test_retry_until_successful_fatal_failure():
@@ -68,9 +82,58 @@ def test_run_name_regex():
     ]
     for case in cases:
         try:
-            verify_field_regex("test_field", case["value"], run_name)
+            verify_field_regex("test_field", case["value"], mlrun.utils.regex.run_name)
         except Exception:
             if case["valid"]:
+                raise
+        else:
+            if not case["valid"]:
+                raise
+
+
+def test_spark_job_name_regex():
+    cases = [
+        {"value": "asd", "valid": True},
+        {"value": "asdlnasd-123123-asd", "valid": True},
+        # DNS-1035
+        {"value": "t012312-asdasd", "valid": True},
+        {
+            # Starts with alphanumeric number
+            "value": "012312-asdasd",
+            "valid": False,
+        },
+        {"value": "As-123_2.8A", "valid": False},
+        {"value": "1As-123_2.8A5", "valid": False},
+        {
+            # Invalid because the first letter is -
+            "value": "-As-123_2.8A",
+            "valid": False,
+        },
+        {
+            # Invalid because the last letter is .
+            "value": "As-123_2.8A.",
+            "valid": False,
+        },
+        {
+            # Invalid because $ is not allowed
+            "value": "As-123_2.8A$a",
+            "valid": False,
+        },
+        # sprakjob length 29
+        {"value": "asdnoinasoidas-asdaskdlnaskdl", "valid": True},
+        {"value": "asdnoinasoidas-asdaskdlnaskdl2", "valid": False},
+    ]
+    for case in cases:
+        try:
+            verify_field_regex(
+                "test_field", case["value"], mlrun.utils.regex.sparkjob_name
+            )
+        except Exception as exc:
+            print(exc)
+            if case["valid"]:
+                raise
+        else:
+            if not case["valid"]:
                 raise
 
 

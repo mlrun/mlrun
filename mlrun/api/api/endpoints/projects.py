@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 import typing
 
@@ -8,7 +22,9 @@ import sqlalchemy.orm
 import mlrun.api.api.deps
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
+from mlrun.utils import logger
 
 router = fastapi.APIRouter()
 
@@ -147,6 +163,7 @@ def get_project(
 )
 def delete_project(
     name: str,
+    request: fastapi.Request,
     deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
         mlrun.api.schemas.DeletionStrategy.default(),
         alias=mlrun.api.schemas.HeaderNames.deletion_strategy,
@@ -161,6 +178,20 @@ def delete_project(
         mlrun.api.api.deps.get_db_session
     ),
 ):
+    # delete project can be responsible for deleting schedules. Schedules are running only on chief,
+    # that is why we re-route requests to chief
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        logger.info(
+            "Requesting to delete project, re-routing to chief",
+            project=name,
+            deletion_strategy=deletion_strategy,
+        )
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return chief_client.delete_project(name=name, request=request)
+
     is_running_in_background = get_project_member().delete_project(
         db_session,
         name,

@@ -1,4 +1,4 @@
-(Functions-concepts)=
+(functions-concepts)=
 # MLRun serverless functions
 
 All the executions in MLRun are based on Serverless Functions. The functions allow specifying code and all the operational aspects (image, required packages, cpu/mem/gpu resources, storage, environment, etc.). The different function runtimes take care of automatically transforming the code and spec to fully managed and elastic services over Kubernetes, which saves significant operational overhead, addresses scalability and reduces infrastructure costs.
@@ -15,14 +15,4 @@ use in your projects.
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>
 
-**In this section**
 
-```{toctree}
-   :maxdepth: 2
-
-functions-overview
-../runtimes/distributed
-nuclio-real-time-functions
-```
-
-See also [Creating and using functions](../runtimes/functions).

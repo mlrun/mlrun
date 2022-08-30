@@ -15,7 +15,7 @@
 import asyncio
 import json
 import typing
-import warnings
+from base64 import b64encode
 from datetime import datetime
 from time import sleep
 from urllib.parse import urlparse
@@ -165,6 +165,7 @@ class NuclioSpec(KubeResourceSpec):
         image_pull_secret=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -193,6 +194,7 @@ class NuclioSpec(KubeResourceSpec):
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self.base_spec = base_spec or {}
@@ -422,19 +424,6 @@ class RemoteRuntime(KubeResource):
         self.add_trigger(trigger_name or "http", trigger)
         return self
 
-    def add_model(self, name, model_path, **kw):
-        warnings.warn(
-            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
-            # TODO: remove in 0.10.0
-            DeprecationWarning,
-        )
-        if model_path.startswith("v3io://"):
-            model = "/User/" + "/".join(model_path.split("/")[5:])
-        else:
-            model = model_path
-        self.set_env(f"SERVING_MODEL_{name}", model)
-        return self
-
     def from_image(self, image):
         config = nuclio.config.new_config()
         update_in(
@@ -445,40 +434,6 @@ class RemoteRuntime(KubeResource):
         update_in(config, "spec.image", image)
         update_in(config, "spec.build.codeEntryType", "image")
         self.spec.base_spec = config
-
-    def serving(
-        self,
-        models: dict = None,
-        model_class="",
-        protocol="",
-        image="",
-        endpoint="",
-        explainer=False,
-        workers=8,
-        canary=None,
-    ):
-        warnings.warn(
-            'This method is deprecated and will be removed in 0.10.0. Use the "serving" runtime instead',
-            # TODO: remove in 0.10.0
-            DeprecationWarning,
-        )
-
-        if models:
-            for k, v in models.items():
-                self.set_env(f"SERVING_MODEL_{k}", v)
-
-        if protocol:
-            self.set_env("TRANSPORT_PROTOCOL", protocol)
-        if model_class:
-            self.set_env("MODEL_CLASS", model_class)
-        self.set_env("ENABLE_EXPLAINER", str(explainer))
-        self.with_http(workers, host=endpoint, canary=canary)
-        self.spec.function_kind = "serving"
-
-        if image:
-            self.from_image(image)
-
-        return self
 
     def add_v3io_stream_trigger(
         self,
@@ -573,6 +528,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
+            self._update_credentials_from_remote_build(data["data"])
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
@@ -1036,6 +992,42 @@ class RemoteRuntime(KubeResource):
         else:
             return f"http://{self.status.address}/{path}"
 
+    def _update_credentials_from_remote_build(self, remote_data):
+        self.metadata.credentials = remote_data.get("metadata", {}).get(
+            "credentials", {}
+        )
+
+        credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
+        new_env = []
+
+        # the env vars in the local spec and remote spec are in the format of a list of dicts
+        # e.g.:
+        # env = [
+        #   {
+        #     "name": "V3IO_ACCESS_KEY",
+        #     "value": "some-value"
+        #   },
+        #   ...
+        # ]
+        # remove existing credentials env vars
+        for env in self.spec.env:
+            if isinstance(env, dict):
+                env_name = env["name"]
+            elif isinstance(env, client.V1EnvVar):
+                env_name = env.name
+            else:
+                continue
+
+            if env_name not in credentials_env_var_names:
+                new_env.append(env)
+
+        # add credentials env vars from remote build
+        for remote_env in remote_data.get("spec", {}).get("env", []):
+            if remote_env.get("name") in credentials_env_var_names:
+                new_env.append(remote_env)
+
+        self.spec.env = new_env
+
 
 def parse_logs(logs):
     logs = json.loads(logs)
@@ -1264,6 +1256,14 @@ def compile_function_config(
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
 
+    if function.spec.security_context:
+        nuclio_spec.set_config(
+            "spec.securityContext",
+            mlrun.runtimes.pod.get_sanitized_attribute(
+                function.spec, "security_context"
+            ),
+        )
+
     if (
         function.spec.base_spec
         or function.spec.build.functionSourceCode
@@ -1299,17 +1299,26 @@ def compile_function_config(
         function.status.nuclio_name = name
         update_in(config, "metadata.name", name)
 
-        if (
-            function.kind == mlrun.runtimes.RuntimeKinds.serving
-            and not function.spec.function_handler
-            and not get_in(config, "spec.build.functionSourceCode")
+        if function.kind == mlrun.runtimes.RuntimeKinds.serving and not get_in(
+            config, "spec.build.functionSourceCode"
         ):
-            # if the serving function does not have source code, add the mlrun wrapper
-            update_in(
-                config,
-                "spec.handler",
-                "mlrun.serving.serving_wrapper:handler",
-            )
+            if not function.spec.build.source:
+                # set the source to the mlrun serving wrapper
+                body = nuclio.build.mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
+                update_in(
+                    config,
+                    "spec.build.functionSourceCode",
+                    b64encode(body.encode("utf-8")).decode("utf-8"),
+                )
+            elif not function.spec.function_handler:
+                # point the nuclio function handler to mlrun serving wrapper handlers
+                update_in(
+                    config,
+                    "spec.handler",
+                    "mlrun.serving.serving_wrapper:handler",
+                )
     else:
         # todo: should be deprecated (only work via MLRun service)
         # this may also be called in case of using single file code_to_function(embed_code=False)

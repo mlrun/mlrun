@@ -1,21 +1,32 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 from abc import abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Dict, Generic, List, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Union
 
 import yaml
 
 import mlrun
 from mlrun.config import config
 
-from ..._common import TrackableType
+from ..utils import DLTypes
 from .logger import Logger
 
-# Define a type variable for the different tensor type objects of the supported frameworks:
-Weight = TypeVar("Weight")
 
-
-class TensorboardLogger(Logger, Generic[Weight]):
+class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
     """
     An abstract tensorboard logger class for logging the information collected during training / evaluation of the base
     logger to tensorboard. Each framework has its own way of logging to tensorboard, but each must implement the entire
@@ -49,7 +60,9 @@ class TensorboardLogger(Logger, Generic[Weight]):
 
     def __init__(
         self,
-        statistics_functions: List[Callable[[Weight], Union[float, Weight]]],
+        statistics_functions: List[
+            Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]
+        ],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
@@ -114,7 +127,7 @@ class TensorboardLogger(Logger, Generic[Weight]):
 
         # Setup the weights dictionaries - a dictionary of all required weight parameters:
         # [Weight: str] -> [value: WeightType]
-        self._weights = {}  # type: Dict[str, Weight]
+        self._weights = {}  # type: Dict[str, DLTypes.WeightType]
 
         # Setup the statistics dictionaries - a dictionary of statistics for the required weights per epoch:
         # [Statistic: str] -> [Weight: str] -> [epoch: int] -> [value: float]
@@ -125,7 +138,7 @@ class TensorboardLogger(Logger, Generic[Weight]):
             ] = {}  # type: Dict[str, List[float]]
 
     @property
-    def weights(self) -> Dict[str, Weight]:
+    def weights(self) -> Dict[str, DLTypes.WeightType]:
         """
         Get the logged weights dictionary. Each of the logged weight will be found by its name.
 
@@ -143,7 +156,7 @@ class TensorboardLogger(Logger, Generic[Weight]):
         """
         return self._weights_statistics
 
-    def log_weight(self, weight_name: str, weight_holder: Weight):
+    def log_weight(self, weight_name: str, weight_holder: DLTypes.WeightType):
         """
         Log the weight into the weights dictionary so it will be tracked and logged during the epochs. For each logged
         weight the key for it in the statistics logged will be initialized as well.
@@ -388,7 +401,7 @@ class TensorboardLogger(Logger, Generic[Weight]):
 
     @abstractmethod
     def _write_weight_histogram_to_tensorboard(
-        self, name: str, weight: Weight, step: int
+        self, name: str, weight: DLTypes.WeightType, step: int
     ):
         """
         Write the current state of the weights as histograms to tensorboard.
@@ -400,7 +413,9 @@ class TensorboardLogger(Logger, Generic[Weight]):
         pass
 
     @abstractmethod
-    def _write_weight_image_to_tensorboard(self, name: str, weight: Weight, step: int):
+    def _write_weight_image_to_tensorboard(
+        self, name: str, weight: DLTypes.WeightType, step: int
+    ):
         """
         Log the current state of the weights as images to tensorboard.
 
@@ -585,7 +600,7 @@ class TensorboardLogger(Logger, Generic[Weight]):
 
     def _extract_epoch_results(
         self, epoch: int = -1
-    ) -> Dict[str, Dict[str, TrackableType]]:
+    ) -> Dict[str, Dict[str, DLTypes.TrackableType]]:
         """
         Extract the given epoch results from all the collected values and results.
 

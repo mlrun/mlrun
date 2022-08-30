@@ -1,7 +1,9 @@
+(create-use-feature-vectors)=
 # Creating and using feature vectors
 
 You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
-Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the datasets created from it or the online manifestation of the vector for real-time prediction needs.
+Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the 
+{ref}`datasets <retrieve-offline-data>` created from it or the online manifestation of the vector for real-time prediction needs.
 
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
 It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time related errors.
@@ -10,9 +12,7 @@ It ensures that all the latest relevant data is fetched, without concerns about 
 
 - [Creating a feature vector](#creating-a-feature-vector)
 - [Using a feature vector](#using-a-feature-vector)
-   - [Creating an offline feature vector](#creating-an-offline-feature-vector)
-   - [Creating an online feature vector](#creating-an-online-feature-vector)
-   
+    
 ## Creating a feature vector
 
 The feature vector object holds the following information:
@@ -57,7 +57,7 @@ You can also view some metadata about the feature vector, including all the feat
 
 <img src="../_static/images/feature-store-vector-screen.png" alt="feature-store-vector-screen" width="800"/>
 
-## Using the feature vector
+## Using a feature vector
 
 After a feature vector is saved, it can be used to create both offline (static) datasets and online (real-time) instances to supply as input to a machine learning model.  
 
@@ -112,7 +112,7 @@ task = mlrun.new_task('training',
 run = fn.run(task)
 ```
 
-You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.ipynb).
+You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
 
 ### Creating an online feature vector
 
@@ -157,4 +157,4 @@ list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). Th
 If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
 frameworks and this eliminates additional glue logic.  
 
-See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.ipynb).
+See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).

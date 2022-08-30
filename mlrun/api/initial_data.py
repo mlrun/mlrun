@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import datetime
 import os
@@ -241,7 +255,7 @@ def _fix_datasets_large_previews(
                     preview = (
                         artifact_dict.get("preview")
                         if is_legacy
-                        else artifact_dict.get("spec", {}).get("preview")
+                        else artifact_dict.get("status", {}).get("preview")
                     )
                     if preview:
                         new_preview = []
@@ -265,14 +279,14 @@ def _fix_datasets_large_previews(
                         if is_legacy:
                             artifact_dict["preview"] = new_preview
                         else:
-                            artifact_dict["spec"]["preview"] = new_preview
+                            artifact_dict["status"]["preview"] = new_preview
 
                     # align stats
                     for column_to_remove in columns_to_remove:
                         artifact_stats = (
                             artifact_dict.get("stats", {})
                             if is_legacy
-                            else artifact_dict.get("spec").get("stats", {})
+                            else artifact_dict.get("status").get("stats", {})
                         )
                         if column_to_remove in artifact_stats:
                             del artifact_stats[column_to_remove]

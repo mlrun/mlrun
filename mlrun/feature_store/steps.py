@@ -1,3 +1,18 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import re
 import uuid
 from typing import Any, Dict, List, Union
 
@@ -5,6 +20,7 @@ import numpy as np
 import pandas as pd
 from storey import MapClass
 
+import mlrun.errors
 from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
@@ -147,7 +163,7 @@ class Imputer(StepToDict, MapClass):
 
 
 class OneHotEncoder(StepToDict, MapClass):
-    def __init__(self, mapping: Dict[str, Dict[str, Any]], **kwargs):
+    def __init__(self, mapping: Dict[str, Union[int, str]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -161,14 +177,26 @@ class OneHotEncoder(StepToDict, MapClass):
         """
         super().__init__(**kwargs)
         self.mapping = mapping
+        for values in mapping.values():
+            for val in values:
+                if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "For OneHotEncoder you must provide int or string mapping list"
+                    )
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-            one_hot_encoding = {f"{feature}_{category}": 0 for category in encoding}
+
+            one_hot_encoding = {
+                f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
+                for category in encoding
+            }
             if value in encoding:
-                one_hot_encoding[f"{feature}_{value}"] = 1
+                one_hot_encoding[
+                    f"{feature}_{OneHotEncoder._sanitized_category(value)}"
+                ] = 1
             else:
                 print(f"Warning, {value} is not a known value by the encoding")
             return one_hot_encoding
@@ -180,6 +208,13 @@ class OneHotEncoder(StepToDict, MapClass):
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
+
+    @staticmethod
+    def _sanitized_category(category):
+        # replace(" " and "-") -> "_"
+        if isinstance(category, str):
+            return re.sub("[ -]", "_", category)
+        return category
 
 
 class DateExtractor(StepToDict, MapClass):

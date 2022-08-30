@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import json
 import os
@@ -10,6 +24,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 import mlrun.errors
 import mlrun.k8s_utils
+from mlrun.api.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -194,6 +209,13 @@ class TestKubejobRuntime(TestRuntimeBase):
         else:
             assert pod.spec.tolerations is None
 
+    def assert_security_context(
+        self,
+        security_context=None,
+    ):
+        pod = self._get_pod_creation_args()
+        assert pod.spec.security_context == (security_context or {})
+
     def test_run_with_priority_class_name(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -222,6 +244,50 @@ class TestKubejobRuntime(TestRuntimeBase):
         mlrun.mlconf.valid_function_priority_class_names = ""
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
+
+    def test_run_with_security_context(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+
+        self.execute_function(runtime)
+        self.assert_security_context()
+
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 3000,
+        }
+        default_security_context = self._generate_security_context(
+            default_security_context_dict["runAsUser"],
+            default_security_context_dict["runAsGroup"],
+        )
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+        runtime = self._generate_runtime()
+
+        self.execute_function(runtime)
+        self.assert_security_context(default_security_context)
+
+        # override default
+        other_security_context = self._generate_security_context(
+            run_as_group=2000,
+        )
+        runtime = self._generate_runtime()
+
+        runtime.with_security_context(other_security_context)
+        self.execute_function(runtime)
+        self.assert_security_context(other_security_context)
+
+        # when enrichment mode is not 'disabled' security context is internally managed
+        mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+            SecurityContextEnrichmentModes.override.value
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            runtime.with_security_context(other_security_context)
+        assert (
+            "Security context is handled internally when enrichment mode is not disabled"
+            in str(exc.value)
+        )
 
     def test_run_with_mounts(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

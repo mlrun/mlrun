@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime
 from typing import Callable, Dict, List, Tuple, Union
 
@@ -11,9 +25,9 @@ from torch.utils.tensorboard.summary import hparams
 
 import mlrun
 
-from ..._common import TrackableType
 from ..._dl_common.loggers import TensorboardLogger
-from .logging_callback import LoggingCallback, MetricFunctionType, MetricValueType
+from ..utils import PyTorchTypes
+from .logging_callback import LoggingCallback
 
 
 class _MLRunSummaryWriter(SummaryWriter):
@@ -240,10 +254,14 @@ class TensorboardLoggingCallback(LoggingCallback):
             Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
         ] = None,
         dynamic_hyperparameters: Dict[
-            str, Tuple[str, Union[List[Union[str, int]], Callable[[], TrackableType]]]
+            str,
+            Tuple[
+                str,
+                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+            ],
         ] = None,
         static_hyperparameters: Dict[
-            str, Union[TrackableType, Tuple[str, List[Union[str, int]]]]
+            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -363,7 +381,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
     ):
         """
@@ -455,7 +473,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         super(TensorboardLoggingCallback, self).on_run_end()
 
     def on_validation_end(
-        self, loss_value: MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the

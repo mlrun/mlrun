@@ -13,25 +13,27 @@
 # limitations under the License.
 import os
 import random
+import re
 import time
 import typing
 import warnings
 from collections import Counter
 from copy import copy
+from typing import Union
 
 import pandas as pd
 
 import mlrun
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.model import DataTarget, DataTargetBase, TargetPathObject
+from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_v3io_path, split_path
-from .utils import store_path_to_spark
+from .utils import parse_kafka_url, store_path_to_spark
 
 
 class TargetTypes:
@@ -40,6 +42,7 @@ class TargetTypes:
     nosql = "nosql"
     tsdb = "tsdb"
     stream = "stream"
+    kafka = "kafka"
     dataframe = "dataframe"
     custom = "custom"
 
@@ -51,6 +54,7 @@ class TargetTypes:
             TargetTypes.nosql,
             TargetTypes.tsdb,
             TargetTypes.stream,
+            TargetTypes.kafka,
             TargetTypes.dataframe,
             TargetTypes.custom,
         ]
@@ -68,7 +72,8 @@ def default_target_names():
 def get_default_targets():
     """initialize the default feature set targets list"""
     return [
-        DataTargetBase(target, name=str(target)) for target in default_target_names()
+        DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
+        for target in default_target_names()
     ]
 
 
@@ -91,6 +96,79 @@ def get_default_prefix_for_target(kind):
 
 def get_default_prefix_for_source(kind):
     return get_default_prefix_for_target(kind)
+
+
+def validate_target_paths_for_engine(
+    targets, engine, source: Union[DataSource, pd.DataFrame]
+):
+    """Validating that target paths are suitable for the required engine.
+    validate for single file targets only (parquet and csv).
+
+    spark:
+        cannot be a single file path (e.g - ends with .csv or .pq)
+
+    storey:
+        if csv - must be a single file.
+        if parquet - in case of partitioned it must be a directory,
+                     else can be both single file or directory
+
+    pandas:
+        if source contains chunksize attribute - path must be a directory
+        else if parquet - if partitioned(=True) - path must be a directory
+        else - path must be a single file
+
+
+    :param targets:       list of data target objects
+    :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
+    :param source:        source dataframe or other sources (e.g. parquet source see:
+                          :py:class:`~mlrun.datastore.ParquetSource` and other classes in
+                          mlrun.datastore with suffix Source)
+    """
+    for base_target in targets:
+        if hasattr(base_target, "kind") and (
+            base_target.kind == TargetTypes.parquet
+            or base_target.kind == TargetTypes.csv
+        ):
+            target = get_target_driver(base_target)
+            is_single_file = target.is_single_file()
+            if engine == "spark" and is_single_file:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"spark CSV/Parquet targets must be directories, got path:'{target.path}'"
+                )
+            elif engine == "pandas":
+                # check if source is DataSource (not DataFrame) and if contains chunk size
+                if isinstance(source, DataSource) and source.attributes.get(
+                    "chunksize"
+                ):
+                    if is_single_file:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "pandas CSV/Parquet targets must be a directory "
+                            f"for a chunked source, got path:'{target.path}'"
+                        )
+                elif target.kind == TargetTypes.parquet and target.partitioned:
+                    if is_single_file:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            "partitioned Parquet target for pandas engine must be a directory, "
+                            f"got path:'{target.path}'"
+                        )
+                elif not is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "When using a non chunked source, "
+                        f"pandas CSV/Parquet targets must be a single file, got path:'{target.path}'"
+                    )
+            elif not engine or engine == "storey":
+                if target.kind == TargetTypes.csv and not is_single_file:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"CSV target for storey engine must be a single file, got path:'{target.path}'"
+                    )
+                elif (
+                    target.kind == TargetTypes.parquet
+                    and target.partitioned
+                    and is_single_file
+                ):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"partitioned Parquet target for storey engine must be a directory, got path:'{target.path}'"
+                    )
 
 
 def validate_target_list(targets):
@@ -172,6 +250,15 @@ def validate_target_list(targets):
                 targets_with_same_path
             )
         )
+
+
+def convert_wasb_schema_to_az(target):
+    # wasbs pattern: wasbs://<CONTAINER>@<ACCOUNT_NAME>.blob.core.windows.net/<PATH_OBJ_IN_CONTAINER>
+    m = re.match(
+        r"^(?P<schema>.*)://(?P<cont>.*)@(?P<account>.*?)\..*?/(?P<obj_path>.*?)$",
+        target.path,
+    )
+    target.path = "az://" + m.groupdict()["cont"] + "/" + m.groupdict()["obj_path"]
 
 
 def validate_target_placement(graph, final_step, targets):
@@ -427,7 +514,9 @@ class BaseStoreTarget(DataTargetBase):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity
                 if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = "hour"
+                    time_partitioning_granularity = (
+                        mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                    )
                 for unit, fmt in [
                     ("year", "%Y"),
                     ("month", "%m"),
@@ -521,6 +610,15 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+        # Copy partitioning-related fields to the status, since these are needed if reading the actual data that
+        # is related to the specific target.
+        # TODO - instead of adding more fields to the status targets, we should consider changing any functionality
+        #       that depends on "spec-fields" to use a merge between the status and the spec targets. One such place
+        #       is the fset.to_dataframe() function.
+        target.partitioned = self.partitioned
+        target.key_bucketing_number = self.key_bucketing_number
+        target.partition_cols = self.partition_cols
+        target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)
         return target
@@ -637,18 +735,9 @@ class ParquetTarget(BaseStoreTarget):
             )
             after_step = after_step or after_state
 
+        self.path = path
         if partitioned is None:
-            if all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            ):
-                partitioned = False
-            else:
-                partitioned = True
+            partitioned = not self.is_single_file()
 
         super().__init__(
             name,
@@ -667,14 +756,14 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             time_partitioning_granularity is not None
-            and time_partitioning_granularity not in self._legal_time_units
+            and time_partitioning_granularity
+            not in mlrun.utils.helpers.LEGAL_TIME_UNITS
         ):
             raise errors.MLRunInvalidArgumentError(
-                f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
+                f"time_partitioning_granularity parameter must be one of "
+                f"{','.join(mlrun.utils.helpers.LEGAL_TIME_UNITS)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
@@ -734,10 +823,12 @@ class ParquetTarget(BaseStoreTarget):
                 self.partition_cols,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
-            for time_unit in self._legal_time_units:
+            for time_unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                 partition_cols.append(f"${time_unit}")
                 if time_unit == time_partitioning_granularity:
                     break
@@ -787,9 +878,11 @@ class ParquetTarget(BaseStoreTarget):
                 and self.partitioned
                 and not self.partition_cols
             ):
-                time_partitioning_granularity = "hour"
+                time_partitioning_granularity = (
+                    mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                )
             if time_partitioning_granularity:
-                for unit in self._legal_time_units:
+                for unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break
@@ -843,6 +936,9 @@ class CSVTarget(BaseStoreTarget):
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         with fs.open(target_path, "wb") as fp:
+            # avoid writing the range index unless explicitly specified via kwargs
+            if isinstance(df.index, pd.RangeIndex):
+                kwargs["index"] = kwargs.get("index", False)
             df.to_csv(fp, **kwargs)
 
     def add_writer_state(
@@ -1099,6 +1195,59 @@ class StreamTarget(BaseStoreTarget):
         raise NotImplementedError()
 
 
+class KafkaTarget(BaseStoreTarget):
+    kind = TargetTypes.kafka
+    is_table = False
+    is_online = False
+    support_spark = False
+    support_storey = True
+    support_append = True
+
+    def __init__(
+        self,
+        *args,
+        bootstrap_servers=None,
+        producer_options=None,
+        **kwargs,
+    ):
+        attrs = {
+            "bootstrap_servers": bootstrap_servers,
+            "producer_options": producer_options,
+        }
+        super().__init__(*args, attributes=attrs, **kwargs)
+
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+
+        bootstrap_servers = self.attributes.get("bootstrap_servers")
+        topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+
+        graph.add_step(
+            name=self.name or "KafkaTarget",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.KafkaTarget",
+            columns=column_list,
+            topic=topic,
+            bootstrap_servers=bootstrap_servers,
+            producer_options=self.attributes.get("producer_options"),
+        )
+
+    def as_df(self, columns=None, df_module=None, **kwargs):
+        raise NotImplementedError()
+
+
 class TSDBTarget(BaseStoreTarget):
     kind = TargetTypes.tsdb
     is_table = False
@@ -1239,11 +1388,12 @@ class CustomTarget(BaseStoreTarget):
 
 
 class DFTarget(BaseStoreTarget):
+    kind = TargetTypes.dataframe
     support_storey = True
 
-    def __init__(self):
-        self.name = "dataframe"
+    def __init__(self, *args, name="dataframe", **kwargs):
         self._df = None
+        super().__init__(*args, name=name, **kwargs)
 
     def set_df(self, df):
         self._df = df
@@ -1301,6 +1451,7 @@ kind_to_driver = {
     TargetTypes.nosql: NoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
+    TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
 }

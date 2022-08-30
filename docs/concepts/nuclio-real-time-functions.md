@@ -1,9 +1,10 @@
+(nuclio-real-time-functions)=
 # Nuclio real-time functions
 
 Nuclio is a high-performance "serverless" framework focused on data, I/O, and compute intensive workloads. It is well integrated with popular 
 data science tools, such as Jupyter and Kubeflow; supports a variety of data and streaming sources; and supports execution over CPUs and GPUs. 
 
-You can use Nuclio through a fully managed application service (in the cloud or on-prem) in the Iguazio Data Science Platform. MLRun serving 
+You can use Nuclio through a fully managed application service (in the cloud or on-prem) in the Iguazio MLOps Platform. MLRun serving 
 utilizes serverless Nuclio functions to create multi-stage real-time pipelines. 
 
 The underlying Nuclio serverless engine uses a high-performance parallel processing engine that maximizes the utilization of CPUs and GPUs, 

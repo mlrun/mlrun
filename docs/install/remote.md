@@ -1,3 +1,4 @@
+(install-remote)=
 # Set up your client environment <!-- omit in toc -->
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
@@ -21,18 +22,39 @@ You can write your code on a local machine while running your functions on a rem
 
 Before you begin, ensure that the following prerequisites are met:
 
-1. Install MLRun locally.
+1. Applications:
+   - Supports pip and conda 
+   - Recommended pip 22.x+
+   - Python 3.8   
 
-    You need to install MLRun locally and make sure the that the MLRun version you install is the same as the MLRun service version. Install  a specific version using the following command; replace the `<version>`  placeholder with the MLRun version number (e.g., `1.0.0`):
+2. Install MLRun locally.
+
+    You need to install MLRun locally. Make sure the that the MLRun version you install is the same as the MLRun 
+    service version. Install a specific version using the following command; replace the `<version>`  placeholder 
+    with the MLRun version number (e.g., `1.0.0`):
  
     ```sh
     pip install mlrun==<version>
     ```
-
-    If you already installed a previous version of MLRun, upgrade it by running:
+	
+	There are a two `pip install` options:
+   - To install the requirements in the [requirements.txt](https://github.com/mlrun/mlrun/blob/development/requirements.txt), run:<br>
+     ```pip install mlrun```
+   - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. 
+      This is not part of the regular requirements since not all users work with those platforms. Using this option reduces the 
+      dependencies and the size of the installation. The additional packages include:
+      - pip install mlrun[s3] # Install requirements for S3 
+      - pip install mlrun[azure-blob-storage] # install requirements for Azure blob storage
+      - pip install mlrun[google-cloud-storage] # install requirements for Google cloud storage
+   
+      See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
+      To install all extras, run:<br>
+      ```pip install mlrun[complete]```
+     
+2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
-    pip install mlrun==<version> -u
+    pip install -U mlrun==<version>
     ```
 
 2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
@@ -60,7 +82,16 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     any page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new 
     key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
     shell or Jupyter Notebook service.
-    
+
+
+You can also set the environment using MLRun SDK, for example:
+
+```python
+# Use local service
+mlrun.set_environment("http://localhost:8080", artifact_path="./")
+# Use remote service
+mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
+```
 
 ### Load the configuration and credential environmental variables from file
 
@@ -104,7 +135,7 @@ function.set_envs(file_path=env_file)
 
 1. Create an env file similar to the example, with lines in the form KEY=VALUE, and comment lines starting with "#".
 2. Use `--env-file <env file path>` in mlrun run/build/deploy/project CLI commands to load the config and credential env vars from file.
-2. Set the `MLRUN_SET_ENV_FILE=<env file path>` env var to point to a default env file (which will be loaded on import).
+2. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which will be loaded on import).
    If the `MLRUN_DBPATH` points to a remote iguazio cluster and the `V3IO_API` and/or `V3IO_FRAMESD` vars are not set, they will be inferred from the DBPATH.
 2. Add the default `env` file template in the Jupyter container `~/env` (to allow quick setup of remote demos).
 

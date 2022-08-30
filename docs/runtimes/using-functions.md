@@ -1,5 +1,5 @@
-
-# Configuring Functions
+(using-functions)=
+# Configuring functions
 
 **MLRun Functions** (function objects) can be created by using any of the following methods:
 
@@ -8,7 +8,7 @@
  a notebook (code file will be embedded in the function object).
 - **{py:func}`~mlrun.run.import_function`**: imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
-  or from the function marketplace (e.g. `hub://describe`). See [MLRun Functions Marketplace](./load-from-marketplace.md).
+  or from the function marketplace (e.g. `hub://describe`). See [MLRun Functions Marketplace](./load-from-marketplace.html).
 
 When you create a function, you can:
 - Use the {py:meth}`~mlrun.runtimes.BaseRuntime.save` function method to save a function object in the MLRun database.
@@ -45,7 +45,7 @@ This method is great for small and single file functions or for using code deriv
     my_func = mlrun.code_to_function(name='prep_data', filename='./prep_data.py', kind='job', 
     image='mlrun/mlrun', handler='my_func')
 
-For more on how to create functions from notebook code, see [Converting notebook code to a function](./mlrun_code_annotations.ipynb).
+For more on how to create functions from notebook code, see [Converting notebook code to a function](./mlrun_code_annotations.html).
 
 ### Provide code as part of the function image
 
@@ -95,7 +95,7 @@ or simply by setting the `source` attribute in `new_function`). In the CLI, use 
                             source='git://github.com/mlrun/ci-demo.git#master')
     run_results = fn.run(handler='my_func', params={"x": 100})
 
-See more details and examples on [running jobs with code from Archives or shares](./code-archive.ipynb).
+See more details and examples on [running jobs with code from Archives or shares](./code-archive.html).
 
 ## Specifying the function execution handler or command
 

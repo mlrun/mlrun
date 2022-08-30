@@ -13,7 +13,9 @@
 # limitations under the License.
 import hashlib
 import os
+import tempfile
 import warnings
+import zipfile
 
 import yaml
 
@@ -22,7 +24,12 @@ import mlrun.errors
 
 from ..datastore import get_store_uri, is_store_uri, store_manager
 from ..model import ModelObj
-from ..utils import StorePrefix, calculate_local_file_hash, generate_artifact_uri
+from ..utils import (
+    StorePrefix,
+    calculate_local_file_hash,
+    generate_artifact_uri,
+    is_relative_path,
+)
 
 calc_hash = True
 
@@ -133,6 +140,8 @@ class ArtifactSpec(ModelObj):
     @inline.setter
     def inline(self, body):
         self._body = body
+        if body:
+            self._is_inline = True
 
     def get_body(self):
         """get the artifact body when inline"""
@@ -140,10 +149,12 @@ class ArtifactSpec(ModelObj):
 
 
 class ArtifactStatus(ModelObj):
-    _dict_fields = ["state"]
+    _dict_fields = ["state", "stats", "preview"]
 
     def __init__(self):
         self.state = "created"
+        self.stats = None
+        self.preview = None
 
     def base_dict(self):
         return super().to_dict()
@@ -168,6 +179,7 @@ class Artifact(ModelObj):
         project=None,
         metadata: ArtifactMetadata = None,
         spec: ArtifactSpec = None,
+        src_path: str = None,
     ):
         self._metadata = None
         self.metadata = metadata
@@ -182,9 +194,10 @@ class Artifact(ModelObj):
         self.spec.target_path = target_path or self.spec.target_path
         self.spec.format = format or self.spec.format
         self.spec.viewer = viewer or self.spec.viewer
+        self.spec.src_path = src_path
 
         if body:
-            self.spec.inline = body
+            self.spec._body = body
         self.spec._is_inline = is_inline or self.spec._is_inline
 
         self.status = ArtifactStatus()
@@ -212,6 +225,60 @@ class Artifact(ModelObj):
     @status.setter
     def status(self, status):
         self._status = self._verify_dict(status, "status", ArtifactStatus)
+
+    def _get_file_body(self):
+        body = self.spec.get_body()
+        if body:
+            return body
+        if self.src_path and os.path.isfile(self.src_path):
+            with open(self.src_path, "rb") as fp:
+                return fp.read()
+        return mlrun.get_dataitem(self.get_target_path()).get()
+
+    def export(self, target_path: str, with_extras=True):
+        """save the artifact object into a yaml/json file or zip archive
+
+        when the target path is a .yaml/.json file the artifact spec is saved into that file,
+        when the target_path suffix is '.zip' the artifact spec, body and extra data items are
+        packaged into a zip file. The archive target_path support DataItem urls for remote object storage
+        (e.g. s3://<bucket>/<path>).
+
+        :param target_path: path to store artifact .yaml/.json spec or .zip (spec with the content)
+        :param with_extras: will include the extra_data items in the zip archive
+        """
+        if target_path.endswith(".yaml") or target_path.endswith(".yml"):
+            mlrun.get_dataitem(target_path).put(self.to_yaml())
+
+        elif target_path.endswith(".json"):
+            mlrun.get_dataitem(target_path).put(self.to_json())
+
+        elif target_path.endswith(".zip"):
+            tmp_path = None
+            if "://" in target_path:
+                tmp_path = tempfile.NamedTemporaryFile(suffix=".zip", delete=False).name
+            zipf = zipfile.ZipFile(tmp_path or target_path, "w")
+            body = self._get_file_body()
+            zipf.writestr("_body", body)
+            extras = {}
+            if with_extras:
+                for k, item_path in self.extra_data.items():
+                    if is_relative_path(item_path):
+                        base_dir = self.src_path or ""
+                        if not self.is_dir:
+                            base_dir = os.path.dirname(base_dir)
+                        item_path = os.path.join(base_dir, item_path).replace("\\", "/")
+                    zipf.writestr(k, mlrun.get_dataitem(item_path).get())
+                    extras[k] = k
+            artifact = self.copy()
+            artifact.extra_data = extras
+            zipf.writestr("_spec.yaml", artifact.to_yaml())
+            zipf.close()
+
+            if tmp_path:
+                mlrun.get_dataitem(target_path).upload(tmp_path)
+                os.remove(tmp_path)
+        else:
+            raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
     def before_log(self):
         pass
@@ -281,6 +348,9 @@ class Artifact(ModelObj):
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be
     # removed once we only work with the new Artifact structure.
+
+    def is_inline(self):
+        return self.spec._is_inline
 
     @property
     def inline(self):
@@ -690,6 +760,9 @@ class Artifact(ModelObj):
         )
         self.metadata.hash = hash
 
+    def generate_target_path(self, artifact_path, producer):
+        return generate_target_path(self, artifact_path, producer)
+
 
 class DirArtifactSpec(ArtifactSpec):
     _dict_fields = [
@@ -851,6 +924,9 @@ class LegacyArtifact(ModelObj):
             if hasattr(item, "target_path"):
                 self.extra_data[key] = item.target_path
 
+    def is_inline(self):
+        return self._inline
+
     @property
     def is_dir(self):
         """this is a directory"""
@@ -866,6 +942,8 @@ class LegacyArtifact(ModelObj):
     @inline.setter
     def inline(self, body):
         self._body = body
+        if body:
+            self._inline = True
 
     @property
     def uri(self):
@@ -942,6 +1020,9 @@ class LegacyArtifact(ModelObj):
     def artifact_kind(self):
         return self.kind
 
+    def generate_target_path(self, artifact_path, producer):
+        return generate_target_path(self, artifact_path, producer)
+
 
 class LegacyDirArtifact(LegacyArtifact):
     _dict_fields = [
@@ -1017,12 +1098,12 @@ def upload_extra_data(
     for key, item in extra_data.items():
 
         if isinstance(item, bytes):
-            target = os.path.join(target_path, key)
+            target = os.path.join(target_path, prefix + key)
             store_manager.object(url=target).put(item)
             artifact_spec.extra_data[prefix + key] = target
             continue
 
-        if not (item.startswith("/") or "://" in item):
+        if is_relative_path(item):
             src_path = (
                 os.path.join(artifact_spec.src_path, item)
                 if artifact_spec.src_path
@@ -1065,3 +1146,21 @@ def get_artifact_meta(artifact):
         extra_dataitems[k] = store_manager.object(v, key=k)
 
     return artifact_spec, extra_dataitems
+
+
+def generate_target_path(item: Artifact, artifact_path, producer):
+    # path convention: artifact_path[/{run_name}]/{iter}/{key}.{suffix}
+    # todo: add run_id here (vs in the .run() methods), support items dedup (by hash)
+    artifact_path = artifact_path or ""
+    if artifact_path and not artifact_path.endswith("/"):
+        artifact_path += "/"
+    if producer.kind == "run":
+        artifact_path += f"{producer.name}/{item.iter or 0}/"
+
+    suffix = "/"
+    if not item.is_dir:
+        suffix = os.path.splitext(item.src_path or "")[1]
+        if not suffix and item.format:
+            suffix = f".{item.format}"
+
+    return f"{artifact_path}{item.key}{suffix}"

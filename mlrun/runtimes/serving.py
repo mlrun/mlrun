@@ -18,10 +18,12 @@ from copy import deepcopy
 from typing import List, Union
 
 import nuclio
+from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.api.schemas
 
+from ..datastore import parse_kafka_url
 from ..model import ObjectList
 from ..secrets import SecretsStore
 from ..serving.server import GraphServer, create_graph_server
@@ -136,6 +138,7 @@ class ServingSpec(NuclioSpec):
         image_pull_secret=None,
         tolerations=None,
         preemption_mode=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -172,6 +175,7 @@ class ServingSpec(NuclioSpec):
             image_pull_secret=image_pull_secret,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self.models = models or {}
@@ -433,9 +437,26 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
-                child_function.function_object.add_v3io_stream_trigger(
-                    stream.path, group=group, shards=stream.shards, **trigger_args
-                )
+
+                if (
+                    stream.path.startswith("kafka://")
+                    or "kafka_bootstrap_servers" in stream.options
+                ):
+                    brokers = stream.options.get("kafka_bootstrap_servers")
+                    if brokers:
+                        brokers = brokers.split(",")
+                    topic, brokers = parse_kafka_url(stream.path, brokers)
+                    trigger = KafkaTrigger(
+                        brokers=brokers,
+                        topics=[topic],
+                        consumer_group=f"{function_name}-consumer-group",
+                        **trigger_args,
+                    )
+                    child_function.function_object.add_trigger("kafka", trigger)
+                else:
+                    child_function.function_object.add_v3io_stream_trigger(
+                        stream.path, group=group, shards=stream.shards, **trigger_args
+                    )
 
     def _deploy_function_refs(self, builder_env: dict = None):
         """set metadata and deploy child functions"""
@@ -658,3 +679,21 @@ class ServingRuntime(RemoteRuntime):
 
         server.init_object(namespace)
         return server
+
+    def plot(self, filename=None, format=None, source=None, **kw):
+        """plot/save graph using graphviz
+
+        example::
+
+            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn.add_model('my-classifier',model_path=model_path,
+                                  class_name='mlrun.frameworks.sklearn.SklearnModelServer')
+            serving_fn.plot(rankdir="LR")
+
+        :param filename:  target filepath for the image (None for the notebook)
+        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
+        :return: graphviz graph object
+        """
+        return self.spec.graph.plot(filename, format=format, source=source, **kw)

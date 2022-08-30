@@ -271,30 +271,47 @@ class K8sHelper:
             items.append(i)
         return items
 
-    def get_logger_pods(self, project, uid, namespace=""):
+    def get_logger_pods(self, project, uid, run_kind, namespace=""):
+
+        # As this file is imported in mlrun.runtimes, we sadly cannot have this import in the top level imports
+        # as that will create an import loop.
+        # TODO: Fix the import loops already!
+        import mlrun.runtimes
+
         namespace = self.resolve_namespace(namespace)
+        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version(
+            api_context=True
+        )
+        mpijob_role_label = (
+            mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
+                mpijob_crd_version
+            )
+        )
+        extra_selectors = {
+            "spark": "spark-role=driver",
+            "mpijob": f"{mpijob_role_label}=launcher",
+        }
+
         # TODO: all mlrun labels are sprinkled in a lot of places - they need to all be defined in a central,
         #  inclusive place.
-        selector = f"mlrun/class,mlrun/project={project},mlrun/uid={uid}"
+        selectors = [
+            "mlrun/class",
+            f"mlrun/project={project}",
+            f"mlrun/uid={uid}",
+        ]
+
+        # In order to make the `list_pods` request return a lighter and quicker result, we narrow the search for
+        # the relevant pods using the proper label selector according to the run kind
+        if run_kind in extra_selectors:
+            selectors.append(extra_selectors[run_kind])
+
+        selector = ",".join(selectors)
         pods = self.list_pods(namespace, selector=selector)
         if not pods:
             logger.error("no pod matches that uid", uid=uid)
             return
 
-        kind = pods[0].metadata.labels.get("mlrun/class")
-        results = {}
-        for p in pods:
-            if (
-                (kind not in ["spark", "mpijob"])
-                or (p.metadata.labels.get("spark-role", "") == "driver")
-                # v1alpha1
-                or (p.metadata.labels.get("mpi_role_type", "") == "launcher")
-                # v1
-                or (p.metadata.labels.get("mpi-job-role", "") == "launcher")
-            ):
-                results[p.metadata.name] = p.status.phase
-
-        return results
+        return {p.metadata.name: p.status.phase for p in pods}
 
     def create_project_service_account(self, project, service_account, namespace=""):
         namespace = self.resolve_namespace(namespace)
@@ -506,7 +523,7 @@ class BasePod:
             "mlrun/project": self.project,
         }
         self._annotations = {}
-        self._init_container = None
+        self._init_containers = []
         # will be applied on the pod spec only when calling .pod(), allows to override spec attributes
         self.default_pod_spec_attributes = default_pod_spec_attributes
         self.resources = resources
@@ -516,25 +533,33 @@ class BasePod:
         return self._get_spec()
 
     @property
-    def init_container(self):
-        return self._init_container
+    def init_containers(self):
+        return self._init_containers
 
-    @init_container.setter
-    def init_container(self, container):
-        self._init_container = container
+    @init_containers.setter
+    def init_containers(self, containers):
+        self._init_containers = containers
 
-    def set_init_container(
-        self, image, command=None, args=None, env=None, image_pull_policy="IfNotPresent"
+    def append_init_container(
+        self,
+        image,
+        command=None,
+        args=None,
+        env=None,
+        image_pull_policy="IfNotPresent",
+        name="init",
     ):
         if isinstance(env, dict):
             env = [client.V1EnvVar(name=k, value=v) for k, v in env.items()]
-        self._init_container = client.V1Container(
-            name="init",
-            image=image,
-            env=env,
-            command=command,
-            args=args,
-            image_pull_policy=image_pull_policy,
+        self._init_containers.append(
+            client.V1Container(
+                name=name,
+                image=image,
+                env=env,
+                command=command,
+                args=args,
+                image_pull_policy=image_pull_policy,
+            )
         )
 
     def add_label(self, key, value):
@@ -620,9 +645,9 @@ class BasePod:
             if not getattr(pod_spec, key, None):
                 setattr(pod_spec, key, val)
 
-        if self._init_container:
-            self._init_container.volume_mounts = self._mounts
-            pod_spec.init_containers = [self._init_container]
+        for init_containers in self._init_containers:
+            init_containers.volume_mounts = self._mounts
+        pod_spec.init_containers = self._init_containers
 
         pod = pod_obj(
             metadata=client.V1ObjectMeta(

@@ -1,4 +1,20 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
+import unittest.mock
+from datetime import datetime
 
 import fastapi.testclient
 import pytest
@@ -9,6 +25,7 @@ import mlrun.api.api.endpoints.operations
 import mlrun.api.crud
 import mlrun.api.initial_data
 import mlrun.api.schemas
+import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.scheduler
 import mlrun.errors
@@ -17,11 +34,20 @@ from mlrun.utils import logger
 
 
 def test_migrations_already_in_progress(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ) -> None:
     background_task_name = "some-name"
     mlrun.api.api.endpoints.operations.current_migration_background_task_name = (
         background_task_name
+    )
+    handler_mock = mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler()
+    handler_mock.get_background_task = unittest.mock.Mock(
+        return_value=(_generate_background_task_schema(background_task_name))
+    )
+    monkeypatch.setattr(
+        mlrun.api.utils.background_tasks,
+        "InternalBackgroundTasksHandler",
+        lambda *args, **kwargs: handler_mock,
     )
     mlrun.mlconf.httpdb.state = mlrun.api.schemas.APIStates.migrations_in_progress
     response = client.post("operations/migrations")
@@ -94,3 +120,19 @@ def test_migrations_success(
 
     # tear down
     mlrun.api.initial_data.init_data = original_init_data
+
+
+def _generate_background_task_schema(
+    background_task_name,
+) -> mlrun.api.schemas.BackgroundTask:
+    return mlrun.api.schemas.BackgroundTask(
+        metadata=mlrun.api.schemas.BackgroundTaskMetadata(
+            name=background_task_name,
+            created=datetime.utcnow(),
+            updated=datetime.utcnow(),
+        ),
+        status=mlrun.api.schemas.BackgroundTaskStatus(
+            state=mlrun.api.schemas.BackgroundTaskState.running
+        ),
+        spec=mlrun.api.schemas.BackgroundTaskSpec(),
+    )

@@ -1,4 +1,5 @@
-#  Submitting tasks/jobs to functions
+(submitting-tasks-jobs-to-functions)=
+#  Running a job
 
 MLRun batch function objects support a {py:meth}`~mlrun.runtimes.BaseRuntime.run` method for invoking a job over them. 
 The run method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
@@ -18,13 +19,13 @@ You can pass `parameters` (arguments) or data `inputs` (such as datasets, featur
 - Various data objects (files, tables, models, etc.) are passed to the function as data item objects. You can pass data objects using the 
 inputs dictionary argument, where the dictionary keys match the function's handler argument names and the MLRun data urls are provided 
 as the values. The data is passed into the function as a {py:class}`~mlrun.datastore.DataItem` object that handles data movement, 
-tracking and security in an optimal way. Read more about data objects in [Data Stores & Data Items](../store/datastore.md).
+tracking and security in an optimal way. Read more about data objects in [Data stores](../store/datastore.html).
 
 
     run_results = fn.run(params={"label_column": "label"}, inputs={'data': data_url})
 
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
-See [Hyperparam and Iterative jobs](../hyper-params.ipynb) for details and examples.
+See {ref}`hyper-params` for details and examples.
  
 The `run()` command returns a run object that you can use to track the job and its results. If you
 pass the parameter `watch=True` (default) the {py:meth}`~mlrun.runtimes.BaseRuntime.run` command blocks 
@@ -49,4 +50,4 @@ run's data.
 
 <br><img src="../_static/images/project-jobs-train-artifacts-test_set.png" alt="project-jobs-train-artifacts-test_set" width="800"/>
 
-See full details and examples in [Creating and using functions](../runtimes/functions).
+See full details and examples in [Functions](../runtimes/functions.html).

@@ -1,3 +1,4 @@
+(feature-sets)=
 # Feature sets
 
 In MLRun, a group of features can be ingested together and stored in logical group called feature set. 
@@ -20,13 +21,7 @@ The feature set object contains the following information:
 - [Add transformations](#add-transformations)
 - [Simulate and debug the data pipeline with a small dataset](#simulate-the-data-pipeline-with-a-small-dataset)
 - [Ingest data into the Feature Store](#ingest-data-into-the-feature-store)
-   - [Ingest data locally](#ingest-data-locally)
-   - [Ingest data using an MLRun job](#ingest-data-using-an-mlrun-job)
-   - [Real-time ingestion](#real-time-ingestion)
-   - [Incremental ingestion](#incremental-ingestion)
-   - [Data sources](#data-sources)
-   - [Target stores](#target-stores)
-   
+  
    
 ## Create a Feature Set
 
@@ -63,8 +58,8 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 (e.g. Notebook) for interactive development or in elastic serverless functions for production and scale.
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
-(such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
-Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.md).
+(such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
+Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
 
 The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
 can handle complex workflows and real-time sources.
@@ -98,7 +93,7 @@ df = fstore.ingest(stocks_set, stocks_df)
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
-See more details in [Feature set transformations](transformations.md).
+See more details in [Feature set transformations](transformations.html).
 
 ## Simulate and debug the data pipeline with a small dataset
 During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
@@ -111,10 +106,9 @@ df = fstore.preview(quotes_set, quotes)
 # print the featue statistics
 print(quotes_set.get_stats_table())
 ```
-
 ## Ingest data into the Feature Store
 
-Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [remote job](#ingest-data-using-an-mlrun-job), or [Real-time ingestion](#real-time-ingestion)).
+Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
 can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
@@ -131,6 +125,26 @@ When targets are not specified, data is stored in the configured default targets
 also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
 - When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names. These cause errors in the ingestion.
 ```
+
+### Inferring data
+
+There are 2 types of infer options - metadata/schema inferring, and stats/preview inferring. The first type is responsible for describing the dataset and generating its meta-data, such as deducing the data-types of the features and listing the entities that are involved. Options belonging to this type are `Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value containing all the options of this type.
+The 2nd type is related to calculating statistics and generating a preview of the actual data in the dataset. Options of this type are `Stats`, `Histogram` and `Preview`. 
+
+
+The `InferOptions class` has the following values:<br>
+class InferOptions:<br>
+    Null = 0<br>
+    Entities = 1<br>
+    Features = 2<br>
+    Index = 4<br>
+    Stats = 8<br>
+    Histogram = 16<br>
+    Preview = 32<br>
+    
+The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
+
+When simultanesouly ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
 
 ### Ingest data locally
 
@@ -190,10 +204,11 @@ To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_sto
 You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
 Example:
 
-`cron_trigger = "* */1 * * *" #will run every hour
+```cron_trigger = "* */1 * * *" #will run every hour
 source = ParquetSource("myparquet", path=path, time_field="time", schedule=cron_trigger)
 feature_set = fs.FeatureSet(name=name, entities=[fs.Entity("first_name")], timestamp_key="time",)
-fs.ingest(feature_set, source, run_config=fs.RunConfig())`
+fs.ingest(feature_set, source, run_config=fs.RunConfig())
+```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.
 For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). For Spark engine, other sources are also supported. 

@@ -1,3 +1,4 @@
+(run-simple-jobs)=
 # Running simple jobs
 
 ## Run with CLI locally: CSV output
@@ -19,7 +20,7 @@ You can also run the function using the regular `Python` command:
 
 `python3 gen_iris.py`
 
-However, when using `python` you have limited control over the execution. See more in [MLRun execution context](../concepts/mlrun-execution-context).
+However, when using `python` you have limited control over the execution. See more in [MLRun execution context](../concepts/mlrun-execution-context.html).
 
 ## Run with CLI locally: parquet output
 
@@ -29,7 +30,7 @@ Run the function again, and this time pass the `format=parquet` arg:
 
 This time the dataset is created in `parquet` format:
 
-> `-p` is used to specify parameters. See [CLI](../cli) for more flags.
+> `-p` is used to specify parameters. See [CLI](../cli.html) for more flags.
 
 Results can be accessed via the CLI, SDK, or UI. 
 

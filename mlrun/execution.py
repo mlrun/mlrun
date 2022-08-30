@@ -36,6 +36,7 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_in,
+    is_relative_path,
     logger,
     now_date,
     run_keys,
@@ -475,7 +476,7 @@ class MLClientCtx(object):
             return
         if not url:
             url = key
-        if self.in_path and not (url.startswith("/") or "://" in url):
+        if self.in_path and is_relative_path(url):
             url = os.path.join(self._in_path, url)
         obj = self._data_stores.object(
             url,
@@ -637,6 +638,7 @@ class MLClientCtx(object):
             labels=labels,
             db_key=db_key,
             format=format,
+            **kwargs,
         )
         self._update_db()
         return item
@@ -656,6 +658,7 @@ class MLClientCtx(object):
         db_key=None,
         target_path="",
         extra_data=None,
+        label_column: str = None,
         **kwargs,
     ):
         """log a dataset artifact and optionally upload it to datastore
@@ -673,6 +676,7 @@ class MLClientCtx(object):
 
         :param key:           artifact key
         :param df:            dataframe object
+        :param label_column:  name of the label column (the one holding the target (y) values)
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
@@ -699,6 +703,7 @@ class MLClientCtx(object):
             extra_data=extra_data,
             format=format,
             stats=stats,
+            label_column=label_column,
             **kwargs,
         )
 
@@ -755,6 +760,7 @@ class MLClientCtx(object):
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
         :param model_file:      path to the local model file we upload (see also model_dir)
+                                or to a model file data url (e.g. http://host/path/model.pkl)
         :param model_dir:       path to the local dir holding the model file and extra files
         :param artifact_path:   target artifact path (when not using the default)
                                 to define a subpath under the default location use:
@@ -773,7 +779,7 @@ class MLClientCtx(object):
         :param training_set:    training set dataframe, used to infer inputs & outputs
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
-                                value can be abs/relative path string | bytes | artifact object
+                                value can be absolute path | relative path (to model dir) | bytes | artifact object
         :param db_key:          the key to use in the artifact DB table, by default
                                 its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
@@ -790,6 +796,7 @@ class MLClientCtx(object):
             key,
             body,
             model_file=model_file,
+            model_dir=model_dir,
             metrics=metrics,
             parameters=parameters,
             inputs=inputs,
@@ -807,7 +814,6 @@ class MLClientCtx(object):
         item = self._artifacts_manager.log_artifact(
             self,
             model,
-            local_path=model_dir,
             artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             tag=tag,
             upload=upload,

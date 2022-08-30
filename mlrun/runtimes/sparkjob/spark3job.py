@@ -99,6 +99,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         executor_java_options=None,
         driver_cores=None,
         executor_cores=None,
+        security_context=None,
     ):
 
         super().__init__(
@@ -127,6 +128,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             affinity=affinity,
             tolerations=tolerations,
             preemption_mode=preemption_mode,
+            security_context=security_context,
         )
 
         self.driver_resources = driver_resources or {}
@@ -160,26 +162,21 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_cores = executor_cores
 
     def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(
-            fields,
-            exclude=[
-                "executor_affinity",
-                "executor_tolerations",
-                "driver_affinity",
-                "driver_tolerations",
-            ],
-        )
+        exclude = exclude or []
+        _exclude = [
+            "affinity",
+            "tolerations",
+            "security_context",
+            "executor_affinity",
+            "executor_tolerations",
+            "driver_affinity",
+            "driver_tolerations",
+        ]
+        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
         api = kubernetes.client.ApiClient()
-        struct["executor_affinity"] = api.sanitize_for_serialization(
-            self.executor_affinity
-        )
-        struct["driver_affinity"] = api.sanitize_for_serialization(self.driver_affinity)
-        struct["executor_tolerations"] = api.sanitize_for_serialization(
-            self.executor_tolerations
-        )
-        struct["driver_tolerations"] = api.sanitize_for_serialization(
-            self.driver_tolerations
-        )
+        for field in _exclude:
+            if field not in exclude:
+                struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct
 
     @property
@@ -577,6 +574,18 @@ class Spark3Runtime(AbstractSparkRuntime):
         preemption_mode = mlrun.api.schemas.function.PreemptionModes(mode)
         self.spec.executor_preemption_mode = preemption_mode.value
 
+    def with_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
+        """
+        With security context is not supported for spark runtime.
+        Driver / Executor processes run with uid / gid 1000 as long as security context is not defined.
+        If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
+        """
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "with_security_context is not supported with spark operator"
+        )
+
     def with_driver_host_path_volume(
         self,
         host_path: str,
@@ -670,8 +679,8 @@ class Spark3Runtime(AbstractSparkRuntime):
             if exporter_jar:
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
-    def with_igz_spark(self):
-        super().with_igz_spark()
+    def with_igz_spark(self, mount_v3io_to_executor=True):
+        super().with_igz_spark(mount_v3io_to_executor)
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",

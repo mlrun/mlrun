@@ -173,8 +173,8 @@ def test_local_context():
     assert (
         run["status"]["artifacts"][0]["spec"]["format"] == "z"
     ), "run/artifact attribute not updated in db"
-    assert (
-        run["status"]["artifacts"][1]["spec"]["target_path"] == out_path + "/mm/"
+    assert run["status"]["artifacts"][1]["spec"]["target_path"].startswith(
+        out_path
     ), "artifact not uploaded to subpath"
 
     db_artifact = db.read_artifact(artifact.db_key, project=project_name)

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import datetime
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
@@ -180,6 +180,7 @@ class DBInterface(ABC):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 
@@ -194,6 +195,7 @@ class DBInterface(ABC):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        next_run_time: datetime.datetime = None,
     ):
         pass
 
@@ -235,9 +237,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    # adding **kwargs to leave room for other projects store implementations see mlrun.api.crud.projects.delete_project
-    # for explanations
-    def is_project_exists(self, session, name: str, **kwargs):
+    def is_project_exists(self, session, name: str):
         pass
 
     @abstractmethod
@@ -500,4 +500,19 @@ class DBInterface(ABC):
         pass
 
     def get_marketplace_source(self, session, name) -> schemas.IndexedMarketplaceSource:
+        pass
+
+    def store_background_task(
+        self,
+        session,
+        name: str,
+        project: str,
+        state: str = schemas.BackgroundTaskState.running,
+        timeout: int = None,
+    ):
+        pass
+
+    def get_background_task(
+        self, session, name: str, project: str
+    ) -> schemas.BackgroundTask:
         pass

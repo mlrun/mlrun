@@ -1,10 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
+import enum
 import http
 import typing
 
 import requests.adapters
 import sqlalchemy.orm
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
@@ -19,12 +33,7 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
-        )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
+        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.config.config.nuclio_dashboard_url
 
     def create_project(
@@ -189,6 +198,14 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
+
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for kwarg in ["headers", "params"]:
+            dict_ = kwargs.get(kwarg, {})
+            for key in dict_.keys():
+                if isinstance(dict_[key], enum.Enum):
+                    dict_[key] = dict_[key].value
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import concurrent.futures
 import traceback
@@ -10,13 +24,16 @@ import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
+import mlrun.api.utils.clients.chief
 import mlrun.errors
+import mlrun.utils
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
+    cancel_periodic_function,
     run_function_periodically,
 )
 from mlrun.api.utils.singletons.db import get_db, initialize_db
@@ -165,6 +182,14 @@ async def startup_event():
     initialize_logs_dir()
     initialize_db()
 
+    if (
+        config.httpdb.clusterization.worker.sync_with_chief.mode
+        == mlrun.api.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
+        and config.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.worker
+    ):
+        _start_chief_clusterization_spec_sync_loop()
+
     if config.httpdb.state == mlrun.api.schemas.APIStates.online:
         await move_api_to_online()
 
@@ -180,17 +205,19 @@ async def shutdown_event():
 
 async def move_api_to_online():
     logger.info("Moving api to online")
-    initialize_project_member()
     await initialize_scheduler()
-    # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
-    # periodic functions should only run on the chief instance
-    if (
-        get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster()
-        and config.httpdb.clusterization.role
-        == mlrun.api.schemas.ClusterizationRole.chief
-    ):
-        _start_periodic_cleanup()
-        _start_periodic_runs_monitoring()
+
+    # In general it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
+    # we've added the full sync on the project member initialization (see code there for details) which might delete
+    # projects which requires the scheduler to be set
+    initialize_project_member()
+
+    # maintenance periodic functions should only run on the chief instance
+    if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:
+        # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
+        if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
+            _start_periodic_cleanup()
+            _start_periodic_runs_monitoring()
 
 
 def _start_periodic_cleanup():
@@ -209,6 +236,73 @@ def _start_periodic_runs_monitoring():
         run_function_periodically(
             interval, _monitor_runs.__name__, False, _monitor_runs
         )
+
+
+def _start_chief_clusterization_spec_sync_loop():
+    interval = int(config.httpdb.clusterization.worker.sync_with_chief.interval)
+    if interval > 0:
+        logger.info("Starting chief clusterization spec sync loop", interval=interval)
+        run_function_periodically(
+            interval,
+            _synchronize_with_chief_clusterization_spec.__name__,
+            False,
+            _synchronize_with_chief_clusterization_spec,
+        )
+
+
+async def _synchronize_with_chief_clusterization_spec():
+    # sanity
+    # if we are still in the periodic function and the worker has reached the terminal state, then cancel it
+    if config.httpdb.state in mlrun.api.schemas.APIStates.terminal_states():
+        cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
+
+    try:
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        clusterization_spec = chief_client.get_clusterization_spec(
+            return_fastapi_response=False, raise_on_failure=True
+        )
+    except Exception as exc:
+        logger.debug(
+            "Failed receiving clusterization spec",
+            exc=str(exc),
+            traceback=traceback.format_exc(),
+        )
+    else:
+        await _align_worker_state_with_chief_state(clusterization_spec)
+
+
+async def _align_worker_state_with_chief_state(
+    clusterization_spec: mlrun.api.schemas.ClusterizationSpec,
+):
+    chief_state = clusterization_spec.chief_api_state
+    if not chief_state:
+        logger.warning("Chief did not return any state")
+        return
+
+    if chief_state not in mlrun.api.schemas.APIStates.terminal_states():
+        logger.debug(
+            "Chief did not reach online state yet, will retry after sync interval",
+            interval=config.httpdb.clusterization.worker.sync_with_chief.interval,
+            chief_state=chief_state,
+        )
+        # we want the worker to be aligned with chief state
+        config.httpdb.state = chief_state
+        return
+
+    if chief_state == mlrun.api.schemas.APIStates.online:
+        logger.info("Chief reached online state! Switching worker state to online")
+        await move_api_to_online()
+        logger.info("Worker state reached online")
+
+    else:
+        logger.info(
+            "Chief state is terminal, canceling worker periodic chief clusterization spec pulling",
+            state=config.httpdb.state,
+        )
+    config.httpdb.state = chief_state
+    # if reached terminal state we cancel the periodic function
+    # assumption: we can't get out of a terminal api state, so no need to continue pulling when reached one
+    cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
 
 def _monitor_runs():
@@ -242,7 +336,17 @@ def _cleanup_runtimes():
 
 
 def main():
-    init_data()
+    if config.httpdb.clusterization.role == mlrun.api.schemas.ClusterizationRole.chief:
+        init_data()
+    elif (
+        config.httpdb.clusterization.worker.sync_with_chief.mode
+        == mlrun.api.schemas.WaitForChiefToReachOnlineStateFeatureFlag.enabled
+        and config.httpdb.clusterization.role
+        == mlrun.api.schemas.ClusterizationRole.worker
+    ):
+        # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
+        config.httpdb.state = mlrun.api.schemas.APIStates.waiting_for_chief
+
     logger.info(
         "Starting API server",
         port=config.httpdb.port,

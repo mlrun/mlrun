@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 import unittest.mock
 
@@ -131,7 +145,10 @@ def test_projects_sync_leader_project_syncing(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.api.schemas.ProjectSpec(description=project_description),
     )
-    leader_follower.create_project(None, project)
+    enriched_project = project.copy(deep=True)
+    # simulate project enrichment
+    enriched_project.status.state = enriched_project.spec.desired_state
+    leader_follower.create_project(None, enriched_project)
     invalid_project_name = "invalid_name"
     invalid_project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=invalid_project_name),

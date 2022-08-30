@@ -16,7 +16,7 @@ import pathlib
 from os.path import isdir
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, logger, uxjoin
+from ..utils import is_legacy_artifact, is_relative_path, logger
 from .base import (
     Artifact,
     DirArtifact,
@@ -87,7 +87,7 @@ class ArtifactProducer:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
-def dict_to_artifact(struct: dict):
+def dict_to_artifact(struct: dict) -> Artifact:
     # Need to distinguish between LegacyArtifact classes and Artifact classes. Use existence of the "metadata"
     # property to make this distinction
     kind = struct.get("kind", "")
@@ -138,13 +138,14 @@ class ArtifactManager:
         upload=None,
         labels=None,
         db_key=None,
+        **kwargs,
     ) -> Artifact:
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
-                item = DirArtifact(key, body)
+                item = DirArtifact(key, body, **kwargs)
             else:
-                item = Artifact(key, body)
+                item = Artifact(key, body, **kwargs)
         else:
             key = item.key
             target_path = target_path or item.target_path
@@ -154,42 +155,6 @@ class ArtifactManager:
             viewer = "web-app"
         item.format = format or item.format
         item.src_path = src_path
-        if src_path and ("://" in src_path or src_path.startswith("/")):
-            raise ValueError(
-                f"local/source path ({src_path}) must be a relative path, "
-                "cannot be remote or absolute path, "
-                "use target_path for absolute paths"
-            )
-
-        if target_path:
-            if not (
-                target_path.startswith("/")
-                or ":\\" in target_path
-                or "://" in target_path
-            ):
-                raise ValueError(
-                    f"target_path ({target_path}) param cannot be relative"
-                )
-        else:
-            target_path = uxjoin(
-                artifact_path,
-                src_path,
-                filename(key, item.format),
-                producer.iteration,
-                item.is_dir,
-            )
-
-        if target_path and item.is_dir and not target_path.endswith("/"):
-            target_path += "/"
-
-        item.target_path = target_path
-        item.viewer = viewer or item.viewer
-        item.tree = producer.tag
-        item.labels = labels or item.labels
-        item.producer = producer.get_meta()
-        item.iter = producer.iteration
-        item.project = producer.project
-        item.tag = tag or item.tag
 
         if db_key is None:
             # set the default artifact db key
@@ -198,11 +163,37 @@ class ArtifactManager:
             else:
                 db_key = key
         item.db_key = db_key if db_key else ""
+        item.viewer = viewer or item.viewer
+        item.tree = producer.tag
+        item.labels = labels or item.labels
+        item.producer = producer.get_meta()
+        item.iter = producer.iteration
+        item.project = producer.project
+        item.tag = tag or item.tag
+
+        if target_path:
+            if is_relative_path(target_path):
+                raise ValueError(
+                    f"target_path ({target_path}) param cannot be relative"
+                )
+            upload = False
+        elif src_path and "://" in src_path:
+            if upload:
+                raise ValueError(f"Cannot upload from remote path {src_path}")
+            target_path = src_path
+            upload = False
+        elif not item.is_inline():
+            target_path = item.generate_target_path(artifact_path, producer)
+
+        if target_path and item.is_dir and not target_path.endswith("/"):
+            target_path += "/"
+
+        item.target_path = target_path
 
         item.before_log()
         self.artifacts[key] = item
 
-        if (upload is None and item.kind != "dir") or upload:
+        if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             item.upload()
 
         if db_key:
@@ -268,6 +259,7 @@ class ArtifactManager:
 
 
 def extend_artifact_path(artifact_path: str, default_artifact_path: str):
+    artifact_path = str(artifact_path or "")
     if artifact_path and artifact_path.startswith("+/"):
         if not default_artifact_path:
             return artifact_path[len("+/") :]

@@ -1,6 +1,7 @@
-# Creating a custom model serving class
+(custom-model-serving-class)=
+# Basic model serving class
 
-Model serving classes implement the full model serving functionality which include
+Model serving classes implement the full model serving functionality, which includes
 loading models, pre- and post-processing, prediction, explainability, and model monitoring.
 
 Model serving classes must inherit from `mlrun.serving.V2ModelServer`, and at the minimum 
@@ -8,15 +9,15 @@ implement the `load()` (download the model file(s) and load the model into memor
 and `predict()` (accept request payload and return prediction/inference results) methods.  
 
 The class is initialized automatically by the model server and can run locally
-as part of a nuclio serverless function, or as part of a real-time pipeline
+as part of a nuclio serverless function, or as part of a real-time pipeline.
 
 You need to implement two mandatory methods:
-  * **load()**     - download the model file(s) and load the model into memory, 
-  note this can be done synchronously or asynchronously 
-  * **predict()**  - accept request payload and return prediction/inference results
+  * **load()** &mdash; download the model file(s) and load the model into memory, 
+  note this can be done synchronously or asynchronously.
+  * **predict()** &mdash; accept request payload and return prediction/inference results.
 
 You can override additional methods : `preprocess`, `validate`, `postprocess`, `explain`.<br>
-You can add a custom api endpoint by adding method `op_xx(event)`. Invoke it by
+You can add a custom api endpoint by adding the method `op_xx(event)`. Invoke it by
 calling the <model-url>/xx (operation = xx).
     
 **In this section**
@@ -88,7 +89,7 @@ the function/model deployment.
 ## predict() method
 
 The predict method is called when you access the `/infer` or `/predict` url suffix (operation).
-The method accepts the request object (as dict), see [Model server API](#model-api).
+The method accepts the request object (as dict), see [Model server API](model-api.html#infer-predict).
 And it should return the specified response object.
 
 ## explain() method
@@ -112,9 +113,11 @@ The url or the message determines which model is selected, e.g. using the url sc
 
     /v2/models/<model>[/versions/<ver>]/operation
 
-> Note: the `model`, `version` and `operation` can also be specified in the message body 
+```{admonition} Note
+The `model`, `version` and `operation` can also be specified in the message body 
 to support streaming protocols (e.g. Kafka).
-
+```
+       
 More complex routers can be used to support ensembles (send the request to all child models 
 and aggregate the result), multi-armed-bandit, etc. 
 
@@ -169,6 +172,6 @@ To set the tracking stream options, specify the following function spec attribut
 
         fn.set_tracking(stream_path, batch, sample)
 
-* **stream_path** - the v3io stream path (e.g. `v3io:///users/..`)
-* **sample** -  optional, sample every N requests
-* **batch** -  optional, send micro-batches every N requests
+* **stream_path** &mdash; the v3io stream path (e.g. `v3io:///users/..`)
+* **sample** &mdash; optional, sample every N requests
+* **batch** &mdash; optional, send micro-batches every N requests

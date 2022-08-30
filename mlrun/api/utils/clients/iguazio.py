@@ -1,5 +1,20 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import datetime
+import enum
 import http
 import json
 import typing
@@ -7,14 +22,13 @@ import urllib.parse
 
 import fastapi
 import requests.adapters
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-from mlrun.utils import logger
+from mlrun.utils import get_in, logger
 
 
 class JobStates:
@@ -59,12 +73,11 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1),
-            pool_maxsize=int(mlrun.mlconf.httpdb.max_workers),
+        self._session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+            verbose=True,
         )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
         self._api_url = mlrun.mlconf.iguazio_api_url
         # The job is expected to be completed in less than 5 seconds. If 10 seconds have passed and the job
         # has not been completed, increase the interval to retry every 5 seconds
@@ -130,6 +143,16 @@ class Client(
         )
         return self._generate_auth_info_from_session_verification_response(response)
 
+    def get_user_unix_id(self, session: str) -> str:
+        response = self._send_request_to_api(
+            "GET",
+            "self",
+            "Failed get iguazio user",
+            session,
+        )
+        response_json = response.json()
+        return response_json["data"]["attributes"]["uid"]
+
     def get_or_create_access_key(
         self, session: str, planes: typing.List[str] = None
     ) -> str:
@@ -163,7 +186,9 @@ class Client(
     ) -> bool:
         logger.debug("Creating project in Iguazio", project=project)
         body = self._transform_mlrun_project_to_iguazio_project(project)
-        return self._create_project_in_iguazio(session, body, wait_for_completion)
+        return self._create_project_in_iguazio(
+            session, project.metadata.name, body, wait_for_completion
+        )
 
     def update_project(
         self,
@@ -216,6 +241,11 @@ class Client(
         else:
             if wait_for_completion:
                 job_id = response.json()["data"]["id"]
+                logger.debug(
+                    "Waiting for project deletion job in Iguazio",
+                    name=name,
+                    job_id=job_id,
+                )
                 self._wait_for_job_completion(
                     session, job_id, "Project deletion job failed"
                 )
@@ -271,12 +301,23 @@ class Client(
         name: str,
     ) -> mlrun.api.schemas.ProjectOwner:
         response = self._get_project_from_iguazio_without_parsing(
-            session, name, include_owner_session=True
+            session, name, enrich_owner_access_key=True
         )
         iguazio_project = response.json()["data"]
+        owner_username = iguazio_project.get("attributes", {}).get(
+            "owner_username", None
+        )
+        owner_access_key = iguazio_project.get("attributes", {}).get(
+            "owner_access_key", None
+        )
+        if not owner_username:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Unable to enrich project owner for project {name},"
+                f" because project has no owner configured"
+            )
         return mlrun.api.schemas.ProjectOwner(
-            username=iguazio_project["attributes"]["owner_username"],
-            session=iguazio_project["attributes"]["owner_access_key"],
+            username=owner_username,
+            access_key=owner_access_key,
         )
 
     def format_as_leader_project(
@@ -299,10 +340,15 @@ class Client(
         return latest_updated_at
 
     def _create_project_in_iguazio(
-        self, session: str, body: dict, wait_for_completion: bool
+        self, session: str, name: str, body: dict, wait_for_completion: bool
     ) -> bool:
         _, job_id = self._post_project_to_iguazio(session, body)
         if wait_for_completion:
+            logger.debug(
+                "Waiting for project creation job in Iguazio",
+                name=name,
+                job_id=job_id,
+            )
             self._wait_for_job_completion(
                 session, job_id, "Project creation job failed"
             )
@@ -334,10 +380,10 @@ class Client(
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
     def _get_project_from_iguazio_without_parsing(
-        self, session: str, name: str, include_owner_session: bool = False
+        self, session: str, name: str, enrich_owner_access_key: bool = False
     ):
         params = {"include": "owner"}
-        if include_owner_session:
+        if enrich_owner_access_key:
             params["enrich_owner_access_key"] = "true"
         return self._send_request_to_api(
             "GET",
@@ -416,6 +462,14 @@ class Client(
                 kwargs.setdefault("headers", {})[
                     mlrun.api.schemas.HeaderNames.projects_role
                 ] = "mlrun"
+
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for kwarg in ["headers", "params"]:
+            dict_ = kwargs.get(kwarg, {})
+            for key in dict_.keys():
+                if isinstance(dict_[key], enum.Enum):
+                    dict_[key] = dict_[key].value
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)
@@ -434,26 +488,84 @@ class Client(
             mlrun.errors.raise_for_status(response, error_message)
         return response
 
-    @staticmethod
     def _generate_auth_info_from_session_verification_response(
+        self,
         response: requests.Response,
     ) -> mlrun.api.schemas.AuthInfo:
-        gids = response.headers.get("x-user-group-ids")
-        if gids:
-            gids = gids.split(",")
-        planes = response.headers.get("x-v3io-session-planes")
-        if planes:
-            planes = planes.split(",")
-        planes = planes or []
+
+        (
+            username,
+            session,
+            planes,
+            user_unix_id,
+            user_id,
+            group_ids,
+        ) = self._resolve_params_from_response_headers(response)
+
+        (
+            user_id_from_body,
+            group_ids_from_body,
+        ) = self._resolve_params_from_response_body(response)
+
+        # from iguazio version >= 3.5.2, user and group ids are included in the response body
+        # if not, get them from the headers
+        user_id = user_id_from_body or user_id
+        group_ids = group_ids_from_body or group_ids
+
         auth_info = mlrun.api.schemas.AuthInfo(
-            username=response.headers["x-remote-user"],
-            session=response.headers["x-v3io-session-key"],
-            user_id=response.headers.get("x-user-id"),
-            user_group_ids=gids or [],
+            username=username,
+            session=session,
+            user_id=user_id,
+            user_group_ids=group_ids,
+            user_unix_id=user_unix_id,
+            planes=planes,
         )
         if SessionPlanes.data in planes:
             auth_info.data_session = auth_info.session
         return auth_info
+
+    @staticmethod
+    def _resolve_params_from_response_headers(response: requests.Response):
+
+        username = response.headers.get("x-remote-user")
+        session = response.headers.get("x-v3io-session-key")
+        user_id = response.headers.get("x-user-id")
+
+        gids = response.headers.get("x-user-group-ids", [])
+        # "x-user-group-ids" header is a comma separated list of group ids
+        if gids:
+            gids = gids.split(",")
+
+        planes = response.headers.get("x-v3io-session-planes")
+        if planes:
+            planes = planes.split(",")
+        planes = planes or []
+        user_unix_id = None
+        x_unix_uid = response.headers.get("x-unix-uid")
+        # x-unix-uid may be 'Unknown' in case it is missing or in case of enrichment failures
+        if x_unix_uid and x_unix_uid.lower() != "unknown":
+            user_unix_id = int(x_unix_uid)
+
+        return username, session, planes, user_unix_id, user_id, gids
+
+    @staticmethod
+    def _resolve_params_from_response_body(response: requests.Response):
+
+        response_body = response.json()
+        context_auth = get_in(
+            response_body, "data.attributes.context.authentication", {}
+        )
+        user_id = context_auth.get("user_id", None)
+
+        gids = context_auth.get("group_ids", [])
+
+        # some gids can be a comma separated list of group ids
+        # (if taken from the headers, the next split will have no effect)
+        group_ids = []
+        for gid in gids:
+            group_ids.extend(gid.split(","))
+
+        return user_id, group_ids
 
     @staticmethod
     def _transform_mlrun_project_to_iguazio_project(
@@ -476,13 +588,13 @@ class Client(
             body["data"]["attributes"][
                 "created_at"
             ] = project.metadata.created.isoformat()
-        if project.metadata.labels:
+        if project.metadata.labels is not None:
             body["data"]["attributes"][
                 "labels"
             ] = Client._transform_mlrun_labels_to_iguazio_labels(
                 project.metadata.labels
             )
-        if project.metadata.annotations:
+        if project.metadata.annotations is not None:
             body["data"]["attributes"][
                 "annotations"
             ] = Client._transform_mlrun_labels_to_iguazio_labels(

@@ -47,6 +47,10 @@ _missing = object()
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
 
+LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
+DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
+DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
 
 class StorePrefix:
     """map mlrun store objects to prefixes"""
@@ -456,23 +460,6 @@ class MyEncoder(json.JSONEncoder):
 
 def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
-
-
-def uxjoin(base, local_path, key="", iter=None, is_dir=False):
-    if is_dir and (not local_path or local_path in [".", "./"]):
-        local_path = ""
-    elif not local_path:
-        local_path = key
-
-    if iter:
-        local_path = path.join(str(iter), local_path).replace("\\", "/")
-
-    if base and not base.endswith("/"):
-        base += "/"
-    base_str = base or ""
-    if local_path.startswith("./"):
-        local_path = local_path[len("./") :]
-    return f"{base_str}{local_path}"
 
 
 def parse_versioned_object_uri(uri, default_project=""):
@@ -1334,3 +1321,9 @@ def set_paths(pythonpath=""):
         abspath = path.abspath(p)
         if abspath not in sys.path:
             sys.path.append(abspath)
+
+
+def is_relative_path(path):
+    if not path:
+        return False
+    return not (path.startswith("/") or ":\\" in path or "://" in path)

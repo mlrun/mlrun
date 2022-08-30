@@ -187,7 +187,7 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
-    proj_obj = mlrun.new_project(prj)
+    proj_obj = mlrun.new_project(prj, save=False)
     db.create_project(proj_obj)
 
     db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
@@ -201,7 +201,7 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = "p18", "3i920"
-    proj_obj = mlrun.new_project(prj)
+    proj_obj = mlrun.new_project(prj, save=False)
     db.create_project(proj_obj)
 
     run_as_dict = RunObject().to_dict()
@@ -235,7 +235,7 @@ def test_runs(create_server):
     server: Server = create_server()
     db = server.conn
     prj = "p180"
-    proj_obj = mlrun.new_project(prj)
+    proj_obj = mlrun.new_project(prj, save=False)
     db.create_project(proj_obj)
 
     runs = db.list_runs()
@@ -298,7 +298,7 @@ def test_set_get_function(create_server):
 
     func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
     tag = uuid4().hex
-    proj_obj = mlrun.new_project(proj)
+    proj_obj = mlrun.new_project(proj, save=False)
     db.create_project(proj_obj)
 
     db.store_function(func, name, proj, tag=tag)
@@ -315,7 +315,7 @@ def test_list_functions(create_server):
     db: HTTPRunDB = server.conn
 
     proj = "p4"
-    proj_obj = mlrun.new_project(proj)
+    proj_obj = mlrun.new_project(proj, save=False)
     db.create_project(proj_obj)
 
     count = 5
@@ -325,7 +325,7 @@ def test_list_functions(create_server):
         tag = uuid4().hex
         db.store_function(func, name, proj, tag=tag)
     proj_p7 = "p7"
-    proj_p7_obj = mlrun.new_project(proj_p7)
+    proj_p7_obj = mlrun.new_project(proj_p7, save=False)
     db.create_project(proj_p7_obj)
 
     db.store_function({}, "f2", proj_p7, tag=uuid4().hex)
@@ -410,7 +410,7 @@ def test_feature_sets(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project)
+    proj_obj = mlrun.new_project(project, save=False)
     db.create_project(proj_obj)
 
     count = 5
@@ -499,7 +499,7 @@ def test_feature_vectors(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project)
+    proj_obj = mlrun.new_project(project, save=False)
     db.create_project(proj_obj)
 
     count = 5

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 
 import uvicorn.protocols.utils
@@ -29,19 +43,26 @@ def verify_api_state(request: Request):
     )
     path = path_with_query_string.split("?")[0]
     if mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.offline:
-        # we do want to stay healthy
-        if "healthz" not in path:
+        enabled_endpoints = [
+            # we want to stay healthy
+            "healthz",
+            # we want the workers to be able to pull chief state even if the state is offline
+            "clusterization-spec",
+        ]
+        if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             raise mlrun.errors.MLRunPreconditionFailedError("API is in offline state")
     if mlrun.mlconf.httpdb.state in [
         mlrun.api.schemas.APIStates.waiting_for_migrations,
         mlrun.api.schemas.APIStates.migrations_in_progress,
         mlrun.api.schemas.APIStates.migrations_failed,
+        mlrun.api.schemas.APIStates.waiting_for_chief,
     ]:
         enabled_endpoints = [
             "healthz",
             "background-tasks",
             "client-spec",
             "migrations",
+            "clusterization-spec",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = (

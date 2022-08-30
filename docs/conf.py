@@ -59,7 +59,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "sphinx_togglebutton",
-    "sphinx_panels",
+    "sphinx_design",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -95,7 +95,7 @@ html_title = ""
 html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
 extra_navbar = "<p>Your HTML</p>"
-jupyter_execute_notebooks = "off"
+nb_execution_mode = "off"
 html_sourcelink_suffix = ""
 autoclass_content = "both"
 
@@ -113,7 +113,7 @@ html_theme_options = {
     "path_to_docs": "docs",
     "home_page_in_toc": False,
     "repository_branch": "development",
-    "show_navbar_depth": 1,
+    "show_navbar_depth": 0,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
     "google_analytics_id": "",
@@ -130,11 +130,11 @@ myst_enable_extensions = [
     "replacements",
     "linkify",
     "substitution",
-    "myst_nb",
 ]
 myst_url_schemes = ("http", "https", "mailto")
-panels_add_bootstrap_css = False
-
+myst_heading_anchors = 2
+myst_all_links_external = True
+myst_substitutions = {"version": version}
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True

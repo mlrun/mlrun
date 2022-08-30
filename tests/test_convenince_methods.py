@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
 
@@ -13,6 +27,24 @@ def test_set_environment_with_invalid_project_name():
     invalid_name = "project_name"
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         mlrun.set_environment(project=invalid_name)
+
+
+def test_set_environment_cred():
+    old_key = os.environ.get("V3IO_ACCESS_KEY")
+    old_user = os.environ.get("V3IO_USERNAME")
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(access_key="xyz", username="joe", artifact_path=artifact_path)
+    assert os.environ["V3IO_ACCESS_KEY"] == "xyz"
+    assert os.environ["V3IO_USERNAME"] == "joe"
+
+    if old_key:
+        os.environ["V3IO_ACCESS_KEY"] = old_key
+    else:
+        del os.environ["V3IO_ACCESS_KEY"]
+    if old_user:
+        os.environ["V3IO_USERNAME"] = old_user
+    else:
+        del os.environ["V3IO_USERNAME"]
 
 
 def test_env_from_file():
@@ -32,6 +64,11 @@ def test_bad_env_files():
     for env in bad_envs:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             mlrun.set_env_from_file(str(assets_path / env))
+
+
+def test_env_file_does_not_exist():
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        mlrun.set_env_from_file("some-nonexistent-path")
 
 
 def test_auto_load_env_file():

@@ -209,6 +209,24 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
 
+    class BackgroundTask(Base, BaseModel):
+        __tablename__ = "background_tasks"
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_background_tasks_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        project = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        state = Column(String(255, collation=SQLCollationUtil.collation()))
+        timeout = Column(Integer)
+
     class Schedule(Base, BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
@@ -232,6 +250,7 @@ with warnings.catch_warnings():
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
+        next_run_time = Column(TIMESTAMP)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"

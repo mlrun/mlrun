@@ -197,3 +197,29 @@ class TestAutoMount:
         runtime = self._generate_runtime()
         self._execute_run(runtime)
         rundb_mock.assert_s3_mount_configured(s3_params)
+
+    def test_auto_mount_env(self, rundb_mock):
+        expected_env = {
+            "VAR1": "value1",
+            "some_var_2": "some_value2",
+            "one-more": "one more!!!",
+        }
+
+        mlconf.storage.auto_mount_type = "env"
+        # Pass key=value pairs to the function
+        mlconf.storage.auto_mount_params = ",".join(
+            [f"{key}={value}" for key, value in expected_env.items()]
+        )
+        print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_variables(expected_env)
+
+        # Try with a base64 json dictionary
+        pvc_params_str = base64.b64encode(json.dumps(expected_env).encode())
+        mlconf.storage.auto_mount_params = pvc_params_str
+        print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
+        runtime = self._generate_runtime()
+        rundb_mock.reset()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_variables(expected_env)

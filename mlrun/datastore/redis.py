@@ -77,6 +77,9 @@ class RedisStore(DataStore):
     def get_filesystem(self, silent):
         return None  # no support for fsspec
 
+    def supports_isdir(self):
+        return False
+
     def upload(self, key, src_path):
         with open(src_path, "rb") as f:
             while True:
@@ -86,17 +89,21 @@ class RedisStore(DataStore):
                 self.redis.append(key, data)
 
     def get(self, key, size=-1, offset=0):
-        if offset or size:
+        if size == 0:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "size argument should not be zero"
+            )
+        if offset:
             end_offset = size if size == -1 else offset + size - 1
             return self.redis.getrange(key, offset, end_offset)
         else:
             return self.redis.get(key)
 
-    def put(self, key, data, append=None):
-        if append is None:
-            self.redis.set(key, data)
-        else:
+    def put(self, key, data, append=False):
+        if append:
             self.redis.append(key, data)
+        else:
+            self.redis.set(key, data)
 
     def stat(self, key):
         raise NotImplementedError()

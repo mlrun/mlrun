@@ -14,6 +14,8 @@
 
 import os
 
+import pytest
+
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
 
@@ -38,6 +40,8 @@ class TestRedisDataStore(TestMLRunSystem):
         assert object_value == "".join(str_arr)
         object_value = data_item.get(offset=len(str_arr[0]), size=len(str_arr[1]))
         assert object_value == str_arr[1]
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            object_value = data_item.get(offset=len(str_arr[0]), size=0)
 
         data_item.delete()
 

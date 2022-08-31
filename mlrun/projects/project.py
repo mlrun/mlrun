@@ -328,7 +328,8 @@ def get_or_create_project(
             subpath=subpath,
             clone=clone,
             user_project=user_project,
-            save=save,
+            # only loading project from db so no need to save it
+            save=False,
         )
         logger.info(f"loaded project {name} from MLRun DB")
         return project

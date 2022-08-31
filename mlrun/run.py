@@ -1765,6 +1765,8 @@ def function(
     :param outputs:  Logging configurations for the function's returned values. Expecting a list of tuples and None
                          values:
 
+                           * str - such as 'key:artifact_type', if get string without ':' it will indicate the name
+                             and the artifact type will be resultArtifact.
                            * tuple - A tuple where the first element [0] is string for the key
                              (name) of the artifact to use for the logged outputan. The second
                              element [1] can be a `ArtifactType` enum or string that

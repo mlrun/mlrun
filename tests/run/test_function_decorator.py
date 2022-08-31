@@ -160,9 +160,7 @@ def test_log_dataset_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert (
-        len(run_object.outputs) == 4
-    )  # return + my_array, my_df, my_dict, my_list
+    assert len(run_object.outputs) == 4  # return + my_array, my_df, my_dict, my_list
     assert run_object.artifact("my_array").as_df().shape == (10, 20)
     assert run_object.artifact("my_df").as_df().shape == (20, 10)
     assert run_object.artifact("my_dict").as_df().shape == (4, 2)
@@ -421,9 +419,7 @@ def test_log_result_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert (
-        len(run_object.outputs) == 4
-    )  # return + my_int, my_float, my_dict, my_array
+    assert len(run_object.outputs) == 4  # return + my_int, my_float, my_dict, my_array
     assert run_object.outputs["my_int"] == 1
     assert run_object.outputs["my_float"] == 1.5
     assert run_object.outputs["my_dict"] == {"a": 1, "b": 2}

@@ -1855,7 +1855,6 @@ def function(
                 return
             return func_outputs
 
-
         # Make sure to pass the wrapped function's signature (argument list, type hints and doc strings) to the wrapper:
         wrapper = functools.wraps(func)(wrapper)
 

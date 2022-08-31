@@ -48,7 +48,7 @@ def init_featureset_graph(
     graph = featureset.spec.graph.copy()
 
     # init targets (and table)
-    targets = targets or []
+    targets = targets or [] or featureset.spec.targets #TODO : ask yaron
     server = create_graph_server(graph=graph, parameters={}, verbose=verbose)
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
@@ -98,6 +98,11 @@ def init_featureset_graph(
             if event.body.index.name != featureset.spec.entities[0].name:
                 event.body = event.body.set_index(featureset.spec.entities[0].name)
         data = server.run(event, get_body=True)
+        if featureset.spec.entities[0] and isinstance(data, pd.DataFrame):
+            try:
+                data = data.set_index(featureset.spec.entities[0].name, drop=True)
+            except KeyError:
+                data.reset_index(inplace=True, drop=True)
         if data is not None:
             if featureset.spec.entities[0] in data:
                 # drop the entity from the columns because it is the index now

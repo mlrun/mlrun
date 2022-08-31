@@ -161,7 +161,7 @@ def test_log_dataset_with_mlrun():
 
     # Assertion:
     assert (
-        len(run_object.outputs) == 1 + 4
+        len(run_object.outputs) == 4
     )  # return + my_array, my_df, my_dict, my_list
     assert run_object.artifact("my_array").as_df().shape == (10, 20)
     assert run_object.artifact("my_df").as_df().shape == (20, 10)
@@ -214,7 +214,7 @@ def test_log_directory_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1 + 1  # return + my_dir
+    assert len(run_object.outputs) == 1  # return + my_dir
     my_dir_zip = run_object.artifact("my_dir").local()
     my_dir = os.path.join(artifact_path.name, "extract_here")
     with zipfile.ZipFile(my_dir_zip, "r") as zip_ref:
@@ -268,7 +268,7 @@ def test_log_file_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1 + 1  # return + my_file
+    assert len(run_object.outputs) == 1  # return + my_file
     assert os.path.basename(run_object.artifact("my_file").local()) == "my_file.txt"
 
     # Clean the test outputs:
@@ -323,7 +323,7 @@ def test_log_object_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1 + 1  # return + my_file
+    assert len(run_object.outputs) == 1  # return + my_file
     pickle = run_object.artifact("my_object").local()
     assert os.path.basename(pickle) == "my_object.pkl"
     with open(pickle, "rb") as pickle_file:
@@ -371,7 +371,7 @@ def test_log_plot_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1 + 1  # return + my_plot
+    assert len(run_object.outputs) == 1  # return + my_plot
     assert os.path.basename(run_object.artifact("my_plot").local()) == "my_plot.html"
 
     # Clean the test outputs:
@@ -422,7 +422,7 @@ def test_log_result_with_mlrun():
 
     # Assertion:
     assert (
-        len(run_object.outputs) == 1 + 4
+        len(run_object.outputs) == 4
     )  # return + my_int, my_float, my_dict, my_array
     assert run_object.outputs["my_int"] == 1
     assert run_object.outputs["my_float"] == 1.5
@@ -474,7 +474,7 @@ def test_log_from_function_and_wrapper_with_mlrun():
 
     # Assertion:
     assert (
-        len(run_object.outputs) == 1 + 4
+        len(run_object.outputs) == 4
     )  # return + context_dataset, context_result, wrapper_dataset, wrapper_result
     assert run_object.artifact("context_dataset").as_df().shape == (10, 1)
     assert run_object.outputs["context_result"] == 1
@@ -546,8 +546,7 @@ def test_parse_inputs_from_type_hints_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1  # return
-    assert run_object.outputs["return"] == [[2], [3], [4]]
+    assert len(run_object.outputs) == 0
 
     # Clean the test outputs:
     artifact_path.cleanup()
@@ -610,8 +609,7 @@ def test_parse_inputs_from_wrapper_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 1  # return
-    assert run_object.outputs["return"] == [[2], [3], [4]]
+    assert len(run_object.outputs) == 0  # return
 
     # Clean the test outputs:
     artifact_path.cleanup()

@@ -27,7 +27,7 @@ There are several deployment options:
 ## Security context (root vs. non-root user)(#security-context)
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
-which is implemented by Igauzio during installation, and applied system-wide:
+which is implemented by an MLRun service global configuration, set during installation, and applied system-wide:
 - Override: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1.
 - `disabled`: Security context is not auto applied. (default)
 

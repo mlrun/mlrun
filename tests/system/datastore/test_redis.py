@@ -36,12 +36,21 @@ class TestRedisDataStore(TestMLRunSystem):
         for i, string in enumerate(str_arr):
             data_item.put(string, append=True if i != 0 else False)
 
+        # no "size", "offset": return the entire object
         object_value = data_item.get()
         assert object_value == "".join(str_arr)
+        # no "size": returns from "offset" to end of object
+        object_value = data_item.get(offset=len(str_arr[0]))
+        assert object_value == "".join(str_arr[1:])
+        # "size"=0 is forbidden
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            object_value = data_item.get(offset=1, size=0)
+        # "size">0: return the first "size" bytes
+        object_value = data_item.get(size=len(str_arr[0]))
+        assert object_value == str_arr[0]
+        # "size">0 "offset">0: return "size" bytes starting from byte "offset"
         object_value = data_item.get(offset=len(str_arr[0]), size=len(str_arr[1]))
         assert object_value == str_arr[1]
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            object_value = data_item.get(offset=len(str_arr[0]), size=0)
 
         data_item.delete()
 

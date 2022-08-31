@@ -88,16 +88,20 @@ class RedisStore(DataStore):
                     break
                 self.redis.append(key, data)
 
-    def get(self, key, size=-1, offset=0):
-        if size == 0:
+    def get(self, key, size=None, offset=0):
+        if offset < 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "size argument should not be zero"
+                "offset argument should be >= 0"
             )
-        if offset:
-            end_offset = size if size == -1 else offset + size - 1
-            return self.redis.getrange(key, offset, end_offset)
+        start_offset = offset
+        if size is None:
+            end_offset = -1
+        elif size <= 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("size argument should be > 0")
         else:
-            return self.redis.get(key)
+            end_offset = start_offset + size - 1
+
+        return self.redis.getrange(key, start_offset, end_offset)
 
     def put(self, key, data, append=False):
         if append:
@@ -113,24 +117,27 @@ class RedisStore(DataStore):
         list all keys with prefix key
         """
         response = []
-        for key in self.redis.scan_iter(key + "*"):
+        key += "*" if key.endswith("/") else "/*"
+        for key in self.redis.scan_iter(key):
             response.append(key)
         return response
 
-    def rm(self, path, recursive=False, maxdepth=None):
+    def rm(self, key, recursive=False, maxdepth=None):
         """
         delete keys, possibly recursively
         """
         if maxdepth is not None:
             raise NotImplementedError("maxdepth is not supported")
 
-        if path.startswith("redis://"):
-            path = path[len("redis://") :]
-        elif path.startswith("rediss://"):
-            path = path[len("redis://") :]
+        if key.startswith("redis://"):
+            key = key[len("redis://") :]
+        elif key.startswith("rediss://"):
+            key = key[len("redis://") :]
+
+        key += "*" if key.endswith("/") else "/*"
 
         if recursive:
-            for key in self.redis.scan_iter(path + "*"):
+            for key in self.redis.scan_iter(key):
                 self.redis.delete(key)
         else:
-            self.redis.delete(path)
+            self.redis.delete(key)

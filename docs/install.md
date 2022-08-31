@@ -32,7 +32,7 @@ which is implemented by an MLRun service global configuration, set during instal
 - `disabled`: Security context is not auto applied. (default)
 
 If your system is configured in disabled mode, you can manually apply a security context to individual runtimes/pods by using `function.with_security_context`, providing a Kubernetes security context that will be assigned to the job.<br>
-(You cannot override the user of individual jobs if the system is configured in override mode.) The options are:
+(You cannot override the user of individual jobs if the system is configured in override mode.) For example:
 
 ```from kubernetes import client as k8s_client
 

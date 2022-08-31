@@ -1773,6 +1773,8 @@ def function(
                              indicates how to log the returned value(None/empty forresult logging).
                              (one of: `log_artifact`, `log_dataset` and `log_result` according
                              to the used `ArrtifacctType`).
+                             (The ArrtifacctType are : DATASET = "dataset", DIRECTORY = "directory",
+                             FILE = "file", OBJECT = "object", PLOT = "plot", RESULT = "result")
                              element [2] can be dictionary with the properties to
                              pass to the relevant logging function.
                            * None - Do not log the output.
@@ -1794,7 +1796,7 @@ def function(
     example::
         import mlrun
 
-        @mlrun.function(log_outputs=["my_array", None, "my_multiplier"])
+        @mlrun.function(outputs=["my_array", None, "my_multiplier"])
         def my_function(array: np.ndarray, m: int):
             array = array * m
             m += 1

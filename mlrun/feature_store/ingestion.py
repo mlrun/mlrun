@@ -14,6 +14,8 @@
 
 import uuid
 
+import pandas as pd
+
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
@@ -46,7 +48,7 @@ def init_featureset_graph(
     graph = featureset.spec.graph.copy()
 
     # init targets (and table)
-    targets = targets or []
+    targets = targets or [] or featureset.spec.targets #TODO : ask yaron
     server = create_graph_server(graph=graph, parameters={}, verbose=verbose)
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
@@ -89,6 +91,11 @@ def init_featureset_graph(
     for chunk in chunks:
         event = MockEvent(body=chunk)
         data = server.run(event, get_body=True)
+        if featureset.spec.entities[0] and isinstance(data, pd.DataFrame):
+            try:
+                data = data.set_index(featureset.spec.entities[0].name, drop=True)
+            except KeyError:
+                data.reset_index(inplace=True, drop=True)
         if data is not None:
             for i, target in enumerate(targets):
                 size = target.write_dataframe(

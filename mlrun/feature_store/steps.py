@@ -26,6 +26,31 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
 
+def get_engine(first_event):
+    if isinstance(first_event, pd.DataFrame):
+        return 'pandas'
+    return 'storey'
+
+
+class MLRunStep(MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        engine = get_engine(event)
+        if engine == 'pandas':
+            self.do = self._do_pandas
+        else:
+            self.do = self._do_storey
+        return self.do(event)
+
+    def _do_pandas(self, event):
+        raise NotImplementedError
+
+    def _do_storey(self, event):
+        raise NotImplementedError
+
+
 class FeaturesetValidator(StepToDict, MapClass):
     """Validate feature values according to the feature set validation policy"""
 
@@ -67,15 +92,15 @@ class FeaturesetValidator(StepToDict, MapClass):
         return event
 
 
-class MapValues(StepToDict, MapClass):
+class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
-        self,
-        mapping: Dict[str, Dict[str, Any]],
-        with_original_features: bool = False,
-        suffix: str = "mapped",
-        **kwargs,
+            self,
+            mapping: Dict[str, Dict[str, Any]],
+            with_original_features: bool = False,
+            suffix: str = "mapped",
+            **kwargs,
     ):
         """Map column values to new values
 
@@ -117,7 +142,7 @@ class MapValues(StepToDict, MapClass):
     def _feature_name(self, feature) -> str:
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
 
-    def do(self, event):
+    def _do_storey(self, event):
         mapped_values = {
             self._feature_name(feature): self._map_value(feature, val)
             for feature, val in event.items()
@@ -129,14 +154,35 @@ class MapValues(StepToDict, MapClass):
 
         return mapped_values
 
+    def _do_pandas(self, event):
+        df = pd.DataFrame()
+        for feature in event.columns:
+            feature_map = self.mapping.get(feature, {})
+            if "ranges" in feature_map:
+                for val, val_range in feature_map.get("ranges", {}).items():
+                    min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                    max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                    feature_map["ranges"][val] = [min_val, max_val]
 
-class Imputer(StepToDict, MapClass):
+                matchdf = pd.DataFrame.from_dict(feature_map['ranges'], 'index').reset_index()
+                matchdf.index = pd.IntervalIndex.from_arrays(left=matchdf[0], right=matchdf[1], closed='both')
+                df[self._feature_name(feature)] = matchdf.loc[event[feature]]['index'].values
+            elif feature_map:
+                df[self._feature_name(feature)] = event[feature].map(lambda x: feature_map[x])
+
+        if self.with_original_features:
+            df = pd.concat([event, df], axis=1)
+
+        return df
+
+
+class Imputer(StepToDict, MLRunStep):
     def __init__(
-        self,
-        method: str = "avg",
-        default_value=None,
-        mapping: Dict[str, Dict[str, Any]] = None,
-        **kwargs,
+            self,
+            method: str = "avg",
+            default_value=None,
+            mapping: Dict[str, Any] = None,
+            **kwargs,
     ):
         """Replace None values with default values
 
@@ -155,14 +201,21 @@ class Imputer(StepToDict, MapClass):
             return self.mapping.get(feature, self.default_value)
         return value
 
-    def do(self, event):
+    def _do_storey(self, event):
         imputed_values = {
             feature: self._impute(feature, val) for feature, val in event.items()
         }
         return imputed_values
 
+    def _do_pandas(self, event):
+        for feature in event.columns:
+            val = self.mapping.get(feature, self.default_value)
+            if val is not None:
+                event[feature].fillna(val, inplace=True)
+        return event
 
-class OneHotEncoder(StepToDict, MapClass):
+
+class OneHotEncoder(StepToDict, MLRunStep):
     def __init__(self, mapping: Dict[str, Union[int, str]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
@@ -183,6 +236,7 @@ class OneHotEncoder(StepToDict, MapClass):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
+        self.pandas_engine = None
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])
@@ -203,11 +257,26 @@ class OneHotEncoder(StepToDict, MapClass):
 
         return {feature: value}
 
-    def do(self, event):
+    def _do_storey(self, event):
         encoded_values = {}
+
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
+
+    def _do_pandas(self, event):
+
+        for key, values in self.mapping.items():
+            event[key] = pd.Categorical(
+                event[key],
+                categories=list(values)
+            )
+            encoded = pd.get_dummies(event[key], prefix=key)
+            event = pd.concat(
+                [event, encoded], axis=1
+            )
+        event.drop(columns=[*self.mapping.keys()], inplace=True)
+        return event
 
     @staticmethod
     def _sanitized_category(category):
@@ -217,14 +286,14 @@ class OneHotEncoder(StepToDict, MapClass):
         return category
 
 
-class DateExtractor(StepToDict, MapClass):
+class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
-        self,
-        parts: Union[Dict[str, str], List[str]],
-        timestamp_col: str = None,
-        **kwargs,
+            self,
+            parts: Union[Dict[str, str], List[str]],
+            timestamp_col: str = None,
+            **kwargs,
     ):
         """Date Extractor extract a date-time component into new columns
 
@@ -285,7 +354,7 @@ class DateExtractor(StepToDict, MapClass):
         timestamp_col = timestamp_col if timestamp_col else "timestamp"
         return f"{timestamp_col}_{part}"
 
-    def do(self, event):
+    def _extract_timestamp(self, event):
         # Extract timestamp
         if self.timestamp_col is None:
             timestamp = event["timestamp"]
@@ -294,7 +363,10 @@ class DateExtractor(StepToDict, MapClass):
                 timestamp = event[self.timestamp_col]
             except Exception:
                 raise ValueError(f"{self.timestamp_col} does not exist in the event")
+        return timestamp
 
+    def _do_storey(self, event):
+        timestamp = self._extract_timestamp(event)
         # Extract specified parts
         timestamp = pd.Timestamp(timestamp)
         for part in self.parts:
@@ -304,17 +376,26 @@ class DateExtractor(StepToDict, MapClass):
             event[self._get_key_name(part, self.timestamp_col)] = extracted_part
         return event
 
+    def _do_pandas(self, event):
+        timestamp = self._extract_timestamp(event)
+        # Extract specified parts
+        for part in self.parts:
+            # Extract part and add it to event
+            event[self._get_key_name(part, self.timestamp_col)] = timestamp.map(
+                lambda x: getattr(pd.Timestamp(x), part))
+        return event
+
 
 class SetEventMetadata(MapClass):
     """Set the event metadata (id, key, timestamp) from the event body"""
 
     def __init__(
-        self,
-        id_path: str = None,
-        key_path: str = None,
-        time_path: str = None,
-        random_id: bool = None,
-        **kwargs,
+            self,
+            id_path: str = None,
+            key_path: str = None,
+            time_path: str = None,
+            random_id: bool = None,
+            **kwargs,
     ):
         """Set the event metadata (id, key, timestamp) from the event body
 

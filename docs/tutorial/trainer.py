@@ -1,3 +1,4 @@
+
 from sklearn import ensemble
 from sklearn.model_selection import train_test_split
 
@@ -7,11 +8,11 @@ from mlrun.frameworks.sklearn import apply_mlrun
 
 def train(
     dataset: mlrun.DataItem,  # data inputs are of type DataItem (abstract the data source)
-    label_column: str = "label",
+    label_column: str = "Win",
     n_estimators: int = 100,
     learning_rate: float = 0.1,
     max_depth: int = 3,
-    model_name: str = "cancer_classifier",
+    model_name: str = "worldcup_classifier",
 ):
     # Get the input dataframe (Use DataItem.as_df() to access any data source)
     df = dataset.as_df()

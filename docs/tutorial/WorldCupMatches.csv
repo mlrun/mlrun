@@ -1,0 +1,853 @@
+Year,Stage,Home Team Name,Home Team Goals,Away Team Goals,Away Team Name,Attendance,Win
+1930,Groups,France,4,1,Mexico,4444,1
+1930,Groups,USA,3,0,Belgium,18346,1
+1930,Groups,Yugoslavia,2,1,Brazil,24059,1
+1930,Groups,Romania,3,1,Peru,2549,1
+1930,Groups,Argentina,1,0,France,23409,1
+1930,Groups,Chile,3,0,Mexico,9249,1
+1930,Groups,Yugoslavia,4,0,Bolivia,18306,1
+1930,Groups,USA,3,0,Paraguay,18306,1
+1930,Groups,Uruguay,1,0,Peru,57735,1
+1930,Groups,Chile,1,0,France,2000,1
+1930,Groups,Argentina,6,3,Mexico,42100,1
+1930,Groups,Brazil,4,0,Bolivia,25466,1
+1930,Groups,Paraguay,1,0,Belgium,12000,1
+1930,Groups,Uruguay,4,0,Romania,70022,1
+1930,Groups,Argentina,3,1,Chile,41459,1
+1930,finals,Argentina,6,1,USA,72886,1
+1930,finals,Uruguay,6,1,Yugoslavia,79867,1
+1930,Final,Uruguay,4,2,Argentina,68346,1
+1934,Groups,Austria,3,2,France,16000,1
+1934,Groups,Hungary,4,2,Egypt,9000,1
+1934,Groups,Switzerland,3,2,Netherlands,33000,1
+1934,Groups,Sweden,3,2,Argentina,14000,1
+1934,Groups,Germany,5,2,Belgium,8000,1
+1934,Groups,Spain,3,1,Brazil,21000,1
+1934,Groups,Italy,7,1,USA,25000,1
+1934,Groups,Czechoslovakia,2,1,Romania,9000,1
+1934,finals,Czechoslovakia,3,2,Switzerland,12000,1
+1934,finals,Germany,2,1,Sweden,3000,1
+1934,finals,Italy,1,1,Spain,35000,0
+1934,finals,Austria,2,1,Hungary,23000,1
+1934,finals,Italy,1,0,Spain,43000,1
+1934,finals,Italy,1,0,Austria,35000,1
+1934,finals,Czechoslovakia,3,1,Germany,15000,1
+1934,finals,Germany,3,2,Austria,7000,1
+1934,Final,Italy,2,1,Czechoslovakia,55000,1
+1938,Groups,Switzerland,1,1,Germany,27152,0
+1938,Groups,Hungary,6,0,Dutch East Indies,9000,1
+1938,Groups,France,3,1,Belgium,30454,1
+1938,Groups,Cuba,3,3,Romania,7000,0
+1938,Groups,Italy,2,1,Norway,19000,1
+1938,Groups,Brazil,6,5,Poland,13452,1
+1938,Groups,Czechoslovakia,3,0,Netherlands,11000,1
+1938,Groups,Cuba,2,1,Romania,8000,1
+1938,Groups,Switzerland,4,2,Germany,20025,1
+1938,finals,Brazil,1,1,Czechoslovakia,22021,0
+1938,finals,Hungary,2,0,Switzerland,15000,1
+1938,finals,Sweden,8,0,Cuba,7000,1
+1938,finals,Italy,3,1,France,58455,1
+1938,finals,Brazil,2,1,Czechoslovakia,18141,1
+1938,finals,Hungary,5,1,Sweden,20000,1
+1938,finals,Italy,2,1,Brazil,33000,1
+1938,finals,Brazil,4,2,Sweden,12000,1
+1938,Final,Italy,4,2,Hungary,45000,1
+1950,Groups,Brazil,4,0,Mexico,81649,1
+1950,Groups,England,2,0,Chile,29703,1
+1950,Groups,Spain,3,1,USA,9511,1
+1950,Groups,Sweden,3,2,Italy,36502,1
+1950,Groups,Yugoslavia,3,0,Switzerland,7336,1
+1950,Groups,Brazil,2,2,Switzerland,42032,0
+1950,Groups,Yugoslavia,4,1,Mexico,11078,1
+1950,Groups,Spain,2,0,Chile,19790,1
+1950,Groups,Sweden,2,2,Paraguay,7903,0
+1950,Groups,USA,1,0,England,10151,1
+1950,Groups,Brazil,2,0,Yugoslavia,142429,1
+1950,Groups,Spain,1,0,England,74462,1
+1950,Groups,Italy,2,0,Paraguay,25811,1
+1950,Groups,Uruguay,8,0,Bolivia,5284,1
+1950,Groups,Switzerland,2,1,Mexico,3580,1
+1950,Groups,Chile,5,2,USA,8501,1
+1950,Groups,Uruguay,2,2,Spain,44802,0
+1950,Groups,Brazil,7,1,Sweden,138886,1
+1950,Groups,Brazil,6,1,Spain,152772,1
+1950,Groups,Uruguay,3,2,Sweden,7987,1
+1950,Groups,Sweden,3,1,Spain,11227,1
+1950,Groups,Uruguay,2,1,Brazil,173850,1
+1954,Groups,Uruguay,2,0,Czechoslovakia,20500,1
+1954,Groups,Austria,1,0,Scotland,25000,1
+1954,Groups,Brazil,5,0,Mexico,13470,1
+1954,Groups,Yugoslavia,1,0,France,16000,1
+1954,Groups,Germany FR,4,1,Turkey,28000,1
+1954,Groups,Hungary,9,0,Korea Republic,13000,1
+1954,Groups,England,4,4,Belgium,14000,0
+1954,Groups,Switzerland,2,1,Italy,43000,1
+1954,Groups,Uruguay,7,0,Scotland,34000,1
+1954,Groups,Austria,5,0,Czechoslovakia,26000,1
+1954,Groups,France,3,2,Mexico,19000,1
+1954,Groups,Brazil,1,1,Yugoslavia,24637,0
+1954,Groups,Hungary,8,3,Germany FR,56000,1
+1954,Groups,Turkey,7,0,Korea Republic,4000,1
+1954,Groups,England,2,0,Switzerland,43500,1
+1954,Groups,Italy,4,1,Belgium,24000,1
+1954,Groups,Germany FR,7,2,Turkey,17000,1
+1954,Groups,Switzerland,4,1,Italy,30000,1
+1954,finals,Uruguay,4,2,England,28000,1
+1954,finals,Austria,7,5,Switzerland,35000,1
+1954,finals,Germany FR,2,0,Yugoslavia,17000,1
+1954,finals,Hungary,4,2,Brazil,40000,1
+1954,finals,Germany FR,6,1,Austria,58000,1
+1954,finals,Hungary,4,2,Uruguay,45000,1
+1954,finals,Austria,3,1,Uruguay,32000,1
+1954,Final,Germany FR,3,2,Hungary,62500,1
+1958,Groups,Sweden,3,0,Mexico,34107,1
+1958,Groups,Soviet Union,2,2,England,49348,0
+1958,Groups,Argentina,1,3,Germany FR,31156,2
+1958,Groups,Hungary,1,1,Wales,15343,0
+1958,Groups,France,7,3,Paraguay,16518,1
+1958,Groups,Yugoslavia,1,1,Scotland,9591,0
+1958,Groups,Brazil,3,0,Austria,17788,1
+1958,Groups,Northern Ireland,1,0,Czechoslovakia,10647,1
+1958,Groups,Brazil,0,0,England,40895,0
+1958,Groups,Mexico,1,1,Wales,15150,0
+1958,Groups,Paraguay,3,2,Scotland,11665,1
+1958,Groups,Yugoslavia,3,2,France,12217,1
+1958,Groups,Soviet Union,2,0,Austria,21239,1
+1958,Groups,Germany FR,2,2,Czechoslovakia,25000,0
+1958,Groups,Argentina,3,1,Northern Ireland,14174,1
+1958,Groups,Sweden,2,1,Hungary,38850,1
+1958,Groups,Sweden,0,0,Wales,30287,0
+1958,Groups,Brazil,2,0,Soviet Union,50928,1
+1958,Groups,Germany FR,2,2,Northern Ireland,21990,0
+1958,Groups,Hungary,4,0,Mexico,13300,1
+1958,Groups,Paraguay,3,3,Yugoslavia,13103,0
+1958,Groups,France,2,1,Scotland,13554,1
+1958,Groups,England,2,2,Austria,15872,0
+1958,Groups,Czechoslovakia,6,1,Argentina,16418,1
+1958,Groups,Soviet Union,1,0,England,23182,1
+1958,Groups,Northern Ireland,2,1,Czechoslovakia,6196,1
+1958,Groups,Wales,2,1,Hungary,2823,1
+1958,finals,Brazil,1,0,Wales,25923,1
+1958,finals,Germany FR,1,0,Yugoslavia,20055,1
+1958,finals,Sweden,2,0,Soviet Union,31900,1
+1958,finals,France,4,0,Northern Ireland,11800,1
+1958,finals,Sweden,3,1,Germany FR,49471,1
+1958,finals,Brazil,5,2,France,27100,1
+1958,finals,France,6,3,Germany FR,32483,1
+1958,Final,Brazil,5,2,Sweden,49737,1
+1962,Groups,Uruguay,2,1,Colombia,7908,1
+1962,Groups,Brazil,2,0,Mexico,10484,1
+1962,Groups,Argentina,1,0,Bulgaria,7134,1
+1962,Groups,Chile,3,1,Switzerland,65006,1
+1962,Groups,Soviet Union,2,0,Yugoslavia,9622,1
+1962,Groups,Czechoslovakia,1,0,Spain,12700,1
+1962,Groups,Hungary,2,1,England,7938,1
+1962,Groups,Germany FR,0,0,Italy,65440,0
+1962,Groups,Yugoslavia,3,1,Uruguay,8829,1
+1962,Groups,Brazil,0,0,Czechoslovakia,14903,0
+1962,Groups,England,3,1,Argentina,9794,1
+1962,Groups,Chile,2,0,Italy,66057,1
+1962,Groups,Soviet Union,4,4,Colombia,8040,0
+1962,Groups,Spain,1,0,Mexico,11875,1
+1962,Groups,Hungary,6,1,Bulgaria,7442,1
+1962,Groups,Germany FR,2,1,Switzerland,64922,1
+1962,Groups,Soviet Union,2,1,Uruguay,9973,1
+1962,Groups,Brazil,2,1,Spain,18715,1
+1962,Groups,Hungary,0,0,Argentina,7945,0
+1962,Groups,Germany FR,2,0,Chile,67224,1
+1962,Groups,Yugoslavia,5,0,Colombia,7167,1
+1962,Groups,Mexico,3,1,Czechoslovakia,10648,1
+1962,Groups,England,0,0,Bulgaria,5700,0
+1962,Groups,Italy,3,0,Switzerland,59828,1
+1962,finals,Chile,2,1,Soviet Union,17268,1
+1962,finals,Brazil,3,1,England,17736,1
+1962,finals,Czechoslovakia,1,0,Hungary,11690,1
+1962,finals,Yugoslavia,1,0,Germany FR,63324,1
+1962,finals,Czechoslovakia,3,1,Yugoslavia,5890,1
+1962,finals,Brazil,4,2,Chile,76594,1
+1962,finals,Chile,1,0,Yugoslavia,66697,1
+1962,Final,Brazil,3,1,Czechoslovakia,68679,1
+1966,Groups,England,0,0,Uruguay,87148,0
+1966,Groups,Germany FR,5,0,Switzerland,36127,1
+1966,Groups,Brazil,2,0,Bulgaria,47308,1
+1966,Groups,Soviet Union,3,0,Korea DPR,23006,1
+1966,Groups,France,1,1,Mexico,69237,0
+1966,Groups,Portugal,3,1,Hungary,29886,1
+1966,Groups,Argentina,2,1,Spain,42738,1
+1966,Groups,Italy,2,0,Chile,27199,1
+1966,Groups,Uruguay,2,1,France,45662,1
+1966,Groups,Spain,2,1,Switzerland,32028,1
+1966,Groups,Hungary,3,1,Brazil,51387,1
+1966,Groups,Korea DPR,1,1,Chile,13792,0
+1966,Groups,Portugal,3,0,Bulgaria,25438,1
+1966,Groups,Germany FR,0,0,Argentina,46587,0
+1966,Groups,Soviet Union,1,0,Italy,27793,1
+1966,Groups,England,2,0,Mexico,92570,1
+1966,Groups,Uruguay,0,0,Mexico,61112,0
+1966,Groups,Argentina,2,0,Switzerland,32127,1
+1966,Groups,Portugal,3,1,Brazil,58479,1
+1966,Groups,Korea DPR,1,0,Italy,17829,1
+1966,Groups,England,2,0,France,98270,1
+1966,Groups,Hungary,3,1,Bulgaria,24129,1
+1966,Groups,Germany FR,2,1,Spain,42187,1
+1966,Groups,Soviet Union,2,1,Chile,16027,1
+1966,finals,England,1,0,Argentina,90584,1
+1966,finals,Germany FR,4,0,Uruguay,40007,1
+1966,finals,Soviet Union,2,1,Hungary,26844,1
+1966,finals,Portugal,5,3,Korea DPR,40248,1
+1966,finals,Germany FR,2,1,Soviet Union,38273,1
+1966,finals,England,2,1,Portugal,94493,1
+1966,finals,Portugal,2,1,Soviet Union,87696,1
+1966,Final,England,4,2,Germany FR,96924,1
+1970,Groups,Mexico,0,0,Soviet Union,107160,0
+1970,Groups,Uruguay,2,0,Israel,20654,1
+1970,Groups,Peru,3,2,Bulgaria,13765,1
+1970,Groups,England,1,0,Romania,50560,1
+1970,Groups,Italy,1,0,Sweden,13433,1
+1970,Groups,Germany FR,2,1,Morocco,12942,1
+1970,Groups,Brazil,4,1,Czechoslovakia,52897,1
+1970,Groups,Belgium,3,0,El Salvador,92205,1
+1970,Groups,Uruguay,0,0,Italy,29968,0
+1970,Groups,Peru,3,0,Morocco,13537,1
+1970,Groups,Romania,2,1,Czechoslovakia,56818,1
+1970,Groups,Soviet Union,4,1,Belgium,95261,1
+1970,Groups,Sweden,1,1,Israel,9624,0
+1970,Groups,Germany FR,5,2,Bulgaria,12710,1
+1970,Groups,Brazil,1,0,England,66843,1
+1970,Groups,Mexico,4,0,El Salvador,103058,1
+1970,Groups,Sweden,1,0,Uruguay,18163,1
+1970,Groups,Germany FR,3,1,Peru,17875,1
+1970,Groups,Brazil,3,2,Romania,50804,1
+1970,Groups,Soviet Union,2,0,El Salvador,89979,1
+1970,Groups,Italy,0,0,Israel,9890,0
+1970,Groups,Bulgaria,1,1,Morocco,12299,0
+1970,Groups,England,1,0,Czechoslovakia,49292,1
+1970,Groups,Mexico,1,0,Belgium,108192,1
+1970,finals,Italy,4,1,Mexico,26851,1
+1970,finals,Germany FR,3,2,England,23357,1
+1970,finals,Brazil,4,2,Peru,54233,1
+1970,finals,Uruguay,1,0,Soviet Union,26085,1
+1970,finals,Brazil,3,1,Uruguay,51261,1
+1970,finals,Italy,4,3,Germany FR,102444,1
+1970,finals,Germany FR,1,0,Uruguay,104403,1
+1970,Final,Brazil,4,1,Italy,107412,1
+1974,Groups,Brazil,0,0,Yugoslavia,62000,0
+1974,Groups,Germany FR,1,0,Chile,81100,1
+1974,Groups,German DR,2,0,Australia,17000,1
+1974,Groups,Zaire,0,2,Scotland,27000,2
+1974,Groups,Uruguay,0,2,Netherlands,55100,2
+1974,Groups,Sweden,0,0,Bulgaria,23800,0
+1974,Groups,Italy,3,1,Haiti,53000,1
+1974,Groups,Poland,3,2,Argentina,32700,1
+1974,Groups,Australia,0,3,Germany FR,53300,2
+1974,Groups,Scotland,0,0,Brazil,62000,0
+1974,Groups,Chile,1,1,German DR,28300,0
+1974,Groups,Yugoslavia,9,0,Zaire,31700,1
+1974,Groups,Netherlands,0,0,Sweden,53700,0
+1974,Groups,Bulgaria,1,1,Uruguay,13400,0
+1974,Groups,Haiti,0,7,Poland,25300,2
+1974,Groups,Argentina,1,1,Italy,70100,0
+1974,Groups,Scotland,1,1,Yugoslavia,56000,0
+1974,Groups,Australia,0,0,Chile,17400,0
+1974,Groups,Zaire,0,3,Brazil,36200,2
+1974,Groups,German DR,1,0,Germany FR,60200,1
+1974,Groups,Bulgaria,1,4,Netherlands,53300,2
+1974,Groups,Argentina,4,1,Haiti,25900,1
+1974,Groups,Sweden,3,0,Uruguay,28300,1
+1974,Groups,Poland,2,1,Italy,70100,1
+1974,Group B,Yugoslavia,0,2,Germany FR,67385,2
+1974,Group A,Brazil,1,0,German DR,59863,1
+1974,Group A,Netherlands,4,0,Argentina,56548,1
+1974,Group B,Sweden,0,1,Poland,44955,2
+1974,Group A,Argentina,1,2,Brazil,39400,2
+1974,Group B,Poland,2,1,Yugoslavia,58000,1
+1974,Group A,German DR,0,2,Netherlands,68348,2
+1974,Group B,Germany FR,4,2,Sweden,67800,1
+1974,Group B,Poland,0,1,Germany FR,62000,2
+1974,Group A,Netherlands,2,0,Brazil,53700,1
+1974,Group A,Argentina,1,1,German DR,54254,0
+1974,Group B,Sweden,2,1,Yugoslavia,41300,1
+1974,finals,Brazil,0,1,Poland,77100,2
+1974,Final,Netherlands,1,2,Germany FR,78200,2
+1978,Groups,Germany FR,0,0,Poland,67579,0
+1978,Groups,Italy,2,1,France,42373,1
+1978,Groups,Tunisia,3,1,Mexico,17396,1
+1978,Groups,Argentina,2,1,Hungary,71615,1
+1978,Groups,Sweden,1,1,Brazil,32569,0
+1978,Groups,Austria,2,1,Spain,40841,1
+1978,Groups,Peru,3,1,Scotland,37927,1
+1978,Groups,Netherlands,3,0,IR Iran,33431,1
+1978,Groups,Italy,3,1,Hungary,26533,1
+1978,Groups,Poland,1,0,Tunisia,9624,1
+1978,Groups,Germany FR,6,0,Mexico,35258,1
+1978,Groups,Argentina,2,1,France,71666,1
+1978,Groups,Brazil,0,0,Spain,34771,0
+1978,Groups,Austria,1,0,Sweden,41424,1
+1978,Groups,Scotland,1,1,IR Iran,7938,0
+1978,Groups,Netherlands,0,0,Peru,28125,0
+1978,Groups,France,3,1,Hungary,23127,1
+1978,Groups,Poland,3,1,Mexico,22651,1
+1978,Groups,Germany FR,0,0,Tunisia,30667,0
+1978,Groups,Italy,1,0,Argentina,71712,1
+1978,Groups,Brazil,1,0,Austria,35221,1
+1978,Groups,Spain,1,0,Sweden,42132,1
+1978,Groups,Peru,4,1,Iran,21262,1
+1978,Groups,Scotland,3,2,Netherlands,35130,1
+1978,Group A,Germany FR,0,0,Italy,67547,0
+1978,Group A,Netherlands,5,1,Austria,25050,1
+1978,Group B,Brazil,3,0,Peru,31278,1
+1978,Group B,Argentina,2,0,Poland,37091,1
+1978,Group B,Poland,1,0,Peru,35288,1
+1978,Group A,Italy,1,0,Austria,66695,1
+1978,Group A,Germany FR,2,2,Netherlands,40750,0
+1978,Group B,Argentina,0,0,Brazil,37326,0
+1978,Group A,Netherlands,2,1,Italy,67433,1
+1978,Group A,Austria,3,2,Germany FR,38318,1
+1978,Group B,Brazil,3,1,Poland,39586,1
+1978,Group B,Argentina,6,0,Peru,37315,1
+1978,finals,Brazil,2,1,Italy,69659,1
+1978,Final,Argentina,3,1,Netherlands,71483,1
+1982,Groups,Argentina,0,1,Belgium,95000,2
+1982,Groups,Italy,0,0,Poland,33000,0
+1982,Groups,Brazil,2,1,Soviet Union,68000,1
+1982,Groups,Peru,0,0,Cameroon,11000,0
+1982,Groups,Hungary,10,1,El Salvador,23000,1
+1982,Groups,Scotland,5,2,New Zealand,36000,1
+1982,Groups,Germany FR,1,2,Algeria,42000,2
+1982,Groups,England,3,1,France,44172,1
+1982,Groups,Spain,1,1,Honduras,49562,0
+1982,Groups,Chile,0,1,Austria,22500,2
+1982,Groups,Czechoslovakia,1,1,Kuwait,25000,0
+1982,Groups,Yugoslavia,0,0,Northern Ireland,25000,0
+1982,Groups,Italy,1,1,Peru,25000,0
+1982,Groups,Argentina,4,1,Hungary,32093,1
+1982,Groups,Brazil,4,1,Scotland,47379,1
+1982,Groups,Poland,0,0,Cameroon,19000,0
+1982,Groups,Belgium,1,0,El Salvador,15000,1
+1982,Groups,Soviet Union,3,0,New Zealand,19000,1
+1982,Groups,Germany FR,4,1,Chile,42000,1
+1982,Groups,England,2,0,Czechoslovakia,41123,1
+1982,Groups,Spain,2,1,Yugoslavia,48000,1
+1982,Groups,Algeria,0,2,Austria,22000,2
+1982,Groups,France,4,1,Kuwait,30043,1
+1982,Groups,Honduras,1,1,Northern Ireland,15000,0
+1982,Groups,Poland,5,1,Peru,25000,1
+1982,Groups,Belgium,1,1,Hungary,37000,0
+1982,Groups,Soviet Union,2,2,Scotland,45000,0
+1982,Groups,Italy,1,1,Cameroon,20000,0
+1982,Groups,Argentina,2,0,El Salvador,32500,1
+1982,Groups,Brazil,4,0,New Zealand,43000,1
+1982,Groups,Algeria,3,2,Chile,16000,1
+1982,Groups,France,1,1,Czechoslovakia,28000,0
+1982,Groups,Honduras,0,1,Yugoslavia,25000,2
+1982,Groups,Germany FR,1,0,Austria,41000,1
+1982,Groups,England,1,0,Kuwait,39700,1
+1982,Groups,Northern Ireland,1,0,Spain,49562,1
+1982,Groups,Austria,0,1,France,37000,2
+1982,Groups,Poland,3,0,Belgium,65000,1
+1982,Groups,Italy,2,1,Argentina,43000,1
+1982,Groups,Germany FR,0,0,England,75000,0
+1982,Groups,Austria,2,2,Northern Ireland,20000,0
+1982,Groups,Belgium,0,1,Soviet Union,45000,2
+1982,Groups,Argentina,1,3,Brazil,44000,2
+1982,Groups,Germany FR,2,1,Spain,90089,1
+1982,Groups,France,4,1,Northern Ireland,37000,1
+1982,Groups,Poland,0,0,Soviet Union,65000,0
+1982,Groups,Italy,3,2,Brazil,44000,1
+1982,Groups,Spain,0,0,England,75000,0
+1982,finals,Poland,0,2,Italy,50000,2
+1982,finals,Germany FR,3,3,France,70000,0
+1982,finals,Poland,3,2,France,28000,1
+1982,Final,Italy,3,1,Germany FR,90000,1
+1986,Group A,Bulgaria,1,1,Italy,96000,0
+1986,Group C,Canada,0,1,France,65500,2
+1986,Group D,Spain,0,1,Brazil,35748,2
+1986,Group C,Soviet Union,6,0,Hungary,16500,1
+1986,Group A,Argentina,3,1,Korea Republic,60000,1
+1986,Group F,Morocco,0,0,Poland,19900,0
+1986,Group D,Algeria,1,1,Northern Ireland,22000,0
+1986,Group B,Belgium,1,2,Mexico,110000,2
+1986,Group F,Portugal,1,0,England,23000,1
+1986,Group B,Paraguay,1,0,Iraq,24000,1
+1986,Group E,Scotland,0,1,Denmark,18000,2
+1986,Group E,Uruguay,1,1,Germany FR,30500,0
+1986,Group A,Italy,1,1,Argentina,32000,0
+1986,Group C,France,1,1,Soviet Union,36540,0
+1986,Group A,Korea Republic,1,1,Bulgaria,45000,0
+1986,Group C,Hungary,2,0,Canada,13800,1
+1986,Group D,Brazil,1,0,Algeria,48000,1
+1986,Group F,England,0,0,Morocco,20200,0
+1986,Group D,Northern Ireland,1,2,Spain,28000,2
+1986,Group B,Mexico,1,1,Paraguay,114600,0
+1986,Group F,Poland,1,0,Portugal,19915,1
+1986,Group B,Iraq,1,2,Belgium,20000,2
+1986,Group E,Denmark,6,1,Uruguay,26500,1
+1986,Group E,Germany FR,2,1,Scotland,30000,1
+1986,Group C,Hungary,0,3,France,31420,2
+1986,Group C,Soviet Union,2,0,Canada,14200,1
+1986,Group A,Korea Republic,2,3,Italy,20000,2
+1986,Group A,Argentina,2,0,Bulgaria,65000,1
+1986,Group B,Paraguay,2,2,Belgium,16000,0
+1986,Group B,Iraq,0,1,Mexico,103763,2
+1986,Group F,Portugal,1,3,Morocco,28000,2
+1986,Group F,England,3,0,Poland,22700,1
+1986,Group D,Northern Ireland,0,3,Brazil,51000,2
+1986,Group D,Algeria,0,3,Spain,23980,2
+1986,Group E,Scotland,0,0,Uruguay,20000,0
+1986,Group E,Denmark,2,0,Germany FR,36000,1
+1986,Round of 16,Soviet Union,3,4,Belgium,32277,2
+1986,Round of 16,Mexico,2,0,Bulgaria,114580,1
+1986,Round of 16,Argentina,1,0,Uruguay,26000,1
+1986,Round of 16,Brazil,4,0,Poland,45000,1
+1986,Round of 16,Italy,0,2,France,70000,2
+1986,Round of 16,Morocco,0,1,Germany FR,19800,2
+1986,Round of 16,England,3,0,Paraguay,98728,1
+1986,Round of 16,Denmark,1,5,Spain,38500,2
+1986,finals,Brazil,1,1,France,65000,0
+1986,finals,Germany FR,0,0,Mexico,41700,0
+1986,finals,Spain,1,1,Belgium,45000,0
+1986,finals,Argentina,2,1,England,114580,1
+1986,finals,France,0,2,Germany FR,45000,2
+1986,finals,Argentina,2,0,Belgium,114500,1
+1986,finals,France,4,2,Belgium,21000,1
+1986,Final,Argentina,3,2,Germany FR,114600,1
+1990,Group B,Argentina,0,1,Cameroon,73780,2
+1990,Group B,Soviet Union,0,2,Romania,42907,2
+1990,Group D,United Arab Emirates,0,2,Colombia,30791,2
+1990,Group A,Italy,1,0,Austria,73303,1
+1990,Group A,USA,1,5,Czechoslovakia,33266,2
+1990,Group C,Brazil,2,1,Sweden,62628,1
+1990,Group D,Germany FR,4,1,Yugoslavia,74765,1
+1990,Group C,Costa Rica,1,0,Scotland,30867,1
+1990,Group F,England,1,1,Republic of Ireland,35238,0
+1990,Group E,Belgium,2,0,Korea Republic,32790,1
+1990,Group F,Netherlands,1,1,Egypt,33288,0
+1990,Group E,Uruguay,0,0,Spain,35713,0
+1990,Group B,Argentina,2,0,Soviet Union,55759,1
+1990,Group B,Cameroon,2,1,Romania,38687,1
+1990,Group D,Yugoslavia,1,0,Colombia,32257,1
+1990,Group A,Italy,1,0,USA,73423,1
+1990,Group A,Austria,0,1,Czechoslovakia,38962,2
+1990,Group D,Germany FR,5,1,United Arab Emirates,71169,1
+1990,Group C,Brazil,1,0,Costa Rica,58007,1
+1990,Group C,Sweden,1,2,Scotland,31823,2
+1990,Group F,England,0,0,Netherlands,35267,0
+1990,Group F,Republic of Ireland,0,0,Egypt,33288,0
+1990,Group E,Korea Republic,1,3,Spain,32733,2
+1990,Group E,Belgium,3,1,Uruguay,33759,1
+1990,Group B,Argentina,1,1,Romania,52733,0
+1990,Group B,Cameroon,0,4,Soviet Union,37307,2
+1990,Group D,Germany FR,1,1,Colombia,72510,0
+1990,Group D,Yugoslavia,4,1,United Arab Emirates,27833,1
+1990,Group A,Italy,2,0,Czechoslovakia,73303,1
+1990,Group A,Austria,2,1,USA,34857,1
+1990,Group C,Brazil,1,0,Scotland,62502,1
+1990,Group C,Sweden,1,2,Costa Rica,30223,2
+1990,Group E,Korea Republic,0,1,Uruguay,29039,2
+1990,Group E,Belgium,1,2,Spain,35950,2
+1990,Group F,Republic of Ireland,1,1,Netherlands,33288,0
+1990,Group F,England,1,0,Egypt,34959,1
+1990,Round of 16,Cameroon,2,1,Colombia,50026,1
+1990,Round of 16,Czechoslovakia,4,1,Costa Rica,47673,1
+1990,Round of 16,Brazil,0,1,Argentina,61381,2
+1990,Round of 16,Germany FR,2,1,Netherlands,74559,1
+1990,Round of 16,Republic of Ireland,0,0,Romania,31818,0
+1990,Round of 16,Italy,2,0,Uruguay,73303,1
+1990,Round of 16,Spain,1,2,Yugoslavia,35500,2
+1990,Round of 16,England,1,0,Belgium,34520,1
+1990,finals,Yugoslavia,0,0,Argentina,38971,0
+1990,finals,Italy,1,0,Republic of Ireland,73303,1
+1990,finals,Germany FR,1,0,Czechoslovakia,73347,1
+1990,finals,England,3,2,Cameroon,55205,1
+1990,finals,Italy,1,1,Argentina,59978,0
+1990,finals,Germany FR,1,1,England,62628,0
+1990,finals,Italy,2,1,England,51426,1
+1990,Final,Germany FR,1,0,Argentina,73603,1
+1994,Group C,Spain,2,2,Korea Republic,56247,0
+1994,Group C,Germany,1,0,Bolivia,63117,1
+1994,Group A,USA,1,1,Switzerland,73425,0
+1994,Group E,Italy,0,1,Republic of Ireland,75338,2
+1994,Group A,Colombia,1,3,Romania,91856,2
+1994,Group F,Belgium,1,0,Morocco,61219,1
+1994,Group E,Norway,1,0,Mexico,52395,1
+1994,Group B,Cameroon,2,2,Sweden,93194,0
+1994,Group F,Netherlands,2,1,Saudi Arabia,50535,1
+1994,Group B,Brazil,2,0,Russia,81061,1
+1994,Group D,Argentina,4,0,Greece,54456,1
+1994,Group D,Nigeria,3,0,Bulgaria,44132,1
+1994,Group C,Germany,1,1,Spain,63113,0
+1994,Group A,Romania,1,4,Switzerland,61428,2
+1994,Group A,USA,2,1,Colombia,93869,1
+1994,Group E,Italy,1,0,Norway,74624,1
+1994,Group C,Korea Republic,0,0,Bolivia,54453,0
+1994,Group E,Mexico,2,1,Republic of Ireland,60790,1
+1994,Group B,Sweden,3,1,Russia,71528,1
+1994,Group B,Brazil,3,0,Cameroon,83401,1
+1994,Group F,Belgium,1,0,Netherlands,62387,1
+1994,Group F,Saudi Arabia,2,1,Morocco,76322,1
+1994,Group D,Argentina,2,1,Nigeria,54453,1
+1994,Group D,Bulgaria,4,0,Greece,63160,1
+1994,Group A,USA,0,1,Romania,93869,2
+1994,Group A,Switzerland,0,2,Colombia,83401,2
+1994,Group C,Germany,3,2,Korea Republic,63998,1
+1994,Group C,Bolivia,1,3,Spain,63089,2
+1994,Group E,Republic of Ireland,0,0,Norway,72404,0
+1994,Group B,Brazil,1,1,Sweden,77217,0
+1994,Group E,Italy,1,1,Mexico,52535,0
+1994,Group B,Russia,6,1,Cameroon,74914,1
+1994,Group F,Morocco,1,2,Netherlands,60578,2
+1994,Group F,Belgium,0,1,Saudi Arabia,52959,2
+1994,Group D,Greece,0,2,Nigeria,53001,2
+1994,Group D,Argentina,0,2,Bulgaria,63998,2
+1994,Round of 16,Germany,3,2,Belgium,60246,1
+1994,Round of 16,Spain,3,0,Switzerland,53121,1
+1994,Round of 16,Saudi Arabia,1,3,Sweden,60277,2
+1994,Round of 16,Romania,3,2,Argentina,90469,1
+1994,Round of 16,Netherlands,2,0,Republic of Ireland,61355,1
+1994,Round of 16,Brazil,1,0,USA,84147,1
+1994,Round of 16,Nigeria,1,2,Italy,54367,2
+1994,Round of 16,Mexico,1,1,Bulgaria,71030,0
+1994,finals,Italy,2,1,Spain,53400,1
+1994,finals,Netherlands,2,3,Brazil,63500,2
+1994,finals,Bulgaria,2,1,Germany,72000,1
+1994,finals,Romania,2,2,Sweden,83500,0
+1994,finals,Bulgaria,1,2,Italy,74110,2
+1994,finals,Sweden,0,1,Brazil,91856,2
+1994,finals,Sweden,4,0,Bulgaria,91500,1
+1994,Final,Brazil,0,0,Italy,94194,0
+1998,Group A,Brazil,2,1,Scotland,80000,1
+1998,Group A,Morocco,2,2,Norway,29800,0
+1998,Group B,Italy,2,2,Chile,31800,0
+1998,Group B,Cameroon,1,1,Austria,33500,0
+1998,Group D,Paraguay,0,0,Bulgaria,29800,0
+1998,Group C,Saudi Arabia,0,1,Denmark,38100,2
+1998,Group C,France,3,0,South Africa,55000,1
+1998,Group D,Spain,2,3,Nigeria,35500,2
+1998,Group E,Korea Republic,1,3,Mexico,39100,2
+1998,Group E,Netherlands,0,0,Belgium,77000,0
+1998,Group H,Argentina,1,0,Japan,33500,1
+1998,Group F,Yugoslavia,1,0,Iran,30600,1
+1998,Group H,Jamaica,1,3,Croatia,38100,2
+1998,Group G,England,2,0,Tunisia,55000,1
+1998,Group G,Romania,1,0,Colombia,39100,1
+1998,Group F,Germany,2,0,USA,45500,1
+1998,Group A,Scotland,1,1,Norway,31800,0
+1998,Group A,Brazil,3,0,Morocco,35500,1
+1998,Group B,Chile,1,1,Austria,30600,0
+1998,Group B,Italy,3,0,Cameroon,29800,1
+1998,Group C,South Africa,1,1,Denmark,33500,0
+1998,Group C,France,4,0,Saudi Arabia,80000,1
+1998,Group D,Nigeria,1,0,Bulgaria,45500,1
+1998,Group D,Spain,0,0,Paraguay,30600,0
+1998,Group H,Japan,0,1,Croatia,35500,2
+1998,Group E,Belgium,2,2,Mexico,31800,0
+1998,Group E,Netherlands,5,0,Korea Republic,55000,1
+1998,Group F,Germany,2,2,Yugoslavia,38100,0
+1998,Group H,Argentina,5,0,Jamaica,45500,1
+1998,Group F,USA,1,2,Iran,39100,2
+1998,Group G,Colombia,1,0,Tunisia,29800,1
+1998,Group G,Romania,2,1,England,33500,1
+1998,Group B,Italy,2,1,Austria,80000,1
+1998,Group B,Chile,1,1,Cameroon,35500,0
+1998,Group A,Scotland,0,3,Morocco,30600,2
+1998,Group A,Brazil,1,2,Norway,55000,2
+1998,Group C,France,2,1,Denmark,39100,1
+1998,Group C,South Africa,2,2,Saudi Arabia,31800,0
+1998,Group D,Spain,6,1,Bulgaria,38100,1
+1998,Group D,Nigeria,1,3,Paraguay,33500,2
+1998,Group E,Belgium,1,1,Korea Republic,45500,0
+1998,Group E,Netherlands,2,2,Mexico,30600,0
+1998,Group F,Germany,2,0,Iran,29800,1
+1998,Group F,USA,0,1,Yugoslavia,35500,2
+1998,Group H,Japan,1,2,Jamaica,39100,2
+1998,Group H,Argentina,1,0,Croatia,31800,1
+1998,Group G,Romania,1,1,Tunisia,77000,0
+1998,Group G,Colombia,0,2,England,38100,2
+1998,Round of 16,Italy,1,0,Norway,55000,1
+1998,Round of 16,Brazil,4,1,Chile,45500,1
+1998,Round of 16,France,1,0,Paraguay,31800,1
+1998,Round of 16,Nigeria,1,4,Denmark,77000,2
+1998,Round of 16,Germany,2,1,Mexico,29800,1
+1998,Round of 16,Netherlands,2,1,Yugoslavia,33500,1
+1998,Round of 16,Romania,0,1,Croatia,31800,2
+1998,Round of 16,Argentina,2,2,England,30600,0
+1998,finals,Italy,0,0,France,77000,0
+1998,finals,Brazil,3,2,Denmark,35500,1
+1998,finals,Netherlands,2,1,Argentina,55000,1
+1998,finals,Germany,0,3,Croatia,39100,2
+1998,finals,Brazil,1,1,Netherlands,54000,0
+1998,finals,France,2,1,Croatia,76000,1
+1998,finals,Netherlands,1,2,Croatia,45500,2
+1998,Final,Brazil,0,3,France,80000,2
+2002,Group A,France,0,1,Senegal,62561,2
+2002,Group A,Uruguay,1,2,Denmark,30157,2
+2002,Group E,Republic of Ireland,1,1,Cameroon,33679,0
+2002,Group E,Germany,8,0,Saudi Arabia,32218,1
+2002,Group F,Argentina,1,0,Nigeria,34050,1
+2002,Group B,Paraguay,2,2,South Africa,25186,0
+2002,Group F,England,1,1,Sweden,52721,0
+2002,Group B,Spain,3,1,Slovenia,28598,1
+2002,Group C,Brazil,2,1,Turkey,33842,1
+2002,Group G,Italy,2,0,Ecuador,31081,1
+2002,Group G,Croatia,0,1,Mexico,32239,2
+2002,Group C,China PR,0,2,Costa Rica,27217,2
+2002,Group H,Japan,2,2,Belgium,55256,0
+2002,Group D,Korea Republic,2,0,Poland,48760,1
+2002,Group H,Russia,2,0,Tunisia,30957,1
+2002,Group D,USA,3,2,Portugal,37306,1
+2002,Group E,Germany,1,1,Republic of Ireland,35854,0
+2002,Group A,Denmark,1,1,Senegal,43500,0
+2002,Group E,Cameroon,1,0,Saudi Arabia,52328,1
+2002,Group A,France,0,0,Uruguay,38289,0
+2002,Group F,Sweden,2,1,Nigeria,36194,1
+2002,Group F,Argentina,0,1,England,35927,2
+2002,Group B,Spain,3,1,Paraguay,24000,1
+2002,Group B,South Africa,1,0,Slovenia,47226,1
+2002,Group C,Brazil,4,0,China PR,36750,1
+2002,Group G,Italy,1,2,Croatia,36472,2
+2002,Group C,Costa Rica,1,1,Turkey,42299,0
+2002,Group H,Japan,1,0,Russia,66108,1
+2002,Group G,Mexico,2,1,Ecuador,45610,1
+2002,Group D,Korea Republic,1,1,USA,60778,0
+2002,Group D,Portugal,4,0,Poland,31000,1
+2002,Group H,Tunisia,1,1,Belgium,39700,0
+2002,Group A,Denmark,2,0,France,48100,1
+2002,Group A,Senegal,3,3,Uruguay,33681,0
+2002,Group E,Saudi Arabia,0,3,Republic of Ireland,65320,2
+2002,Group E,Cameroon,0,2,Germany,47085,2
+2002,Group F,Sweden,1,1,Argentina,45777,0
+2002,Group F,Nigeria,0,0,England,44864,0
+2002,Group B,Slovenia,1,3,Paraguay,30176,2
+2002,Group B,South Africa,2,3,Spain,31024,2
+2002,Group C,Costa Rica,2,5,Brazil,38524,2
+2002,Group C,Turkey,3,0,China PR,43605,1
+2002,Group G,Ecuador,1,0,Croatia,65862,1
+2002,Group G,Mexico,1,1,Italy,39291,0
+2002,Group H,Tunisia,0,2,Japan,45213,2
+2002,Group D,Portugal,0,1,Korea Republic,50239,2
+2002,Group D,Poland,3,1,USA,26482,1
+2002,Group H,Belgium,3,2,Russia,46640,1
+2002,Round of 16,Denmark,0,3,England,40582,2
+2002,Round of 16,Germany,1,0,Paraguay,25176,1
+2002,Round of 16,Spain,1,1,Republic of Ireland,38926,0
+2002,Round of 16,Sweden,1,2,Senegal,39747,2
+2002,Round of 16,Brazil,2,0,Belgium,40440,1
+2002,Round of 16,Mexico,0,2,USA,36380,2
+2002,Round of 16,Japan,0,1,Turkey,45666,2
+2002,Round of 16,Korea Republic,2,1,Italy,38588,1
+2002,finals,England,1,2,Brazil,47436,2
+2002,finals,Germany,1,0,USA,37337,1
+2002,finals,Senegal,0,1,Turkey,44233,2
+2002,finals,Spain,0,0,Korea Republic,42114,0
+2002,finals,Germany,1,0,Korea Republic,65256,1
+2002,finals,Brazil,1,0,Turkey,61058,1
+2002,Third place,Korea Republic,2,3,Turkey,63483,2
+2002,Final,Germany,0,2,Brazil,69029,2
+2006,Group A,Germany,4,2,Costa Rica,66000,1
+2006,Group A,Poland,0,2,Ecuador,52000,2
+2006,Group B,England,1,0,Paraguay,48000,1
+2006,Group B,Trinidad and Tobago,0,0,Sweden,62959,0
+2006,Group C,Argentina,2,1,Ivoire,49480,1
+2006,Group C,Serbia and Montenegro,0,1,Netherlands,43000,2
+2006,Group D,Mexico,3,1,Iran,41000,1
+2006,Group D,Angola,0,1,Portugal,45000,2
+2006,Group F,Australia,3,1,Japan,46000,1
+2006,Group E,USA,0,3,Czech Republic,52000,2
+2006,Group E,Italy,2,0,Ghana,43000,1
+2006,Group G,Korea Republic,2,1,Togo,48000,1
+2006,Group G,France,0,0,Switzerland,52000,0
+2006,Group F,Brazil,1,0,Croatia,72000,1
+2006,Group H,Spain,4,0,Ukraine,43000,1
+2006,Group H,Tunisia,2,2,Saudi Arabia,66000,0
+2006,Group A,Germany,1,0,Poland,65000,1
+2006,Group A,Ecuador,3,0,Costa Rica,50000,1
+2006,Group B,England,2,0,Trinidad and Tobago,41000,1
+2006,Group B,Sweden,1,0,Paraguay,72000,1
+2006,Group C,Argentina,6,0,Serbia and Montenegro,52000,1
+2006,Group C,Netherlands,2,1,Ivoire,52000,1
+2006,Group D,Mexico,0,0,Angola,43000,0
+2006,Group D,Portugal,2,0,IR Iran,48000,1
+2006,Group E,Czech Republic,0,2,Ghana,45000,2
+2006,Group E,Italy,1,1,USA,46000,0
+2006,Group F,Japan,0,0,Croatia,41000,0
+2006,Group F,Brazil,2,0,Australia,66000,1
+2006,Group G,France,1,1,Korea Republic,43000,0
+2006,Group G,Togo,0,2,Switzerland,65000,2
+2006,Group H,Saudi Arabia,0,4,Ukraine,50000,2
+2006,Group H,Spain,3,1,Tunisia,52000,1
+2006,Group A,Ecuador,0,3,Germany,72000,2
+2006,Group A,Costa Rica,1,2,Poland,43000,2
+2006,Group B,Sweden,2,2,England,45000,0
+2006,Group B,Paraguay,2,0,Trinidad and Tobago,46000,1
+2006,Group D,Iran,1,1,Angola,38000,0
+2006,Group D,Portugal,2,1,Mexico,52000,1
+2006,Group C,Netherlands,0,0,Argentina,48000,0
+2006,Group C,Ivoire,3,2,Serbia and Montenegro,66000,1
+2006,Group E,Czech Republic,0,2,Italy,50000,2
+2006,Group E,Ghana,2,1,USA,41000,1
+2006,Group F,Japan,1,4,Brazil,65000,2
+2006,Group F,Croatia,2,2,Australia,52000,0
+2006,Group H,Ukraine,1,0,Tunisia,72000,1
+2006,Group H,Saudi Arabia,0,1,Spain,46000,2
+2006,Group G,Togo,0,2,France,45000,2
+2006,Group G,Switzerland,2,0,Korea Republic,43000,1
+2006,Round of 16,Germany,2,0,Sweden,66000,1
+2006,Round of 16,Argentina,2,1,Mexico,43000,1
+2006,Round of 16,England,1,0,Ecuador,52000,1
+2006,Round of 16,Portugal,1,0,Netherlands,41000,1
+2006,Round of 16,Italy,1,0,Australia,46000,1
+2006,Round of 16,Switzerland,0,0,Ukraine,45000,0
+2006,Round of 16,Brazil,3,0,Ghana,65000,1
+2006,Round of 16,Spain,1,3,France,43000,2
+2006,finals,Germany,1,1,Argentina,72000,0
+2006,finals,Italy,3,0,Ukraine,50000,1
+2006,finals,England,0,0,Portugal,52000,0
+2006,finals,Brazil,0,1,France,48000,2
+2006,finals,Germany,0,2,Italy,65000,2
+2006,finals,Portugal,0,1,France,66000,2
+2006,Third place,Germany,3,1,Portugal,52000,1
+2006,Final,Italy,1,1,France,69000,0
+2010,Group A,South Africa,1,1,Mexico,84490,0
+2010,Group A,Uruguay,0,0,France,64100,0
+2010,Group B,Korea Republic,2,0,Greece,31513,1
+2010,Group B,Argentina,1,0,Nigeria,55686,1
+2010,Group C,England,1,1,USA,38646,0
+2010,Group C,Algeria,0,1,Slovenia,30325,2
+2010,Group D,Serbia,0,1,Ghana,38833,2
+2010,Group D,Germany,4,0,Australia,62660,1
+2010,Group E,Netherlands,2,0,Denmark,83465,1
+2010,Group E,Japan,1,0,Cameroon,30620,1
+2010,Group F,Italy,1,1,Paraguay,62869,0
+2010,Group F,New Zealand,1,1,Slovakia,23871,0
+2010,Group G,Ivoire,0,0,Portugal,37034,0
+2010,Group G,Brazil,2,1,Korea DPR,54331,1
+2010,Group H,Honduras,0,1,Chile,32664,2
+2010,Group H,Spain,0,1,Switzerland,62453,2
+2010,Group A,South Africa,0,3,Uruguay,42658,2
+2010,Group B,Argentina,4,1,Korea Republic,82174,1
+2010,Group B,Greece,2,1,Nigeria,31593,1
+2010,Group A,France,0,2,Mexico,35370,2
+2010,Group D,Germany,0,1,Serbia,38294,2
+2010,Group C,Slovenia,2,2,USA,45573,0
+2010,Group C,England,0,0,Algeria,64100,0
+2010,Group E,Netherlands,1,0,Japan,62010,1
+2010,Group D,Ghana,1,1,Australia,34812,0
+2010,Group E,Cameroon,1,2,Denmark,38074,2
+2010,Group F,Slovakia,0,2,Paraguay,26643,2
+2010,Group F,Italy,1,1,New Zealand,38229,0
+2010,Group G,Brazil,3,1,Ivoire,84455,1
+2010,Group G,Portugal,7,0,Korea DPR,63644,1
+2010,Group H,Chile,1,0,Switzerland,34872,1
+2010,Group H,Spain,2,0,Honduras,54386,1
+2010,Group A,Mexico,0,1,Uruguay,33425,2
+2010,Group A,France,1,2,South Africa,39415,2
+2010,Group B,Nigeria,2,2,Korea Republic,61874,0
+2010,Group B,Greece,0,2,Argentina,38891,2
+2010,Group C,Slovenia,0,1,England,36893,2
+2010,Group C,USA,1,0,Algeria,35827,1
+2010,Group D,Ghana,0,1,Germany,83391,2
+2010,Group D,Australia,2,1,Serbia,37836,1
+2010,Group F,Slovakia,3,2,Italy,53412,1
+2010,Group F,Paraguay,0,0,New Zealand,34850,0
+2010,Group E,Denmark,1,3,Japan,27967,2
+2010,Group E,Cameroon,1,2,Netherlands,63093,2
+2010,Group G,Portugal,0,0,Brazil,62712,0
+2010,Group G,Korea DPR,0,3,Ivoire,34763,2
+2010,Group H,Chile,1,2,Spain,41958,2
+2010,Group H,Switzerland,0,0,Honduras,28042,0
+2010,Round of 16,Uruguay,2,1,Korea Republic,30597,1
+2010,Round of 16,USA,1,2,Ghana,34976,2
+2010,Round of 16,Germany,4,1,England,40510,1
+2010,Round of 16,Argentina,3,1,Mexico,84377,1
+2010,Round of 16,Netherlands,2,1,Slovakia,61962,1
+2010,Round of 16,Brazil,3,0,Chile,54096,1
+2010,Round of 16,Paraguay,0,0,Japan,36742,0
+2010,Round of 16,Spain,1,0,Portugal,62955,1
+2010,finals,Netherlands,2,1,Brazil,40186,1
+2010,finals,Uruguay,1,1,Ghana,84017,0
+2010,finals,Argentina,0,4,Germany,64100,2
+2010,finals,Paraguay,0,1,Spain,55359,2
+2010,finals,Uruguay,2,3,Netherlands,62479,2
+2010,finals,Germany,0,1,Spain,60960,2
+2010,finals,Uruguay,2,3,Germany,36254,2
+2010,Final,Netherlands,0,1,Spain,84490,2
+2014,Group A,Brazil,3,1,Croatia,62103,1
+2014,Group A,Mexico,1,0,Cameroon,39216,1
+2014,Group B,Spain,1,5,Netherlands,48173,2
+2014,Group B,Chile,3,1,Australia,40275,1
+2014,Group C,Colombia,3,0,Greece,57174,1
+2014,Group D,Uruguay,1,3,Costa Rica,58679,2
+2014,Group D,England,1,2,Italy,39800,2
+2014,Group C,Ivoire,2,1,Japan,40267,1
+2014,Group E,Switzerland,2,1,Ecuador,68351,1
+2014,Group E,France,3,0,Honduras,43012,1
+2014,Group F,Argentina,2,1,Bosnia and Herzegovina,74738,1
+2014,Group G,Germany,4,0,Portugal,51081,1
+2014,Group F,IR Iran,0,0,Nigeria,39081,0
+2014,Group G,Ghana,1,2,USA,39760,2
+2014,Group H,Belgium,2,1,Algeria,56800,1
+2014,Group A,Brazil,0,0,Mexico,60342,0
+2014,Group H,Russia,1,1,Korea Republic,37603,0
+2014,Group B,Australia,2,3,Netherlands,42877,2
+2014,Group B,Spain,0,2,Chile,74101,2
+2014,Group A,Cameroon,0,4,Croatia,39982,2
+2014,Group C,Colombia,2,1,Ivoire,68748,1
+2014,Group D,Uruguay,2,1,England,62575,1
+2014,Group C,Japan,0,0,Greece,39485,0
+2014,Group D,Italy,0,1,Costa Rica,40285,2
+2014,Group E,Switzerland,2,5,France,51003,2
+2014,Group E,Honduras,1,2,Ecuador,39224,2
+2014,Group F,Argentina,1,0,IR Iran,57698,1
+2014,Group G,Germany,2,2,Ghana,59621,0
+2014,Group F,Nigeria,1,0,Bosnia and Herzegovina,40499,1
+2014,Group H,Belgium,1,0,Russia,73819,1
+2014,Group H,Korea Republic,2,4,Algeria,42732,2
+2014,Group G,USA,2,2,Portugal,40123,0
+2014,Group B,Australia,0,3,Spain,39375,2
+2014,Group B,Netherlands,2,0,Chile,62996,1
+2014,Group A,Cameroon,1,4,Brazil,69112,2
+2014,Group A,Croatia,1,3,Mexico,41212,2
+2014,Group D,Italy,0,1,Uruguay,39706,2
+2014,Group D,Costa Rica,0,0,England,57823,0
+2014,Group C,Japan,1,4,Colombia,40340,2
+2014,Group C,Greece,2,1,Ivoire,59095,1
+2014,Group F,Nigeria,2,3,Argentina,43285,2
+2014,Group F,Bosnia and Herzegovina,3,1,IR Iran,48011,1
+2014,Group E,Honduras,0,3,Switzerland,40322,2
+2014,Group E,Ecuador,0,0,France,73749,0
+2014,Group G,USA,0,1,Germany,41876,2
+2014,Group G,Portugal,2,1,Ghana,67540,1
+2014,Group H,Korea Republic,0,1,Belgium,61397,2
+2014,Group H,Algeria,1,1,Russia,39311,0
+2014,Round of 16,Brazil,1,1,Chile,57714,0
+2014,Round of 16,Colombia,2,0,Uruguay,73804,1
+2014,Round of 16,France,2,0,Nigeria,67882,1
+2014,Round of 16,Germany,2,1,Algeria,,1
+2014,finals,Brazil,2,1,Colombia,60342,1
+2014,finals,France,0,1,Germany,74240,2
+2014,finals,Brazil,1,7,Germany,58141,2
+2014,Play-off for third place,Brazil,0,3,Netherlands,68034,2
+2014,Final,Germany,1,0,Argentina,74738,1
+2014,finals,Netherlands,0,0,Argentina,63267,0
+2014,finals,Netherlands,0,0,Costa Rica,51179,0
+2014,finals,Argentina,1,0,Belgium,68551,1
+2014,Round of 16,Netherlands,2,1,Mexico,58817,1
+2014,Round of 16,Costa Rica,1,1,Greece,41242,0
+2014,Round of 16,Argentina,1,0,Switzerland,63255,1
+2014,Round of 16,Belgium,2,1,USA,51227,1
+2014,Round of 16,Brazil,1,1,Chile,57714,0
+2014,Round of 16,Colombia,2,0,Uruguay,73804,1
+2014,Round of 16,Netherlands,2,1,Mexico,58817,1
+2014,Round of 16,Costa Rica,1,1,Greece,41242,0
+2014,Round of 16,France,2,0,Nigeria,67882,1
+2014,Round of 16,Germany,2,1,Algeria,,1
+2014,Round of 16,Argentina,1,0,Switzerland,63255,1
+2014,Round of 16,Belgium,2,1,USA,51227,1
+2014,finals,France,0,1,Germany,74240,2
+2014,finals,Brazil,2,1,Colombia,60342,1
+2014,finals,Argentina,1,0,Belgium,68551,1
+2014,finals,Netherlands,0,0,Costa Rica,51179,0
+2014,finals,Brazil,1,7,Germany,58141,2
+2014,finals,Netherlands,0,0,Argentina,63267,0
+2014,Play-off for third place,Brazil,0,3,Netherlands,68034,2
+2014,Final,Germany,1,0,Argentina,74738,1

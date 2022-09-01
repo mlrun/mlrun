@@ -134,8 +134,6 @@ class RedisStore(DataStore):
         elif key.startswith("rediss://"):
             key = key[len("redis://") :]
 
-        key += "*" if key.endswith("/") else "/*"
-
         if recursive:
             for key in self.redis.scan_iter(key):
                 self.redis.delete(key)

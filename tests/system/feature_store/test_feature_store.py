@@ -48,6 +48,7 @@ from mlrun.datastore.targets import (
     KafkaTarget,
     NoSqlTarget,
     ParquetTarget,
+    RedisNoSqlTarget,
     TargetTypes,
     get_target_driver,
 )
@@ -1948,7 +1949,7 @@ class TestFeatureStore(TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             fs.ingest(fset, df1, overwrite=False)
 
-    def test_purge(self):
+    def test_purge_v3io(self):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -1974,6 +1975,36 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(fset, source)
 
         targets_to_purge = targets[:-1]
+
+        verify_purge(fset, targets_to_purge)
+
+    def test_purge_redis(self):
+        key = "patient_id"
+        fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource(
+            "mycsv",
+            path=path,
+            time_field="timestamp",
+        )
+        targets = [
+            CSVTarget(),
+            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            RedisNoSqlTarget(),
+        ]
+        fset.set_targets(
+            targets=targets,
+            with_defaults=False,
+        )
+        fs.ingest(fset, source)
+
+        verify_purge(fset, targets)
+
+        fs.ingest(fset, source)
+
+        targets_to_purge = targets[:-1]
+
         verify_purge(fset, targets_to_purge)
 
     # After moving to run on a new system test environment this test was running for 75 min and then failing
@@ -2973,7 +3004,8 @@ def verify_purge(fset, targets):
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert filesystem.exists(driver.get_target_path())
 
     fset.purge_targets(target_names=target_names)
 

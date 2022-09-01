@@ -44,7 +44,7 @@ class WasbFS(AbstractFileSystem):
     ):
         from adlfs import AzureBlobFileSystem
 
-        self.azureBlobFS = AzureBlobFileSystem(
+        self.azure_blob_fs = AzureBlobFileSystem(
             account_name,
             account_key,
             connection_string,
@@ -70,26 +70,29 @@ class WasbFS(AbstractFileSystem):
         # convert wasbs schema url to az schema url. used before passing the url to AzureBlobFS.
         # wasbs://mycontainer@myaccount/path/to/obj is קquivalent to
         # az://mycontainer/path/to/obj
+        az_path = url
         parsed_url = urlparse(url)
-        if parsed_url.scheme == "":
-            return url
-        if parsed_url.scheme.lower() == "wasb" or parsed_url.scheme.lower() == "wasbs":
-            az_path = (
-                "az://"
-                + parsed_url.netloc.split("@")[0]
-                + ("/" if not parsed_url.path.startswith("/") else parsed_url.path)
-            )
-        else:
-            raise ValueError("Operation expects to wasb or wasbs scheme only!")
+        if parsed_url.scheme:
+            if (
+                parsed_url.scheme.lower() == "wasb"
+                or parsed_url.scheme.lower() == "wasbs"
+            ):
+                az_path = (
+                    "az://"
+                    + parsed_url.username
+                    + ("/" if not parsed_url.path.startswith("/") else parsed_url.path)
+                )
+            else:
+                raise ValueError("Operation expects to wasb or wasbs scheme only!")
         return az_path
 
     def info(self, path, refresh=False, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.info(self._parent, az_path, refresh, **kwargs)
+        return self.azure_blob_fs.info(self._parent, az_path, refresh, **kwargs)
 
     def glob(self, path, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.glob(az_path, **kwargs)
+        return self.azure_blob_fs.glob(az_path, **kwargs)
 
     def ls(
         self,
@@ -101,7 +104,7 @@ class WasbFS(AbstractFileSystem):
         **kwargs,
     ):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.ls(
+        return self.azure_blob_fs.ls(
             az_path,
             detail,
             invalidate_cache,
@@ -112,58 +115,57 @@ class WasbFS(AbstractFileSystem):
 
     def find(self, path, withdirs=False, prefix="", **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.find(az_path, withdirs, prefix, **kwargs)
+        return self.azure_blob_fs.find(az_path, withdirs, prefix, **kwargs)
 
     def mkdir(self, path, exist_ok=False):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.mkdir(az_path, exist_ok)
+        return self.azure_blob_fs.mkdir(az_path, exist_ok)
 
     def rmdir(self, path: str, delimiter="/", **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.rmdir(az_path, delimiter, **kwargs)
+        return self.azure_blob_fs.rmdir(az_path, delimiter, **kwargs)
 
     def size(self, path):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.size(az_path)
+        return self.azure_blob_fs.size(az_path)
 
     def isfile(self, path):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.isfile(az_path)
+        return self.azure_blob_fs.isfile(az_path)
 
     def isdir(self, path):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.isdir(az_path)
+        return self.azure_blob_fs.isdir(az_path)
 
     def exists(self, path):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.exists(az_path)
+        return self.azure_blob_fs.exists(az_path)
 
     def cat(self, path, recursive=False, on_error="raise", **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.cat(az_path, recursive, on_error, **kwargs)
+        return self.azure_blob_fs.cat(az_path, recursive, on_error, **kwargs)
 
     def url(self, path, expires=3600, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.url(az_path, expires, **kwargs)
+        return self.azure_blob_fs.url(az_path, expires, **kwargs)
 
     def expand_path(self, path, recursive=False, maxdepth=None):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.expand_path(az_path, recursive, maxdepth)
+        return self.azure_blob_fs.expand_path(az_path, recursive, maxdepth)
 
     def rm(self, path, recursive=False, maxdepth=None, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.rm(az_path, recursive, maxdepth, **kwargs)
+        return self.azure_blob_fs.rm(az_path, recursive, maxdepth, **kwargs)
 
     def open(self, path, mode="rb", block_size=None, cache_options=None, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.open(az_path, mode, block_size, cache_options, **kwargs)
+        return self.azure_blob_fs.open(
+            az_path, mode, block_size, cache_options, **kwargs
+        )
 
     def touch(self, path, truncate=True, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azureBlobFS.touch(az_path, truncate, **kwargs)
-
-    def _azureBlobFS(self):
-        return self.azureBlobFS
+        return self.azure_blob_fs.touch(az_path, truncate, **kwargs)
 
     @classmethod
     def _strip_protocol(cls, path: str):

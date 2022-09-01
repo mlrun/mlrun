@@ -60,7 +60,7 @@ def schema_to_store(schema):
             )
 
         return S3Store
-    elif schema == "az":
+    elif schema in ["az", "wasbs", "wasb"]:
         try:
             from .azure_blob import AzureBlobStore
         except ImportError:

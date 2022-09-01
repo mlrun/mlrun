@@ -150,6 +150,7 @@ setup(
         "mlrun.artifacts",
         "mlrun.data_types",
         "mlrun.datastore",
+        "mlrun.datastore.wasbfs",
         "mlrun.db",
         "mlrun.feature_store",
         "mlrun.feature_store.retrieval",

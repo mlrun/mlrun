@@ -42,6 +42,8 @@ security_context = k8s_client.V1SecurityContext(
         )
 function.with_security_context(security_context)
 ```
+See the [full definition of the V1SecurityContext object](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1SecurityContext.md).
+
  Services that do not support security context: 
 - Kaniko <!--- remove with kaniko 1.9.0 --->
 - Spark services already run with user `iguazio` inside, meaning MLRun doesn't support setting security context to those runtimes

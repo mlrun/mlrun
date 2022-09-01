@@ -30,7 +30,7 @@ __all__ = [
     "KafkaSource",
 ]
 
-import mlrun.wasbfs
+import mlrun.datastore.wasbfs
 
 from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_path
 from ..utils import logger

@@ -17,7 +17,7 @@ import os
 import dask.dataframe as dd
 
 import mlrun.datastore
-import mlrun.wasbfs
+import mlrun.datastore.wasbfs
 
 
 def test_http_fs_parquet_as_df():

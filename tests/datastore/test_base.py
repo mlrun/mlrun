@@ -17,6 +17,7 @@ import os
 import dask.dataframe as dd
 
 import mlrun.datastore
+import mlrun.wasbfs
 
 
 def test_http_fs_parquet_as_df():
@@ -38,6 +39,16 @@ def test_load_object_into_dask_dataframe():
     os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = "azureopendatastorage"
     data_item = mlrun.datastore.store_manager.object(
         "az://tutorials/noaa_isd_weather/demo_data.parquet"
+    )
+    ddf = data_item.as_df(df_module=dd)
+    assert isinstance(ddf, dd.DataFrame)
+
+
+def test_load_object_into_dask_dataframe_using_wasbs_url():
+    # Load a parquet file from Azure Open Datasets
+    os.environ["AZURE_STORAGE_ACCOUNT_NAME"] = "azureopendatastorage"
+    data_item = mlrun.datastore.store_manager.object(
+        "wasbs://tutorials@dummyaccount/noaa_isd_weather/demo_data.parquet"
     )
     ddf = data_item.as_df(df_module=dd)
     assert isinstance(ddf, dd.DataFrame)

@@ -210,7 +210,8 @@ def load_project(
 
     example::
 
-        # load the project and run the 'main' workflow
+        # load the project and run the 'main' workflow. The context directory must be an empty or 
+        # When using git as the url source the context directory must be an empty or non-existent folder as the git repo will be cloned there
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
@@ -220,7 +221,7 @@ def load_project(
                          http://mysite/archived-project.zip
                          <project-name>
                          The git project should include the project yaml file.
-                         If the yaml file is in a sub-directory, must specify the sub-directory.
+                         If the project yaml file is in a sub-directory, must specify the sub-directory.
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir

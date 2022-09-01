@@ -67,8 +67,8 @@ class WasbFS(AbstractFileSystem):
 
     @staticmethod
     def _convert_wasb_schema_to_az(url):
-        # convert wasbs schema url to az schema url. used before passing the url to AzureBlobFS.
-        # wasbs://mycontainer@myaccount/path/to/obj is קquivalent to
+        # convert wasbs schema url to az schema url. Used before passing the url to AzureBlobFS.
+        # wasbs://mycontainer@myaccount/path/to/obj is equivalent to
         # az://mycontainer/path/to/obj
         az_path = url
         parsed_url = urlparse(url)

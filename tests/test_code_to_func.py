@@ -16,7 +16,7 @@ from os import path
 
 from mlrun import code_to_function, get_run_db, new_model_server
 from mlrun.utils import parse_versioned_object_uri
-from tests.conftest import examples_path, results
+from tests.conftest import examples_path, results, tests_root_directory
 
 
 def test_job_nb():
@@ -104,3 +104,10 @@ def test_local_file_codeout():
     assert path.isfile(out), "output not generated"
 
     fn.run(handler="training", params={"p1": 5})
+
+
+def test_nuclio_golang():
+    name = f"{tests_root_directory}/assets/hello.go"
+    fn = code_to_function("nuclio", filename=name, kind="nuclio", handler="Handler")
+    assert fn.kind == "remote", "kind not set, test failed"
+    assert fn.spec.nuclio_runtime == "golang", "golang was not detected and set"

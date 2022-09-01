@@ -842,7 +842,9 @@ def code_to_function(
         else:
             r.spec.source = filename
             r.spec.function_handler = handler
-
+        nuclio_runtime = get_in(spec, "spec.runtime")
+        if nuclio_runtime and not nuclio_runtime.startswith("py"):
+            r.spec.nuclio_runtime = nuclio_runtime
         if not name:
             raise ValueError("name must be specified")
         r.metadata.name = name

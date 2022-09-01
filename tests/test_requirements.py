@@ -95,7 +95,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.1.8"},
+        "storey": {"~=1.1.9"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers

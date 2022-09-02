@@ -211,7 +211,8 @@ def load_project(
     example::
 
         # Load the project and run the 'main' workflow.
-        # When using git as the url source the context directory must be an empty or non-existent folder as the git repo will be cloned there
+        # When using git as the url source the context directory must be an empty or non-existent 
+        # folder as the git repo will be cloned there
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 

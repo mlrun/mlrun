@@ -1022,7 +1022,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def __new__(cls, *args, **kwargs):
         if cls is NoSqlBaseTarget:
             raise TypeError(f"only children of '{cls.__name__}' may be instantiated")
-        return object.__new__(cls, *args, **kwargs)
+        return object.__new__(cls)
 
     def get_table_object(self):
         raise NotImplementedError()

@@ -47,7 +47,7 @@ function.with_security_context(security_context)
 ```
 See the [full definition of the V1SecurityContext object](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1SecurityContext.md).
 
-Some services do not support security context:
+Some services do not support security context yet:
 - Infrastructure services
    - Kubeflow pipelines core services
 - Services created by MLRun

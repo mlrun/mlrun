@@ -25,7 +25,7 @@ There are several deployment options:
   the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
   
-## root vs. non-root user(#root-non-root)
+## non-root user support (#non-root-support)
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
 which is implemented by Igauzio during installation, and applied system-wide:

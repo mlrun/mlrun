@@ -25,7 +25,7 @@ There are several deployment options:
   the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
   
-## root vs. non-root user(#root-non-root)
+## non-root user support (#non-root-support)
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
 which is implemented by Igauzio during installation, and applied system-wide:
@@ -47,7 +47,7 @@ function.with_security_context(security_context)
 ```
 See the [full definition of the V1SecurityContext object](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1SecurityContext.md).
 
-Some services do not support security context:
+Some services do not support security context yet:
 - Infrastructure services
    - Kubeflow pipelines core services
 - Services created by MLRun

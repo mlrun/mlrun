@@ -7,10 +7,10 @@ MLRun comprises two parts: MLRun Server and MLRUN client.
 
 **In this section**
 - [Deployment options](#deployment-options)
-- [Set up your client](#Set up your client)
-- [root vs. non-root user](#root-non-root)
+- [Non-root user support](#non-root-support)
 - [Security context](#security-context)
-- [MLRun client backward compatibility](#MLRun client backward compatibility)
+- [Set up your client](#Set-up-your-client)
+- [MLRun client backward compatibility](#MLRun-client-backward-compatibility)
 
 ## Deployment options
 
@@ -21,11 +21,11 @@ There are several deployment options:
 - [Kubernetes cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html): Deploy an MLRun server on Kubernetes.
    This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires 
    you to install Kubernetes on your own.
-  - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore 
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore 
   the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
   
-## non-root user support (#non-root-support)
+## Non-root user support (#non-root-support)
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
 which is implemented by Igauzio during installation, and applied system-wide:
@@ -37,7 +37,8 @@ which is implemented by Igauzio during installation, and applied system-wide:
 If your system is configured in disabled mode, you can apply the security context to individual runtimes/pods by using `function.with_security_context`, and the job is assigned to the user or to the user's group that ran the job.<br>
 (You cannot override the user of individual jobs if the system is configured in override mode.) The options are:
 
-```from kubernetes import client as k8s_client
+```
+from kubernetes import client as k8s_client
 
 security_context = k8s_client.V1SecurityContext(
             run_as_user=1000,
@@ -51,13 +52,8 @@ Some services do not support security context yet:
 - Infrastructure services
    - Kubeflow pipelines core services
 - Services created by MLRun
-   - Kaniko, used for building images. (To avoid using Kaniko, use prebuilt images that contain all the requirements.) Kaniko v1.9.0 will support security context.
-   - Spark services, will be supported in Spark 3.2+
-
-- Kaniko <!--- remove with kaniko 1.9.0 --->
-- Spark services already run with user `iguazio` inside, meaning MLRun doesn't support setting security context to those runtimes
-- Not yet supported with Spark runtime since it requires Spark 3.2+
-- Kubeflow pipelines core services
+   - Kaniko, used for building images. (To avoid using Kaniko, use prebuilt images that contain all the requirements.) 
+   - Spark services
 
 ## Set up your client
 

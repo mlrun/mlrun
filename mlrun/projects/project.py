@@ -210,8 +210,10 @@ def load_project(
 
     example::
 
-        # load the project and run the 'main' workflow
-        project = load_project("./", "git://github.com/mlrun/project-demo.git")
+        # Load the project and run the 'main' workflow.
+        # When using git as the url source the context directory must be an empty or
+        # non-existent folder as the git repo will be cloned there
+        project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
     :param context:      project local directory path
@@ -219,6 +221,8 @@ def load_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
                          <project-name>
+                         The git project should include the project yaml file.
+                         If the project yaml file is in a sub-directory, must specify the sub-directory.
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
@@ -328,7 +332,8 @@ def get_or_create_project(
             subpath=subpath,
             clone=clone,
             user_project=user_project,
-            save=save,
+            # only loading project from db so no need to save it
+            save=False,
         )
         logger.info(f"loaded project {name} from MLRun DB")
         return project

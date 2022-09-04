@@ -27,7 +27,7 @@ from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj, ObjectDict
-from ..platforms.iguazio import parse_v3io_path
+from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function
 from .utils import _extract_input_data, _update_result_body
 
@@ -1440,7 +1440,7 @@ def _init_async_objects(context, steps):
                         )
                     else:
                         if stream_path.startswith("v3io://"):
-                            endpoint, stream_path = parse_v3io_path(step.path)
+                            endpoint, stream_path = parse_path(step.path)
                             stream_path = stream_path.strip("/")
                         step._async_object = storey.StreamTarget(
                             storey.V3ioDriver(endpoint),

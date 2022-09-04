@@ -60,7 +60,7 @@ def schema_to_store(schema):
             )
 
         return S3Store
-    elif schema == "az":
+    elif schema in ["az", "wasbs", "wasb"]:
         try:
             from .azure_blob import AzureBlobStore
         except ImportError:
@@ -71,6 +71,10 @@ def schema_to_store(schema):
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
         return V3ioStore
+    elif schema in ["redis", "rediss"]:
+        from .redis import RedisStore
+
+        return RedisStore
     elif schema in ["http", "https"]:
         return HttpStore
     elif schema in ["gcs", "gs"]:

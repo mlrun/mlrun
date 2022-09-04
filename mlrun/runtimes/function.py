@@ -38,7 +38,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
+from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -460,7 +460,7 @@ class RemoteRuntime(KubeResource):
         """
         endpoint = None
         if "://" in stream_path:
-            endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
+            endpoint, stream_path = parse_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
         extra_attributes = extra_attributes or {}

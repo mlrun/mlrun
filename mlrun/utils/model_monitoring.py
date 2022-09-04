@@ -19,9 +19,9 @@ from typing import Optional
 
 import mlrun
 from mlrun.config import config
-from mlrun.platforms.iguazio import parse_path
-from mlrun.utils import parse_versioned_object_uri
 from urllib.parse import urlparse
+from mlrun.utils import parse_versioned_object_uri
+
 
 
 @dataclass
@@ -107,9 +107,7 @@ def parse_model_endpoint_project_prefix(path: str, project_name: str):
 
 
 def parse_model_endpoint_store_prefix(store_prefix: str):
-    print('[EYAL]: not in parse model endpoint with :', store_prefix)
     parsed_url = urlparse(store_prefix).path.strip("/") + store_prefix
-    print('[EYAL]: parsed_url result: ', parsed_url)
     container, path = parsed_url.split("/", 1)
     return container, path
 

@@ -45,6 +45,7 @@
    training/built-in-training-function
    feature-store/training-fs   
    hyper-params
+   projects/ci-integration
   
 .. toctree::
    :maxdepth: 1
@@ -64,8 +65,7 @@
    
    model_monitoring/index
    projects/workflows
-   projects/ci-integration
-   
+     
    
 .. toctree::
    :maxdepth: 1

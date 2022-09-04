@@ -27,7 +27,8 @@ The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configure
 ```
 
 **Watch the installation:**
-[![MLRun install](../_static/images/mlrun-page.png)](https://www.youtube.com/watch?v=Z6mTw7_n8iE&list=PLH8M0UOY0uy7moj_wXouzm3nYMnJ9sdlk&index=8Y)
+
+<iframe width="187" height="105" src="https://www.youtube.com/embed/Z6mTw7_n8iE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 <a id="docker-desktop-installation"></a>
 ## Installing on Docker Desktop

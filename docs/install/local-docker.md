@@ -35,7 +35,11 @@ Support for running as a non-root user was added in 1.0.5, hence the underlying 
 If you want to use previous mlrun versions, modify the mlrun-ui port from 8090 back to 80.
 ```
 **Watch the installation:**
-[![MLRun install](../_static/images/mlrun-page.png)](https://www.youtube.com/watch?v=_MLaLZBa4UY)
+
+<iframe width="187" height="105" src="https://www.youtube.com/embed/_MLaLZBa4UY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+
+
 
 ## Use MLRun with your own client
 

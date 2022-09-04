@@ -106,7 +106,10 @@ def parse_model_endpoint_project_prefix(path: str, project_name: str):
 
 
 def parse_model_endpoint_store_prefix(store_prefix: str):
+    print('[EYAL]: not in parse model endpoint with :', store_prefix)
     endpoint, parsed_url = parse_path(store_prefix)
+    print('[EYAL]: endpoint result: ', endpoint)
+    print('[EYAL]: parsed_url result: ', parsed_url)
     container, path = parsed_url.split("/", 1)
     return endpoint, container, path
 

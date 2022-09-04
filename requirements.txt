@@ -12,6 +12,11 @@ click~=8.0.0
 # >=3.10.0 although it was installing starlette 0.19.1
 # therefore adding it explictly
 typing-extensions>=3.10.0,<5
+# in some environments for some reason the protobuf installed was 3.20.0 instead of 3.20.1,
+# when installing google-cloud-storage which required >=3.20.1, <5 it was upgrading the protobuf version to the latest
+# version and because kfp 1.8.13 requires protobuf>=3.13, <4 it resulted incompatibility between kfp and protobuf
+# this can be removed once kfp will support protobuf > 4
+protobuf>=3.20.1, <4
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.8.0

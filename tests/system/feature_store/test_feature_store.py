@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import math
 import os
@@ -34,6 +48,7 @@ from mlrun.datastore.targets import (
     KafkaTarget,
     NoSqlTarget,
     ParquetTarget,
+    RedisNoSqlTarget,
     TargetTypes,
     get_target_driver,
 )
@@ -1643,6 +1658,36 @@ class TestFeatureStore(TestMLRunSystem):
         assert all(csv_df == parquet_df)
         assert all(csv_vec_df == parquet_vec_df)
 
+    @pytest.mark.parametrize("with_columns", [False, True])
+    def test_parquet_target_to_dataframe(self, with_columns):
+        measurements_partitioned = None
+        measurements_nonpartitioned = None
+        for partitioned in [False, True]:
+            name = f"measurements_{uuid.uuid4()}_{partitioned}"
+            key = "patient_id"
+            measurements = fs.FeatureSet(
+                name, entities=[Entity(key)], timestamp_key="timestamp"
+            )
+            if partitioned:
+                measurements_partitioned = measurements
+            else:
+                measurements_nonpartitioned = measurements
+
+            source = CSVSource(
+                "mycsv",
+                path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+                time_field="timestamp",
+            )
+
+            fs.ingest(
+                measurements, source, targets=[ParquetTarget(partitioned=partitioned)]
+            )
+
+        columns = ["department", "room"] if with_columns else None
+        df_from_partitioned = measurements_partitioned.to_dataframe(columns)
+        df_from_nonpartitioned = measurements_nonpartitioned.to_dataframe(columns)
+        assert df_from_partitioned.equals(df_from_nonpartitioned)
+
     def test_sync_pipeline(self):
         stocks_set = fs.FeatureSet(
             "stocks-sync",
@@ -1904,7 +1949,7 @@ class TestFeatureStore(TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             fs.ingest(fset, df1, overwrite=False)
 
-    def test_purge(self):
+    def test_purge_v3io(self):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -1930,6 +1975,36 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(fset, source)
 
         targets_to_purge = targets[:-1]
+
+        verify_purge(fset, targets_to_purge)
+
+    def test_purge_redis(self):
+        key = "patient_id"
+        fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource(
+            "mycsv",
+            path=path,
+            time_field="timestamp",
+        )
+        targets = [
+            CSVTarget(),
+            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            RedisNoSqlTarget(),
+        ]
+        fset.set_targets(
+            targets=targets,
+            with_defaults=False,
+        )
+        fs.ingest(fset, source)
+
+        verify_purge(fset, targets)
+
+        fs.ingest(fset, source)
+
+        targets_to_purge = targets[:-1]
+
         verify_purge(fset, targets_to_purge)
 
     # After moving to run on a new system test environment this test was running for 75 min and then failing
@@ -2583,6 +2658,88 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_get_offline_features_with_filter(self, engine):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+
+        data = pd.DataFrame(
+            {
+                "name": ["A", "B", "C", "D", "E"],
+                "age": [33, 4, 76, 90, 24],
+                "department": ["IT", "RD", "RD", "Marketing", "IT"],
+            },
+            index=[0, 1, 2, 3, 4],
+        )
+        data["id"] = data.index
+
+        one_hot_encoder_mapping = {
+            "department": list(data["department"].unique()),
+        }
+        data_set = FeatureSet(
+            "fs-new", entities=[Entity("id")], description="feature set"
+        )
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+        fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        fv_name = "new-fv"
+        features = [
+            "fs-new.name",
+            "fs-new.age",
+            "fs-new.department_RD",
+            "fs-new.department_IT",
+            "fs-new.department_Marketing",
+        ]
+
+        my_fv = fs.FeatureVector(fv_name, features, description="my feature vector")
+        my_fv.save()
+        # expected data frame
+        expected_df = pd.DataFrame(
+            {
+                "name": ["C"],
+                "age": [76],
+                "department_RD": [1],
+                "department_IT": [0],
+                "department_Marketing": [0],
+            },
+            index=[0],
+        )
+
+        # different tests
+        result_1 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="age>6 and department_RD==1",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_1 = result_1.to_dataframe()
+
+        assert df_res_1.equals(expected_df)
+
+        result_2 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="name in ['C']",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_2 = result_2.to_dataframe()
+
+        assert df_res_2.equals(expected_df)
+
     def test_set_event_with_spaces_or_hyphens(self):
 
         lst_1 = [
@@ -2847,7 +3004,8 @@ def verify_purge(fset, targets):
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert filesystem.exists(driver.get_target_path())
 
     fset.purge_targets(target_names=target_names)
 

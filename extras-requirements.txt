@@ -24,3 +24,4 @@ gcsfs~=2021.8.1
 plotly~=5.4
 google-cloud-bigquery~=3.0
 kafka-python~=2.0
+redis~=4.3

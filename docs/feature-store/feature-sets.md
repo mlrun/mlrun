@@ -1,3 +1,4 @@
+(feature-sets)=
 # Feature sets
 
 In MLRun, a group of features can be ingested together and stored in logical group called feature set. 
@@ -20,13 +21,7 @@ The feature set object contains the following information:
 - [Add transformations](#add-transformations)
 - [Simulate and debug the data pipeline with a small dataset](#simulate-the-data-pipeline-with-a-small-dataset)
 - [Ingest data into the Feature Store](#ingest-data-into-the-feature-store)
-   - [Ingest data locally](#ingest-data-locally)
-   - [Ingest data using an MLRun job](#ingest-data-using-an-mlrun-job)
-   - [Real-time ingestion](#real-time-ingestion)
-   - [Incremental ingestion](#incremental-ingestion)
-   - [Data sources](#data-sources)
-   - [Target stores](#target-stores)
-   
+  
    
 ## Create a Feature Set
 
@@ -63,7 +58,7 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 (e.g. Notebook) for interactive development or in elastic serverless functions for production and scale.
 
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
-(such as aggregate, filter, encode, map, join, impute, etc) or custom python classes/functions. 
+(such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
 Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
 
 The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
@@ -111,10 +106,9 @@ df = fstore.preview(quotes_set, quotes)
 # print the featue statistics
 print(quotes_set.get_stats_table())
 ```
-
 ## Ingest data into the Feature Store
 
-Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [remote job](#ingest-data-using-an-mlrun-job), or [Real-time ingestion](#real-time-ingestion)).
+Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
 can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.
@@ -131,6 +125,26 @@ When targets are not specified, data is stored in the configured default targets
 also general limitations in [Attribute name restrictions](https://www.iguazio.com/docs/latest-release/data-layer/objects/attributes/#attribute-names).
 - When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names. These cause errors in the ingestion.
 ```
+
+### Inferring data
+
+There are 2 types of infer options - metadata/schema inferring, and stats/preview inferring. The first type is responsible for describing the dataset and generating its meta-data, such as deducing the data-types of the features and listing the entities that are involved. Options belonging to this type are `Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value containing all the options of this type.
+The 2nd type is related to calculating statistics and generating a preview of the actual data in the dataset. Options of this type are `Stats`, `Histogram` and `Preview`. 
+
+
+The `InferOptions class` has the following values:<br>
+class InferOptions:<br>
+    Null = 0<br>
+    Entities = 1<br>
+    Features = 2<br>
+    Index = 4<br>
+    Stats = 8<br>
+    Histogram = 16<br>
+    Preview = 32<br>
+    
+The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
+
+When simultanesouly ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
 
 ### Ingest data locally
 

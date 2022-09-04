@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import typing
 
@@ -146,15 +160,15 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_requests(actual_resources, expected_values["requests"])
 
     @staticmethod
-    def _assert_requests(actual, expected):
-        assert actual["coreRequest"] == expected["cpu"]
-        assert actual["memory"] == expected["mem"]
+    def _assert_requests(actual: dict, expected: dict):
+        assert actual.get("coreRequest", None) == expected.get("cpu", None)
+        assert actual.get("memory", None) == expected.get("mem", None)
 
     @staticmethod
-    def _assert_limits(actual, expected):
-        assert actual["coreLimit"] == expected["cpu"]
-        assert actual["gpu"]["name"] == expected["gpu_type"]
-        assert actual["gpu"]["quantity"] == expected["gpus"]
+    def _assert_limits(actual: dict, expected: dict):
+        assert actual.get("coreLimit", None) == expected.get("cpu", None)
+        assert actual.get("gpu", {}).get("name", None) == expected.get("gpu_type", None)
+        assert actual.get("gpu", {}).get("quantity", None) == expected.get("gpus", None)
 
     def _assert_security_context(
         self,
@@ -231,11 +245,11 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             set_resources=False
         )
 
-        expected_executor = {
+        expected_executor_resources = {
             "requests": {"cpu": "1", "mem": "1G"},
             "limits": {"cpu": "2", "gpu_type": "nvidia.com/gpu", "gpus": 1},
         }
-        expected_driver = {
+        expected_driver_resources = {
             "requests": {"cpu": "2", "mem": "512m"},
             "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
         }
@@ -254,8 +268,86 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self.execute_function(runtime)
         self._assert_custom_object_creation_config(
-            expected_driver_resources=expected_driver,
-            expected_executor_resources=expected_executor,
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
+            expected_cores=expected_cores,
+        )
+
+    def test_run_with_limits_and_requests_patch_true(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        runtime.with_executor_limits(cpu="3")
+        runtime.with_executor_requests(cpu="1", mem="1G")
+
+        runtime.with_executor_limits(gpus=1, patch=True)
+        expected_executor_resources = {
+            "requests": {"cpu": "1", "mem": "1G"},
+            "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+        }
+
+        runtime.with_driver_requests(cpu="2")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+        # patch = True
+        runtime.with_driver_requests(mem="512m", patch=True)
+        expected_driver_resources = {
+            "requests": {"cpu": "2", "mem": "512m"},
+            "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
+        }
+
+        expected_cores = {
+            "executor": 8,
+            "driver": 2,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
+            expected_cores=expected_cores,
+        )
+
+    def test_run_with_limits_and_requests_patch_false(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        runtime.with_driver_requests(cpu="2")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+
+        # default patch = False
+        runtime.with_driver_requests(mem="1G")
+        runtime.with_driver_limits(cpu="10")
+        expected_driver_resources = {
+            "requests": {"mem": "1G"},
+            "limits": {"cpu": "10"},
+        }
+
+        runtime.with_executor_requests(cpu="1", mem="1G")
+        runtime.with_executor_limits(cpu="3")
+
+        # default patch = False
+        runtime.with_executor_requests(mem="2G")
+        runtime.with_executor_limits(cpu="5")
+        expected_executor_resources = {
+            "requests": {"mem": "2G"},
+            "limits": {"cpu": "5"},
+        }
+        expected_cores = {
+            "executor": 8,
+            "driver": 2,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
             expected_cores=expected_cores,
         )
 

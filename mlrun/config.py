@@ -72,7 +72,7 @@ default_config = {
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
-    "spark_operator_version": "spark-2",  # the version of the spark operator in use
+    "spark_operator_version": "spark-3",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
@@ -104,6 +104,7 @@ default_config = {
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
+    "redis_url": "redis://localhost:6379",
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
@@ -274,6 +275,7 @@ default_config = {
         },
         "projects": {
             "leader": "mlrun",
+            "retry_leader_request_on_exception": "enabled",
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
@@ -360,6 +362,7 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -382,7 +385,7 @@ default_config = {
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc, s3.
+        # What type of auto-mount to use for functions. One of: none, auto, v3io_credentials, v3io_fuse, pvc, s3, env.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -401,6 +404,11 @@ default_config = {
         "node_selector": "e30=",
         # encoded empty list
         "tolerations": "W10=",
+    },
+    "http_retry_defaults": {
+        "max_retries": 3,
+        "backoff_factor": 1,
+        "status_codes": [500, 502, 503, 504],
     },
 }
 

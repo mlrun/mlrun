@@ -38,7 +38,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
+from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -460,7 +460,7 @@ class RemoteRuntime(KubeResource):
         """
         endpoint = None
         if "://" in stream_path:
-            endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
+            endpoint, stream_path = parse_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
         extra_attributes = extra_attributes or {}
@@ -528,6 +528,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
+            self._update_credentials_from_remote_build(data["data"])
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
@@ -990,6 +991,42 @@ class RemoteRuntime(KubeResource):
             return f"http://{self.status.external_invocation_urls[0]}/{path}"
         else:
             return f"http://{self.status.address}/{path}"
+
+    def _update_credentials_from_remote_build(self, remote_data):
+        self.metadata.credentials = remote_data.get("metadata", {}).get(
+            "credentials", {}
+        )
+
+        credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
+        new_env = []
+
+        # the env vars in the local spec and remote spec are in the format of a list of dicts
+        # e.g.:
+        # env = [
+        #   {
+        #     "name": "V3IO_ACCESS_KEY",
+        #     "value": "some-value"
+        #   },
+        #   ...
+        # ]
+        # remove existing credentials env vars
+        for env in self.spec.env:
+            if isinstance(env, dict):
+                env_name = env["name"]
+            elif isinstance(env, client.V1EnvVar):
+                env_name = env.name
+            else:
+                continue
+
+            if env_name not in credentials_env_var_names:
+                new_env.append(env)
+
+        # add credentials env vars from remote build
+        for remote_env in remote_data.get("spec", {}).get("env", []):
+            if remote_env.get("name") in credentials_env_var_names:
+                new_env.append(remote_env)
+
+        self.spec.env = new_env
 
 
 def parse_logs(logs):

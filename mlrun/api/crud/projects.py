@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import collections
 import datetime
@@ -98,7 +112,12 @@ class Projects(
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
         # Therefore, this check should remain at the end of the verification flow.
-        if mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(project):
+        if (
+            mlrun.mlconf.is_api_running_on_k8s()
+            and mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_keys(
+                project
+            )
+        ):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project} can not be deleted since related resources found: project secrets"
             )
@@ -131,7 +150,8 @@ class Projects(
         mlrun.api.crud.ModelEndpoints().delete_model_endpoints_resources(name)
 
         # delete project secrets - passing None will delete all secrets
-        mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
+        if mlrun.mlconf.is_api_running_on_k8s():
+            mlrun.api.utils.singletons.k8s.get_k8s().delete_project_secrets(name, None)
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

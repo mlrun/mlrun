@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import hashlib
+import urllib.parse
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional
-from urllib.parse import urlparse
 
 import mlrun
 from mlrun.config import config
@@ -117,7 +117,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
              [1] = Path that will be used to retrieve the required information. For model endpoints
                   it is usually pipelines/project-name/model-endpoints/endpoints/.
     """
-    parsed_url = urlparse(store_prefix).path.strip("/") + store_prefix
+    parsed_url = urllib.parse.urlparse(store_prefix).path.strip("/") + store_prefix
     container, path = parsed_url.split("/", 1)
     return container, path
 

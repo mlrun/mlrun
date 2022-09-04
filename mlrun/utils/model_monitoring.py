@@ -107,6 +107,17 @@ def parse_model_endpoint_project_prefix(path: str, project_name: str):
 
 
 def parse_model_endpoint_store_prefix(store_prefix: str):
+    """
+    Getting the container and path value from parsing the store_prefix.
+
+    :param store_prefix: full url path that will be parsed.
+
+    :returns:            A tuple of:
+                            [0] = Name of the container that will be used to retrieve the required information.
+                                  For model endpoints it is usually 'users'.
+                            [1] = Path that will be used to retrieve the required information. For model endpoints
+                                  it is usually pipelines/project-name/model-endpoints/endpoints/.
+    """
     parsed_url = urlparse(store_prefix).path.strip("/") + store_prefix
     container, path = parsed_url.split("/", 1)
     return container, path

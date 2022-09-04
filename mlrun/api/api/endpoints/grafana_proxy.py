@@ -357,7 +357,7 @@ def grafana_incoming_features(
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
     )
-    _, container, path = parse_model_endpoint_store_prefix(path)
+    container, path = parse_model_endpoint_store_prefix(path)
 
     client = get_frames_client(
         token=auth_info.data_session,

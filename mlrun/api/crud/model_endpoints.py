@@ -307,7 +307,6 @@ class ModelEndpoints:
             kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
-            _,
             container,
             path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
@@ -388,7 +387,6 @@ class ModelEndpoints:
                 kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
             )
             (
-                _,
                 container,
                 path,
             ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
@@ -462,7 +460,6 @@ class ModelEndpoints:
             kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
-            _,
             container,
             path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
@@ -628,7 +625,6 @@ class ModelEndpoints:
             kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
-            _,
             container,
             path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
@@ -683,7 +679,6 @@ class ModelEndpoints:
             project=project, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
         )
         (
-            _,
             container,
             path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
@@ -768,7 +763,6 @@ class ModelEndpoints:
             path, project_name
         )
         (
-            _,
             container,
             path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)

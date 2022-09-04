@@ -686,7 +686,7 @@ def _create_model_monitoring_stream(project: str):
         project=project, kind="stream"
     )
 
-    _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+    container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
     # TODO: How should we configure sharding here?
     logger.info(

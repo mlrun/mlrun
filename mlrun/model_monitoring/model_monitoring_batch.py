@@ -521,19 +521,16 @@ class BatchProcessor:
         template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
         (
-            _,
             self.kv_container,
             self.kv_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
         tsdb_path = template.format(project=project, kind="events")
         (
-            _,
             self.tsdb_container,
             self.tsdb_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
         stream_path = template.format(project=self.project, kind="log_stream")
         (
-            _,
             self.stream_container,
             self.stream_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(stream_path)

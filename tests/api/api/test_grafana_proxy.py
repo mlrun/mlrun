@@ -356,13 +356,13 @@ def cleanup_endpoints(db: Session, client: TestClient):
             project=TEST_PROJECT,
             kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
         )
-        _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
+        kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
             kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
         )
-        _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
+        tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
         v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
 
@@ -411,7 +411,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
     )
-    _, container, path = parse_model_endpoint_store_prefix(path)
+    container, path = parse_model_endpoint_store_prefix(path)
 
     frames = get_frames_client(
         token=_get_access_key(),

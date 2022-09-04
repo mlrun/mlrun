@@ -86,14 +86,12 @@ class EventStreamProcessor:
 
         kv_path = template.format(project=project, kind="endpoints")
         (
-            _,
             self.kv_container,
             self.kv_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = template.format(project=project, kind="events")
         (
-            _,
             self.tsdb_container,
             self.tsdb_path,
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)

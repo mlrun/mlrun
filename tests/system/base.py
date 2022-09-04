@@ -67,6 +67,9 @@ class TestMLRunSystem:
     def setup_method(self, method):
         logger.info(f"Setting up test {self.__class__.__name__}::{method.__name__}")
 
+        self._setup_env(self._get_env_from_file())
+        self._run_db = get_run_db()
+
         if not self._skip_set_environment():
             set_environment(project=self.project_name)
             self.project = mlrun.get_or_create_project(self.project_name, "./")
@@ -182,6 +185,7 @@ class TestMLRunSystem:
     @classmethod
     def _setup_env(cls, env: dict):
         logger.debug("Setting up test environment")
+        cls._test_env.update(env)
 
         # save old env vars for returning them on teardown
         for env_var, value in env.items():

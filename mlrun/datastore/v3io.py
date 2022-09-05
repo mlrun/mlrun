@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mmap
+import os
 import time
 from copy import deepcopy
 from datetime import datetime
@@ -92,7 +94,30 @@ class V3ioStore(DataStore):
         )
 
     def upload(self, key, src_path):
-        http_upload(self.url + self._join(key), src_path, self.headers, None)
+        file_size = os.path.getsize(src_path)
+        if file_size <= 1024 * 1024:  # 1MB
+            http_upload(self.url + self._join(key), src_path, self.headers, None)
+            return
+        append_header = deepcopy(self.headers)
+        append_header["Range"] = "-1"
+        max_chunk_length = 1024 * 1024 * 1024  # 1GB
+        with open(src_path, "rb") as file_obj:
+            file_offset = 0
+            while file_offset < file_size:
+                chunk_len = min(file_size - file_offset, max_chunk_length)
+                with mmap.mmap(
+                    file_obj.fileno(),
+                    length=chunk_len,
+                    access=mmap.ACCESS_READ,
+                    offset=file_offset,
+                ) as mmap_obj:
+                    http_put(
+                        self.url + self._join(key),
+                        mmap_obj,
+                        append_header if file_offset else self.headers,
+                        None,
+                    )
+                    file_offset = file_offset + chunk_len
 
     def get(self, key, size=None, offset=0):
         headers = self.headers

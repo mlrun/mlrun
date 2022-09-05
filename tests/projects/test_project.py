@@ -239,6 +239,32 @@ def test_set_func_requirements():
     ]
 
 
+def test_set_func_with_tag():
+    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project.set_function(
+        "/Users/giladsh/Desktop/Python/Gilad_MLRun/mlrun/testing.py",
+        "desc1",
+        tag="v1",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc1")
+    assert func.metadata.tag == "v1"
+    project.set_function(
+        "/Users/giladsh/Desktop/Python/Gilad_MLRun/mlrun/testing.py",
+        "desc1",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc1")
+    assert func.metadata.tag is None
+    project.set_function(
+        "/Users/giladsh/Desktop/Python/Gilad_MLRun/mlrun/testing.py",
+        "desc2",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc2")
+    assert func.metadata.tag is None
+
+
 def test_function_run_cli():
     # run function stored in the project spec
     project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"

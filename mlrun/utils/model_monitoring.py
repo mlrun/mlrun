@@ -111,7 +111,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
     :param store_prefix: full url path that will be parsed.
 
-    :returns: A tuple of:
+    :return: A tuple of:
              [0] = Name of the container that will be used to retrieve the required information.
                   For model endpoints it is usually 'users'.
              [1] = Path that will be used to retrieve the required information. For model endpoints

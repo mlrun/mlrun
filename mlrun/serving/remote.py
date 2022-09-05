@@ -22,6 +22,10 @@ default_retries = 6
 default_backoff_factor = 1
 
 
+def test():
+    return
+
+
 def get_http_adapter(retries, backoff_factor):
     if retries != 0:
         retry = Retry(

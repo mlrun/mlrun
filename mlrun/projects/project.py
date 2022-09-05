@@ -1473,6 +1473,7 @@ class MlrunProject(ModelObj):
         image: str = None,
         handler=None,
         with_repo: bool = None,
+        tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
     ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
@@ -1501,6 +1502,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
+        :tag:             function version tag (none for 'latest')
         :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
@@ -1531,6 +1533,7 @@ class MlrunProject(ModelObj):
                 "image": image,
                 "handler": handler,
                 "with_repo": with_repo,
+                "tag": tag,
                 "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
@@ -2653,6 +2656,7 @@ def _init_function_from_dict(f, project):
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
     requirements = f.get("requirements", None)
+    tag = f.get("tag", None)
 
     in_context = False
     has_module = _has_module(handler, kind)
@@ -2671,7 +2675,9 @@ def _init_function_from_dict(f, project):
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
     elif not url and has_module:
-        func = new_function(name, image=image, kind=kind or "job", handler=handler)
+        func = new_function(
+            name, image=image, kind=kind or "job", handler=handler, tag=tag
+        )
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
@@ -2679,7 +2685,7 @@ def _init_function_from_dict(f, project):
     elif url.endswith(".ipynb"):
         # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
-            name, filename=url, image=image, kind=kind, handler=handler
+            name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
     elif url.endswith(".py"):
         if not image and kind != "local":
@@ -2694,10 +2700,16 @@ def _init_function_from_dict(f, project):
                 image=image,
                 kind=kind or "job",
                 handler=handler,
+                tag=tag,
             )
         else:
             func = code_to_function(
-                name, filename=url, image=image, kind=kind or "job", handler=handler
+                name,
+                filename=url,
+                image=image,
+                kind=kind or "job",
+                handler=handler,
+                tag=tag,
             )
     else:
         raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")

@@ -44,6 +44,8 @@ class TestMLRunSystem:
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
+    _logger = logger
+
     _test_env = {}
     _old_env = {}
 

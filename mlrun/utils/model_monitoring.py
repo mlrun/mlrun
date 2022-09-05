@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import hashlib
+import urllib
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional
-import urllib
 
 import mlrun
 from mlrun.config import config

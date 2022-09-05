@@ -13,32 +13,15 @@
 # limitations under the License.
 #
 import hashlib
-from urllib import parse
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional
-
-import mlrun
-from mlrun.config import config
-from mlrun.utils import parse_versioned_object_uri
-
-
-import os
-import warnings
-from collections import namedtuple
-from datetime import datetime
-from http import HTTPStatus
 from urllib.parse import urlparse
 
-# import kfp.dsl
-import requests
-import semver
-import urllib3
-import v3io
-
+import mlrun
 import mlrun.errors
-from mlrun.config import config as mlconf
-from mlrun.utils import dict_to_json
+from mlrun.config import config
+from mlrun.utils import parse_versioned_object_uri
 
 
 @dataclass
@@ -135,8 +118,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
              [1] = Path that will be used to retrieve the required information. For model endpoints
                   it is usually pipelines/project-name/model-endpoints/endpoints/.
     """
-    # parsed_url = parse.urlparse(store_prefix).path.strip("/") + store_prefix
-    endpoint, parsed_url = urlparse(store_prefix)
+    parsed_url = urlparse(store_prefix).path.strip("/") + store_prefix
     container, path = parsed_url.split("/", 1)
     return container, path
 

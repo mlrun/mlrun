@@ -429,21 +429,37 @@ def test_log_result_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.handler(outputs=["my_result", "my_dataset", "my_plot"])
+@mlrun.handler(
+    outputs=["my_result", "my_dataset", "my_object", "my_plot", "my_imputer"]
+)
 def log_as_default_artifact_types():
     my_plot, axes = plt.subplots()
     axes.plot([1, 2, 3, 4])
-    return 10, pd.DataFrame(np.ones(10)), my_plot
+    return (
+        10,
+        pd.DataFrame(np.ones(10)),
+        cloudpickle.dumps({"a": 5}),
+        my_plot,
+        SimpleImputer(),
+    )
 
 
 def test_log_as_default_artifact_types_without_mlrun():
     """
     Run the `log_as_default_artifact_types` function without MLRun to see the wrapper is transparent.
     """
-    my_result, my_dataset, my_plot = log_as_default_artifact_types()
+    (
+        my_result,
+        my_dataset,
+        my_object,
+        my_plot,
+        my_imputer,
+    ) = log_as_default_artifact_types()
     assert isinstance(my_result, int)
     assert isinstance(my_dataset, pd.DataFrame)
+    assert isinstance(my_object, bytes)
     assert isinstance(my_plot, plt.Figure)
+    assert isinstance(my_imputer, SimpleImputer)
 
 
 def test_log_as_default_artifact_types_with_mlrun():
@@ -464,10 +480,18 @@ def test_log_as_default_artifact_types_with_mlrun():
     mlrun.utils.logger.info(run_object.outputs)
 
     # Assertion:
-    assert len(run_object.outputs) == 3  # my_result, my_dataset, my_plot
+    assert (
+        len(run_object.outputs) == 5
+    )  # my_result, my_dataset, my_object, my_plot, my_imputer
     assert run_object.outputs["my_result"] == 10
     assert run_object.artifact("my_dataset").as_df().shape == (10, 1)
+    my_object_pickle = run_object.artifact("my_object").local()
+    assert os.path.basename(my_object_pickle) == "my_object.pkl"
+    with open(my_object_pickle, "rb") as pickle_file:
+        my_object = cloudpickle.load(pickle_file)
+    assert my_object == {"a": 5}
     assert os.path.basename(run_object.artifact("my_plot").local()) == "my_plot.html"
+    assert isinstance(run_object.outputs["my_imputer"], str)
 
     # Clean the test outputs:
     artifact_path.cleanup()

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from types import FunctionType
 import functools
 import importlib.util as imputil
 import inspect
@@ -29,6 +28,7 @@ from copy import deepcopy
 from enum import Enum
 from os import environ, makedirs, path
 from pathlib import Path
+from types import FunctionType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import cloudpickle
@@ -1231,6 +1231,7 @@ class ArtifactType(Enum):
     """
     Possible artifact types to log using the MLRun `context` decorator.
     """
+
     # Types:
     DATASET = "dataset"
     DIRECTORY = "directory"
@@ -1447,7 +1448,10 @@ class OutputsLogger:
         :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
         """
         ctx.log_artifact(
-            **logging_kwargs, item=key, body=cloudpickle.dumps(obj), format="pkl"
+            **logging_kwargs,
+            item=key,
+            body=obj if isinstance(obj, (bytes, bytearray)) else cloudpickle.dumps(obj),
+            format="pkl",
         )
 
     @staticmethod
@@ -1554,6 +1558,8 @@ OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP = {
     str: ArtifactType.RESULT,
     int: ArtifactType.RESULT,
     float: ArtifactType.RESULT,
+    bytes: ArtifactType.OBJECT,
+    bytearray: ArtifactType.OBJECT,
 }
 try:
     import matplotlib.pyplot as plt

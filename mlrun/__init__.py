@@ -56,12 +56,12 @@ from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
     ArtifactType,
     code_to_function,
-    handler,
     function_to_module,
     get_dataitem,
     get_object,
     get_or_create_ctx,
     get_pipeline,
+    handler,
     import_function,
     new_function,
     run_local,

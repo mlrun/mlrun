@@ -65,6 +65,8 @@ def init_featureset_graph(
         )
         server.init_object(namespace)
         return graph.wait_for_completion()
+    else:
+        cache.cache_resource(featureset.uri, featureset, True)
 
     server.init_object(namespace)
 

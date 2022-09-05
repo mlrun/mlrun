@@ -25,8 +25,9 @@ from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
-
 def get_engine(first_event):
+    if hasattr(first_event, 'body'):
+        first_event = first_event.body
     if isinstance(first_event, pd.DataFrame):
         return 'pandas'
     return 'storey'
@@ -51,7 +52,7 @@ class MLRunStep(MapClass):
         raise NotImplementedError
 
 
-class FeaturesetValidator(StepToDict, MapClass):
+class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""
 
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
@@ -76,7 +77,7 @@ class FeaturesetValidator(StepToDict, MapClass):
                 feature.validator.set_feature(feature)
                 self._validators[key] = feature.validator
 
-    def do(self, event):
+    def _do_storey(self, event):
         body = event.body
         for name, validator in self._validators.items():
             if name in body:
@@ -89,6 +90,29 @@ class FeaturesetValidator(StepToDict, MapClass):
                     print(
                         f"{validator.severity}! {name} {message},{key_text} args={args}"
                     )
+        return event
+
+    def _do_pandas(self, event):
+        body = event.body
+        for column in body:
+            for name, validator in self._validators.items():
+                if name == column:
+                    violations = 0
+                    all_args = []
+                    for i in range(body[column].shape[0]):
+                        ok, args = validator.check(body.at[i, column])
+                        if not ok:
+                            violations += 1
+                            all_args.append(args)
+                            message = args.pop("message")
+                    if violations != 0:
+                        text = f" column={name},"
+                        text += f" has {violations} violations"
+                        if event.time:
+                            text += f" time={event.time}"
+                        print(
+                            f"{validator.severity}! {name} {message},{text} args={all_args}"
+                        )
         return event
 
 
@@ -271,9 +295,9 @@ class OneHotEncoder(StepToDict, MLRunStep):
                 event[key],
                 categories=list(values)
             )
-            encoded = pd.get_dummies(event[key], prefix=key)
+            encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
             event = pd.concat(
-                [event, encoded], axis=1
+                [event.loc[:, :key], encoded, event.loc[:, key:]], axis=1
             )
         event.drop(columns=[*self.mapping.keys()], inplace=True)
         return event
@@ -457,3 +481,21 @@ class SetEventMetadata(MapClass):
         for func in self._tagging_funcs:
             func(event)
         return event
+
+
+class DropFeatures(StepToDict, MLRunStep):
+    def __init__(self, features: List[str], **kwargs):
+        """Drop all the features from feature list
+
+        :param features:    string list of the features names to drop
+        """
+        super().__init__(**kwargs)
+        self.features = features
+
+    def _do_storey(self, event):
+        for feature in self.features:
+            del event[feature]
+        return event
+
+    def _do_pandas(self, event):
+        return event.drop(columns=self.features)

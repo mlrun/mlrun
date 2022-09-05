@@ -13,9 +13,15 @@
 # limitations under the License.
 #
 import datetime
-
+import unittest.mock
+import mlrun.feature_store as fs
 import mlrun
 from mlrun.feature_store.steps import SetEventMetadata
+import pandas as pd
+import time
+from mlrun.feature_store.steps import OneHotEncoder, MapValues, Imputer, DateExtractor, FeaturesetValidator, \
+    DropFeatures
+from mlrun.features import MinMaxValidator
 
 
 def extract_meta(event):
@@ -56,3 +62,268 @@ def test_set_event_random_id():
     resp = server.test(body={"data": "123"}, event_id="XYZ")
     server.wait_for_completion()
     assert resp["id"] != "XYZ", "id was not overwritten"
+
+
+def test_pandas_step_onehot(rundb_mock):
+    data = get_data()
+    # One Hot Encode the newly defined mappings
+    one_hot_encoder_mapping = {
+        "department": list(data["department"].unique()),
+    }
+    # Define the corresponding FeatureSet
+    data_set_pandas = fs.FeatureSet("fs-new",
+                                    entities=[fs.Entity("id")],
+                                    description="feature set",
+                                    engine='pandas',
+                                    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df_pandas = fs.ingest(data_set_pandas, data, )
+
+    assert isinstance(df_pandas, pd.DataFrame)
+
+    # Define the corresponding FeatureSet
+    data_set = fs.FeatureSet("fs-new",
+                             entities=[fs.Entity("id")],
+                             description="feature set",
+                             )
+    # Pre-processing grpah steps
+    data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+    data_set._run_db = rundb_mock
+
+    data_set.reload = unittest.mock.Mock()
+    data_set.save = unittest.mock.Mock()
+    data_set.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df = fs.ingest(data_set, data, )
+    assert df.equals(df_pandas)
+
+
+def test_pandas_step_imputer(rundb_mock):
+    data = get_data(True)
+    # Define the corresponding FeatureSet
+    data_set_pandas = fs.FeatureSet("fs-new",
+                                    entities=[fs.Entity("id")],
+                                    description="feature set",
+                                    engine='pandas',
+                                    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(Imputer(mapping={'department': 'RD'}))
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df_pandas = fs.ingest(data_set_pandas, data, )
+
+    assert isinstance(df_pandas, pd.DataFrame)
+
+    # Define the corresponding FeatureSet
+    data_set = fs.FeatureSet("fs-new",
+                             entities=[fs.Entity("id")],
+                             description="feature set",
+                             )
+    # Pre-processing grpah steps
+    data_set.graph.to(Imputer(mapping={'department': 'RD'}))
+    data_set._run_db = rundb_mock
+
+    data_set.reload = unittest.mock.Mock()
+    data_set.save = unittest.mock.Mock()
+    data_set.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df = fs.ingest(data_set, data, )
+    assert df.equals(df_pandas)
+
+
+def test_pandas_step_mapval(rundb_mock):
+    data = get_data()
+    # Define the corresponding FeatureSet
+    data_set_pandas = fs.FeatureSet("fs-new",
+                                    entities=[fs.Entity("id")],
+                                    description="feature set",
+                                    engine='pandas',
+                                    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(MapValues(mapping={'age': {'ranges': {'child': [0, 30], 'adult': [30, 'inf']}},
+                                                'department': {'IT': 1, 'Marketing': 2, 'RD': 3}}))
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df_pandas = fs.ingest(data_set_pandas, data, )
+
+    assert isinstance(df_pandas, pd.DataFrame)
+
+    # Define the corresponding FeatureSet
+    data_set = fs.FeatureSet("fs-new",
+                             entities=[fs.Entity("id")],
+                             description="feature set",
+                             )
+    # Pre-processing grpah steps
+    data_set.graph.to(MapValues(mapping={'age': {'ranges': {'child': [0, 30], 'adult': [30, 'inf']}},
+                                         'department': {'IT': 1, 'Marketing': 2, 'RD': 3}}))
+    data_set._run_db = rundb_mock
+
+    data_set.reload = unittest.mock.Mock()
+    data_set.save = unittest.mock.Mock()
+    data_set.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df = fs.ingest(data_set, data, )
+    assert df.equals(df_pandas)
+
+
+def test_pandas_step_data_extractor(rundb_mock):
+    data = get_data()
+    # Define the corresponding FeatureSet
+    data_set_pandas = fs.FeatureSet("fs-new",
+                                    entities=[fs.Entity("id")],
+                                    description="feature set",
+                                    engine='pandas',
+                                    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(DateExtractor(
+        parts=['hour', 'day_of_week'],
+        timestamp_col='timestamp',)
+    )
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df_pandas = fs.ingest(data_set_pandas, data, )
+
+    assert isinstance(df_pandas, pd.DataFrame)
+
+    # Define the corresponding FeatureSet
+    data_set = fs.FeatureSet("fs-new",
+                             entities=[fs.Entity("id")],
+                             description="feature set",
+                             )
+    # Pre-processing grpah steps
+    data_set.graph.to(DateExtractor(
+        parts=['hour', 'day_of_week'],
+        timestamp_col='timestamp',)
+    )
+    data_set._run_db = rundb_mock
+
+    data_set.reload = unittest.mock.Mock()
+    data_set.save = unittest.mock.Mock()
+    data_set.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df = fs.ingest(data_set, data, )
+    assert df.equals(df_pandas)
+
+
+def test_pandas_step_data_validator(rundb_mock):
+    data = get_data()
+    # Define the corresponding FeatureSet
+    data_set_pandas = fs.FeatureSet("fs-new",
+                                    entities=[fs.Entity("id")],
+                                    description="feature set",
+                                    engine='pandas',
+                                    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(FeaturesetValidator())
+    data_set_pandas["age"] = fs.Feature(
+        validator=MinMaxValidator(min=30, severity="info"),
+        value_type=fs.ValueType.INT16,
+    )
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df_pandas = fs.ingest(data_set_pandas, data, )
+
+    assert isinstance(df_pandas, pd.DataFrame)
+
+    # Define the corresponding FeatureSet
+    data_set = fs.FeatureSet("fs-new",
+                             entities=[fs.Entity("id")],
+                             description="feature set",
+                             )
+    # Pre-processing grpah steps
+    data_set.graph.to(FeaturesetValidator())
+    data_set["age"] = fs.Feature(
+        validator=MinMaxValidator(min=30, severity="info"),
+        value_type=fs.ValueType.INT16,
+    )
+    data_set._run_db = rundb_mock
+
+    data_set.reload = unittest.mock.Mock()
+    data_set.save = unittest.mock.Mock()
+    data_set.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df = fs.ingest(data_set, data, )
+    assert df.equals(df_pandas)
+
+def test_pandas_step_drop_feature(rundb_mock):
+    data = get_data()
+    # Define the corresponding FeatureSet
+    data_set_pandas = fs.FeatureSet("fs-new",
+                                    entities=[fs.Entity("id")],
+                                    description="feature set",
+                                    engine='pandas',
+                                    )
+    # Pre-processing grpah steps
+    data_set_pandas.graph.to(DropFeatures(features=['age']))
+    data_set_pandas._run_db = rundb_mock
+
+    data_set_pandas.reload = unittest.mock.Mock()
+    data_set_pandas.save = unittest.mock.Mock()
+    data_set_pandas.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df_pandas = fs.ingest(data_set_pandas, data, )
+
+    assert isinstance(df_pandas, pd.DataFrame)
+
+    # Define the corresponding FeatureSet
+    data_set = fs.FeatureSet("fs-new",
+                             entities=[fs.Entity("id")],
+                             description="feature set",
+                             )
+    # Pre-processing grpah steps
+    data_set.graph.to(DropFeatures(features=['age']))
+    data_set._run_db = rundb_mock
+
+    data_set.reload = unittest.mock.Mock()
+    data_set.save = unittest.mock.Mock()
+    data_set.purge_targets = unittest.mock.Mock()
+
+    # Ingest our transactions dataset through our defined pipeline
+    df = fs.ingest(data_set, data, )
+    assert df.equals(df_pandas)
+
+def get_data(with_none=False):
+    names = ['A', 'B', 'C', 'D', 'E']
+    ages = [33, 4, 76, 90, 24]
+    department = ['IT', 'RD', 'RD', 'Marketing', 'IT']
+    if with_none:
+        department = [None, 'RD', 'RD', 'Marketing', 'IT']
+    timestamp = [time.time(), time.time(), time.time(), time.time(), time.time()]
+    data = pd.DataFrame({'name': names, 'age': ages, 'department': department, 'timestamp': timestamp},
+                        index=[0, 1, 2, 3, 4])
+    data['id'] = data.index
+    return data

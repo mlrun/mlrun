@@ -114,35 +114,14 @@ class ModelEndpoints:
         if model_endpoint.status.feature_stats:
             logger.info("Feature stats found, cleaning feature names")
             if model_endpoint.spec.feature_names:
-                if len(model_endpoint.status.feature_stats) != len(
-                    model_endpoint.spec.feature_names
-                ):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"feature_stats and feature_names have a different number of names, while expected to match"
-                        f"feature_stats({len(model_endpoint.status.feature_stats)}), "
-                        f"feature_names({len(model_endpoint.spec.feature_names)})"
-                    )
-            clean_feature_stats = {}
-            clean_feature_names = []
-            for i, (feature, stats) in enumerate(
-                model_endpoint.status.feature_stats.items()
-            ):
-                if model_endpoint.spec.feature_names:
-                    clean_name = self._clean_feature_name(
-                        model_endpoint.spec.feature_names[i]
-                    )
-                else:
-                    clean_name = self._clean_feature_name(feature)
-                clean_feature_stats[clean_name] = stats
-                # Exclude the label columns from the feature names
-                if (
-                    model_endpoint.spec.label_names
-                    and clean_name in model_endpoint.spec.label_names
-                ):
-                    continue
-                clean_feature_names.append(clean_name)
-            model_endpoint.status.feature_stats = clean_feature_stats
-            model_endpoint.spec.feature_names = clean_feature_names
+                # Validate that the length of feature_stats is equal to the length of feature_names and label_names
+                self._validate_length_features_and_labels(model_endpoint)
+
+                # Clean feature names in both feature_stats and feature_names
+            (
+                model_endpoint.status.feature_stats,
+                model_endpoint.spec.feature_names,
+            ) = self._adjust_feature_names_and_stats(model_endpoint)
 
             logger.info(
                 "Done preparing feature names and stats",
@@ -249,6 +228,60 @@ class ModelEndpoints:
             parquet_target=parquet_path,
         )
         return
+
+    @staticmethod
+    def _validate_length_features_and_labels(model_endpoint):
+        """
+        Validate that the length of feature_stats is equal to the length of feature_names and label_names
+
+        :param model_endpoint:    An object representing the model endpoint.
+        """
+
+        # Getting the length of label names, feature_names and feature_stats
+        len_of_label_names = (
+            0
+            if not model_endpoint.spec.label_names
+            else len(model_endpoint.spec.label_names)
+        )
+        len_of_feature_names = len(model_endpoint.spec.feature_names)
+        len_of_feature_stats = len(model_endpoint.status.feature_stats)
+
+        if len_of_feature_stats != len_of_feature_names + len_of_label_names:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The length of model endpoint feature_stats is not equal to the "
+                f"length of model endpoint feature names and labels "
+                f"feature_stats({len_of_feature_stats}), "
+                f"feature_names({len_of_feature_names}),"
+                f"label_names({len_of_label_names}"
+            )
+
+    def _adjust_feature_names_and_stats(
+        self, model_endpoint
+    ) -> typing.Tuple[typing.Dict, typing.List]:
+        """
+        Create a clean matching version of feature names for both feature_stats and feature_names. Please note that
+        label names exist only in feature_stats and label_names.
+
+        :param model_endpoint:    An object representing the model endpoint.
+        :return: A tuple of:
+             [0] = Dictionary of feature stats with cleaned names
+             [1] = List of cleaned feature names
+        """
+        clean_feature_stats = {}
+        clean_feature_names = []
+        for i, (feature, stats) in enumerate(
+            model_endpoint.status.feature_stats.items()
+        ):
+            clean_name = self._clean_feature_name(feature)
+            clean_feature_stats[clean_name] = stats
+            # Exclude the label columns from the feature names
+            if (
+                model_endpoint.spec.label_names
+                and clean_name in model_endpoint.spec.label_names
+            ):
+                continue
+            clean_feature_names.append(clean_name)
+        return clean_feature_stats, clean_feature_names
 
     def delete_endpoint_record(
         self,

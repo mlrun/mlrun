@@ -111,7 +111,7 @@ def parse_model_endpoint_project_prefix(path: str, project_name: str):
 
 
 def parse_model_endpoint_store_prefix(store_prefix: str):
-    endpoint, parsed_url = mlrun.platforms.iguazio.parse_v3io_path(store_prefix)
+    endpoint, parsed_url = mlrun.platforms.iguazio.parse_path(store_prefix)
     container, path = parsed_url.split("/", 1)
     return endpoint, container, path
 

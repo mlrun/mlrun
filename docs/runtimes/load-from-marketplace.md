@@ -23,7 +23,7 @@ Functions can be easily imported into your project and therefore help you to spe
 ## Searching for functions
 
 The Marketplace is located [here](https://www.mlrun.org/marketplace/). <br>
-You can search, and filter the categories and kinds, to find a function that meets your needs.
+You can search and filter the categories and kinds to find a function that meets your needs.
 
 ![Marketplace](../_static/images/marketplace-ui.png)
 

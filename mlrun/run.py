@@ -1028,7 +1028,6 @@ def wait_for_pipeline_completion(
             status = resp["run"]["status"]
             show_kfp_run(resp, clear_output=True)
             if status not in RunStatuses.stable_statuses():
-
                 # TODO: think of nicer liveness indication and make it re-usable
                 # log '.' each retry as a liveness indication
                 logger.debug(".")
@@ -1649,7 +1648,13 @@ class _ContextHandler:
         self,
         outputs: list,
         logging_instructions: List[
-            Union[Tuple[Union[ArtifactType, str], Union[str, Dict[str, Any]]], None]
+            Union[
+                Tuple[
+                    str, Optional[Union[ArtifactType, str]], Optional[Dict[str, Any]]
+                ],
+                str,
+                None,
+            ]
         ],
     ):
         """
@@ -1659,12 +1664,24 @@ class _ContextHandler:
         :param logging_instructions: List of logging instructions to use - tuples of artifact types and keys or logging
                                      kwargs.
         """
-        for obj, log_tuple in zip(outputs, logging_instructions):
+        for obj, log_opt in zip(outputs, logging_instructions):
             # Check if needed to log (not None):
-            if log_tuple is None:
+            if log_opt is None:
                 continue
             # Log:
-            self._log_output(obj=obj, artifact_type=log_tuple[0], key=log_tuple[1])
+            log_tuple = tuple()
+            if isinstance(log_opt, str):
+                log_tuple = tuple(lo.replace(" ", "") for lo in log_opt.split(":"))
+            elif isinstance(log_opt, tuple):
+                log_tuple = log_opt
+            while len(log_tuple) < 3:
+                log_tuple += (None,)
+            self._log_output(
+                obj=obj,
+                artifact_type=log_tuple[1],
+                key=log_tuple[0],
+                logging_kwargs=log_tuple[2],
+            )
 
     def set_labels(self, labels: Dict[str, str]):
         """
@@ -1690,7 +1707,11 @@ class _ContextHandler:
         )
 
     def _log_output(
-        self, obj, artifact_type: Union[ArtifactType, str], key: Union[str, dict]
+        self,
+        obj,
+        artifact_type: Union[ArtifactType, str],
+        key: str,
+        logging_kwargs: Dict[str, Any],
     ):
         """
         Log the given object to MLRun as the given artifact type with the provided key. The key can be part of a
@@ -1703,20 +1724,18 @@ class _ContextHandler:
         :raises MLRunInvalidArgumentError: If a key was not provided.
         """
         # Get the artifact type:
+        if artifact_type is None:
+            artifact_type = "result"
         artifact_type = ArtifactType(artifact_type)
 
         # Check if the key is in fact logging kwargs:
-        logging_kwargs = {}
-        if isinstance(key, dict):
-            logging_kwargs = key
-            # Get the key value from the kwargs:
-            key = logging_kwargs.pop("key" if "key" in logging_kwargs else "item", None)
-            if key is None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "When passing logging keyword arguments, either 'key' or 'item' (according to the context "
-                    "method) must be added to the dictionary."
-                )
-
+        if key is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "When passing logging keyword arguments, either 'key' or 'item' (according to the context "
+                "method) must be added to the dictionary."
+            )
+        if logging_kwargs is None:
+            logging_kwargs = {}
         # Use the logging map to log the object:
         self.LOGGER_MAP[artifact_type.value](
             ctx=self._context,
@@ -1726,33 +1745,44 @@ class _ContextHandler:
         )
 
 
-def context(
-    set_labels: Dict[str, str] = None,
-    log_outputs: List[
-        Union[Tuple[Union[ArtifactType, str], Union[str, Dict[str, Any]]], None]
+def function(
+    labels: Dict[str, str] = None,
+    outputs: List[
+        Union[
+            Tuple[str, Optional[Union[ArtifactType, str]], Optional[Dict[str, Any]]],
+            str,
+            None,
+        ]
     ] = None,
-    parse_inputs: Union[bool, Dict[str, Type]] = True,
+    inputs: Union[bool, Dict[str, Type]] = True,
 ):
     """
     MLRun's context is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
     outputs logging.
 
-    :param set_labels:   Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
+    :param labels:   Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
                          None.
-    :param log_outputs:  Logging configurations for the function's returned values. Expecting a list of tuples and None
+    :param outputs:  Logging configurations for the function's returned values. Expecting a list of tuples and None
                          values:
 
-                           * tuple - A tuple where the first element [0] is an `ArtifactType` enum or string that
-                             indicates how to log the returned value. The second element [1] can be a string for the key
-                             (name) of the artifact to use for the logged output, or a dictionary with the properties to
-                             pass to the relevant logging method of MLRun's context (one of: `log_artifact`,
-                             `log_dataset` and `log_result` according to the used `ArrtifacctType`).
+                           * str - such as 'key:artifact_type', if get string without ':' it will indicate the name
+                             and the artifact type will be resultArtifact.
+                           * tuple - A tuple where the first element [0] is string for the key
+                             (name) of the artifact to use for the logged outputan. The second
+                             element [1] can be a `ArtifactType` enum or string that
+                             indicates how to log the returned value(None/empty forresult logging).
+                             (one of: `log_artifact`, `log_dataset` and `log_result` according
+                             to the used `ArrtifacctType`).
+                             (The ArrtifacctType are : DATASET = "dataset", DIRECTORY = "directory",
+                             FILE = "file", OBJECT = "object", PLOT = "plot", RESULT = "result")
+                             element [2] can be dictionary with the properties to
+                             pass to the relevant logging function.
                            * None - Do not log the output.
 
                          The list legnth must be equal to the total amount of returned values from the function. Default
                          to None - meaning no outputs will be logged.
 
-    :param parse_inputs: Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun
+    :param inputs: Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun
                          function. Can be passed as a boolean value or a dictionary:
 
                            * True - Parse all found inputs to the assigned type hint in the function's signature. If
@@ -1766,7 +1796,7 @@ def context(
     example::
         import mlrun
 
-        @mlrun.context(log_outputs=["my_array", None, "my_multiplier"])
+        @mlrun.function(outputs=["my_array", None, "my_multiplier"])
         def my_function(array: np.ndarray, m: int):
             array = array * m
             m += 1
@@ -1784,46 +1814,48 @@ def context(
 
     def decorator(func: Callable):
         def wrapper(*args: tuple, **kwargs: dict):
-            nonlocal set_labels
-            nonlocal log_outputs
-            nonlocal parse_inputs
+            nonlocal labels
+            nonlocal outputs
+            nonlocal inputs
 
             # Set `parse_inputs` defaults - inspect the full signature and add the user's input on top of it:
-            if parse_inputs:
+            if inputs:
                 signature = OrderedDict(
                     {
                         parameter.name: str(parameter.annotation)
                         for parameter in inspect.signature(func).parameters.values()
                     }
                 )
-                if isinstance(parse_inputs, dict):
-                    signature.update(**parse_inputs)
-                parse_inputs = signature
+                if isinstance(inputs, dict):
+                    signature.update(**inputs)
+                inputs = signature
 
             # Create a context handler and look for a context:
             context_handler = _ContextHandler()
             context_handler.look_for_context(args=args, kwargs=kwargs)
 
             # If an MLRun context is found, parse arguments pre-run (kwargs are parsed inplace):
-            if context_handler.is_context_available() and parse_inputs:
+            if context_handler.is_context_available() and inputs:
                 args = context_handler.parse_inputs(
-                    args=args, kwargs=kwargs, expected_arguments_types=parse_inputs
+                    args=args, kwargs=kwargs, expected_arguments_types=inputs
                 )
 
             # Call the original function and get the returning values:
-            outputs = func(*args, **kwargs)
+            func_outputs = func(*args, **kwargs)
 
             # If an MLRun context is found, set the given labels and log the returning values to MLRun via the context:
             if context_handler.is_context_available():
-                if set_labels:
-                    context_handler.set_labels(labels=set_labels)
-                if log_outputs:
+                if labels:
+                    context_handler.set_labels(labels=labels)
+                if outputs:
                     context_handler.log_outputs(
-                        outputs=outputs if isinstance(outputs, tuple) else [outputs],
-                        logging_instructions=log_outputs,
+                        outputs=func_outputs
+                        if isinstance(func_outputs, tuple)
+                        else [func_outputs],
+                        logging_instructions=outputs,
                     )
-
-            return outputs
+                return
+            return func_outputs
 
         # Make sure to pass the wrapped function's signature (argument list, type hints and doc strings) to the wrapper:
         wrapper = functools.wraps(func)(wrapper)

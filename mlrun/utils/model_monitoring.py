@@ -30,7 +30,7 @@ from datetime import datetime
 from http import HTTPStatus
 from urllib.parse import urlparse
 
-import kfp.dsl
+# import kfp.dsl
 import requests
 import semver
 import urllib3
@@ -39,6 +39,7 @@ import v3io
 import mlrun.errors
 from mlrun.config import config as mlconf
 from mlrun.utils import dict_to_json
+
 
 @dataclass
 class FunctionURI:

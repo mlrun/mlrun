@@ -16,7 +16,7 @@ import hashlib
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Optional
-from urllib.parse import urlparse
+import urllib
 
 import mlrun
 from mlrun.config import config
@@ -111,13 +111,13 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
     :param store_prefix: full url path that will be parsed.
 
-    :return: A tuple of:
+    :returns: A tuple of:
              [0] = Name of the container that will be used to retrieve the required information.
                   For model endpoints it is usually 'users'.
              [1] = Path that will be used to retrieve the required information. For model endpoints
                   it is usually pipelines/project-name/model-endpoints/endpoints/.
     """
-    parsed_url = urlparse(store_prefix).path.strip("/") + store_prefix
+    parsed_url = urllib.parse.urlparse(store_prefix).path.strip("/") + store_prefix
     container, path = parsed_url.split("/", 1)
     return container, path
 

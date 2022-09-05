@@ -1,3 +1,4 @@
+(install-on-kubernetes)=
 # Install MLRun on a Kubernetes Cluster
 
 **In this section**
@@ -9,19 +10,25 @@
 - [Configuring the remote environment](#configuring-the-remote-environment)
 - [Advanced chart configuration](#advanced-chart-configuration)
 - [Uninstalling the chart](#uninstalling-the-chart)
+- [Upgrading the chart](#upgrading-the-chart)
 
 ## Prerequisites
 
 - Access to a Kubernetes cluster. You must have administrator permissions in order to install MLRun on your cluster. For local installation 
-on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases up to, and including, 1.21.
+on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-desktop) is recommended. MLRun fully supports k8s releases 1.22 and 1.23.
 - The Kubernetes command-line tool (kubectl) compatible with your Kubernetes cluster is installed. Refer to the [kubectl installation 
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
-- Helm CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
+- Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
+- Storage: 7Gi
 
-```{admonition} Note
-These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+``` {admonition} Note
+The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
+
+**Watch the installation:**
+
+<iframe width="187" height="105" src="https://www.youtube.com/embed/Z6mTw7_n8iE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 <a id="docker-desktop-installation"></a>
 ## Installing on Docker Desktop
@@ -54,6 +61,10 @@ To learn about the various UI options and their usage, see:
 
 <a id="installing-the-chart"></a>
 ## Installing the chart
+
+```{admonition} Note
+These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
+```
 
 Create a namespace for the deployed components:
 
@@ -271,4 +282,18 @@ kubectl --namespace mlrun delete pv <pv-name>
 # your release name, e.g.:
 rm -rf /tmp/mlrun-kit-mlrun-kit-mlrun
 ...
+```
+
+## Upgrading the chart
+
+In order to upgrade to the latest version of the chart, first make sure you have the latest helm repo
+
+```bash
+helm repo update
+```
+
+Then upgrade the chart:
+
+```bash
+helm upgrade --install --reuse-values mlrun-kit v3io-stable/mlrun-kit
 ```

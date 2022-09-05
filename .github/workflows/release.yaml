@@ -1,63 +1,104 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 name: Release
 
 on:
-  push:
-    tags:
-      # we don't want to be triggered for RC releases (e.g. v0.6.0-rc9)
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version to release, without prefix v (e.g. 1.1.0)'
+        required: true
+      skip_images:
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
+        required: false
+        default: ''
+      skip_publish_pypi:
+        description: 'Whether to skip publishing the python package to Pypi, (true/false)'
+        required: false
+        default: 'false'
+      skip_create_tag_release:
+        description: 'Whether to skip creating tag & release in Github, (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
-  push-to-release-branch:
-    name: Push source to release branch
+  trigger-and-wait-for-mlrun-image-building:
+    name: Trigger build workflow in mlrun/mlrun and wait to finish
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        # we can't use the default token coming with the action cause GH prevents from create or updating workflows
-        # which might be part of the release contents
-        token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-    - name: Push to release branch
-      run: |
-        export tag=$(echo ${GITHUB_REF#refs/tags/})
-        git config user.name "mlrun-iguazio"
-        git config user.email "mlrun.iguazio@gmail.com"
-        MLRUN_GIT_ORG=${{ github.repository_owner }} MLRUN_VERSION=$tag make release
+      - uses: convictional/trigger-workflow-and-wait@v1.6.3
+        with:
+          owner: mlrun
+          repo: mlrun
+          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          workflow_file_name: build.yaml
+          ref: ${{ github.ref_name }}
+          wait_interval: 60
+          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}", "skip_images": "${{ github.event.inputs.skip_images }}"}'
 
-
-  trigger-build-workflow:
-    # When the build workflow is triggered for a commit to development it builds the images and (docker) tag them with
-    # <latest-released-version>-<commit-hash>.
-    # When the periodic system tests workflow runs, it gets the latest commit from development, and searches for the
-    # relevant tag.
-    # Therefore, when a new version is released, any system test that will run after it, and before a new commit to
-    # development was done, will search for a docker tag that doesn't exist.
-    # In order to solve that we trigger the build workflow on the development branch when we release a new version
-    name: Trigger build workflow on development branch
+  trigger-and-wait-for-ui-image-building:
+    name: Trigger build workflow in mlrun/ui and wait to finish
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
 
     steps:
+      - uses: convictional/trigger-workflow-and-wait@v1.6.3
+        with:
+          owner: mlrun
+          repo: ui
+          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          workflow_file_name: build.yaml
+          ref: ${{ github.ref_name }}
+          wait_interval: 60
+          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}"}'
+
+  publish-to-pypi:
+    name: Publish package to pypi
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_publish_pypi != 'true'
+    # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
+    needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
+    steps:
+      - name: Set up python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.7
       - uses: actions/checkout@v2
-      - name: Install curl and jq
-        run: sudo apt-get install curl jq
-      - name: Run script file
-        timeout-minutes: 240
+      - name: Build & push to pypi
         run: |
-          export tag=$(echo ${GITHUB_REF#refs/tags/})
-          chmod +x ./automation/scripts/pypi_release_waiter.sh
-          ./automation/scripts/pypi_release_waiter.sh $tag
-        shell: bash
-      - uses: benc-uk/workflow-dispatch@v1
+          pip install twine
+          pip install wheel
+          export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
+          export TWINE_PASSWORD=${{ secrets.PYPI_PASSWORD }}
+          MLRUN_VERSION=${{ github.event.inputs.version }} make publish-package
+
+  create-releases:
+    name: Create release & tag v${{ github.event.inputs.version }}
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_create_tag_release != 'true'
+    needs: publish-to-pypi
+    steps:
+      - uses: ncipollo/release-action@v1
         with:
-          workflow: Build
-          # we can't use the default token coming with the action cause GH prevents it from triggering workflows
+          tag: v${{ github.event.inputs.version }}
+          commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          ref: development
-      - uses: benc-uk/workflow-dispatch@v1
+      - uses: ncipollo/release-action@v1
         with:
-          # Trigger in mlrun/ui as well
-          repo: ${{ github.repository_owner }}/ui
-          workflow: Build
-          # we can't use the default token coming with the action cause GH prevents it from triggering workflows
+          repo: ui
+          tag: v${{ github.event.inputs.version }}
+          commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          ref: development

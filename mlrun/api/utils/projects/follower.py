@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import traceback
 import typing
 
@@ -83,6 +97,7 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
+        commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         if self._is_request_from_leader(projects_role):
             mlrun.api.crud.Projects().create_project(db_session, project)
@@ -107,7 +122,8 @@ class Member(
                 # https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html
                 # TODO: there are multiple isolation level we can choose, READ COMMITTED seems to solve our issue
                 #  but will require deeper investigation and more test coverage
-                db_session.commit()
+                if commit_before_get:
+                    db_session.commit()
 
                 created_project = self.get_project(
                     db_session, project.metadata.name, leader_session
@@ -136,6 +152,7 @@ class Member(
                     projects_role,
                     leader_session,
                     wait_for_completion,
+                    commit_before_get=True,
                 )
             else:
                 self._leader_client.update_project(leader_session, name, project)

@@ -1,60 +1,26 @@
-# Deployment and monitoring
+(model-monitoring)=
+# Model monitoring
 
-**In this section**
-- [Real-time pipelines](#real-time-pipelines)
-- [Model serving](#model-serving)
-- [Model monitoring](#model-monitoring)
-- [CI/CD and automation](#ci-cd-and-automation)
+By definition, ML models in production make inferences on constantly changing data. Even models that have been trained on massive data sets, with the most meticulously labelled data, start to degrade over time, due to concept drift. Changes in the live environment due to changing behavioral patterns, seasonal shifts, new regulatory environments, market volatility, etc., can have a big impact on a trained model’s ability to make accurate predictions.
 
-## Real-time pipelines
+Model performance monitoring is a basic operational task that is implemented after an AI model has been deployed. Model monitoring includes:
 
-MLRun graphs enable building and running DAGs (directed acyclic graphs). Graphs are composed of individual steps. The first graph element accepts an Event object, transforms/processes the event and passes the result to the next step in the graph. The final result can be written out to some destination (file, DB, stream, etc.) or returned back to the caller (one of the graph steps can be marked with `.respond()`).
+- Built-in model monitoring:
+   Machine learning model monitoring is natively built in to the Iguazio MLOps Platform, along with a wide range of 
+   model management features and ML monitoring reports. It monitors all of your models in a single, simple, dashboard.
 
-MLRun graph capabilities include:
+- Automated drift detection:
+   Automatically detects concept drift, anomalies, data skew, and model drift in real-time. Even if you are running hundreds of
+   models simultaneously, you can be sure to spot and remediate the one that has drifted.
 
-- Easy to build and deploy distributed real-time computation graphs
-- Use the real-time serverless engine (Nuclio) for auto-scaling and optimized resource utilization
-- Built-in operators to handle data manipulation, IO, machine learning, deep-learning, NLP, etc.
-- Built-in monitoring for performance, resources, errors, data, model behaviour, and custom metrics
-- Debug in the IDE/Notebook
+- Automated retraining:
+   When drift is detected, Iguazio automatically starts the entire training pipeline to retrain the model, including all relevant 
+   steps in the pipeline. The output is a production-ready challenger model, ready to be deployed. This keeps your models up to date, 
+   automatically.
 
-The serving graphs are used by [MLRun’s Feature Store](../feature-store/feature-store.html) to build real-time feature engineering pipelines. 
-
-See full details and examples in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
-
-## Model serving
-
-MLRun Serving allow composition of multi-stage real-time pipelines made of serverless Nuclio functions, including data processing, 
-advanced model serving, custom logic, and fast access to a variety of data systems, and deploying them quickly to production with 
-minimal effort.
-
-High-level transformation logic is automatically converted to real-time serverless processing engines that can accept events or online data, 
-handle any type of structured or unstructured data, and run complex computation graphs and native user code. 
-
-Graphs are used to deploy and serve ML/DL models. Graphs can be deployed into a production serverless pipeline with a single command. 
-
-See full details and examples in [model serving using the graphs](../serving/build-graph-model-serving.html).
-
-
-## Model monitoring
-
-Model performance monitoring is a basic operational task that is implemented after an AI model has been deployed. MLRun:
-- Monitors your models in production, and identifies and mitigates drift on the fly.
-- Detects model drift based on feature drift via the integrated feature store, and auto-triggers retraining.
+- Native feature store integration:
+   Feature vectors and labels are stored and analyzed in the Iguazio feature store and are easily compared to the trained 
+   features and labels running as part of the model development phase, making it easier for data science teams to 
+   collaborate and maintain consistency between AI projects.
 
 See full details and examples in [Model monitoring](../model_monitoring/index.html).
-
-
-## CI/CD and automation
-
-You can run your ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
-with the CI systems. 
-
-- Build/run complex workflows composed of local/library functions or external cloud services (e.g. AutoML)
-- Support various Pipeline/CI engines (Kubeflow, GitHub, Gitlab, Jenkins)
-- Track & version code, data, params, results with minimal effort
-- Elastic scaling of each step
-- Extensive function marketplace 
-
-
-See full details and examples in [Github/Gitlab and CI/CD Integration](../projects/ci-integration.html).

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -6,9 +20,8 @@ from IPython.core.display import HTML, display
 
 import mlrun
 
-from .._common import ModelType
-from .._common.artifacts_library import Plan
-from .utils import DatasetType
+from .._common import Plan
+from .utils import MLTypes
 
 
 class MLPlanStages(Enum):
@@ -16,10 +29,17 @@ class MLPlanStages(Enum):
     Stages for a machine learning plan to be produced.
     """
 
+    # SciKit-Learn's API:
     PRE_FIT = "pre_fit"
     POST_FIT = "post_fit"
     PRE_PREDICT = "pre_predict"
     POST_PREDICT = "post_predict"
+
+    # Boosting API:
+    PRE_TRAIN = "pre_train"
+    POST_TRAIN = "post_train"
+    PRE_ITERATION = "pre_iteration"
+    POST_ITERATION = "post_iteration"
 
 
 class MLPlan(Plan, ABC):
@@ -87,8 +107,11 @@ class MLPlotPlan(MLPlan, ABC):
                 display(HTML(artifact.get_body()))
 
     def _calculate_predictions(
-        self, y_pred: DatasetType = None, model: ModelType = None, x: DatasetType = None
-    ) -> DatasetType:
+        self,
+        y_pred: MLTypes.DatasetType = None,
+        model: MLTypes.ModelType = None,
+        x: MLTypes.DatasetType = None,
+    ) -> MLTypes.DatasetType:
         """
         Calculate the predictions using the model and input dataset only if the predictions (y_pred) were not provided.
 

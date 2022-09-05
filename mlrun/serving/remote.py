@@ -1,12 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import json
 
 import aiohttp
 import requests
 import storey
-from requests.adapters import HTTPAdapter
 from storey.flow import _ConcurrentJobExecution
-from urllib3.util.retry import Retry
 
 import mlrun
 from mlrun.utils import logger
@@ -20,25 +32,6 @@ from .utils import (
 
 default_retries = 6
 default_backoff_factor = 1
-
-
-def test():
-    return
-
-
-def get_http_adapter(retries, backoff_factor):
-    if retries != 0:
-        retry = Retry(
-            total=retries or default_retries,
-            backoff_factor=default_backoff_factor
-            if backoff_factor is None
-            else backoff_factor,
-            status_forcelist=[500, 502, 503, 504],
-            method_whitelist=False,
-        )
-    else:
-        retry = Retry(0, read=False)
-    return HTTPAdapter(max_retries=retry)
 
 
 class RemoteStep(storey.SendToHttp):
@@ -177,10 +170,13 @@ class RemoteStep(storey.SendToHttp):
     def do_event(self, event):
         # sync implementation (without storey)
         if not self._session:
-            self._session = requests.Session()
-            http_adapter = get_http_adapter(self.retries, self.backoff_factor)
-            self._session.mount("http://", http_adapter)
-            self._session.mount("https://", http_adapter)
+            self._session = mlrun.utils.HTTPSessionWithRetry(
+                self.retries,
+                self.backoff_factor or mlrun.mlconf.http_retry_defaults.backoff_factor,
+                retry_on_exception=False,
+                retry_on_status=self.retries > 0,
+                retry_on_post=True,
+            )
 
         body = _extract_input_data(self._input_path, event.body)
         method, url, headers, body = self._generate_request(event, body)

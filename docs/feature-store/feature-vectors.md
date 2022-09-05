@@ -1,7 +1,9 @@
+(create-use-feature-vectors)=
 # Creating and using feature vectors
 
 You can define a group of features from different feature sets as a {py:class}`~mlrun.feature_store.FeatureVector`.  
-Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the datasets created from it or the online manifestation of the vector for real-time prediction needs.
+Feature vectors are used as an input for models, allowing you to define the feature vector once, and in turn create and track the 
+{ref}`datasets <retrieve-offline-data>` created from it or the online manifestation of the vector for real-time prediction needs.
 
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
 It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time related errors.
@@ -10,9 +12,7 @@ It ensures that all the latest relevant data is fetched, without concerns about 
 
 - [Creating a feature vector](#creating-a-feature-vector)
 - [Using a feature vector](#using-a-feature-vector)
-   - [Creating an offline feature vector](#creating-an-offline-feature-vector)
-   - [Creating an online feature vector](#creating-an-online-feature-vector)
-   
+    
 ## Creating a feature vector
 
 The feature vector object holds the following information:
@@ -57,7 +57,7 @@ You can also view some metadata about the feature vector, including all the feat
 
 <img src="../_static/images/feature-store-vector-screen.png" alt="feature-store-vector-screen" width="800"/>
 
-## Using the feature vector
+## Using a feature vector
 
 After a feature vector is saved, it can be used to create both offline (static) datasets and online (real-time) instances to supply as input to a machine learning model.  
 
@@ -81,6 +81,8 @@ Defaults to return as a return value to the caller.
 Optional.
 - **start_time** &mdash;  datetime, low limit of time needed to be filtered. Optional.
 - **end_time** &mdash;  datetime, high limit of time needed to be filtered. Optional.
+
+You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as relevant.
 
 Here's an example of a new dataset from a parquet target:
 

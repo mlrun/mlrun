@@ -195,7 +195,7 @@ def test_main_run_archive_subdir():
 
 def test_main_local_project():
     project_path = str(pathlib.Path(__file__).parent / "assets")
-    args = "-f simple -p x=2 --save-project=False --dump"
+    args = "-f simple -p x=2 --dump"
     out = exec_main("run", args.split(), cwd=project_path)
     assert out.find("state: completed") != -1, out
     assert out.find("y: 4") != -1, out  # y = x * 2

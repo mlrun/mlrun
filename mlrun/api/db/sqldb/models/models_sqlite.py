@@ -250,6 +250,7 @@ with warnings.catch_warnings():
         struct = Column(BLOB)
         labels = relationship(Label, cascade="all, delete-orphan")
         concurrency_limit = Column(Integer, nullable=False)
+        next_run_time = Column(TIMESTAMP)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.name}"

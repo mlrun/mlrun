@@ -1,5 +1,5 @@
-
-# Distributed Functions
+(distributed-functions)=
+# Distributed runtimes
 
 Many of the runtimes support horizontal scaling. You can specify the number of `replicas` or the 
 min&mdash;max value range (for auto scaling in Dask or Nuclio). When scaling functions MLRun uses a high-speed
@@ -10,7 +10,7 @@ handle the orchestration and monitoring of the distributed task.
 
 **In this section**
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 1
 
 ../runtimes/dask-overview
 ../runtimes/horovod

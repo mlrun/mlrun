@@ -1,4 +1,7 @@
-# MLRun Functions Marketplace  <!-- omit in toc -->
+(load-from-marketplace)=
+# Functions Marketplace  <!-- omit in toc -->
+
+This section demonstrates how to import a function from the marketplace into your project, and provides some basic instructions on how to run the function and view the results.
 
 **In this section**
 - [Overview](#overview)
@@ -9,22 +12,20 @@
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
 
-## Overview
-
-This tutorial demonstrates how to import a function from the marketplace into your project, and provides some basic instructions on how to run the function and view their results.
-
 ## Functions Marketplace
 
 MLRun marketplace has a wide range of functions that can be used for a variety of use cases.
 There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
 Each function has a docstring that explains how to use it. In addition, the functions are associated with categories to make it easier for you to find the relevant one.
 
-Functions can be easily imported into your project and therefore help users to speed up their development cycle by reusing built-in code.
+Functions can be easily imported into your project and therefore help you to speed up your development cycle by reusing built-in code.
 
 ## Searching for functions
 
-The Marketplace is stored in this GitHub repo: <https://github.com/mlrun/functions>. <br>
-See the README file for the list of functions in the marketplace and their categories.
+The Marketplace is located [here](https://www.mlrun.org/marketplace/). <br>
+You can search and filter the categories and kinds to find a function that meets your needs.
+
+![Marketplace](../_static/images/marketplace-ui.png)
 
 ## Setting the project configuration
 

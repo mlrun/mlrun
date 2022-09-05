@@ -1,4 +1,5 @@
-# Project workflows and automation
+(projects-workflows)=
+# Workflows
 
 A workflow is a definition of execution of functions. It defines the order of execution of multiple dependent steps in a  directed acyclic graph (DAG). A workflow 
 can reference the project’s params, secrets, artifacts, etc. It can also use a function execution output as a function execution 
@@ -12,7 +13,7 @@ directives like conditions and branches are not supported by the `local` engine.
 Workflows are saved/registered in the project using the {py:meth}`~mlrun.projects.MlrunProject.set_workflow`.  
 Workflows are executed using the {py:meth}`~mlrun.projects.MlrunProject.run` method or using the CLI command `mlrun project`.
 
-Refer to the [**tutorials section**](../howto/index.html) for complete examples.
+Refer to the **{ref}`tutorial`** for complete examples.
 
 **In this section**
 * [Composing workflows](#composing-workflows)
@@ -21,8 +22,8 @@ Refer to the [**tutorials section**](../howto/index.html) for complete examples.
 
 ## Composing workflows
 
-Workflows are written as python functions that make use of function [operations (run, build, deploy)](Run_project_functions)
-operations and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
+Workflows are written as python functions that make use of {ref}` function <using-functions>` operations (run, build, deploy)
+and can access project parameters, secrets, and artifacts using {py:meth}`~mlrun.projects.MlrunProject.get_param`, {py:meth}`~mlrun.projects.MlrunProject.get_secret` and {py:meth}`~mlrun.projects.MlrunProject.get_artifact_uri`.
 
 For workflows to work in Kubeflow you need to add a decorator (`@dsl.pipeline(..)`) as shown below.
 
@@ -55,7 +56,7 @@ def newpipe():
         outputs=[DATASET],
     ).after(builder)
 
-    # train with hyper-paremeters
+    # train with hyper-parameters
     train = mlrun.run_function(
         "train",
         name="train",
@@ -160,3 +161,17 @@ Examples:
     
     # run workflow in local debug mode
     run = project.run(workflow_handler=my_pipe, local=True, arguments={"param1": 6})
+    
+### Notification
+Instead of waiting for completion, you can set up a notification in Slack with a results summary, similar to: <br>
+<img src="../_static/images/slack-results.png" alt="slack notification"/>
+
+Use one of:
+```
+# If you want to get slack notification after the run with the results summary, use
+# project.notifiers.slack(webhook="https://<webhook>")
+```
+or in a Jupyter notebook with the` %env` magic command:
+```
+%env SLACK_WEBHOOK=<slack webhook url>
+```

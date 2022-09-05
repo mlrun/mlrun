@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -314,6 +328,10 @@ def ingest_feature_set(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    """
+    This endpoint is being called only through the UI, this is mainly for enrichment of the feature set
+    that already being happen on client side
+    """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
         project,
@@ -354,6 +372,8 @@ def ingest_feature_set(
             auth_info,
         )
     # Need to override the default rundb since we're in the server.
+    # this is done so further down the flow when running the function created for ingestion we won't access the httpdb
+    # but rather "understand" that we are running on server side and call the DB.
     feature_set._override_run_db(db_session)
 
     if ingest_parameters.targets:
@@ -365,6 +385,8 @@ def ingest_feature_set(
     run_config = RunConfig(
         owner=username,
         credentials=mlrun.model.Credentials(ingest_parameters.credentials.access_key),
+        # setting auth_info to indicate that we are running on server side
+        auth_info=auth_info,
     )
 
     # Try to deduce whether the ingest job will need v3io mount, by analyzing the paths to the source and

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import json
 import os
@@ -158,24 +172,54 @@ class TestAutoMount:
             runtime.apply(mlrun.auto_mount())
 
     @staticmethod
-    def _setup_s3_mount(use_secret):
+    def _setup_s3_mount(use_secret, non_anonymous):
         mlconf.storage.auto_mount_type = "s3"
         if use_secret:
-            return {
+            params = {
                 "secret_name": "s3_secret",
             }
         else:
-            return {
+            params = {
                 "aws_access_key": "some_key",
                 "aws_secret_key": "some_secret_key",
             }
+        if non_anonymous:
+            params["non_anonymous"] = True
+        return params
 
     @pytest.mark.parametrize("use_secret", [True, False])
-    def test_auto_mount_s3(self, use_secret, rundb_mock):
-        s3_params = self._setup_s3_mount(use_secret)
+    @pytest.mark.parametrize("non_anonymous", [True, False])
+    def test_auto_mount_s3(self, use_secret, non_anonymous, rundb_mock):
+        s3_params = self._setup_s3_mount(use_secret, non_anonymous)
         mlconf.storage.auto_mount_params = ",".join(
             [f"{key}={value}" for key, value in s3_params.items()]
         )
         runtime = self._generate_runtime()
         self._execute_run(runtime)
         rundb_mock.assert_s3_mount_configured(s3_params)
+
+    def test_auto_mount_env(self, rundb_mock):
+        expected_env = {
+            "VAR1": "value1",
+            "some_var_2": "some_value2",
+            "one-more": "one more!!!",
+        }
+
+        mlconf.storage.auto_mount_type = "env"
+        # Pass key=value pairs to the function
+        mlconf.storage.auto_mount_params = ",".join(
+            [f"{key}={value}" for key, value in expected_env.items()]
+        )
+        print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_variables(expected_env)
+
+        # Try with a base64 json dictionary
+        pvc_params_str = base64.b64encode(json.dumps(expected_env).encode())
+        mlconf.storage.auto_mount_params = pvc_params_str
+        print(f"Auto mount params: {mlconf.storage.auto_mount_params}")
+        runtime = self._generate_runtime()
+        rundb_mock.reset()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_variables(expected_env)

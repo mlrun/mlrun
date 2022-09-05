@@ -1,6 +1,21 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
-import unittest.mock
+import shutil
+import tempfile
 import zipfile
 
 import deepdiff
@@ -11,6 +26,16 @@ import mlrun
 import mlrun.errors
 import mlrun.projects.project
 import tests.conftest
+
+
+@pytest.fixture()
+def context():
+    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
+    yield context
+
+    # clean up
+    if context.exists():
+        shutil.rmtree(context)
 
 
 def test_sync_functions():
@@ -32,22 +57,6 @@ def test_sync_functions():
     mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
-
-
-def test_load_save_project(monkeypatch):
-    project_name = "project-name"
-    project = mlrun.new_project(project_name, save=False)
-    project.set_function("hub://describe", "describe")
-    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
-
-    project.save = unittest.mock.Mock()
-    monkeypatch.setattr(
-        mlrun.projects.project, "_load_project_file", lambda *args, **kwargs: project
-    )
-
-    loaded_project = mlrun.load_project("./", str(project_file_path), save=True)
-    assert project.save.call_count == 1
-    assert loaded_project == project
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -207,6 +216,170 @@ def test_build_project_from_minimal_dict():
     mlrun.projects.MlrunProject.from_dict(project_dict)
 
 
+@pytest.mark.parametrize(
+    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "override_context,expect_error,error_msg",
+    [
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            3,
+            True,
+            "",
+            True,
+            "Failed to load project from git, context directory is not empty. "
+            "Set clone param to True to remove the contents of the context directory.",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            0,
+            False,
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "body.txt",
+            True,
+            "projects/assets/body.txt' already exists and is not an empty directory",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            False,
+            0,
+            False,
+            "",
+            False,
+            "",
+        ),
+    ],
+)
+def test_load_project(
+    context,
+    url,
+    project_name,
+    project_files,
+    clone,
+    num_of_files_to_create,
+    create_child_dir,
+    override_context,
+    expect_error,
+    error_msg,
+):
+    temp_files = []
+    child_dir = os.path.join(context, "child")
+
+    # use override context to test invalid paths - it will not be deleted on teardown
+    context = override_context or context
+
+    # create random files
+    if num_of_files_to_create:
+        context.mkdir()
+        temp_files = [
+            tempfile.NamedTemporaryFile(dir=context, delete=False).name
+            for _ in range(num_of_files_to_create)
+        ]
+        for temp_file in temp_files:
+            assert os.path.exists(os.path.join(context, temp_file))
+
+    if create_child_dir:
+        os.mkdir(child_dir)
+
+    if expect_error:
+        with pytest.raises(Exception) as exc:
+            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+
+    for temp_file in temp_files:
+
+        # verify that the context directory was cleaned if clone is True
+        assert os.path.exists(os.path.join(context, temp_file)) is not clone
+
+    if create_child_dir:
+        assert os.path.exists(child_dir) is not clone
+
+    assert project.name == project_name
+    assert project.spec.context == context
+    assert project.spec.source == str(url)
+    for project_file in project_files:
+        assert os.path.exists(os.path.join(context, project_file))
+
+
 def _assert_project_function_objects(project, expected_function_objects):
     project_function_objects = project.spec._function_objects
     assert len(project_function_objects) == len(expected_function_objects)
@@ -278,7 +451,7 @@ def test_function_run_cli():
     )
     project.export()
 
-    args = "-f my-func --local --save-project=False --dump -p x=3".split()
+    args = "-f my-func --local --dump -p x=3".split()
     out = tests.conftest.exec_mlrun(args, str(project_dir_path))
     assert out.find("state: completed") != -1, out
     assert out.find("y: 6") != -1, out  # = x * 2

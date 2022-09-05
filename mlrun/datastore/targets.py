@@ -31,7 +31,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
 from ..data_types import ValueType
-from ..platforms.iguazio import parse_v3io_path, split_path
+from ..platforms.iguazio import parse_path, split_path
 from .utils import parse_kafka_url, store_path_to_spark
 
 
@@ -39,6 +39,7 @@ class TargetTypes:
     csv = "csv"
     parquet = "parquet"
     nosql = "nosql"
+    redisnosql = "redisnosql"
     tsdb = "tsdb"
     stream = "stream"
     kafka = "kafka"
@@ -51,6 +52,7 @@ class TargetTypes:
             TargetTypes.csv,
             TargetTypes.parquet,
             TargetTypes.nosql,
+            TargetTypes.redisnosql,
             TargetTypes.tsdb,
             TargetTypes.stream,
             TargetTypes.kafka,
@@ -504,7 +506,9 @@ class BaseStoreTarget(DataTargetBase):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity
                 if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = "hour"
+                    time_partitioning_granularity = (
+                        mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                    )
                 for unit, fmt in [
                     ("year", "%Y"),
                     ("month", "%m"),
@@ -598,6 +602,15 @@ class BaseStoreTarget(DataTargetBase):
         target.updated = now_date().isoformat()
         target.size = size
         target.producer = producer or target.producer
+        # Copy partitioning-related fields to the status, since these are needed if reading the actual data that
+        # is related to the specific target.
+        # TODO - instead of adding more fields to the status targets, we should consider changing any functionality
+        #       that depends on "spec-fields" to use a merge between the status and the spec targets. One such place
+        #       is the fset.to_dataframe() function.
+        target.partitioned = self.partitioned
+        target.key_bucketing_number = self.key_bucketing_number
+        target.partition_cols = self.partition_cols
+        target.time_partitioning_granularity = self.time_partitioning_granularity
 
         self._resource.status.update_target(target)
         return target
@@ -714,18 +727,9 @@ class ParquetTarget(BaseStoreTarget):
             )
             after_step = after_step or after_state
 
+        self.path = path
         if partitioned is None:
-            if all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
-            ):
-                partitioned = False
-            else:
-                partitioned = True
+            partitioned = not self.is_single_file()
 
         super().__init__(
             name,
@@ -744,14 +748,14 @@ class ParquetTarget(BaseStoreTarget):
 
         if (
             time_partitioning_granularity is not None
-            and time_partitioning_granularity not in self._legal_time_units
+            and time_partitioning_granularity
+            not in mlrun.utils.helpers.LEGAL_TIME_UNITS
         ):
             raise errors.MLRunInvalidArgumentError(
-                f"time_partitioning_granularity parameter must be one of {','.join(self._legal_time_units)}, "
+                f"time_partitioning_granularity parameter must be one of "
+                f"{','.join(mlrun.utils.helpers.LEGAL_TIME_UNITS)}, "
                 f"not {time_partitioning_granularity}."
             )
-
-    _legal_time_units = ["year", "month", "day", "hour", "minute", "second"]
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
@@ -811,10 +815,12 @@ class ParquetTarget(BaseStoreTarget):
                 self.partition_cols,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity is not None:
             partition_cols = partition_cols or []
-            for time_unit in self._legal_time_units:
+            for time_unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                 partition_cols.append(f"${time_unit}")
                 if time_unit == time_partitioning_granularity:
                     break
@@ -864,9 +870,11 @@ class ParquetTarget(BaseStoreTarget):
                 and self.partitioned
                 and not self.partition_cols
             ):
-                time_partitioning_granularity = "hour"
+                time_partitioning_granularity = (
+                    mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                )
             if time_partitioning_granularity:
-                for unit in self._legal_time_units:
+                for unit in mlrun.utils.helpers.LEGAL_TIME_UNITS:
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break
@@ -1004,24 +1012,20 @@ class CSVTarget(BaseStoreTarget):
         return True
 
 
-class NoSqlTarget(BaseStoreTarget):
-    kind = TargetTypes.nosql
+class NoSqlBaseTarget(BaseStoreTarget):
     is_table = True
     is_online = True
-    support_spark = True
-    support_storey = True
     support_append = True
+    support_storey = True
+    writer_step_name = "base_name"
+
+    def __new__(cls, *args, **kwargs):
+        if cls is NoSqlBaseTarget:
+            raise TypeError(f"only children of '{cls.__name__}' may be instantiated")
+        return object.__new__(cls)
 
     def get_table_object(self):
-        from storey import Table, V3ioDriver
-
-        # TODO use options/cred
-        endpoint, uri = parse_v3io_path(self.get_target_path())
-        return Table(
-            uri,
-            V3ioDriver(webapi=endpoint),
-            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
-        )
+        raise NotImplementedError()
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -1062,7 +1066,7 @@ class NoSqlTarget(BaseStoreTarget):
             ]
 
         graph.add_step(
-            name=self.name or "NoSqlTarget",
+            name=self.name or self.writer_step_name,
             after=after,
             graph_shape="cylinder",
             class_name="storey.NoSqlTarget",
@@ -1118,7 +1122,7 @@ class NoSqlTarget(BaseStoreTarget):
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
 
-            _, path_with_container = parse_v3io_path(self.get_target_path())
+            _, path_with_container = parse_path(self.get_target_path())
             container, path = split_path(path_with_container)
 
             frames_client = get_frames_client(
@@ -1126,6 +1130,40 @@ class NoSqlTarget(BaseStoreTarget):
             )
 
             frames_client.write("kv", path, df, index_cols=key_column, **kwargs)
+
+
+class NoSqlTarget(NoSqlBaseTarget):
+    kind = TargetTypes.nosql
+    support_spark = True
+    writer_step_name = "NoSqlTarget"
+
+    def get_table_object(self):
+        from storey import Table, V3ioDriver
+
+        # TODO use options/cred
+        endpoint, uri = parse_path(self.get_target_path())
+        return Table(
+            uri,
+            V3ioDriver(webapi=endpoint),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
+
+
+class RedisNoSqlTarget(NoSqlBaseTarget):
+    kind = TargetTypes.redisnosql
+    support_spark = False
+    writer_step_name = "RedisNoSqlTarget"
+
+    def get_table_object(self):
+        from storey import Table
+        from storey.redis_driver import RedisDriver
+
+        endpoint, uri = parse_path(self.get_target_path())
+        return Table(
+            uri,
+            RedisDriver(redis_url=endpoint, key_prefix="/"),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
 
 
 class StreamTarget(BaseStoreTarget):
@@ -1159,7 +1197,7 @@ class StreamTarget(BaseStoreTarget):
         from storey import V3ioDriver
 
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
@@ -1261,7 +1299,7 @@ class TSDBTarget(BaseStoreTarget):
         featureset_status=None,
     ):
         key_columns = list(key_columns.keys())
-        endpoint, uri = parse_v3io_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
         if not timestamp_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "feature set timestamp_key must be specified for TSDBTarget writer"
@@ -1299,7 +1337,7 @@ class TSDBTarget(BaseStoreTarget):
                 key_column = [key_column]
             new_index.extend(key_column)
 
-        _, path_with_container = parse_v3io_path(self.get_target_path())
+        _, path_with_container = parse_path(self.get_target_path())
         container, path = split_path(path_with_container)
 
         frames_client = get_frames_client(
@@ -1433,6 +1471,7 @@ kind_to_driver = {
     TargetTypes.parquet: ParquetTarget,
     TargetTypes.csv: CSVTarget,
     TargetTypes.nosql: NoSqlTarget,
+    TargetTypes.redisnosql: RedisNoSqlTarget,
     TargetTypes.dataframe: DFTarget,
     TargetTypes.stream: StreamTarget,
     TargetTypes.kafka: KafkaTarget,

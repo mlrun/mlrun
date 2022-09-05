@@ -1,3 +1,4 @@
+(use-cases-serving)=
 # Use cases
 
 <!-- ## Data preparation, ## Model serving -->
@@ -23,7 +24,7 @@ and native user code. Iguazio’s solution uses a unique multi-model database, s
 through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
 resulting in better accuracy and simpler integration.
 
-Read more in [Feature Store Overview](../feature-store/feature-store.html), and [Feature set transformations](../feature-store/transformations.html).
+Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.html).
 
 ## Example of a simple model serving router
 

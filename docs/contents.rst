@@ -1,62 +1,85 @@
 .. toctree::
    :maxdepth: 1
    :caption: MLRun basics
-
+   
    index
    mlops-dev-flow
-   tutorial/index
    install
+   tutorial/index
+   
 
 .. toctree::
    :maxdepth: 1
    :caption: Concepts
-
+      
    projects/project
-   concepts/functions-concepts
    concepts/data-feature-store
-   feature-store/feature-store
-   concepts/runs-experiments-workflows
-   store/artifacts
-   concepts/deployment-monitoring
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Working with data
-
-   <!--- feature-store/data-access-versioning --->
-   <!--- feature-store/prepare-analyze-data --->
-   feature-store/feature-store-data-ingestion
-   feature-store/feature-store-data-retrieval
-   feature-store/feature-store-tutorials
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Develop functions and models
-
    runtimes/functions
-   runtimes/run-track-compare-jobs
-   <!-- runtimes/develop-ml-models -->
-   <!-- runtimes/develop-dl-nlp-models -->
-   <!-- runtimes/run-multistage-workflows -->
-   <!-- runtimes/manage-monitor-resources -->
+   runtimes/load-from-marketplace
+   concepts/jobs
+   feature-store/feature-store
+   concepts/model-training
+   serving/serving-graph
+   concepts/model-serving
+   concepts/multi-stage-workflows
+   concepts/deployment-monitoring
+   concepts/ci-cd-automation
+  
+.. toctree::
+   :maxdepth: 1
+   :caption: Data collection and preparation
+   
+   store/datastore
+   data-collect-prep/ingesting_data
+   data-collect-prep/logging_datasets
+   feature-store/feature-store-data-ingestion
+   
+    
+.. toctree::
+   :maxdepth: 1
+   :caption: Training
+   
+   training/create-a-basic-training-job
+   training/working-with-data-and-model-artifacts
+   concepts/auto-logging-mlops
+   training/built-in-training-function
+   feature-store/training-fs   
+   hyper-params
+   projects/ci-integration
+  
+.. toctree::
+   :maxdepth: 1
+   :caption: Model serving
+
+   serving/custom-model-serving-class
+   serving/test-deploy-model-server
+   serving/built-in-model-serving
+   serving/model-serving-get-started
+   feature-store/training-serving
+   serving/canary
+   serving/model-api
 
 .. toctree::
    :maxdepth: 1
-   :caption: Deploy ML applications
-
-   <!-- model_monitoring/model-registry-mgmt -->
-   serving/serving-graph
-   serving/build-graph-model-serving
+   :caption: Continuous Monitoring and Retraining
+   
    model_monitoring/index
-   model_monitoring/ci-cd-rolling-upgrades-git
-
+   projects/workflows
+     
+   
 .. toctree::
    :maxdepth: 1
    :caption: References
 
    genindex
    api/index
-   <!-- web-apps -->
    cli
-   <!-- examples -->
    glossary
+
+
+
+
+
+
+
+

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+from types import FunctionType
 import functools
 import importlib.util as imputil
 import inspect
@@ -1231,7 +1231,7 @@ class ArtifactType(Enum):
     """
     Possible artifact types to log using the MLRun `context` decorator.
     """
-
+    # Types:
     DATASET = "dataset"
     DIRECTORY = "directory"
     FILE = "file"
@@ -1239,10 +1239,365 @@ class ArtifactType(Enum):
     PLOT = "plot"
     RESULT = "result"
 
+    # Constants:
+    DEFAULT = RESULT
 
-class _ContextHandler:
+
+# Instruction types:
+LogInstructionType = Union[
+    Tuple[str, ArtifactType],
+    Tuple[str, str],
+    Tuple[str, ArtifactType, Dict[str, Any]],
+    Tuple[str, str, Dict[str, Any]],
+    str,
+    None,
+]
+ParseInstructionType = Dict[str, Type]
+
+
+class InputsParser:
     """
-    Private class for handling an MLRun context of a function that is wrapped in MLRun's `context` decorator.
+    A static class to hold all the common parsing functions - functions for parsing MLRun DataItem to the user desired
+    type.
+    """
+
+    @staticmethod
+    def parse_pandas_dataframe(data_item: DataItem) -> pd.DataFrame:
+        """
+        Parse an MLRun `DataItem` to a `pandas.DataFrame`.
+
+        :param data_item: The `DataItem` to parse.
+
+        :returns: The `DataItem` as a `pandas.DataFrame`.
+        """
+        return data_item.as_df()
+
+    @staticmethod
+    def parse_numpy_array(data_item: DataItem) -> np.ndarray:
+        """
+        Parse an MLRun `DataItem` to a `numpy.ndarray`.
+
+        :param data_item: The `DataItem` to parse.
+
+        :returns: The `DataItem` as a `numpy.ndarray`.
+        """
+        return data_item.as_df().to_numpy()
+
+    @staticmethod
+    def parse_dict(data_item: DataItem) -> dict:
+        """
+        Parse an MLRun `DataItem` to a `dict`.
+
+        :param data_item: The `DataItem` to parse.
+
+        :returns: The `DataItem` as a `dict`.
+        """
+        return data_item.as_df().to_dict()
+
+    @staticmethod
+    def parse_list(data_item: DataItem) -> list:
+        """
+        Parse an MLRun `DataItem` to a `list`.
+
+        :param data_item: The `DataItem` to parse.
+
+        :returns: The `DataItem` as a `list`.
+        """
+        return data_item.as_df().to_numpy().tolist()
+
+    @staticmethod
+    def parse_object(data_item: DataItem) -> object:
+        """
+        Parse an MLRun `DataItem` to its unpickled object. The pickle file will be downloaded to a local temp
+        directory and then loaded.
+
+        :param data_item: The `DataItem` to parse.
+
+        :returns: The `DataItem` as the original object that was pickled once it was logged.
+        """
+        object_file = data_item.local()
+        with open(object_file, "rb") as pickle_file:
+            obj = cloudpickle.load(pickle_file)
+        return obj
+
+
+class OutputsLogger:
+    """
+    A static class to hold all the common logging functions - functions for logging different objects by artifact type
+    to MLRun.
+    """
+
+    @staticmethod
+    def log_dataset(
+        ctx: MLClientCtx,
+        obj: Union[pd.DataFrame, np.ndarray, pd.Series, dict, list],
+        key: str,
+        logging_kwargs: dict,
+    ):
+        """
+        Log an object as a dataset. The dataset wil lbe cast to a `pandas.DataFrame`. Supporting casting from
+        `pandas.Series`, `numpy.ndarray`, `dict` and `list`.
+
+        :param ctx:            The MLRun context to log with.
+        :param obj:            The data to log.
+        :param key:            The key of the artifact.
+        :param logging_kwargs: Additional keyword arguments to pass to the `context.log_dataset`
+
+        :raise MLRunInvalidArgumentError: If the type is not supported for being cast to `pandas.DataFrame`.
+        """
+        # Check for the object type:
+        if not isinstance(obj, pd.DataFrame):
+            if isinstance(obj, (np.ndarray, pd.Series, dict, list)):
+                obj = pd.DataFrame(obj)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The value requested to be logged as a dataset artifact is of type '{type(obj)}' and it "
+                    f"cannot be logged as a dataset. Please parse it in your code into one `numpy.ndarray`, "
+                    f"`pandas.DataFrame`, `pandas.Series`, `dict`, `list` before returning it so we can log it."
+                )
+
+        # Log the DataFrame object as a dataset:
+        ctx.log_dataset(**logging_kwargs, key=key, df=obj)
+
+    @staticmethod
+    def log_directory(
+        ctx: MLClientCtx,
+        obj: Union[str, Path],
+        key: str,
+        logging_kwargs: dict,
+    ):
+        """
+        Log a directory as a zip file. The zip file will be created at the current working directory. Once logged,
+        it will be deleted.
+
+        :param ctx:            The MLRun context to log with.
+        :param obj:            The directory to zip path.
+        :param key:            The key of the artifact.
+        :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
+
+        :raises MLRunInvalidArgumentError: In case the given path is not of a directory or do not exist.
+        """
+        # In case it is a `pathlib` path, parse to str:
+        obj = str(obj)
+
+        # Verify the path is of an existing directory:
+        if not os.path.isdir(obj):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The given path is not a directory: '{obj}'"
+            )
+        if not os.path.exists(obj):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The given directory path do not exist: '{obj}'"
+            )
+
+        # Zip the directory:
+        directory_zip_path = shutil.make_archive(
+            base_name=key,
+            format="zip",
+            root_dir=os.path.abspath(obj),
+        )
+
+        # Log the zip file:
+        ctx.log_artifact(**logging_kwargs, item=key, local_path=directory_zip_path)
+
+        # Delete the zip file:
+        os.remove(directory_zip_path)
+
+    @staticmethod
+    def log_file(
+        ctx: MLClientCtx,
+        obj: Union[str, Path],
+        key: str,
+        logging_kwargs: dict,
+    ):
+        """
+        Log a file to MLRun.
+
+        :param ctx:            The MLRun context to log with.
+        :param obj:            The path of the file to log.
+        :param key:            The key of the artifact.
+        :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
+
+        :raises MLRunInvalidArgumentError: In case the given path is not of a file or do not exist.
+        """
+        # In case it is a `pathlib` path, parse to str:
+        obj = str(obj)
+
+        # Verify the path is of an existing directory:
+        if not os.path.isfile(obj):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The given path is not a file: '{obj}'"
+            )
+        if not os.path.exists(obj):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The given directory path do not exist: '{obj}'"
+            )
+
+        # Log the zip file:
+        ctx.log_artifact(**logging_kwargs, item=key, local_path=os.path.abspath(obj))
+
+    @staticmethod
+    def log_object(ctx: MLClientCtx, obj, key: str, logging_kwargs: dict):
+        """
+        Log an object as a pickle.
+
+        :param ctx:            The MLRun context to log with.
+        :param obj:            The object to log.
+        :param key:            The key of the artifact.
+        :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
+        """
+        ctx.log_artifact(
+            **logging_kwargs, item=key, body=cloudpickle.dumps(obj), format="pkl"
+        )
+
+    @staticmethod
+    def log_plot(ctx: MLClientCtx, obj, key: str, logging_kwargs: dict):
+        """
+        Log an object as a plot. Currently, supporting plots produced by one the following modules: `matplotlib`,
+        `seaborn`, `plotly` and `bokeh`.
+
+        :param ctx:            The MLRun context to log with.
+        :param obj:            The plot to log.
+        :param key:            The key of the artifact.
+        :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact`.
+
+        :raise MLRunInvalidArgumentError: If the object type is not supported (meaning the plot was not produced by
+                                          one of the supported modules).
+        """
+        # Create the plot artifact according to the module produced the object:
+        artifact = None
+
+        # `matplotlib` and `seaborn`:
+        try:
+            import matplotlib.pyplot as plt
+
+            from mlrun.artifacts import PlotArtifact
+
+            # Get the figure:
+            figure = None
+            if isinstance(obj, plt.Figure):
+                figure = obj
+            elif isinstance(obj, plt.Axes):
+                if hasattr(obj, "get_figure"):
+                    figure = obj.get_figure()
+                elif hasattr(obj, "figure"):
+                    figure = obj.figure
+                elif hasattr(obj, "fig"):
+                    figure = obj.fig
+
+            # Create the artifact:
+            if figure is not None:
+                artifact = PlotArtifact(key=key, body=figure)
+        except ModuleNotFoundError:
+            pass
+
+        # `plotly`:
+        if artifact is None:
+            try:
+                import plotly
+
+                from mlrun.artifacts import PlotlyArtifact
+
+                if isinstance(obj, plotly.graph_objs.Figure):
+                    artifact = PlotlyArtifact(key=key, figure=obj)
+            except ModuleNotFoundError:
+                pass
+
+        # `bokeh`:
+        if artifact is None:
+            try:
+                import bokeh.plotting as bokeh_plt
+
+                from mlrun.artifacts import BokehArtifact
+
+                if isinstance(obj, bokeh_plt.Figure):
+                    artifact = BokehArtifact(key=key, figure=obj)
+            except ModuleNotFoundError:
+                pass
+
+        # Log the artifact:
+        if artifact is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The given plot is of type `{type(obj)}`. We currently support logging plots produced by one of "
+                f"the following modules: `matplotlib`, `seaborn`, `plotly` and `bokeh`. You may try to save the "
+                f"plot to file and log it as a file instead."
+            )
+        ctx.log_artifact(**logging_kwargs, item=artifact)
+
+    @staticmethod
+    def log_result(
+        ctx: MLClientCtx,
+        obj: Union[int, float, str, list, tuple, dict, np.ndarray],
+        key: str,
+        logging_kwargs: dict,
+    ):
+        """
+        Log an object as a result. The objects value will be cast to a serializable version of itself. Supporting:
+        int, float, str, list, tuple, dict, numpy.ndarray
+
+        :param ctx:            The MLRun context to log with.
+        :param obj:            The value to log.
+        :param key:            The key of the artifact.
+        :param logging_kwargs: Additional keyword arguments to pass to the `context.log_result` method.
+        """
+        ctx.log_result(**logging_kwargs, key=key, value=obj)
+
+
+# The map to use to get default artifact types of objects:
+OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP = {
+    pd.DataFrame: ArtifactType.DATASET,
+    pd.Series: ArtifactType.DATASET,
+    np.ndarray: ArtifactType.DATASET,
+    dict: ArtifactType.RESULT,
+    list: ArtifactType.RESULT,
+    tuple: ArtifactType.RESULT,
+    str: ArtifactType.RESULT,
+    int: ArtifactType.RESULT,
+    float: ArtifactType.RESULT,
+}
+try:
+    import matplotlib.pyplot as plt
+
+    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[plt.Figure] = ArtifactType.PLOT
+    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[plt.Axes] = ArtifactType.PLOT
+except ModuleNotFoundError:
+    pass
+try:
+    import plotly
+
+    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[plotly.graph_objs.Figure] = ArtifactType.PLOT
+except ModuleNotFoundError:
+    pass
+try:
+    import bokeh.plotting as bokeh_plt
+
+    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[bokeh_plt.Figure] = ArtifactType.PLOT
+except ModuleNotFoundError:
+    pass
+
+# The map to use for logging an object by its type:
+OUTPUTS_LOGGING_MAP = {
+    ArtifactType.DATASET: OutputsLogger.log_dataset,
+    ArtifactType.DIRECTORY: OutputsLogger.log_directory,
+    ArtifactType.FILE: OutputsLogger.log_file,
+    ArtifactType.OBJECT: OutputsLogger.log_object,
+    ArtifactType.PLOT: OutputsLogger.log_plot,
+    ArtifactType.RESULT: OutputsLogger.log_result,
+}
+
+# The map to use for parsing an object by its type:
+INPUTS_PARSING_MAP = {
+    pd.DataFrame: InputsParser.parse_pandas_dataframe,
+    np.ndarray: InputsParser.parse_numpy_array,
+    dict: InputsParser.parse_dict,
+    list: InputsParser.parse_list,
+    object: InputsParser.parse_object,
+}
+
+
+class ContextHandler:
+    """
+    Private class for handling an MLRun context of a function that is wrapped in MLRun's `handler` decorator.
 
     The context handler have 3 duties:
       1. Check if the user used MLRun to run the wrapped function and if so, get the MLRun context.
@@ -1250,317 +1605,41 @@ class _ContextHandler:
       3. Log the function's outputs to MLRun.
     """
 
-    class _Logger:
+    def __init__(
+        self,
+        artifact_type_class: Type[ArtifactType] = None,
+        objects_types_to_artifact_types_map_updates: Dict[Type, ArtifactType] = None,
+        outputs_logging_map_updates: Dict[ArtifactType, FunctionType] = None,
+        inputs_parsing_map_updates: Dict[Type, FunctionType] = None,
+    ):
         """
-        Inner static class to hold all the logging functions - functions for logging different objects by artifact type
-        to MLRun.
+        Initialize a context handler. Additional updates to the default common maps can be given to support custom types
+        to log and parse.
+
+        :param artifact_type_class:                         An enum inheriting from the `ArtifactType` enum to specify
+                                                            new artifact types to log and parse.
+        :param objects_types_to_artifact_types_map_updates: The map to use to get default artifact types of objects.
+        :param outputs_logging_map_updates:                 The map to use for logging an object by its type.
+        :param inputs_parsing_map_updates:                  The map to use for parsing an object by its type.
         """
+        # Set the supported artifact types:
+        self._artifact_type_class = (
+            ArtifactType if artifact_type_class is None else artifact_type_class
+        )
 
-        @staticmethod
-        def log_dataset(
-            ctx: MLClientCtx,
-            obj: Union[pd.DataFrame, np.ndarray, pd.Series, dict, list],
-            key: str,
-            logging_kwargs: dict,
-        ):
-            """
-            Log an object as a dataset. The dataset wil lbe cast to a `pandas.DataFrame`. Supporting casting from
-            `pandas.Series`, `numpy.ndarray`, `dict` and `list`.
+        # Set the maps:
+        self._objects_types_to_artifacts_type_map = self._get_map(
+            base=OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP,
+            updates=objects_types_to_artifact_types_map_updates,
+        )
+        self._inputs_parsing_map = self._get_map(
+            base=INPUTS_PARSING_MAP, updates=inputs_parsing_map_updates
+        )
+        self._outputs_logging_map = self._get_map(
+            base=OUTPUTS_LOGGING_MAP, updates=outputs_logging_map_updates
+        )
 
-            :param ctx:            The MLRun context to log with.
-            :param obj:            The data to log.
-            :param key:            The key of the artifact.
-            :param logging_kwargs: Additional keyword arguments to pass to the `context.log_dataset`
-
-            :raise MLRunInvalidArgumentError: If the type is not supported for being cast to `pandas.DataFrame`.
-            """
-            # Check for the object type:
-            if not isinstance(obj, pd.DataFrame):
-                if isinstance(obj, (np.ndarray, pd.Series, dict, list)):
-                    obj = pd.DataFrame(obj)
-                else:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"The value requested to be logged as a dataset artifact is of type '{type(obj)}' and it "
-                        f"cannot be logged as a dataset. Please parse it in your code into one `numpy.ndarray`, "
-                        f"`pandas.DataFrame`, `pandas.Series`, `dict`, `list` before returning it so we can log it."
-                    )
-
-            # Log the DataFrame object as a dataset:
-            ctx.log_dataset(**logging_kwargs, key=key, df=obj)
-
-        @staticmethod
-        def log_directory(
-            ctx: MLClientCtx,
-            obj: Union[str, Path],
-            key: str,
-            logging_kwargs: dict,
-        ):
-            """
-            Log a directory as a zip file. The zip file will be created at the current working directory. Once logged,
-            it will be deleted.
-
-            :param ctx:            The MLRun context to log with.
-            :param obj:            The directory to zip path.
-            :param key:            The key of the artifact.
-            :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
-
-            :raises MLRunInvalidArgumentError: In case the given path is not of a directory or do not exist.
-            """
-            # In case it is a `pathlib` path, parse to str:
-            obj = str(obj)
-
-            # Verify the path is of an existing directory:
-            if not os.path.isdir(obj):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The given path is not a directory: '{obj}'"
-                )
-            if not os.path.exists(obj):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The given directory path do not exist: '{obj}'"
-                )
-
-            # Zip the directory:
-            directory_zip_path = shutil.make_archive(
-                base_name=key,
-                format="zip",
-                root_dir=os.path.abspath(obj),
-            )
-
-            # Log the zip file:
-            ctx.log_artifact(**logging_kwargs, item=key, local_path=directory_zip_path)
-
-            # Delete the zip file:
-            os.remove(directory_zip_path)
-
-        @staticmethod
-        def log_file(
-            ctx: MLClientCtx,
-            obj: Union[str, Path],
-            key: str,
-            logging_kwargs: dict,
-        ):
-            """
-            Log a file to MLRun.
-
-            :param ctx:            The MLRun context to log with.
-            :param obj:            The path of the file to log.
-            :param key:            The key of the artifact.
-            :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
-
-            :raises MLRunInvalidArgumentError: In case the given path is not of a file or do not exist.
-            """
-            # In case it is a `pathlib` path, parse to str:
-            obj = str(obj)
-
-            # Verify the path is of an existing directory:
-            if not os.path.isfile(obj):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The given path is not a file: '{obj}'"
-                )
-            if not os.path.exists(obj):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The given directory path do not exist: '{obj}'"
-                )
-
-            # Log the zip file:
-            ctx.log_artifact(
-                **logging_kwargs, item=key, local_path=os.path.abspath(obj)
-            )
-
-        @staticmethod
-        def log_object(ctx: MLClientCtx, obj, key: str, logging_kwargs: dict):
-            """
-            Log an object as a pickle.
-
-            :param ctx:            The MLRun context to log with.
-            :param obj:            The object to log.
-            :param key:            The key of the artifact.
-            :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact` method.
-            """
-            ctx.log_artifact(
-                **logging_kwargs, item=key, body=cloudpickle.dumps(obj), format="pkl"
-            )
-
-        @staticmethod
-        def log_plot(ctx: MLClientCtx, obj, key: str, logging_kwargs: dict):
-            """
-            Log an object as a plot. Currently, supporting plots produced by one the following modules: `matplotlib`,
-            `seaborn`, `plotly` and `bokeh`.
-
-            :param ctx:            The MLRun context to log with.
-            :param obj:            The plot to log.
-            :param key:            The key of the artifact.
-            :param logging_kwargs: Additional keyword arguments to pass to the `context.log_artifact`.
-
-            :raise MLRunInvalidArgumentError: If the object type is not supported (meaning the plot was not produced by
-                                              one of the supported modules).
-            """
-            # Create the plot artifact according to the module produced the object:
-            artifact = None
-
-            # `matplotlib` and `seaborn`:
-            try:
-                import matplotlib.pyplot as plt
-
-                from mlrun.artifacts import PlotArtifact
-
-                # Get the figure:
-                figure = None
-                if isinstance(obj, plt.Figure):
-                    figure = obj
-                elif isinstance(obj, plt.Axes):
-                    if hasattr(obj, "get_figure"):
-                        figure = obj.get_figure()
-                    elif hasattr(obj, "figure"):
-                        figure = obj.figure
-                    elif hasattr(obj, "fig"):
-                        figure = obj.fig
-
-                # Create the artifact:
-                if figure is not None:
-                    artifact = PlotArtifact(key=key, body=figure)
-            except ModuleNotFoundError:
-                pass
-
-            # `plotly`:
-            if artifact is None:
-                try:
-                    import plotly
-
-                    from mlrun.artifacts import PlotlyArtifact
-
-                    if isinstance(obj, plotly.graph_objs.Figure):
-                        artifact = PlotlyArtifact(key=key, figure=obj)
-                except ModuleNotFoundError:
-                    pass
-
-            # `bokeh`:
-            if artifact is None:
-                try:
-                    import bokeh.plotting as bokeh_plt
-
-                    from mlrun.artifacts import BokehArtifact
-
-                    if isinstance(obj, bokeh_plt.Figure):
-                        artifact = BokehArtifact(key=key, figure=obj)
-                except ModuleNotFoundError:
-                    pass
-
-            # Log the artifact:
-            if artifact is None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The given plot is of type `{type(obj)}`. We currently support logging plots produced by one of "
-                    f"the following modules: `matplotlib`, `seaborn`, `plotly` and `bokeh`. You may try to save the "
-                    f"plot to file and log it as a file instead."
-                )
-            ctx.log_artifact(**logging_kwargs, item=artifact)
-
-        @staticmethod
-        def log_result(
-            ctx: MLClientCtx,
-            obj: Union[int, float, str, list, tuple, dict, np.ndarray],
-            key: str,
-            logging_kwargs: dict,
-        ):
-            """
-            Log an object as a result. The objects value will be cast to a serializable version of itself. Supporting:
-            int, float, str, list, tuple, dict, numpy.ndarray
-
-            :param ctx:            The MLRun context to log with.
-            :param obj:            The value to log.
-            :param key:            The key of the artifact.
-            :param logging_kwargs: Additional keyword arguments to pass to the `context.log_result` method.
-            """
-            ctx.log_result(**logging_kwargs, key=key, value=obj)
-
-    # The map to use for logging an object by its type:
-    LOGGER_MAP = {
-        ArtifactType.DATASET.value: _Logger.log_dataset,
-        ArtifactType.DIRECTORY.value: _Logger.log_directory,
-        ArtifactType.FILE.value: _Logger.log_file,
-        ArtifactType.OBJECT.value: _Logger.log_object,
-        ArtifactType.PLOT.value: _Logger.log_plot,
-        ArtifactType.RESULT.value: _Logger.log_result,
-    }
-
-    class _Parser:
-        """
-        Inner static class to hold all the parsing functions - functions for parsing MLRun DataItem to the user desired
-        type.
-        """
-
-        @staticmethod
-        def parse_pandas_dataframe(data_item: DataItem) -> pd.DataFrame:
-            """
-            Parse an MLRun `DataItem` to a `pandas.DataFrame`.
-
-            :param data_item: The `DataItem` to parse.
-
-            :returns: The `DataItem` as a `pandas.DataFrame`.
-            """
-            return data_item.as_df()
-
-        @staticmethod
-        def parse_numpy_array(data_item: DataItem) -> np.ndarray:
-            """
-            Parse an MLRun `DataItem` to a `numpy.ndarray`.
-
-            :param data_item: The `DataItem` to parse.
-
-            :returns: The `DataItem` as a `numpy.ndarray`.
-            """
-            return data_item.as_df().to_numpy()
-
-        @staticmethod
-        def parse_dict(data_item: DataItem) -> dict:
-            """
-            Parse an MLRun `DataItem` to a `dict`.
-
-            :param data_item: The `DataItem` to parse.
-
-            :returns: The `DataItem` as a `dict`.
-            """
-            return data_item.as_df().to_dict()
-
-        @staticmethod
-        def parse_list(data_item: DataItem) -> list:
-            """
-            Parse an MLRun `DataItem` to a `list`.
-
-            :param data_item: The `DataItem` to parse.
-
-            :returns: The `DataItem` as a `list`.
-            """
-            return data_item.as_df().to_numpy().tolist()
-
-        @staticmethod
-        def parse_object(data_item: DataItem) -> object:
-            """
-            Parse an MLRun `DataItem` to its unpickled object. The pickle file will be downloaded to a local temp
-            directory and then loaded.
-
-            :param data_item: The `DataItem` to parse.
-
-            :returns: The `DataItem` as the original object that was pickled once it was logged.
-            """
-            object_file = data_item.local()
-            with open(object_file, "rb") as pickle_file:
-                obj = cloudpickle.load(pickle_file)
-            return obj
-
-    # The map to use for parsing an object by its type:
-    PARSER_MAP = {
-        str(pd.DataFrame): _Parser.parse_pandas_dataframe,
-        str(np.ndarray): _Parser.parse_numpy_array,
-        str(dict): _Parser.parse_dict,
-        str(list): _Parser.parse_list,
-        str(object): _Parser.parse_object,
-    }
-
-    def __init__(self):
-        """
-        Initialize a context handler.
-        """
+        # Set up a variable to hold the context:
         self._context: MLClientCtx = None
 
     def look_for_context(self, args: tuple, kwargs: dict):
@@ -1618,9 +1697,11 @@ class _ContextHandler:
         parsed_args = []
         expected_arguments_keys = list(expected_arguments_types.keys())
         for i, argument in enumerate(args):
-            if isinstance(argument, mlrun.DataItem) and expected_arguments_types[
-                expected_arguments_keys[i]
-            ] != str(inspect._empty):
+            if (
+                isinstance(argument, mlrun.DataItem)
+                and expected_arguments_types[expected_arguments_keys[i]]
+                != inspect._empty
+            ):
                 parsed_args.append(
                     self._parse_input(
                         data_item=argument,
@@ -1635,9 +1716,10 @@ class _ContextHandler:
 
         # Parse the keyword arguments:
         for key in kwargs.keys():
-            if isinstance(kwargs[key], mlrun.DataItem) and expected_arguments_types[
-                key
-            ] != str(inspect._empty):
+            if (
+                isinstance(kwargs[key], mlrun.DataItem)
+                and expected_arguments_types[key] != inspect._empty
+            ):
                 kwargs[key] = self._parse_input(
                     data_item=kwargs[key], expected_type=expected_arguments_types[key]
                 )
@@ -1647,40 +1729,44 @@ class _ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        logging_instructions: List[
-            Union[
-                Tuple[
-                    str, Optional[Union[ArtifactType, str]], Optional[Dict[str, Any]]
-                ],
-                str,
-                None,
-            ]
-        ],
+        logging_instructions: List[LogInstructionType],
     ):
         """
         Log the given outputs as artifacts with the stored context.
 
         :param outputs:              List of outputs to log.
-        :param logging_instructions: List of logging instructions to use - tuples of artifact types and keys or logging
-                                     kwargs.
+        :param logging_instructions: List of logging instructions to use.
         """
-        for obj, log_opt in zip(outputs, logging_instructions):
+        for obj, instructions in zip(outputs, logging_instructions):
             # Check if needed to log (not None):
-            if log_opt is None:
+            if instructions is None:
                 continue
+            # Parse the instructions:
+            artifact_type = self._objects_types_to_artifacts_type_map.get(
+                type(obj), self._artifact_type_class.DEFAULT
+            )
+            key = None
+            logging_kwargs = {}
+            if isinstance(instructions, str):
+                # A string with a template of "{key}" or "{key}: {artifact_type}":
+                if ":" in instructions:
+                    key, artifact_type = instructions.split(":", 1)
+                    # Remove spaces after ':':
+                    artifact_type = artifact_type.lstrip(" ")
+                else:
+                    key = instructions
+            elif isinstance(instructions, tuple):
+                # A tuple of [0] - key, [1] - artifact type, [2] - context log kwargs:
+                key = instructions[0]
+                artifact_type = instructions[1]
+                if len(instructions) > 2:
+                    logging_kwargs = instructions[2]
             # Log:
-            log_tuple = tuple()
-            if isinstance(log_opt, str):
-                log_tuple = tuple(lo.replace(" ", "") for lo in log_opt.split(":"))
-            elif isinstance(log_opt, tuple):
-                log_tuple = log_opt
-            while len(log_tuple) < 3:
-                log_tuple += (None,)
             self._log_output(
                 obj=obj,
-                artifact_type=log_tuple[1],
-                key=log_tuple[0],
-                logging_kwargs=log_tuple[2],
+                artifact_type=artifact_type,
+                key=key,
+                logging_kwargs=logging_kwargs,
             )
 
     def set_labels(self, labels: Dict[str, str]):
@@ -1702,9 +1788,9 @@ class _ContextHandler:
 
         :returns: The parsed data item.
         """
-        return self.PARSER_MAP.get(str(expected_type), self.PARSER_MAP[str(object)])(
-            data_item=data_item
-        )
+        return self._inputs_parsing_map.get(
+            expected_type, self._inputs_parsing_map[object]
+        )(data_item=data_item)
 
     def _log_output(
         self,
@@ -1721,90 +1807,102 @@ class _ContextHandler:
         :param artifact_type: The artifact type to log the object as.
         :param key:           The key (name) of the artifact or a logging kwargs to use when logging the artifact.
 
-        :raises MLRunInvalidArgumentError: If a key was not provided.
+        :raises MLRunInvalidArgumentError: If a key was provided in the logging kwargs.
         """
-        # Get the artifact type:
-        if artifact_type is None:
-            artifact_type = "result"
-        artifact_type = ArtifactType(artifact_type)
+        # Get the artifact type (will also verify the artifact type is valid):
+        artifact_type = self._artifact_type_class(artifact_type)
 
-        # Check if the key is in fact logging kwargs:
-        if key is None:
+        # Check if 'key' or 'item' were given the logging kwargs:
+        if "key" in logging_kwargs or "item" in logging_kwargs:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "When passing logging keyword arguments, either 'key' or 'item' (according to the context "
-                "method) must be added to the dictionary."
+                "When passing logging keyword arguments, both 'key' and 'item' (according to the context method) "
+                "cannot be added to the dictionary as the key is given on its own."
             )
-        if logging_kwargs is None:
-            logging_kwargs = {}
+
         # Use the logging map to log the object:
-        self.LOGGER_MAP[artifact_type.value](
+        self._outputs_logging_map[artifact_type](
             ctx=self._context,
             obj=obj,
             key=key,
             logging_kwargs=logging_kwargs,
         )
 
+    @staticmethod
+    def _get_map(base: dict, updates: dict = None) -> dict:
+        """
+        Get an updated map based on the base map provided.
 
-def function(
+        :param base:    The base map as default.
+        :param updates: The updates to the base map.
+
+        :return: The updated map.
+        """
+        if updates:
+            return {**base, **updates}
+        return base
+
+
+def handler(
     labels: Dict[str, str] = None,
-    outputs: List[
-        Union[
-            Tuple[str, Optional[Union[ArtifactType, str]], Optional[Dict[str, Any]]],
-            str,
-            None,
-        ]
-    ] = None,
-    inputs: Union[bool, Dict[str, Type]] = True,
+    outputs: List[LogInstructionType] = None,
+    inputs: Union[bool, ParseInstructionType] = True,
 ):
     """
-    MLRun's context is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
+    MLRun's handler is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
     outputs logging.
 
-    :param labels:   Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to
-                         None.
-    :param outputs:  Logging configurations for the function's returned values. Expecting a list of tuples and None
-                         values:
+    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to None.
+    :param outputs: Logging configurations for the function's returned values. Expecting a list of tuples and None
+                    values:
 
-                           * str - such as 'key:artifact_type', if get string without ':' it will indicate the name
-                             and the artifact type will be resultArtifact.
-                           * tuple - A tuple where the first element [0] is string for the key
-                             (name) of the artifact to use for the logged outputan. The second
-                             element [1] can be a `ArtifactType` enum or string that
-                             indicates how to log the returned value(None/empty forresult logging).
-                             (one of: `log_artifact`, `log_dataset` and `log_result` according
-                             to the used `ArrtifacctType`).
-                             (The ArrtifacctType are : DATASET = "dataset", DIRECTORY = "directory",
-                             FILE = "file", OBJECT = "object", PLOT = "plot", RESULT = "result")
-                             element [2] can be dictionary with the properties to
-                             pass to the relevant logging function.
-                           * None - Do not log the output.
+                    * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
+                            indicate the key and the artifact type will be defaulted accorrding to the returned value
+                            type.
+                    * tuple - A tuple of:
 
-                         The list legnth must be equal to the total amount of returned values from the function. Default
-                         to None - meaning no outputs will be logged.
+                      * [0]: str - The key (name) of the artifact to use for the logged output.
+                      * [1]: Union[`ArtifactType`, str] = "result" - An `ArtifactType` enum or an equivilient
+                        string, that indicates how to log the returned value. The artifact types can be one of:
 
-    :param inputs: Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun
-                         function. Can be passed as a boolean value or a dictionary:
+                        * DATASET = "dataset"
+                        * DIRECTORY = "directory"
+                        * FILE = "file"
+                        * OBJECT = "object"
+                        * PLOT = "plot"
+                        * RESULT = "result".
 
-                           * True - Parse all found inputs to the assigned type hint in the function's signature. If
-                             there is no type hint assigned, the value will remain an `mlrun.DataItem`.
-                           * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`s.
-                           * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse
-                             the `mlrun.DataItem` to.
+                      * [2]: Optional[Dict[str, Any]] - A keyword arguments dictionary with the properties to pass to
+                        the relevant logging function (one of `context.log_artifact`, `context.log_result`,
+                        `context.log_dataset`).
 
-                         Defaulted to True.
+                    * None - Do not log the output.
+
+                    The list legnth must be equal to the total amount of returned values from the function. Default to
+                    None - meaning no outputs will be logged.
+
+    :param inputs: Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun function.
+                   Can be passed as a boolean value or a dictionary:
+
+                   * True - Parse all found inputs to the assigned type hint in the function's signature. If there is no
+                            type hint assigned, the value will remain an `mlrun.DataItem`.
+                   * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`s.
+                   * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse the
+                                       `mlrun.DataItem` to.
+
+                   Defaulted to True.
 
     example::
         import mlrun
 
-        @mlrun.function(outputs=["my_array", None, "my_multiplier"])
-        def my_function(array: np.ndarray, m: int):
+        @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
+        def my_handler(array: np.ndarray, m: int):
             array = array * m
             m += 1
             return array, "I won't be logged", m
 
         >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
         >>> run_object = mlrun_function.run(
-        ...     handler="my_function",
+        ...     handler="my_handler",
         ...     inputs={"array": "store://my_array_Artifact"},
         ...     params={"m": 2}
         ... )
@@ -1818,20 +1916,21 @@ def function(
             nonlocal outputs
             nonlocal inputs
 
-            # Set `parse_inputs` defaults - inspect the full signature and add the user's input on top of it:
+            # Set default `inputs` - inspect the full signature and add the user's input on top of it::
+            func_signature = inspect.signature(func)
             if inputs:
-                signature = OrderedDict(
+                parameters = OrderedDict(
                     {
-                        parameter.name: str(parameter.annotation)
-                        for parameter in inspect.signature(func).parameters.values()
+                        parameter.name: parameter.annotation
+                        for parameter in func_signature.parameters.values()
                     }
                 )
                 if isinstance(inputs, dict):
-                    signature.update(**inputs)
-                inputs = signature
+                    parameters.update(**inputs)
+                inputs = parameters
 
             # Create a context handler and look for a context:
-            context_handler = _ContextHandler()
+            context_handler = ContextHandler()
             context_handler.look_for_context(args=args, kwargs=kwargs)
 
             # If an MLRun context is found, parse arguments pre-run (kwargs are parsed inplace):
@@ -1854,7 +1953,7 @@ def function(
                         else [func_outputs],
                         logging_instructions=outputs,
                     )
-                return
+                return  # Do not return any values as the function ran via MLRun.
             return func_outputs
 
         # Make sure to pass the wrapped function's signature (argument list, type hints and doc strings) to the wrapper:

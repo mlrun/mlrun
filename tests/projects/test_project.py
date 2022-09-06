@@ -415,27 +415,38 @@ def test_set_func_requirements():
 def test_set_func_with_tag():
     project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
     project.set_function(
-        pathlib.Path(__file__).parent / "assets" / "handler.py",
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc1",
         tag="v1",
         image="mlrun/mlrun",
     )
+
+    project.set_function(
+        "function_test.yaml",
+        "desc6",
+        image="mlrun/mlrun",
+    )
+
     func = project.get_function("desc1")
     assert func.metadata.tag == "v1"
     project.set_function(
-        pathlib.Path(__file__).parent / "assets" / "handler.py",
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc1",
         image="mlrun/mlrun",
     )
     func = project.get_function("desc1")
     assert func.metadata.tag is None
     project.set_function(
-        pathlib.Path(__file__).parent / "assets" / "handler.py",
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc2",
         image="mlrun/mlrun",
     )
     func = project.get_function("desc2")
     assert func.metadata.tag is None
+
+    project.sync_functions(save=True)
+    func = project.get_function("desc6")
+    assert func.metadata.tag == "v2"
 
 
 def test_function_run_cli():

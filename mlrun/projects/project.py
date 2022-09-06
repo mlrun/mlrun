@@ -1558,7 +1558,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
-        :tag:             function version tag (none for 'latest')
+        :tag:             function version tag (none for 'latest', can only be set with .py/.ipynb files)
         :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
@@ -2755,6 +2755,10 @@ def _init_function_from_dict(f, project):
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+        if tag:
+            raise ValueError(
+                "function with db:// or hub:// url or .yaml file, does not support tag value "
+            )
         func = import_function(url)
         if image:
             func.spec.image = image

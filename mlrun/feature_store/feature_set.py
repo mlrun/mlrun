@@ -25,7 +25,6 @@ from ..config import config as mlconf
 from ..datastore import get_store_uri
 from ..datastore.targets import (
     TargetTypes,
-    convert_wasb_schema_to_az,
     get_default_targets,
     get_offline_target,
     get_online_target,
@@ -405,10 +404,6 @@ class FeatureSet(ModelObj):
                 target = DataTargetBase(
                     target, name=str(target), partitioned=(target == "parquet")
                 )
-            if target.path is not None and (
-                target.path.startswith("wasb") or target.path.startswith("wasbs")
-            ):
-                convert_wasb_schema_to_az(target)
             self.spec.targets.update(target)
         if default_final_step:
             self.spec.graph.final_step = default_final_step

@@ -3,22 +3,57 @@
 
 This guide outlines the steps for installing and running MLRun. 
 
-MLRun comprises of two parts: MLRun Server and MLRUN client.
+MLRun comprises two parts: MLRun Server and MLRUN client.
+
+**In this section**
+- [Deployment options](#deployment-options)
+- [Non-root user support](#non-root-support)
+- [Security context](#security-context)
+- [Set up your client](#Set-up-your-client)
+- [MLRun client backward compatibility](#MLRun-client-backward-compatibility)
 
 ## Deployment options
 
-
 There are several deployment options:
 - [Local deployment](https://docs.mlrun.org/en/latest/install/local-docker.html): Deploy a Docker on your laptop or on a single server.
-   This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but
-   simpler for deployment.
-
+   This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources 
+   and scale, but simpler for deployment.
 - [Kubernetes cluster](https://docs.mlrun.org/en/latest/install/kubernetes.html): Deploy an MLRun server on Kubernetes.
-   This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
-  
-- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
+   This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires 
+   you to install Kubernetes on your own.
+- [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore 
+  the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
+  
+## Non-root user support (#non-root-support)
 
+By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
+which is implemented by Igauzio during installation, and applied system-wide:
+- Override: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1.
+- Disabled: Security context is not auto applied (the system aplies the root user). (default)
+
+## Security context (#security-context)
+
+If your system is configured in disabled mode, you can apply the security context to individual runtimes/pods by using `function.with_security_context`, and the job is assigned to the user or to the user's group that ran the job.<br>
+(You cannot override the user of individual jobs if the system is configured in override mode.) The options are:
+
+```
+from kubernetes import client as k8s_client
+
+security_context = k8s_client.V1SecurityContext(
+            run_as_user=1000,
+            run_as_group=3000,
+        )
+function.with_security_context(security_context)
+```
+See the [full definition of the V1SecurityContext object](https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1SecurityContext.md).
+
+Some services do not support security context yet:
+- Infrastructure services
+   - Kubeflow pipelines core services
+- Services created by MLRun
+   - Kaniko, used for building images. (To avoid using Kaniko, use prebuilt images that contain all the requirements.) 
+   - Spark services
 
 ## Set up your client
 

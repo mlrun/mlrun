@@ -421,12 +421,6 @@ def test_set_func_with_tag():
         image="mlrun/mlrun",
     )
 
-    project.set_function(
-        "function_test.yaml",
-        "desc6",
-        image="mlrun/mlrun",
-    )
-
     func = project.get_function("desc1")
     assert func.metadata.tag == "v1"
     project.set_function(
@@ -444,9 +438,7 @@ def test_set_func_with_tag():
     func = project.get_function("desc2")
     assert func.metadata.tag is None
 
-    project.sync_functions(save=True)
-    func = project.get_function("desc6")
-    assert func.metadata.tag == "v2"
+
 
 
 def test_function_run_cli():

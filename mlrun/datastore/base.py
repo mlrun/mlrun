@@ -330,6 +330,10 @@ class DataItem:
         """
         self._store.put(self._path, data, append=append)
 
+    def delete(self):
+        """delete the object from the datastore"""
+        self._store.rm(self._path)
+
     def upload(self, src_path):
         """upload the source file (src_path)
 

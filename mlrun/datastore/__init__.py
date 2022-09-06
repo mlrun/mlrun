@@ -30,7 +30,9 @@ __all__ = [
     "KafkaSource",
 ]
 
-from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_v3io_path
+import mlrun.datastore.wasbfs
+
+from ..platforms.iguazio import KafkaOutputStream, OutputStream, parse_path
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
@@ -87,7 +89,7 @@ def get_stream_pusher(stream_path: str, **kwargs):
     elif "://" not in stream_path:
         return OutputStream(stream_path, **kwargs)
     elif stream_path.startswith("v3io"):
-        endpoint, stream_path = parse_v3io_path(stream_path)
+        endpoint, stream_path = parse_path(stream_path)
         return OutputStream(stream_path, endpoint=endpoint, **kwargs)
     elif stream_path.startswith("dummy://"):
         return _DummyStream(**kwargs)

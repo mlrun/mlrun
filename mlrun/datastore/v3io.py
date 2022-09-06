@@ -21,7 +21,7 @@ import v3io.dataplane
 
 import mlrun
 
-from ..platforms.iguazio import parse_v3io_path, split_path
+from ..platforms.iguazio import parse_path, split_path
 from .base import (
     DataStore,
     FileStats,
@@ -151,7 +151,7 @@ class V3ioStore(DataStore):
         maxdepth = maxdepth if not maxdepth else maxdepth - 1
         to_rm = set()
         for p in path:
-            _, p = parse_v3io_path(p, suffix="")
+            _, p = parse_path(p, suffix="")
             p = "/" + p
             if recursive:
                 find_out = fs.find(p, maxdepth=maxdepth, withdirs=True, detail=True)

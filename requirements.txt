@@ -12,6 +12,11 @@ click~=8.0.0
 # >=3.10.0 although it was installing starlette 0.19.1
 # therefore adding it explictly
 typing-extensions>=3.10.0,<5
+# in some environments for some reason the protobuf installed was 3.20.0 instead of 3.20.1,
+# when installing google-cloud-storage which required >=3.20.1, <5 it was upgrading the protobuf version to the latest
+# version and because kfp 1.8.13 requires protobuf>=3.13, <4 it resulted incompatibility between kfp and protobuf
+# this can be removed once kfp will support protobuf > 4
+protobuf>=3.20.1, <4
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 kfp~=1.8.0
@@ -28,7 +33,7 @@ requests~=2.22
 sqlalchemy~=1.3
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
-v3io~=0.5.13
+v3io~=0.5.17
 pydantic~=1.5
 orjson~=3.3
 # 1.6.0 introduced some bug and we were just about to release a version TODO: find the root cause for the problems
@@ -46,10 +51,10 @@ kubernetes~=12.0
 humanfriendly~=8.2
 fastapi~=0.78.0
 fsspec~=2021.8.1
-v3iofs~=0.1.7
+v3iofs~=0.1.13
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=1.1.7
+storey~=1.1.9
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

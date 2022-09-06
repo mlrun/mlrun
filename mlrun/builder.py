@@ -92,11 +92,6 @@ def make_kaniko_pod(
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
         if attribute == "service_account":
-            # If we're not running inside k8s, skip setting the SA to the kaniko pod.
-            # (This should only happen in unit tests, as in the real world we won't use kaniko without k8s)
-            if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
-                continue
-
             from mlrun.api.api.utils import resolve_project_default_service_account
 
             (

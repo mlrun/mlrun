@@ -24,6 +24,7 @@ import mlrun.api.schemas
 import mlrun.builder
 import mlrun.k8s_utils
 import mlrun.utils.version
+import mlrun.api.utils.singletons.k8s
 from mlrun.config import config
 
 
@@ -767,13 +768,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
     config.httpdb.builder.docker_registry = docker_registry
 
     service_account = "my-service-account"
-    mlrun.api.api.utils.resolve_project_default_service_account = (
-        unittest.mock.MagicMock()
-    )
-    mlrun.api.api.utils.resolve_project_default_service_account.return_value = (
-        [],
-        service_account,
-    )
+    _mock_default_service_account(monkeypatch, service_account)
 
     function = mlrun.new_function(
         "some-function",
@@ -795,14 +790,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     docker_registry = "default.docker.registry/default-repository"
     config.httpdb.builder.docker_registry = docker_registry
 
-    default_service_account = "my-default-service-account"
-    mlrun.api.api.utils.resolve_project_default_service_account = (
-        unittest.mock.MagicMock()
-    )
-    mlrun.api.api.utils.resolve_project_default_service_account.return_value = (
-        [],
-        default_service_account,
-    )
+    _mock_default_service_account(monkeypatch, "my-default-service-account")
 
     function = mlrun.new_function(
         "some-function",
@@ -831,18 +819,39 @@ def _create_pod_mock_pod_spec():
 
 def _patch_k8s_helper(monkeypatch):
     get_k8s_helper_mock = unittest.mock.Mock()
+    get_k8s_helper_mock.create_pod = unittest.mock.Mock(
+        side_effect=lambda pod: (pod, "some-namespace")
+    )
+    get_k8s_helper_mock.get_project_secret_name = unittest.mock.Mock(
+        side_effect=lambda name: "name"
+    )
+    get_k8s_helper_mock.get_project_secret_keys = unittest.mock.Mock(
+        side_effect=lambda project, filter_internal: ["KEY"]
+    )
+    get_k8s_helper_mock.get_project_secret_data = unittest.mock.Mock(
+        side_effect=lambda project, keys: {"KEY": "val"}
+    )
     monkeypatch.setattr(
         mlrun.builder, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
     )
-    mlrun.builder.get_k8s_helper().create_pod = unittest.mock.Mock(
-        side_effect=lambda pod: (pod, "some-namespace")
+    monkeypatch.setattr(
+        mlrun.k8s_utils, "get_k8s_helper", lambda *args, **kwargs: get_k8s_helper_mock
     )
-    mlrun.builder.get_k8s_helper().get_project_secret_name = unittest.mock.Mock(
-        side_effect=lambda name: "name"
+    monkeypatch.setattr(
+        mlrun.api.utils.singletons.k8s,
+        "get_k8s",
+        lambda *args, **kwargs: get_k8s_helper_mock,
     )
-    mlrun.builder.get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(
-        side_effect=lambda project, filter_internal: ["KEY"]
+
+
+def _mock_default_service_account(monkeypatch, service_account):
+    resolve_project_default_service_account_mock = unittest.mock.MagicMock()
+    resolve_project_default_service_account_mock.return_value = (
+        [],
+        service_account,
     )
-    mlrun.builder.get_k8s_helper().get_project_secret_data = unittest.mock.Mock(
-        side_effect=lambda project, keys: {"KEY": "val"}
+    monkeypatch.setattr(
+        mlrun.api.api.utils,
+        "resolve_project_default_service_account",
+        resolve_project_default_service_account_mock,
     )

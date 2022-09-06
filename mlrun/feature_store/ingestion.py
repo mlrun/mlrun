@@ -48,7 +48,7 @@ def init_featureset_graph(
     graph = featureset.spec.graph.copy()
 
     # init targets (and table)
-    targets = targets or [] or featureset.spec.targets #TODO : ask yaron
+    targets = targets or [] or featureset.spec.targets  # TODO : ask yaron
     server = create_graph_server(graph=graph, parameters={}, verbose=verbose)
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
@@ -92,13 +92,12 @@ def init_featureset_graph(
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
+        if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
+            event.body = event.body.set_index(featureset.spec.entities[0].name)
         data = server.run(event, get_body=True)
-        if featureset.spec.entities[0] and isinstance(data, pd.DataFrame):
-            try:
-                data = data.set_index(featureset.spec.entities[0].name, drop=True)
-            except KeyError:
-                data.reset_index(inplace=True, drop=True)
         if data is not None:
+            if featureset.spec.entities[0] in data:
+                data.drop(columns=[featureset.spec.entities[0]], inplace=True)
             for i, target in enumerate(targets):
                 size = target.write_dataframe(
                     data,

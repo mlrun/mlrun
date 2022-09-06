@@ -25,12 +25,13 @@ from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
+
 def get_engine(first_event):
-    if hasattr(first_event, 'body'):
+    if hasattr(first_event, "body"):
         first_event = first_event.body
     if isinstance(first_event, pd.DataFrame):
-        return 'pandas'
-    return 'storey'
+        return "pandas"
+    return "storey"
 
 
 class MLRunStep(MapClass):
@@ -39,7 +40,7 @@ class MLRunStep(MapClass):
 
     def do(self, event):
         engine = get_engine(event)
-        if engine == 'pandas':
+        if engine == "pandas":
             self.do = self._do_pandas
         else:
             self.do = self._do_storey
@@ -120,11 +121,11 @@ class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
-            self,
-            mapping: Dict[str, Dict[str, Any]],
-            with_original_features: bool = False,
-            suffix: str = "mapped",
-            **kwargs,
+        self,
+        mapping: Dict[str, Dict[str, Any]],
+        with_original_features: bool = False,
+        suffix: str = "mapped",
+        **kwargs,
     ):
         """Map column values to new values
 
@@ -188,25 +189,33 @@ class MapValues(StepToDict, MLRunStep):
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     feature_map["ranges"][val] = [min_val, max_val]
 
-                matchdf = pd.DataFrame.from_dict(feature_map['ranges'], 'index').reset_index()
-                matchdf.index = pd.IntervalIndex.from_arrays(left=matchdf[0], right=matchdf[1], closed='both')
-                df[self._feature_name(feature)] = matchdf.loc[event[feature]]['index'].values
+                matchdf = pd.DataFrame.from_dict(
+                    feature_map["ranges"], "index"
+                ).reset_index()
+                matchdf.index = pd.IntervalIndex.from_arrays(
+                    left=matchdf[0], right=matchdf[1], closed="both"
+                )
+                df[self._feature_name(feature)] = matchdf.loc[event[feature]][
+                    "index"
+                ].values
             elif feature_map:
-                df[self._feature_name(feature)] = event[feature].map(lambda x: feature_map[x])
+                df[self._feature_name(feature)] = event[feature].map(
+                    lambda x: feature_map[x]
+                )
 
         if self.with_original_features:
             df = pd.concat([event, df], axis=1)
-
+        df.index = event.index
         return df
 
 
 class Imputer(StepToDict, MLRunStep):
     def __init__(
-            self,
-            method: str = "avg",
-            default_value=None,
-            mapping: Dict[str, Any] = None,
-            **kwargs,
+        self,
+        method: str = "avg",
+        default_value=None,
+        mapping: Dict[str, Any] = None,
+        **kwargs,
     ):
         """Replace None values with default values
 
@@ -291,14 +300,9 @@ class OneHotEncoder(StepToDict, MLRunStep):
     def _do_pandas(self, event):
 
         for key, values in self.mapping.items():
-            event[key] = pd.Categorical(
-                event[key],
-                categories=list(values)
-            )
+            event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
-            event = pd.concat(
-                [event.loc[:, :key], encoded, event.loc[:, key:]], axis=1
-            )
+            event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
         event.drop(columns=[*self.mapping.keys()], inplace=True)
         return event
 
@@ -314,10 +318,10 @@ class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
-            self,
-            parts: Union[Dict[str, str], List[str]],
-            timestamp_col: str = None,
-            **kwargs,
+        self,
+        parts: Union[Dict[str, str], List[str]],
+        timestamp_col: str = None,
+        **kwargs,
     ):
         """Date Extractor extract a date-time component into new columns
 
@@ -406,7 +410,8 @@ class DateExtractor(StepToDict, MLRunStep):
         for part in self.parts:
             # Extract part and add it to event
             event[self._get_key_name(part, self.timestamp_col)] = timestamp.map(
-                lambda x: getattr(pd.Timestamp(x), part))
+                lambda x: getattr(pd.Timestamp(x), part)
+            )
         return event
 
 
@@ -414,12 +419,12 @@ class SetEventMetadata(MapClass):
     """Set the event metadata (id, key, timestamp) from the event body"""
 
     def __init__(
-            self,
-            id_path: str = None,
-            key_path: str = None,
-            time_path: str = None,
-            random_id: bool = None,
-            **kwargs,
+        self,
+        id_path: str = None,
+        key_path: str = None,
+        time_path: str = None,
+        random_id: bool = None,
+        **kwargs,
     ):
         """Set the event metadata (id, key, timestamp) from the event body
 

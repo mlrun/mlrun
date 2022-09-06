@@ -36,6 +36,8 @@ def get_engine(first_event):
 
 class MLRunStep(MapClass):
     def __init__(self, **kwargs):
+        """Abstract class for mlrun step.
+        Can be used in pandas/storey feature set ingestion"""
         super().__init__(**kwargs)
 
     def do(self, event):
@@ -493,6 +495,18 @@ class DropFeatures(StepToDict, MLRunStep):
         """Drop all the features from feature list
 
         :param features:    string list of the features names to drop
+
+        example::
+
+            feature_set = fs.FeatureSet("fs-new",
+                                            entities=[fs.Entity("id")],
+                                            description="feature set",
+                                            engine="pandas",
+                                            )
+            # Pre-processing grpah steps
+            feature_set.graph.to(DropFeatures(features=["age"]))
+            df_pandas = fs.ingest(feature_set, data)
+
         """
         super().__init__(**kwargs)
         self.features = features

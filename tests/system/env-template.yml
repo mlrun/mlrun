@@ -1,0 +1,43 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# The system tests are expecting the env vars to be set in an env.yml file in this same directory
+# this is a template file for the env file
+
+# The mlrun-api URL. e.g. https://mlrun-api.default-tenant.app.hedingber-28-1.iguazio-cd2.com
+MLRUN_DBPATH:
+
+# The webapi https_direct url - e.g. https://default-tenant.app.hedingber-28-1.iguazio-cd2.com:8444
+V3IO_API:
+
+# The framesd url - e.g. https://framesd.default-tenant.app.hedingber-28-1.iguazio-cd2.com
+V3IO_FRAMESD:
+
+# user used to add v3io mounts to pods - e.g. iguazio
+V3IO_USERNAME:
+
+# password used to generate control sessions (needed only in 2.8) - e.g. password
+V3IO_PASSWORD:
+
+# access key used to add v3io mounts to pods - e.g. 4c1c2011-618f-434a-abd6-d456770fd33c
+V3IO_ACCESS_KEY:
+
+# spark service name for spark ingestion
+MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE:
+
+# google big query credentials json for test_google_big_query
+MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:
+
+# kafka brokers string for kafka tests
+MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:

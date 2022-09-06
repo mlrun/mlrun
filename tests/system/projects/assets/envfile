@@ -1,0 +1,6 @@
+ENV_ARG1=123
+
+# comment
+ENV_ARG2=abc
+# verify V3IO vars are not stored
+V3IO_USERNAME=xyz

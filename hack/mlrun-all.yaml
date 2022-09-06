@@ -1,0 +1,159 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# example Kubernetes spec, should add volume for persisting data
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlrun-api
+  labels:
+    app: mlrun-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlrun-api
+  template:
+    metadata:
+      labels:
+        app: mlrun-api
+    spec:
+      containers:
+      - name: mlrun-api
+        image: mlrun/mlrun-api:1.0.6
+        env:
+        - name: MLRUN_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
+          value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"
+        - name: V3IO_ACCESS_KEY
+          value: <access-key>
+        - name: V3IO_USERNAME
+          value: admin
+        ports:
+        - containerPort: 8080
+# UNCOMMENT TO ADD V3IO VOLUME + SET ACCESS KEY
+#        volumeMounts:
+#        - mountPath: /mlrun/db
+#          name: storage
+#      volumes:
+#      - flexVolume:
+#          driver: v3io/fuse
+#          options:
+#            accessKey: <access-key>
+#            container: users
+#            subPath: /admin
+#        name: storage
+      serviceAccountName: mlrun-api
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mlrun-api
+spec:
+  type: NodePort
+  selector:
+    app: mlrun-api
+  ports:
+  - protocol: TCP
+    nodePort: 30080
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlrun-ui
+  labels:
+    app: mlrun-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlrun-ui
+  template:
+    metadata:
+      labels:
+        app: mlrun-ui
+    spec:
+      containers:
+      - name: mlrun-ui
+        image: mlrun/mlrun-ui:1.0.6
+        env:
+        - name: MLRUN_API_PROXY_URL
+          value: http://mlrun-api:8080
+        ports:
+        - containerPort: 80
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mlrun-ui
+spec:
+  type: NodePort
+  selector:
+    app: mlrun-ui
+  ports:
+  - protocol: TCP
+    nodePort: 30088
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mlrun-api
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mlrun-api-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - pods/exec
+  - pods/log
+  - services
+  - secrets
+  verbs:
+  - '*'
+- apiGroups:
+  - kubeflow.org
+  resources:
+  - mpijobs
+  verbs:
+  - '*'
+- apiGroups:
+  - sparkoperator.k8s.io
+  resources:
+  - sparkapplications
+  - scheduledsparkapplications
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mlrun-api-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mlrun-api-role
+subjects:
+- kind: ServiceAccount
+  name: mlrun-api

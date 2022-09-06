@@ -21,10 +21,10 @@ import pytest
 
 import mlrun
 import mlrun.api.schemas
+import mlrun.api.utils.singletons.k8s
 import mlrun.builder
 import mlrun.k8s_utils
 import mlrun.utils.version
-import mlrun.api.utils.singletons.k8s
 from mlrun.config import config
 
 

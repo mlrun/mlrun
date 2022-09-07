@@ -140,6 +140,9 @@ class FunctionSpec(ModelObj):
     def enrich_function_preemption_spec(self):
         pass
 
+    def validate_service_account(self, allowed_service_accounts):
+        pass
+
 
 class BaseRuntime(ModelObj):
     kind = "base"

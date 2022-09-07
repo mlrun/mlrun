@@ -439,8 +439,6 @@ def test_set_func_with_tag():
     assert func.metadata.tag is None
 
 
-
-
 def test_function_run_cli():
     # run function stored in the project spec
     project_dir_path = pathlib.Path(tests.conftest.results) / "project-run-func"

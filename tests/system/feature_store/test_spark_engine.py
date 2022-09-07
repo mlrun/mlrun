@@ -468,7 +468,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        path = "v3io:///bigdata/test_aggregations.parquet"
+        path = "v3io:///bigdata/test_aggregations_emit_every_event.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 

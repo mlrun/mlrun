@@ -33,7 +33,7 @@ requests~=2.22
 sqlalchemy~=1.3
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
-v3io~=0.5.13
+v3io~=0.5.17
 pydantic~=1.5
 orjson~=3.3
 # 1.6.0 introduced some bug and we were just about to release a version TODO: find the root cause for the problems
@@ -51,7 +51,7 @@ kubernetes~=12.0
 humanfriendly~=8.2
 fastapi~=0.78.0
 fsspec~=2021.8.1
-v3iofs~=0.1.7
+v3iofs~=0.1.13
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
 storey~=1.1.9

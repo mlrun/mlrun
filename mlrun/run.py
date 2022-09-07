@@ -732,7 +732,9 @@ def code_to_function(
     :return:
         pre-configured function object from a mlrun runtime class
 
-    example::
+    :example 1:
+
+    ::
 
         import mlrun
 
@@ -743,7 +745,9 @@ def code_to_function(
                                     categories = ["fileutils"],
                                     labels = {"author": "me"})
 
-    example::
+    :example 2:
+
+    ::
 
         import mlrun
         from pathlib import Path
@@ -1854,50 +1858,61 @@ def handler(
     inputs: Union[bool, ParseInstructionType] = True,
 ):
     """
-    MLRun's handler is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
-    outputs logging.
+    MLRun's handler is a decorator to wrap a function and enable setting labels, automatic ``mlrun.DataItem`` parsing
+    and outputs logging.
 
-    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to None.
-    :param outputs: Logging configurations for the function's returned values. Expecting a list of tuples and None
-                    values:
+    Parameters
+    ----------
 
-                    * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
-                            indicate the key and the artifact type will be defaulted accorrding to the returned value
-                            type.
-                    * tuple - A tuple of:
+    labels:
+        Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to ``None``.
 
-                      * [0]: str - The key (name) of the artifact to use for the logged output.
-                      * [1]: Union[`ArtifactType`, str] = "result" - An `ArtifactType` enum or an equivilient
-                        string, that indicates how to log the returned value. The artifact types can be one of:
+    outputs:
+        Logging configurations for the function's returned values. Expecting a list of tuples and None values:
 
-                        * DATASET = "dataset"
-                        * DIRECTORY = "directory"
-                        * FILE = "file"
-                        * OBJECT = "object"
-                        * PLOT = "plot"
-                        * RESULT = "result".
+          * ``str`` - A string in the format of ``"{key}:{artifact_type}"``. If a string was given without ``':'`` it
+            will indicate the key and the artifact type will be defaulted accorrding to the returned value type.
+          * ``tuple`` - A tuple of:
 
-                      * [2]: Optional[Dict[str, Any]] - A keyword arguments dictionary with the properties to pass to
-                        the relevant logging function (one of `context.log_artifact`, `context.log_result`,
-                        `context.log_dataset`).
+            * [0]: ``str`` - The key (name) of the artifact to use for the logged output.
+            * [1]: ``Union[ArtifactType, str] = "result"`` - An ``ArtifactType`` enum or an equivilient string, that
+              indicates how to log the returned value. The artifact types can be one of:
 
-                    * None - Do not log the output.
+              * ``ArtifactType.DATASET`` = ``"dataset"``
+              * ``ArtifactType.DIRECTORY`` = ``"directory"``
+              * ``ArtifactType.FILE`` = ``"file"``
+              * ``ArtifactType.OBJECT`` = ``"object"``
+              * ``ArtifactType.PLOT`` = ``"plot"``
+              * ``ArtifactType.RESULT`` = ``"result"``
 
-                    The list legnth must be equal to the total amount of returned values from the function. Default to
-                    None - meaning no outputs will be logged.
+            * [2]: ``Optional[Dict[str, Any]]`` - A keyword arguments dictionary with the properties to pass to the
+              relevant logging function (one of ``context.log_artifact``, ``context.log_result``,
+              ``context.log_dataset``).
 
-    :param inputs: Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun function.
-                   Can be passed as a boolean value or a dictionary:
+          * ``None`` - Do not log the output.
 
-                   * True - Parse all found inputs to the assigned type hint in the function's signature. If there is no
-                            type hint assigned, the value will remain an `mlrun.DataItem`.
-                   * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`s.
-                   * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse the
-                                       `mlrun.DataItem` to.
+        The list legnth must be equal to the total amount of returned values from the function. Default to None -
+        meaning no outputs will be logged.
 
-                   Defaulted to True.
+    inputs:
+        Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun function. Can be
+        passed as a boolean value or a dictionary:
 
-    example::
+          * ``True`` - Parse all found inputs to the assigned type hint in the function's signature. If there is no
+          * type hint assigned, the value will remain an `mlrun.DataItem`.
+          * ``False`` - Do not parse inputs, leaving the inputs as `mlrun.DataItem`.
+          * ``Dict[str, Type]`` - A dictionary with argument name as key and the expected type to parse the
+            ``mlrun.DataItem`` to.
+
+        Defaulted to ``True``.
+
+    Examples
+    --------
+
+    `my_code.py`:
+
+    ::
+
         import mlrun
 
         @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
@@ -1906,6 +1921,10 @@ def handler(
             m += 1
             return array, "I won't be logged", m
 
+    `concole`:
+
+    ::
+
         >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
         >>> run_object = mlrun_function.run(
         ...     handler="my_handler",
@@ -1913,7 +1932,7 @@ def handler(
         ...     params={"m": 2}
         ... )
         >>> run_object.outputs
-        {'my_multiplier': 3, 'my_array': 'store://...'}
+        {'my_array': 'store://...', 'my_multiplier': 3}
     """
 
     def decorator(func: Callable):

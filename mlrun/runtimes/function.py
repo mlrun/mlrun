@@ -212,7 +212,7 @@ class NuclioSpec(KubeResourceSpec):
         #  we need to do one of the two
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
-        self.base_image_pull = None
+        self.base_image_pull: bool = None
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []

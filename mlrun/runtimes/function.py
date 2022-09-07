@@ -128,6 +128,7 @@ class NuclioSpec(KubeResourceSpec):
         "readiness_timeout",
         "function_handler",
         "nuclio_runtime",
+        "base_image_pull",
     ]
 
     def __init__(
@@ -211,6 +212,7 @@ class NuclioSpec(KubeResourceSpec):
         #  we need to do one of the two
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
+        self.base_image_pull = None
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -1206,7 +1208,8 @@ def compile_function_config(
     # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
     if function.spec.build.secret:
         nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
-
+    if function.spec.base_image_pull:
+        nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:

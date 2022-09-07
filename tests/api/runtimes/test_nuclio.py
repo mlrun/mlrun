@@ -1033,11 +1033,8 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_function_with_build_secret(self):
         fn = self._generate_runtime()
         fn.spec.build.secret = "applied"
-        fn.spec.base_spec["spec"]["imagePullSecrets"] = "not-applied"
-        self.execute_function(fn)
-        deployed_config = self._get_deployed_config()
-        # expects spec.build.secret to overwrite fn.spec.base_spec["spec"]["imagePullSecrets"]
-        # because of nuclio.config.extend_config in compile_function_config
+        _, _, deployed_config = compile_function_config(fn)
+        # expects spec.build.secret to overwrite Nuclio spec["spec"]["imagePullSecrets"]
         assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
 
     def test_nuclio_with_preemption_mode(self):

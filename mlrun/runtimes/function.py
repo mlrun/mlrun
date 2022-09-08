@@ -212,6 +212,8 @@ class NuclioSpec(KubeResourceSpec):
         #  we need to do one of the two
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
+        # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
+        # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull: bool = None
 
     def generate_nuclio_volumes(self):

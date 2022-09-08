@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import dataclasses
 import datetime
@@ -638,32 +652,59 @@ class BatchProcessor:
                 m_fs = fstore.get_feature_set(
                     f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
                 )
-                df = m_fs.to_dataframe(
-                    start_time=datetime.datetime.now() - datetime.timedelta(hours=1),
-                    end_time=datetime.datetime.now(),
-                    time_column="timestamp",
-                )
+                try:
+                    df = m_fs.to_dataframe(
+                        start_time=datetime.datetime.now()
+                        - datetime.timedelta(hours=1),
+                        end_time=datetime.datetime.now(),
+                        time_column="timestamp",
+                    )
 
-                # continue if no input provided in the previous hour
-                if len(df) == 0:
+                    if len(df) == 0:
+                        logger.warn(
+                            "Not enough model events since the beginning of the batch interval",
+                            parquet_target=m_fs.status.targets[0].path,
+                            endpoint=endpoint_id,
+                            min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                            start_time=str(
+                                datetime.datetime.now() - datetime.timedelta(hours=1)
+                            ),
+                            end_time=str(datetime.datetime.now()),
+                        )
+                        continue
+
+                # TODO: The below warn will be removed once the state of the Feature Store target is updated
+                #       as expected. In that case, the existence of the file will be checked before trying to get
+                #       the offline data from the feature set.
+                # Continue if not enough events provided since the deployment of the model endpoint
+                except FileNotFoundError:
+                    logger.warn(
+                        "Parquet not found, probably due to not enough model events",
+                        parquet_target=m_fs.status.targets[0].path,
+                        endpoint=endpoint_id,
+                        min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                    )
                     continue
 
-                # get feature names from monitoring feature set
+                # Get feature names from monitoring feature set
                 feature_names = [
                     feature_name["name"]
                     for feature_name in m_fs.spec.features.to_dict()
                 ]
 
-                # create DataFrame based on the input features
+                # Create DataFrame based on the input features
                 stats_columns = [
                     "timestamp",
                     *feature_names,
-                    "prediction",
                 ]
+
+                # Add label names if provided
+                if endpoint.spec.label_names:
+                    stats_columns.extend(endpoint.spec.label_names)
 
                 named_features_df = df[stats_columns].copy()
 
-                # infer feature set stats and schema
+                # Infer feature set stats and schema
                 fstore.api._infer_from_static_df(
                     named_features_df,
                     m_fs,

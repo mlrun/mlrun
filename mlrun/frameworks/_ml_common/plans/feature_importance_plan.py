@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict
 
 import pandas as pd
@@ -50,19 +64,17 @@ class FeatureImportancePlan(MLPlotPlan):
 
         :return: The produced feature importance artifact in an artifacts dictionary.
         """
-        # Validate the 'feature_importances_' or 'coef_' fields are available for the given model:
-        if not (hasattr(model, "feature_importances_") or hasattr(model, "coef_")):
+        # Get the importance score:
+        if hasattr(model, "feature_importances_"):  # Tree-based feature importance
+            importance_score = model.feature_importances_
+        elif hasattr(model, "feature_importance"):  # Booster feature importance
+            importance_score = model.feature_importance()
+        elif hasattr(model, "coef_"):  # Coefficient-based importance
+            importance_score = model.coef_[0]
+        else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "This model cannot be used for Feature Importance plotting."
             )
-
-        # Get the importance score:
-        if hasattr(model, "feature_importances_"):
-            # Tree-based feature importance
-            importance_score = model.feature_importances_
-        else:
-            # Coefficient-based importance
-            importance_score = model.coef_[0]
 
         # Create a table of features and their importance:
         df = pd.DataFrame(

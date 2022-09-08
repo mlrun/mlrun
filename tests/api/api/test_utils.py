@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import json
 import unittest.mock
@@ -1037,7 +1051,7 @@ def test_ensure_function_security_context_unknown_enrichment_mode(
     )
 
 
-def test_ensure_function_security_context_missing_control_plane_session(
+def test_ensure_function_security_context_missing_control_plane_session_tag(
     db: Session, client: TestClient
 ):
     tests.api.api.utils.create_project(client, PROJECT)
@@ -1052,11 +1066,30 @@ def test_ensure_function_security_context_missing_control_plane_session(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    logger.info("Session missing control plane, should fail")
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        side_effect=mlrun.errors.MLRunHTTPError()
+    )
+    logger.info(
+        "Session missing control plane, and it is actually only a data plane session, expected to fail"
+    )
     function = mlrun.new_function(runtime=original_function_dict)
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)
-    assert "Missing control plane session" in str(exc.value)
+    assert "Were unable to enrich user unix id" in str(exc.value)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+
+    user_unix_id = 1000
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+        return_value=user_unix_id
+    )
+    auth_info = mlrun.api.schemas.AuthInfo(planes=[])
+    logger.info(
+        "Session missing control plane, but actually just because it wasn't enriched, expected to succeed"
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    ensure_function_security_context(function, auth_info)
+    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert auth_info.planes == [mlrun.api.utils.clients.iguazio.SessionPlanes.control]
 
 
 def test_ensure_function_security_context_get_user_unix_id(
@@ -1177,15 +1210,38 @@ def test_get_obj_path(db: Session, client: TestClient):
             "data_volume": "/home/jovyan/data",
             "expect_error": True,
         },
+        {
+            "path": "gcs://bucket/and/path",
+            "allowed_paths": "http://, gcs:// ",
+            "expected_path": "gcs://bucket/and/path",
+        },
+        {
+            "path": "bucket/and/path",
+            "schema": "gs",
+            "allowed_paths": " gs://, gcs:// ",
+            "expected_path": "gs://bucket/and/path",
+        },
+        {
+            "path": "gcs://bucket/and/path",
+            "expect_error": True,
+        },
+        {
+            "path": "/local/file/security/breach",
+            "allowed_paths": "/local",
+            "expect_error": True,
+        },
     ]
     for case in cases:
         logger.info("Testing case", case=case)
         old_real_path = mlrun.mlconf.httpdb.real_path
         old_data_volume = mlrun.mlconf.httpdb.data_volume
+        old_allowed_file_paths = mlrun.mlconf.httpdb.allowed_file_paths
         if case.get("real_path"):
             mlrun.mlconf.httpdb.real_path = case["real_path"]
         if case.get("data_volume"):
             mlrun.mlconf.httpdb.data_volume = case["data_volume"]
+        if case.get("allowed_paths"):
+            mlrun.mlconf.httpdb.allowed_file_paths = case["allowed_paths"]
         if case.get("expect_error"):
             with pytest.raises(
                 mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
@@ -1202,6 +1258,8 @@ def test_get_obj_path(db: Session, client: TestClient):
                 mlrun.mlconf.httpdb.real_path = old_real_path
             if case.get("data_volume"):
                 mlrun.mlconf.httpdb.data_volume = old_data_volume
+            if case.get("allowed_paths"):
+                mlrun.mlconf.httpdb.allowed_file_paths = old_allowed_file_paths
 
 
 def _mock_import_function(monkeypatch):

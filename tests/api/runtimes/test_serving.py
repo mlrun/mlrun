@@ -1,6 +1,21 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
 import unittest
+import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
@@ -9,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import tests.api.api.utils
 from mlrun import mlconf, new_function
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -230,6 +246,7 @@ class TestServingRuntime(TestNuclioRuntime):
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
         orig_function = get_k8s()._get_project_secrets_raw_data
         get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
 
         function = self._create_serving_function()
         tests.api.api.utils.create_project(client, self.project)

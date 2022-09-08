@@ -97,6 +97,7 @@ def new_project(
     description: str = None,
     subpath: str = None,
     save: bool = True,
+    overwrite: bool = False,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -133,6 +134,8 @@ def new_project(
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
     :param save:         whether to save the created project in the DB
+    :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
+                         if project with name exists
 
     :returns: project object
     """
@@ -169,7 +172,26 @@ def new_project(
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
     if save and mlrun.mlconf.dbpath:
-        project.save()
+        if overwrite:
+            logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+            _delete_project_from_db(
+                name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
+            )
+
+        try:
+            project.save(store=False)
+        except mlrun.errors.MLRunConflictError as exc:
+            raise mlrun.errors.MLRunConflictError(
+                f"Project with name {name} already exists. "
+                "Use overwrite=True to overwrite the existing project."
+            ) from exc
+        logger.info(
+            f"Created and saved project {name}",
+            from_template=from_template,
+            overwrite=overwrite,
+            context=context,
+            save=save,
+        )
     return project
 
 
@@ -188,8 +210,10 @@ def load_project(
 
     example::
 
-        # load the project and run the 'main' workflow
-        project = load_project("./", "git://github.com/mlrun/project-demo.git")
+        # Load the project and run the 'main' workflow.
+        # When using git as the url source the context directory must be an empty or
+        # non-existent folder as the git repo will be cloned there
+        project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
     :param context:      project local directory path
@@ -197,6 +221,8 @@ def load_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
                          <project-name>
+                         The git project should include the project yaml file.
+                         If the project yaml file is in a sub-directory, must specify the sub-directory.
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
@@ -223,9 +249,9 @@ def load_project(
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
+            clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
-            clone_zip(url, context, secrets)
+            clone_zip(url, context, secrets, clone)
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
@@ -306,7 +332,8 @@ def get_or_create_project(
             subpath=subpath,
             clone=clone,
             user_project=user_project,
-            save=save,
+            # only loading project from db so no need to save it
+            save=False,
         )
         logger.info(f"loaded project {name} from MLRun DB")
         return project
@@ -398,6 +425,11 @@ def _load_project_from_db(url, secrets, user_project=False):
         url.replace("db://", ""), user_project
     )
     return db.get_project(project_name)
+
+
+def _delete_project_from_db(project_name, secrets, deletion_strategy):
+    db = mlrun.db.get_run_db(secrets=secrets)
+    return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
 def _load_project_file(url, name="", secrets=None):
@@ -2002,6 +2034,26 @@ class MlrunProject(ModelObj):
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
 
+    def get_run_status(
+        self,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: RunNotifications = None,
+    ):
+        warnings.warn(
+            "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "
+            "Use `timeout` parameter in `project.run()` method instead",
+            PendingDeprecationWarning,
+        )
+        return run._engine.get_run_status(
+            project=self,
+            run=run,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            notifiers=notifiers,
+        )
+
     def clear_context(self):
         """delete all files and clear the context dir"""
         if (
@@ -2011,14 +2063,25 @@ class MlrunProject(ModelObj):
         ):
             shutil.rmtree(self.spec.context)
 
-    def save(self, filepath=None):
+    def save(self, filepath=None, store=True):
+        """export project to yaml file and save project in database
+
+        :store: if True, allow updating in case project already exists
+        """
         self.export(filepath)
-        self.save_to_db()
+        self.save_to_db(store)
         return self
 
-    def save_to_db(self):
+    def save_to_db(self, store=True):
+        """save project to database
+
+        :store: if True, allow updating in case project already exists
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.store_project(self.metadata.name, self.to_dict())
+        if store:
+            return db.store_project(self.metadata.name, self.to_dict())
+
+        return db.create_project(self.to_dict())
 
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)

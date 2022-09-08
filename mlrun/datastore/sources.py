@@ -28,7 +28,7 @@ from mlrun.secrets import SecretsStore
 
 from ..config import config
 from ..model import DataSource
-from ..platforms.iguazio import parse_v3io_path
+from ..platforms.iguazio import parse_path
 from ..utils import get_class
 from .utils import store_path_to_spark
 
@@ -742,7 +742,7 @@ class StreamSource(OnlineSource):
         super().__init__(name, attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):
-        endpoint, stream_path = parse_v3io_path(self.path)
+        endpoint, stream_path = parse_path(self.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         container, stream_path = split_path(stream_path)
         res = v3io_client.create_stream(

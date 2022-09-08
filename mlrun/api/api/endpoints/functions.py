@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64  # noqa: F401
 import os
 import traceback
@@ -506,9 +520,11 @@ def _build_function(
         fn.set_db_connection(run_db)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-            mlrun.api.api.utils.ensure_function_has_auth_set(fn, auth_info)
-            mlrun.api.api.utils.process_function_service_account(fn)
-            mlrun.api.api.utils.mask_sensitive_data(fn, auth_info)
+
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                fn,
+                auth_info,
+            )
 
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
@@ -609,9 +625,11 @@ def _start_function(
         try:
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
-            mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
-            mlrun.api.api.utils.process_function_service_account(function)
-            mlrun.api.api.utils.mask_sensitive_data(function, auth_info)
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                function,
+                auth_info,
+            )
+
             #  resp = resource["start"](fn)  # TODO: handle resp?
             resource["start"](function, client_version=client_version)
             function.save(versioned=False)
@@ -755,7 +773,7 @@ def _process_model_monitoring_secret(db_session, project_name: str, secret_key: 
                 db_session, project_name
             )
 
-            secret_value = project_owner.session
+            secret_value = project_owner.access_key
             if not secret_value:
                 raise MLRunRuntimeError(
                     f"No model monitoring access key. Failed to generate one for owner of project {project_name}",

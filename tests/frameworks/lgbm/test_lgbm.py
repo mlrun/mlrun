@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 from typing import List
 
@@ -32,10 +46,10 @@ def test_training_api_training(algorithm_functionality: str):
     print(json.dumps(train_run.outputs, indent=4))
 
     # Validate artifacts (model artifact shouldn't be counted, hence the '-1'):
-    assert len(train_run.status.artifacts) - 1 == 2
+    assert len(train_run.status.artifacts) - 1 > 0
 
     # Validate results (context parameters shouldn't be counted, hence the '-1'):
-    assert len(train_run.status.results) - 1 == 2
+    assert len(train_run.status.results) - 1 > 0
 
 
 @pytest.mark.parametrize("algorithm_functionality", ALGORITHM_FUNCTIONALITIES)

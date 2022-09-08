@@ -49,7 +49,7 @@ class AzureBlobStore(DataStore):
                     f"Azure adlfs not installed, run pip install adlfs, {exc}"
                 )
             return None
-        self._filesystem = fsspec.filesystem("az", **self.get_storage_options())
+        self._filesystem = fsspec.filesystem(self.kind, **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):

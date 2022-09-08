@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import datetime
 import http
@@ -156,6 +170,7 @@ def test_delete_project_with_resources(
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
+    mlrun.mlconf.namespace = "test-namespace"
     project_to_keep = "project-to-keep"
     project_to_remove = "project-to-remove"
     _create_resources_of_all_kinds(db, k8s_secrets_mock, project_to_keep)
@@ -617,6 +632,7 @@ def test_delete_project_deletion_strategy_check_external_resource(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
+    mlrun.mlconf.namespace = "test-namespace"
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="project-name"),
         spec=mlrun.api.schemas.ProjectSpec(),

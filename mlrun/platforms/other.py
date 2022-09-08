@@ -14,6 +14,9 @@
 #
 # this file is based on the code from kubeflow pipelines git
 import os
+from typing import Dict
+
+import kfp.dsl
 
 import mlrun
 from mlrun.config import config
@@ -258,3 +261,35 @@ def mount_s3(
             )
 
     return _use_s3_cred
+
+
+def set_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
+    """
+    Modifier function to apply a set of environment variables to a runtime. Variables may be passed
+    as either a dictionary of name-value pairs, or as arguments to the function.
+    See `KubeResource.apply` for more information on modifiers.
+
+    Usage::
+
+        function.apply(set_env_variables({"ENV1": "value1", "ENV2": "value2"}))
+        or
+        function.apply(set_env_variables(ENV1=value1, ENV2=value2))
+
+    :param env_vars_dict: dictionary of env. variables
+    :param kwargs: environment variables passed as args
+    """
+
+    env_data = env_vars_dict.copy() if env_vars_dict else {}
+    for key, value in kwargs.items():
+        env_data[key] = value
+
+    def _set_env_variables(container_op: kfp.dsl.ContainerOp):
+        from kubernetes import client as k8s_client
+
+        for _key, _value in env_data.items():
+            container_op.container.add_env_variable(
+                k8s_client.V1EnvVar(name=_key, value=_value)
+            )
+        return container_op
+
+    return _set_env_variables

@@ -72,7 +72,7 @@ default_config = {
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
-    "spark_operator_version": "spark-2",  # the version of the spark operator in use
+    "spark_operator_version": "spark-3",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
@@ -104,6 +104,7 @@ default_config = {
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
+    "redis_url": "redis://localhost:6379",
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
@@ -138,8 +139,13 @@ default_config = {
                 "default": "e30=",  # encoded empty dict
                 # see mlrun.api.schemas.function.SecurityContextEnrichmentModes for available options
                 "enrichment_mode": "disabled",
-                # default 65534 (nogroup), set to -1 to use the user unix id
+                # default 65534 (nogroup), set to -1 to use the user unix id or
+                # function.spec.security_context.pipelines.kfp_pod_user_unix_id for kfp pods
                 "enrichment_group_id": 65534,
+                "pipelines": {
+                    # sets the user id to be used for kfp pods when enrichment mode is not disabled
+                    "kfp_pod_user_unix_id": 5,
+                },
             },
             "service_account": {"default": None},
         },
@@ -186,12 +192,17 @@ default_config = {
         "password": "",
         "token": "",
         "logs_path": "./db/logs",
+        # when set, these will replace references to the data_volume with the real_path
         "data_volume": "",
         "real_path": "",
+        # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
+        # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
+        "allowed_file_paths": "",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
+        "retry_api_call_on_exception": "enabled",
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -264,6 +275,7 @@ default_config = {
         },
         "projects": {
             "leader": "mlrun",
+            "retry_leader_request_on_exception": "enabled",
             "followers": "",
             # This is used as the interval for the sync loop both when mlrun is leader and follower
             "periodic_sync_interval": "1 minute",
@@ -350,6 +362,7 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -372,7 +385,7 @@ default_config = {
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. Can be one of: none, auto, v3io_credentials, v3io_fuse, pvc, s3.
+        # What type of auto-mount to use for functions. One of: none, auto, v3io_credentials, v3io_fuse, pvc, s3, env.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -391,6 +404,11 @@ default_config = {
         "node_selector": "e30=",
         # encoded empty list
         "tolerations": "W10=",
+    },
+    "http_retry_defaults": {
+        "max_retries": 3,
+        "backoff_factor": 1,
+        "status_codes": [500, 502, 503, 504],
     },
 }
 
@@ -554,6 +572,23 @@ class Config:
         return config.igz_version is not None and config.igz_version != ""
 
     @staticmethod
+    def get_security_context_enrichment_group_id(user_unix_id: int) -> int:
+        enrichment_group_id = int(
+            config.function.spec.security_context.enrichment_group_id
+        )
+
+        # if enrichment group id is -1 we set group id to user unix id
+        if enrichment_group_id == -1:
+            if user_unix_id is None:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "User unix id is required to populate group id when enrichment group id is -1."
+                    "See mlrun.config.function.spec.security_context.enrichment_group_id for more details."
+                )
+            return user_unix_id
+
+        return enrichment_group_id
+
+    @staticmethod
     def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
         if not config.igz_version:
             return None
@@ -565,6 +600,25 @@ class Config:
             # like 3.0_b177_20210806003728
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
+
+    def verify_security_context_enrichment_mode_is_allowed(self):
+
+        # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
+        #  importing mlrun.api
+        if config.function.spec.security_context.enrichment_mode == "disabled":
+            return
+
+        igz_version = self.get_parsed_igz_version()
+        if not igz_version:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
+            )
+
+        if igz_version < semver.VersionInfo.parse("3.5.1-b1"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Security context enrichment mode enabled (override/retain) "
+                f"is not allowed for iguazio version: {igz_version} < 3.5.1"
+            )
 
     def resolve_kfp_url(self, namespace=None):
         if config.kfp_url:
@@ -795,7 +849,8 @@ def _do_populate(env=None):
     global config
 
     if "MLRUN_ENV_FILE" in os.environ:
-        dotenv.load_dotenv(os.environ["MLRUN_ENV_FILE"], override=True)
+        env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
+        dotenv.load_dotenv(env_file, override=True)
 
     if not config:
         config = Config.from_dict(default_config)
@@ -840,6 +895,8 @@ def _validate_config(config):
         )
     except AttributeError:
         pass
+
+    config.verify_security_context_enrichment_mode_is_allowed()
 
 
 def _convert_resources_to_str(config: dict = None):

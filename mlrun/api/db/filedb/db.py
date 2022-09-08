@@ -1,4 +1,19 @@
-from typing import Any, Dict, List, Optional
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -20,7 +35,6 @@ class FileDB(DBInterface):
         project="",
         body=None,
         append=False,
-        leader_session: Optional[str] = None,
     ):
         return self._transform_run_db_error(
             self.db.store_log, uid, project, body, append
@@ -36,7 +50,6 @@ class FileDB(DBInterface):
         uid,
         project="",
         iter=0,
-        leader_session: Optional[str] = None,
     ):
         return self._transform_run_db_error(
             self.db.store_run, struct, uid, project, iter
@@ -57,7 +70,7 @@ class FileDB(DBInterface):
         uid=None,
         project="",
         labels=None,
-        state="",
+        states=None,
         sort=True,
         last=0,
         iter=False,
@@ -65,6 +78,11 @@ class FileDB(DBInterface):
         start_time_to=None,
         last_update_time_from=None,
         last_update_time_to=None,
+        partition_by: schemas.RunPartitionByField = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: schemas.SortField = None,
+        partition_order: schemas.OrderType = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -72,7 +90,7 @@ class FileDB(DBInterface):
             uid,
             project,
             labels,
-            state,
+            states[0] if states else "",
             sort,
             last,
             iter,
@@ -80,6 +98,11 @@ class FileDB(DBInterface):
             start_time_to,
             last_update_time_from,
             last_update_time_to,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
+            max_partitions,
         )
 
     def del_run(self, session, uid, project="", iter=0):
@@ -99,7 +122,6 @@ class FileDB(DBInterface):
         iter=None,
         tag="",
         project="",
-        leader_session: Optional[str] = None,
     ):
         return self._transform_run_db_error(
             self.db.store_artifact, key, artifact, uid, iter, tag, project
@@ -144,8 +166,7 @@ class FileDB(DBInterface):
         project="",
         tag="",
         versioned=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         return self._transform_run_db_error(
             self.db.store_function, function, name, project, tag, versioned
         )
@@ -184,13 +205,26 @@ class FileDB(DBInterface):
         self,
         session,
         owner: str = None,
-        format_: schemas.Format = schemas.Format.full,
+        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
     ) -> schemas.ProjectsOutput:
         return self._transform_run_db_error(
             self.db.list_projects, owner, format_, labels, state
         )
+
+    async def get_project_resources_counters(
+        self,
+    ) -> Tuple[
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+        Dict[str, int],
+    ]:
+        raise NotImplementedError()
 
     def store_project(self, session, name: str, project: schemas.Project):
         raise NotImplementedError()
@@ -226,8 +260,7 @@ class FileDB(DBInterface):
         project,
         feature_set: schemas.FeatureSet,
         versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def store_feature_set(
@@ -240,8 +273,7 @@ class FileDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def get_feature_set(
@@ -282,9 +314,16 @@ class FileDB(DBInterface):
         labels: List[str] = None,
         partition_by: schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
-        partition_sort: schemas.SortField = None,
+        partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
     ) -> schemas.FeatureSetsOutput:
+        raise NotImplementedError()
+
+    def list_feature_sets_tags(
+        self,
+        session,
+        project: str,
+    ):
         raise NotImplementedError()
 
     def patch_feature_set(
@@ -292,12 +331,11 @@ class FileDB(DBInterface):
         session,
         project,
         name,
-        feature_set_update: dict,
+        feature_set_patch: dict,
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
@@ -309,8 +347,7 @@ class FileDB(DBInterface):
         project,
         feature_vector: schemas.FeatureVector,
         versioned=True,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def get_feature_vector(
@@ -333,6 +370,13 @@ class FileDB(DBInterface):
     ) -> schemas.FeatureVectorsOutput:
         raise NotImplementedError()
 
+    def list_feature_vectors_tags(
+        self,
+        session,
+        project: str,
+    ):
+        raise NotImplementedError()
+
     def store_feature_vector(
         self,
         session,
@@ -343,8 +387,7 @@ class FileDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def patch_feature_vector(
@@ -356,8 +399,7 @@ class FileDB(DBInterface):
         tag=None,
         uid=None,
         patch_mode: schemas.PatchMode = schemas.PatchMode.replace,
-        leader_session: Optional[str] = None,
-    ):
+    ) -> str:
         raise NotImplementedError()
 
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
@@ -376,6 +418,7 @@ class FileDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
+        next_run_time: datetime.datetime = None,
     ):
         raise NotImplementedError()
 
@@ -389,7 +432,7 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
-        leader_session: Optional[str] = None,
+        next_run_time: datetime.datetime = None,
     ):
         raise NotImplementedError()
 
@@ -407,6 +450,9 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def delete_schedule(self, session, project: str, name: str):
+        raise NotImplementedError()
+
+    def delete_schedules(self, session, project: str):
         raise NotImplementedError()
 
     @staticmethod

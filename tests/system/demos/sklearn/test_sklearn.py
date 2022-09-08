@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 
 import mlrun
@@ -6,6 +20,7 @@ from tests.system.demos.base import TestDemo
 
 
 # Marked as enterprise because of v3io mount and pipelines
+@pytest.mark.skip("not up to date demos needs to run demos from mlrun/demos repo")
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestSKLearn(TestDemo):
@@ -21,7 +36,10 @@ class TestSKLearn(TestDemo):
         self._logger.debug("Creating iris-generator function")
         function_path = str(self.assets_path / "iris_generator_function.py")
         iris_generator_function = mlrun.code_to_function(
-            name="gen-iris", kind="job", filename=function_path, image="mlrun/mlrun",
+            name="gen-iris",
+            kind="job",
+            filename=function_path,
+            image="mlrun/mlrun",
         )
 
         iris_generator_function.spec.remote = True

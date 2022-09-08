@@ -1,4 +1,19 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
+import traceback
 import typing
 
 import humanfriendly
@@ -46,7 +61,8 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+        commit_before_get: bool = False,
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         self._enrich_and_validate_before_creation(project)
         self._run_on_all_followers(True, "create_project", db_session, project)
         return self.get_project(db_session, project.metadata.name), False
@@ -59,7 +75,7 @@ class Member(
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[mlrun.api.schemas.Project, bool]:
+    ) -> typing.Tuple[typing.Optional[mlrun.api.schemas.Project], bool]:
         self._enrich_project(project)
         mlrun.projects.ProjectMetadata.validate_project_name(name)
         self._validate_body_and_path_names_matches(name, project)
@@ -89,7 +105,7 @@ class Member(
         name: str,
         deletion_strategy: mlrun.api.schemas.DeletionStrategy = mlrun.api.schemas.DeletionStrategy.default(),
         projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
-        leader_session: typing.Optional[str] = None,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
         self._projects_in_deletion.add(name)
@@ -102,7 +118,10 @@ class Member(
         return False
 
     def get_project(
-        self, db_session: sqlalchemy.orm.Session, name: str
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
     ) -> mlrun.api.schemas.Project:
         return self._leader_follower.get_project(db_session, name)
 
@@ -110,13 +129,45 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
-            db_session, owner, format_, labels, state
+            db_session, owner, format_, labels, state, names
         )
+
+    async def list_project_summaries(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        projects_role: typing.Optional[mlrun.api.schemas.ProjectsRole] = None,
+        leader_session: typing.Optional[str] = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        return await self._leader_follower.list_project_summaries(
+            db_session, owner, labels, state, names
+        )
+
+    async def get_project_summary(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        leader_session: typing.Optional[str] = None,
+    ) -> mlrun.api.schemas.ProjectSummary:
+        return await self._leader_follower.get_project_summary(db_session, name)
+
+    def get_project_owner(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+    ) -> mlrun.api.schemas.ProjectOwner:
+        raise NotImplementedError()
 
     def _start_periodic_sync(self):
         # if no followers no need for sync
@@ -223,6 +274,7 @@ class Member(
                     project=project,
                     project_name=project_name,
                     exc=str(exc),
+                    traceback=traceback.format_exc(),
                 )
             else:
                 project_in_leader = True
@@ -235,37 +287,95 @@ class Member(
             missing_followers = set(follower_names).symmetric_difference(
                 self._followers.keys()
             )
-            if missing_followers:
-                # projects name validation is enforced on creation, the only way for a project name to be invalid is
-                # if it was created prior to 0.6.0, and the version was upgraded
-                # we do not want to sync these projects since it will anyways fail (Nuclio doesn't allow these names
-                # as well)
-                if not mlrun.projects.ProjectMetadata.validate_project_name(
-                    project_name, raise_on_failure=False
-                ):
-                    return
-                for missing_follower in missing_followers:
-                    logger.debug(
-                        "Project is missing from follower. Creating",
-                        missing_follower_name=missing_follower,
-                        project_follower_name=project_follower_name,
-                        project_name=project_name,
-                        project=project,
+            if self._should_sync_project_to_followers(project_name):
+                if missing_followers:
+                    self._create_project_in_missing_followers(
+                        db_session,
+                        missing_followers,
+                        project_follower_name,
+                        project_name,
+                        project,
                     )
-                    try:
-                        self._enrich_and_validate_before_creation(project)
-                        self._followers[missing_follower].create_project(
-                            db_session, project,
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed creating missing project in follower",
-                            missing_follower_name=missing_follower,
-                            project_follower_name=project_follower_name,
-                            project_name=project_name,
-                            project=project,
-                            exc=str(exc),
-                        )
+
+                # we possibly enriched the project we found in the follower, so let's update the followers that had it
+                self._store_project_in_followers(
+                    db_session, follower_names, project_name, project
+                )
+
+    def _store_project_in_followers(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        follower_names: typing.Set[str],
+        project_name: str,
+        project: mlrun.api.schemas.Project,
+    ):
+        for follower_name in follower_names:
+            logger.debug(
+                "Updating project in follower",
+                follower_name=follower_name,
+                project_name=project_name,
+                project=project,
+            )
+            try:
+                self._enrich_and_validate_before_creation(project)
+                self._followers[follower_name].store_project(
+                    db_session,
+                    project_name,
+                    project,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed updating project in follower",
+                    follower_name=follower_name,
+                    project_name=project_name,
+                    project=project,
+                    exc=str(exc),
+                    traceback=traceback.format_exc(),
+                )
+
+    def _create_project_in_missing_followers(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        missing_followers: typing.Set[str],
+        # the name of the follower which we took the missing project from
+        project_follower_name: str,
+        project_name: str,
+        project: mlrun.api.schemas.Project,
+    ):
+        for missing_follower in missing_followers:
+            logger.debug(
+                "Project is missing from follower. Creating",
+                missing_follower_name=missing_follower,
+                project_follower_name=project_follower_name,
+                project_name=project_name,
+                project=project,
+            )
+            try:
+                self._enrich_and_validate_before_creation(project)
+                self._followers[missing_follower].create_project(
+                    db_session,
+                    project,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed creating missing project in follower",
+                    missing_follower_name=missing_follower,
+                    project_follower_name=project_follower_name,
+                    project_name=project_name,
+                    project=project,
+                    exc=str(exc),
+                    traceback=traceback.format_exc(),
+                )
+
+    def _should_sync_project_to_followers(self, project_name: str) -> bool:
+        """
+        projects name validation is enforced on creation, the only way for a project name to be invalid is if it was
+        created prior to 0.6.0, and the version was upgraded we do not want to sync these projects since it will
+        anyways fail (Nuclio doesn't allow these names as well)
+        """
+        return mlrun.projects.ProjectMetadata.validate_project_name(
+            project_name, raise_on_failure=False
+        )
 
     def _run_on_all_followers(
         self, leader_first: bool, method: str, *args, **kwargs

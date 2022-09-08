@@ -26,7 +26,15 @@ from .iguazio import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .other import auto_mount, mount_pvc
+from .other import (
+    auto_mount,
+    mount_configmap,
+    mount_hostpath,
+    mount_pvc,
+    mount_s3,
+    mount_secret,
+    set_env_variables,
+)
 
 
 def watch_stream(

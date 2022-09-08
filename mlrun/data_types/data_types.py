@@ -21,13 +21,23 @@ class ValueType:
     """Feature value type. Used to define data types in Feature Tables."""
 
     UNKNOWN = ""
-    BYTES = "bytes"
-    STRING = "str"
+    BOOL = "bool"
+    INT8 = "int8"
+    INT16 = "int16"
     INT32 = "int32"
     INT64 = "int"
-    DOUBLE = "float"
+    INT128 = "int128"
+    UINT8 = "uint8"
+    UINT16 = "uint16"
+    UINT32 = "uint32"
+    UINT64 = "uint64"
+    UINT128 = "uint128"
+    FLOAT16 = "float16"
     FLOAT = "float32"
-    BOOL = "bool"
+    DOUBLE = "float"
+    BFLOAT16 = "bfloat16"
+    BYTES = "bytes"
+    STRING = "str"
     DATETIME = "datetime"
     BYTES_LIST = "List[bytes]"
     STRING_LIST = "List[string]"
@@ -74,8 +84,10 @@ def python_type_to_value_type(value_type):
         "float": ValueType.DOUBLE,
         "bytes": ValueType.BYTES,
         "float64": ValueType.DOUBLE,
+        "Float64": ValueType.DOUBLE,
         "float32": ValueType.FLOAT,
         "int64": ValueType.INT64,
+        "Int64": ValueType.INT64,
         "uint64": ValueType.INT64,
         "int32": ValueType.INT32,
         "uint32": ValueType.INT32,
@@ -106,6 +118,22 @@ def spark_to_value_type(data_type):
     if data_type in type_map:
         return type_map[data_type]
     return data_type
+
+
+def gbq_to_pandas_dtype(gbq_type):
+    import pandas as pd
+
+    if isinstance(gbq_type, TimestampType):
+        return ValueType.DATETIME
+
+    type_map = {
+        "STRING": "object",
+        "BOOL": "bool",
+        "FLOAT": "float64",
+        "INTEGER": pd.Int64Dtype(),
+        "TIMESTAMP": "datetime64[ns]",
+    }
+    return type_map.get(gbq_type, "object")
 
 
 class InferOptions:

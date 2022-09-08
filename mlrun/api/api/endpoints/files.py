@@ -1,24 +1,41 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import mimetypes
 from http import HTTPStatus
 
-from fastapi import APIRouter, Query, Request, Response
+import fastapi
 
+import mlrun.api.api.deps
+import mlrun.api.schemas
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.utils import logger
 
-router = APIRouter()
+router = fastapi.APIRouter()
 
 
-# curl http://localhost:8080/api/files?schema=s3&path=mybucket/a.txt
 @router.get("/files")
 def get_files(
-    request: Request,
     schema: str = "",
-    objpath: str = Query("", alias="path"),
+    objpath: str = fastapi.Query("", alias="path"),
     user: str = "",
     size: int = 0,
     offset: int = 0,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
 ):
     _, filename = objpath.split(objpath)
 
@@ -32,7 +49,7 @@ def get_files(
 
     logger.debug("Got get files request", path=objpath)
 
-    secrets = get_secrets(request)
+    secrets = get_secrets(auth_info)
     body = None
     try:
         stores = store_manager.set(secrets)
@@ -53,14 +70,20 @@ def get_files(
     ctype, _ = mimetypes.guess_type(objpath)
     if not ctype:
         ctype = "application/octet-stream"
-    return Response(
+    return fastapi.Response(
         content=body, media_type=ctype, headers={"x-suggested-filename": filename}
     )
 
 
-# curl http://localhost:8080/api/filestat?schema=s3&path=mybucket/a.txt
 @router.get("/filestat")
-def get_filestat(request: Request, schema: str = "", path: str = "", user: str = ""):
+def get_filestat(
+    schema: str = "",
+    path: str = "",
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    user: str = "",
+):
     _, filename = path.split(path)
 
     path = get_obj_path(schema, path, user=user)
@@ -71,7 +94,7 @@ def get_filestat(request: Request, schema: str = "", path: str = "", user: str =
 
     logger.debug("Got get filestat request", path=path)
 
-    secrets = get_secrets(request)
+    secrets = get_secrets(auth_info)
     stat = None
     try:
         stores = store_manager.set(secrets)

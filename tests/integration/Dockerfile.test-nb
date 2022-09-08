@@ -19,11 +19,15 @@ WORKDIR /mlrun
 
 COPY ./requirements.txt ./
 COPY ./dockerfiles/mlrun-api/requirements.txt ./mlrun-api-requirements.txt
-COPY ./dev-requirements.txt ./
 
 RUN pip install \
     -r requirements.txt \
-    -r mlrun-api-requirements.txt \
+    -r mlrun-api-requirements.txt
+
+# if we give all the requirements together pip resolver go nuts so separating between the package and the image
+# requirements
+COPY ./dev-requirements.txt ./
+RUN python -m pip install \
     -r dev-requirements.txt
 
 COPY . .

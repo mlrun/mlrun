@@ -20,6 +20,10 @@ mlrun.egg-info/
 model.txt
 result*.html
 tests/test_results/
-venv
+*venv*
 mlrun/utils/version/version.json
-mlrun/api/migrations/mlrun.db
+mlrun/api/migrations_sqlite/mlrun.db
+tests/system/env.yml
+# pyenv file for working with several python versions
+.python-version
+*.bak

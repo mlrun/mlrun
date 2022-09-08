@@ -1,6 +1,21 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
 import unittest
+import unittest.mock
 from http import HTTPStatus
 
 import deepdiff
@@ -9,9 +24,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun import mlconf
+import mlrun.api.api.utils
+import tests.api.api.utils
+from mlrun import mlconf, new_function
+from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.db import SQLDB
-from mlrun.runtimes.function import NuclioStatus, deploy_nuclio_function
+from mlrun.runtimes.function import (
+    NuclioStatus,
+    compile_function_config,
+    deploy_nuclio_function,
+)
 
 from .assets.serving_child_functions import *  # noqa
 
@@ -21,11 +43,17 @@ from .test_nuclio import TestNuclioRuntime
 
 
 class TestServingRuntime(TestNuclioRuntime):
-    @pytest.fixture(autouse=True)
-    def setup_method_fixture(self, db: Session, client: TestClient):
-        # We want this mock for every test, ideally we would have simply put it in the custom_setup
-        # but this function is called by the base class's setup_method which is happening before the fixtures
-        # initialization. We need the client fixture (which needs the db one) in order to be able to mock k8s stuff
+    @property
+    def runtime_kind(self):
+        # enables extending classes to run the same tests with different runtime
+        return "serving"
+
+    @property
+    def class_name(self):
+        # enables extending classes to run the same tests with different class
+        return "serving"
+
+    def custom_setup_after_fixtures(self):
         self._mock_nuclio_deploy_config()
         self._mock_vault_functionality()
         # Since most of the Serving runtime handling is done client-side, we'll mock the calls to remote-build
@@ -46,7 +74,7 @@ class TestServingRuntime(TestNuclioRuntime):
 
     @staticmethod
     def _mock_db_remote_deploy_functions():
-        def _remote_db_mock_function(func, with_mlrun):
+        def _remote_db_mock_function(func, with_mlrun, builder_env=None):
             deploy_nuclio_function(func)
             return {
                 "data": {
@@ -65,7 +93,7 @@ class TestServingRuntime(TestNuclioRuntime):
         SQLDB.get_builder_status = unittest.mock.Mock(return_value=("text", "last_log"))
 
     def _create_serving_function(self):
-        function = self._generate_runtime("serving")
+        function = self._generate_runtime(self.runtime_kind)
         graph = function.set_topology("flow", exist_ok=True, engine="sync")
 
         graph.add_step(name="s1", class_name="Chain", secret="inline_secret1")
@@ -173,7 +201,7 @@ class TestServingRuntime(TestNuclioRuntime):
         function = self._create_serving_function()
 
         function.deploy(verbose=True)
-        self._assert_deploy_called_basic_config(expected_class="serving")
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
 
         self._assert_deploy_spec_has_secrets_config(
             expected_secret_sources=self._generate_expected_secret_sources()
@@ -203,8 +231,25 @@ class TestServingRuntime(TestNuclioRuntime):
 
         assert deepdiff.DeepDiff(resp, expected_response) == {}
 
+    def test_mock_bad_step(self, db: Session, client: TestClient):
+        function = self._generate_runtime(self.runtime_kind)
+        graph = function.set_topology("flow", exist_ok=True, engine="sync")
+
+        graph.add_step(
+            name="extend", class_name="storey.Extend", _fn='({"tag": "something"})'
+        )
+
+        server = function.to_mock_server()
+        with pytest.raises(RuntimeError):
+            server.test()
+
     def test_serving_with_secrets_remote_build(self, db: Session, client: TestClient):
+        orig_function = get_k8s()._get_project_secrets_raw_data
+        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        mlrun.api.api.utils.mask_function_sensitive_data = unittest.mock.Mock()
+
         function = self._create_serving_function()
+        tests.api.api.utils.create_project(client, self.project)
 
         # Simulate a remote build by issuing client's API. Code below is taken from httpdb.
         req = {
@@ -212,11 +257,13 @@ class TestServingRuntime(TestNuclioRuntime):
             "with_mlrun": "no",
             "mlrun_version_specifier": "0.6.0",
         }
-        response = client.post("/api/build/function", json=req)
+        response = client.post("build/function", json=req)
 
         assert response.status_code == HTTPStatus.OK.value
 
-        self._assert_deploy_called_basic_config(expected_class="serving")
+        self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+        get_k8s()._get_project_secrets_raw_data = orig_function
 
     def test_child_functions_with_secrets(self, db: Session, client: TestClient):
         function = self._create_serving_function()
@@ -246,6 +293,7 @@ class TestServingRuntime(TestNuclioRuntime):
             {
                 "function_name": f"{self.project}-{self.name}-child_function",
                 "file_name": child_function_path,
+                "parent_function": function.metadata.name,
             },
             {
                 "function_name": f"{self.project}-{self.name}",
@@ -254,7 +302,7 @@ class TestServingRuntime(TestNuclioRuntime):
         ]
 
         self._assert_deploy_called_basic_config(
-            expected_class="serving",
+            expected_class=self.class_name,
             call_count=2,
             expected_params=expected_deploy_params,
         )
@@ -262,3 +310,26 @@ class TestServingRuntime(TestNuclioRuntime):
         self._assert_deploy_spec_has_secrets_config(
             expected_secret_sources=self._generate_expected_secret_sources()
         )
+
+    def test_empty_function(self):
+        # test simple function (no source)
+        function = new_function("serving", kind="serving", image="mlrun/mlrun")
+        function.set_topology("flow")
+        _, _, config = compile_function_config(function)
+        # verify the code is filled with the mlrun serving wrapper
+        assert config["spec"]["build"]["functionSourceCode"]
+
+        # test function built from source repo (set the handler)
+        function = new_function(
+            "serving", kind="serving", image="mlrun/mlrun", source="git://x/y#z"
+        )
+        function.set_topology("flow")
+
+        # mock secrets for the source (so it will not fail)
+        orig_function = get_k8s()._get_project_secrets_raw_data
+        get_k8s()._get_project_secrets_raw_data = unittest.mock.Mock(return_value={})
+        _, _, config = compile_function_config(function, builder_env={})
+        get_k8s()._get_project_secrets_raw_data = orig_function
+
+        # verify the handler points to mlrun serving wrapper handler
+        assert config["spec"]["handler"].startswith("mlrun.serving")

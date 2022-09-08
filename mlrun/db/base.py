@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
@@ -66,6 +67,15 @@ class RunDBInterface(ABC):
         sort=True,
         last=0,
         iter=False,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
         pass
 
@@ -96,6 +106,8 @@ class RunDBInterface(ABC):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ):
         pass
 
@@ -139,7 +151,11 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_project(self, name: str, project: schemas.Project,) -> schemas.Project:
+    def store_project(
+        self,
+        name: str,
+        project: schemas.Project,
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
@@ -152,14 +168,17 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_project(self, project: schemas.Project,) -> schemas.Project:
+    def create_project(
+        self,
+        project: schemas.Project,
+    ) -> schemas.Project:
         pass
 
     @abstractmethod
     def list_projects(
         self,
         owner: str = None,
-        format_: schemas.Format = schemas.Format.full,
+        format_: schemas.ProjectsFormat = schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: schemas.ProjectState = None,
     ) -> schemas.ProjectsOutput:
@@ -198,7 +217,11 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ) -> schemas.EntitiesOutput:
         pass
 
@@ -313,7 +336,9 @@ class RunDBInterface(ABC):
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        format_: Union[str, schemas.Format] = schemas.Format.metadata_only,
+        format_: Union[
+            str, schemas.PipelinesFormat
+        ] = schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> schemas.PipelinesOutput:
         pass
@@ -324,38 +349,41 @@ class RunDBInterface(ABC):
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         pass
 
+    @abstractmethod
     def list_project_secrets(
         self,
         project: str,
         token: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ) -> schemas.SecretsData:
         pass
 
+    @abstractmethod
     def list_project_secret_keys(
         self,
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> schemas.SecretKeysData:
         pass
 
+    @abstractmethod
     def delete_project_secrets(
         self,
         project: str,
         provider: Union[
             str, schemas.SecretProviderName
-        ] = schemas.SecretProviderName.vault,
+        ] = schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         pass
@@ -372,7 +400,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -382,13 +410,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_endpoint_record(
+    def delete_model_endpoint_record(
         self, project: str, endpoint_id: str, access_key: Optional[str] = None
     ):
         pass
 
     @abstractmethod
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -402,7 +430,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -411,5 +439,58 @@ class RunDBInterface(ABC):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        pass
+
+    @abstractmethod
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        pass
+
+    @abstractmethod
+    def list_marketplace_sources(self):
+        pass
+
+    @abstractmethod
+    def get_marketplace_source(self, source_name: str):
+        pass
+
+    @abstractmethod
+    def delete_marketplace_source(self, source_name: str):
+        pass
+
+    @abstractmethod
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def verify_authorization(
+        self, authorization_verification_input: schemas.AuthorizationVerificationInput
     ):
         pass

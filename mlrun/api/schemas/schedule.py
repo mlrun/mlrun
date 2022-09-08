@@ -1,16 +1,31 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
+from mlrun.api.schemas.auth import Credentials
 from mlrun.api.schemas.object import LabelRecord
 
 
 class ScheduleCronTrigger(BaseModel):
     """
     See this link for help
-    https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+    https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     """
 
     year: Optional[Union[int, str]]
@@ -64,6 +79,12 @@ class ScheduleKinds(str, Enum):
     # this is mainly for testing purposes
     local_function = "local_function"
 
+    @staticmethod
+    def local_kinds():
+        return [
+            ScheduleKinds.local_function,
+        ]
+
 
 class ScheduleUpdate(BaseModel):
     scheduled_object: Optional[Any]
@@ -71,6 +92,7 @@ class ScheduleUpdate(BaseModel):
     desired_state: Optional[str]
     labels: Optional[dict]
     concurrency_limit: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 # Properties to receive via API on creation
@@ -82,6 +104,7 @@ class ScheduleInput(BaseModel):
     desired_state: Optional[str]
     labels: Optional[dict]
     concurrency_limit: Optional[int]
+    credentials: Credentials = Credentials()
 
 
 # the schedule object returned from the db layer
@@ -91,6 +114,7 @@ class ScheduleRecord(ScheduleInput):
     last_run_uri: Optional[str]
     state: Optional[str]
     labels: Optional[List[LabelRecord]]
+    next_run_time: Optional[datetime]
 
     class Config:
         orm_mode = True
@@ -101,6 +125,7 @@ class ScheduleOutput(ScheduleRecord):
     next_run_time: Optional[datetime]
     last_run: Optional[Dict]
     labels: Optional[dict]
+    credentials: Credentials = Credentials()
 
 
 class SchedulesOutput(BaseModel):

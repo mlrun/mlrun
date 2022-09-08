@@ -1,136 +1,146 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Header, Query, Response
+import fastapi
+from sqlalchemy.orm import Session
 
+import mlrun.api.api.deps
+import mlrun.api.crud
+import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 from mlrun.api import schemas
-from mlrun.api.utils.singletons.k8s import get_k8s
-from mlrun.utils.vault import (
-    VaultStore,
-    add_vault_project_secrets,
-    add_vault_user_secrets,
-    init_project_vault_configuration,
-)
+from mlrun.utils.vault import add_vault_user_secrets
 
-router = APIRouter()
+router = fastapi.APIRouter()
 
 
 @router.post("/projects/{project}/secrets", status_code=HTTPStatus.CREATED.value)
-def initialize_project_secrets(
-    project: str, secrets: schemas.SecretsData,
+def store_project_secrets(
+    project: str,
+    secrets: schemas.SecretsData,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    if secrets.provider == schemas.SecretProviderName.vault:
-        # Init is idempotent and will do nothing if infra is already in place
-        init_project_vault_configuration(project)
+    # Doing a specific check for project existence, because we want to return 404 in the case of a project not
+    # existing, rather than returning a permission error, as it misleads the user. We don't even care for return
+    # value.
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
 
-        # If no secrets were passed, no need to touch the actual secrets.
-        if secrets.secrets:
-            add_vault_project_secrets(project, secrets.secrets)
-    elif secrets.provider == schemas.SecretProviderName.kubernetes:
-        # K8s secrets is the only other option right now
-        if get_k8s():
-            get_k8s().store_project_secrets(project, secrets.secrets)
-        else:
-            raise mlrun.errors.MLRunInternalServerError(
-                "K8s provider cannot be initialized"
-            )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Provider requested is not supported. provider = {secrets.provider}"
-        )
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        project,
+        secrets.provider,
+        mlrun.api.schemas.AuthorizationAction.create,
+        auth_info,
+    )
+    mlrun.api.crud.Secrets().store_project_secrets(project, secrets)
 
-    return Response(status_code=HTTPStatus.CREATED.value)
+    return fastapi.Response(status_code=HTTPStatus.CREATED.value)
 
 
 @router.delete("/projects/{project}/secrets", status_code=HTTPStatus.NO_CONTENT.value)
 def delete_project_secrets(
-    project: str, provider: str, secrets: List[str] = Query(None, alias="secret"),
+    project: str,
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
+    secrets: List[str] = fastapi.Query(None, alias="secret"),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    if provider == schemas.SecretProviderName.vault:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Delete secret is not implemented for provider {provider}"
-        )
-    elif provider == schemas.SecretProviderName.kubernetes:
-        if get_k8s():
-            get_k8s().delete_project_secrets(project, secrets)
-        else:
-            raise mlrun.errors.MLRunInternalServerError(
-                "K8s provider cannot be initialized"
-            )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Provider requested is not supported. provider = {provider}"
-        )
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
 
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        project,
+        provider,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_info,
+    )
+    mlrun.api.crud.Secrets().delete_project_secrets(project, provider, secrets)
+
+    return fastapi.Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/projects/{project}/secret-keys", response_model=schemas.SecretKeysData)
-def list_secret_keys(
+def list_project_secret_keys(
     project: str,
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
-    token: str = Header(None, alias=schemas.HeaderNames.secret_store_token),
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
+    token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    if provider == schemas.SecretProviderName.vault:
-        if not token:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Vault list project secret keys request without providing token"
-            )
-
-        vault = VaultStore(token)
-        secret_values = vault.get_secrets(None, project=project)
-        return schemas.SecretKeysData(
-            provider=provider, secret_keys=list(secret_values.keys())
-        )
-    elif provider == schemas.SecretProviderName.kubernetes:
-        if token:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot specify token when requesting k8s secret keys"
-            )
-
-        if get_k8s():
-            secret_keys = get_k8s().get_project_secret_keys(project) or []
-            return schemas.SecretKeysData(provider=provider, secret_keys=secret_keys)
-        else:
-            raise mlrun.errors.MLRunInternalServerError(
-                "K8s provider cannot be initialized"
-            )
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Provider requested is not supported. provider = {provider}"
-        )
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        project,
+        provider,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    return mlrun.api.crud.Secrets().list_project_secret_keys(project, provider, token)
 
 
 @router.get("/projects/{project}/secrets", response_model=schemas.SecretsData)
-def list_secrets(
+def list_project_secrets(
     project: str,
-    secrets: List[str] = Query(None, alias="secret"),
-    provider: schemas.SecretProviderName = schemas.SecretProviderName.vault,
-    token: str = Header(None, alias=schemas.HeaderNames.secret_store_token),
+    secrets: List[str] = fastapi.Query(None, alias="secret"),
+    provider: schemas.SecretProviderName = schemas.SecretProviderName.kubernetes,
+    token: str = fastapi.Header(None, alias=schemas.HeaderNames.secret_store_token),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    if provider == schemas.SecretProviderName.vault:
-        if not token:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Vault list project secrets request without providing token"
-            )
-
-        vault = VaultStore(token)
-        secret_values = vault.get_secrets(secrets, project=project)
-        return schemas.SecretsData(provider=provider, secrets=secret_values)
-    else:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Provider requested is not supported. provider = {provider}"
-        )
+    mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+        db_session, project, auth_info.session
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        project,
+        provider,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    return mlrun.api.crud.Secrets().list_project_secrets(
+        project, provider, secrets, token
+    )
 
 
 @router.post("/user-secrets", status_code=HTTPStatus.CREATED.value)
-def add_user_secrets(secrets: schemas.UserSecretCreationRequest,):
+def add_user_secrets(
+    secrets: schemas.UserSecretCreationRequest,
+):
     if secrets.provider != schemas.SecretProviderName.vault:
-        return Response(
+        return fastapi.Response(
             status_code=HTTPStatus.BAD_REQUEST.vault,
             content=f"Invalid secrets provider {secrets.provider}",
         )
 
     add_vault_user_secrets(secrets.user, secrets.secrets)
-    return Response(status_code=HTTPStatus.CREATED.value)
+    return fastapi.Response(status_code=HTTPStatus.CREATED.value)

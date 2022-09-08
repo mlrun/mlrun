@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import mlrun
 from mlrun.datastore.store_resources import ResourceCache
 from mlrun.datastore.targets import get_online_target
@@ -19,7 +20,10 @@ from mlrun.serving.server import create_graph_server
 
 
 def _build_feature_vector_graph(
-    vector, feature_set_fields, feature_set_objects,
+    vector,
+    feature_set_fields,
+    feature_set_objects,
+    fixed_window_type,
 ):
     graph = vector.spec.graph.copy()
     start_states, default_final_state, responders = graph.check_and_process_graph(
@@ -40,6 +44,7 @@ def _build_feature_vector_graph(
             table=featureset.uri,
             key=entity_list,
             aliases=aliases,
+            fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
         )
     for name in start_states:
         next.set_next(name)
@@ -55,14 +60,18 @@ def _build_feature_vector_graph(
     return graph
 
 
-def init_feature_vector_graph(vector):
+def init_feature_vector_graph(vector, query_options, update_stats=False):
     try:
         from storey import SyncEmitSource
     except ImportError as exc:
         raise ImportError(f"storey not installed, use pip install storey, {exc}")
 
-    feature_set_objects, feature_set_fields = vector.parse_features(False)
-    graph = _build_feature_vector_graph(vector, feature_set_fields, feature_set_objects)
+    feature_set_objects, feature_set_fields = vector.parse_features(
+        offline=False, update_stats=update_stats
+    )
+    graph = _build_feature_vector_graph(
+        vector, feature_set_fields, feature_set_objects, query_options
+    )
     graph.set_flow_source(SyncEmitSource())
     server = create_graph_server(graph=graph, parameters={})
 
@@ -70,6 +79,10 @@ def init_feature_vector_graph(vector):
     index_columns = []
     for featureset in feature_set_objects.values():
         driver = get_online_target(featureset)
+        if not driver:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"resource {featureset.uri} does not have an online data target"
+            )
         cache.cache_table(featureset.uri, driver.get_table_object())
         for key in featureset.spec.entities.keys():
             if not vector.spec.with_indexes and key not in index_columns:

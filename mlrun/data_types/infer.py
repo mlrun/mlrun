@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import numpy as np
 import pandas as pd
 import pyarrow
@@ -20,6 +34,7 @@ def infer_schema_from_df(
     timestamp_fields = []
     current_entities = list(entities.keys())
     entity_columns = entity_columns or []
+    index_columns = dict()
 
     def upsert_entity(name, value_type):
         if name in current_entities:
@@ -27,13 +42,17 @@ def infer_schema_from_df(
         else:
             entities[name] = {"name": name, "value_type": value_type}
 
+    # remove index column if no name provided
+    if not df.index.name and df.index.is_numeric():
+        df = df.reset_index().drop("index", axis=1)
+
     schema = pyarrow.Schema.from_pandas(df)
     index_type = None
     for i in range(len(schema)):
         column = schema.names[i]
         value_type = pa_type_to_value_type(schema.types[i])
         if column in df.index.names:
-            index_type = value_type
+            index_columns[column] = value_type
             continue
         is_entity = column in entity_columns or column in current_entities
         if is_entity:
@@ -49,9 +68,12 @@ def infer_schema_from_df(
         if value_type == "datetime" and not is_entity:
             timestamp_fields.append(column)
 
+    index_type = None
     if InferOptions.get_common_options(options, InferOptions.Index):
         # infer types of index fields
         if df.index.name:
+            if df.index.name in index_columns:
+                index_type = index_columns[df.index.name]
             if not index_type:
                 field = convert_pandas_type_to_json_field(df.index)
                 index_type = pd_schema_to_value_type(field["type"])
@@ -59,6 +81,11 @@ def infer_schema_from_df(
             upsert_entity(df.index.name, index_type)
         elif df.index.nlevels > 1:
             for level, name in zip(df.index.levels, df.index.names):
+                if name in index_columns:
+                    index_type = index_columns[name]
+                else:
+                    field = convert_pandas_type_to_json_field(df.index)
+                    index_type = pd_schema_to_value_type(field["type"])
                 upsert_entity(name, index_type)
                 if index_type == "datetime":
                     timestamp_fields.append(name)
@@ -66,10 +93,15 @@ def infer_schema_from_df(
     return timestamp_key
 
 
-def get_df_stats(df, options, num_bins=None):
+def get_df_stats(df, options, num_bins=None, sample_size=None):
     """get per column data stats from dataframe"""
 
     results_dict = {}
+    if df.empty:
+        return results_dict
+    if sample_size and df.shape[0] > sample_size:
+        df = df.sample(sample_size)
+
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
         df = df.reset_index()
@@ -78,11 +110,16 @@ def get_df_stats(df, options, num_bins=None):
     ).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
+            # TODO: why is 50% excluded from the results?
             if stat != "50%":
                 if isinstance(val, (float, np.floating, np.float64)):
                     stats_dict[stat] = float(val)
                 elif isinstance(val, (int, np.integer, np.int64)):
-                    stats_dict[stat] = int(val)
+                    # boolean values are considered subclass of int
+                    if isinstance(val, bool):
+                        stats_dict[stat] = bool(val)
+                    else:
+                        stats_dict[stat] = int(val)
                 else:
                     stats_dict[stat] = str(val)
 
@@ -106,7 +143,8 @@ def get_df_preview(df, preview_lines=20):
     length = df.shape[0]
     shortdf = df
     if length > preview_lines:
-        shortdf = df.head(preview_lines)
+        shortdf = df.sample(preview_lines)
+    shortdf = shortdf.reset_index(inplace=False)
     return [shortdf.columns.values.tolist()] + shortdf.values.tolist()
 
 

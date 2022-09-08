@@ -25,7 +25,8 @@ from mlrun.artifacts import ModelArtifact
 from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
-from .artifacts import ArtifactManager, DatasetArtifact
+from .artifacts import DatasetArtifact
+from .artifacts.manager import ArtifactManager, extend_artifact_path
 from .datastore import store_manager
 from .db import get_run_db
 from .features import Feature
@@ -35,6 +36,7 @@ from .utils import (
     dict_to_json,
     dict_to_yaml,
     get_in,
+    is_relative_path,
     logger,
     now_date,
     run_keys,
@@ -100,6 +102,10 @@ class MLClientCtx(object):
         self._iteration_results = None
         self._children = []
         self._parent = None
+        self._handler = None
+
+        self._project_object = None
+        self._allow_empty_resources = None
 
     def __enter__(self):
         return self
@@ -107,7 +113,7 @@ class MLClientCtx(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_value:
             self.set_state(error=exc_value, commit=False)
-        self.commit(completed=exc_value is None)
+        self.commit()
 
     def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)
@@ -157,21 +163,25 @@ class MLClientCtx(object):
         self._children.append(ctx)
         return ctx
 
-    def update_child_iterations(self, best_run=0, commit_children=False):
+    def update_child_iterations(
+        self, best_run=0, commit_children=False, completed=True
+    ):
         """update children results in the parent, and optionally mark the best
 
         :param best_run:  marks the child iteration number (starts from 1)
         :param commit_children:  commit all child runs to the db
+        :param completed:  mark children as completed
         """
         if not self._children:
             return
         if commit_children:
             for child in self._children:
-                child.commit()
+                child.commit(completed=completed)
         results = [child.to_dict() for child in self._children]
-        summary = mlrun.runtimes.utils.results_to_iter(results, None, self)
+        summary, df = mlrun.runtimes.utils.results_to_iter(results, None, self)
         task = results[best_run - 1] if best_run else None
         self.log_iteration_results(best_run, summary, task)
+        mlrun.runtimes.utils.log_iter_artifacts(self, df, summary[0])
 
     def mark_as_best(self):
         """mark a child as the best iteration result, see .get_child_context()"""
@@ -189,7 +199,7 @@ class MLClientCtx(object):
             feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
-        :param uri:    store resource uri/path, store://<type>/<project>/<name>:<version>
+        :param url:    store resource uri/path, store://<type>/<project>/<name>:<version>
                        types: artifacts | feature-sets | feature-vectors
         """
         return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
@@ -260,6 +270,7 @@ class MLClientCtx(object):
             self._log_level = spec.get("log_level", self._log_level)
             self._function = spec.get("function", self._function)
             self._parameters = spec.get("parameters", self._parameters)
+            self._handler = spec.get("handler", self._handler)
             if not self._iteration:
                 self._hyperparams = spec.get("hyperparams", self._hyperparams)
                 self._hyper_param_options = spec.get(
@@ -270,6 +281,9 @@ class MLClientCtx(object):
                         self._hyper_param_options
                     )
             self._outputs = spec.get("outputs", self._outputs)
+            self._allow_empty_resources = spec.get(
+                "allow_empty_resources", self._allow_empty_resources
+            )
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
@@ -304,11 +318,11 @@ class MLClientCtx(object):
     @property
     def tag(self):
         """run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow", self._uid)
+        return self._labels.get("workflow") or self._uid
 
     @property
     def iteration(self):
-        """child iteration index, for hyper parameters """
+        """child iteration index, for hyper parameters"""
         return self._iteration
 
     @property
@@ -425,6 +439,26 @@ class MLClientCtx(object):
             return default
         return self._parameters[key]
 
+    def _load_project_object(self):
+        if not self._project_object:
+            if not self._project:
+                self.logger.warning("get_project_param called without a project name")
+                return None
+            if not self._rundb:
+                self.logger.warning(
+                    "cannot retrieve project parameters - MLRun DB is not accessible"
+                )
+                return None
+            self._project_object = self._rundb.get_project(self._project)
+        return self._project_object
+
+    def get_project_param(self, key: str, default=None):
+        """get a parameter from the run's project's parameters"""
+        if not self._load_project_object():
+            return default
+
+        return self._project_object.get_param(key, default)
+
     def get_secret(self, key: str):
         """get a key based secret e.g. DB password from the context
         secrets can be specified when invoking a run through vault, files, env, ..
@@ -442,9 +476,14 @@ class MLClientCtx(object):
             return
         if not url:
             url = key
-        if self.in_path and not (url.startswith("/") or "://" in url):
+        if self.in_path and is_relative_path(url):
             url = os.path.join(self._in_path, url)
-        obj = self._data_stores.object(url, key, project=self._project)
+        obj = self._data_stores.object(
+            url,
+            key,
+            project=self._project,
+            allow_empty_resources=self._allow_empty_resources,
+        )
         self._inputs[key] = obj
         return obj
 
@@ -501,16 +540,19 @@ class MLClientCtx(object):
             self._results["best_iteration"] = best
             for k, v in get_in(task, ["status", "results"], {}).items():
                 self._results[k] = v
-            for a in get_in(task, ["status", run_keys.artifacts], []):
-                self._artifacts_manager.artifacts[a["key"]] = a
+            for artifact in get_in(task, ["status", run_keys.artifacts], []):
+                self._artifacts_manager.artifacts[
+                    artifact["metadata"]["key"]
+                ] = artifact
                 self._artifacts_manager.link_artifact(
                     self.project,
                     self.name,
                     self.tag,
-                    a["key"],
+                    artifact["metadata"]["key"],
                     self.iteration,
-                    a["target_path"],
+                    artifact["spec"]["target_path"],
                     link_iteration=best,
+                    db_key=artifact["spec"]["db_key"],
                 )
 
         if summary is not None:
@@ -575,6 +617,7 @@ class MLClientCtx(object):
         :param src_path:      deprecated, use local_path
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
+        :param format:        optional, format to use (e.g. csv, parquet, ..)
         :param db_key:        the key to use in the artifact DB table, by default
                               its run name + '_' + key
                               db_key=False will not register it in the artifacts table
@@ -587,7 +630,7 @@ class MLClientCtx(object):
             item,
             body=body,
             local_path=local_path,
-            artifact_path=artifact_path or self.artifact_path,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             target_path=target_path,
             tag=tag,
             viewer=viewer,
@@ -595,6 +638,7 @@ class MLClientCtx(object):
             labels=labels,
             db_key=db_key,
             format=format,
+            **kwargs,
         )
         self._update_db()
         return item
@@ -614,6 +658,7 @@ class MLClientCtx(object):
         db_key=None,
         target_path="",
         extra_data=None,
+        label_column: str = None,
         **kwargs,
     ):
         """log a dataset artifact and optionally upload it to datastore
@@ -631,6 +676,7 @@ class MLClientCtx(object):
 
         :param key:           artifact key
         :param df:            dataframe object
+        :param label_column:  name of the label column (the one holding the target (y) values)
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
@@ -657,6 +703,7 @@ class MLClientCtx(object):
             extra_data=extra_data,
             format=format,
             stats=stats,
+            label_column=label_column,
             **kwargs,
         )
 
@@ -664,7 +711,7 @@ class MLClientCtx(object):
             self,
             ds,
             local_path=local_path,
-            artifact_path=artifact_path or self.artifact_path,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             target_path=target_path,
             tag=tag,
             upload=upload,
@@ -696,6 +743,7 @@ class MLClientCtx(object):
         label_column: Union[str, list] = None,
         extra_data=None,
         db_key=None,
+        **kwargs,
     ):
         """log a model artifact and optionally upload it to datastore
 
@@ -712,6 +760,7 @@ class MLClientCtx(object):
         :param key:             artifact key or artifact class ()
         :param body:            will use the body as the artifact content
         :param model_file:      path to the local model file we upload (see also model_dir)
+                                or to a model file data url (e.g. http://host/path/model.pkl)
         :param model_dir:       path to the local dir holding the model file and extra files
         :param artifact_path:   target artifact path (when not using the default)
                                 to define a subpath under the default location use:
@@ -730,7 +779,7 @@ class MLClientCtx(object):
         :param training_set:    training set dataframe, used to infer inputs & outputs
         :param label_column:    which columns in the training set are the label (target) columns
         :param extra_data:      key/value list of extra files/charts to link with this dataset
-                                value can be abs/relative path string | bytes | artifact object
+                                value can be absolute path | relative path (to model dir) | bytes | artifact object
         :param db_key:          the key to use in the artifact DB table, by default
                                 its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
@@ -747,6 +796,7 @@ class MLClientCtx(object):
             key,
             body,
             model_file=model_file,
+            model_dir=model_dir,
             metrics=metrics,
             parameters=parameters,
             inputs=inputs,
@@ -756,6 +806,7 @@ class MLClientCtx(object):
             feature_vector=feature_vector,
             feature_weights=feature_weights,
             extra_data=extra_data,
+            **kwargs,
         )
         if training_set is not None:
             model.infer_from_df(training_set, label_column)
@@ -763,8 +814,7 @@ class MLClientCtx(object):
         item = self._artifacts_manager.log_artifact(
             self,
             model,
-            local_path=model_dir,
-            artifact_path=artifact_path or self.artifact_path,
+            artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
             tag=tag,
             upload=upload,
             db_key=db_key,
@@ -773,12 +823,21 @@ class MLClientCtx(object):
         self._update_db()
         return item
 
-    def commit(self, message: str = "", completed=False):
+    def get_cached_artifact(self, key):
+        """return an logged artifact from cache (for potential updates)"""
+        return self._artifacts_manager.artifacts[key]
+
+    def update_artifact(self, artifact_object):
+        """update an artifact object in the cache and the DB"""
+        self._artifacts_manager.update_artifact(self, artifact_object)
+
+    def commit(self, message: str = "", completed=True):
         """save run state and optionally add a commit message
 
         :param message:   commit message to save in the run
         :param completed: mark run as completed
         """
+        completed = completed and self._state == "running"
         if message:
             self._annotations["message"] = message
         if completed:
@@ -790,9 +849,11 @@ class MLClientCtx(object):
             self._parent._update_db(commit=True, message=message)
 
         if self._children:
-            self.update_child_iterations(commit_children=True)
+            self.update_child_iterations(commit_children=True, completed=completed)
         self._last_update = now_date()
         self._update_db(commit=True, message=message)
+        if completed and not self.iteration:
+            mlrun.runtimes.utils.global_context.set(None)
 
     def set_state(self, state: str = None, error: str = None, commit=True):
         """modify and store the run state or mark an error
@@ -848,6 +909,7 @@ class MLClientCtx(object):
                 "function": self._function,
                 "log_level": self._log_level,
                 "parameters": self._parameters,
+                "handler": self._handler,
                 "outputs": self._outputs,
                 run_keys.output_path: self.artifact_path,
                 run_keys.inputs: {k: v.artifact_url for k, v in self._inputs.items()},

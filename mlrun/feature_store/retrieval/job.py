@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import uuid
 
 import mlrun
@@ -15,12 +29,10 @@ def run_merge_job(
     timestamp_column=None,
     run_config=None,
     drop_columns=None,
+    with_indexes=None,
+    query=None,
 ):
     name = vector.metadata.name
-    if not name:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "feature vector name must be specified"
-        )
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
     name = f"{name}_merger"
@@ -45,6 +57,8 @@ def run_merge_job(
             "target": target.to_dict(),
             "timestamp_column": timestamp_column,
             "drop_columns": drop_columns,
+            "with_indexes": with_indexes,
+            "query": query,
         },
         inputs={"entity_rows": entity_rows},
     )
@@ -81,9 +95,16 @@ class RemoteVectorResponse:
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
         self.vector.reload()
 
-    def to_dataframe(self):
-        """return result as dataframe"""
-        return mlrun.get_dataitem(self.target_uri).as_df()
+    def to_dataframe(self, columns=None, df_module=None, **kwargs):
+        """return result as a dataframe object (generated from the dataitem).
+
+        :param columns:   optional, list of columns to select
+        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
+        :param kwargs:    extended DataItem.as_df() args
+        """
+        return mlrun.get_dataitem(self.target_uri).as_df(
+            columns=columns, df_module=df_module, **kwargs
+        )
 
     @property
     def target_uri(self):
@@ -96,7 +117,8 @@ _default_merger_handler = """
 import mlrun
 from mlrun.feature_store.retrieval import LocalFeatureMerger
 from mlrun.datastore.targets import get_target_driver
-def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_column=None, drop_columns=None):
+def merge_handler(context, vector_uri, target, entity_rows=None, 
+                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -105,8 +127,9 @@ def merge_handler(context, vector_uri, target, entity_rows=None, timestamp_colum
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = LocalFeatureMerger(vector)
-    resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns)
+    resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
+                        query=query)
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)
     context.log_result('target', target)
-"""
+"""  # noqa

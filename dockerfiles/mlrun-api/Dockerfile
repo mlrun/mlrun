@@ -11,9 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_PYTHON_VERSION=3.7
+ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
+
+
+ARG UID=1000
+# this creates both user and group with the same id
+RUN useradd -u $UID mlrun
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -23,12 +32,14 @@ LABEL org="iguazio.com"
 RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
   git-core \
-  sqlite3 \
   procps \
+  sqlite3 \
   vim \
+  mariadb-client \
  && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --upgrade pip~=20.2.0
+ARG MLRUN_PIP_VERSION=22.0.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun
 
@@ -41,6 +52,8 @@ RUN python -m pip install \
     -r extras-requirements.txt \
     -r mlrun-api-requirements.txt
 
+ENV MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false'
+ENV MLRUN_HTTPDB__LOGS_PATH=/mlrun/db/logs
 ENV MLRUN_httpdb__dirpath=/mlrun/db
 ENV MLRUN_httpdb__port=8080
 COPY . .

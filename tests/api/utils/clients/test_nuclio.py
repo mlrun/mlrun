@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
 
 import deepdiff
@@ -18,7 +32,9 @@ async def api_url() -> str:
 
 
 @pytest.fixture()
-async def nuclio_client(api_url: str,) -> mlrun.api.utils.clients.nuclio.Client:
+async def nuclio_client(
+    api_url: str,
+) -> mlrun.api.utils.clients.nuclio.Client:
     client = mlrun.api.utils.clients.nuclio.Client()
     # force running init again so the configured api url will be used
     client.__init__()
@@ -50,12 +66,18 @@ def test_get_project(
     assert project.metadata.name == project_name
     assert project.spec.description == project_description
     assert (
-        deepdiff.DeepDiff(project_labels, project.metadata.labels, ignore_order=True,)
+        deepdiff.DeepDiff(
+            project_labels,
+            project.metadata.labels,
+            ignore_order=True,
+        )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            project_annotations, project.metadata.annotations, ignore_order=True,
+            project_annotations,
+            project.metadata.annotations,
+            ignore_order=True,
         )
         == {}
     )
@@ -297,7 +319,12 @@ def test_patch_project(
         expected_body["metadata"]["labels"].update(project_labels)
         expected_body["metadata"]["annotations"].update(project_annotations)
         assert (
-            deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
+            deepdiff.DeepDiff(
+                expected_body,
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
@@ -325,7 +352,8 @@ def test_patch_project_only_labels(
         "some-label": "some-label-value",
     }
     mocked_project_body = _generate_project_body(
-        project_name, labels={"label-key": "label-value"},
+        project_name,
+        labels={"label-key": "label-value"},
     )
 
     def verify_patch(request, context):
@@ -333,7 +361,12 @@ def test_patch_project_only_labels(
         expected_body = mocked_project_body
         expected_body["metadata"]["labels"].update(project_labels)
         assert (
-            deepdiff.DeepDiff(expected_body, request.json(), ignore_order=True,) == {}
+            deepdiff.DeepDiff(
+                expected_body,
+                request.json(),
+                ignore_order=True,
+            )
+            == {}
         )
         context.status_code = http.HTTPStatus.NO_CONTENT.value
 
@@ -342,7 +375,9 @@ def test_patch_project_only_labels(
     )
     requests_mock.put(f"{api_url}/api/projects", json=verify_patch)
     nuclio_client.patch_project(
-        None, project_name, {"metadata": {"labels": project_labels}},
+        None,
+        project_name,
+        {"metadata": {"labels": project_labels}},
     )
 
 
@@ -383,6 +418,25 @@ def test_delete_project(
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
         nuclio_client.delete_project(None, project_name)
+
+
+def test_get_dashboard_version(
+    api_url: str,
+    nuclio_client: mlrun.api.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    label = "x.x.x"
+    response_body = {
+        "dashboard": {
+            "label": label,
+            "gitCommit": "commit sha",
+            "os": "linux",
+            "arch": "amd64",
+        }
+    }
+    requests_mock.get(f"{api_url}/api/versions", json=response_body)
+    nuclio_dashboard_version = nuclio_client.get_dashboard_version()
+    assert nuclio_dashboard_version == label
 
 
 def _generate_project_body(

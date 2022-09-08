@@ -11,21 +11,47 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import getpass
 import json
 import os
 import os.path
 from copy import deepcopy
 
+from kfp import dsl
+from kubernetes import client as k8s_client
+
 import mlrun
 
 from .config import config
-from .db import get_or_set_dburl
+from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions
-from .utils import dict_to_yaml, gen_md_table, get_artifact_target, logger, run_keys
+from .utils import (
+    dict_to_yaml,
+    gen_md_table,
+    get_artifact_target,
+    get_in,
+    get_workflow_url,
+    is_ipython,
+    is_legacy_artifact,
+    logger,
+    run_keys,
+)
 
-KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "")
+# default KFP artifacts and output (ui metadata, metrics etc.)
+# directories to /tmp to allow running with security context
+KFPMETA_DIR = os.environ.get("KFPMETA_OUT_DIR", "/tmp")
 KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
+
+project_annotation = "mlrun/project"
+run_annotation = "mlrun/pipeline-step-type"
+function_annotation = "mlrun/function-uri"
+
+
+class PipelineRunType:
+    run = "run"
+    build = "build"
+    deploy = "deploy"
 
 
 def is_num(v):
@@ -88,9 +114,18 @@ def get_kfp_outputs(artifacts, labels, project):
     outputs = []
     out_dict = {}
     for output in artifacts:
-        key = output["key"]
-        target = output.get("target_path", "")
-        target = output.get("inline", target)
+        if is_legacy_artifact(output):
+            key = output["key"]
+            # The spec in a legacy artifact is contained in the main object, so using this assignment saves us a lot
+            # of if/else in the rest of this function.
+            output_spec = output
+        else:
+            key = output.get("metadata")["key"]
+            output_spec = output.get("spec", {})
+
+        target = output_spec.get("target_path", "")
+        target = output_spec.get("inline", target)
+
         out_dict[key] = get_artifact_target(output, project=project)
 
         if target.startswith("v3io:///"):
@@ -101,13 +136,13 @@ def get_kfp_outputs(artifacts, labels, project):
             user = user or "admin"
             target = "http://v3io-webapi:8081/users/" + user + target[5:]
 
-        viewer = output.get("viewer", "")
+        viewer = output_spec.get("viewer", "")
         if viewer in ["web-app", "chart"]:
             meta = {"type": "web-app", "source": target}
             outputs += [meta]
 
         elif viewer == "table":
-            header = output.get("header", None)
+            header = output_spec.get("header", None)
             if header and target.endswith(".csv"):
                 meta = {
                     "type": "table",
@@ -117,13 +152,13 @@ def get_kfp_outputs(artifacts, labels, project):
                 }
                 outputs += [meta]
 
-        elif output["kind"] == "dataset":
-            header = output.get("header")
-            preview = output.get("preview")
+        elif output.get("kind") == "dataset":
+            header = output_spec.get("header")
+            preview = output_spec.get("preview")
             if preview:
                 tbl_md = gen_md_table(header, preview)
                 text = f"## Dataset: {key}  \n\n" + tbl_md
-                del output["preview"]
+                del output_spec["preview"]
 
                 meta = {"type": "markdown", "storage": "inline", "source": text}
                 outputs += [meta]
@@ -191,7 +226,7 @@ def mlrun_op(
     :param out_path: default output path/url (prefix) for artifacts
     :param rundb:    path for rundb (or use 'MLRUN_DBPATH' env instead)
     :param mode:     run mode, e.g. 'pass' for using the command without mlrun wrapper
-    :param handler   code entry-point/hanfler name
+    :param handler   code entry-point/handler name
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
@@ -228,16 +263,11 @@ def mlrun_op(
         # run training, mount_v3io will mount "/User" into the pipeline step
         train = mlrun_train(p1, p2).apply(mount_v3io())
 
-        # feed 1st step results into the secound step
+        # feed 1st step results into the second step
         validate = mlrun_validate(
             train.outputs['model-txt']).apply(mount_v3io())
 
     """
-    from os import environ
-
-    from kfp import dsl
-    from kubernetes import client as k8s_client
-
     secrets = [] if secrets is None else secrets
     params = {} if params is None else params
     hyperparams = {} if hyperparams is None else hyperparams
@@ -310,7 +340,12 @@ def mlrun_op(
             raise ValueError("name or function object must be specified")
         name = function_name
         if handler:
-            name += "-" + handler
+            short_name = handler
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            name += "-" + short_name
 
     if hyperparams or param_file:
         outputs.append("iteration_results")
@@ -322,7 +357,7 @@ def mlrun_op(
     inputs = inputs or {}
     secrets = secrets or []
 
-    if "V3IO_USERNAME" in environ and "v3io_user" not in labels:
+    if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
         labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
     if "owner" not in labels:
         labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
@@ -343,7 +378,9 @@ def mlrun_op(
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:
         cmd += ["-o", str(output)]
-        file_outputs[output.replace(".", "_")] = os.path.join("/tmp", output)
+        file_outputs[
+            output.replace(".", "_")
+        ] = f"/tmp/{output}"  # not using path.join to avoid windows "\"
     if project:
         cmd += ["--project", project]
     if handler:
@@ -384,13 +421,14 @@ def mlrun_op(
         command=cmd + [command],
         file_outputs=file_outputs,
         output_artifact_paths={
-            "mlpipeline-ui-metadata": "/mlpipeline-ui-metadata.json",
-            "mlpipeline-metrics": "/mlpipeline-metrics.json",
+            "mlpipeline-ui-metadata": KFPMETA_DIR + "/mlpipeline-ui-metadata.json",
+            "mlpipeline-metrics": KFPMETA_DIR + "/mlpipeline-metrics.json",
         },
     )
-    # if rundb:
-    #     cop.container.add_env_variable(k8s_client.V1EnvVar(
-    #         name='MLRUN_DBPATH', value=rundb))
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
+
+    add_annotations(cop, PipelineRunType.run, function, func_url, project)
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -419,8 +457,6 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-    from kfp import dsl
-    from kubernetes import client as k8s_client
 
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
@@ -436,7 +472,7 @@ def deploy_op(
 
     if models:
         for m in models:
-            for key in ["model_path", "model_url", "class_name"]:
+            for key in ["key", "model_path", "model_url", "class_name", "model_url"]:
                 if key in m:
                     m[key] = str(m[key])  # verify we stringify pipeline params
             if function.kind == mlrun.runtimes.RuntimeKinds.serving:
@@ -460,7 +496,10 @@ def deploy_op(
         command=cmd,
         file_outputs={"endpoint": "/tmp/output", "name": "/tmp/name"},
     )
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
+    add_annotations(cop, PipelineRunType.deploy, function, func_url)
     add_default_env(k8s_client, cop)
     return cop
 
@@ -476,8 +515,6 @@ def add_env(env=None):
     env = {} if env is None else env
 
     def _add_env(task):
-        from kubernetes import client as k8s_client
-
         for k, v in env.items():
             task.add_env_variable(k8s_client.V1EnvVar(name=k, value=v))
         return task
@@ -498,11 +535,6 @@ def build_op(
 ):
     """build Docker image."""
 
-    from os import environ
-
-    from kfp import dsl
-    from kubernetes import client as k8s_client
-
     cmd = ["python", "-m", "mlrun", "build", "--kfp"]
     if function:
         if not hasattr(function, "to_dict"):
@@ -519,7 +551,7 @@ def build_op(
     if secret_name:
         cmd += ["--secret-name", secret_name]
     if with_mlrun:
-        cmd += ["--with_mlrun"]
+        cmd += ["--with-mlrun"]
     if skip_deployed:
         cmd += ["--skip"]
     for c in commands:
@@ -533,7 +565,10 @@ def build_op(
         command=cmd,
         file_outputs={"state": "/tmp/state", "image": "/tmp/image"},
     )
+    cop = add_default_function_resources(cop)
+    cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
+    add_annotations(cop, PipelineRunType.build, function, func_url)
     if config.httpdb.builder.docker_registry:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
@@ -541,7 +576,7 @@ def build_op(
                 value=config.httpdb.builder.docker_registry,
             )
         )
-    if "IGZ_NAMESPACE_DOMAIN" in environ:
+    if "IGZ_NAMESPACE_DOMAIN" in os.environ:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="IGZ_NAMESPACE_DOMAIN",
@@ -552,7 +587,7 @@ def build_op(
     is_v3io = function.spec.build.source and function.spec.build.source.startswith(
         "v3io"
     )
-    if "V3IO_ACCESS_KEY" in environ and is_v3io:
+    if "V3IO_ACCESS_KEY" in os.environ and is_v3io:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
                 name="V3IO_ACCESS_KEY", value=os.environ.get("V3IO_ACCESS_KEY")
@@ -588,6 +623,15 @@ def add_default_env(k8s_client, cop):
             )
         )
 
+    auth_env_var = mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+    if auth_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name=auth_env_var,
+                value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
+            )
+        )
+
 
 def get_default_reg():
     if config.httpdb.builder.docker_registry:
@@ -596,3 +640,186 @@ def get_default_reg():
     if namespace_domain is not None:
         return f"docker-registry.{namespace_domain}:80"
     return ""
+
+
+def add_annotations(cop, kind, function, func_url=None, project=None):
+    if func_url and func_url.startswith("db://"):
+        func_url = func_url[len("db://") :]
+    cop.add_pod_annotation(run_annotation, kind)
+    cop.add_pod_annotation(project_annotation, project or function.metadata.project)
+    cop.add_pod_annotation(function_annotation, func_url or function.uri)
+
+
+def generate_kfp_dag_and_resolve_project(run, project=None):
+    workflow = run.get("pipeline_runtime", {}).get("workflow_manifest")
+    if not workflow:
+        return None, project, None
+    workflow = json.loads(workflow)
+
+    templates = {}
+    for template in workflow["spec"]["templates"]:
+        project = project or get_in(
+            template, ["metadata", "annotations", project_annotation], ""
+        )
+        name = template["name"]
+        templates[name] = {
+            "run_type": get_in(
+                template, ["metadata", "annotations", run_annotation], ""
+            ),
+            "function": get_in(
+                template, ["metadata", "annotations", function_annotation], ""
+            ),
+        }
+
+    nodes = workflow["status"].get("nodes", {})
+    dag = {}
+    for node in nodes.values():
+        name = node["displayName"]
+        record = {
+            k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
+        }
+        record["parent"] = node.get("boundaryID", "")
+        record["name"] = name
+        record["children"] = node.get("children", [])
+        if name in templates:
+            record["function"] = templates[name].get("function")
+            record["run_type"] = templates[name].get("run_type")
+        dag[node["id"]] = record
+
+    return dag, project, workflow["status"].get("message", "")
+
+
+def format_summary_from_kfp_run(kfp_run, project=None, session=None):
+    override_project = project if project and project != "*" else None
+    dag, project, message = generate_kfp_dag_and_resolve_project(
+        kfp_run, override_project
+    )
+    run_id = get_in(kfp_run, "run.id")
+
+    # enrich DAG with mlrun run info
+    if session:
+        runs = mlrun.api.utils.singletons.db.get_db().list_runs(
+            session, project=project, labels=f"workflow={run_id}"
+        )
+    else:
+        runs = get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
+
+    for run in runs:
+        step = get_in(run, ["metadata", "labels", "mlrun/runner-pod"])
+        if step and step in dag:
+            dag[step]["run_uid"] = get_in(run, "metadata.uid")
+            dag[step]["kind"] = get_in(run, "metadata.labels.kind")
+            error = get_in(run, "status.error")
+            if error:
+                dag[step]["error"] = error
+
+    short_run = {"graph": dag}
+    short_run["run"] = {
+        k: str(v)
+        for k, v in kfp_run["run"].items()
+        if k
+        in [
+            "id",
+            "name",
+            "status",
+            "error",
+            "created_at",
+            "scheduled_at",
+            "finished_at",
+            "description",
+        ]
+    }
+    short_run["run"]["project"] = project
+    short_run["run"]["message"] = message
+    return short_run
+
+
+def show_kfp_run(run, clear_output=False):
+    phase_to_color = {
+        mlrun.run.RunStatuses.failed: "red",
+        mlrun.run.RunStatuses.succeeded: "green",
+        mlrun.run.RunStatuses.skipped: "white",
+    }
+    runtype_to_shape = {
+        PipelineRunType.run: "ellipse",
+        PipelineRunType.build: "box",
+        PipelineRunType.deploy: "box3d",
+    }
+    if not run or "graph" not in run:
+        return
+    if is_ipython:
+        try:
+            from graphviz import Digraph
+        except ImportError:
+            return
+
+        try:
+            graph = run["graph"]
+            dag = Digraph("kfp", format="svg")
+            dag.attr(compound="true")
+
+            for key, node in graph.items():
+                if node["type"] != "DAG" or node["parent"]:
+                    shape = "ellipse"
+                    if node.get("run_type"):
+                        shape = runtype_to_shape.get(node["run_type"], None)
+                    elif node["phase"] == "Skipped" or (
+                        node["type"] == "DAG" and node["name"].startswith("condition-")
+                    ):
+                        shape = "diamond"
+                    dag.node(
+                        key,
+                        label=node["name"],
+                        fillcolor=phase_to_color.get(node["phase"], None),
+                        style="filled",
+                        shape=shape,
+                        tooltip=node.get("error", None),
+                    )
+                    for child in node.get("children") or []:
+                        dag.edge(key, child)
+
+            import IPython
+
+            if clear_output:
+                IPython.display.clear_output(wait=True)
+
+            run_id = run["run"]["id"]
+            url = get_workflow_url(run["run"]["project"], run_id)
+            href = f'<a href="{url}" target="_blank"><b>click here</b></a>'
+            html = IPython.display.HTML(
+                f"<div>Pipeline running (id={run_id}), {href} to view the details in MLRun UI</div>"
+            )
+            IPython.display.display(html, dag)
+        except Exception as exc:
+            logger.warning(f"failed to plot graph, {exc}")
+
+
+def add_default_function_resources(
+    container_op: dsl.ContainerOp,
+) -> dsl.ContainerOp:
+    default_resources = config.get_default_function_pod_resources()
+    for resource_name, resource_value in default_resources["requests"].items():
+        if resource_value:
+            container_op.container.add_resource_request(resource_name, resource_value)
+
+    for resource_name, resource_value in default_resources["limits"].items():
+        if resource_value:
+            container_op.container.add_resource_limit(resource_name, resource_value)
+    return container_op
+
+
+def add_function_node_selection_attributes(
+    function, container_op: dsl.ContainerOp
+) -> dsl.ContainerOp:
+
+    if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
+        if getattr(function.spec, "node_selector"):
+            container_op.node_selector = function.spec.node_selector
+
+        if getattr(function.spec, "tolerations"):
+            container_op.tolerations = function.spec.tolerations
+
+        if getattr(function.spec, "affinity"):
+            container_op.affinity = function.spec.affinity
+
+    return container_op

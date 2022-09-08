@@ -28,6 +28,8 @@ from mlrun.utils import get_in, logger
 
 
 class MPIResourceSpec(KubeResourceSpec):
+    _dict_fields = KubeResourceSpec._dict_fields + ["mpi_args"]
+
     def __init__(
         self,
         command=None,
@@ -51,6 +53,12 @@ class MPIResourceSpec(KubeResourceSpec):
         node_name=None,
         node_selector=None,
         affinity=None,
+        priority_class_name=None,
+        disable_auto_mount=False,
+        pythonpath=None,
+        tolerations=None,
+        preemption_mode=None,
+        security_context=None,
     ):
         super().__init__(
             command=command,
@@ -73,6 +81,12 @@ class MPIResourceSpec(KubeResourceSpec):
             node_name=node_name,
             node_selector=node_selector,
             affinity=affinity,
+            priority_class_name=priority_class_name,
+            disable_auto_mount=disable_auto_mount,
+            pythonpath=pythonpath,
+            tolerations=tolerations,
+            preemption_mode=preemption_mode,
+            security_context=security_context,
         )
         self.mpi_args = mpi_args or [
             "-x",
@@ -86,7 +100,8 @@ class MPIResourceSpec(KubeResourceSpec):
 
 class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     kind = "mpijob"
-    _is_nested = False
+    # nested i.e. hyper-param loop will use the same CRD/containers (vs CRD per iteration)
+    _is_nested = True
 
     @property
     def spec(self) -> MPIResourceSpec:
@@ -98,7 +113,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     @abc.abstractmethod
     def _generate_mpi_job(
-        self, runobj: RunObject, execution: MLClientCtx, meta: client.V1ObjectMeta,
+        self,
+        runobj: RunObject,
+        execution: MLClientCtx,
+        meta: client.V1ObjectMeta,
     ) -> typing.Dict:
         pass
 
@@ -133,6 +151,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         meta = self._get_meta(runobj, True)
 
+        self._add_secrets_to_spec_before_running(runobj)
+
         job = self._generate_mpi_job(runobj, execution, meta)
 
         resp = self._submit_mpijob(job, meta.namespace)
@@ -163,7 +183,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                         execution.set_state("completed")
                     else:
                         execution.set_state(
-                            "error", f"MpiJob {meta.name} finished with state {status}",
+                            "error",
+                            f"MpiJob {meta.name} finished with state {status}",
                         )
                 else:
                     txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"

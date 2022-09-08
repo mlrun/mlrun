@@ -13,15 +13,17 @@
 # limitations under the License.
 import collections
 from copy import copy
-from typing import List
+from enum import Enum
+from typing import List, Union
 
+import numpy as np
 import pandas as pd
 
 import mlrun
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
-from ..datastore.targets import CSVTarget, ParquetTarget, get_offline_target
+from ..datastore.targets import get_offline_target
 from ..feature_store.common import (
     get_feature_set_by_uri,
     parse_feature_string,
@@ -112,6 +114,7 @@ class FeatureVectorStatus(ModelObj):
         stats=None,
         preview=None,
         run_uri=None,
+        index_keys=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -120,6 +123,7 @@ class FeatureVectorStatus(ModelObj):
         self.label_column = label_column
         self.targets = targets
         self.stats = stats or {}
+        self.index_keys = index_keys
         self.preview = preview or []
         self.features: List[Feature] = features or []
         self.run_uri = run_uri
@@ -147,14 +151,9 @@ class FeatureVectorStatus(ModelObj):
 
 
 class FeatureVector(ModelObj):
-    """Feature vector, specify selected features, their metadata and material views
-    :param name: List of names of targets to delete (default: delete all ingested targets)
-    :param features: list of feature to collect to this vector. format <project>/<feature_set>.<feature_name or *>
-    :param label_feature: feature name to be used as label data
-    :param description: vector description
-    :param with_indexes: whether to keep the entity and timestamp columns in the response """
+    """Feature vector, specify selected features, their metadata and material views"""
 
-    kind = kind = mlrun.api.schemas.ObjectKind.feature_vector.value
+    kind = mlrun.api.schemas.ObjectKind.feature_vector.value
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
@@ -165,6 +164,28 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
     ):
+        """Feature vector, specify selected features, their metadata and material views
+
+        example::
+
+            import mlrun.feature_store as fstore
+            features = ["quotes.bid", "quotes.asks_sum_5h as asks_5h", "stocks.*"]
+            vector = fstore.FeatureVector("my-vec", features)
+
+            # get the vector as a dataframe
+            df = fstore.get_offline_features(vector).to_dataframe()
+
+            # return an online/real-time feature service
+            svc = fs.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            resp = svc.get([{"stock": "GOOG"}])
+
+        :param name:           List of names of targets to delete (default: delete all ingested targets)
+        :param features:       list of feature to collect to this vector.
+                               format [<project>/]<feature_set>.<feature_name or *> [as <alias>]
+        :param label_feature:  feature name to be used as label data
+        :param description:    text description of the vector
+        :param with_indexes:   whether to keep the entity and timestamp columns in the response
+        """
         self._spec: FeatureVectorSpec = None
         self._metadata = None
         self._status = None
@@ -224,7 +245,25 @@ class FeatureVector(ModelObj):
     def get_stats_table(self):
         """get feature statistics table (as dataframe)"""
         if self.status.stats:
+            feature_aliases = self.get_feature_aliases()
+            for old_name, new_name in feature_aliases.items():
+                if old_name in self.status.stats:
+                    self.status.stats[new_name] = self.status.stats[old_name]
+                    del self.status.stats[old_name]
             return pd.DataFrame.from_dict(self.status.stats, orient="index")
+
+    def get_feature_aliases(self):
+        feature_aliases = {}
+        for feature in self.spec.features:
+            column_names = feature.split(" as ")
+            # split 'feature_set.old_name as new_name'
+            if len(column_names) == 2:
+                old_name_with_feature_set, new_name = column_names
+                # split 'feature_set.old_name'
+                feature_set, old_name = column_names[0].split(".")
+                if new_name != old_name:
+                    feature_aliases[old_name] = new_name
+        return feature_aliases
 
     def get_target_path(self, name=None):
         target = get_offline_target(self, name=name)
@@ -257,7 +296,7 @@ class FeatureVector(ModelObj):
         if update_spec:
             self.spec = from_db.spec
 
-    def parse_features(self, offline=True):
+    def parse_features(self, offline=True, update_stats=False):
         """parse and validate feature list (from vector) and add metadata from feature sets
 
         :returns
@@ -266,23 +305,27 @@ class FeatureVector(ModelObj):
         """
         processed_features = {}  # dict of name to (featureset, feature object)
         feature_set_objects = {}
+        index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
+        label_column_name = None
+        label_column_fset = None
         if offline and self.spec.label_feature:
             features.append(self.spec.label_feature)
-            _, name, alias = parse_feature_string(self.spec.label_feature)
-            self.status.label_column = alias or name
+            feature_set, name, _ = parse_feature_string(self.spec.label_feature)
+            self.status.label_column = name
+            label_column_name = name
+            label_column_fset = feature_set
 
-        def add_feature(name, alias, feature_set_object):
+        def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"feature name/alias {alias} already specified,"
-                    " use another alias (feature-set:name[@alias])"
+                    " use another alias (feature-set.name [as alias])"
                 )
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
-            featureset_name = feature_set_object.metadata.name
-            feature_set_fields[featureset_name].append((name, alias))
+            feature_set_fields[feature_set_full_name].append((name, alias))
 
         for feature in features:
             project_name, feature = parse_project_name_from_feature_string(feature)
@@ -297,49 +340,159 @@ class FeatureVector(ModelObj):
             feature_fields = feature_set_object.spec.features.keys()
             if feature_name == "*":
                 for field in feature_fields:
-                    if field != feature_set_object.spec.timestamp_key:
+                    if field != feature_set_object.spec.timestamp_key and not (
+                        feature_set == label_column_fset and field == label_column_name
+                    ):
                         if alias:
-                            add_feature(field, alias + "_" + field, feature_set_object)
+                            add_feature(
+                                field,
+                                alias + "_" + field,
+                                feature_set_object,
+                                feature_set,
+                            )
                         else:
-                            add_feature(field, field, feature_set_object)
+                            add_feature(field, field, feature_set_object, feature_set)
             else:
                 if feature_name not in feature_fields:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"feature {feature} not found in feature set {feature_set}"
                     )
-                add_feature(feature_name, alias, feature_set_object)
+                add_feature(feature_name, alias, feature_set_object, feature_set)
 
         for feature_set_name, fields in feature_set_fields.items():
             feature_set = feature_set_objects[feature_set_name]
-            for name, alias in fields:
-                field_name = alias or name
-                if name in feature_set.status.stats:
-                    self.status.stats[field_name] = feature_set.status.stats[name]
+            for key in feature_set.spec.entities.keys():
+                if key not in index_keys:
+                    index_keys.append(key)
+            for name, _ in fields:
+                if name in feature_set.status.stats and update_stats:
+                    self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
-                    self.status.features[field_name] = feature_set.spec.features[name]
+                    feature = feature_set.spec.features[name].copy()
+                    feature.origin = f"{feature_set.fullname}.{name}"
+                    self.status.features[name] = feature
 
+        self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
 
 
 class OnlineVectorService:
     """get_online_feature_service response object"""
 
-    def __init__(self, vector, graph, index_columns):
+    def __init__(self, vector, graph, index_columns, impute_policy: dict = None):
         self.vector = vector
+        self.impute_policy = impute_policy or {}
+
         self._controller = graph.controller
         self._index_columns = index_columns
+        self._impute_values = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def initialize(self):
+        """internal, init the feature service and prep the imputing logic"""
+        if not self.impute_policy:
+            return
+
+        impute_policy = copy(self.impute_policy)
+        vector = self.vector
+        feature_stats = vector.get_stats_table()
+        self._impute_values = {}
+
+        feature_keys = list(vector.status.features.keys())
+        if vector.status.label_column in feature_keys:
+            feature_keys.remove(vector.status.label_column)
+
+        if "*" in impute_policy:
+            value = impute_policy["*"]
+            del impute_policy["*"]
+
+            for name in feature_keys:
+                if name not in impute_policy:
+                    if isinstance(value, str) and value.startswith("$"):
+                        self._impute_values[name] = feature_stats.loc[name, value[1:]]
+                    else:
+                        self._impute_values[name] = value
+
+        for name, value in impute_policy.items():
+            if name not in feature_keys:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"feature {name} in impute_policy but not in feature vector"
+                )
+            if isinstance(value, str) and value.startswith("$"):
+                self._impute_values[name] = feature_stats.loc[name, value[1:]]
+            else:
+                self._impute_values[name] = value
 
     @property
     def status(self):
         """vector merger function status (ready, running, error)"""
         return "ready"
 
-    def get(self, entity_rows: List[dict], as_list=False):
-        """get feature vector given the provided entity inputs"""
+    def get(self, entity_rows: List[Union[dict, list]], as_list=False):
+        """get feature vector given the provided entity inputs
+
+        take a list of input vectors/rows and return a list of enriched feature vectors
+        each input and/or output vector can be a list of values or a dictionary of field names and values,
+        to return the vector as a list of values set the `as_list` to True.
+
+        if the input is a list of list (vs a list of dict), the values in the list will correspond to the
+        index/entity values, i.e. [["GOOG"], ["MSFT"]] means "GOOG" and "MSFT" are the index/entity fields.
+
+        example::
+
+            # accept list of dict, return list of dict
+            svc = fs.get_online_feature_service(vector)
+            resp = svc.get([{"name": "joe"}, {"name": "mike"}])
+
+            # accept list of list, return list of list
+            svc = fs.get_online_feature_service(vector, as_list=True)
+            resp = svc.get([["joe"], ["mike"]])
+
+        :param entity_rows:  list of list/dict with input entity data/rows
+        :param as_list:      return a list of list (list input is required by many ML frameworks)
+        """
         results = []
         futures = []
+        if isinstance(entity_rows, dict):
+            entity_rows = [entity_rows]
+
+        # validate we have valid input struct
+        if (
+            not entity_rows
+            or not isinstance(entity_rows, list)
+            or not isinstance(entity_rows[0], (list, dict))
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
+            )
+
+        # if list of list, convert to dicts (with the index columns as the dict keys)
+        if isinstance(entity_rows[0], list):
+            if not self._index_columns or len(entity_rows[0]) != len(
+                self._index_columns
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "input list must be in the same size of the index_keys list"
+                )
+            index_range = range(len(self._index_columns))
+            entity_rows = [
+                {self._index_columns[i]: item[i] for i in index_range}
+                for item in entity_rows
+            ]
+
         for row in entity_rows:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
+
+        requested_columns = list(self.vector.status.features.keys())
+        aliases = self.vector.get_feature_aliases()
+        for i, column in enumerate(requested_columns):
+            requested_columns[i] = aliases.get(column, column)
+
         for future in futures:
             result = future.await_result()
             data = result.body
@@ -349,7 +502,6 @@ class OnlineVectorService:
             if not data:
                 data = None
             else:
-                requested_columns = self.vector.status.features.keys()
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
@@ -357,10 +509,17 @@ class OnlineVectorService:
                         and column != self.vector.status.label_column
                     ):
                         data[column] = None
-            if as_list:
+
+            if self._impute_values and data:
+                for name in data.keys():
+                    v = data[name]
+                    if v is None or (type(v) == float and (np.isinf(v) or np.isnan(v))):
+                        data[name] = self._impute_values.get(name, v)
+
+            if as_list and data:
                 data = [
-                    result.body[key]
-                    for key in self.vector.status.features.keys()
+                    data.get(key, None)
+                    for key in requested_columns
                     if key != self.vector.status.label_column
                 ]
             results.append(data)
@@ -384,20 +543,35 @@ class OfflineVectorResponse:
         """vector prep job status (ready, running, error)"""
         return self._merger.get_status()
 
-    def to_dataframe(self):
+    def to_dataframe(self, to_pandas=True):
         """return result as dataframe"""
         if self.status != "completed":
             raise mlrun.errors.MLRunTaskNotReady("feature vector dataset is not ready")
-        return self._merger.get_df()
+        return self._merger.get_df(to_pandas=to_pandas)
 
     def to_parquet(self, target_path, **kw):
         """return results as parquet file"""
-        size = ParquetTarget(path=target_path).write_dataframe(
-            self._merger.get_df(), **kw
-        )
-        return size
+        return self._merger.to_parquet(target_path, **kw)
 
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
-        size = CSVTarget(path=target_path).write_dataframe(self._merger.get_df(), **kw)
-        return size
+        return self._merger.to_csv(target_path, **kw)
+
+
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
+            )

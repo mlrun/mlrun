@@ -64,7 +64,7 @@ class FileStore(DataStore):
 
     def upload(self, key, src_path):
         fullpath = self._join(key)
-        if fullpath == src_path:
+        if path.realpath(src_path) == path.realpath(fullpath):
             return
         dir = path.dirname(fullpath)
         if dir:

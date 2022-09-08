@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 name: CI
 
 on:
@@ -6,10 +20,14 @@ on:
     - development
     - '[0-9]+.[0-9]+.x'
 
-  # Run CI also on push to master
+  # Run CI also on push to backport release branches - we sometimes push code there by cherry-picking, meaning it
+  # doesn't go through CI (no PR)
+  # For master all code is coming from development where it's coming from PRs (meaning it's passing CI) but there's the
+  # rare scenario where the combination of merged PRs won't pass CI
   push:
     branches:
     - master
+    - '[0-9]+.[0-9]+.x'
 
 jobs:
   lint:
@@ -17,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.7, 3.8]
     steps:
     - uses: actions/checkout@v2
     - name: Set up python ${{ matrix.python-version }}
@@ -33,7 +51,7 @@ jobs:
           ${{ runner.os }}-pip-
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=20.2.0
+        python -m pip install --upgrade pip~=22.0.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
@@ -100,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.7, 3.8]
     steps:
     - uses: actions/checkout@v2
     - name: Set up python ${{ matrix.python-version }}
@@ -142,3 +160,65 @@ jobs:
         with:
           name: docs
           path: docs/_build/html
+
+
+  backward-compatibilty-tests:
+    name: Run Backward Compatibility Tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      MLRUN_BC_TESTS_HOME_PATH: /home/runner/work/mlrun/mlrun
+      MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun
+      MLRUN_BC_TESTS_HEAD_CODE_PATH: /home/runner/work/mlrun/mlrun/head/mlrun
+      MLRUN_DOCKER_REGISTRY: ghcr.io/
+    steps:
+      - id: resolve_base_branch
+        run: |
+            echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+      - name: Checkout PR Base (target) Branch
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ steps.resolve_base_branch.outputs.branch }}
+          path: base/mlrun
+      - name: Checkout Merge Commit (requested branch merged with the target branch)
+        uses: actions/checkout@v2
+        with:
+          path: head/mlrun
+      - name: Resolve docker cache tag
+        id: docker_cache
+        run: |
+          export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
+          export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
+          echo "::set-output name=tag::$(echo $unstable_tag)"
+      - name: Run Backward Compatibility Tests
+        run: |
+          cd head/mlrun
+          MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-backward-compatibility-dockerized
+
+  check-copyright:
+    name: Check Copyright Existence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check License Lines
+        uses: kt3k/license_checker@v1.0.6
+      - name: Instructions For Adding Copyright
+        if: ${{ failure() }}
+        run: |
+          echo "
+          Please add the following lines to the top of your code:
+          
+          # Copyright 2018 Iguazio
+          #
+          # Licensed under the Apache License, Version 2.0 (the "License");
+          # you may not use this file except in compliance with the License.
+          # You may obtain a copy of the License at
+          #
+          #   http://www.apache.org/licenses/LICENSE-2.0
+          #
+          # Unless required by applicable law or agreed to in writing, software
+          # distributed under the License is distributed on an "AS IS" BASIS,
+          # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+          # See the License for the specific language governing permissions and
+          # limitations under the License.
+          "

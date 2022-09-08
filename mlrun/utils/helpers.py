@@ -19,6 +19,7 @@ import json
 import re
 import sys
 import time
+import typing
 from datetime import datetime, timezone
 from importlib import import_module
 from os import environ, path
@@ -29,7 +30,7 @@ import numpy as np
 import requests
 import yaml
 from dateutil import parser
-from pandas._libs.tslibs.timestamps import Timestamp
+from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from tabulate import tabulate
 from yaml.representer import RepresenterError
 
@@ -45,6 +46,10 @@ _missing = object()
 
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
+
+LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
+DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
+DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
 class StorePrefix:
@@ -77,11 +82,24 @@ class StorePrefix:
 
 
 def get_artifact_target(item: dict, project=None):
-    kind = item.get("kind")
-    if kind in ["dataset", "model"] and item.get("db_key"):
+    if is_legacy_artifact(item):
+        db_key = item.get("db_key")
         project_str = project or item.get("project")
-        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{item.get('db_key')}:{item.get('tree')}"
-    return item.get("target_path")
+        tree = item.get("tree")
+    else:
+        db_key = item["spec"].get("db_key")
+        project_str = project or item["metadata"].get("project")
+        tree = item["metadata"].get("tree")
+
+    kind = item.get("kind")
+    if kind in ["dataset", "model"] and db_key:
+        return f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}:{tree}"
+
+    return (
+        item.get("target_path")
+        if is_legacy_artifact(item)
+        else item["spec"].get("target_path")
+    )
 
 
 logger = create_logger(config.log_level, config.log_formatter, "mlrun", sys.stdout)
@@ -92,13 +110,13 @@ try:
     import IPython
 
     ipy = IPython.get_ipython()
-    if ipy:
+    # if its IPython terminal ignore (cant show html)
+    if ipy and "Terminal" not in str(type(ipy)):
         is_ipython = True
 except ImportError:
     pass
 
 if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
-
     # bypass Jupyter asyncio bug
     import nest_asyncio
 
@@ -115,7 +133,9 @@ class run_keys:
     secrets = "secret_sources"
 
 
-def verify_field_regex(field_name, field_value, patterns):
+def verify_field_regex(
+    field_name, field_value, patterns, raise_on_failure: bool = True
+) -> bool:
     logger.debug(
         "Validating field against patterns",
         field_name=field_name,
@@ -125,15 +145,80 @@ def verify_field_regex(field_name, field_value, patterns):
 
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
-            logger.warn(
+            log_func = logger.warn if raise_on_failure else logger.debug
+            log_func(
                 "Field is malformed. Does not match required pattern",
                 field_name=field_name,
                 field_value=field_value,
                 pattern=pattern,
             )
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field {field_name} is malformed. Does not match required pattern: {pattern}"
+            if raise_on_failure:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Field '{field_name}' is malformed. Does not match required pattern: {pattern}"
+                )
+            else:
+                return False
+    return True
+
+
+# Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_of_type(field_name: str, field_value, expected_type: type):
+    if not isinstance(field_value, expected_type):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"(got: {type(field_value).__name__} with value: {field_value})."
+        )
+
+
+# Verifying that a field input is of type list and all elements inside are of the expected element type.
+# If not the method raises a detailed MLRunInvalidArgumentError
+def verify_field_list_of_type(
+    field_name: str, field_value, expected_element_type: type
+):
+    verify_field_of_type(field_name, field_value, list)
+    for element in field_value:
+        verify_field_of_type(field_name, element, expected_element_type)
+
+
+def verify_dict_items_type(
+    name: str,
+    dictionary: dict,
+    expected_keys_types: list = None,
+    expected_values_types: list = None,
+):
+    if dictionary:
+        if type(dictionary) != dict:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} expected to be of type dict, got type : {type(dictionary)}"
             )
+        try:
+            verify_list_items_type(dictionary.keys(), expected_keys_types)
+            verify_list_items_type(dictionary.values(), expected_values_types)
+        except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"{get_pretty_types_names(expected_values_types)}]."
+            ) from exc
+
+
+def verify_list_items_type(list_, expected_types: list = None):
+    if list_ and expected_types:
+        list_items_types = set(map(type, list_))
+        expected_types = set(expected_types)
+
+        if not list_items_types.issubset(expected_types):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                f"Found unexpected types in list items. expected: {expected_types},"
+                f" found: {list_items_types} in : {list_}"
+            )
+
+
+def get_pretty_types_names(types):
+    if len(types) == 0:
+        return ""
+    if len(types) > 1:
+        return "Union[" + ",".join([ty.__name__ for ty in types]) + "]"
+    return types[0].__name__
 
 
 def now_date():
@@ -190,6 +275,20 @@ def get_in(obj, keys, default=None):
     return obj
 
 
+def verify_and_update_in(
+    obj, key, value, expected_type: type, append=False, replace=True
+):
+    verify_field_of_type(key, value, expected_type)
+    update_in(obj, key, value, append, replace)
+
+
+def verify_list_and_update_in(
+    obj, key, value, expected_element_type: type, append=False, replace=True
+):
+    verify_field_list_of_type(key, value, expected_element_type)
+    update_in(obj, key, value, append, replace)
+
+
 def update_in(obj, key, value, append=False, replace=True):
     parts = key.split(".") if isinstance(key, str) else key
     for part in parts[:-1]:
@@ -242,7 +341,6 @@ def match_labels(labels, conditions):
 def match_times(time_from, time_to, obj, key):
     obj_time = get_in(obj, key)
     if not obj_time:
-
         # if obj doesn't have the required time, return false if either time_from or time_to were given
         return not time_from and not time_to
     obj_time = parser.isoparse(obj_time)
@@ -364,21 +462,6 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def uxjoin(base, local_path, key="", iter=None, is_dir=False):
-    if is_dir and (not local_path or local_path in [".", "./"]):
-        local_path = ""
-    elif not local_path:
-        local_path = key
-
-    if iter:
-        local_path = path.join(str(iter), local_path)
-
-    if base and not base.endswith("/"):
-        base += "/"
-    base_str = base or ""
-    return f"{base_str}{local_path}"
-
-
 def parse_versioned_object_uri(uri, default_project=""):
     project = default_project
     tag = ""
@@ -456,7 +539,7 @@ def extend_hub_uri_if_needed(uri):
 
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.hub_url.format(name=name, tag=tag), True
+    return config.get_hub_url().format(name=name, tag=tag), True
 
 
 def gen_md_table(header, rows=None):
@@ -522,9 +605,19 @@ def new_pipe_meta(artifact_path=None, ttl=None, *args):
     return conf
 
 
-def enrich_image_url(image_url: str) -> str:
+def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
+    return (
+        version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
+    )
+
+
+def enrich_image_url(image_url: str, client_version: str = None) -> str:
+    client_version = _convert_python_package_version_to_image_tag(client_version)
+    server_version = _convert_python_package_version_to_image_tag(
+        mlrun.utils.version.Version().get()["version"]
+    )
     image_url = image_url.strip()
-    tag = config.images_tag or mlrun.utils.version.Version().get()["version"]
+    tag = config.images_tag or client_version or server_version
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -547,6 +640,12 @@ def enrich_image_url(image_url: str) -> str:
         image_url = f"{registry}{image_url}"
 
     return image_url
+
+
+def get_docker_repository_or_default(repository: str) -> str:
+    if not repository:
+        repository = "mlrun"
+    return repository
 
 
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
@@ -578,6 +677,15 @@ def pr_comment(
     server=None,
     gitlab=False,
 ):
+    """push comment message to Git system PR/issue
+
+    :param message:  test message
+    :param repo:     repo name (org/repo)
+    :param issue:    pull-request/issue number
+    :param token:    git system security token
+    :param server:   url of the git system
+    :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
+    """
     if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
         gitlab = True
     token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
@@ -586,17 +694,24 @@ def pr_comment(
         server = server or "gitlab.com"
         headers = {"PRIVATE-TOKEN": token}
         repo = repo or environ.get("CI_PROJECT_ID")
+        # auto detect GitLab pr id from the environment
         issue = issue or environ.get("CI_MERGE_REQUEST_IID")
         repo = repo.replace("/", "%2F")
         url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
     else:
         server = server or "api.github.com"
         repo = repo or environ.get("GITHUB_REPOSITORY")
+        # auto detect pr number if not specified, in github the pr id is identified as an issue id
+        # we try and read the pr (issue) id from the github actions event file/object
         if not issue and "GITHUB_EVENT_PATH" in environ:
             with open(environ["GITHUB_EVENT_PATH"]) as fp:
                 data = fp.read()
                 event = json.loads(data)
-                issue = event["pull_request"].get("number")
+                if "issue" not in event:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"issue not found in github actions event\ndata={data}"
+                    )
+                issue = event["issue"].get("number")
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {token}",
@@ -635,19 +750,77 @@ def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
 
-class FatalFailureException(Exception):
-    def __init__(self, original_exception: Exception, *args: object) -> None:
-        super().__init__(*args)
-        self.original_exception = original_exception
+def create_linear_backoff(base=2, coefficient=2, stop_value=120):
+    """
+    Create a generator of linear backoff. Check out usage example in test_helpers.py
+    """
+    x = 0
+    comparison = min if coefficient >= 0 else max
+
+    while True:
+        next_value = comparison(base + x * coefficient, stop_value)
+        yield next_value
+        x += 1
+
+
+def create_step_backoff(steps=None):
+    """
+    Create a generator of steps backoff.
+    Example: steps = [[2, 5], [20, 10], [120, None]] will produce a generator in which the first 5
+    values will be 2, the next 10 values will be 20 and the rest will be 120.
+    :param steps: a list of lists [step_value, number_of_iteration_in_this_step]
+    """
+    steps = steps if steps is not None else [[2, 10], [10, 10], [120, None]]
+    steps = iter(steps)
+
+    # Get first step
+    step = next(steps)
+    while True:
+        current_step_value, current_step_remain = step
+        if current_step_remain == 0:
+
+            # No more in this step, moving on
+            step = next(steps)
+        elif current_step_remain is None:
+
+            # We are in the last step, staying here forever
+            yield current_step_value
+        elif current_step_remain > 0:
+
+            # Still more remains in this step, just reduce the remaining number
+            step[1] -= 1
+            yield current_step_value
+
+
+def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
+    """
+    Create a generator of exponential backoff. Check out usage example in test_helpers.py
+    :param base: exponent base
+    :param max_value: max limit on the result
+    :param scale_factor: factor to be used as linear scaling coefficient
+    """
+    exponent = 1
+    while True:
+
+        # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
+        # risking going behind max_int
+        next_value = scale_factor * (base**exponent)
+        if next_value < max_value:
+            exponent += 1
+            yield next_value
+        else:
+            yield max_value
 
 
 def retry_until_successful(
-    interval: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
+    backoff: int, timeout: int, logger, verbose: bool, _function, *args, **kwargs
 ):
     """
     Runs function with given *args and **kwargs.
     Tries to run it until success or timeout reached (timeout is optional)
-    :param interval: int/float that will be used as interval
+    :param backoff: can either be a:
+            - number (int / float) that will be used as interval.
+            - generator of waiting intervals. (support next())
     :param timeout: pass None if timeout is not wanted, number of seconds if it is
     :param logger: a logger so we can log the failures
     :param verbose: whether to log the failure on each retry
@@ -659,26 +832,30 @@ def retry_until_successful(
     start_time = time.time()
     last_exception = None
 
+    # Check if backoff is just a simple interval
+    if isinstance(backoff, int) or isinstance(backoff, float):
+        backoff = create_linear_backoff(base=backoff, coefficient=0)
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
+        next_interval = next(backoff)
         try:
             result = _function(*args, **kwargs)
             return result
 
-        except FatalFailureException as exc:
-            logger.debug("Fatal failure exception raised. Not retrying")
+        except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
             last_exception = exc
 
             # If next interval is within allowed time period - wait on interval, abort otherwise
-            if timeout is None or time.time() + interval < start_time + timeout:
+            if timeout is None or time.time() + next_interval < start_time + timeout:
                 if logger is not None and verbose:
                     logger.debug(
-                        f"Operation not yet successful, Retrying in {interval} seconds. exc: {exc}"
+                        f"Operation not yet successful, Retrying in {next_interval} seconds. exc: {exc}"
                     )
 
-                time.sleep(interval)
+                time.sleep(next_interval)
             else:
                 break
 
@@ -695,16 +872,50 @@ def retry_until_successful(
     )
 
 
+def get_ui_url(project, uid=None):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = "{}/{}/{}/jobs".format(
+            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
+        )
+        if uid:
+            url += f"/monitor/{uid}/overview"
+    return url
+
+
+def get_workflow_url(project, id=None):
+    url = ""
+    if mlrun.mlconf.resolve_ui_url():
+        url = "{}/{}/{}/jobs/monitor-workflows/workflow/{}".format(
+            mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project, id
+        )
+    return url
+
+
+def are_strings_in_exception_chain_messages(
+    exception: Exception, strings_list=typing.List[str]
+) -> bool:
+    while exception is not None:
+        if any([string in str(exception) for string in strings_list]):
+            return True
+        exception = exception.__cause__
+    return False
+
+
 class RunNotifications:
     def __init__(self, with_ipython=True, with_slack=False, secrets=None):
         self._hooks = []
         self._html = ""
+        self._with_print = False
         self._secrets = secrets or {}
         self.with_ipython = with_ipython
         if with_slack and "SLACK_WEBHOOK" in environ:
             self.slack()
+        self.print(skip_ipython=True)
 
-    def push_start_message(self, project, commit_id=None, id=None):
+    def push_start_message(
+        self, project, commit_id=None, id=None, has_workflow_url=False
+    ):
         message = f"Pipeline started in project {project}"
         if id:
             message += f" id={id}"
@@ -713,28 +924,41 @@ class RunNotifications:
         )
         if commit_id:
             message += f", commit={commit_id}"
-        if mlrun.mlconf.resolve_ui_url():
-            url = "{}/{}/{}/jobs".format(
-                mlrun.mlconf.resolve_ui_url(), mlrun.mlconf.ui.projects_prefix, project
-            )
+        if has_workflow_url:
+            url = get_workflow_url(project, id)
+        else:
+            url = get_ui_url(project)
+        html = ""
+        if url:
             html = (
                 message
-                + f'<div><a href="{url}" target="_blank">click here to check progress</a></div>'
+                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
             )
             message = message + f", check progress in {url}"
         self.push(message, html=html)
 
-    def push_run_results(self, runs):
+    def push_run_results(self, runs, push_all=False, state=None):
+        """push a structured table with run results to notification targets
+
+        :param runs:  list if run objects (RunObject)
+        :param push_all: push all notifications (including already notified runs)
+        :param state: final run state
+        """
         had_errors = 0
         runs_list = []
         for r in runs:
-            if r.status.state == "error":
-                had_errors += 1
-            runs_list.append(r.to_dict())
+            notified = getattr(r, "_notified", False)
+            if not notified or push_all:
+                if r.status.state == "error":
+                    had_errors += 1
+                runs_list.append(r.to_dict())
+                r._notified = True
 
         text = "pipeline run finished"
         if had_errors:
             text += f" with {had_errors} errors"
+        if state:
+            text += f", state={state}"
         self.push(text, runs_list)
 
     def push(self, message, runs=None, html=None):
@@ -765,7 +989,7 @@ class RunNotifications:
         self._html = html
         return html
 
-    def print(self):
+    def print(self, skip_ipython=None):
         def _print(message, runs, html=None):
             if not runs:
                 print(message)
@@ -793,7 +1017,11 @@ class RunNotifications:
                 + tabulate(table, headers=["status", "name", "uid", "results"])
             )
 
-        self._hooks.append(_print)
+        if not self._with_print and not (
+            skip_ipython and self.with_ipython and is_ipython
+        ):
+            self._hooks.append(_print)
+            self._with_print = True
         return self
 
     def slack(self, webhook=""):
@@ -813,12 +1041,8 @@ class RunNotifications:
             fields = [row("*Runs*"), row("*Results*")]
             for r in runs or []:
                 meta = r["metadata"]
-                if config.resolve_ui_url():
-                    url = (
-                        f"{config.resolve_ui_url()}/{config.ui.projects_prefix}/"
-                        f"{meta.get('project')}/jobs/{meta.get('uid')}/info"
-                    )
-
+                url = get_ui_url(meta.get("project"), meta.get("uid"))
+                if url:
                     line = f'<{url}|*{meta.get("name")}*>'
                 else:
                     line = meta.get("name")
@@ -916,13 +1140,26 @@ def _module_to_namespace(namespace):
     return namespace
 
 
+def _search_in_namespaces(name, namespaces):
+    """search the class/function in a list of modules"""
+    if not namespaces:
+        return None
+    if not isinstance(namespaces, list):
+        namespaces = [namespaces]
+    for namespace in namespaces:
+        namespace = _module_to_namespace(namespace)
+        if name in namespace:
+            return namespace[name]
+    return None
+
+
 def get_class(class_name, namespace=None):
     """return class object from class name string"""
     if isinstance(class_name, type):
         return class_name
-    namespace = _module_to_namespace(namespace)
-    if namespace and class_name in namespace:
-        return namespace[class_name]
+    class_object = _search_in_namespaces(class_name, namespace)
+    if class_object is not None:
+        return class_object
 
     try:
         class_object = create_class(class_name)
@@ -941,15 +1178,51 @@ def get_function(function, namespace):
         if not function.endswith(")"):
             raise ValueError('function expression must start with "(" and end with ")"')
         return eval("lambda event: " + function[1:-1], {}, {})
-    namespace = _module_to_namespace(namespace)
-    if function in namespace:
-        return namespace[function]
+    function_object = _search_in_namespaces(function, namespace)
+    if function_object is not None:
+        return function_object
 
     try:
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, function {function} not found, {exc}")
+        raise ImportError(
+            f"state/function init failed, handler {function} not found, {exc}"
+        )
     return function_object
+
+
+def get_handler_extended(
+    handler_path: str, context=None, class_args: dict = {}, namespaces=None
+):
+    """get function handler from [class_name::]handler string
+
+    :param handler_path:  path to the function ([class_name::]handler)
+    :param context:       MLRun function/job client context
+    :param class_args:    optional dict of class init kwargs
+    :param namespaces:    one or list of namespaces/modules to search the handler in
+    :return: function handler (callable)
+    """
+    if "::" not in handler_path:
+        return get_function(handler_path, namespaces)
+
+    splitted = handler_path.split("::")
+    class_path = splitted[0].strip()
+    handler_path = splitted[1].strip()
+
+    class_object = get_class(class_path, namespaces)
+    argspec = inspect.getfullargspec(class_object)
+    if argspec.varkw or "context" in argspec.args:
+        class_args["context"] = context
+    try:
+        instance = class_object(**class_args)
+    except TypeError as exc:
+        raise TypeError(f"failed to init class {class_path}, {exc}\n args={class_args}")
+
+    if not hasattr(instance, handler_path):
+        raise ValueError(
+            f"handler ({handler_path}) specified but doesnt exist in class {class_path}"
+        )
+    return getattr(instance, handler_path)
 
 
 def datetime_from_iso(time_str: str) -> Optional[datetime]:
@@ -992,3 +1265,65 @@ def fill_artifact_path_template(artifact_path, project):
         artifact_path = artifact_path.replace("{{run.project}}", project)
         artifact_path = artifact_path.replace("{{project}}", project)
     return artifact_path
+
+
+def str_to_timestamp(time_str: str, now_time: Timestamp = None):
+    """convert fixed/relative time string to Pandas Timestamp
+
+    can use relative times using the "now" verb, and align to floor using the "floor" verb
+
+    time string examples::
+
+        1/1/2021
+        now
+        now + 1d2h
+        now -1d floor 1H
+    """
+    if not isinstance(time_str, str):
+        return time_str
+
+    time_str = time_str.strip()
+    if time_str.lower().startswith("now"):
+        # handle now +/- timedelta
+        timestamp: Timestamp = now_time or Timestamp.now()
+        time_str = time_str[len("now") :].lstrip()
+        split = time_str.split("floor")
+        time_str = split[0].strip()
+
+        if time_str and time_str[0] in ["+", "-"]:
+            timestamp = timestamp + Timedelta(time_str)
+        elif time_str:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"illegal time string expression now{time_str}, "
+                'use "now +/- <timestring>" for relative times'
+            )
+
+        if len(split) > 1:
+            timestamp = timestamp.floor(split[1].strip())
+        return timestamp
+
+    return Timestamp(time_str)
+
+
+def is_legacy_artifact(artifact):
+    if isinstance(artifact, dict):
+        return "metadata" not in artifact
+    else:
+        return not hasattr(artifact, "metadata")
+
+
+def set_paths(pythonpath=""):
+    """update the sys path"""
+    if not pythonpath:
+        return
+    paths = pythonpath.split(":")
+    for p in paths:
+        abspath = path.abspath(p)
+        if abspath not in sys.path:
+            sys.path.append(abspath)
+
+
+def is_relative_path(path):
+    if not path:
+        return False
+    return not (path.startswith("/") or ":\\" in path or "://" in path)

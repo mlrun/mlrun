@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import getpass
-import shlex
+import os
 import traceback
+import typing
 import uuid
 from abc import ABC, abstractmethod
 from ast import literal_eval
@@ -24,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
+import IPython
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -58,6 +60,7 @@ from ..utils import (
     enrich_image_url,
     get_in,
     get_parsed_docker_registry,
+    get_ui_url,
     is_ipython,
     logger,
     now_date,
@@ -69,6 +72,20 @@ from .generators import get_generator
 from .utils import RunError, calc_hash, results_to_iter
 
 run_modes = ["pass"]
+spec_fields = [
+    "command",
+    "args",
+    "image",
+    "mode",
+    "build",
+    "entry_points",
+    "description",
+    "workdir",
+    "default_handler",
+    "pythonpath",
+    "disable_auto_mount",
+    "allow_empty_resources",
+]
 
 
 class FunctionStatus(ModelObj):
@@ -78,6 +95,8 @@ class FunctionStatus(ModelObj):
 
 
 class FunctionSpec(ModelObj):
+    _dict_fields = spec_fields
+
     def __init__(
         self,
         command=None,
@@ -90,6 +109,7 @@ class FunctionSpec(ModelObj):
         workdir=None,
         default_handler=None,
         pythonpath=None,
+        disable_auto_mount=False,
     ):
 
         self.command = command or ""
@@ -106,6 +126,8 @@ class FunctionSpec(ModelObj):
         self.default_handler = default_handler
         # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
+        self.disable_auto_mount = disable_auto_mount
+        self.allow_empty_resources = None
 
     @property
     def build(self) -> ImageBuilder:
@@ -114,6 +136,12 @@ class FunctionSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    def enrich_function_preemption_spec(self):
+        pass
+
+    def validate_service_account(self, allowed_service_accounts):
+        pass
 
 
 class BaseRuntime(ModelObj):
@@ -178,7 +206,6 @@ class BaseRuntime(ModelObj):
     def uri(self):
         return self._function_uri()
 
-    @property
     def is_deployed(self):
         return True
 
@@ -198,6 +225,29 @@ class BaseRuntime(ModelObj):
             return True
         return False
 
+    def _enrich_on_client_side(self):
+        self.try_auto_mount_based_on_config()
+        self.fill_credentials()
+
+    def _enrich_on_server_side(self):
+        pass
+
+    def _enrich_on_server_and_client_sides(self):
+        """
+        enrich function also in client side and also on server side
+        """
+        pass
+
+    def _enrich_function(self):
+        """
+        enriches the function based on the flow state we run in (sdk or server)
+        """
+        if self._use_remote_api():
+            self._enrich_on_client_side()
+        else:
+            self._enrich_on_server_side()
+        self._enrich_on_server_and_client_sides()
+
     def _function_uri(self, tag=None, hash_key=None):
         return generate_object_uri(
             self.metadata.project,
@@ -216,6 +266,25 @@ class BaseRuntime(ModelObj):
                 self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
         return self._db_conn
 
+    # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
+    # That's why it's named differently.
+    def try_auto_mount_based_on_config(self):
+        pass
+
+    def validate_and_enrich_service_account(
+        self, allowed_service_account, default_service_account
+    ):
+        pass
+
+    def fill_credentials(self):
+        auth_session_env_var = (
+            mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session
+        )
+        if auth_session_env_var in os.environ or "V3IO_ACCESS_KEY" in os.environ:
+            self.metadata.credentials.access_key = os.environ.get(
+                auth_session_env_var
+            ) or os.environ.get("V3IO_ACCESS_KEY")
+
     def run(
         self,
         runspec: RunObject = None,
@@ -223,7 +292,7 @@ class BaseRuntime(ModelObj):
         name: str = "",
         project: str = "",
         params: dict = None,
-        inputs: dict = None,
+        inputs: Dict[str, str] = None,
         out_path: str = "",
         workdir: str = "",
         artifact_path: str = "",
@@ -235,6 +304,7 @@ class BaseRuntime(ModelObj):
         scrape_metrics: bool = None,
         local=False,
         local_code_path=None,
+        auto_build=None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -249,7 +319,7 @@ class BaseRuntime(ModelObj):
         :param workdir:        default input artifacts path
         :param watch:          watch/follow run log
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
-                               (which will be converted to the class using its `from_crontab` constructor.
+                               (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
@@ -261,106 +331,51 @@ class BaseRuntime(ModelObj):
         :param scrape_metrics: whether to add the `mlrun/scrape-metrics` label to this run's resources
         :param local:      run the function locally vs on the runtime/cluster
         :param local_code_path: path of the code for local runs & debug
+        :param auto_build: when set to True and the function require build it will be built on the first
+                           function run, use only if you dont plan on changing the build config between runs
 
         :return: run context object (RunObject) with run metadata, results and status
         """
+        mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
 
         if self.spec.mode and self.spec.mode not in run_modes:
             raise ValueError(f'run mode can only be {",".join(run_modes)}')
 
+        self._enrich_function()
+
         if local:
-
-            if schedule is not None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "local and schedule cannot be used together"
-                )
-            # allow local run simulation with a flip of a flag
-            command = self
-            if local_code_path:
-                project = project or self.metadata.project
-                name = name or self.metadata.name
-                command = local_code_path
-            return mlrun.run_local(
+            return self._run_local(
                 runspec,
-                command,
+                schedule,
+                local_code_path,
+                project,
                 name,
-                self.spec.args,
-                workdir=workdir,
-                project=project,
-                handler=handler,
-                params=params,
-                inputs=inputs,
-                artifact_path=artifact_path,
-                mode=self.spec.mode,
+                workdir,
+                handler,
+                params,
+                inputs,
+                artifact_path,
             )
 
-        if runspec:
-            runspec = deepcopy(runspec)
-            if isinstance(runspec, str):
-                runspec = literal_eval(runspec)
-            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
-                raise ValueError(
-                    "task/runspec is not a valid task object," f" type={type(runspec)}"
-                )
+        run = self._create_run_object(runspec)
 
-        if isinstance(runspec, RunTemplate):
-            runspec = RunObject.from_template(runspec)
-        if isinstance(runspec, dict) or runspec is None:
-            runspec = RunObject.from_dict(runspec)
-
-        runspec.spec.handler = (
-            handler or runspec.spec.handler or self.spec.default_handler or ""
-        )
-        if runspec.spec.handler and self.kind not in ["handler", "dask"]:
-            runspec.spec.handler = runspec.spec.handler_name
-
-        def_name = self.metadata.name
-        if runspec.spec.handler_name:
-            def_name += "-" + runspec.spec.handler_name
-        runspec.metadata.name = name or runspec.metadata.name or def_name
-        verify_field_regex(
-            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
-        )
-        runspec.metadata.project = (
-            project
-            or runspec.metadata.project
-            or self.metadata.project
-            or config.default_project
-        )
-        runspec.spec.parameters = params or runspec.spec.parameters
-        runspec.spec.inputs = inputs or runspec.spec.inputs
-        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
-        runspec.spec.hyper_param_options = (
-            hyper_param_options or runspec.spec.hyper_param_options
-        )
-        runspec.spec.verbose = verbose or runspec.spec.verbose
-        if scrape_metrics is None:
-            if runspec.spec.scrape_metrics is None:
-                scrape_metrics = config.scrape_metrics
-            else:
-                scrape_metrics = runspec.spec.scrape_metrics
-        runspec.spec.scrape_metrics = scrape_metrics
-        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
-        runspec.spec.input_path = (
-            workdir or runspec.spec.input_path or self.spec.workdir
+        run = self._enrich_run(
+            run,
+            handler,
+            project,
+            name,
+            params,
+            inputs,
+            hyperparams,
+            hyper_param_options,
+            verbose,
+            scrape_metrics,
+            out_path,
+            artifact_path,
+            workdir,
         )
 
-        spec = runspec.spec
-        if spec.secret_sources:
-            self._secrets = SecretsStore.from_list(spec.secret_sources)
-
-        # update run metadata (uid, labels) and store in DB
-        meta = runspec.metadata
-        meta.uid = meta.uid or uuid.uuid4().hex
-        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.uid}}", meta.uid
-            )
-            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
-                runspec.spec.output_path, runspec.metadata.project
-            )
-        if is_local(runspec.spec.output_path):
+        if is_local(run.spec.output_path):
             logger.warning(
                 "artifact path is not defined or is local,"
                 " artifacts will not be visible in the UI"
@@ -372,63 +387,29 @@ class BaseRuntime(ModelObj):
                 )
         db = self._get_db()
 
-        if not self.is_deployed:
-            raise RunError(
-                "function image is not built/ready, use .deploy() method first"
-            )
+        if not self.is_deployed():
+            if self.spec.build.auto_build or auto_build:
+                logger.info(
+                    "Function is not deployed and auto_build flag is set, starting deploy..."
+                )
+                self.deploy(skip_deployed=True, show_on_failure=True)
+            else:
+                raise RunError(
+                    "function image is not built/ready, use .deploy() method first"
+                )
 
         if self.verbose:
-            logger.info(f"runspec:\n{runspec.to_yaml()}")
+            logger.info(f"runspec:\n{run.to_yaml()}")
 
-        if "V3IO_USERNAME" in environ and "v3io_user" not in meta.labels:
-            meta.labels["v3io_user"] = environ.get("V3IO_USERNAME")
+        if "V3IO_USERNAME" in environ and "v3io_user" not in run.metadata.labels:
+            run.metadata.labels["v3io_user"] = environ.get("V3IO_USERNAME")
 
         if not self.is_child:
-            db_str = "self" if self._is_api_server else self.spec.rundb
-            logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
-            meta.labels["kind"] = self.kind
-            if "owner" not in meta.labels:
-                meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
-            if runspec.spec.output_path:
-                runspec.spec.output_path = runspec.spec.output_path.replace(
-                    "{{run.user}}", meta.labels["owner"]
-                )
-
-            if db and self.kind != "handler":
-                struct = self.to_dict()
-                hash_key = db.store_function(
-                    struct, self.metadata.name, self.metadata.project, versioned=True
-                )
-                runspec.spec.function = self._function_uri(hash_key=hash_key)
+            self._store_function(run, run.metadata, db)
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
-            if self._secrets:
-                runspec.spec.secret_sources = self._secrets.to_serial()
-            try:
-                resp = db.submit_job(runspec, schedule=schedule)
-                if schedule:
-                    logger.info(f"task scheduled, {resp}")
-                    return
-
-                if resp:
-                    txt = get_in(resp, "status.status_text")
-                    if txt:
-                        logger.info(txt)
-                if watch or self.kfp:
-                    runspec.logs(True, self._get_db())
-                    resp = self._get_db_run(runspec)
-            except Exception as err:
-                logger.error(f"got remote run err, {err}")
-                result = None
-                # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
-                # but there's no run in case of schedule)
-                if not schedule:
-                    result = self._update_run_state(task=runspec, err=err)
-                return self._wrap_run_result(
-                    result, runspec, schedule=schedule, err=err
-                )
-            return self._wrap_run_result(resp, runspec, schedule=schedule)
+            return self._submit_job(run, schedule, db, watch)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning(
@@ -436,14 +417,14 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(
-            runspec.to_dict(), db, autocommit=False, is_api=self._is_api_server
+            run.to_dict(), db, autocommit=False, is_api=self._is_api_server
         )
-        self._pre_run(runspec, execution)  # hook for runtime specific prep
+        self._pre_run(run, execution)  # hook for runtime specific prep
 
         # create task generator (for child runs) from spec
         task_generator = None
         if not self._is_nested:
-            task_generator = get_generator(spec, execution)
+            task_generator = get_generator(run.spec, execution)
 
         last_err = None
         if task_generator:
@@ -451,26 +432,26 @@ class BaseRuntime(ModelObj):
             runner = self._run_many
             if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
                 runner = self._parallel_run_many
-            results = runner(task_generator, execution, runspec)
-            results_to_iter(results, runspec, execution)
+            results = runner(task_generator, execution, run)
+            results_to_iter(results, run, execution)
             result = execution.to_dict()
 
         else:
             # single run
             try:
-                resp = self._run(runspec, execution)
+                resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
-                    state = runspec.logs(True, self._get_db())
+                    state = run.logs(True, self._get_db())
                     if state != "succeeded":
                         logger.warning(f"run ended with state {state}")
-                result = self._update_run_state(resp, task=runspec)
+                result = self._update_run_state(resp, task=run)
             except RunError as err:
                 last_err = err
-                result = self._update_run_state(task=runspec, err=err)
+                result = self._update_run_state(task=run, err=err)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
-        return self._wrap_run_result(result, runspec, schedule=schedule, err=last_err)
+        return self._wrap_run_result(result, run, schedule=schedule, err=last_err)
 
     def _wrap_run_result(
         self, result: dict, runspec: RunObject, schedule=None, err=None
@@ -489,18 +470,27 @@ class BaseRuntime(ModelObj):
         else:
             logger.info("no returned result (job may still be in progress)")
             results_tbl.append(runspec.to_dict())
+
+        uid = runspec.metadata.uid
+        project = runspec.metadata.project
         if is_ipython and config.ipython_widget:
             results_tbl.show()
-
-            uid = runspec.metadata.uid
-            proj = (
-                f"--project {runspec.metadata.project}"
-                if runspec.metadata.project
-                else ""
+            print()
+            ui_url = get_ui_url(project, uid)
+            if ui_url:
+                ui_url = f' or <a href="{ui_url}" target="_blank">click here</a> to open in UI'
+            IPython.display.display(
+                IPython.display.HTML(
+                    f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
+                )
             )
+        elif not self.is_child:
+            ui_url = get_ui_url(project, uid)
+            ui_url = f"\nor click {ui_url} for UI" if ui_url else ""
+            project_flag = f"-p {project}" if project else ""
             print(
-                "to track results use .show() or .logs() or in CLI: \n"
-                f"!mlrun get run {uid} {proj} , !mlrun logs {uid} {proj}"
+                f"to track results use the CLI:\n"
+                f"info: mlrun get run {uid} {project_flag}\nlogs: mlrun logs {uid} {project_flag}{ui_url}"
             )
 
         if result:
@@ -541,6 +531,183 @@ class BaseRuntime(ModelObj):
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
         return runtime_env
 
+    def _run_local(
+        self,
+        runspec,
+        schedule,
+        local_code_path,
+        project,
+        name,
+        workdir,
+        handler,
+        params,
+        inputs,
+        artifact_path,
+    ):
+        if schedule is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "local and schedule cannot be used together"
+            )
+        # allow local run simulation with a flip of a flag
+        command = self
+        if local_code_path:
+            project = project or self.metadata.project
+            name = name or self.metadata.name
+            command = local_code_path
+        return mlrun.run_local(
+            runspec,
+            command,
+            name,
+            self.spec.args,
+            workdir=workdir,
+            project=project,
+            handler=handler,
+            params=params,
+            inputs=inputs,
+            artifact_path=artifact_path,
+            mode=self.spec.mode,
+            allow_empty_resources=self.spec.allow_empty_resources,
+        )
+
+    def _create_run_object(self, runspec):
+        if runspec:
+            runspec = deepcopy(runspec)
+            if isinstance(runspec, str):
+                runspec = literal_eval(runspec)
+            if not isinstance(runspec, (dict, RunTemplate, RunObject)):
+                raise ValueError(
+                    "task/runspec is not a valid task object," f" type={type(runspec)}"
+                )
+
+        if isinstance(runspec, RunTemplate):
+            runspec = RunObject.from_template(runspec)
+        if isinstance(runspec, dict) or runspec is None:
+            runspec = RunObject.from_dict(runspec)
+        return runspec
+
+    def _enrich_run(
+        self,
+        runspec,
+        handler,
+        project,
+        name,
+        params,
+        inputs,
+        hyperparams,
+        hyper_param_options,
+        verbose,
+        scrape_metrics,
+        out_path,
+        artifact_path,
+        workdir,
+    ):
+        runspec.spec.handler = (
+            handler or runspec.spec.handler or self.spec.default_handler or ""
+        )
+        if runspec.spec.handler and self.kind not in ["handler", "dask"]:
+            runspec.spec.handler = runspec.spec.handler_name
+
+        def_name = self.metadata.name
+        if runspec.spec.handler_name:
+            short_name = runspec.spec.handler_name
+            for separator in ["#", "::", "."]:
+                # drop paths, module or class name from short name
+                if separator in short_name:
+                    short_name = short_name.split(separator)[-1]
+            def_name += "-" + short_name
+        runspec.metadata.name = name or runspec.metadata.name or def_name
+        verify_field_regex(
+            "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
+        )
+        runspec.metadata.project = (
+            project
+            or runspec.metadata.project
+            or self.metadata.project
+            or config.default_project
+        )
+        runspec.spec.parameters = params or runspec.spec.parameters
+        runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
+        runspec.spec.hyper_param_options = (
+            hyper_param_options or runspec.spec.hyper_param_options
+        )
+        runspec.spec.verbose = verbose or runspec.spec.verbose
+        if scrape_metrics is None:
+            if runspec.spec.scrape_metrics is None:
+                scrape_metrics = config.scrape_metrics
+            else:
+                scrape_metrics = runspec.spec.scrape_metrics
+        runspec.spec.scrape_metrics = scrape_metrics
+        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+        runspec.spec.input_path = (
+            workdir or runspec.spec.input_path or self.spec.workdir
+        )
+        if self.spec.allow_empty_resources:
+            runspec.spec.allow_empty_resources = self.spec.allow_empty_resources
+
+        spec = runspec.spec
+        if spec.secret_sources:
+            self._secrets = SecretsStore.from_list(spec.secret_sources)
+
+        # update run metadata (uid, labels) and store in DB
+        meta = runspec.metadata
+        meta.uid = meta.uid or uuid.uuid4().hex
+        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                "{{run.uid}}", meta.uid
+            )
+            runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+                runspec.spec.output_path, runspec.metadata.project
+            )
+        return runspec
+
+    def _submit_job(self, runspec, schedule, db, watch):
+        if self._secrets:
+            runspec.spec.secret_sources = self._secrets.to_serial()
+        try:
+            resp = db.submit_job(runspec, schedule=schedule)
+            if schedule:
+                logger.info(f"task scheduled, {resp}")
+                return
+        except Exception as err:
+            logger.error(f"got remote run err, {err}")
+            result = None
+            # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
+            # but there's no run in case of schedule)
+            if not schedule:
+                result = self._update_run_state(task=runspec, err=err)
+            return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+
+        if resp:
+            txt = get_in(resp, "status.status_text")
+            if txt:
+                logger.info(txt)
+
+        if watch or self.kfp:
+            runspec.logs(True, self._get_db())
+            resp = self._get_db_run(runspec)
+
+        return self._wrap_run_result(resp, runspec, schedule=schedule)
+
+    def _store_function(self, runspec, meta, db):
+        db_str = "self" if self._is_api_server else self.spec.rundb
+        logger.info(f"starting run {meta.name} uid={meta.uid} DB={db_str}")
+        meta.labels["kind"] = self.kind
+        if "owner" not in meta.labels:
+            meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
+        if runspec.spec.output_path:
+            runspec.spec.output_path = runspec.spec.output_path.replace(
+                "{{run.user}}", meta.labels["owner"]
+            )
+
+        if db and self.kind != "handler":
+            struct = self.to_dict()
+            hash_key = db.store_function(
+                struct, self.metadata.name, self.metadata.project, versioned=True
+            )
+            runspec.spec.function = self._function_uri(hash_key=hash_key)
+
     def _get_cmd_args(self, runobj: RunObject):
         extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
@@ -566,24 +733,26 @@ class BaseRuntime(ModelObj):
                 args += ["--handler", runobj.spec.handler]
             if self.spec.mode:
                 args += ["--mode", self.spec.mode]
+            if self.spec.build.origin_filename:
+                args += ["--origin-file", self.spec.build.origin_filename]
 
             if load_archive:
                 if code:
                     raise ValueError("cannot specify both code and source archive")
                 args += ["--source", self.spec.build.source]
+                if self.spec.workdir:
+                    # set the absolute/relative path to the cloned code
+                    args += ["--workdir", self.spec.workdir]
 
             if command:
-                args += [shlex.quote(command)]
+                args += [command]
             command = "mlrun"
             if self.spec.args:
                 args = args + self.spec.args
         else:
             command = command.format(**runobj.spec.parameters)
             if self.spec.args:
-                args = [
-                    shlex.quote(arg.format(**runobj.spec.parameters))
-                    for arg in self.spec.args
-                ]
+                args = [arg.format(**runobj.spec.parameters) for arg in self.spec.args]
 
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
         return command, args, extra_env
@@ -643,7 +812,10 @@ class BaseRuntime(ModelObj):
             self._get_db().store_run(rundict, uid, project, iter=iter)
 
     def _update_run_state(
-        self, resp: dict = None, task: RunObject = None, err=None
+        self,
+        resp: dict = None,
+        task: RunObject = None,
+        err=None,
     ) -> dict:
         """update the task state in the DB"""
         was_none = False
@@ -692,14 +864,16 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
 
-    def full_image_path(self, image=None):
+    def full_image_path(self, image=None, client_version: str = None):
         image = image or self.spec.image or ""
 
-        image = enrich_image_url(image)
+        image = enrich_image_url(image, client_version)
         if not image.startswith("."):
             return image
-        registry, _ = get_parsed_docker_registry()
+        registry, repository = get_parsed_docker_registry()
         if registry:
+            if repository and repository not in image:
+                return f"{registry}/{repository}/{image[1:]}"
             return f"{registry}/{image[1:]}"
         namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
         if namespace_domain is not None:
@@ -735,6 +909,8 @@ class BaseRuntime(ModelObj):
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters
         :param selector:        selection criteria for hyper params
+        :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
+                            see: :py:class:`~mlrun.model.HyperParamOptions`
         :param inputs:          input objects (dict of key: path)
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
@@ -752,7 +928,10 @@ class BaseRuntime(ModelObj):
         #     image = self.full_image_path()
 
         if use_db:
-            url = self.save(versioned=True, refresh=True)
+            # if the same function is built as part of the pipeline we do not use the versioned function
+            # rather the latest function w the same tag so we can pick up the updated image/status
+            versioned = False if hasattr(self, "_build_in_pipeline") else True
+            url = self.save(versioned=versioned, refresh=True)
         else:
             url = None
 
@@ -829,9 +1008,28 @@ class BaseRuntime(ModelObj):
             with open(requirements, "r") as fp:
                 requirements = fp.read().splitlines()
         commands = self.spec.build.commands or []
-        commands.append("python -m pip install " + " ".join(requirements))
+        new_command = "python -m pip install " + " ".join(requirements)
+        # make sure we dont append the same line twice
+        if new_command not in commands:
+            commands.append(new_command)
         self.spec.build.commands = commands
+        self.verify_base_image()
         return self
+
+    def verify_base_image(self):
+        build = self.spec.build
+        require_build = build.commands or (
+            build.source and not build.load_source_on_run
+        )
+        if (
+            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and require_build
+            and self.spec.image
+            and not self.spec.build.base_image
+        ):
+            # when the function require build use the image as the base_image for the build
+            self.spec.build.base_image = self.spec.image
+            self.spec.image = ""
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)
@@ -876,10 +1074,10 @@ class BaseRuntime(ModelObj):
                     if (
                         self.status.state
                         and self.status.state == "ready"
-                        and "nuclio_name" not in self.status
+                        and not hasattr(self.status, "nuclio_name")
                     ):
                         self.spec.image = get_in(db_func, "spec.image", self.spec.image)
-            except Exception:
+            except mlrun.errors.MLRunNotFoundError:
                 pass
 
         tag = tag or self.metadata.tag
@@ -928,6 +1126,7 @@ def is_local(url):
 
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
+    kind = "base"
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -938,15 +1137,36 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
+    @staticmethod
+    @abstractmethod
+    def _get_possible_mlrun_class_label_values() -> List[str]:
+        """
+        Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
+        handler kind
+        """
+        pass
+
     def list_resources(
         self,
         project: str,
+        object_id: typing.Optional[str] = None,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
+        # We currently don't support removing runtime resources in non k8s env
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return {}
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(project, label_selector)
+        label_selector = self._resolve_label_selector(
+            project, object_id, label_selector
+        )
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
         crd_objects = self._list_crd_objects(namespace, label_selector)
@@ -959,18 +1179,44 @@ class BaseRuntimeHandler(ABC):
         )
         return response
 
+    def build_output_from_runtime_resources(
+        self,
+        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ):
+        pod_resources = []
+        crd_resources = []
+        for runtime_resources in runtime_resources_list:
+            pod_resources += runtime_resources.pod_resources
+            crd_resources += runtime_resources.crd_resources
+        response = self._build_list_resources_response(
+            pod_resources, crd_resources, group_by
+        )
+        response = self._build_output_from_runtime_resources(
+            response, runtime_resources_list, group_by
+        )
+        return response
+
     def delete_resources(
         self,
         db: DBInterface,
         db_session: Session,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
+        grace_period: int = None,
     ):
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
+        # We currently don't support removing runtime resources in non k8s env
+        if not mlrun.k8s_utils.get_k8s_helper(
+            silent=True
+        ).is_running_inside_kubernetes_cluster():
+            return
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector("*", label_selector)
+        label_selector = self._resolve_label_selector(
+            "*", label_selector=label_selector
+        )
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
@@ -980,7 +1226,6 @@ class BaseRuntimeHandler(ABC):
                 label_selector,
                 force,
                 grace_period,
-                leader_session,
             )
         else:
             deleted_resources = self._delete_pod_resources(
@@ -990,7 +1235,6 @@ class BaseRuntimeHandler(ABC):
                 label_selector,
                 force,
                 grace_period,
-                leader_session,
             )
         self._delete_resources(
             db,
@@ -1009,21 +1253,16 @@ class BaseRuntimeHandler(ABC):
         object_id: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
+        grace_period: int = None,
     ):
-        object_label_selector = self._get_object_label_selector(object_id)
-        if label_selector:
-            label_selector = ",".join([object_label_selector, label_selector])
-        else:
-            label_selector = object_label_selector
-        self.delete_resources(
-            db, db_session, label_selector, force, grace_period, leader_session
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
+        label_selector = self._add_object_label_selector_if_needed(
+            object_id, label_selector
         )
+        self.delete_resources(db, db_session, label_selector, force, grace_period)
 
-    def monitor_runs(
-        self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
-    ):
+    def monitor_runs(self, db: DBInterface, db_session: Session):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
         label_selector = self._get_default_label_selector()
@@ -1035,7 +1274,12 @@ class BaseRuntimeHandler(ABC):
         else:
             runtime_resources = self._list_pods(namespace, label_selector)
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
+        # project -> uid -> {"name": <runtime-resource-name>}
+        run_runtime_resources_map = {}
         for runtime_resource in runtime_resources:
+            project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
+            run_runtime_resources_map.setdefault(project, {})
+            run_runtime_resources_map.get(project).update({uid: {"name": name}})
             try:
                 self._monitor_runtime_resource(
                     db,
@@ -1044,7 +1288,9 @@ class BaseRuntimeHandler(ABC):
                     runtime_resource,
                     runtime_resource_is_crd,
                     namespace,
-                    leader_session,
+                    project,
+                    uid,
+                    name,
                 )
             except Exception as exc:
                 logger.warning(
@@ -1052,17 +1298,162 @@ class BaseRuntimeHandler(ABC):
                     runtime_resource_name=runtime_resource["metadata"]["name"],
                     namespace=namespace,
                     exc=str(exc),
+                    traceback=traceback.format_exc(),
                 )
+        for project, runs in project_run_uid_map.items():
+            if runs:
+                for run_uid, run in runs.items():
+                    try:
+                        if not run:
+                            run = db.read_run(db_session, run_uid, project)
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed ensuring run not stuck. Continuing",
+                            run_uid=run_uid,
+                            run=run,
+                            project=project,
+                            exc=str(exc),
+                            traceback=traceback.format_exc(),
+                        )
+
+    def _ensure_run_not_stuck_on_non_terminal_state(
+        self,
+        db: DBInterface,
+        db_session: Session,
+        project: str,
+        run_uid: str,
+        run: dict = None,
+        run_runtime_resources_map: dict = None,
+    ):
+        """
+        Ensuring that a run does not become trapped in a non-terminal state as a result of not finding
+        corresponding k8s resource.
+        This can occur when a node is evicted or preempted, causing the resources to be removed from the resource
+        listing when the final state recorded in the database is non-terminal.
+        This will have a significant impact on scheduled jobs, since they will not be created until the
+        previous run reaches a terminal state (because of concurrency limit)
+        """
+        now = now_date()
+        db_run_state = run.get("status", {}).get("state")
+        if not db_run_state:
+            # we are setting the run state to a terminal state to avoid log spamming, this is mainly sanity as we are
+            # setting state to runs when storing new runs.
+            logger.info(
+                "Runs monitoring found a run without state, updating to a terminal state",
+                project=project,
+                uid=run_uid,
+                db_run_state=db_run_state,
+                now=now,
+            )
+            run.setdefault("status", {})["state"] = RunStates.error
+            run.setdefault("status", {})["last_update"] = now.isoformat()
+            db.store_run(db_session, run, run_uid, project)
+            return
+        if db_run_state in RunStates.non_terminal_states():
+            if run_runtime_resources_map and run_uid in run_runtime_resources_map.get(
+                project, {}
+            ):
+                # if found resource there is no need to continue
+                return
+            last_update_str = run.get("status", {}).get("last_update")
+            debounce_period = (
+                config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
+            )
+            if last_update_str is None:
+                logger.info(
+                    "Runs monitoring found run in non-terminal state without last update time set, "
+                    "updating last update time to now, to be able to evaluate next time if something changed",
+                    project=project,
+                    uid=run_uid,
+                    db_run_state=db_run_state,
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+                run.setdefault("status", {})["last_update"] = now.isoformat()
+                db.store_run(db_session, run, run_uid, project)
+                return
+
+            if datetime.fromisoformat(last_update_str) > now - timedelta(
+                seconds=debounce_period
+            ):
+                # we are setting non-terminal states to runs before the run is actually applied to k8s, meaning there is
+                # a timeframe where the run exists and no runtime resources exist and it's ok, therefore we're applying
+                # a debounce period before setting the state to error
+                logger.warning(
+                    "Monitoring did not discover a runtime resource that corresponded to a run in a "
+                    "non-terminal state. but record has recently updated. Debouncing",
+                    project=project,
+                    uid=run_uid,
+                    db_run_state=db_run_state,
+                    last_update=datetime.fromisoformat(last_update_str),
+                    now=now,
+                    debounce_period=debounce_period,
+                )
+            else:
+                logger.info(
+                    "Updating run state", run_uid=run_uid, run_state=RunStates.error
+                )
+                run.setdefault("status", {})["state"] = RunStates.error
+                run.setdefault("status", {})["last_update"] = now.isoformat()
+                db.store_run(db_session, run, run_uid, project)
+
+    def _add_object_label_selector_if_needed(
+        self,
+        object_id: typing.Optional[str] = None,
+        label_selector: typing.Optional[str] = None,
+    ):
+        if object_id:
+            object_label_selector = self._get_object_label_selector(object_id)
+            if label_selector:
+                label_selector = ",".join([object_label_selector, label_selector])
+            else:
+                label_selector = object_label_selector
+        return label_selector
 
     def _enrich_list_resources_response(
         self,
-        response: Dict,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        ],
         namespace: str,
         label_selector: str = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
         """
         Override this to list resources other then pods or CRDs (which are handled by the base class)
+        """
+        return response
+
+    def _build_output_from_runtime_resources(
+        self,
+        response: Union[
+            mlrun.api.schemas.RuntimeResources,
+            mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+            mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+        ],
+        runtime_resources_list: List[mlrun.api.schemas.RuntimeResources],
+        group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
+    ):
+        """
+        Override this to add runtime resources other then pods or CRDs (which are handled by the base class) to the
+        output
         """
         return response
 
@@ -1074,11 +1465,14 @@ class BaseRuntimeHandler(ABC):
         deleted_resources: List[Dict],
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
+        grace_period: int = None,
     ):
         """
         Override this to handle deletion of resources other then pods or CRDs (which are handled by the base class)
         Note that this is happening before the deletion of the CRDs or the pods
+        Note to add this at the beginning:
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         """
         pass
 
@@ -1102,7 +1496,6 @@ class BaseRuntimeHandler(ABC):
         uid: str,
         crd_object,
         run: Dict = None,
-        leader_session: Optional[str] = None,
     ):
         """
         Update the UI URL for relevant jobs.
@@ -1137,12 +1530,16 @@ class BaseRuntimeHandler(ABC):
 
         return in_terminal_state, last_container_completion_time, run_state
 
-    @staticmethod
-    def _get_default_label_selector() -> str:
+    def _get_default_label_selector(self) -> str:
         """
         Override this to add a default label selector
         """
-        return ""
+        class_values = self._get_possible_mlrun_class_label_values()
+        if not class_values:
+            return ""
+        if len(class_values) == 1:
+            return f"mlrun/class={class_values[0]}"
+        return f"mlrun/class in ({', '.join(class_values)})"
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:
@@ -1161,6 +1558,10 @@ class BaseRuntimeHandler(ABC):
         This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
         aspects of the Run (like its state) should be taken into consideration on resources deletion
         """
+        return False
+
+    @staticmethod
+    def _expect_pods_without_uid() -> bool:
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
@@ -1192,7 +1593,12 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
-    def _resolve_label_selector(self, project: str, label_selector: str = None) -> str:
+    def _resolve_label_selector(
+        self,
+        project: str,
+        object_id: typing.Optional[str] = None,
+        label_selector: typing.Optional[str] = None,
+    ) -> str:
         default_label_selector = self._get_default_label_selector()
 
         if label_selector:
@@ -1203,10 +1609,17 @@ class BaseRuntimeHandler(ABC):
         if project and project != "*":
             label_selector = ",".join([label_selector, f"mlrun/project={project}"])
 
+        label_selector = self._add_object_label_selector_if_needed(
+            object_id, label_selector
+        )
+
         return label_selector
 
     def _wait_for_pods_deletion(
-        self, namespace: str, deleted_pods: List[Dict], label_selector: str = None,
+        self,
+        namespace: str,
+        deleted_pods: List[Dict],
+        label_selector: str = None,
     ):
         k8s_helper = get_k8s_helper()
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
@@ -1240,7 +1653,9 @@ class BaseRuntimeHandler(ABC):
             )
 
     def _wait_for_crds_underlying_pods_deletion(
-        self, deleted_crds: List[Dict], label_selector: str = None,
+        self,
+        deleted_crds: List[Dict],
+        label_selector: str = None,
     ):
         # we're using here the run identifier as the common ground to identify which pods are relevant to which CRD, so
         # if they are not coupled we are not able to wait - simply return
@@ -1252,7 +1667,7 @@ class BaseRuntimeHandler(ABC):
         def _verify_crds_underlying_pods_removed():
             project_uid_crd_map = {}
             for crd in deleted_crds:
-                project, uid = self._resolve_runtime_resource_run(crd)
+                project, uid, _ = self._resolve_runtime_resource_run(crd)
                 if not uid or not project:
                     logger.warning(
                         "Could not resolve run uid from crd. Skipping waiting for pods deletion",
@@ -1263,10 +1678,10 @@ class BaseRuntimeHandler(ABC):
                     "name"
                 ]
             still_in_deletion_crds_to_pod_names = {}
-            jobs_runtime_resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput = self.list_resources(
+            jobs_runtime_resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput = self.list_resources(
                 "*",
-                label_selector,
-                mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
+                label_selector=label_selector,
+                group_by=mlrun.api.schemas.ListRuntimeResourcesGroupByField.job,
             )
             for project, project_jobs in jobs_runtime_resources.items():
                 if project not in project_uid_crd_map:
@@ -1280,7 +1695,7 @@ class BaseRuntimeHandler(ABC):
                         still_in_deletion_crds_to_pod_names[
                             project_uid_crd_map[project][job_uid]
                         ] = [
-                            pod_resource["name"]
+                            pod_resource.name
                             for pod_resource in job_runtime_resources.pod_resources
                         ]
             if still_in_deletion_crds_to_pod_names:
@@ -1310,9 +1725,10 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
+        grace_period: int = None,
     ) -> List[Dict]:
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         k8s_helper = get_k8s_helper()
         pods = k8s_helper.v1api.list_namespaced_pod(
             namespace, label_selector=label_selector
@@ -1345,7 +1761,7 @@ class BaseRuntimeHandler(ABC):
                 if self._are_resources_coupled_to_run_object():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
-                            db, db_session, pod_dict, run_state, leader_session
+                            db, db_session, pod_dict, run_state
                         )
                     except Exception as exc:
                         # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1371,9 +1787,10 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         label_selector: str = None,
         force: bool = False,
-        grace_period: int = config.runtime_resources_deletion_grace_period,
-        leader_session: Optional[str] = None,
+        grace_period: int = None,
     ) -> List[Dict]:
+        if grace_period is None:
+            grace_period = config.runtime_resources_deletion_grace_period
         k8s_helper = get_k8s_helper()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
@@ -1421,7 +1838,6 @@ class BaseRuntimeHandler(ABC):
                                 db_session,
                                 crd_object,
                                 desired_run_state,
-                                leader_session,
                             )
                         except Exception as exc:
                             # Don't prevent the deletion for failure in the pre deletion run actions
@@ -1450,17 +1866,19 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         runtime_resource: Dict,
         run_state: str,
-        leader_session: Optional[str] = None,
     ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
 
         # if cannot resolve related run nothing to do
         if not uid:
-            logger.warning(
-                "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
-                runtime_resource=runtime_resource,
-            )
-            raise ValueError("Could not resolve run uid from runtime resource")
+            if not self._expect_pods_without_uid():
+                logger.warning(
+                    "Could not resolve run uid from runtime resource. Skipping pre-deletion actions",
+                    runtime_resource=runtime_resource,
+                )
+                raise ValueError("Could not resolve run uid from runtime resource")
+            else:
+                return
 
         logger.info(
             "Performing pre-deletion actions before cleaning up runtime resources",
@@ -1468,14 +1886,15 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_state(
-            db, db_session, project, uid, run_state, leader_session=leader_session
-        )
+        self._ensure_run_state(db, db_session, project, uid, name, run_state)
 
         self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_terminal_state(
-        self, db: DBInterface, db_session: Session, runtime_resource: Dict,
+        self,
+        db: DBInterface,
+        db_session: Session,
+        runtime_resource: Dict,
     ) -> Tuple[bool, Optional[datetime]]:
         """
         A runtime can have different underlying resources (like pods or CRDs) - to generalize we call it runtime
@@ -1486,7 +1905,7 @@ class BaseRuntimeHandler(ABC):
 
         :returns: bool determining whether the run in terminal state, and the last update time if it exists
         """
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        project, uid, _ = self._resolve_runtime_resource_run(runtime_resource)
 
         # if no uid, assume in terminal state
         if not uid:
@@ -1504,9 +1923,9 @@ class BaseRuntimeHandler(ABC):
         return True, last_update
 
     def _list_runs_for_monitoring(
-        self, db: DBInterface, db_session: Session,
+        self, db: DBInterface, db_session: Session, states: list = None
     ):
-        runs = db.list_runs(db_session, project="*")
+        runs = db.list_runs(db_session, project="*", states=states)
         project_run_uid_map = {}
         run_with_missing_data = []
         duplicated_runs = []
@@ -1553,9 +1972,12 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
-        leader_session: Optional[str] = None,
+        project: str = None,
+        uid: str = None,
+        name: str = None,
     ):
-        project, uid = self._resolve_runtime_resource_run(runtime_resource)
+        if not project and not uid and not name:
+            project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
         if not project or not uid:
             # Currently any build pod won't have UID and therefore will cause this log message to be printed which
             # spams the log
@@ -1570,48 +1992,57 @@ class BaseRuntimeHandler(ABC):
             return
         run = project_run_uid_map.get(project, {}).get(uid)
         if runtime_resource_is_crd:
-            (_, _, run_state,) = self._resolve_crd_object_status_info(
-                db, db_session, runtime_resource
-            )
+            (
+                _,
+                _,
+                run_state,
+            ) = self._resolve_crd_object_status_info(db, db_session, runtime_resource)
         else:
-            (_, _, run_state,) = self._resolve_pod_status_info(
-                db, db_session, runtime_resource
-            )
-        self._update_ui_url(
-            db, db_session, project, uid, runtime_resource, run, leader_session
-        )
+            (
+                _,
+                _,
+                run_state,
+            ) = self._resolve_pod_status_info(db, db_session, runtime_resource)
+        self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
         _, updated_run_state = self._ensure_run_state(
             db,
             db_session,
             project,
             uid,
+            name,
             run_state,
             run,
             search_run=False,
-            leader_session=leader_session,
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _build_list_resources_response(
         self,
-        pod_resources: List = None,
-        crd_resources: List = None,
+        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
         group_by: Optional[mlrun.api.schemas.ListRuntimeResourcesGroupByField] = None,
-    ) -> Union[Dict, mlrun.api.schemas.GroupedRuntimeResourcesOutput]:
+    ) -> Union[
+        mlrun.api.schemas.RuntimeResources,
+        mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    ]:
         if crd_resources is None:
             crd_resources = []
         if pod_resources is None:
             pod_resources = []
 
         if group_by is None:
-            return {
-                "crd_resources": crd_resources,
-                "pod_resources": pod_resources,
-            }
+            return mlrun.api.schemas.RuntimeResources(
+                crd_resources=crd_resources, pod_resources=pod_resources
+            )
         else:
             if group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.job:
                 return self._build_grouped_by_job_list_resources_response(
+                    pod_resources, crd_resources
+                )
+            elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+                return self._build_grouped_by_project_list_resources_response(
                     pod_resources, crd_resources
                 )
             else:
@@ -1619,9 +2050,27 @@ class BaseRuntimeHandler(ABC):
                     f"Provided group by field is not supported. group_by={group_by}"
                 )
 
+    def _build_grouped_by_project_list_resources_response(
+        self,
+        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+    ) -> mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput:
+        resources = {}
+        for pod_resource in pod_resources:
+            self._add_resource_to_grouped_by_project_resources_response(
+                resources, "pod_resources", pod_resource
+            )
+        for crd_resource in crd_resources:
+            self._add_resource_to_grouped_by_project_resources_response(
+                resources, "crd_resources", crd_resource
+            )
+        return resources
+
     def _build_grouped_by_job_list_resources_response(
-        self, pod_resources: List = None, crd_resources: List = None
-    ) -> mlrun.api.schemas.GroupedRuntimeResourcesOutput:
+        self,
+        pod_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+        crd_resources: List[mlrun.api.schemas.RuntimeResource] = None,
+    ) -> mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput:
         resources = {}
         for pod_resource in pod_resources:
             self._add_resource_to_grouped_by_job_resources_response(
@@ -1633,24 +2082,68 @@ class BaseRuntimeHandler(ABC):
             )
         return resources
 
-    @staticmethod
-    def _add_resource_to_grouped_by_job_resources_response(
-        resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+    def _add_resource_to_grouped_by_project_resources_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
         resource_field_name: str,
-        resource: dict,
+        resource: mlrun.api.schemas.RuntimeResource,
     ):
-        if "mlrun/uid" in resource["labels"]:
-            project = resource["labels"].get("mlrun/project", config.default_project)
-            uid = resource["labels"]["mlrun/uid"]
-            if project not in resources:
-                resources[project] = {}
-            if uid not in resources[project]:
-                resources[project][uid] = mlrun.api.schemas.RuntimeResourcesOutput(
-                    pod_resources=[], crd_resources=[]
-                )
-            if not hasattr(resources[project][uid], resource_field_name):
-                setattr(resources[project][uid], resource_field_name, [])
-            getattr(resources[project][uid], resource_field_name).append(resource)
+        if "mlrun/class" in resource.labels:
+            project = resource.labels.get("mlrun/project", "")
+            mlrun_class = resource.labels["mlrun/class"]
+            kind = self._resolve_kind_from_class(mlrun_class)
+            self._add_resource_to_grouped_by_field_resources_response(
+                project, kind, resources, resource_field_name, resource
+            )
+
+    def _add_resource_to_grouped_by_job_resources_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resource_field_name: str,
+        resource: mlrun.api.schemas.RuntimeResource,
+    ):
+        if "mlrun/uid" in resource.labels:
+            project = resource.labels.get("mlrun/project", config.default_project)
+            uid = resource.labels["mlrun/uid"]
+            self._add_resource_to_grouped_by_field_resources_response(
+                project, uid, resources, resource_field_name, resource
+            )
+
+    @staticmethod
+    def _add_resource_to_grouped_by_field_resources_response(
+        first_field_value: str,
+        second_field_value: str,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resource_field_name: str,
+        resource: mlrun.api.schemas.RuntimeResource,
+    ):
+        if first_field_value not in resources:
+            resources[first_field_value] = {}
+        if second_field_value not in resources[first_field_value]:
+            resources[first_field_value][
+                second_field_value
+            ] = mlrun.api.schemas.RuntimeResources(pod_resources=[], crd_resources=[])
+        if not getattr(
+            resources[first_field_value][second_field_value], resource_field_name
+        ):
+            setattr(
+                resources[first_field_value][second_field_value],
+                resource_field_name,
+                [],
+            )
+        getattr(
+            resources[first_field_value][second_field_value], resource_field_name
+        ).append(resource)
+
+    @staticmethod
+    def _resolve_kind_from_class(mlrun_class: str) -> str:
+        class_to_kind_map = {}
+        for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            class_values = runtime_handler._get_possible_mlrun_class_label_values()
+            for value in class_values:
+                class_to_kind_map[value] = kind
+        return class_to_kind_map[mlrun_class]
 
     @staticmethod
     def _get_run_label_selector(project: str, run_uid: str):
@@ -1663,14 +2156,14 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        log_file_exists = crud.Logs.log_file_exists(project, uid)
+        log_file_exists = crud.Logs().log_file_exists(project, uid)
         if not log_file_exists:
-            _, logs_from_k8s = crud.Logs.get_logs(
+            _, logs_from_k8s = crud.Logs().get_logs(
                 db_session, project, uid, source=LogSources.K8S
             )
             if logs_from_k8s:
                 logger.info("Storing run logs", project=project, uid=uid)
-                crud.Logs.store_log(logs_from_k8s, project, uid, append=False)
+                crud.Logs().store_log(logs_from_k8s, project, uid, append=False)
 
     @staticmethod
     def _ensure_run_state(
@@ -1678,10 +2171,10 @@ class BaseRuntimeHandler(ABC):
         db_session: Session,
         project: str,
         uid: str,
+        name: str,
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
-        leader_session: Optional[str] = None,
     ) -> Tuple[bool, str]:
         if run is None:
             run = {}
@@ -1698,7 +2191,7 @@ class BaseRuntimeHandler(ABC):
                 desired_run_state=run_state,
                 search_run=search_run,
             )
-            run = {"metadata": {"project": project, "uid": uid}}
+            run = {"metadata": {"project": project, "name": name, "uid": uid}}
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
             if db_run_state == run_state:
@@ -1741,19 +2234,24 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run.setdefault("status", {})["last_update"] = now_date().isoformat()
-        db.store_run(db_session, run, uid, project, leader_session=leader_session)
+        db.store_run(db_session, run, uid, project)
 
         return True, run_state
 
     @staticmethod
-    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str]:
+    def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:
         project = (
             runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/project")
         )
         if not project:
             project = config.default_project
         uid = runtime_resource.get("metadata", {}).get("labels", {}).get("mlrun/uid")
-        return project, uid
+        name = (
+            runtime_resource.get("metadata", {})
+            .get("labels", {})
+            .get("mlrun/name", "no-name")
+        )
+        return project, uid, name
 
     @staticmethod
     def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):
@@ -1761,7 +2259,11 @@ class BaseRuntimeHandler(ABC):
         name = crd_object["metadata"]["name"]
         try:
             k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group, crd_version, namespace, crd_plural, name,
+                crd_group,
+                crd_version,
+                namespace,
+                crd_plural,
+                name,
             )
             logger.info(
                 "Deleted crd object",
@@ -1786,27 +2288,27 @@ class BaseRuntimeHandler(ABC):
                 raise
 
     @staticmethod
-    def _build_pod_resources(pods) -> List:
+    def _build_pod_resources(pods) -> List[mlrun.api.schemas.RuntimeResource]:
         pod_resources = []
         for pod in pods:
             pod_resources.append(
-                {
-                    "name": pod["metadata"]["name"],
-                    "labels": pod["metadata"]["labels"],
-                    "status": pod["status"],
-                }
+                mlrun.api.schemas.RuntimeResource(
+                    name=pod["metadata"]["name"],
+                    labels=pod["metadata"]["labels"],
+                    status=pod["status"],
+                )
             )
         return pod_resources
 
     @staticmethod
-    def _build_crd_resources(custom_objects) -> List:
+    def _build_crd_resources(custom_objects) -> List[mlrun.api.schemas.RuntimeResource]:
         crd_resources = []
         for custom_object in custom_objects:
             crd_resources.append(
-                {
-                    "name": custom_object["metadata"]["name"],
-                    "labels": custom_object["metadata"]["labels"],
-                    "status": custom_object.get("status", {}),
-                }
+                mlrun.api.schemas.RuntimeResource(
+                    name=custom_object["metadata"]["name"],
+                    labels=custom_object["metadata"]["labels"],
+                    status=custom_object.get("status", {}),
+                )
             )
         return crd_resources

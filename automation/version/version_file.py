@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import argparse
 import json
 import logging
@@ -16,7 +30,9 @@ logger = logging.getLogger("version_file")
 def main():
     parser = argparse.ArgumentParser(description="Create or update the version file")
 
-    parser.add_argument("--mlrun-version", type=str, required=False, default="unstable")
+    parser.add_argument(
+        "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
+    )
 
     args = parser.parse_args()
 
@@ -55,11 +71,18 @@ def _run_command(command, args=None):
 
     if sys.version_info[0] >= 3:
         process = subprocess.run(
-            command, shell=True, check=True, capture_output=True, encoding="utf-8",
+            command,
+            shell=True,
+            check=True,
+            capture_output=True,
+            encoding="utf-8",
         )
         output = process.stdout
     else:
-        output = subprocess.check_output(command, shell=True,)
+        output = subprocess.check_output(
+            command,
+            shell=True,
+        )
 
     return output
 

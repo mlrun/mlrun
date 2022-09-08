@@ -1,14 +1,32 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import typing
 import unittest.mock
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 import deepdiff
+import fastapi.testclient
 import pytest
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun
 import mlrun.api.crud as crud
 import mlrun.api.schemas
+import mlrun.runtimes.constants
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s
@@ -28,7 +46,9 @@ class TestRuntimeHandlerBase:
 
         self.project = "test-project"
         self.run_uid = "test_run_uid"
+        self.kind = "job"
 
+        mlrun.mlconf.mpijob_crd_version = mlrun.runtimes.constants.MPIJobCRDVersions.v1
         self.custom_setup()
 
         self._logger.info(
@@ -42,9 +62,31 @@ class TestRuntimeHandlerBase:
                 "state": RunStates.created,
                 "last_update": now_date().isoformat(),
             },
-            "metadata": {"project": self.project, "uid": self.run_uid},
+            "metadata": {
+                "project": self.project,
+                "name": "some-run-name",
+                "uid": self.run_uid,
+                "labels": {
+                    "kind": self.kind,
+                },
+            },
         }
-        get_db().store_run(db, self.run, self.run_uid, self.project)
+        mlrun.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+
+    @pytest.fixture(autouse=True)
+    def setup_method_fixture(self, db: Session, client: fastapi.testclient.TestClient):
+        # We want this mock for every test, ideally we would have simply put it in the setup_method
+        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
+        # in order to be able to mock k8s stuff
+        get_k8s().v1api = unittest.mock.Mock()
+        get_k8s().crdapi = unittest.mock.Mock()
+        get_k8s().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
+            return_value=True
+        )
+        # enable inheriting classes to do the same
+        self.custom_setup_after_fixtures()
 
     def teardown_method(self, method):
         self._logger.info(
@@ -58,6 +100,9 @@ class TestRuntimeHandlerBase:
         )
 
     def custom_setup(self):
+        pass
+
+    def custom_setup_after_fixtures(self):
         pass
 
     def custom_teardown(self):
@@ -83,6 +128,15 @@ class TestRuntimeHandlerBase:
         )
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
+
+    @staticmethod
+    def _generate_config_map(name, labels, data=None):
+        metadata = client.V1ObjectMeta(
+            name=name, labels=labels, namespace=get_k8s().resolve_namespace()
+        )
+        if data is None:
+            data = {"key": "value"}
+        return client.V1ConfigMap(metadata=metadata, data=data)
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         run_label_selector = runtime_handler._get_run_label_selector(
@@ -112,14 +166,26 @@ class TestRuntimeHandlerBase:
                 ]
             )
             assertion_func = (
-                TestRuntimeHandlerBase._assert_list_resources_grouped_response
+                TestRuntimeHandlerBase._assert_list_resources_grouped_by_job_response
+            )
+        elif group_by == mlrun.api.schemas.ListRuntimeResourcesGroupByField.project:
+            project = self.project
+            label_selector = ",".join(
+                [
+                    runtime_handler._get_default_label_selector(),
+                    f"mlrun/project={self.project}",
+                ]
+            )
+            assertion_func = (
+                TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
             )
         else:
             raise NotImplementedError("Unsupported group by value")
         resources = runtime_handler.list_resources(project, group_by=group_by)
         crd_group, crd_version, crd_plural = runtime_handler._get_crd_info()
         get_k8s().v1api.list_namespaced_pod.assert_called_once_with(
-            get_k8s().resolve_namespace(), label_selector=label_selector,
+            get_k8s().resolve_namespace(),
+            label_selector=label_selector,
         )
         if expected_crds:
             get_k8s().crdapi.list_namespaced_custom_object.assert_called_once_with(
@@ -131,18 +197,64 @@ class TestRuntimeHandlerBase:
             )
         if expected_services:
             get_k8s().v1api.list_namespaced_service.assert_called_once_with(
-                get_k8s().resolve_namespace(), label_selector=label_selector,
+                get_k8s().resolve_namespace(),
+                label_selector=label_selector,
             )
         assertion_func(
+            self,
             resources,
             expected_crds=expected_crds,
             expected_pods=expected_pods,
             expected_services=expected_services,
+            runtime_handler=runtime_handler,
         )
 
-    @staticmethod
-    def _assert_list_resources_grouped_response(
-        resources: mlrun.api.schemas.GroupedRuntimeResourcesOutput,
+        return resources
+
+    def _assert_list_resources_grouped_by_job_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
+        **kwargs,
+    ):
+        self._assert_list_resources_grouped_by_response(
+            resources,
+            lambda labels: (labels["mlrun/project"], labels["mlrun/uid"]),
+            expected_crds,
+            expected_pods,
+            expected_services,
+        )
+
+    def _assert_list_resources_grouped_by_project_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
+        runtime_handler=None,
+    ):
+        def _extract_project_and_kind_from_runtime_resources_labels(
+            labels: dict,
+        ) -> typing.Tuple[str, str]:
+            project = labels.get("mlrun/project", "")
+            class_ = labels["mlrun/class"]
+            kind = runtime_handler._resolve_kind_from_class(class_)
+            return project, kind
+
+        self._assert_list_resources_grouped_by_response(
+            resources,
+            _extract_project_and_kind_from_runtime_resources_labels,
+            expected_crds,
+            expected_pods,
+            expected_services,
+        )
+
+    def _assert_list_resources_grouped_by_response(
+        self,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        group_by_field_extractor,
         expected_crds=None,
         expected_pods=None,
         expected_services=None,
@@ -151,116 +263,94 @@ class TestRuntimeHandlerBase:
         expected_pods = expected_pods or []
         expected_services = expected_services or []
         for index, crd in enumerate(expected_crds):
-            project = crd["metadata"]["labels"]["mlrun/project"]
-            job_uid = crd["metadata"]["labels"]["mlrun/uid"]
-            found = False
-            for crd_resource in resources[project][job_uid].crd_resources:
-                if crd_resource["name"] == crd["metadata"]["name"]:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            crd_resource["labels"],
-                            crd["metadata"]["labels"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            crd_resource["status"], crd["status"], ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected crd was not found in response resources")
+            self._assert_resource_in_response_resources(
+                "crd", crd, resources, "crd_resources", group_by_field_extractor
+            )
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()
-            project = pod_dict["metadata"]["labels"]["mlrun/project"]
-            job_uid = pod_dict["metadata"]["labels"]["mlrun/uid"]
-            found = False
-            for pod_resource in resources[project][job_uid].pod_resources:
-                if pod_resource["name"] == pod_dict["metadata"]["name"]:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            pod_resource["labels"],
-                            pod_dict["metadata"]["labels"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            pod_resource["status"],
-                            pod_dict["status"],
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected pod was not found in response resources")
+            self._assert_resource_in_response_resources(
+                "pod", pod_dict, resources, "pod_resources", group_by_field_extractor
+            )
         for index, service in enumerate(expected_services):
-            project = service["metadata"]["labels"]["mlrun/project"]
-            job_uid = service["metadata"]["labels"]["mlrun/uid"]
-            found = False
-            for service_resource in resources[project][job_uid].service_resources:
-                if service_resource["name"] == service.metadata.name:
-                    found = True
-                    assert (
-                        deepdiff.DeepDiff(
-                            service_resource["labels"],
-                            service.metadata.labels,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-                    assert (
-                        deepdiff.DeepDiff(
-                            service_resource["status"],
-                            service.metadata.status,
-                            ignore_order=True,
-                        )
-                        == {}
-                    )
-            if not found:
-                pytest.fail("Expected service was not found in response resources")
+            service_dict = service.to_dict()
+            self._assert_resource_in_response_resources(
+                "service",
+                service_dict,
+                resources,
+                "service_resources",
+                group_by_field_extractor,
+            )
 
     @staticmethod
+    def _assert_resource_in_response_resources(
+        expected_resource_type: str,
+        expected_resource: dict,
+        resources: mlrun.api.schemas.GroupedByJobRuntimeResourcesOutput,
+        resources_field_name: str,
+        group_by_field_extractor,
+    ):
+        (
+            first_group_by_field_value,
+            second_group_by_field_value,
+        ) = group_by_field_extractor(expected_resource["metadata"]["labels"])
+        found = False
+        for resource in getattr(
+            resources[first_group_by_field_value][second_group_by_field_value],
+            resources_field_name,
+        ):
+            if resource.name == expected_resource["metadata"]["name"]:
+                found = True
+                assert (
+                    deepdiff.DeepDiff(
+                        resource.labels,
+                        expected_resource["metadata"]["labels"],
+                        ignore_order=True,
+                    )
+                    == {}
+                )
+                assert (
+                    deepdiff.DeepDiff(
+                        resource.status,
+                        expected_resource["status"],
+                        ignore_order=True,
+                    )
+                    == {}
+                )
+        if not found:
+            pytest.fail(
+                f"Expected {expected_resource_type} was not found in response resources"
+            )
+
     def _assert_list_resources_response(
-        resources, expected_crds=None, expected_pods=None, expected_services=None
+        self,
+        resources: mlrun.api.schemas.RuntimeResources,
+        expected_crds=None,
+        expected_pods=None,
+        expected_services=None,
+        **kwargs,
     ):
         expected_crds = expected_crds or []
         expected_pods = expected_pods or []
         expected_services = expected_services or []
-        assert len(resources["crd_resources"]) == len(expected_crds)
+        assert len(resources.crd_resources) == len(expected_crds)
         for index, crd in enumerate(expected_crds):
-            assert resources["crd_resources"][index]["name"] == crd["metadata"]["name"]
-            assert (
-                resources["crd_resources"][index]["labels"] == crd["metadata"]["labels"]
-            )
-            assert resources["crd_resources"][index]["status"] == crd.get("status", {})
-        assert len(resources["pod_resources"]) == len(expected_pods)
+            assert resources.crd_resources[index].name == crd["metadata"]["name"]
+            assert resources.crd_resources[index].labels == crd["metadata"]["labels"]
+            assert resources.crd_resources[index].status == crd.get("status", {})
+        assert len(resources.pod_resources) == len(expected_pods)
         for index, pod in enumerate(expected_pods):
             pod_dict = pod.to_dict()
+            assert resources.pod_resources[index].name == pod_dict["metadata"]["name"]
             assert (
-                resources["pod_resources"][index]["name"]
-                == pod_dict["metadata"]["name"]
+                resources.pod_resources[index].labels == pod_dict["metadata"]["labels"]
             )
-            assert (
-                resources["pod_resources"][index]["labels"]
-                == pod_dict["metadata"]["labels"]
-            )
-            assert resources["pod_resources"][index]["status"] == pod_dict["status"]
+            assert resources.pod_resources[index].status == pod_dict["status"]
         if expected_services:
-            assert len(resources["service_resources"]) == len(expected_services)
+            assert len(resources.service_resources) == len(expected_services)
             for index, service in enumerate(expected_services):
+                assert resources.service_resources[index].name == service.metadata.name
                 assert (
-                    resources["service_resources"][index]["name"]
-                    == service.metadata.name
-                )
-                assert (
-                    resources["service_resources"][index]["labels"]
-                    == service.metadata.labels
+                    resources.service_resources[index].labels == service.metadata.labels
                 )
 
     @staticmethod
@@ -349,6 +439,14 @@ class TestRuntimeHandlerBase:
         return calls
 
     @staticmethod
+    def _mock_list_namespaced_config_map(config_maps):
+        config_maps_list = client.V1ConfigMapList(items=config_maps)
+        get_k8s().v1api.list_namespaced_config_map = unittest.mock.Mock(
+            return_value=config_maps_list
+        )
+        return config_maps
+
+    @staticmethod
     def _mock_list_services(services):
         services_list = client.V1ServiceList(items=services)
         get_k8s().v1api.list_namespaced_service = unittest.mock.Mock(
@@ -399,9 +497,10 @@ class TestRuntimeHandlerBase:
     ):
         if logger_pod_name is not None:
             get_k8s().v1api.read_namespaced_pod_log.assert_called_once_with(
-                name=logger_pod_name, namespace=get_k8s().resolve_namespace(),
+                name=logger_pod_name,
+                namespace=get_k8s().resolve_namespace(),
             )
-        _, log = crud.Logs.get_logs(db, project, uid, source=LogSources.PERSISTENCY)
+        _, log = crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
         assert log == expected_log.encode()
 
     @staticmethod

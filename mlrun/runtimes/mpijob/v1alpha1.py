@@ -18,7 +18,9 @@ from datetime import datetime
 from kubernetes import client
 from sqlalchemy.orm import Session
 
+import mlrun.runtimes.pod
 from mlrun.api.db.base import DBInterface
+from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
@@ -72,14 +74,40 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
         update_in(job, "spec.template.metadata.labels", pod_labels)
         update_in(job, "spec.replicas", self.spec.replicas or 1)
         if self.spec.image:
-            self._update_container(job, "image", self.full_image_path())
+            self._update_container(
+                job,
+                "image",
+                self.full_image_path(
+                    client_version=runobj.metadata.labels.get("mlrun/client_version")
+                ),
+            )
         update_in(job, "spec.template.spec.volumes", self.spec.volumes)
         self._update_container(job, "volumeMounts", self.spec.volume_mounts)
         update_in(job, "spec.template.spec.nodeName", self.spec.node_name)
         update_in(job, "spec.template.spec.nodeSelector", self.spec.node_selector)
         update_in(
-            job, "spec.template.spec.affinity", self.spec._get_sanitized_affinity()
+            job,
+            "spec.template.spec.affinity",
+            mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "affinity"),
         )
+        update_in(
+            job,
+            "spec.template.spec.tolerations",
+            mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "tolerations"),
+        )
+        update_in(
+            job,
+            "spec.template.spec.securityContext",
+            mlrun.runtimes.pod.get_sanitized_attribute(self.spec, "security_context"),
+        )
+        if self.spec.priority_class_name and len(
+            mlconf.get_valid_function_priority_class_names()
+        ):
+            update_in(
+                job,
+                "spec.template.spec.priorityClassName",
+                self.spec.priority_class_name,
+            )
 
         extra_env = self._generate_runtime_env(runobj)
         extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
@@ -128,6 +156,8 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 
 
 class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
+    kind = "mpijob"
+
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
@@ -161,8 +191,8 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_default_label_selector() -> str:
-        return "mlrun/class=mpijob"
+    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
+        return ["mpijob"]
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:

@@ -53,7 +53,7 @@ class InMemoryStore(DataStore):
             self._items[key] = fp.read()
 
     def stat(self, key):
-        return FileStats(size=len(self._get_item(key)))
+        return FileStats(size=len(self._get_item(key)), modified=0)
 
     def listdir(self, key):
         return []

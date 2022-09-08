@@ -1,22 +1,22 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from enum import Enum
 
 import mergedeep
 
 import mlrun.errors
-
-
-class Format(str, Enum):
-    full = "full"
-    name_only = "name_only"
-    metadata_only = "metadata_only"
-    summary = "summary"
-
-
-class ProjectsRole(str, Enum):
-    iguazio = "iguazio"
-    mlrun = "mlrun"
-    nuclio = "nuclio"
-    nop = "nop"
 
 
 class PatchMode(str, Enum):
@@ -39,6 +39,7 @@ class DeletionStrategy(str, Enum):
     restricted = "restricted"
     cascade = "cascade"
     cascading = "cascading"
+    check = "check"
 
     @staticmethod
     def default():
@@ -59,6 +60,8 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            return "check"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"
@@ -69,6 +72,10 @@ class DeletionStrategy(str, Enum):
             return "restricted"
         elif self.is_cascading():
             return "cascading"
+        elif self.value == DeletionStrategy.check.value:
+            raise NotImplementedError(
+                "Iguazio does not support the check deletion strategy"
+            )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {self.value}"
@@ -83,6 +90,8 @@ class HeaderNames:
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
+    pipeline_arguments = f"{headers_prefix}pipeline-arguments"
+    client_version = f"{headers_prefix}client-version"
 
 
 class FeatureStorePartitionByField(str, Enum):
@@ -97,9 +106,34 @@ class FeatureStorePartitionByField(str, Enum):
             )
 
 
-# For now, we only support sorting by updated field
+class RunPartitionByField(str, Enum):
+    name = "name"  # Supported for runs objects
+
+    def to_partition_by_db_field(self, db_cls):
+        if self.value == RunPartitionByField.name:
+            return db_cls.name
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown group by field: {self.value}"
+            )
+
+
 class SortField(str, Enum):
+    created = "created"
     updated = "updated"
+
+    def to_db_field(self, db_cls):
+        if self.value == SortField.created:
+            # not doing type check to prevent import that will cause a cycle
+            if db_cls.__name__ == "Run":
+                return db_cls.start_time
+            return db_cls.created
+        elif self.value == SortField.updated:
+            return db_cls.updated
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown sort by field: {self.value}"
+            )
 
 
 class OrderType(str, Enum):
@@ -118,3 +152,22 @@ labels_prefix = "mlrun/"
 
 class LabelNames:
     schedule_name = f"{labels_prefix}schedule-name"
+
+
+class APIStates:
+    online = "online"
+    waiting_for_migrations = "waiting_for_migrations"
+    migrations_in_progress = "migrations_in_progress"
+    migrations_failed = "migrations_failed"
+    migrations_completed = "migrations_completed"
+    offline = "offline"
+    waiting_for_chief = "waiting_for_chief"
+
+    @staticmethod
+    def terminal_states():
+        return [APIStates.online, APIStates.offline]
+
+
+class ClusterizationRole:
+    chief = "chief"
+    worker = "worker"

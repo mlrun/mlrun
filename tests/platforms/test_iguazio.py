@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 from http import HTTPStatus
 from unittest.mock import Mock
@@ -101,12 +115,18 @@ def test_mount_v3io_legacy():
     }
     expected_volume_mount = {"mountPath": "/User", "name": "v3io", "subPath": ""}
     assert (
-        deepdiff.DeepDiff([expected_volume], function.spec.volumes, ignore_order=True,)
+        deepdiff.DeepDiff(
+            [expected_volume],
+            function.spec.volumes,
+            ignore_order=True,
+        )
         == {}
     )
     assert (
         deepdiff.DeepDiff(
-            [expected_volume_mount], function.spec.volume_mounts, ignore_order=True,
+            [expected_volume_mount],
+            function.spec.volume_mounts,
+            ignore_order=True,
         )
         == {}
     )
@@ -244,6 +264,39 @@ def test_mount_v3io():
                 )
                 == {}
             )
+
+
+def test_mount_v3io_multiple_user():
+    username_1 = "first-username"
+    username_2 = "second-username"
+    access_key_1 = "access_key_1"
+    access_key_2 = "access_key_2"
+    v3io_api_path = "v3io_api"
+    function = mlrun.new_function(
+        "function-name",
+        "function-project",
+        kind=mlrun.runtimes.RuntimeKinds.job,
+    )
+    os.environ["V3IO_API"] = v3io_api_path
+
+    os.environ["V3IO_USERNAME"] = username_1
+    os.environ["V3IO_ACCESS_KEY"] = access_key_1
+    function.apply(mlrun.mount_v3io())
+    os.environ["V3IO_USERNAME"] = username_2
+    os.environ["V3IO_ACCESS_KEY"] = access_key_2
+    function.apply(mlrun.mount_v3io())
+
+    user_volume_mounts = list(
+        filter(
+            lambda volume_mount: volume_mount["mountPath"] == "/User",
+            function.spec.volume_mounts,
+        )
+    )
+    assert len(user_volume_mounts) == 1
+    assert user_volume_mounts[0]["subPath"] == f"users/{username_2}"
+    assert (
+        function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key_2
+    )
 
 
 def test_mount_v3io_extended():

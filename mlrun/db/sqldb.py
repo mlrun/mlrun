@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 from typing import List, Optional, Union
 
 import mlrun.api.schemas
@@ -27,14 +28,18 @@ from mlrun.api.db.sqldb.session import create_session
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
+from ..api import schemas
 from ..api.schemas import ModelEndpoint
 from .base import RunDBError, RunDBInterface
 
 
 class SQLDB(RunDBInterface):
-    def __init__(self, dsn, session=None, leader_session: Optional[str] = None):
+    def __init__(
+        self,
+        dsn,
+        session=None,
+    ):
         self.session = session
-        self.leader_session = leader_session
         self.dsn = dsn
         self.db = None
 
@@ -45,43 +50,64 @@ class SQLDB(RunDBInterface):
         return self
 
     def store_log(self, uid, project="", body=b"", append=False):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.store_log,
-            self.session,
-            uid,
-            project,
+            mlrun.api.crud.Logs().store_log,
             body,
+            project,
+            uid,
             append,
-            self.leader_session,
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.get_log, self.session, uid, project, offset, size
+            mlrun.api.crud.Logs().get_logs,
+            self.session,
+            project,
+            uid,
+            size,
+            offset,
         )
 
     def store_run(self, struct, uid, project="", iter=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.store_run,
+            mlrun.api.crud.Runs().store_run,
             self.session,
             struct,
             uid,
-            project,
             iter,
-            self.leader_session,
+            project,
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.update_run, self.session, updates, uid, project, iter
+            mlrun.api.crud.Runs().update_run,
+            self.session,
+            project,
+            uid,
+            iter,
+            updates,
         )
 
     def abort_run(self, uid, project="", iter=0):
         raise NotImplementedError()
 
     def read_run(self, uid, project=None, iter=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.read_run, self.session, uid, project, iter
+            mlrun.api.crud.Runs().get_run,
+            self.session,
+            uid,
+            iter,
+            project,
         )
 
     def list_runs(
@@ -94,33 +120,69 @@ class SQLDB(RunDBInterface):
         sort=True,
         last=0,
         iter=None,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_runs,
+            mlrun.api.crud.Runs().list_runs,
             self.session,
             name,
             uid,
             project,
             labels,
-            state,
+            mlrun.utils.helpers.as_list(state) if state is not None else None,
             sort,
             last,
             iter,
+            start_time_from,
+            start_time_to,
+            last_update_time_from,
+            last_update_time_to,
+            partition_by,
+            rows_per_partition,
+            partition_sort_by,
+            partition_order,
+            max_partitions,
         )
 
     def del_run(self, uid, project=None, iter=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.del_run, self.session, uid, project, iter
+            mlrun.api.crud.Runs().delete_run,
+            self.session,
+            uid,
+            iter,
+            project,
         )
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.del_runs, self.session, name, project, labels, state, days_ago
+            mlrun.api.crud.Runs().delete_runs,
+            self.session,
+            name,
+            project,
+            labels,
+            state,
+            days_ago,
         )
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.store_artifact,
+            mlrun.api.crud.Artifacts().store_artifact,
             self.session,
             key,
             artifact,
@@ -128,12 +190,18 @@ class SQLDB(RunDBInterface):
             iter,
             tag,
             project,
-            self.leader_session,
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.read_artifact, self.session, key, tag, iter, project
+            mlrun.api.crud.Artifacts().get_artifact,
+            self.session,
+            key,
+            tag,
+            iter,
+            project,
         )
 
     def list_artifacts(
@@ -146,55 +214,97 @@ class SQLDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ):
+        import mlrun.api.crud
+
+        if category and isinstance(category, str):
+            category = schemas.ArtifactCategories(category)
+
         return self._transform_db_error(
-            self.db.list_artifacts,
+            mlrun.api.crud.Artifacts().list_artifacts,
             self.session,
-            name,
             project,
+            name,
             tag,
             labels,
             since,
             until,
             iter=iter,
             best_iteration=best_iteration,
+            kind=kind,
+            category=category,
         )
 
     def del_artifact(self, key, tag="", project=""):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.del_artifact, self.session, key, tag, project
+            mlrun.api.crud.Artifacts().delete_artifact,
+            self.session,
+            key,
+            tag,
+            project,
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.del_artifacts, self.session, name, project, tag, labels
+            mlrun.api.crud.Artifacts().delete_artifacts,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
         )
 
     def store_function(self, function, name, project="", tag="", versioned=False):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.store_function,
+            mlrun.api.crud.Functions().store_function,
             self.session,
             function,
             name,
             project,
             tag,
             versioned,
-            self.leader_session,
         )
 
     def get_function(self, name, project="", tag="", hash_key=""):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.get_function, self.session, name, project, tag, hash_key
+            mlrun.api.crud.Functions().get_function,
+            self.session,
+            name,
+            project,
+            tag,
+            hash_key,
         )
 
     def delete_function(self, name: str, project: str = ""):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.delete_function, self.session, project, name
+            mlrun.api.crud.Functions().delete_function,
+            self.session,
+            project,
+            name,
         )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_functions, self.session, name, project, tag, labels
+            mlrun.api.crud.Functions().list_functions,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
         )
 
     def list_artifact_tags(self, project=None):
@@ -208,24 +318,10 @@ class SQLDB(RunDBInterface):
     def list_schedules(self):
         return self._transform_db_error(self.db.list_schedules, self.session)
 
-    def tag_objects(self, objs, project: str, name: str):
-        return self._transform_db_error(
-            self.db.tag_objects, self.session, objs, project, name
-        )
-
-    def del_tag(self, project: str, name: str):
-        return self._transform_db_error(self.db.del_tag, self.session, project, name)
-
-    def find_tagged(self, project: str, name: str):
-        return self._transform_db_error(
-            self.db.find_tagged, self.session, project, name
-        )
-
-    def list_tags(self, project: str):
-        return self._transform_db_error(self.db.list_tags, self.session, project)
-
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -238,7 +334,8 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -257,7 +354,7 @@ class SQLDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
@@ -271,20 +368,28 @@ class SQLDB(RunDBInterface):
             raise RunDBError(exc.args)
 
     def create_feature_set(self, feature_set, project="", versioned=True):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.create_feature_set,
+            mlrun.api.crud.FeatureStore().create_feature_set,
             self.session,
             project,
             feature_set,
             versioned,
-            self.leader_session,
         )
 
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
+        import mlrun.api.crud
+
         feature_set = self._transform_db_error(
-            self.db.get_feature_set, self.session, project, name, tag, uid
+            mlrun.api.crud.FeatureStore().get_feature_set,
+            self.session,
+            project,
+            name,
+            tag,
+            uid,
         )
         return feature_set.dict()
 
@@ -296,15 +401,34 @@ class SQLDB(RunDBInterface):
         entities: List[str] = None,
         labels: List[str] = None,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_features, self.session, project, name, tag, entities, labels,
+            mlrun.api.crud.FeatureStore().list_features,
+            self.session,
+            project,
+            name,
+            tag,
+            entities,
+            labels,
         )
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_entities, self.session, project, name, tag, labels,
+            mlrun.api.crud.FeatureStore().list_entities,
+            self.session,
+            project,
+            name,
+            tag,
+            labels,
         )
 
     def list_feature_sets(
@@ -321,8 +445,10 @@ class SQLDB(RunDBInterface):
         partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_feature_sets,
+            mlrun.api.crud.FeatureStore().list_feature_sets,
             self.session,
             project,
             name,
@@ -346,14 +472,15 @@ class SQLDB(RunDBInterface):
         uid=None,
         versioned=True,
     ):
+        import mlrun.api.crud
+
         if isinstance(feature_set, dict):
             feature_set = mlrun.api.schemas.FeatureSet(**feature_set)
 
         name = name or feature_set.metadata.name
         project = project or feature_set.metadata.project
-
         return self._transform_db_error(
-            self.db.store_feature_set,
+            mlrun.api.crud.FeatureStore().store_feature_set,
             self.session,
             project,
             name,
@@ -361,14 +488,15 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
-            self.leader_session,
         )
 
     def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.patch_feature_set,
+            mlrun.api.crud.FeatureStore().patch_feature_set,
             self.session,
             project,
             name,
@@ -376,29 +504,43 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
-            self.leader_session,
         )
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.delete_feature_set, self.session, project, name, tag, uid
+            mlrun.api.crud.FeatureStore().delete_feature_set,
+            self.session,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.create_feature_vector,
+            mlrun.api.crud.FeatureStore().create_feature_vector,
             self.session,
             project,
             feature_vector,
             versioned,
-            self.leader_session,
         )
 
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.get_feature_vector, self.session, project, name, tag, uid,
+            mlrun.api.crud.FeatureStore().get_feature_vector,
+            self.session,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def list_feature_vectors(
@@ -413,8 +555,10 @@ class SQLDB(RunDBInterface):
         partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.list_feature_vectors,
+            mlrun.api.crud.FeatureStore().list_feature_vectors,
             self.session,
             project,
             name,
@@ -428,10 +572,18 @@ class SQLDB(RunDBInterface):
         )
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.store_feature_vector,
+            mlrun.api.crud.FeatureStore().store_feature_vector,
             self.session,
             project,
             name,
@@ -439,7 +591,6 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             versioned,
-            self.leader_session,
         )
 
     def patch_feature_vector(
@@ -451,8 +602,10 @@ class SQLDB(RunDBInterface):
         uid=None,
         patch_mode="replace",
     ):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.patch_feature_vector,
+            mlrun.api.crud.FeatureStore().patch_feature_vector,
             self.session,
             project,
             name,
@@ -460,12 +613,18 @@ class SQLDB(RunDBInterface):
             tag,
             uid,
             patch_mode,
-            self.leader_session,
         )
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):
+        import mlrun.api.crud
+
         return self._transform_db_error(
-            self.db.delete_feature_vector, self.session, project, name, tag, uid
+            mlrun.api.crud.FeatureStore().delete_feature_vector,
+            self.session,
+            project,
+            name,
+            tag,
+            uid,
         )
 
     def list_pipelines(
@@ -476,8 +635,8 @@ class SQLDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.Format
-        ] = mlrun.api.schemas.Format.metadata_only,
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()
@@ -487,7 +646,7 @@ class SQLDB(RunDBInterface):
         project: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -498,7 +657,7 @@ class SQLDB(RunDBInterface):
         token: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
@@ -508,7 +667,7 @@ class SQLDB(RunDBInterface):
         project: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> mlrun.api.schemas.SecretKeysData:
         raise NotImplementedError()
@@ -518,7 +677,7 @@ class SQLDB(RunDBInterface):
         project: str,
         provider: Union[
             str, mlrun.api.schemas.SecretProviderName
-        ] = mlrun.api.schemas.SecretProviderName.vault,
+        ] = mlrun.api.schemas.SecretProviderName.kubernetes,
         secrets: List[str] = None,
     ):
         raise NotImplementedError()
@@ -533,7 +692,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -542,10 +701,12 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+    def delete_model_endpoint_record(
+        self, project: str, endpoint_id: str, access_key=None
+    ):
         raise NotImplementedError()
 
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -558,7 +719,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -569,3 +730,51 @@ class SQLDB(RunDBInterface):
         access_key=None,
     ):
         raise NotImplementedError()
+
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def list_marketplace_sources(self):
+        raise NotImplementedError()
+
+    def get_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def delete_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
+    ):
+        # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
+        # done from ingest()
+        pass

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict, List, Tuple, Union
 
 from torch import Tensor
@@ -5,11 +19,8 @@ from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from mlrun.frameworks.pytorch.callbacks.callback import (
-    Callback,
-    MetricFunctionType,
-    MetricValueType,
-)
+from .callbacks import Callback
+from .utils import PyTorchTypes
 
 
 class _CallbackInterface:
@@ -75,18 +86,15 @@ class CallbacksHandler:
                 # Add by given name:
                 if callback[0] in self._callbacks:
                     raise KeyError(
-                        "A callback with the name '{}' "
-                        "is already exist in the callbacks handler.".format(callback[0])
+                        f"A callback with the name '{callback[0]}' is already exist in the callbacks handler."
                     )
                 self._callbacks[callback[0]] = callback[1]
             else:
                 # Add by class name:
                 if callback.__class__.__name__ in self._callbacks:
                     raise KeyError(
-                        "A callback with the name '{}' "
-                        "is already exist in the callbacks handler.".format(
-                            callback.__class__.__name__
-                        )
+                        f"A callback with the name '{callback.__class__.__name__}' is already exist in the callbacks "
+                        f"handler."
                     )
                 self._callbacks[callback.__class__.__name__] = callback
 
@@ -106,7 +114,7 @@ class CallbacksHandler:
         validation_set: DataLoader,
         loss_function: Module,
         optimizer: Optimizer,
-        metric_functions: List[MetricFunctionType],
+        metric_functions: List[PyTorchTypes.MetricFunctionType],
         scheduler,
         callbacks: List[str] = None,
     ) -> bool:
@@ -241,7 +249,7 @@ class CallbacksHandler:
 
     def on_validation_end(
         self,
-        loss_value: MetricValueType,
+        loss_value: PyTorchTypes.MetricValueType,
         metric_values: List[float],
         callbacks: List[str] = None,
     ) -> bool:
@@ -364,7 +372,11 @@ class CallbacksHandler:
             y_true=y_true,
         )
 
-    def on_inference_begin(self, x, callbacks: List[str] = None,) -> bool:
+    def on_inference_begin(
+        self,
+        x,
+        callbacks: List[str] = None,
+    ) -> bool:
         """
         Call the 'on_inference_begin' method of every callback in the callbacks list. If the list is 'None' (not given),
         all callbacks will be called.
@@ -381,7 +393,10 @@ class CallbacksHandler:
         )
 
     def on_inference_end(
-        self, y_pred: Tensor, y_true: Tensor, callbacks: List[str] = None,
+        self,
+        y_pred: Tensor,
+        y_true: Tensor,
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_inference_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -415,7 +430,7 @@ class CallbacksHandler:
         )
 
     def on_train_loss_end(
-        self, loss_value: MetricValueType, callbacks: List[str] = None
+        self, loss_value: PyTorchTypes.MetricValueType, callbacks: List[str] = None
     ) -> bool:
         """
         Call the 'on_train_loss_end' method of every callback in the callbacks list. If the list is 'None' (not given),
@@ -447,7 +462,7 @@ class CallbacksHandler:
         )
 
     def on_validation_loss_end(
-        self, loss_value: MetricValueType, callbacks: List[str] = None
+        self, loss_value: PyTorchTypes.MetricValueType, callbacks: List[str] = None
     ) -> bool:
         """
         Call the 'on_validation_loss_end' method of every callback in the callbacks list. If the list is 'None'
@@ -479,7 +494,9 @@ class CallbacksHandler:
         )
 
     def on_train_metrics_end(
-        self, metric_values: List[MetricValueType], callbacks: List[str] = None
+        self,
+        metric_values: List[PyTorchTypes.MetricValueType],
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_train_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -511,7 +528,9 @@ class CallbacksHandler:
         )
 
     def on_validation_metrics_end(
-        self, metric_values: List[MetricValueType], callbacks: List[str] = None
+        self,
+        metric_values: List[PyTorchTypes.MetricValueType],
+        callbacks: List[str] = None,
     ) -> bool:
         """
         Call the 'on_validation_metrics_end' method of every callback in the callbacks list. If the list is 'None'
@@ -635,7 +654,7 @@ class CallbacksHandler:
         :param method_name: The name of the method to run. Should be given from the 'CallbackInterface'.
         :param callbacks:   List of all the callbacks names to run the method.
 
-        :return: True if all of the callbacks called returned True and False if not.
+        :return: True if all the callbacks called returned True and False if not.
         """
         all_result = True
         for callback in callbacks:

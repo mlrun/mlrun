@@ -21,4 +21,4 @@ from .base import Artifact, get_artifact_meta
 from .dataset import DatasetArtifact, TableArtifact, update_dataset_meta
 from .manager import ArtifactManager, ArtifactProducer, dict_to_artifact
 from .model import ModelArtifact, get_model, update_model
-from .plots import ChartArtifact, PlotArtifact
+from .plots import BokehArtifact, ChartArtifact, PlotArtifact, PlotlyArtifact

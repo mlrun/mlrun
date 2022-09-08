@@ -30,7 +30,6 @@ import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
 from mlrun.api import schemas
-from mlrun.artifacts import Artifact
 from mlrun.db.httpdb import HTTPRunDB
 from tests.conftest import tests_root_directory, wait_for_server
 
@@ -47,7 +46,7 @@ def free_port():
 
 
 def check_server_up(url):
-    health_url = f"{url}/api/healthz"
+    health_url = f"{url}/{HTTPRunDB.get_api_path_prefix()}/healthz"
     timeout = 30
     if not wait_for_server(health_url, timeout):
         raise RuntimeError(f"server did not start after {timeout} sec")
@@ -74,7 +73,6 @@ def start_server(workdir, env_config: dict):
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
     url = f"http://localhost:{port}"
-    check_server_up(url)
 
     return proc, url
 
@@ -91,8 +89,6 @@ def docker_fixture():
             "build",
             "-f",
             "dockerfiles/mlrun-api/Dockerfile",
-            "--build-arg",
-            "MLRUN_PYTHON_VERSION=3.7.9",
             "--tag",
             docker_tag,
             ".",
@@ -148,6 +144,7 @@ def server_fixture():
         nonlocal process, workdir
         workdir = create_workdir()
         process, url = start_server(workdir, env)
+        check_server_up(url)
         conn = HTTPRunDB(url)
         conn.connect()
         return Server(url, conn, workdir)
@@ -190,7 +187,10 @@ def test_log(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid, body = "p19", "3920", b"log data"
-    db.store_run({"asd": "asd"}, uid, prj)
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
+
+    db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
     state, data = db.get_log(uid, prj)
@@ -201,12 +201,26 @@ def test_run(create_server):
     server: Server = create_server()
     db = server.conn
     prj, uid = "p18", "3i920"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
+
     run_as_dict = RunObject().to_dict()
-    run_as_dict["metadata"].update({"algorithm": "svm", "C": 3})
+    run_as_dict["metadata"].update({"name": "run-name", "algorithm": "svm", "C": 3})
     db.store_run(run_as_dict, uid, prj)
 
     data = db.read_run(uid, prj)
-    assert data == run_as_dict, "read_run"
+    assert (
+        deepdiff.DeepDiff(
+            data,
+            run_as_dict,
+            ignore_order=True,
+            exclude_paths={
+                "root['status']['start_time']",
+                "root['status']['last_update']",
+            },
+        )
+        == {}
+    )
 
     new_c = 4
     updates = {"metadata.C": new_c}
@@ -220,15 +234,18 @@ def test_run(create_server):
 def test_runs(create_server):
     server: Server = create_server()
     db = server.conn
+    prj = "p180"
+    proj_obj = mlrun.new_project(prj, save=False)
+    db.create_project(proj_obj)
 
     runs = db.list_runs()
     assert not runs, "found runs in new db"
     count = 7
 
-    prj = "p180"
     run_as_dict = RunObject().to_dict()
     for i in range(count):
         uid = f"uid_{i}"
+        run_as_dict["metadata"]["name"] = "run-name"
         db.store_run(run_as_dict, uid, prj)
 
     runs = db.list_runs(project=prj)
@@ -237,41 +254,6 @@ def test_runs(create_server):
     db.del_runs(project=prj, state="created")
     runs = db.list_runs(project=prj)
     assert not runs, "found runs in after delete"
-
-
-def test_artifact(create_server):
-    server: Server = create_server()
-    db = server.conn
-
-    prj, uid, key, body = "p7", "u199", "k800", "cucumber"
-    artifact = Artifact(key, body)
-
-    db.store_artifact(key, artifact, uid, project=prj)
-    # TODO: Need a run file
-    # db.del_artifact(key, project=prj)
-
-
-def test_artifacts(create_server):
-    server: Server = create_server()
-    db = server.conn
-    prj, uid, key, body = "p9", "u19", "k802", "tomato"
-    artifact = Artifact(key, body)
-
-    db.store_artifact(key, artifact, uid, project=prj)
-    db.store_artifact(key, artifact, uid, project=prj, iter=42)
-    artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 2, "bad number of artifacts"
-
-    artifacts = db.list_artifacts(project=prj, tag="*", iter=0)
-    assert len(artifacts) == 1, "bad number of artifacts"
-
-    # Only 1 will be returned since it's only looking for iter 0
-    artifacts = db.list_artifacts(project=prj, tag="*", best_iteration=True)
-    assert len(artifacts) == 1, "bad number of artifacts"
-
-    db.del_artifacts(project=prj, tag="*")
-    artifacts = db.list_artifacts(project=prj, tag="*")
-    assert len(artifacts) == 0, "bad number of artifacts after del"
 
 
 def test_basic_auth(create_server):
@@ -316,6 +298,9 @@ def test_set_get_function(create_server):
 
     func, name, proj = {"x": 1, "y": 2}, "f1", "p2"
     tag = uuid4().hex
+    proj_obj = mlrun.new_project(proj, save=False)
+    db.create_project(proj_obj)
+
     db.store_function(func, name, proj, tag=tag)
     db_func = db.get_function(name, proj, tag=tag)
 
@@ -330,13 +315,20 @@ def test_list_functions(create_server):
     db: HTTPRunDB = server.conn
 
     proj = "p4"
+    proj_obj = mlrun.new_project(proj, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"func{i}"
         func = {"fid": i}
         tag = uuid4().hex
         db.store_function(func, name, proj, tag=tag)
-    db.store_function({}, "f2", "p7", tag=uuid4().hex)
+    proj_p7 = "p7"
+    proj_p7_obj = mlrun.new_project(proj_p7, save=False)
+    db.create_project(proj_p7_obj)
+
+    db.store_function({}, "f2", proj_p7, tag=uuid4().hex)
 
     functions = db.list_functions(project=proj)
     for function in functions:
@@ -355,24 +347,25 @@ def test_version_compatibility_validation():
         {"server_version": "unstable", "client_version": "0.6.1", "compatible": True},
         {"server_version": "0.5.3", "client_version": "0.5.1", "compatible": True},
         {"server_version": "0.6.0-rc1", "client_version": "0.6.1", "compatible": True},
-        {
-            "server_version": "0.6.0-rc1",
-            "client_version": "0.5.4",
-            "compatible": False,
-        },
-        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": False},
+        {"server_version": "0.6.0-rc1", "client_version": "0.5.4", "compatible": True},
+        {"server_version": "0.6.3", "client_version": "0.4.8", "compatible": True},
         {"server_version": "1.0.0", "client_version": "0.5.0", "compatible": False},
+        {"server_version": "0.5.0", "client_version": "1.0.0", "compatible": False},
+        {
+            "server_version": "0.7.1",
+            "client_version": "0.0.0+unstable",
+            "compatible": True,
+        },
+        {
+            "server_version": "0.0.0+unstable",
+            "client_version": "0.7.1",
+            "compatible": True,
+        },
     ]
     for case in cases:
-        if not case["compatible"]:
-            with pytest.raises(mlrun.errors.MLRunIncompatibleVersionError):
-                HTTPRunDB._validate_version_compatibility(
-                    case["server_version"], case["client_version"]
-                )
-        else:
-            HTTPRunDB._validate_version_compatibility(
-                case["server_version"], case["client_version"]
-            )
+        assert case["compatible"] == HTTPRunDB._validate_version_compatibility(
+            case["server_version"], case["client_version"]
+        )
 
 
 def _create_feature_set(name):
@@ -417,6 +410,9 @@ def test_feature_sets(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -487,7 +483,11 @@ def _create_feature_vector(name):
             "tag": "latest",
         },
         "spec": {
-            "features": ["feature_set:*", "feature_set:something", "just_a_feature"],
+            "features": [
+                "feature_set.*",
+                "feature_set.something",
+                "feature_set.just_a_feature",
+            ],
             "description": "just a bunch of features",
         },
         "status": {"state": "created"},
@@ -499,6 +499,9 @@ def test_feature_vectors(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
     count = 5
     for i in range(count):
         name = f"fs_{i}"
@@ -508,7 +511,7 @@ def test_feature_vectors(create_server):
     # Test store_feature_set, which allows updates as well as inserts
     db.store_feature_vector(feature_vector, project=project)
 
-    feature_vector_update = {"spec": {"features": ["bla", "blu"]}}
+    feature_vector_update = {"spec": {"features": ["bla.asd", "blu.asd"]}}
 
     # additive mode means add the feature to the features-list
     db.patch_feature_vector(
@@ -570,7 +573,9 @@ def test_project_file_db_roundtrip(create_server):
     labels = {"key": "value"}
     annotations = {"annotation-key": "annotation-value"}
     project_metadata = mlrun.projects.project.ProjectMetadata(
-        project_name, labels=labels, annotations=annotations,
+        project_name,
+        labels=labels,
+        annotations=annotations,
     )
     project_spec = mlrun.projects.project.ProjectSpec(
         description,

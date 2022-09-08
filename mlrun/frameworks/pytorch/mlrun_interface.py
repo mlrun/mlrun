@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import importlib
 import sys
 from typing import Any, Dict, List, Tuple, Union
@@ -8,20 +22,20 @@ from tabulate import tabulate
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
 import mlrun
-from mlrun.frameworks.pytorch.callbacks import (
+
+from .callbacks import (
     Callback,
     HyperparametersKeys,
-    MetricFunctionType,
-    MetricValueType,
     MLRunLoggingCallback,
     TensorboardLoggingCallback,
 )
-from mlrun.frameworks.pytorch.callbacks_handler import CallbacksHandler
+from .callbacks_handler import CallbacksHandler
+from .utils import PyTorchTypes
 
 
 class PyTorchMLRunInterface:
@@ -41,19 +55,21 @@ class PyTorchMLRunInterface:
         :param context: MLRun context to use. If None, the context will be taken from 'mlrun.get_or_create_ctx()'.
         """
         # Set the context:
-        if context is None:
-            context = mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        self._context = (
+            context
+            if context is not None
+            else mlrun.get_or_create_ctx(self.DEFAULT_CONTEXT_NAME)
+        )
 
         # Store the model:
         self._model = model
-        self._context = context
 
         # Prepare methods parameters:
         self._training_set = None  # type: DataLoader
         self._loss_function = None  # type: Module
         self._optimizer = None  # type: Optimizer
         self._validation_set = None  # type: DataLoader
-        self._metric_functions = None  # type: List[MetricFunctionType]
+        self._metric_functions = None  # type: List[PyTorchTypes.MetricFunctionType]
         self._scheduler = None
         self._scheduler_step_frequency = None  # type: int
         self._epochs = None  # type: int
@@ -64,11 +80,28 @@ class PyTorchMLRunInterface:
         self._use_horovod = None  # type: bool
 
         # Prepare inner attributes:
-        self._model_in_cuda = False
         self._hvd = None
         self._training_sampler = None  # type: DistributedSampler
         self._validation_sampler = None  # type: DistributedSampler
         self._callbacks_handler = None  # type: CallbacksHandler
+
+    @property
+    def model(self) -> Module:
+        """
+        Get the model stored in the interface.
+
+        :return: The interface model.
+        """
+        return self._model
+
+    @property
+    def context(self) -> mlrun.MLClientCtx:
+        """
+        Get the interface MLRun context.
+
+        :return: The interface MLRun context.
+        """
+        return self._context
 
     def train(
         self,
@@ -76,7 +109,7 @@ class PyTorchMLRunInterface:
         loss_function: Module,
         optimizer: Optimizer,
         validation_set: DataLoader = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
@@ -107,10 +140,9 @@ class PyTorchMLRunInterface:
         :param validation_iterations:    Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                          the entire validation set will be used.
         :param callbacks:                The callbacks to use on this run.
-        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
-                                         True.
-        :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
-                                         None, meaning it will be read from context if available and if not - False.
+        :param use_cuda:                 Whether to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param use_horovod:              Whether to use horovod - a distributed training framework. Defaulted to None,
+                                         meaning it will be read from context if available and if not - False.
         """
         # Load the input:
         self._parse_and_store(
@@ -129,7 +161,7 @@ class PyTorchMLRunInterface:
             use_horovod=use_horovod,
         )
 
-        # Setup the inner attributes (initializing horovod and creating the callbacks handler):
+        # Set up the inner attributes (initializing horovod and creating the callbacks handler):
         self._setup()
 
         # Beginning of run callbacks:
@@ -140,9 +172,7 @@ class PyTorchMLRunInterface:
             # Beginning of a epoch callbacks:
             self._callbacks_handler.on_epoch_begin(epoch=epoch)
             print(
-                "Epoch {}/{}:".format(
-                    str(epoch + 1).rjust(len(str(self._epochs))), self._epochs
-                )
+                f"Epoch {str(epoch + 1).rjust(len(str(self._epochs)))}/{self._epochs}:"
             )
 
             # Train:
@@ -159,16 +189,12 @@ class PyTorchMLRunInterface:
                 if self._use_horovod:
                     loss_value = self._metric_average(
                         rank_value=loss_value,
-                        name="average_{}".format(
-                            self._get_metric_name(metric=self._loss_function)
-                        ),
+                        name=f"average_{self._get_metric_name(metric=self._loss_function)}",
                     )
                     metric_values = [
                         self._metric_average(
                             rank_value=metric_value,
-                            name="average_{}".format(
-                                self._get_metric_name(metric=metric_function)
-                            ),
+                            name=f"average_{self._get_metric_name(metric=metric_function)}",
                         )
                         for metric_value, metric_function in zip(
                             metric_values, self._metric_functions
@@ -195,12 +221,12 @@ class PyTorchMLRunInterface:
         self,
         dataset: DataLoader,
         loss_function: Module = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         iterations: int = None,
         callbacks: List[Callback] = None,
         use_cuda: bool = True,
         use_horovod: bool = None,
-    ) -> List[MetricValueType]:
+    ) -> List[PyTorchTypes.MetricValueType]:
         """
         Initiate an evaluation process on this interface configuration.
 
@@ -233,6 +259,9 @@ class PyTorchMLRunInterface:
         # Beginning of run callbacks:
         self._callbacks_handler.on_run_begin()
 
+        # Beginning of a epoch callbacks (Only one epoch in evaluation):
+        self._callbacks_handler.on_epoch_begin(epoch=1)
+
         # Evaluate:
         self._callbacks_handler.on_validation_begin()
         loss_value, metric_values = self._validate(is_evaluation=True)
@@ -241,16 +270,12 @@ class PyTorchMLRunInterface:
         if self._use_horovod:
             loss_value = self._metric_average(
                 rank_value=loss_value,
-                name="average_{}".format(
-                    self._get_metric_name(metric=self._loss_function)
-                ),
+                name=f"average_{self._get_metric_name(metric=self._loss_function)}",
             )
             metric_values = [
                 self._metric_average(
                     rank_value=metric_value,
-                    name="average_{}".format(
-                        self._get_metric_name(metric=metric_function)
-                    ),
+                    name=f"average_{self._get_metric_name(metric=metric_function)}",
                 )
                 for metric_value, metric_function in zip(
                     metric_values, self._metric_functions
@@ -262,6 +287,9 @@ class PyTorchMLRunInterface:
         self._callbacks_handler.on_validation_end(
             loss_value=loss_value, metric_values=metric_values
         )
+
+        # End of a epoch callbacks:
+        self._callbacks_handler.on_epoch_end(epoch=1)
         print()
 
         # End of run callbacks:
@@ -274,9 +302,8 @@ class PyTorchMLRunInterface:
 
     def add_auto_logging_callbacks(
         self,
-        custom_objects: Dict[Union[str, List[str]], str] = None,
         add_mlrun_logger: bool = True,
-        mlrun_callback__kwargs: Dict[str, Any] = None,
+        mlrun_callback_kwargs: Dict[str, Any] = None,
         add_tensorboard_logger: bool = True,
         tensorboard_callback_kwargs: Dict[str, Any] = None,
     ):
@@ -285,27 +312,18 @@ class PyTorchMLRunInterface:
         MLRun and Tensorboard, see 'pytorch.callbacks.MLRunLoggingCallback' and
         'pytorch.callbacks.TensorboardLoggingCallback'.
 
-        :param custom_objects:              Custom objects the model is using. Expecting a dictionary with the classes
-                                            names to import as keys (if multiple classes needed to be imported from the
-                                            same py file a list can be given) and the python file from where to import
-                                            them as their values. The model class itself must be specified in order to
-                                            properly save it for later being loaded with a handler. For example:
-                                            {
-                                                "class_name": "/path/to/model.py",
-                                                ["layer1", "layer2"]: "/path/to/custom_layers.py"
-                                            }
         :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
-        :param mlrun_callback__kwargs:      Key word arguments for the MLRun callback. For further information see the
-                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context',
-                                            'custom_objects' and 'auto_log' parameters are already given here.
+        :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
+                                            documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
+                                            and 'auto_log' parameters are already given here.
         :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
         :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                             the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                             'context' and 'auto_log' parameters are already given here.
         """
         # Set the dictionaries defaults:
-        mlrun_callback__kwargs = (
-            {} if mlrun_callback__kwargs is None else mlrun_callback__kwargs
+        mlrun_callback_kwargs = (
+            {} if mlrun_callback_kwargs is None else mlrun_callback_kwargs
         )
         tensorboard_callback_kwargs = (
             {} if tensorboard_callback_kwargs is None else tensorboard_callback_kwargs
@@ -316,10 +334,7 @@ class PyTorchMLRunInterface:
             # Add the MLRun logging callback:
             self._callbacks.append(
                 MLRunLoggingCallback(
-                    context=self._context,
-                    custom_objects=custom_objects,
-                    auto_log=True,
-                    **mlrun_callback__kwargs
+                    context=self._context, auto_log=True, **mlrun_callback_kwargs
                 )
             )
         if add_tensorboard_logger:
@@ -330,13 +345,64 @@ class PyTorchMLRunInterface:
                 )
             )
 
+    def predict(
+        self,
+        inputs: Union[Tensor, List[Tensor]],
+        use_cuda: bool = True,
+        batch_size: int = -1,
+    ) -> Tensor:
+        """
+        Run prediction on the given data. Batched data can be predicted as well.
+
+        :param inputs:     The inputs to infer through the model and get its predictions. Expecting a torch.Tensor or a
+                           list of torch.Tensors to match each input layer.
+        :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
+                           (batch size will be equal to the amount of inputs). Defaulted to -1.
+
+        :return: The model's predictions (outputs) list.
+        """
+        # Move the model to cuda if needed:
+        if use_cuda and torch.cuda.is_available():
+            self._objects_to_cuda()
+
+        # Set model to evaluate mode:
+        self._model.eval()
+
+        # Wrap in a list if given as a single Tensor:
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+
+        # Initialize a data loader for the given inputs:
+        data_loader = DataLoader(
+            TensorDataset(*inputs),
+            batch_size=batch_size if batch_size != -1 else len(inputs),
+        )
+
+        # Start the inference:
+        with torch.no_grad():
+            predictions = None  # type: Tensor
+            for x in data_loader:
+                # Move the input tensor to cuda if needed:
+                if use_cuda and torch.cuda.is_available():
+                    x = self._tensor_to_cuda(tensor=x)
+                # Get the model's prediction:
+                y = self._model(*x)
+                # Store the predictions one by one:
+                if predictions is None:
+                    predictions = y
+                else:
+                    predictions = torch.cat((predictions, y))
+
+        return predictions
+
     def _parse_and_store(
         self,
         training_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
         validation_set: DataLoader = None,
-        metric_functions: List[MetricFunctionType] = None,
+        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
         scheduler_step_frequency: Union[int, float, str] = "epoch",
         epochs: int = 1,
@@ -372,7 +438,7 @@ class PyTorchMLRunInterface:
         :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
                                          None, meaning it will be read from context if available and if not - False.
 
-        :raise ValueError: In case on of the given parameters is invalid.
+        :raise MLRunInvalidArgumentError: In case one of the given parameters is invalid.
         """
         # Parse and validate input:
         # # Metric functions:
@@ -383,37 +449,35 @@ class PyTorchMLRunInterface:
             if training_iterations is None:
                 training_iterations = len(training_set)
             elif training_iterations < 1:
-                raise ValueError(
-                    "The 'training_iterations' parameter must be bigger or equal to one, received: {}"
-                    "".format(training_iterations)
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The 'training_iterations' parameter must be bigger or equal to one, received: "
+                    f"{training_iterations}"
                 )
             elif training_iterations > len(training_set):
-                raise ValueError(
-                    "The 'training_iterations' cannot be bigger than the given training dataset. The size of "
-                    "the given training set is {} yet the received iterations parameter is {}."
-                    "".format(len(training_set), training_iterations)
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The 'training_iterations' cannot be bigger than the given training dataset. The size of "
+                    f"the given training set is {len(training_set)} yet the received iterations parameter is "
+                    f"{training_iterations}."
                 )
         # # Validation iterations:
         if validation_set is not None:
             if validation_iterations is None:
                 validation_iterations = len(validation_set)
             elif validation_iterations < 1:
-                raise ValueError(
-                    "The 'validation_iterations' parameter must be bigger or equal to one, "
-                    "received: {}".format(validation_iterations)
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The 'validation_iterations' parameter must be bigger or equal to one, "
+                    f"received: {validation_iterations}"
                 )
             elif validation_iterations > len(validation_set):
-                raise ValueError(
-                    "The 'validation_iterations' cannot be bigger than the given validation dataset. The "
-                    "size of the given validation set is {} yet the received iterations parameter is {}."
-                    "".format(len(validation_set), validation_iterations)
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The 'validation_iterations' cannot be bigger than the given validation dataset. The size of the "
+                    f"given validation set is {len(validation_set)} yet the received iterations parameter is "
+                    f"{validation_iterations}."
                 )
         # # Epochs:
         if epochs < 1:
-            raise ValueError(
-                "The 'epochs' parameter must be bigger or equal to one, received: {}".format(
-                    epochs
-                )
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The 'epochs' parameter must be bigger or equal to one, received: {epochs}"
             )
         # # Scheduler step frequency:
         if isinstance(scheduler_step_frequency, str):
@@ -422,19 +486,15 @@ class PyTorchMLRunInterface:
             elif scheduler_step_frequency == "batch":
                 scheduler_step_frequency = 1
             else:
-                raise ValueError(
-                    "The scheduler step frequency parameter can be passed as a string of two values: "
-                    "'epoch' or 'batch', but the value given was: '{}'".format(
-                        scheduler_step_frequency
-                    )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The scheduler step frequency parameter can be passed as a string of two values: "
+                    f"'epoch' or 'batch', but the value given was: '{scheduler_step_frequency}'"
                 )
         elif isinstance(scheduler_step_frequency, float):
             if scheduler_step_frequency < 0.0 or scheduler_step_frequency > 1.0:
-                raise ValueError(
-                    "The scheduler step frequency parameter can be passed as a float with value between "
-                    "0.0 to 1.0, but the value given was: '{}'".format(
-                        scheduler_step_frequency
-                    )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The scheduler step frequency parameter can be passed as a float with value between "
+                    f"0.0 to 1.0, but the value given was: '{scheduler_step_frequency}'"
                 )
             scheduler_step_frequency = int(
                 training_iterations * scheduler_step_frequency
@@ -470,12 +530,13 @@ class PyTorchMLRunInterface:
         Copy the interface objects - model, loss, optimizer and scheduler to cuda memory.
         """
         # Model:
-        if not self._model_in_cuda:
+        if not self._is_module_in_cuda(module=self._model):
             self._model = self._model.cuda()
-            self._model_in_cuda = True
 
         # Loss:
-        if self._loss_function is not None:
+        if self._loss_function is not None and not self._is_module_in_cuda(
+            module=self._loss_function
+        ):
             self._loss_function = self._loss_function.cuda()
 
         # Optimizer:
@@ -512,15 +573,20 @@ class PyTorchMLRunInterface:
         # Setup cuda:
         if self._use_cuda and torch.cuda.is_available():
             if self._use_horovod:
+                # Set the torch environment to use a specific GPU according to the horovod worker's local rank:
                 torch.cuda.set_device(self._hvd.local_rank())
+                # Log horovod worker device:
+                print(
+                    f"Horovod worker #{self._hvd.rank()} is using GPU:{self._hvd.local_rank()}"
+                )
+                # Register the required multiprocessing arguments:
                 mp_data_loader_kwargs["num_workers"] = 1
                 mp_data_loader_kwargs["pin_memory"] = True
             # Move the model and the stored objects to the GPU:
             self._objects_to_cuda()
-        elif self._model_in_cuda:
-            # Move the model back to the CPU:
-            self._model = self._model.cpu()
-            self._model_in_cuda = False
+        elif self._use_horovod:
+            # Log horovod worker device:
+            print(f"Horovod worker #{self._hvd.rank()} is using CPU")
 
         # Initialize a callbacks handler:
         if self._use_horovod:
@@ -537,7 +603,7 @@ class PyTorchMLRunInterface:
         # Prepare horovod for the run if needed:
         if self._use_horovod:
             # When supported, use 'forkserver' to spawn dataloader workers instead of 'fork' to prevent issues with
-            # Infiniband implementations that are not fork-safe
+            # Infiniband implementations that are not fork-safe:
             if (
                 mp_data_loader_kwargs.get("num_workers", 0) > 0
                 and hasattr(mp, "_supports_context")
@@ -668,7 +734,7 @@ class PyTorchMLRunInterface:
 
     def _validate(
         self, is_evaluation: bool = False
-    ) -> Tuple[MetricValueType, List[MetricValueType]]:
+    ) -> Tuple[PyTorchTypes.MetricValueType, List[PyTorchTypes.MetricValueType]]:
         """
         Initiate a single epoch validation.
 
@@ -735,7 +801,10 @@ class PyTorchMLRunInterface:
 
                 # End of batch callbacks:
                 if not self._callbacks_handler.on_validation_batch_end(
-                    batch=batch, x=x, y_pred=y_pred, y_true=y_true,
+                    batch=batch,
+                    x=x,
+                    y_pred=y_pred,
+                    y_true=y_true,
                 ):
                     break
 
@@ -814,7 +883,7 @@ class PyTorchMLRunInterface:
         self._loss_function = None  # type: Module
         self._optimizer = None  # type: Optimizer
         self._validation_set = None  # type: DataLoader
-        self._metric_functions = None  # type: List[MetricFunctionType]
+        self._metric_functions = None  # type: List[PyTorchTypes.MetricFunctionType]
         self._scheduler = None
         self._scheduler_step_frequency = None  # type: int
         self._epochs = None  # type: int
@@ -826,7 +895,6 @@ class PyTorchMLRunInterface:
 
         # Clear the inner attributes:
         self._hvd = None
-
         self._training_sampler = None  # type: DistributedSampler
         self._validation_sampler = None  # type: DistributedSampler
         self._callbacks_handler = None  # type: CallbacksHandler
@@ -871,6 +939,15 @@ class PyTorchMLRunInterface:
         return with_sampler_data_loader
 
     @staticmethod
+    def _is_module_in_cuda(module: Module) -> bool:
+        """
+        Check whether or not the module is in CUDA memory.
+
+        :return: True if the module is in CUDA memory and False otherwise.
+        """
+        return next(module.parameters()).is_cuda
+
+    @staticmethod
     def _tensor_to_cuda(
         tensor: Union[Tensor, Dict, List, Tuple]
     ) -> Union[Tensor, Dict, List, Tuple]:
@@ -883,7 +960,7 @@ class PyTorchMLRunInterface:
 
         :return: The copied tensor in cuda memory.
         """
-        if isinstance(tensor, Tensor):
+        if isinstance(tensor, Tensor) and not tensor.is_cuda:
             tensor = tensor.cuda()
             if tensor._grad is not None:
                 tensor._grad.data = tensor._grad.data.cuda()
@@ -903,7 +980,7 @@ class PyTorchMLRunInterface:
         return tensor
 
     @staticmethod
-    def _get_metric_name(metric: MetricFunctionType) -> str:
+    def _get_metric_name(metric: PyTorchTypes.MetricFunctionType) -> str:
         """
         Get the given metric function name.
 
@@ -920,7 +997,7 @@ class PyTorchMLRunInterface:
         dataset: DataLoader,
         iterations: int,
         description: str,
-        metrics: List[MetricFunctionType],
+        metrics: List[PyTorchTypes.MetricFunctionType],
     ) -> tqdm:
         """
         Create a progress bar for training and validating / evaluating.
@@ -951,8 +1028,8 @@ class PyTorchMLRunInterface:
     @staticmethod
     def _update_progress_bar(
         progress_bar: tqdm,
-        metrics: List[MetricFunctionType],
-        values: List[MetricValueType],
+        metrics: List[PyTorchTypes.MetricFunctionType],
+        values: List[PyTorchTypes.MetricValueType],
     ):
         """
         Update the progress bar metrics results.

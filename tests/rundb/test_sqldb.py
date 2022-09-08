@@ -13,17 +13,15 @@
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
 
-from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 import deepdiff
-import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import Artifact, Run, _tagged
+from mlrun.api.db.sqldb.models import Artifact
 from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 
@@ -47,7 +45,7 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p2")
 
     tags = db.list_artifact_tags(db_session, "p1")
-    assert {"t1", "t2"} == set(tags), "bad tags"
+    assert [("p1", "k1", "t1"), ("p1", "k1", "t2")] == tags
 
 
 def test_list_artifact_date(db: SQLDB, db_session: Session):
@@ -76,18 +74,6 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
 
     arts = db.list_artifacts(db_session, project=prj, since=t2, until=t2, tag="*")
     assert 1 == len(arts), "since/until t2"
-
-
-def test_list_projects(db: SQLDB, db_session: Session):
-    for idx in range(10):
-        run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
-        db.store_run(db_session, run, "u7", project=f"prj{idx % 3}", iter=idx)
-
-    projects_output = db.list_projects(db_session)
-
-    assert {"prj0", "prj1", "prj2"} == {
-        project.metadata.name for project in projects_output.projects
-    }
 
 
 def test_run_iter0(db: SQLDB, db_session: Session):
@@ -187,54 +173,6 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     )
 
 
-@pytest.mark.parametrize(
-    "cls", [tagged_model for tagged_model in _tagged if tagged_model != Run]
-)
-def test_tags(db: SQLDB, db_session: Session, cls):
-    p1, n1 = "prj1", "name1"
-    object_identifier = "name"
-    if cls == Artifact:
-        object_identifier = "key"
-    obj1, obj2, obj3 = cls(), cls(), cls()
-    for index, obj in enumerate([obj1, obj2, obj3]):
-        setattr(obj, object_identifier, f"obj-identifier-{index}")
-    db_session.add(obj1)
-    db_session.add(obj2)
-    db_session.add(obj3)
-    db_session.commit()
-
-    db.tag_objects(db_session, [obj1, obj2], p1, n1)
-    objs = db.find_tagged(db_session, p1, n1)
-    assert {obj1, obj2} == set(objs)
-
-    db.del_tag(db_session, p1, n1)
-    objs = db.find_tagged(db_session, p1, n1)
-    assert [] == objs
-
-
-def _tag_objs(db: SQLDB, db_session: Session, count, project, tags):
-    tagged = [tagged_model for tagged_model in _tagged if tagged_model != Run]
-    by_tag = defaultdict(list)
-    for idx in range(count):
-        cls = tagged[idx % len(tagged)]
-        obj = cls()
-        by_tag[tags[idx % len(tags)]].append(obj)
-        db_session.add(obj)
-    db_session.commit()
-    for tag, objs in by_tag.items():
-        db.tag_objects(db_session, objs, project, tag)
-
-
-def test_list_tags(db: SQLDB, db_session: Session):
-    p1, tags1 = "prj1", ["a", "b", "c"]
-    _tag_objs(db, db_session, 17, p1, tags1)
-    p2, tags2 = "prj2", ["b", "c", "d", "e"]
-    _tag_objs(db, db_session, 11, p2, tags2)
-
-    tags = db.list_tags(db_session, p1)
-    assert set(tags) == set(tags1), "tags"
-
-
 def test_projects_crud(db: SQLDB, db_session: Session):
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name="p1"),
@@ -245,7 +183,9 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     project_output = db.get_project(db_session, name=project.metadata.name)
     assert (
         deepdiff.DeepDiff(
-            project.dict(), project_output.dict(exclude={"id"}), ignore_order=True,
+            project.dict(),
+            project_output.dict(exclude={"id"}),
+            ignore_order=True,
         )
         == {}
     )
@@ -260,7 +200,7 @@ def test_projects_crud(db: SQLDB, db_session: Session):
     )
     db.create_project(db_session, project_2)
     projects_output = db.list_projects(
-        db_session, format_=mlrun.api.schemas.Format.name_only
+        db_session, format_=mlrun.api.schemas.ProjectsFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
 

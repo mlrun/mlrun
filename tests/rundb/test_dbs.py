@@ -60,14 +60,12 @@ def db(request):
 
 
 def test_save_get_function(db: RunDBInterface):
-    func, name, proj, tag = {"x": 1, "y": 2}, "f1", "p2", "t3u"
+    func, name, proj, tag = {"data": {"x": 1, "y": 2}}, "f1", "p2", "t3u"
     db.store_function(func, name, proj, tag)
     db_func = db.get_function(name, proj, tag)
 
     # db methods enriches metadata
-    del db_func["metadata"]
-    del func["metadata"]
-    assert func == db_func, "wrong func"
+    assert func["data"] == db_func["data"]
 
 
 def new_func(labels, **kw):
@@ -90,22 +88,6 @@ def test_list_functions(db: RunDBInterface):
     funcs = db.list_functions(name, labels={"l2": "v2"})
     assert 2 == len(funcs), "num of funcs"
     assert {1, 2} == {fn["x"] for fn in funcs}, "xs"
-
-
-def test_log(db: RunDBInterface):
-    uid = "m33"
-    data1, data2 = b"ab", b"cd"
-    db.store_log(uid, body=data1)
-    _, log = db.get_log(uid)
-    assert data1 == log, "get log 1"
-
-    db.store_log(uid, body=data2, append=True)
-    _, log = db.get_log(uid)
-    assert data1 + data2 == log, "get log 2"
-
-    db.store_log(uid, body=data1, append=False)
-    _, log = db.get_log(uid)
-    assert data1 == log, "get log append=False"
 
 
 def test_runs(db: RunDBInterface):

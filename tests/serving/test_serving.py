@@ -1,14 +1,37 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
+import pathlib
 import time
 
+import pandas as pd
+import pytest
 from nuclio_sdk import Context as NuclioContext
+from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.runtimes import nuclio_init_hook
 from mlrun.runtimes.serving import serving_subkind
 from mlrun.serving import V2ModelServer
-from mlrun.serving.server import GraphContext, MockEvent, create_graph_server
+from mlrun.serving.server import (
+    GraphContext,
+    MockEvent,
+    MockTrigger,
+    create_graph_server,
+)
 from mlrun.serving.states import RouterStep, TaskStep
 from mlrun.utils import logger
 
@@ -80,9 +103,30 @@ ensemble_spec = generate_spec(ensemble_object.to_dict())
 testdata = '{"inputs": [5]}'
 
 
+def _log_model(project):
+    iris = load_iris()
+    iris_dataset = pd.DataFrame(data=iris.data, columns=iris.feature_names)
+    iris_labels = pd.DataFrame(data=iris.target, columns=["label"])
+    iris_dataset = pd.concat([iris_dataset, iris_labels], axis=1)
+
+    # Upload the model through the projects API so that it is available to the serving function
+    model_dir = str(pathlib.Path(__file__).parent / "assets")
+    model = project.log_model(
+        "iris",
+        target_path=model_dir,
+        model_file="model.pkl",
+        training_set=iris_dataset,
+        label_column="label",
+        upload=False,
+    )
+    return model.uri
+
+
 class ModelTestingClass(V2ModelServer):
     def load(self):
         print("loading")
+        if self.model_path.startswith("store:"):
+            self.get_model()
 
     def predict(self, request):
         print("predict:", request)
@@ -144,13 +188,19 @@ def test_v2_get_models():
 
 
 def test_ensemble_get_models():
-    context = init_ctx(ensemble_spec)
-    event = MockEvent("", path="/v2/models/", method="GET")
-    resp = context.mlrun_handler(context, event)
-    data = json.loads(resp.body)
-
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology(
+        "router",
+        mlrun.serving.routers.VotingEnsemble(
+            vote_type="regression", prediction_col_name="predictions"
+        ),
+    )
+    graph.routes = generate_test_routes("EnsembleModelTestingClass")
+    server = fn.to_mock_server()
+    logger.info(f"flow: {graph.to_yaml()}")
+    resp = server.test("/v2/models/", testdata)
     # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"]}
-    assert len(data["models"]) == 5, f"wrong get models response {resp.body}"
+    assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
 
 def test_ensemble_infer():
@@ -240,8 +290,9 @@ def test_v2_async_mode():
         resp.status_code != 200
     ), f"expected failure, got {resp.status_code} {resp.body}"
 
-    event = MockEvent('{"model": "m5", "inputs": [5]}')
-    event.trigger = "stream"
+    event = MockEvent(
+        '{"model": "m5", "inputs": [5]}', trigger=MockTrigger(kind="stream")
+    )
     resp = context.mlrun_handler(context, event)
     context.logger.info("model responded")
     logger.info(resp)
@@ -258,20 +309,34 @@ def test_v2_explain():
 
 
 def test_v2_get_modelmeta():
-    def get_model(name, version, url):
-        event = MockEvent("", path=f"/v2/models/{url}", method="GET")
-        resp = context.mlrun_handler(context, event)
-        logger.info(f"resp: {resp}")
-        data = json.loads(resp.body)
+    project = mlrun.new_project("tstsrv", save=False)
+    fn = mlrun.new_function("tst", kind="serving")
+    model_uri = _log_model(project)
+    print(model_uri)
+    fn.add_model("m1", model_uri, "ModelTestingClass")
+    fn.add_model("m2", model_uri, "ModelTestingClass")
+    fn.add_model("m3:v2", model_uri, "ModelTestingClass")
 
-        # expected: {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
-        assert (
-            data["name"] == name and data["version"] == version
-        ), f"wrong get model meta response {resp.body}"
+    server = fn.to_mock_server()
 
-    context = init_ctx()
-    get_model("m2", "", "m2")
-    get_model("m3", "v2", "m3/versions/v2")
+    # test model m2 name, ver (none), inputs and outputs
+    resp = server.test("/v2/models/m2/", method="GET")
+    logger.info(f"resp: {resp}")
+    assert (
+        resp["name"] == "m2" and resp["version"] == ""
+    ), f"wrong get model meta response {resp}"
+    assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
+    assert resp["inputs"][0]["value_type"] == "float"
+
+    # test versioned model m3 metadata
+    resp = server.test("/v2/models/m3/versions/v2", method="GET")
+    assert (
+        resp["name"] == "m3" and resp["version"] == "v2"
+    ), f"wrong get model meta response {resp}"
+
+    # test raise if model doesnt exist
+    with pytest.raises(RuntimeError):
+        server.test("/v2/models/m4", method="GET")
 
 
 def test_v2_custom_handler():
@@ -333,14 +398,54 @@ def test_v2_mock():
 def test_function():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("router")
-    fn.add_model("my", class_name="ModelTestingClass", model_path=".", multiplier=100)
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
     fn.set_tracking("dummy://")  # track using the _DummyStream
 
     server = fn.to_mock_server()
     logger.info(f"flow: {graph.to_yaml()}")
     resp = server.test("/v2/models/my/infer", testdata)
     # expected: source (5) * multiplier (100)
-    assert resp["outputs"] == 5 * 100, f"wrong health response {resp}"
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     dummy_stream = server.context.stream.output_stream
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
+
+
+def test_serving_no_router():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to("ModelTestingClass", "my2", model_path=".", multiplier=100).respond()
+
+    server = fn.to_mock_server()
+
+    resp = server.test("/", method="GET")
+    assert resp["name"] == "my2", f"wrong get response {resp}"
+
+    resp = server.test("/ready", method="GET")
+    assert resp.status_code == 200, f"wrong health response {resp}"
+
+    resp = server.test("/", testdata)
+    # expected: source (5) * multiplier (100)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+
+def test_model_chained():
+    fn = mlrun.new_function("demo", kind="serving")
+    graph = fn.set_topology("flow", engine="async")
+    graph.to(
+        ModelTestingClass(name="m1", model_path=".", multiplier=2),
+        result_path="m1",
+        input_path="req",
+    ).to(
+        ModelTestingClass(
+            name="m2", model_path=".", result_path="m2", multiplier=3, input_path="req"
+        )
+    ).respond()
+    server = fn.to_mock_server()
+
+    resp = server.test(body={"req": {"inputs": [5]}})
+    server.wait_for_completion()
+    assert list(resp.keys()) == ["req", "m1", "m2"], "unexpected keys in resp"
+    assert (
+        resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3
+    ), "unexpected model results"

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from os import listdir
+import os
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
 
@@ -20,6 +20,9 @@ import pytest
 
 import mlrun
 import mlrun.errors
+from mlrun.artifacts import ModelArtifact
+from mlrun.artifacts.base import LegacyLinkArtifact, LinkArtifact
+from mlrun.artifacts.model import LegacyModelArtifact
 from tests.conftest import rundb_path
 
 mlrun.mlconf.dbpath = rundb_path
@@ -34,18 +37,18 @@ df = pd.DataFrame(raw_data, columns=["name", "age"])
 def test_in_memory():
     context = mlrun.get_or_create_ctx("test-in-mem")
     context.artifact_path = "memory://"
-    context.log_artifact("k1", body="abc")
-    context.log_dataset("k2", df=df)
+    k1 = context.log_artifact("k1", body="abc")
+    k2 = context.log_dataset("k2", df=df)
 
     data = mlrun.datastore.set_in_memory_item("aa", "123")
     in_memory_store = mlrun.datastore.get_in_memory_items()
-    new_df = mlrun.run.get_dataitem("memory://k2").as_df()
+    new_df = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
     assert len(in_memory_store) == 3, "data not written properly to in mem store"
     assert data.get() == "123", "in mem store failed to get/put"
     assert len(new_df) == 5, "in mem store failed dataframe test"
     assert (
-        mlrun.run.get_dataitem("memory://k1").get() == "abc"
+        mlrun.run.get_dataitem(k1.get_target_path()).get() == "abc"
     ), "failed to log in mem artifact"
 
 
@@ -63,24 +66,27 @@ def test_file():
         context.artifact_path = tmpdir
         k1 = context.log_artifact("k1", body="abc", local_path="x.txt")
         k2 = context.log_dataset("k2", df=df, format="csv", db_key="k2key")
-        print("k2 url:", k2.get_store_url())
+        print("k2 url:", k2.uri)
 
-        alist = listdir(tmpdir)
-        print(alist)
-        assert mlrun.run.get_dataitem(tmpdir).listdir() == alist, "failed listdir"
+        # test that we can get the artifact as dataitem
+        assert k1.to_dataitem().get(encoding="utf-8") == "abc", "wrong .dataitem result"
 
-        expected = ["test1.txt", "x.txt", "k2.csv"]
+        assert "test1.txt" in mlrun.run.get_dataitem(tmpdir).listdir(), "failed listdir"
+
+        expected = [f"{tmpdir}/test1.txt", k2.get_target_path(), k1.get_target_path()]
         for a in expected:
-            assert a in alist, f"artifact {a} was not generated"
+            assert os.path.isfile(a) and a.startswith(
+                tmpdir
+            ), f"artifact {a} was not generated"
 
-        new_fd = mlrun.run.get_dataitem(tmpdir + "/k2.csv").as_df()
+        new_fd = mlrun.run.get_dataitem(k2.get_target_path()).as_df()
 
         assert len(new_fd) == 5, "failed dataframe test"
         assert (
-            mlrun.run.get_dataitem(tmpdir + "/x.txt").get() == b"abc"
+            mlrun.run.get_dataitem(k1.get_target_path()).get() == b"abc"
         ), "failed to log in file artifact"
 
-        name = k2.get_store_url()
+        name = k2.uri
         artifact, _ = mlrun.artifacts.get_artifact_meta(name)
         print(artifact.to_yaml())
         mlrun.artifacts.update_dataset_meta(
@@ -183,6 +189,54 @@ def test_get_store_artifact_url_parsing():
 
         db.read_artifact = mock_read_artifact
         mlrun.datastore.store_resources.get_store_resource(url, db)
+
+
+@pytest.mark.parametrize("legacy_format", [False, True])
+def test_get_store_resource_with_linked_artifacts(legacy_format):
+    artifact_key = "key1"
+    project = "test_project"
+    link_iteration = 7
+
+    if legacy_format:
+        link_artifact = LegacyLinkArtifact(
+            key=artifact_key, target_path="/some/path", link_iteration=link_iteration
+        )
+        link_artifact.project = project
+        model_artifact = LegacyModelArtifact(
+            key=f"{artifact_key}#{link_iteration}",
+            target_path="/some/path/again",
+            body="just a body",
+        )
+        model_artifact.project = project
+    else:
+        link_artifact = LinkArtifact(
+            key=artifact_key,
+            project=project,
+            target_path="/some/path",
+            link_iteration=link_iteration,
+        )
+        model_artifact = ModelArtifact(
+            key=f"{artifact_key}#{link_iteration}",
+            project=project,
+            target_path="/some/path/again",
+            body="just a body",
+        )
+
+    mock_artifacts = [link_artifact, model_artifact]
+
+    def mock_read_artifact(key, tag=None, iter=None, project=""):
+        for artifact in mock_artifacts:
+            key_ = f"{key}#{iter}" if iter else key
+            if artifact.key == key_:
+                return artifact.to_dict()
+        return {}
+
+    db = Mock()
+    db.read_artifact = mock_read_artifact
+
+    url = f"store://{project}/{artifact_key}"
+    result = mlrun.datastore.store_resources.get_store_resource(url, db)
+    assert result.kind == "model" and result.key == f"{artifact_key}#{link_iteration}"
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")

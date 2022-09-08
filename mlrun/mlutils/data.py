@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Union
 
 import pandas as pd
@@ -100,7 +114,6 @@ def save_test_set(
     :param context:    the function execution context
     :param data:       dict with keys 'xtest'. 'ytest', and optionally
                        'xcal', 'ycal' if n_ways=4 in `get_splits`
-    :param ytest:      test labels, as np.ndarray output from `get_splits`
     :param header:     ([])features header if required
     :param label:      ("labels") name of label column
     :param file_ext:   format of test set file

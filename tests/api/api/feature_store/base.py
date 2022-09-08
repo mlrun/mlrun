@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from http import HTTPStatus
 
 from deepdiff import DeepDiff
@@ -10,7 +24,7 @@ def _list_and_assert_objects(
     client: TestClient, entity_name, project, query, expected_number_of_entities
 ):
     entity_url_name = entity_name.replace("_", "-")
-    url = f"/api/projects/{project}/{entity_url_name}"
+    url = f"projects/{project}/{entity_url_name}"
     if query:
         url = url + f"?{query}"
     response = client.get(url)
@@ -22,6 +36,24 @@ def _list_and_assert_objects(
         number_of_entities == expected_number_of_entities
     ), f"wrong number of {entity_name} in response - {number_of_entities} instead of {expected_number_of_entities}"
     return response_body
+
+
+def _list_tags_and_assert(client: TestClient, entity_name, project, expected_tags):
+    entity_url_name = entity_name.replace("_", "-")
+    url = f"projects/{project}/{entity_url_name}/*/tags"
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    assert (
+        DeepDiff(
+            response_body["tags"],
+            expected_tags,
+            ignore_order=True,
+            report_repetition=True,
+        )
+        == {}
+    )
 
 
 def _patch_object(
@@ -38,13 +70,13 @@ def _patch_object(
         patch_mode = "additive"
     headers = {mlrun.api.schemas.HeaderNames.patch_mode: patch_mode}
     response = client.patch(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}",
+        f"projects/{project_name}/{object_url_path}/{name}/references/{reference}",
         json=object_update,
         headers=headers,
     )
     assert response.status_code == HTTPStatus.OK.value
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_path}/{name}/references/{reference}"
+        f"projects/{project_name}/{object_url_path}/{name}/references/{reference}"
     )
     return response.json()
 
@@ -57,7 +89,10 @@ def _assert_diff_as_expected_except_for_specific_metadata(
     for field in allowed_metadata_fields:
         exclude_paths.append(f"root['metadata']['{field}']")
     diff = DeepDiff(
-        expected_object, actual_object, ignore_order=True, exclude_paths=exclude_paths,
+        expected_object,
+        actual_object,
+        ignore_order=True,
+        exclude_paths=exclude_paths,
     )
     assert diff == expected_diff
 
@@ -69,7 +104,7 @@ def _test_partition_by_for_feature_store_objects(
     # Each object should have 3 versions, tagged "older", "newer" and "newest"
     _list_and_assert_objects(client, object_name, project_name, None, count * 3)
 
-    # Testing group-by with desc order (newest first)
+    # Testing partition-by with desc order (newest first)
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -81,7 +116,7 @@ def _test_partition_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
-    # Testing group-by with asc order (oldest first)
+    # Testing partition-by with asc order (oldest first)
     results = _list_and_assert_objects(
         client,
         object_name,
@@ -116,14 +151,14 @@ def _test_partition_by_for_feature_store_objects(
     for result_object in results:
         assert result_object["metadata"]["tag"] == "newest"
 
-    # Some negative testing - no sort field
+    # Some negative testing - no sort by field
     object_url_name = object_name.replace("_", "-")
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_name}?partition-by=name"
+        f"projects/{project_name}/{object_url_name}?partition-by=name"
     )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
-    # An invalid group-by field - will be failed by fastapi due to schema validation.
+    # An invalid partition-by field - will be failed by fastapi due to schema validation.
     response = client.get(
-        f"/api/projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=updated"
+        f"projects/{project_name}/{object_url_name}?partition-by=key&partition-sort-by=name"
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value

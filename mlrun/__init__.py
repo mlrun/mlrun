@@ -14,14 +14,24 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-__all__ = ["get_version", "set_environment", "code_to_function", "import_function"]
+__all__ = [
+    "get_version",
+    "set_environment",
+    "code_to_function",
+    "import_function",
+    "handler",
+    "ArtifactType",
+]
 
 import getpass
 from os import environ, path
 
+import dotenv
+
 from .config import config as mlconf
 from .datastore import DataItem, store_manager
 from .db import get_run_db
+from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
 from .platforms import (
@@ -32,14 +42,26 @@ from .platforms import (
     mount_v3io_legacy,
     v3io_cred,
 )
-from .projects import ProjectMetadata, load_project, new_project
+from .projects import (
+    ProjectMetadata,
+    build_function,
+    deploy_function,
+    get_or_create_project,
+    load_project,
+    new_project,
+    pipeline_context,
+    run_function,
+)
+from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
+    ArtifactType,
     code_to_function,
     function_to_module,
     get_dataitem,
     get_object,
     get_or_create_ctx,
     get_pipeline,
+    handler,
     import_function,
     new_function,
     run_local,
@@ -70,6 +92,7 @@ def set_environment(
     project: str = "",
     access_key: str = None,
     user_project=False,
+    username: str = None,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -82,19 +105,27 @@ def set_environment(
     example::
 
         from os import path
-        artifact_path = set_environment(project='my-project')
-        data_subpath = path.join(artifact_path, 'data')
+        project_name, artifact_path = set_environment(project='my-project')
+        set_environment("http://localhost:8080", artifact_path="./")
+        set_environment("<remote-service-url>", access_key="xyz", username="joe")
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts
     :param project:        default project name
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
     :param user_project:   add the current user name to the provided project name (making it unique per user)
+    :param username:       name of the user to authenticate
 
     :returns:
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
+    # set before the dbpath (so it will re-connect with the new credentials)
+    if access_key:
+        environ["V3IO_ACCESS_KEY"] = access_key
+    if username:
+        environ["V3IO_USERNAME"] = username
+
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
         raise ValueError("DB/API path was not detected, please specify its address")
@@ -104,17 +135,16 @@ def set_environment(
     if api_path:
         environ["MLRUN_DBPATH"] = mlconf.dbpath
 
-    if access_key:
-        environ["V3IO_ACCESS_KEY"] = access_key
-
-    if project and user_project:
-        user = environ.get("V3IO_USERNAME") or getpass.getuser()
-        project = f"{project}-{user}"
-
+    project = _add_username_to_project_name_if_needed(project, user_project)
     if project:
         ProjectMetadata.validate_project_name(project)
 
     mlconf.default_project = project or mlconf.default_project
+    # We want to ensure the project exists, and verify we're authorized to work on it
+    # if it doesn't exist this will create it (and obviously if we created it, we're authorized to work on it)
+    # if it does exist - this will get it, which will fail if we're not authorized to work on it
+    if project:
+        get_or_create_project(mlconf.default_project, "./")
 
     if not mlconf.artifact_path and not artifact_path:
         raise ValueError("please specify a valid artifact_path")
@@ -128,3 +158,58 @@ def set_environment(
             )
         mlconf.artifact_path = artifact_path
     return mlconf.default_project, mlconf.artifact_path
+
+
+def get_current_project(silent=False):
+    if not pipeline_context.project and not silent:
+        raise MLRunInvalidArgumentError(
+            "current project is not initialized, use new, get or load project methods first"
+        )
+    return pipeline_context.project
+
+
+def get_sample_path(subpath=""):
+    """
+    return the url of a sample dataset or model
+    """
+    samples_path = environ.get(
+        "SAMPLE_DATA_SOURCE_URL_PREFIX", mlconf.default_samples_path
+    )
+    if subpath:
+        samples_path = path.join(samples_path, subpath.lstrip("/"))
+    return samples_path
+
+
+def set_env_from_file(env_file: str, return_dict: bool = False):
+    """Read and set and/or return environment variables from a file
+    the env file should have lines in the form KEY=VALUE, comment line start with "#"
+
+    example file::
+
+        # this is an env file
+        MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_USERNAME=admin
+        V3IO_API=https://webapi.default-tenant.app.xxx.iguazio-cd1.com
+        V3IO_ACCESS_KEY=MYKEY123
+        AWS_ACCESS_KEY_ID-XXXX
+        AWS_SECRET_ACCESS_KEY=YYYY
+
+    usage::
+
+        # set the env vars from a file + return the results as a dict
+        env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
+
+    :param env_file:    path/url to env file
+    :param return_dict: set to True to return the env as a dict
+    :return: None or env dict
+    """
+    env_file = path.expanduser(env_file)
+    if not path.isfile(env_file):
+        raise MLRunNotFoundError(f"env file {env_file} does not exist")
+    env_vars = dotenv.dotenv_values(env_file)
+    if None in env_vars.values():
+        raise MLRunInvalidArgumentError("env file lines must be in the form key=value")
+    for key, value in env_vars.items():
+        environ[key] = value  # Load to local environ
+    mlconf.reload()  # reload mlrun configuration
+    return env_vars if return_dict else None

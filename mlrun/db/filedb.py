@@ -24,6 +24,7 @@ from dateutil.parser import parse as parse_time
 import mlrun.api.schemas
 import mlrun.errors
 
+from ..api import schemas
 from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
@@ -79,7 +80,7 @@ class FileRunDB(RunDBInterface):
                 if offset:
                     fp.seek(offset)
                 if not size:
-                    size = 2 ** 18
+                    size = 2**18
                 return "", fp.read(size)
         return "", None
 
@@ -127,11 +128,20 @@ class FileRunDB(RunDBInterface):
         sort=True,
         last=1000,
         iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
+        partition_by: Union[schemas.RunPartitionByField, str] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Union[schemas.SortField, str] = None,
+        partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
+        max_partitions: int = 0,
     ):
+        if partition_by is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Runs partitioning not supported"
+            )
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()
@@ -144,7 +154,10 @@ class FileRunDB(RunDBInterface):
                 and match_value_options(state, run, "status.state")
                 and match_value(uid, run, "metadata.uid")
                 and match_times(
-                    start_time_from, start_time_to, run, "status.start_time",
+                    start_time_from,
+                    start_time_to,
+                    run,
+                    "status.start_time",
                 )
                 and match_times(
                     last_update_time_from,
@@ -235,10 +248,12 @@ class FileRunDB(RunDBInterface):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        kind: str = None,
+        category: Union[str, schemas.ArtifactCategories] = None,
     ):
-        if iter:
+        if iter or kind or category:
             raise NotImplementedError(
-                "iter parameter not supported for filedb implementation"
+                "iter/kind/category parameters are not supported for filedb implementation"
             )
 
         labels = [] if labels is None else labels
@@ -364,7 +379,9 @@ class FileRunDB(RunDBInterface):
         labels = labels or []
         logger.info(f"reading functions in {project} name/mask: {name} tag: {tag} ...")
         filepath = path.join(
-            self.dirpath, functions_dir, project or config.default_project,
+            self.dirpath,
+            functions_dir,
+            project or config.default_project,
         )
         filepath += "/"
 
@@ -387,7 +404,7 @@ class FileRunDB(RunDBInterface):
                 target_dict = functions_with_tag_filename
 
                 tag_name = file_name
-                # Heuristic - if tag length if bigger than 20 it's probably a hash key
+                # Heuristic - if tag length is bigger than 20 it's probably a hash key
                 if len(tag_name) > 20:  # hash vs tags
                     tag_name = ""
                     target_dict = functions_with_hash_key_filename
@@ -437,11 +454,18 @@ class FileRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: Optional[List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
-        if owner or format_ == mlrun.api.schemas.Format.full or labels or state:
+        if (
+            owner
+            or format_ == mlrun.api.schemas.ProjectsFormat.full
+            or labels
+            or state
+            or names
+        ):
             raise NotImplementedError()
         run_dir = path.join(self.dirpath, run_logs)
         if not path.isdir(run_dir):
@@ -462,7 +486,9 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_project(
-        self, name: str, project: mlrun.api.schemas.Project,
+        self,
+        name: str,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -475,7 +501,8 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def create_project(
-        self, project: mlrun.api.schemas.Project,
+        self,
+        project: mlrun.api.schemas.Project,
     ) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 
@@ -553,7 +580,11 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def list_entities(
-        self, project: str, name: str = None, tag: str = None, labels: List[str] = None,
+        self,
+        project: str,
+        name: str = None,
+        tag: str = None,
+        labels: List[str] = None,
     ):
         raise NotImplementedError()
 
@@ -579,7 +610,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def patch_feature_set(
-        self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace",
+        self,
+        name,
+        feature_set,
+        project="",
+        tag=None,
+        uid=None,
+        patch_mode="replace",
     ):
         raise NotImplementedError()
 
@@ -609,7 +646,13 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def store_feature_vector(
-        self, feature_vector, name=None, project="", tag=None, uid=None, versioned=True,
+        self,
+        feature_vector,
+        name=None,
+        project="",
+        tag=None,
+        uid=None,
+        versioned=True,
     ):
         raise NotImplementedError()
 
@@ -635,8 +678,8 @@ class FileRunDB(RunDBInterface):
         page_token: str = "",
         filter_: str = "",
         format_: Union[
-            str, mlrun.api.schemas.Format
-        ] = mlrun.api.schemas.Format.metadata_only,
+            str, mlrun.api.schemas.PipelinesFormat
+        ] = mlrun.api.schemas.PipelinesFormat.metadata_only,
         page_size: int = None,
     ) -> mlrun.api.schemas.PipelinesOutput:
         raise NotImplementedError()
@@ -644,7 +687,7 @@ class FileRunDB(RunDBInterface):
     def create_project_secrets(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: dict = None,
     ):
         raise NotImplementedError()
@@ -653,7 +696,7 @@ class FileRunDB(RunDBInterface):
         self,
         project: str,
         token: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: List[str] = None,
     ) -> mlrun.api.schemas.SecretsData:
         raise NotImplementedError()
@@ -661,7 +704,7 @@ class FileRunDB(RunDBInterface):
     def list_project_secret_keys(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes,
         token: str = None,
     ) -> mlrun.api.schemas.SecretKeysData:
         raise NotImplementedError()
@@ -669,7 +712,7 @@ class FileRunDB(RunDBInterface):
     def delete_project_secrets(
         self,
         project: str,
-        provider: str = mlrun.api.schemas.SecretProviderName.vault.value,
+        provider: str = mlrun.api.schemas.SecretProviderName.kubernetes.value,
         secrets: List[str] = None,
     ):
         raise NotImplementedError()
@@ -685,7 +728,7 @@ class FileRunDB(RunDBInterface):
     def list_artifact_tags(self, project=None):
         raise NotImplementedError()
 
-    def create_or_patch(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -694,10 +737,12 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_endpoint_record(self, project: str, endpoint_id: str, access_key=None):
+    def delete_model_endpoint_record(
+        self, project: str, endpoint_id: str, access_key=None
+    ):
         raise NotImplementedError()
 
-    def list_endpoints(
+    def list_model_endpoints(
         self,
         project: str,
         model: Optional[str] = None,
@@ -710,7 +755,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -719,6 +764,52 @@ class FileRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def create_marketplace_source(
+        self, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def store_marketplace_source(
+        self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
+    ):
+        raise NotImplementedError()
+
+    def list_marketplace_sources(self):
+        raise NotImplementedError()
+
+    def get_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def delete_marketplace_source(self, source_name: str):
+        raise NotImplementedError()
+
+    def get_marketplace_catalog(
+        self,
+        source_name: str,
+        channel: str = None,
+        version: str = None,
+        tag: str = None,
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def get_marketplace_item(
+        self,
+        source_name: str,
+        item_name: str,
+        channel: str = "development",
+        version: str = None,
+        tag: str = "latest",
+        force_refresh: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def verify_authorization(
+        self,
+        authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
     ):
         raise NotImplementedError()
 

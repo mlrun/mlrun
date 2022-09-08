@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 from sqlalchemy.orm import Session
 
@@ -126,16 +140,11 @@ def test_get_function_by_tag(db: DBInterface, db_session: Session):
     function_hash_key = db.store_function(
         db_session, function_1, function_name_1, versioned=True
     )
-    function_queried_by_tag = db.get_function(db_session, function_name_1, tag="latest")
     function_queried_by_hash_key = db.get_function(
         db_session, function_name_1, hash_key=function_hash_key
     )
     function_not_queried_by_tag_hash = function_queried_by_hash_key["metadata"]["hash"]
     assert function_hash_key == function_not_queried_by_tag_hash
-
-    # function not queried by tag shouldn't have status
-    assert function_queried_by_tag["status"] is not None
-    assert function_queried_by_hash_key["status"] is None
 
 
 @pytest.mark.parametrize(
@@ -217,6 +226,19 @@ def test_list_functions_by_tag(db: DBInterface, db_session: Session):
         function_name = function["metadata"]["name"]
         names.remove(function_name)
     assert len(names) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_functions_with_non_existent_tag(db: DBInterface, db_session: Session):
+    names = ["some_name", "some_name2", "some_name3"]
+    for name in names:
+        function_body = {"metadata": {"name": name}}
+        db.store_function(db_session, function_body, name, versioned=True)
+    functions = db.list_functions(db_session, tag="non_existent_tag")
+    assert len(functions) == 0
 
 
 @pytest.mark.parametrize(

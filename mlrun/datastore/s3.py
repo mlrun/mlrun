@@ -27,21 +27,34 @@ class S3Store(DataStore):
         super().__init__(parent, name, schema, endpoint)
         region = None
 
-        access_key = self._secret("AWS_ACCESS_KEY_ID")
-        secret_key = self._secret("AWS_SECRET_ACCESS_KEY")
+        access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
 
-        if access_key or secret_key:
+        if access_key or secret_key or force_non_anonymous:
             self.s3 = boto3.resource(
                 "s3",
                 region_name=region,
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
+                endpoint_url=endpoint_url,
             )
         else:
             # from env variables
-            self.s3 = boto3.resource("s3", region_name=region)
+            self.s3 = boto3.resource(
+                "s3", region_name=region, endpoint_url=endpoint_url
+            )
+            # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
+            # due to no credentials found. These commands disable signing and allow anonymous mode (same as
+            # anon in the storage_options when working with fsspec).
+            from botocore.handlers import disable_signing
 
-    def get_filesystem(self, silent=True):
+            self.s3.meta.client.meta.events.register(
+                "choose-signer.s3.*", disable_signing
+            )
+
+    def get_filesystem(self, silent=False):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
@@ -57,11 +70,20 @@ class S3Store(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(
-            anon=False,
-            key=self._get_secret_or_env("AWS_ACCESS_KEY_ID"),
-            secret=self._get_secret_or_env("AWS_SECRET_ACCESS_KEY"),
+        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+
+        storage_options = dict(
+            anon=not (force_non_anonymous or (key and secret)), key=key, secret=secret
         )
+
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        if endpoint_url:
+            client_kwargs = {"endpoint_url": endpoint_url}
+            storage_options["client_kwargs"] = client_kwargs
+
+        return storage_options
 
     def upload(self, key, src_path):
         self.s3.Object(self.endpoint, self._join(key)[1:]).put(
@@ -86,6 +108,10 @@ class S3Store(DataStore):
     def listdir(self, key):
         if not key.endswith("/"):
             key += "/"
+        # Object names is S3 are not fully following filesystem semantics - they do not start with /, even for
+        # "absolute paths". Therefore, we are are removing leading / from path filter.
+        if key.startswith("/"):
+            key = key[1:]
         key_length = len(key)
         bucket = self.s3.Bucket(self.endpoint)
         return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]

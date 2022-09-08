@@ -1,326 +1,70 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import string
-from datetime import datetime, timedelta
 from random import choice, randint
 from typing import Optional
 
-import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-from v3io.dataplane import RaiseForStatus
-from v3io_frames import frames_pb2 as fpb2
-from v3io_frames.errors import CreateError
 
-from mlrun.api.crud.model_endpoints import (
-    ENDPOINTS,
-    EVENTS,
-    ModelEndpoints,
-    build_kv_cursor_filter_expression,
-    get_access_key,
-    get_endpoint_features,
-    get_endpoint_metrics,
-    write_endpoint_to_kv,
-)
+import mlrun.api.crud
+import mlrun.api.schemas
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
 )
-from mlrun.config import config
-from mlrun.errors import (
-    MLRunBadRequestError,
-    MLRunInvalidArgumentError,
-    MLRunNotFoundError,
-)
-from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
-from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 
-ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
-TEST_PROJECT = "test3"
+TEST_PROJECT = "test_model_endpoints"
 
 
-def _build_skip_message():
-    return f"One of the required environment params is not initialized ({', '.join(ENV_PARAMS)})"
-
-
-def _is_env_params_dont_exist() -> bool:
-    return not all((os.environ.get(r, False) for r in ENV_PARAMS))
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_clear_endpoint(db: Session, client: TestClient):
-    access_key = _get_access_key()
-    endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(access_key, endpoint)
-    kv_record = ModelEndpoints.get_endpoint(
-        access_key=access_key,
-        project=endpoint.metadata.project,
-        endpoint_id=endpoint.metadata.uid,
-    )
-
-    assert kv_record
-    response = client.delete(
-        url=f"/api/projects/{kv_record.metadata.project}/model-endpoints/{endpoint.metadata.uid}",
-        headers={"X-V3io-Session-Key": access_key},
-    )
-
-    assert response.status_code == 204
-
-    with pytest.raises(MLRunNotFoundError):
-        ModelEndpoints.get_endpoint(
-            access_key=access_key,
-            project=endpoint.metadata.project,
-            endpoint_id=endpoint.metadata.uid,
-        )
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_store_endpoint_update_existing(db: Session, client: TestClient):
-    access_key = _get_access_key()
-    endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(access_key=access_key, endpoint=endpoint)
-
-    kv_record_before_update = ModelEndpoints.get_endpoint(
-        access_key=access_key,
-        project=endpoint.metadata.project,
-        endpoint_id=endpoint.metadata.uid,
-    )
-
-    assert kv_record_before_update.status.state is None
-
-    endpoint_dict = endpoint.dict()
-    endpoint_dict["status"]["state"] = "testing...testing...1 2 1 2"
-
-    response = client.put(
-        url=f"/api/projects/{endpoint.metadata.project}/model-endpoints/{endpoint.metadata.uid}",
-        headers={"X-V3io-Session-Key": access_key},
-        json=endpoint_dict,
-    )
-
-    assert response.status_code == 204
-
-    kv_record_after_update = ModelEndpoints.get_endpoint(
-        access_key=access_key,
-        project=endpoint.metadata.project,
-        endpoint_id=endpoint.metadata.uid,
-    )
-
-    assert kv_record_after_update.status.state == "testing...testing...1 2 1 2"
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_list_endpoints(db: Session, client: TestClient):
-    endpoints_in = [_mock_random_endpoint("testing") for _ in range(5)]
-
-    for endpoint in endpoints_in:
-        write_endpoint_to_kv(_get_access_key(), endpoint)
-
-    response = client.get(
-        url=f"/api/projects/{TEST_PROJECT}/model-endpoints",
-        headers={"X-V3io-Session-Key": _get_access_key()},
-    )
-
-    endpoints_out = [ModelEndpoint(**e) for e in response.json()["endpoints"]]
-
-    in_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_in))
-    out_endpoint_ids = set(map(lambda e: e.metadata.uid, endpoints_out))
-
-    endpoints_intersect = in_endpoint_ids.intersection(out_endpoint_ids)
-    assert len(endpoints_intersect) == 5
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_list_endpoints_filter(db: Session, client: TestClient):
-    access_key = _get_access_key()
-    for i in range(5):
-        endpoint_details = _mock_random_endpoint()
-
-        if i < 1:
-            endpoint_details.spec.model = "filterme"
-
-        if i < 2:
-            endpoint_details.spec.function_uri = "test/filterme"
-
-        if i < 4:
-            endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
-
-        write_endpoint_to_kv(_get_access_key(), endpoint_details)
-
-    filter_model = client.get(
-        f"/api/projects/{TEST_PROJECT}/model-endpoints/?model=filterme",
-        headers={"X-V3io-Session-Key": access_key},
-    )
-    assert len(filter_model.json()["endpoints"]) == 1
-
-    filter_labels = client.get(
-        f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermex=1",
-        headers={"X-V3io-Session-Key": access_key},
-    )
-    assert len(filter_labels.json()["endpoints"]) == 4
-
-    filter_labels = client.get(
-        f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermex=1&label=filtermey=2",
-        headers={"X-V3io-Session-Key": access_key},
-    )
-    assert len(filter_labels.json()["endpoints"]) == 4
-
-    filter_labels = client.get(
-        f"/api/projects/{TEST_PROJECT}/model-endpoints/?label=filtermey=2",
-        headers={"X-V3io-Session-Key": access_key},
-    )
-    assert len(filter_labels.json()["endpoints"]) == 4
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_get_endpoint_metrics(db: Session, client: TestClient):
-    path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=EVENTS
-    )
-    _, container, path = parse_model_endpoint_store_prefix(path)
-
-    frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
-    )
-
-    start = datetime.utcnow()
-
-    for i in range(5):
-        endpoint = _mock_random_endpoint()
-        write_endpoint_to_kv(_get_access_key(), endpoint)
-        frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
-
-        total = 0
-
-        dfs = []
-
-        for i in range(10):
-            count = randint(1, 10)
-            total += count
-            data = {
-                "predictions_per_second_count_1s": count,
-                "endpoint_id": endpoint.metadata.uid,
-                "timestamp": start - timedelta(minutes=10 - i),
-            }
-            df = pd.DataFrame(data=[data])
-            dfs.append(df)
-
-        frames.write(
-            backend="tsdb",
-            table=path,
-            dfs=dfs,
-            index_cols=["timestamp", "endpoint_id"],
-        )
-
-        response = client.get(
-            url=f"/api/projects/{TEST_PROJECT}/model-endpoints/{endpoint.metadata.uid}?metric=predictions_per_second_count_1s",  # noqa
-            headers={"X-V3io-Session-Key": _get_access_key()},
-        )
-
-        endpoint = ModelEndpoint(**response.json())
-
-        assert len(endpoint.status.metrics) > 0
-
-        predictions_per_second = endpoint.status.metrics[
-            "predictions_per_second_count_1s"
-        ]
-
-        assert predictions_per_second.name == "predictions_per_second_count_1s"
-
-        response_total = sum((m[1] for m in predictions_per_second.values))
-
-        assert total == response_total
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_get_endpoint_metric_function():
-    path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=EVENTS
-    )
-    _, container, path = parse_model_endpoint_store_prefix(path)
-
-    frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
-    )
-
-    start = datetime.utcnow()
-
-    endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(_get_access_key(), endpoint)
-
-    frames.create(backend="tsdb", table=path, rate="10/m", if_exists=1)
-
-    total = 0
-    dfs = []
-
-    for i in range(10):
-        count = randint(1, 10)
-        total += count
-        data = {
-            "predictions_per_second_count_1s": count,
-            "endpoint_id": endpoint.metadata.uid,
-            "timestamp": start - timedelta(minutes=10 - i),
-        }
-        df = pd.DataFrame(data=[data])
-        dfs.append(df)
-
-    frames.write(
-        backend="tsdb", table=path, dfs=dfs, index_cols=["timestamp", "endpoint_id"],
-    )
-
-    endpoint_metrics = get_endpoint_metrics(
-        access_key=_get_access_key(),
-        project=TEST_PROJECT,
-        endpoint_id=endpoint.metadata.uid,
-        metrics=["predictions_per_second_count_1s"],
-    )
-
-    assert "predictions_per_second_count_1s" in endpoint_metrics
-
-    actual_values = endpoint_metrics["predictions_per_second_count_1s"].values
-    assert len(actual_values) == 10
-    assert sum(map(lambda t: t[1], actual_values)) == total
-
-
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
 def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
-        build_kv_cursor_filter_expression("")
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression("")
 
-    filter_expression = build_kv_cursor_filter_expression(project=TEST_PROJECT)
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT
+        )
+    )
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
-    filter_expression = build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, function="test_function", model="test_model"
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT, function="test_function", model="test_model"
+        )
     )
     expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
-    filter_expression = build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, labels=["lbl1", "lbl2"]
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT, labels=["lbl1", "lbl2"]
+        )
     )
     assert (
         filter_expression
         == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
     )
 
-    filter_expression = build_kv_cursor_filter_expression(
-        project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
+    filter_expression = (
+        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
+            project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
+        )
     )
     assert (
         filter_expression == f"project=='{TEST_PROJECT}' AND _lbl1=='1' AND _lbl2=='2'"
@@ -328,11 +72,13 @@ def test_build_kv_cursor_filter_expression():
 
 
 def test_get_access_key():
-    key = get_access_key({"X-V3io-Session-Key": "asd"})
+    key = mlrun.api.crud.ModelEndpoints().get_access_key(
+        mlrun.api.schemas.AuthInfo(data_session="asd")
+    )
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        get_access_key({"some_other_header": "asd"})
+        mlrun.api.crud.ModelEndpoints().get_access_key(mlrun.api.schemas.AuthInfo())
 
 
 def test_get_endpoint_features_function():
@@ -472,7 +218,9 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    features = get_endpoint_features(feature_names, stats, stats)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
+        feature_names, stats, stats
+    )
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
     for feature in features:
@@ -485,7 +233,9 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = get_endpoint_features(feature_names, stats, None)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
+        feature_names, stats, None
+    )
     assert len(features) == 4
     for feature in features:
         assert feature.expected is not None
@@ -494,7 +244,9 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = get_endpoint_features(feature_names, None, stats)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
+        feature_names, None, stats
+    )
     assert len(features) == 4
     for feature in features:
         assert feature.expected is None
@@ -503,69 +255,14 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = get_endpoint_features(feature_names[1:], None, stats)
+    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
+        feature_names[1:], None, stats
+    )
     assert len(features) == 3
 
 
-@pytest.mark.skipif(
-    _is_env_params_dont_exist(), reason=_build_skip_message(),
-)
-def test_deserialize_endpoint_from_kv():
-    endpoint = _mock_random_endpoint()
-    write_endpoint_to_kv(_get_access_key(), endpoint)
-    endpoint_from_kv = ModelEndpoints.get_endpoint(
-        access_key=_get_access_key(),
-        project=endpoint.metadata.project,
-        endpoint_id=endpoint.metadata.uid,
-    )
-    assert endpoint.metadata.uid == endpoint_from_kv.metadata.uid
-
-
-def _get_access_key() -> Optional[str]:
-    return os.environ.get("V3IO_ACCESS_KEY")
-
-
-@pytest.fixture(autouse=True)
-def cleanup_endpoints(db: Session, client: TestClient):
-    # Do nothing unless its system test env
-    if _is_env_params_dont_exist():
-        return
-
-    v3io = get_v3io_client(endpoint=config.v3io_api, access_key=_get_access_key())
-
-    path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=ENDPOINTS
-    )
-    _, container, path = parse_model_endpoint_store_prefix(path)
-
-    frames = get_frames_client(
-        token=_get_access_key(), container=container, address=config.v3io_framesd,
-    )
-    try:
-        all_records = v3io.kv.new_cursor(
-            container=container, table_path=path, raise_for_status=RaiseForStatus.never,
-        ).all()
-
-        all_records = [r["__name"] for r in all_records]
-
-        # Cleanup KV
-        for record in all_records:
-            v3io.kv.delete(
-                container=container,
-                table_path=path,
-                key=record,
-                raise_for_status=RaiseForStatus.never,
-            )
-    except RuntimeError:
-        pass
-
-    try:
-        # Cleanup TSDB
-        frames.delete(
-            backend="tsdb", table=path, if_missing=fpb2.IGNORE,
-        )
-    except CreateError:
-        pass
+def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
+    return mlrun.api.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
 
 
 def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:

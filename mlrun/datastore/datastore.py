@@ -60,7 +60,7 @@ def schema_to_store(schema):
             )
 
         return S3Store
-    elif schema == "az":
+    elif schema in ["az", "wasbs", "wasb"]:
         try:
             from .azure_blob import AzureBlobStore
         except ImportError:
@@ -71,8 +71,20 @@ def schema_to_store(schema):
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
         return V3ioStore
+    elif schema in ["redis", "rediss"]:
+        from .redis import RedisStore
+
+        return RedisStore
     elif schema in ["http", "https"]:
         return HttpStore
+    elif schema in ["gcs", "gs"]:
+        try:
+            from .google_cloud_storage import GoogleCloudStorageStore
+        except ImportError:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Google cloud storage packages are missing, use pip install mlrun[google-cloud-storage]"
+            )
+        return GoogleCloudStorageStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 
@@ -126,7 +138,7 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
-    def get_store_artifact(self, url, project=""):
+    def get_store_artifact(self, url, project="", allow_empty_resources=None):
 
         try:
             resource = get_store_resource(
@@ -135,17 +147,19 @@ class StoreManager:
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
         target = resource.get_target_path()
-        if not target:
+        # the allow_empty.. flag allows us to have functions which dont depend on having targets e.g. a function
+        # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
+        if not target and not allow_empty_resources:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"resource {url} does not have a valid/persistent offline target"
             )
         return resource, target
 
-    def object(self, url, key="", project="") -> DataItem:
+    def object(self, url, key="", project="", allow_empty_resources=None) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
             artifact_url = url
-            meta, url = self.get_store_artifact(url, project)
+            meta, url = self.get_store_artifact(url, project, allow_empty_resources)
 
         store, subpath = self.get_or_create_store(url)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)

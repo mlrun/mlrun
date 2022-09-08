@@ -1,6 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 FROM jupyter/scipy-notebook:python-3.8.8
 
 USER root
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
  && rm -rf /var/lib/apt/lists/*
@@ -8,17 +26,16 @@ USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
 
-RUN python -m pip install --upgrade pip~=20.2.0
+ARG MLRUN_PIP_VERSION=22.0.0
+RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR $HOME
 
-COPY --chown=$NB_UID:$NB_GID ./README.md $HOME
-COPY --chown=$NB_UID:$NB_GID ./docs/quick-start.ipynb $HOME
-COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/mlrun-quick-start $HOME/_static/images/mlrun-quick-start
-
-ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch hackathon https://github.com/mlrun/demos.git $HOME/demos
-RUN git clone https://github.com/mlrun/functions.git $HOME/functions
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
+COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial
+COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
+COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
 RUN mkdir data
 
@@ -35,15 +52,20 @@ RUN python -m pip install \
 COPY --chown=$NB_UID:$NB_GID . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
-ENV MLRUN_ARTIFACT_PATH=$HOME/data \
-    JUPYTER_ENABLE_LAB=yes \
+# This will usually cause a cache miss - so keep it in the last layers
+ARG MLRUN_CACHE_DATE=initial
+RUN git clone --branch 1.1.x https://github.com/mlrun/demos.git $HOME/demos && \
+    cd $HOME/demos && ./community_edition_align.sh && cd -
+RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
+
+ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DATA_VOLUME=$HOME/data \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
-    MLRUN_PVC_MOUNT=nfsvol:/home/jovyan/data
+    MLRUN_ENV_FILE=$HOME/mlrun.env
 
 # run the mlrun db (api) and the notebook in parallel
-CMD python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
+CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \
     --ip="0.0.0.0" \
     --port=8888 \
     --NotebookApp.token='' \

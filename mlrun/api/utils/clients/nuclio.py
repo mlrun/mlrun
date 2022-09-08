@@ -1,10 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
+import enum
 import http
 import typing
 
 import requests.adapters
 import sqlalchemy.orm
-import urllib3
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
@@ -19,11 +33,7 @@ class Client(
 ):
     def __init__(self) -> None:
         super().__init__()
-        http_adapter = requests.adapters.HTTPAdapter(
-            max_retries=urllib3.util.retry.Retry(total=3, backoff_factor=1)
-        )
-        self._session = requests.Session()
-        self._session.mount("http://", http_adapter)
+        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
         self._api_url = mlrun.config.config.nuclio_dashboard_url
 
     def create_project(
@@ -118,9 +128,10 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        format_: mlrun.api.schemas.Format = mlrun.api.schemas.Format.full,
+        format_: mlrun.api.schemas.ProjectsFormat = mlrun.api.schemas.ProjectsFormat.full,
         labels: typing.List[str] = None,
         state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
     ) -> mlrun.api.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -134,14 +145,18 @@ class Client(
             raise NotImplementedError(
                 "Filtering nuclio projects by state is currently not supported"
             )
+        if names:
+            raise NotImplementedError(
+                "Filtering nuclio projects by names is currently not supported"
+            )
         response = self._send_request_to_api("GET", "projects")
         response_body = response.json()
         projects = []
         for nuclio_project in response_body.values():
             projects.append(self._transform_nuclio_project_to_schema(nuclio_project))
-        if format_ == mlrun.api.schemas.Format.full:
+        if format_ == mlrun.api.schemas.ProjectsFormat.full:
             return mlrun.api.schemas.ProjectsOutput(projects=projects)
-        elif format_ == mlrun.api.schemas.Format.name_only:
+        elif format_ == mlrun.api.schemas.ProjectsFormat.name_only:
             return mlrun.api.schemas.ProjectsOutput(
                 projects=[project.metadata.name for project in projects]
             )
@@ -149,6 +164,26 @@ class Client(
             raise NotImplementedError(
                 f"Provided format is not supported. format={format_}"
             )
+
+    def list_project_summaries(
+        self,
+        session: sqlalchemy.orm.Session,
+        owner: str = None,
+        labels: typing.List[str] = None,
+        state: mlrun.api.schemas.ProjectState = None,
+        names: typing.Optional[typing.List[str]] = None,
+    ) -> mlrun.api.schemas.ProjectSummariesOutput:
+        raise NotImplementedError("Listing project summaries is not supported")
+
+    def get_project_summary(
+        self, session: sqlalchemy.orm.Session, name: str
+    ) -> mlrun.api.schemas.ProjectSummary:
+        raise NotImplementedError("Get project summary is not supported")
+
+    def get_dashboard_version(self) -> str:
+        response = self._send_request_to_api("GET", "versions")
+        response_body = response.json()
+        return response_body["dashboard"]["label"]
 
     def _get_project_from_nuclio(self, name):
         return self._send_request_to_api("GET", f"projects/{name}")
@@ -163,6 +198,14 @@ class Client(
         url = f"{self._api_url}/api/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
+
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for kwarg in ["headers", "params"]:
+            dict_ = kwargs.get(kwarg, {})
+            for key in dict_.keys():
+                if isinstance(dict_[key], enum.Enum):
+                    dict_[key] = dict_[key].value
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
             log_kwargs = copy.deepcopy(kwargs)

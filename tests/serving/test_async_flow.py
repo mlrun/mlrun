@@ -1,8 +1,27 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import mlrun
 from mlrun.utils import logger
 from tests.conftest import results
 
 from .demo_states import *  # noqa
+
+
+class _DummyStreamRaiser:
+    def push(self, data):
+        raise ValueError("DummyStreamRaiser raises an error")
 
 
 def test_async_basic():
@@ -86,3 +105,20 @@ def test_on_error():
     assert (
         resp["error"] and resp["origin_state"] == "Raiser"
     ), f"error wasnt caught, resp={resp}"
+
+
+def test_push_error():
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    chain = graph.to("Chain", name="s1")
+    chain.to("Raiser")
+
+    function.verbose = True
+    server = function.to_mock_server()
+    server.error_stream = "dummy:///nothing"
+    # Force an error inside push_error itself
+    server._error_stream_object = _DummyStreamRaiser()
+    logger.info(graph.to_yaml())
+
+    server.test(body=[])
+    server.wait_for_completion()

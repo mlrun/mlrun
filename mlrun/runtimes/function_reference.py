@@ -72,7 +72,7 @@ class FunctionReference(ModelObj):
         """get the generated function object"""
         return self._function
 
-    def to_function(self, default_kind=None):
+    def to_function(self, default_kind=None, default_image=None):
         """generate a function object from the ref definitions"""
         if self.url and "://" not in self.url:
             if not os.path.isfile(self.url):
@@ -86,21 +86,22 @@ class FunctionReference(ModelObj):
                 or self.url.startswith("hub://")
             ):
                 func = mlrun.import_function(self.url)
-                if self.image:
-                    func.spec.image = self.image
+                func.spec.image = self.image or func.spec.image or default_image
             elif self.url.endswith(".ipynb"):
                 func = mlrun.code_to_function(
                     self.name, filename=self.url, image=self.image, kind=kind
                 )
+                func.spec.image = func.spec.image or default_image
             elif self.url.endswith(".py"):
                 # todo: support code text as input (for UI)
-                if not self.image:
+                image = self.image or default_image
+                if not image:
                     raise ValueError(
                         "image must be provided with py code files, "
                         "use function object for more control/settings"
                     )
                 func = mlrun.code_to_function(
-                    self.name, filename=self.url, image=self.image, kind=kind
+                    self.name, filename=self.url, image=image, kind=kind
                 )
             else:
                 raise ValueError(f"unsupported function url {self.url} or no spec")
@@ -112,7 +113,9 @@ class FunctionReference(ModelObj):
                 code = code + mlrun_footer.format(
                     mlrun.runtimes.serving.serving_subkind
                 )
-            func = mlrun.new_function(self.name, kind=kind, image=self.image)
+            func = mlrun.new_function(
+                self.name, kind=kind, image=self.image or default_image
+            )
             data = b64encode(code.encode("utf-8")).decode("utf-8")
             func.spec.build.functionSourceCode = data
             if kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():

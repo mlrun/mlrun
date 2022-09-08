@@ -20,6 +20,9 @@ import mlrun.datastore
 from tests.system.base import TestMLRunSystem
 
 
+@pytest.mark.skipif(
+    not mlrun.mlconf.redis_url, reason="mlrun.mlconf.redis_url is not set"
+)
 class TestRedisDataStore(TestMLRunSystem):
     @staticmethod
     def _skip_set_environment():

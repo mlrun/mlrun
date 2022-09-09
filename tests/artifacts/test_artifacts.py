@@ -14,6 +14,8 @@
 #
 import pathlib
 
+import pytest
+
 import mlrun
 import mlrun.artifacts
 from mlrun.artifacts.manager import extend_artifact_path
@@ -131,6 +133,104 @@ def test_generate_target_path():
             artifact, artifact_path, producer
         )
         print(f"\ntarget:   {target}\nexpected: {expected}")
+        assert target == expected
+
+
+def assets_path():
+    return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+def test_resolve_file_hash_path():
+    for test_case in [
+        {
+            "artifact": mlrun.artifacts.Artifact("results", src_path="results.csv"),
+            "src_path": str(assets_path() / "results.csv"),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
+            "expected_file_target": "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            "expected_error": None,
+        },
+        # expected to fail because no artifact has been provided
+        {
+            "artifact": mlrun.artifacts.Artifact("results", src_path="results.csv"),
+            "src_path": str(assets_path() / "results.csv"),
+            "artifact_path": None,
+            "expected_hash": None,
+            "expected_file_target": None,
+            "expected_error": mlrun.errors.MLRunInvalidArgumentError,
+        },
+    ]:
+        mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = test_case.get(
+            "generate_target_path_from_artifact_hash"
+        )
+        mlrun.mlconf.artifacts.calculate_hash = test_case.get("calculate_hash")
+        artifact = test_case.get("artifact")
+        src_path = test_case.get("src_path")
+        artifact_path = test_case.get("artifact_path")
+        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
+            "expected_error", None
+        )
+        if expected_error:
+            with pytest.raises(expected_error):
+                artifact.resolve_file_target_hash_path(
+                    src=src_path, artifact_path=artifact_path
+                )
+            break
+        file_hash, target_path = artifact.resolve_file_target_hash_path(
+            src=src_path, artifact_path=artifact_path
+        )
+        assert test_case.get("expected_file_target") == target_path
+        assert test_case.get("expected_hash") == file_hash
+
+
+def test_resolve_body_hash_path():
+    for test_case in [
+        {
+            "artifact": mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "expected_file_target": "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "expected_error": None,
+        },
+        {
+            "artifact": mlrun.artifacts.Artifact("results", body=b"asdasdasdasdas"),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "expected_file_target": "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "expected_error": None,
+        },
+        {
+            "artifact": mlrun.artifacts.Artifact("results", body={"ba": "nana"}),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": None,
+            "expected_file_target": None,
+            "expected_error": TypeError,
+        },
+        # expected to fail because no artifact has been provided
+        {
+            "artifact": mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            "artifact_path": None,
+            "expected_hash": None,
+            "expected_file_target": None,
+            "expected_error": mlrun.errors.MLRunInvalidArgumentError,
+        },
+    ]:
+        artifact = test_case.get("artifact")
+        artifact_path = test_case.get("artifact_path")
+        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
+            "expected_error", None
+        )
+        if expected_error:
+            with pytest.raises(expected_error):
+                artifact.resolve_body_target_hash_path(
+                    body=artifact.get_body(), artifact_path=artifact_path
+                )
+            break
+        body_hash, target_path = artifact.resolve_body_target_hash_path(
+            body=artifact.get_body(), artifact_path=artifact_path
+        )
+        assert test_case.get("expected_file_target") == target_path
+        assert test_case.get("expected_hash") == body_hash
 
 
 def test_export_import():

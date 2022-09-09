@@ -27,6 +27,7 @@ from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
+import pandas
 import requests
 import yaml
 from dateutil import parser
@@ -1249,6 +1250,10 @@ def calculate_local_file_hash(filename):
         for n in iter(lambda: f.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
+
+
+def calculate_dataframe_hash(dataframe: pandas.DataFrame):
+    return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
 def fill_artifact_path_template(artifact_path, project):

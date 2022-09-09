@@ -15,6 +15,8 @@
 import pathlib
 from os.path import isdir
 
+import mlrun.config
+
 from ..db import RunDBInterface
 from ..utils import is_legacy_artifact, is_relative_path, logger
 from .base import (
@@ -182,7 +184,10 @@ class ArtifactManager:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
             target_path = src_path
             upload = False
-        elif not item.is_inline():
+        elif (
+            not item.is_inline()
+            and not mlrun.mlconf.should_generate_target_path_from_artifact_hash()
+        ):
             target_path = item.generate_target_path(artifact_path, producer)
 
         if target_path and item.is_dir and not target_path.endswith("/"):
@@ -194,7 +199,7 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
-            item.upload()
+            item.upload(artifact_path=artifact_path)
 
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)

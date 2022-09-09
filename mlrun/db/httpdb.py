@@ -295,6 +295,15 @@ class HTTPRunDB(RunDBInterface):
                 config.valid_function_priority_class_names
                 or server_cfg.get("valid_function_priority_class_names")
             )
+            config.artifacts.calculate_hash = (
+                config.artifacts.calculate_hash
+                or server_cfg.get("calculate_artifact_hash")
+            )
+            config.artifacts.generate_target_path_from_artifact_hash = (
+                config.artifacts.generate_target_path_from_artifact_hash
+                or server_cfg.get("generate_artifact_target_path_from_artifact_hash")
+            )
+
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (

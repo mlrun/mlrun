@@ -399,17 +399,40 @@ class ModelArtifact(Artifact):
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
 
-    def upload(self):
-
-        target_model_path = path.join(self.spec.target_path, self.spec.model_file)
+    def upload(self, artifact_path: str = None):
+        target_model_path = (
+            path.join(self.spec.target_path, self.spec.model_file)
+            if self.spec.target_path
+            else self.spec.target_path
+        )
         body = self.spec.get_body()
         if body:
-            self._upload_body(body, target=target_model_path)
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_body_target_hash_path(
+                    body=body, artifact_path=artifact_path
+                )
+            self._upload_body(
+                body, target=target_model_path, artifact_path=artifact_path
+            )
         else:
             src_model_path = _get_src_path(self, self.spec.model_file)
             if not path.isfile(src_model_path):
                 raise ValueError(f"model file {src_model_path} not found")
-            self._upload_file(src_model_path, target=target_model_path)
+
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_file_target_hash_path(
+                    src=src_model_path, artifact_path=artifact_path
+                )
+
+            self._upload_file(
+                src_model_path, target=target_model_path, artifact_path=artifact_path
+            )
 
         upload_extra_data(self, self.spec.extra_data)
 

@@ -101,6 +101,13 @@ default_config = {
     "artifact_path": "",  # default artifacts path/url
     # Add {{workflow.uid}} to artifact_path unless user specified a path manually
     "enrich_artifact_path_with_workflow_id": True,
+    "artifacts": {
+        # None is handled as True, reason is that we want the client to have precedence on both params bellow
+        # for example if the user logs a big artifact and the calculation get stuck for some reason, or it doesn't want
+        # the hash to be calculated so we wasn't the client to be able to configure that ( passed in client-spec )
+        "calculate_hash": None,
+        "generate_target_path_from_artifact_hash": False,
+    },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
@@ -600,6 +607,23 @@ class Config:
             # like 3.0_b177_20210806003728
             semver_compatible_igz_version = config.igz_version.split("_")[0]
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
+
+    @staticmethod
+    def should_generate_target_path_from_artifact_hash() -> bool:
+        if (
+            config.artifacts.generate_target_path_from_artifact_hash is None
+            or config.artifacts.generate_target_path_from_artifact_hash
+        ):
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def should_calculate_artifact_hash() -> bool:
+        if config.artifacts.calculate_hash is None or config.artifacts.calculate_hash:
+            return True
+        else:
+            return False
 
     def verify_security_context_enrichment_mode_is_allowed(self):
 

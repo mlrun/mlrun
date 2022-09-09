@@ -324,27 +324,85 @@ class Artifact(ModelObj):
                 struct[field] = val.base_dict()
         return struct
 
-    def upload(self):
+    def upload(self, artifact_path: str = None):
         """internal, upload to target store"""
         src_path = self.spec.src_path
         body = self.get_body()
         if body:
-            self._upload_body(body)
+            self._upload_body(body, artifact_path=artifact_path)
         else:
             if src_path and os.path.isfile(src_path):
-                self._upload_file(src_path)
+                self._upload_file(src_path, artifact_path)
 
-    def _upload_body(self, body, target=None):
+    def _upload_body(self, body, target=None, artifact_path: str = None):
+        body_hash = None
+        if not target and not self.spec.target_path:
+            if not mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Unable to resolve target path, no target path is defined and "
+                    "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
+                )
+            body_hash, self.spec.target_path = self.resolve_body_target_hash_path(
+                body, artifact_path
+            )
+
         if calc_hash:
-            self.metadata.hash = blob_hash(body)
+            self.metadata.hash = (
+                self.metadata.hash or body_hash or calculate_blob_hash(body)
+            )
         self.spec.size = len(body)
         store_manager.object(url=target or self.spec.target_path).put(body)
 
-    def _upload_file(self, src, target=None):
+    def resolve_body_target_hash_path(self, body, artifact_path: str) -> (str, str):
+        if not artifact_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to resolve body target hash path, artifact_path is not defined"
+            )
+        body_hash = calculate_blob_hash(body)
+        suffix = self._resolve_suffix()
+        artifact_path = (
+            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+        )
+        target_path = f"{artifact_path}{body_hash}{suffix}"
+        return body_hash, target_path
+
+    def _upload_file(self, src, target=None, artifact_path: str = None):
+        file_hash = None
+        if not target and not self.spec.target_path:
+            if not mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Unable to resolve target path, no target path is defined and "
+                    "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
+                )
+            file_hash, self.spec.target_path = self.resolve_file_target_hash_path(
+                src, artifact_path
+            )
+
         if calc_hash:
-            self.metadata.hash = calculate_local_file_hash(src)
+            self.metadata.hash = (
+                self.metadata.hash or file_hash or calculate_local_file_hash(src)
+            )
         self.spec.size = os.stat(src).st_size
         store_manager.object(url=target or self.spec.target_path).upload(src)
+
+    def resolve_file_target_hash_path(self, src: str, artifact_path: str):
+        if not artifact_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to resolve file target hash path, artifact_path is not defined"
+            )
+        file_hash = calculate_local_file_hash(src)
+        suffix = self._resolve_suffix()
+        artifact_path = (
+            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+        )
+        target_path = f"{artifact_path}{file_hash}{suffix}"
+        return file_hash, target_path
+
+    def _resolve_suffix(self) -> str:
+        suffix = os.path.splitext(self.spec.src_path or "")[1]
+        if not suffix and self.spec.format:
+            suffix = f".{self.spec.format}"
+        return suffix
 
     # Following properties are for backwards compatibility with the ArtifactLegacy class. They should be
     # removed once we only work with the new Artifact structure.
@@ -798,7 +856,7 @@ class DirArtifact(Artifact):
     def is_dir(self):
         return True
 
-    def upload(self):
+    def upload(self, artifact_path: str = None):
         if not self.spec.src_path:
             raise ValueError("local/source path not specified")
 
@@ -807,7 +865,14 @@ class DirArtifact(Artifact):
             file_path = os.path.join(self.spec.src_path, f)
             if not os.path.isfile(file_path):
                 raise ValueError(f"file {file_path} not found, cant upload")
-            target = os.path.join(self.spec.target_path, f)
+
+            if self.spec.target_path:
+                target = os.path.join(self.spec.target_path, f)
+            else:
+                _, target = self.resolve_file_target_hash_path(
+                    src=file_path, artifact_path=artifact_path
+                )
+
             store_manager.object(url=target).upload(file_path)
 
 
@@ -1007,7 +1072,7 @@ class LegacyArtifact(ModelObj):
 
     def _upload_body(self, body, target=None):
         if calc_hash:
-            self.hash = blob_hash(body)
+            self.hash = calculate_blob_hash(body)
         self.size = len(body)
         store_manager.object(url=target or self.target_path).put(body)
 
@@ -1078,7 +1143,7 @@ class LegacyLinkArtifact(LegacyArtifact):
         self.link_tree = link_tree
 
 
-def blob_hash(data):
+def calculate_blob_hash(data):
     if isinstance(data, str):
         data = data.encode()
     h = hashlib.sha1()
@@ -1091,6 +1156,7 @@ def upload_extra_data(
     extra_data: dict,
     prefix="",
     update_spec=False,
+    artifact_path: str = None,
 ):
     if not extra_data:
         return
@@ -1098,7 +1164,13 @@ def upload_extra_data(
     for key, item in extra_data.items():
 
         if isinstance(item, bytes):
-            target = os.path.join(target_path, prefix + key)
+            if target_path:
+                target = os.path.join(target_path, prefix + key)
+            else:
+                _, target = artifact_spec.resolve_body_target_hash_path(
+                    item, artifact_path=artifact_path
+                )
+
             store_manager.object(url=target).put(item)
             artifact_spec.extra_data[prefix + key] = target
             continue
@@ -1111,7 +1183,13 @@ def upload_extra_data(
             )
             if not os.path.isfile(src_path):
                 raise ValueError(f"extra data file {src_path} not found")
-            target = os.path.join(target_path, item)
+
+            if target_path:
+                target = os.path.join(target_path, item)
+            else:
+                _, target = artifact_spec.resolve_file_target_hash_path(
+                    src_path, artifact_path=artifact_path
+                )
             store_manager.object(url=target).upload(src_path)
 
         if update_spec:

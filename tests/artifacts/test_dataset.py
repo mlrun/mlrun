@@ -121,7 +121,9 @@ def test_resolve_dataset_hash_path():
         {
             # generates incremental values dataframe
             "artifact": mlrun.artifacts.dataset.DatasetArtifact(
-                df=pandas.DataFrame(numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))),
+                df=pandas.DataFrame(
+                    numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))
+                ),
                 format="parquet",
             ),
             "artifact_path": "v3io://just/regular/path",

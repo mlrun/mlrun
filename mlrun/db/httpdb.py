@@ -2770,6 +2770,74 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def dataschema_to_list(self):
+        """Provide data schema (feature store schemas) of MLRun projects as collection.
+
+        Examples::
+
+            import mlrun.db.httpdb as mldb
+            import json
+
+            # connection to solution
+            db = mldb.HTTPRunDB('http://localhost:8080')
+            # or db = mldb.HTTPRunDB()
+
+            # print data schema of all projects in JSON format
+            print(json.dumps(db.dataschema_to_list(),
+                ensure_ascii = False,
+                indent=2,
+                allow_nan=True)
+            )
+
+        :return:    Collection of data schema (feature store schemas)
+        """
+
+        dataschema = []
+
+        # iteration via projects
+        for prj in self.list_projects():
+            dataschema.append({})
+            dataschema[-1]["project_name"] = prj.name
+            if prj.spec.description:
+                dataschema[-1]["project_description"] = prj.spec.description
+
+            # iteration via feature sets
+            fsets = self.list_feature_sets(prj.name)
+            if fsets:
+                featureset = []
+                dataschema[-1]["featureset"] = featureset
+                for fset in fsets:
+                    if fset:
+                        featureset.append({})
+                        featureset[-1]["name"] = fset.fullname
+                        if fset.spec.description:
+                            featureset[-1]["description"] = fset.spec.description
+
+                        # iteration via entities
+                        if fset.spec.entities:
+                            entities = []
+                            featureset[-1]["entities"] = entities
+                            for entity in fset.spec.entities:
+                                entities.append({})
+                                entities[-1]["name"] = entity.name
+                                if entity.description:
+                                    entities[-1]["description"] = entity.description
+                                if entity.value_type:
+                                    entities[-1]["value_type"] = entity.value_type
+
+                        # iteration via features
+                        if fset.spec.features:
+                            features = []
+                            featureset[-1]["features"] = features
+                            for feature in fset.spec.features:
+                                features.append({})
+                                features[-1]["name"] = feature.name
+                                if feature.description:
+                                    features[-1]["description"] = feature.description
+                                if feature.value_type:
+                                    features[-1]["value_type"] = feature.value_type
+        return dataschema
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

@@ -177,6 +177,10 @@ class DatasetArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", DatasetArtifactSpec)
 
     def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
         if not self.spec.target_path:
             if self.spec.src_path:
                 (

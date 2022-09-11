@@ -400,6 +400,13 @@ class ModelArtifact(Artifact):
             self.metadata.labels["framework"] = self.spec.framework
 
     def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
+        # if mlrun.mlconf.should_generate_target_path_from_artifact_hash() outputs True and the user
+        # didn't pass target_path explicitly, then target_path will be calculated right before uploading the artifact
+        # using `resolve_<body/file>_target_hash_path`
         target_model_path = (
             path.join(self.spec.target_path, self.spec.model_file)
             if self.spec.target_path
@@ -427,7 +434,7 @@ class ModelArtifact(Artifact):
                     self.metadata.hash,
                     target_model_path,
                 ) = self.resolve_file_target_hash_path(
-                    src=src_model_path, artifact_path=artifact_path
+                    source_path=src_model_path, artifact_path=artifact_path
                 )
 
             self._upload_file(

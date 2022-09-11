@@ -184,6 +184,10 @@ class ArtifactManager:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
             target_path = src_path
             upload = False
+
+        # if mlrun.mlconf.should_generate_target_path_from_artifact_hash() outputs True and the user
+        # didn't pass target_path explicitly then we won't use `generate_target_path` to calculate the target path,
+        # but rather use the `resolve_<body/file>_target_hash_path` in the `item.upload` method.
         elif (
             not item.is_inline()
             and not mlrun.mlconf.should_generate_target_path_from_artifact_hash()

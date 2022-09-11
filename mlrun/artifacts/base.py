@@ -324,7 +324,10 @@ class Artifact(ModelObj):
         return struct
 
     def upload(self, artifact_path: str = None):
-        """internal, upload to target store"""
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
         src_path = self.spec.src_path
         body = self.get_body()
         if body:
@@ -389,12 +392,12 @@ class Artifact(ModelObj):
             source_path
         )
 
-    def resolve_file_target_hash_path(self, src: str, artifact_path: str):
+    def resolve_file_target_hash_path(self, source_path: str, artifact_path: str):
         if not artifact_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Unable to resolve file target hash path, artifact_path is not defined"
             )
-        file_hash = calculate_local_file_hash(src)
+        file_hash = calculate_local_file_hash(source_path)
         suffix = self._resolve_suffix()
         artifact_path = (
             artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
@@ -861,20 +864,24 @@ class DirArtifact(Artifact):
         return True
 
     def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
         if not self.spec.src_path:
             raise ValueError("local/source path not specified")
 
         files = os.listdir(self.spec.src_path)
-        for f in files:
-            file_path = os.path.join(self.spec.src_path, f)
+        for file in files:
+            file_path = os.path.join(self.spec.src_path, file)
             if not os.path.isfile(file_path):
                 raise ValueError(f"file {file_path} not found, cant upload")
 
             if self.spec.target_path:
-                target = os.path.join(self.spec.target_path, f)
+                target = os.path.join(self.spec.target_path, file)
             else:
                 _, target = self.resolve_file_target_hash_path(
-                    src=file_path, artifact_path=artifact_path
+                    source_path=file_path, artifact_path=artifact_path
                 )
 
             store_manager.object(url=target).upload(file_path)

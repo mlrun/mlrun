@@ -173,11 +173,11 @@ def test_resolve_file_hash_path():
         if expected_error:
             with pytest.raises(expected_error):
                 artifact.resolve_file_target_hash_path(
-                    src=src_path, artifact_path=artifact_path
+                    source_path=src_path, artifact_path=artifact_path
                 )
             break
         file_hash, target_path = artifact.resolve_file_target_hash_path(
-            src=src_path, artifact_path=artifact_path
+            source_path=src_path, artifact_path=artifact_path
         )
         assert test_case.get("expected_file_target") == target_path
         assert test_case.get("expected_hash") == file_hash

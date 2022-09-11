@@ -12,12 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from notification import (
-    NotificationTypes,
-    SlackNotification,
-    ConsoleNotification,
-    IPythonNotification,
-    GitNotification,
-)
-
-from notification_pusher import NotificationPusher, CustomNotificationPusher
+from .notification import *  # noqa
+from .notification_pusher import *  # noqa

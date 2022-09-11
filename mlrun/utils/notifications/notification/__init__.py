@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from .console import ConsoleNotification
-from .slack import SlackNotification
-from .ipython import IPythonNotification
 from .git import GitNotification
+from .ipython import IPythonNotification
+from .slack import SlackNotification
 
 
 class NotificationTypes:

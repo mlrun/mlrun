@@ -22,16 +22,14 @@ import time
 import typing
 from datetime import datetime, timezone
 from importlib import import_module
-from os import environ, path
+from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
-import requests
 import yaml
 from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
-from tabulate import tabulate
 from yaml.representer import RepresenterError
 
 import mlrun

@@ -27,11 +27,7 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.api.schemas
-from mlrun.utils import (
-    logger,
-    new_pipe_meta,
-    parse_versioned_object_uri,
-)
+from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 from mlrun.utils.notifications import CustomNotificationPusher
 
 from ..config import config

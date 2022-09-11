@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import environ
 import json
+from os import environ
+
 import requests
 
 import mlrun.errors
+
 from .base import NotificationBase
 
 

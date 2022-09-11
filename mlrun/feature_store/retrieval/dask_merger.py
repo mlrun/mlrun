@@ -18,6 +18,7 @@ from dask.dataframe.multi import merge, merge_asof
 from dask.distributed import Client
 
 import mlrun
+import re
 
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
@@ -50,38 +51,91 @@ class DaskFeatureMerger(BaseMerger):
         # load dataframes
         feature_sets = []
         dfs = []
+        feature_sets_names = []
+        keys = []
+        aliases = dict()
+        all_columns = list()
+
         for name, columns in feature_set_fields.items():
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
+            feature_sets_names.append(name)
+
+            # updating the columns list that needed for tho join.
+            # Build left and right keys for the join apply
+            right_keys = []
+            left_keys = []
+            temp_key = []
+            for key, dict_relation in self._relation.items():
+                if re.findall(f":{name}$", key):
+                    for left, right in dict_relation.items():
+                        if right not in column_names and right not in feature_set.spec.entities.keys():
+                            column_names.append(right)
+                            self._append_drop_column(right)
+                        if key.split(':')[0] in feature_sets_names:
+                            right_keys.append(right)
+                            left_keys.append(left)
+                        temp_key.append(right)
+                elif re.findall(f"^{name}:", key):
+                    for left, right in dict_relation.items():
+                        if left not in column_names and left not in feature_set.spec.entities.keys():
+                            column_names.append(left)
+                            self._append_drop_column(left)
+                        if key.split(':')[1] in feature_sets_names:
+                            right_keys.append(left)
+                            left_keys.append(right)
+                        temp_key.append(left)
+
             df = feature_set.to_dataframe(
-                columns=column_names,
-                df_module=dd,
-                start_time=start_time,
-                end_time=end_time,
-                time_column=entity_timestamp_column,
-                index=False,
-            )
-            # rename columns with aliases
-            df = df.rename(columns={name: alias for name, alias in columns if alias})
+                    columns=column_names,
+                    df_module=dd,
+                    start_time=start_time,
+                    end_time=end_time,
+                    time_column=entity_timestamp_column,
+                    index=False,
+                )
 
             df = df.persist()
+            # rename columns to be unique for each feature set
+            rename_col_dict = {col: f'{col}_{name}' for col in column_names if col not in temp_key}
+            df = df.rename(
+                columns=rename_col_dict,
+            )
+
             dfs.append(df)
+            keys.append([left_keys, right_keys])
 
-        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+            # update alias according to the unique column name
+            new_columns = []
+            for col, alias in columns:
+                if col in rename_col_dict and alias:
+                    new_columns.append((rename_col_dict[col], alias))
+                elif col in rename_col_dict and not alias:
+                    new_columns.append((rename_col_dict[col], col))
+                else:
+                    new_columns.append((col, alias))
+            all_columns.append(new_columns)
+            self._update_alias(dictionary={name: alias for name, alias in new_columns if alias})
 
-        # filter joined data frame by the query param
-        if query:
-            self._result_df = self._result_df.query(query)
+        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns)
 
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"
+        )
+
+        # renaming all columns according to self._alias
+        self._result_df = self._result_df.rename(
+            columns=self._alias,
         )
 
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(
                 subset=[self.vector.status.label_column]
             )
+        # filter joined data frame by the query param
+        if query:
+            self._result_df = self._result_df.query(query)
 
         if self._drop_indexes:
             self._result_df = self._result_df.reset_index(drop=True)
@@ -95,14 +149,11 @@ class DaskFeatureMerger(BaseMerger):
         to_drop = df.index.name is None
         return df.reset_index(drop=to_drop)
 
-    def _asof_join(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featureset,
-        featureset_df: pd.DataFrame,
-    ):
-        indexes = list(featureset.spec.entities.keys())
+    def _asof_join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df: pd.DataFrame, left_keys,
+                   right_keys, columns):
+        indexes = None
+        if not right_keys:
+            indexes = list(featureset.spec.entities.keys())
 
         entity_df = self._reset_index(entity_df)
         entity_df = (
@@ -123,20 +174,26 @@ class DaskFeatureMerger(BaseMerger):
             left_index=True,
             right_index=True,
             by=indexes,
+            left_by=left_keys,
+            right_by=right_keys
         )
 
         return merged_df
 
-    def _join(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featureset,
-        featureset_df: pd.DataFrame,
-    ):
-        indexes = list(featureset.spec.entities.keys())
-        merged_df = merge(entity_df, featureset_df, on=indexes)
+    def _join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df: pd.DataFrame, left_keys,
+              right_keys, columns):
+
+        indexes = None
+        if not right_keys:
+            indexes = list(featureset.spec.entities.keys())
+        fs_name = featureset.metadata.name
+        merged_df = dd.merge(entity_df, featureset_df, on=indexes, how=self._join_type, left_on=left_keys,
+                             right_on=right_keys, suffixes=("", f"_{fs_name}_"), )
+        for col in merged_df.columns:
+            if re.findall(f"_{fs_name}_$",col):
+                self._append_drop_column(col)
         return merged_df
+
 
     def get_status(self):
         if self._result_df is None:

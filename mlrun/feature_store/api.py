@@ -13,7 +13,7 @@
 # limitations under the License.
 import copy
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -88,6 +88,7 @@ def _features_to_vector_and_check_permissions(features, update_stats):
 
 def get_offline_features(
     feature_vector: Union[str, FeatureVector],
+    relation: Optional[Dict[str, Dict[str, str]]],
     entity_rows=None,
     entity_timestamp_column: str = None,
     target: DataTargetBase = None,
@@ -100,6 +101,7 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
+    join_type: str = 'inner'
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -168,6 +170,8 @@ def get_offline_features(
             drop_columns=drop_columns,
             with_indexes=with_indexes,
             query=query,
+            join_type=join_type,
+            relation=relation
         )
 
     start_time = str_to_timestamp(start_time)
@@ -191,6 +195,8 @@ def get_offline_features(
         with_indexes=with_indexes,
         update_stats=update_stats,
         query=query,
+        join_type=join_type,
+        relation=relation
     )
 
 

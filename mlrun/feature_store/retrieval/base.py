@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import abc
+import re
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
@@ -24,6 +25,8 @@ class BaseMerger(abc.ABC):
     """abstract feature merger class"""
 
     def __init__(self, vector, **engine_args):
+        self._relation = dict()
+        self._join_type = 'inner'
         self.vector = vector
 
         self._result_df = None
@@ -31,6 +34,7 @@ class BaseMerger(abc.ABC):
         self._index_columns = []
         self._drop_indexes = True
         self._target = None
+        self._alias = dict()
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
@@ -43,6 +47,17 @@ class BaseMerger(abc.ABC):
             if self._drop_indexes:
                 self._append_drop_column(key)
 
+    def _update_alias(self, key: str = None, val: str = None, dictionary: dict=None):
+        if dictionary is not None:
+            # adding dictionary to alias
+            self._alias.update(dictionary)
+        elif val in self._alias.values():
+            # changing alias key
+            old_key = [key for key, v in self._alias.items() if v == val][0]
+            self._alias[key] = self._alias.pop(old_key)
+        else:
+            self._alias[key] = val
+
     def start(
         self,
         entity_rows=None,
@@ -54,8 +69,12 @@ class BaseMerger(abc.ABC):
         with_indexes=None,
         update_stats=None,
         query=None,
+        join_type='inner',
+        relation=None
     ):
         self._target = target
+        self._join_type = join_type
+        self._relation = relation
 
         # calculate the index columns and columns we need to drop
         self._drop_columns = drop_columns or self._drop_columns
@@ -84,15 +103,9 @@ class BaseMerger(abc.ABC):
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
 
-        return self._generate_vector(
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects=feature_set_objects,
-            feature_set_fields=feature_set_fields,
-            start_time=start_time,
-            end_time=end_time,
-            query=query,
-        )
+        return self._generate_vector(entity_rows, entity_timestamp_column, feature_set_objects=feature_set_objects,
+                                     feature_set_fields=feature_set_fields, start_time=start_time, end_time=end_time,
+                                     query=query)
 
     def _write_to_target(self):
         if self._target:
@@ -144,17 +157,27 @@ class BaseMerger(abc.ABC):
         entity_timestamp_column: str,
         featuresets: list,
         featureset_dfs: list,
+        keys: list = None,
+        all_columns: list = None
     ):
         """join the entities and feature set features into a result dataframe"""
         merged_df = entity_df
         if entity_df is None and featureset_dfs:
             merged_df = featureset_dfs.pop(0)
             featureset = featuresets.pop(0)
+            if keys is not None:
+                keys.pop(0)
+            else:
+                keys = [[[], []]] * len(featureset_dfs)
+            if all_columns is not None:
+                all_columns.pop(0)
+            else:
+                all_columns = [[]] * len(featureset_dfs)
             entity_timestamp_column = (
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
 
-        for featureset, featureset_df in zip(featuresets, featureset_dfs):
+        for featureset, featureset_df, lr_key, columns in zip(featuresets, featureset_dfs, keys, all_columns):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
             else:
@@ -165,6 +188,9 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column,
                 featureset,
                 featureset_df,
+                lr_key[0],
+                lr_key[1],
+                columns
             )
 
         self._result_df = merged_df
@@ -176,6 +202,9 @@ class BaseMerger(abc.ABC):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
@@ -186,6 +215,9 @@ class BaseMerger(abc.ABC):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list
     ):
         raise NotImplementedError("_join() operation not implemented in class")
 
@@ -208,3 +240,4 @@ class BaseMerger(abc.ABC):
         """return results as csv file"""
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
+

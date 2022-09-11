@@ -1886,6 +1886,12 @@ class MlrunProject(ModelObj):
         artifact_path = self.spec.artifact_path or mlrun.mlconf.artifact_path
         if not mlrun.mlconf.enrich_artifact_path_with_workflow_id:
             return artifact_path
+
+        # no need to add workflow.uid to the artifact path for uniqueness, this is already being handled by generating
+        # the artifact target path from the artifact content hash ( body / file etc...)
+        if mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+            return artifact_path
+
         workflow_uid_string = "{{workflow.uid}}"
         if workflow_uid_string in artifact_path:
             return artifact_path

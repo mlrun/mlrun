@@ -118,6 +118,7 @@ def test_connection_reset_causes_retries(
 def test_get_projects_dataschemas():
     # prepare data
     #   create test project
+    db = mlrun.get_run_db()
     mlrun.get_or_create_project("test-dataschemas", context="./", user_project=False)
 
     #   create feature set 01
@@ -158,7 +159,6 @@ def test_get_projects_dataschemas():
     feature_set.save()
 
     # tests
-    db = mlrun.get_run_db()
     dataschemas = db.get_projects_dataschemas()
 
     assert dataschemas is not None, "Empty output"

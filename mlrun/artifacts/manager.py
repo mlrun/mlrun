@@ -85,7 +85,7 @@ class ArtifactProducer:
         self.iteration = 0
         self.inputs = {}
 
-    def get_meta(self):
+    def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
@@ -167,11 +167,16 @@ class ArtifactManager:
         item.db_key = db_key if db_key else ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
-        item.labels = labels or item.labels
+        item.tag = tag or item.tag
+
         item.producer = producer.get_meta()
+        item.labels = labels or item.labels
+        # if running as part of a workflow, enrich artifact with workflow uid label
+        if item.producer.get("workflow"):
+            item.labels.update({"workflow": item.producer.get("workflow")})
+
         item.iter = producer.iteration
         item.project = producer.project
-        item.tag = tag or item.tag
 
         if target_path:
             if is_relative_path(target_path):

@@ -362,7 +362,7 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
+            "redisnosql": "redis://localhost:6379/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",

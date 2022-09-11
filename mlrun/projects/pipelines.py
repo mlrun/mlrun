@@ -542,7 +542,7 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             ttl=workflow_spec.ttl,
         )
-        project.notifiers.push_start_message(
+        project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
             id,
@@ -648,7 +648,9 @@ class _LocalRunner(_PipelineRunner):
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         pipeline_context.workflow_artifact_path = artifact_path
-        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name, id=workflow_id
+        )
         try:
             workflow_handler(**workflow_spec.args)
             state = mlrun.run.RunStatuses.succeeded
@@ -778,7 +780,7 @@ class _RemoteRunner(_PipelineRunner):
                 state=state,
             )
 
-        project.notifiers.push_start_message(
+        project.notifiers.push_pipeline_start_message(
             project.metadata.name,
         )
         pipeline_context.clear()

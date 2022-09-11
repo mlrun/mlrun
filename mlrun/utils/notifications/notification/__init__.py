@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
+from .base import NotificationBase
 from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification
@@ -27,9 +30,9 @@ class NotificationTypes:
     }
 
     @classmethod
-    def get(cls, notification_type):
+    def get(cls, notification_type: str) -> typing.Type[NotificationBase]:
         return cls.types.get(notification_type)
 
     @classmethod
-    def all(cls):
-        return cls.types.keys()
+    def all(cls) -> typing.List[str]:
+        return list(cls.types.keys())

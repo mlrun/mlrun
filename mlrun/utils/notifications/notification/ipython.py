@@ -12,14 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
+import mlrun.lists
 import mlrun.utils.helpers
 
 from .base import NotificationBase
 
 
 class IPythonNotification(NotificationBase):
-    def __init__(self, header, severity, runs=None, params=None):
-        super().__init__(header, severity, runs, params)
+    def __init__(
+        self,
+        header: str,
+        severity: str,
+        runs: typing.Union[list, mlrun.lists.RunList] = None,
+        params: typing.Dict[str, str] = None,
+        custom_html: str = None,
+    ):
+        super().__init__(header, severity, runs, params, custom_html)
         self._ipython = None
         try:
             import IPython

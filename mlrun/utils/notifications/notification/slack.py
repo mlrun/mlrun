@@ -66,7 +66,7 @@ class SlackNotification(NotificationBase):
 
         return data
 
-    def _get_run_line(self, run):
+    def _get_run_line(self, run: dict) -> dict:
         meta = run["metadata"]
         url = mlrun.utils.helpers.get_ui_url(meta.get("project"), meta.get("uid"))
         if url:
@@ -77,7 +77,7 @@ class SlackNotification(NotificationBase):
         line = f'{self.emojis.get(state, ":question:")}  {line}'
         return self._get_slack_row(line)
 
-    def _get_run_result(self, run):
+    def _get_run_result(self, run: dict) -> dict:
         state = run["status"].get("state", "")
         if state == "error":
             error_status = run["status"].get("error", "")
@@ -89,5 +89,5 @@ class SlackNotification(NotificationBase):
         return self._get_slack_row(result or "None")
 
     @staticmethod
-    def _get_slack_row(text):
+    def _get_slack_row(text: str) -> dict:
         return {"type": "mrkdwn", "text": text}

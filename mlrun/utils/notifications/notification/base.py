@@ -12,11 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import mlrun.lists
 
 
 class NotificationBase:
-    def __init__(self, header, severity, runs=None, params=None, custom_html=None):
+    def __init__(
+        self,
+        header: str,
+        severity: str,
+        runs: typing.Union[list, mlrun.lists.RunList] = None,
+        params: typing.Dict[str, str] = None,
+        custom_html: str = None,
+    ):
         self.header = header
 
         if isinstance(runs, list):
@@ -30,10 +39,10 @@ class NotificationBase:
     def send(self):
         raise NotImplementedError()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.header})"
 
-    def _get_html(self):
+    def _get_html(self) -> str:
         if self.custom_html:
             return self.custom_html
 

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import os
+import typing
 from ast import literal_eval
 
+import mlrun.lists
 import mlrun.utils.helpers
 
-from .notification import NotificationTypes
+from .notification import NotificationBase, NotificationTypes
 
 
 class NotificationPusher(object):
@@ -27,7 +29,7 @@ class NotificationPusher(object):
         "error": "Run failed",
     }
 
-    def __init__(self, runs):
+    def __init__(self, runs: typing.Union[list, mlrun.lists.RunList]):
         self._runs = runs
         self._notifications = []
 
@@ -40,10 +42,10 @@ class NotificationPusher(object):
 
     def push(self):
         for notification in self._notifications:
-            notification.push()
+            notification.send()
 
     @staticmethod
-    def _should_notify(run, notification_config):
+    def _should_notify(run: dict, notification_config: dict) -> bool:
         when_states = notification_config.get("when", [])
         condition = notification_config.get("condition", "")
         run_state = run.get("status", {}).get("state", "")
@@ -59,44 +61,58 @@ class NotificationPusher(object):
 
         return False
 
-    def _create_notification(self, run, notification_config):
+    def _create_notification(
+        self, run: dict, notification_config: dict
+    ) -> NotificationBase:
         header = self.headers.get(run.get("status", {}).get("state", ""), "")
         severity = notification_config.get("severity", "info")
         params = notification_config.get("params", {})
         notification_type = notification_config.get("type", "console")
 
-        return NotificationTypes.get(notification_type)(header, severity, run, params)
+        return NotificationTypes.get(notification_type)(header, severity, [run], params)
 
 
 class CustomNotificationPusher(object):
-    def __init__(self, notification_types=None):
+    def __init__(self, notification_types: typing.List[str] = None):
         self._params = {}
         self._notification_types = set(notification_types or [])
 
-    def push(self, header, severity, runs=None, custom_html=None):
+    def push(
+        self,
+        header: str,
+        severity: str,
+        runs: typing.Union[list, mlrun.lists.RunList] = None,
+        custom_html: str = None,
+    ):
         for notification_type in self._notification_types:
             NotificationTypes.get(notification_type)(
                 header, severity, runs, self._params, custom_html
-            ).push()
+            ).send()
 
-    def add_notification(self, notification_type, params=None):
+    def add_notification(
+        self, notification_type: str, params: typing.Dict[str, str] = None
+    ):
         self._notification_types.add(notification_type)
         if params:
             self._params.update(params)
 
-    def push_start_message(
-        self, project, commit_id=None, id=None, has_workflow_url=False
+    def push_pipeline_start_message(
+        self,
+        project: str,
+        commit_id: str = None,
+        pipeline_id: str = None,
+        has_workflow_url: bool = False,
     ):
         message = f"Pipeline started in project {project}"
-        if id:
-            message += f" id={id}"
+        if pipeline_id:
+            message += f" id={pipeline_id}"
         commit_id = (
             commit_id or os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA")
         )
         if commit_id:
             message += f", commit={commit_id}"
         if has_workflow_url:
-            url = mlrun.utils.helpers.get_workflow_url(project, id)
+            url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
         else:
             url = mlrun.utils.helpers.get_ui_url(project)
         html = ""
@@ -108,7 +124,12 @@ class CustomNotificationPusher(object):
             message = message + f", check progress in {url}"
         self.push(message, "info", custom_html=html)
 
-    def push_run_results(self, runs, push_all=False, state=None):
+    def push_run_results(
+        self,
+        runs: typing.Union[list, mlrun.lists.RunList],
+        push_all: bool = False,
+        state: str = None,
+    ):
         """push a structured table with run results to notification targets
 
         :param runs:  list if run objects (RunObject)

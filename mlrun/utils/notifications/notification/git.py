@@ -47,10 +47,10 @@ class GitNotification(NotificationBase):
         message: str,
         repo: str = None,
         issue: int = None,
-        token=None,
-        server=None,
-        gitlab=False,
-    ):
+        token: str = None,
+        server: str = None,
+        gitlab: bool = False,
+    ) -> str:
         """push comment message to Git system PR/issue
 
         :param message:  test message

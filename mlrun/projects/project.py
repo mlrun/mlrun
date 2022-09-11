@@ -45,13 +45,13 @@ from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import (
-    RunNotifications,
     is_ipython,
     is_legacy_artifact,
     is_relative_path,
     logger,
     update_in,
 )
+from ..utils.notifications import CustomNotificationPusher
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from .operations import build_function, deploy_function, run_function
@@ -791,7 +791,7 @@ class MlrunProject(ModelObj):
         self._initialized = False
         self._secrets = SecretsStore()
         self._artifact_manager = None
-        self._notifiers = RunNotifications(with_slack=True)
+        self._notifiers = CustomNotificationPusher({"slack", "console", "ipython"})
 
     @property
     def metadata(self) -> ProjectMetadata:
@@ -2042,7 +2042,7 @@ class MlrunProject(ModelObj):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: CustomNotificationPusher = None,
     ):
         warnings.warn(
             "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "

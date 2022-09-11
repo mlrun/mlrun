@@ -363,7 +363,8 @@ class TaskStep(BaseStep):
             for key in ["name", "context", "input_path", "result_path", "full_event"]:
                 if argspec.varkw or key in argspec.args:
                     class_args[key] = getattr(self, key)
-
+            if "graph_step" in argspec.args:
+                class_args["graph_step"] = self
             try:
                 self._object = self._class_object(**class_args)
             except TypeError as exc:
@@ -815,7 +816,7 @@ class FlowStep(BaseStep):
                 raise GraphError(
                     f"graph loop, step {before} is specified in before and/or after {key}"
                 )
-            self[before].after_step(step.name)
+            self[before].after_step(step.name, append=False)
         self._last_added = step
         return step
 

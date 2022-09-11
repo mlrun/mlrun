@@ -431,7 +431,9 @@ class ModelArtifact(Artifact):
                 )
 
             self._upload_file(
-                src_model_path, target=target_model_path, artifact_path=artifact_path
+                src_model_path,
+                target_path=target_model_path,
+                artifact_path=artifact_path,
             )
 
         upload_extra_data(self, self.spec.extra_data)

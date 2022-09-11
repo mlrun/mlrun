@@ -1253,6 +1253,7 @@ def calculate_local_file_hash(filename):
 
 
 def calculate_dataframe_hash(dataframe: pandas.DataFrame):
+    # https://stackoverflow.com/questions/49883236/how-to-generate-a-hash-or-checksum-value-on-python-dataframe-created-from-a-fix/62754084#62754084
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 

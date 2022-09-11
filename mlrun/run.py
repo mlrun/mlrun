@@ -855,7 +855,7 @@ def code_to_function(
         # default_handler is only used in :mlrun subkind, determine the handler to invoke in function.run()
         r.spec.default_handler = handler if subkind == "mlrun" else ""
         r.spec.function_handler = (
-            handler if ":" in handler else get_in(spec, "spec.handler")
+            handler if handler and ":" in handler else get_in(spec, "spec.handler")
         )
         if not embed_code:
             r.spec.source = filename

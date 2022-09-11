@@ -143,7 +143,7 @@ class CustomNotificationPusher(object):
             if not notified or push_all:
                 if run.status.state == "error":
                     had_errors += 1
-                runs_list.append(r.to_dict())
+                runs_list.append(run.to_dict())
                 run._notified = True
 
         text = "pipeline run finished"

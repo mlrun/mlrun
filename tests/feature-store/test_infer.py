@@ -14,7 +14,6 @@
 #
 import unittest.mock
 
-import deepdiff
 import pandas as pd
 import pytest
 

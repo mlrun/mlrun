@@ -14,6 +14,7 @@
 import hashlib
 import os
 import tempfile
+import typing
 import warnings
 import zipfile
 
@@ -329,10 +330,10 @@ class Artifact(ModelObj):
         src_path = self.spec.src_path
         body = self.get_body()
         if body:
-            self._upload_body(body, artifact_path=artifact_path)
+            self._upload_body(body=body, artifact_path=artifact_path)
         else:
             if src_path and os.path.isfile(src_path):
-                self._upload_file(src_path, artifact_path)
+                self._upload_file(src=src_path, artifact_path=artifact_path)
 
     def _upload_body(self, body, target=None, artifact_path: str = None):
         body_hash = None
@@ -353,7 +354,9 @@ class Artifact(ModelObj):
         self.spec.size = len(body)
         store_manager.object(url=target or self.spec.target_path).put(body)
 
-    def resolve_body_target_hash_path(self, body, artifact_path: str) -> (str, str):
+    def resolve_body_target_hash_path(
+        self, body: typing.Union[bytes, str], artifact_path: str
+    ) -> (str, str):
         if not artifact_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Unable to resolve body target hash path, artifact_path is not defined"
@@ -366,7 +369,7 @@ class Artifact(ModelObj):
         target_path = f"{artifact_path}{body_hash}{suffix}"
         return body_hash, target_path
 
-    def _upload_file(self, src, target=None, artifact_path: str = None):
+    def _upload_file(self, src: str, target: str = None, artifact_path: str = None):
         file_hash = None
         if not target and not self.spec.target_path:
             if not mlrun.mlconf.should_generate_target_path_from_artifact_hash():

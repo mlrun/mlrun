@@ -1159,6 +1159,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey.redis_driver import RedisDriver
 
         endpoint, uri = parse_path(self.get_target_path())
+        endpoint = endpoint or mlrun.mlconf.redis_url
         return Table(
             uri,
             RedisDriver(redis_url=endpoint, key_prefix="/"),

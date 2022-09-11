@@ -138,13 +138,13 @@ class CustomNotificationPusher(object):
         """
         had_errors = 0
         runs_list = []
-        for r in runs:
-            notified = getattr(r, "_notified", False)
+        for run in runs:
+            notified = getattr(run, "_notified", False)
             if not notified or push_all:
-                if r.status.state == "error":
+                if run.status.state == "error":
                     had_errors += 1
                 runs_list.append(r.to_dict())
-                r._notified = True
+                run._notified = True
 
         text = "pipeline run finished"
         if had_errors:

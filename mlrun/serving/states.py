@@ -91,7 +91,7 @@ class BaseStep(ModelObj):
         self._parent = None
         self.comment = None
         self.context = None
-        self.after = after
+        self.after = after or []
         self._next = None
         self.shape = shape
         self.on_error = None
@@ -122,19 +122,15 @@ class BaseStep(ModelObj):
             self._next.append(key)
         return self
 
-    def after_step(self, after):
-        """specify the previous step name"""
-        # most steps only accept one source
-        self.after = [after] if after else []
+    def after_step(self, *after, append=True):
+        """specify the previous step names"""
+        # add new steps to the after list
+        if not append:
+            self.after = []
+        for name in after:
+            if name not in self.after:
+                self.after.append(name)
         return self
-
-    def after_state(self, after):
-        warnings.warn(
-            "This method is deprecated. Use after_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.after_step(after)
 
     def error_handler(self, step_name: str = None, state_name=None):
         """set error handler step (on failure/raise of this step)"""
@@ -211,14 +207,6 @@ class BaseStep(ModelObj):
                 )
             next_level = next_level[step]
         return next_level
-
-    def path_to_state(self, path: str):
-        warnings.warn(
-            "This method is deprecated. Use path_to_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.path_to_step(path)
 
     def to(
         self,
@@ -647,23 +635,15 @@ class QueueStep(BaseStep):
     def async_object(self):
         return self._async_object
 
-    def after_step(self, after):
-        # queue steps accept multiple sources
-        if self.after:
-            if after:
-                self.after.append(after)
-        else:
-            self.after = [after] if after else []
-        return self
-
-    def after_state(self, after):
-        warnings.warn(
-            "This method is deprecated. Use after_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.after_step(after)
-
+    # def after_step(self, *after):
+    #     # queue steps accept multiple sources
+    #     if self.after:
+    #         if after:
+    #             self.after.append(after)
+    #     else:
+    #         self.after = [after] if after else []
+    #     return self
+    #
     def run(self, event, *args, **kwargs):
         data = event.body
         if not data:
@@ -686,18 +666,6 @@ class FlowStep(BaseStep):
         "default_final_step",
     ]
 
-    # TODO - remove once "states" is fully deprecated
-    @classmethod
-    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
-        deprecated_fields = deprecated_fields or {}
-        deprecated_fields.update(
-            {"states": "steps", "default_final_state": "default_final_step"}
-        )
-
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields=deprecated_fields
-        )
-
     def __init__(
         self,
         name=None,
@@ -705,33 +673,12 @@ class FlowStep(BaseStep):
         after: list = None,
         engine=None,
         final_step=None,
-        # TODO - remove once usage of "state" is fully deprecated
-        states=None,
-        final_state=None,
     ):
         super().__init__(name, after)
-        if states:
-            warnings.warn(
-                "The states parameter is deprecated. Use steps instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            steps = steps or states
-        if final_state:
-            warnings.warn(
-                "The final_state parameter is deprecated. Use final_step instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            final_step = final_step or final_state
-
         self._steps = None
         self.steps = steps
         self.engine = engine
-        # TODO - remove use of START_FROM_STATE once it's fully deprecated.
-        self.from_step = os.environ.get("START_FROM_STEP", None) or os.environ.get(
-            "START_FROM_STATE", None
-        )
+        self.from_step = os.environ.get("START_FROM_STEP", None)
         self.final_step = final_step
 
         self._last_added = None
@@ -833,16 +780,10 @@ class FlowStep(BaseStep):
             class_args=class_args,
         )
 
-        self.insert_step(name, step, after, before)
+        after_list = after if isinstance(after, list) else [after]
+        for after in after_list:
+            self.insert_step(name, step, after, before)
         return step
-
-    def insert_state(self, key, state, after, before=None):
-        warnings.warn(
-            "This method is deprecated. Use insert_step instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self.insert_step(key, state, after, before)
 
     def insert_step(self, key, step, after, before=None):
         """insert step object into the flow, specify before and after"""
@@ -1189,13 +1130,6 @@ class RootFlowStep(FlowStep):
     kind = "root"
     _dict_fields = ["steps", "engine", "final_step", "on_error"]
 
-    # TODO - remove once "final_state" is fully deprecated
-    @classmethod
-    def from_dict(cls, struct=None, fields=None):
-        return super().from_dict(
-            struct, fields=fields, deprecated_fields={"final_state": "final_step"}
-        )
-
 
 classes_map = {
     "task": TaskStep,
@@ -1317,25 +1251,6 @@ def get_name(name, class_name):
     if isinstance(class_name, type):
         return class_name.__name__
     return class_name
-
-
-def params_to_state(
-    class_name,
-    name,
-    handler=None,
-    graph_shape=None,
-    function=None,
-    full_event=None,
-    class_args=None,
-):
-    warnings.warn(
-        "This method is deprecated. Use param_to_step instead",
-        # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-        PendingDeprecationWarning,
-    )
-    return params_to_step(
-        class_name, name, handler, graph_shape, function, full_event, class_args
-    )
 
 
 def params_to_step(

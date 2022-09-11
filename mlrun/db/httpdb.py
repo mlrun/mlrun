@@ -2770,72 +2770,64 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
-    def dataschema_to_list(self):
-        """Provide data schema (feature store schemas) of MLRun projects as collection.
+    def get_projects_dataschemas(self):
+        """Provide data schemas (feature store schemas) of MLRun projects as collection.
 
         Examples::
 
-            import mlrun.db.httpdb as mldb
-            import json
-
+            ...
             # connection to solution
-            db = mldb.HTTPRunDB('http://localhost:8080')
-            # or db = mldb.HTTPRunDB()
+            db = mlrun.get_run_db()
 
             # print data schema of all projects in JSON format
-            print(json.dumps(db.dataschema_to_list(),
+            print(json.dumps(db.get_projects_dataschemas(),
                 ensure_ascii = False,
                 indent=2,
                 allow_nan=True)
             )
 
-        :return:    Collection of data schema (feature store schemas)
+        :return:    Collection of data schemas (feature store schemas)
         """
 
         dataschema = []
 
         # iteration via projects
-        for prj in self.list_projects():
-            dataschema.append({})
-            dataschema[-1]["project_name"] = prj.name
-            if prj.spec.description:
-                dataschema[-1]["project_description"] = prj.spec.description
+        for project in self.list_projects():
+            project_data_schema = {}
+            project_data_schema["project_name"] = project.name
+            if project.spec.description:
+                project_data_schema["project_description"] = project.spec.description
+            dataschema.append(project_data_schema)
 
             # iteration via feature sets
-            fsets = self.list_feature_sets(prj.name)
-            if fsets:
-                featureset = []
-                dataschema[-1]["featureset"] = featureset
-                for fset in fsets:
-                    if fset:
-                        featureset.append({})
-                        featureset[-1]["name"] = fset.fullname
-                        if fset.spec.description:
-                            featureset[-1]["description"] = fset.spec.description
+            feature_sets = self.list_feature_sets(project.name)
+            if feature_sets:
+                project_feature_sets = []
+                project_data_schema["feature_sets"] = project_feature_sets
+                for feature_set in feature_sets:
+                    if feature_set:
+                        featureset_data_schema = {}
+                        featureset_data_schema["name"] = feature_set.fullname
+                        if feature_set.spec.description:
+                            featureset_data_schema[
+                                "description"
+                            ] = feature_set.spec.description
+                        project_feature_sets.append(featureset_data_schema)
 
                         # iteration via entities
-                        if fset.spec.entities:
-                            entities = []
-                            featureset[-1]["entities"] = entities
-                            for entity in fset.spec.entities:
-                                entities.append({})
-                                entities[-1]["name"] = entity.name
-                                if entity.description:
-                                    entities[-1]["description"] = entity.description
-                                if entity.value_type:
-                                    entities[-1]["value_type"] = entity.value_type
+                        if feature_set.spec.entities:
+                            featureset_data_schema["entities"] = [
+                                entity.to_dict(["name", "description", "value_type"])
+                                for entity in feature_set.spec.entities
+                            ]
 
                         # iteration via features
-                        if fset.spec.features:
-                            features = []
-                            featureset[-1]["features"] = features
-                            for feature in fset.spec.features:
-                                features.append({})
-                                features[-1]["name"] = feature.name
-                                if feature.description:
-                                    features[-1]["description"] = feature.description
-                                if feature.value_type:
-                                    features[-1]["value_type"] = feature.value_type
+                        if feature_set.spec.features:
+                            featureset_data_schema["features"] = [
+                                feature.to_dict(["name", "description", "value_type"])
+                                for feature in feature_set.spec.features
+                            ]
+
         return dataschema
 
 

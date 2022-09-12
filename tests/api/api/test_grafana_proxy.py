@@ -427,7 +427,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     for endpoint in endpoints:
-        mlrun.api.crud.ModelEndpoints().create_or_patch(_get_access_key(), endpoint)
+        mlrun.api.crud.ModelEndpoints().create(_get_access_key(), endpoint)
 
         total = 0
 

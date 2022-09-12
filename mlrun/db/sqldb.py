@@ -692,7 +692,7 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -728,6 +728,15 @@ class SQLDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         features: bool = False,
         access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def patch_model_endpoint(
+            self,
+            project: str,
+            endpoint_id: str,
+            attributes: dict,
+            access_key: Optional[str] = None,
     ):
         raise NotImplementedError()
 

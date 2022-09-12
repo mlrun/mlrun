@@ -57,9 +57,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
 
-        db.create_or_patch_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
-        )
+        db.create_model_endpoint(endpoint.metadata.project, endpoint.metadata.uid, endpoint)
 
         endpoint_response = db.get_model_endpoint(
             endpoint.metadata.project, endpoint.metadata.uid
@@ -81,9 +79,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
 
-        db.create_or_patch_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
-        )
+        db.create_model_endpoint(endpoint.metadata.project, endpoint.metadata.uid, endpoint)
 
         endpoint_before_update = db.get_model_endpoint(
             endpoint.metadata.project, endpoint.metadata.uid
@@ -94,11 +90,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         updated_state = "testing...testing...1 2 1 2"
         endpoint_before_update.status.state = updated_state
 
-        db.create_or_patch_model_endpoint(
-            endpoint_before_update.metadata.project,
-            endpoint_before_update.metadata.uid,
-            endpoint_before_update,
-        )
+        db.create_model_endpoint(endpoint_before_update.metadata.project, endpoint_before_update.metadata.uid,
+                                 endpoint_before_update)
 
         endpoint_after_update = db.get_model_endpoint(
             endpoint.metadata.project, endpoint.metadata.uid
@@ -119,9 +112,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         ]
 
         for endpoint in endpoints_in:
-            db.create_or_patch_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid, endpoint
-            )
+            db.create_model_endpoint(endpoint.metadata.project, endpoint.metadata.uid, endpoint)
 
         endpoints_out = db.list_model_endpoints(self.project_name)
 
@@ -148,11 +139,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             if i < 4:
                 endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-            db.create_or_patch_model_endpoint(
-                endpoint_details.metadata.project,
-                endpoint_details.metadata.uid,
-                endpoint_details,
-            )
+            db.create_model_endpoint(endpoint_details.metadata.project, endpoint_details.metadata.uid, endpoint_details)
 
         filter_model = db.list_model_endpoints(self.project_name, model="filterme")
         assert len(filter_model.endpoints) == 1

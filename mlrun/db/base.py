@@ -400,7 +400,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -438,6 +438,16 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
+        access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
         access_key: Optional[str] = None,
     ):
         pass

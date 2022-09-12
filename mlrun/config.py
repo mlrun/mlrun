@@ -330,6 +330,7 @@ default_config = {
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
+        "store_type": "kv",
     },
     "secret_stores": {
         "vault": {

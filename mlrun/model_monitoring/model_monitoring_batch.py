@@ -786,17 +786,14 @@ class BatchProcessor:
                         ],
                     )
 
-                # Update the results in the KV table:
-                self.v3io.kv.update(
-                    container=self.kv_container,
-                    table_path=self.kv_path,
-                    key=endpoint_id,
-                    attributes={
+                attrbs = {
                         "current_stats": json.dumps(current_stats),
                         "drift_measures": json.dumps(drift_result),
                         "drift_status": drift_status.value,
-                    },
-                )
+                    }
+
+                self.db.patch_model_endpoint(project=self.project,
+                                             endpoint_id=endpoint_id,attributes=attrbs,)
 
                 # Update the results in tsdb:
                 tsdb_drift_measures = {

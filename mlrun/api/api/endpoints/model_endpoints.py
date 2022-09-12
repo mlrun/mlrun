@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
 from http import HTTPStatus
 from typing import List, Optional
@@ -32,7 +33,7 @@ router = APIRouter()
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-def create_or_patch(
+def create_model_endpoint(
     project: str,
     endpoint_id: str,
     model_endpoint: ModelEndpoint,
@@ -42,7 +43,17 @@ def create_or_patch(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> Response:
     """
-    Either create or updates the kv record of a given ModelEndpoint object
+    Create a DB record of a given ModelEndpoint object.
+
+    :param project:         The name of the project.
+    :param endpoint_id:     The unique id of the model endpoint.
+    :param model_endpoint:  Model endpoint object to record in DB.
+    :param auth_info:       The auth info of the request.
+    :param db_session:      A session that manages the current dialog with the database. When creating a new model
+                            endpoint id record, we need to use the db session for getting information from an existing
+                            model artifact and also for storing the new model monitoring feature set.
+
+    :return: Starlette response object.
     """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
@@ -62,13 +73,55 @@ def create_or_patch(
             f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
-    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
-    # V3IO_ACCESS_KEY here
-    mlrun.api.crud.ModelEndpoints().create_or_patch(
+
+    mlrun.api.crud.ModelEndpoints().create(
         db_session=db_session,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
-        auth_info=auth_info,
+    )
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+
+
+@router.patch(
+    "/projects/{project}/model-endpoints/{endpoint_id}",
+    status_code=HTTPStatus.NO_CONTENT.value,
+)
+def patch_model_endpoint(
+    project: str,
+    endpoint_id: str,
+    attributes: str = None,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+) -> Response:
+    """
+    Update a DB record of a given ModelEndpoint object.
+
+    :param project:       The name of the project.
+    :param endpoint_id:   The unique id of the model endpoint.
+    :param attributes:    Attributes that will be updated. The input is provided in a json structure that will be
+                          converted into a dictionary before applying the patch process. Note that the keys of
+                          dictionary should exist in the DB target.
+    :param auth_info:     The auth info of the request.
+
+    :return: Starlette response object.
+    """
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_info,
+    )
+
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+
+    mlrun.api.crud.ModelEndpoints().patch(
+        project=project,
+        endpoint_id=endpoint_id,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
+        attributes=json.loads(attributes),
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -85,8 +138,15 @@ def delete_endpoint_record(
     ),
 ) -> Response:
     """
-    Clears endpoint record from KV by endpoint_id
+    Clears endpoint record from the DB based on endpoint_id.
+
+    :param project:       The name of the project.
+    :param endpoint_id:   The unique id of the model endpoint.
+    :param auth_info:     The auth info of the request.
+
+    :return: Starlette response object.
     """
+
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
@@ -94,11 +154,8 @@ def delete_endpoint_record(
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
 
-    mlrun.api.crud.ModelEndpoints().delete_endpoint_record(
-        auth_info=auth_info,
+    mlrun.api.crud.ModelEndpoints().delete(
         project=project,
         endpoint_id=endpoint_id,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
@@ -123,7 +180,9 @@ def list_endpoints(
 ) -> ModelEndpointList:
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
-    labels or top level.
+    labels or top level. By default, when no filters are applied, all available endpoints for the given project will be
+    listed.
+
     If uids are passed: will return ModelEndpointList of endpoints with uid in uids
     Labels can be used to filter on the existence of a label:
     api/projects/{project}/model-endpoints/?label=mylabel
@@ -137,6 +196,24 @@ def list_endpoints(
     Or by using a "," (comma) separator:
     api/projects/{project}/model-endpoints/?label=mylabel=1,myotherlabel=2
     Top level: if true will return only routers and endpoint that are NOT children of any router
+
+    :param auth_info: The auth info of the request.
+    :param project:   The name of the project.
+    :param model:     The name of the model to filter by.
+    :param function:  The name of the function to filter by.
+    :param labels:    A list of labels to filter by. Label filters work by either filtering a specific value of a label
+                      (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
+    :param metrics:   A list of metrics to return for each endpoint. There are pre-defined metrics for model endpoints
+                      such as predictions_per_second and latency_avg_5m but also custom metrics defined by the user.
+                      Please note that these metrics are stored in the time series DB and the results will be appeared
+                      under model_endpoint.spec.metrics of each endpoint.
+    :param start:     The start time of the metrics.
+    :param end:       The end time of the metrics.
+    :param top_level: If True will return only routers and endpoint that are NOT children of any router.
+    :param uids:      Will return ModelEndpointList of endpoints with uid in uids.
+
+    :return: An object of ModelEndpointList which is literally a list of model endpoints along with some metadata. To
+             get a standard list of model endpoints use ModelEndpointList.endpoints.
     """
 
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -184,16 +261,26 @@ def get_endpoint(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    raise_for_status=None,
 ) -> ModelEndpoint:
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
-        auth_info=auth_info,
-        project=project,
-        endpoint_id=endpoint_id,
-        metrics=metrics,
-        start=start,
-        end=end,
-        feature_analysis=feature_analysis,
-    )
+    """Get a single model endpoint object. You can apply different time series metrics that will be added to the
+       result.
+
+    :param project:          The name of the project.
+    :param endpoint_id:      The unique id of the model endpoint.
+    :param start:            The start time of the metrics.
+    :param end:              The end time of the metrics.
+    :param metrics:          A list of metrics to return for the model endpoint. There are pre-defined metrics for model
+                             endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
+                             defined by the user. Please note that these metrics are stored in the time series DB and
+                             the results will be appeared under model_endpoint.spec.metrics.
+    :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+                             the output of the resulting object.
+    :param auth_info:        The auth info of the request.
+    :param raise_for_status: Raise a specific error based on the given response status code.
+
+    :return: A ModelEndpoint object.
+    """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
@@ -201,4 +288,13 @@ def get_endpoint(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return endpoint
+    return mlrun.api.crud.ModelEndpoints().get_endpoint(
+        auth_info=auth_info,
+        project=project,
+        endpoint_id=endpoint_id,
+        metrics=metrics,
+        start=start,
+        end=end,
+        feature_analysis=feature_analysis,
+        raise_for_status=raise_for_status,
+    )

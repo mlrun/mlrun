@@ -2402,7 +2402,7 @@ class HTTPRunDB(RunDBInterface):
             )
         return True
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -2563,6 +2563,36 @@ class HTTPRunDB(RunDBInterface):
             headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
+        access_key: Optional[str] = None,
+    ):
+        """
+        Updates model endpoint with provided attributes.
+
+        :param project: The name of the project.
+        :param endpoint_id: The id of the endpoint.
+        :param attributes: fields to update.
+        :param access_key: V3IO access key, when None, will be look for in environ.
+        """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
+        attributes = {"attributes": _as_json(attributes)}
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        self.api_call(
+            method="PATCH",
+            path=path,
+            params=attributes,
+            headers={"X-V3io-Access-Key": access_key},
+        )
 
     def create_marketplace_source(
         self, source: Union[dict, schemas.IndexedMarketplaceSource]

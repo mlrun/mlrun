@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import pathlib
+import typing
 import unittest.mock
 
 import pytest
@@ -142,6 +143,58 @@ def assets_path():
 
 
 @pytest.mark.parametrize(
+    "artifact,expected_hash,expected_target_path,artifact_path",
+    [
+        (
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path",
+        ),
+        (
+            mlrun.artifacts.Artifact(key="some-artifact", body=b"asdasdasdasdas"),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path",
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", src_path=str(assets_path() / "results.csv")
+            ),
+            "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
+            "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            "v3io://just/regular/path",
+        ),
+    ],
+)
+def test_log_artifact_by_hash_path(
+    artifact: mlrun.artifacts.Artifact,
+    expected_hash: str,
+    expected_target_path: str,
+    artifact_path: str,
+    monkeypatch,
+):
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = True
+
+    monkeypatch.setattr(
+        mlrun.datastore.DataItem,
+        "upload",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+    monkeypatch.setattr(
+        mlrun.datastore.DataItem,
+        "put",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+
+    logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+        artifact, artifact_path=artifact_path
+    )
+    assert logged_artifact.metadata.hash == expected_hash
+    assert logged_artifact.target_path == expected_target_path
+
+
+@pytest.mark.parametrize(
     "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
     [
         (
@@ -185,99 +238,56 @@ def test_resolve_file_hash_path(
 
 
 @pytest.mark.parametrize(
-    "artifact,expected_hash,expected_target_path,artifact_path",
+    "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
     [
         (
-            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
+            mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            "v3io://just/regular/path",
             "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
             "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "v3io://just/regular/path",
+            None,
         ),
         (
-            mlrun.artifacts.Artifact(
-                key="some-artifact", src_path=str(assets_path() / "results.csv")
-            ),
-            "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
-            "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            mlrun.artifacts.Artifact("results", body=b"asdasdasdasdas"),
             "v3io://just/regular/path",
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact("results", body={"ba": "nana"}),
+            "v3io://just/regular/path",
+            None,
+            None,
+            TypeError,
+        ),
+        (
+            mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            None,
+            None,
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
         ),
     ],
 )
-def test_log_artifact_by_hash_path(
+def test_resolve_body_hash_path(
     artifact: mlrun.artifacts.Artifact,
+    artifact_path: str,
     expected_hash: str,
     expected_target_path: str,
-    artifact_path: str,
-    monkeypatch,
+    expected_error: typing.Union[mlrun.errors.MLRunBaseError, TypeError],
 ):
-    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = True
-
-    monkeypatch.setattr(
-        mlrun.datastore.DataItem,
-        "upload",
-        lambda *args, **kwargs: unittest.mock.Mock(),
+    if expected_error:
+        with pytest.raises(expected_error):
+            artifact.resolve_body_target_hash_path(
+                body=artifact.get_body(), artifact_path=artifact_path
+            )
+        return
+    body_hash, target_path = artifact.resolve_body_target_hash_path(
+        body=artifact.get_body(), artifact_path=artifact_path
     )
-    monkeypatch.setattr(
-        mlrun.datastore.DataItem,
-        "put",
-        lambda *args, **kwargs: unittest.mock.Mock(),
-    )
-
-    logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
-        artifact, artifact_path=artifact_path
-    )
-    assert logged_artifact.metadata.hash == expected_hash
-    assert logged_artifact.target_path == expected_target_path
-
-
-def test_resolve_body_hash_path():
-    for test_case in [
-        {
-            "artifact": mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
-            "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "expected_file_target": "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "expected_error": None,
-        },
-        {
-            "artifact": mlrun.artifacts.Artifact("results", body=b"asdasdasdasdas"),
-            "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "expected_file_target": "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "expected_error": None,
-        },
-        {
-            "artifact": mlrun.artifacts.Artifact("results", body={"ba": "nana"}),
-            "artifact_path": "v3io://just/regular/path",
-            "expected_hash": None,
-            "expected_file_target": None,
-            "expected_error": TypeError,
-        },
-        # expected to fail because no artifact has been provided
-        {
-            "artifact": mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
-            "artifact_path": None,
-            "expected_hash": None,
-            "expected_file_target": None,
-            "expected_error": mlrun.errors.MLRunInvalidArgumentError,
-        },
-    ]:
-        artifact = test_case.get("artifact")
-        artifact_path = test_case.get("artifact_path")
-        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
-            "expected_error", None
-        )
-        if expected_error:
-            with pytest.raises(expected_error):
-                artifact.resolve_body_target_hash_path(
-                    body=artifact.get_body(), artifact_path=artifact_path
-                )
-            break
-        body_hash, target_path = artifact.resolve_body_target_hash_path(
-            body=artifact.get_body(), artifact_path=artifact_path
-        )
-        assert test_case.get("expected_file_target") == target_path
-        assert test_case.get("expected_hash") == body_hash
+    assert expected_hash == body_hash
+    assert expected_target_path == target_path
 
 
 def test_export_import():

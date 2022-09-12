@@ -90,7 +90,7 @@ class ResourceCache:
             from storey.redis_driver import RedisDriver
 
             endpoint, uri = parse_path(uri)
-            endpoint = endpoint or mlrun.mlconf.redis_url
+            endpoint = endpoint or mlrun.mlconf.redis.url
             self._tabels[uri] = Table(
                 uri,
                 RedisDriver(redis_url=endpoint, key_prefix="/"),

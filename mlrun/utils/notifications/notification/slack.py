@@ -32,7 +32,10 @@ class SlackNotification(NotificationBase):
     def send(self):
         webhook = self.params.get("webhook", None) or os.environ.get("SLACK_WEBHOOK")
         if not webhook:
-            raise ValueError("Slack webhook is not set")
+            mlrun.utils.helpers.logger.warn(
+                "No slack webhook is set, skipping notification"
+            )
+            return
 
         data = self._generate_slack_data()
 

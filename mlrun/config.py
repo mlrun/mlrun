@@ -610,20 +610,16 @@ class Config:
 
     @staticmethod
     def should_generate_target_path_from_artifact_hash() -> bool:
-        if (
+        return (
             config.artifacts.generate_target_path_from_artifact_hash is None
             or config.artifacts.generate_target_path_from_artifact_hash
-        ):
-            return True
-        else:
-            return False
+        )
 
     @staticmethod
     def should_calculate_artifact_hash() -> bool:
-        if config.artifacts.calculate_hash is None or config.artifacts.calculate_hash:
-            return True
-        else:
-            return False
+        return (
+            config.artifacts.calculate_hash is None or config.artifacts.calculate_hash
+        )
 
     def verify_security_context_enrichment_mode_is_allowed(self):
 

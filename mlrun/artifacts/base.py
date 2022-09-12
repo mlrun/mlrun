@@ -355,21 +355,6 @@ class Artifact(ModelObj):
 
         store_manager.object(url=target or self.spec.target_path).put(body)
 
-    def resolve_body_target_hash_path(
-        self, body: typing.Union[bytes, str], artifact_path: str
-    ) -> (str, str):
-        if not artifact_path:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Unable to resolve body target hash path, artifact_path is not defined"
-            )
-        body_hash = calculate_blob_hash(body)
-        suffix = self._resolve_suffix()
-        artifact_path = (
-            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
-        )
-        target_path = f"{artifact_path}{body_hash}{suffix}"
-        return body_hash, target_path
-
     def _upload_file(
         self, source_path: str, target_path: str = None, artifact_path: str = None
     ):
@@ -392,18 +377,60 @@ class Artifact(ModelObj):
             source_path
         )
 
-    def resolve_file_target_hash_path(self, source_path: str, artifact_path: str):
+    def resolve_body_target_hash_path(
+        self, body: typing.Union[bytes, str], artifact_path: str
+    ) -> (str, str):
+        """
+        constructs the target path by calculating the artifact body hash
+        :param body: artifact body to calculate hash on
+        :param artifact_path: the base path for constructing the target path
+        :return: [artifact_hash, target_path]
+        """
+        return self._resolve_target_hash_path(
+            artifact_source=body,
+            artifact_path=artifact_path,
+            hash_method=calculate_blob_hash,
+        )
+
+    def resolve_file_target_hash_path(
+        self, source_path: str, artifact_path: str
+    ) -> (str, str):
+        """
+        constructs the target path by calculating the artifact source hash
+        :param source_path: artifact file source path to calculate hash on
+        :param artifact_path: the base path for constructing the target path
+        :return: [artifact_hash, target_path]
+        """
+        return self._resolve_target_hash_path(
+            artifact_source=source_path,
+            artifact_path=artifact_path,
+            hash_method=calculate_local_file_hash,
+        )
+
+    def _resolve_target_hash_path(
+        self,
+        artifact_source: typing.Union[bytes, str],
+        artifact_path: str,
+        hash_method: typing.Callable,
+    ) -> (str, str):
+        """
+        constructs the target path by calculating the artifact source hash
+        :param artifact_source: artifact to calculate hash on
+        :param artifact_path: the base path for constructing the target path
+        :param hash_method: the method which calculates the hash from the artifact source
+        :return: [artifact_hash, target_path]
+        """
         if not artifact_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Unable to resolve file target hash path, artifact_path is not defined"
             )
-        file_hash = calculate_local_file_hash(source_path)
+        artifact_hash = hash_method(artifact_source)
         suffix = self._resolve_suffix()
         artifact_path = (
             artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
         )
-        target_path = f"{artifact_path}{file_hash}{suffix}"
-        return file_hash, target_path
+        target_path = f"{artifact_path}{artifact_hash}{suffix}"
+        return artifact_hash, target_path
 
     def _resolve_suffix(self) -> str:
         suffix = os.path.splitext(self.spec.src_path or "")[1]

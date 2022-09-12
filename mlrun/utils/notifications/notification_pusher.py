@@ -124,13 +124,14 @@ class CustomNotificationPusher(object):
             message = message + f", check progress in {url}"
         self.push(message, "info", custom_html=html)
 
-    def push_run_results(
+    def push_pipeline_run_results(
         self,
         runs: typing.Union[list, mlrun.lists.RunList],
         push_all: bool = False,
         state: str = None,
     ):
-        """push a structured table with run results to notification targets
+        """
+        push a structured table with run results to notification targets
 
         :param runs:  list if run objects (RunObject)
         :param push_all: push all notifications (including already notified runs)

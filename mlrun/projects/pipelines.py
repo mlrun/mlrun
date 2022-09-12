@@ -649,7 +649,7 @@ class _LocalRunner(_PipelineRunner):
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
-            project.metadata.name, id=workflow_id
+            project.metadata.name, pipeline_id=workflow_id
         )
         try:
             workflow_handler(**workflow_spec.args)

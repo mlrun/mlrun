@@ -363,7 +363,7 @@ class TaskStep(BaseStep):
             for key in ["name", "context", "input_path", "result_path", "full_event"]:
                 if argspec.varkw or key in argspec.args:
                     class_args[key] = getattr(self, key)
-            if "graph_step" in argspec.args:
+            if argspec.varkw or "graph_step" in argspec.args:
                 class_args["graph_step"] = self
             try:
                 self._object = self._class_object(**class_args)
@@ -879,6 +879,7 @@ class FlowStep(BaseStep):
         start_steps = []
         for step in self._steps.values():
             step._next = None
+            step._visited = False
             if step.after:
                 loop_step = has_loop(step, [])
                 if loop_step:
@@ -976,13 +977,16 @@ class FlowStep(BaseStep):
         """initialize and build the async/storey DAG"""
 
         def process_step(state, step, root):
-            if not state._is_local_function(self.context):
+            if not state._is_local_function(self.context) or state._visited:
                 return
             for item in state.next or []:
                 next_state = root[item]
                 if next_state.async_object:
                     next_step = step.to(next_state.async_object)
                     process_step(next_state, next_step, root)
+            state._visited = (
+                True  # mark visited to avoid re-visit in case of multiple uplinks
+            )
 
         default_source, self._wait_for_result = _init_async_objects(
             self.context, self._steps.values()

@@ -17,14 +17,11 @@
 import enum
 import unittest.mock
 
-import pandas as pd
 import pytest
 import requests
 
 import mlrun.config
-import mlrun.data_types.data_types as dt
 import mlrun.db.httpdb
-import mlrun.feature_store as fstore
 
 
 class SomeEnumClass(str, enum.Enum):
@@ -118,6 +115,9 @@ def test_connection_reset_causes_retries(
 def test_get_projects_dataschemas():
     # TODO: this test has to be repair
     pass
+    # import pandas as pd
+    # import mlrun.data_types.data_types as dt
+    # import mlrun.feature_store as fstore
 
     # #   prepare data
     # #       create test project

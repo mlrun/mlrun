@@ -119,13 +119,13 @@ def test_get_projects_dataschemas():
     # TODO: this test has to be repair
     pass
 
-    # prepare data
-    #   create test project
-    #db = mlrun.get_run_db()
-    #mlrun.get_or_create_project("test-dataschemas", context="./", user_project=False)
-
-    #   create feature set 01
-    #feature_set = fstore.FeatureSet(
+    # #   prepare data
+    # #       create test project
+    # db = mlrun.get_run_db()
+    # mlrun.get_or_create_project("test-dataschemas", context="./", user_project=False)
+    #
+    # #   create feature set 01
+    # feature_set = fstore.FeatureSet(
     #    "FeatureSet01-DataSchema",
     #    entities=[
     #        mlrun.feature_store.Entity(
@@ -133,18 +133,18 @@ def test_get_projects_dataschemas():
     #        ),
     #        fstore.Entity("ds01fn1", value_type=dt.ValueType.STRING),
     #    ],
-    #)
-    #pt = mlrun.datastore.ParquetTarget(name="tst", path="./tmp/tst/")
-    #feature_set.set_targets(targets=[pt], with_defaults=False)
-    #df = pd.DataFrame(
+    # )
+    # pt = mlrun.datastore.ParquetTarget(name="tst", path="./tmp/tst/")
+    # feature_set.set_targets(targets=[pt], with_defaults=False)
+    # df = pd.DataFrame(
     #    [(1, 2, 3, 4), (5, 6, 7, 8), (9, 10, 11, 12)],
     #    columns=["ds01fn0", "ds01fn1", "ds01fn2", "ds01fn3"],
-    #)
-    #fstore.ingest(feature_set, df)
-    #feature_set.save()
-
-    #   create feature set 02
-    #feature_set = fstore.FeatureSet(
+    # )
+    # fstore.ingest(feature_set, df)
+    # feature_set.save()
+    #
+    # #   create feature set 02
+    # feature_set = fstore.FeatureSet(
     #    "FeatureSet02-DataSchema",
     #    entities=[
     #        mlrun.feature_store.Entity(
@@ -152,22 +152,22 @@ def test_get_projects_dataschemas():
     #        ),
     #        fstore.Entity("ds02fn1", value_type=dt.ValueType.FLOAT),
     #    ],
-    #)
-    #pt = mlrun.datastore.ParquetTarget(name="tst", path="./tmp/tst/")
-    #feature_set.set_targets(targets=[pt], with_defaults=False)
-    #df = pd.DataFrame(
+    # )
+    # pt = mlrun.datastore.ParquetTarget(name="tst", path="./tmp/tst/")
+    # feature_set.set_targets(targets=[pt], with_defaults=False)
+    # df = pd.DataFrame(
     #    [(1.1, 2.2), (3.3, 4.4), (5.5, 6.6)], columns=["ds02fn0", "ds02fn1"]
-    #)
-    #fstore.ingest(feature_set, df)
-    #feature_set.save()
-
-    # tests
-    #dataschemas = db.get_projects_dataschemas()
-
-    #assert dataschemas is not None, "Empty output"
-    #assert len(dataschemas) >= 1, "Missing project"
-
-    #dataschema_tests = [
+    # )
+    # fstore.ingest(feature_set, df)
+    # feature_set.save()
+    #
+    # #   tests
+    # dataschemas = db.get_projects_dataschemas()
+    #
+    # assert dataschemas is not None, "Empty output"
+    # assert len(dataschemas) >= 1, "Missing project"
+    #
+    # dataschema_tests = [
     #    {
     #        "test": "FeatureSet01-DataSchema",
     #        "result": True,
@@ -205,10 +205,10 @@ def test_get_projects_dataschemas():
     #        "result": False,
     #        "err": "Missing description",
     #    },
-    #]
-
-    #dataschemas_text = str(dataschemas)
-    #for test_item in dataschema_tests:
+    # ]
+    #
+    # dataschemas_text = str(dataschemas)
+    # for test_item in dataschema_tests:
     #    if test_item["result"]:
     #        assert dataschemas_text.find(test_item["test"]) != -1, "{0}: '{1}'".format(
     #            test_item["err"], test_item["test"]

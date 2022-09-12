@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import pathlib
+import unittest.mock
 
 import pytest
 
@@ -140,47 +141,93 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-def test_resolve_file_hash_path():
-    for test_case in [
-        {
-            "artifact": mlrun.artifacts.Artifact("results", src_path="results.csv"),
-            "src_path": str(assets_path() / "results.csv"),
-            "artifact_path": "v3io://just/regular/path",
-            "expected_hash": "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
-            "expected_file_target": "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
-            "expected_error": None,
-        },
-        # expected to fail because no artifact has been provided
-        {
-            "artifact": mlrun.artifacts.Artifact("results", src_path="results.csv"),
-            "src_path": str(assets_path() / "results.csv"),
-            "artifact_path": None,
-            "expected_hash": None,
-            "expected_file_target": None,
-            "expected_error": mlrun.errors.MLRunInvalidArgumentError,
-        },
-    ]:
-        mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = test_case.get(
-            "generate_target_path_from_artifact_hash"
-        )
-        mlrun.mlconf.artifacts.calculate_hash = test_case.get("calculate_hash")
-        artifact = test_case.get("artifact")
-        src_path = test_case.get("src_path")
-        artifact_path = test_case.get("artifact_path")
-        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
-            "expected_error", None
-        )
-        if expected_error:
-            with pytest.raises(expected_error):
-                artifact.resolve_file_target_hash_path(
-                    source_path=src_path, artifact_path=artifact_path
-                )
-            break
+@pytest.mark.parametrize(
+    "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
+    [
+        (
+            mlrun.artifacts.Artifact(
+                "results", src_path=str(assets_path() / "results.csv")
+            ),
+            "v3io://just/regular/path",
+            "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
+            "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                "results", src_path=str(assets_path() / "results.csv")
+            ),
+            None,
+            None,
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+    ],
+)
+def test_resolve_file_hash_path(
+    artifact: mlrun.artifacts.Artifact,
+    artifact_path: str,
+    expected_hash: str,
+    expected_target_path: str,
+    expected_error: mlrun.errors.MLRunBaseError,
+):
+    if expected_error:
+        with pytest.raises(expected_error):
+            artifact.resolve_file_target_hash_path(
+                source_path=artifact.spec.src_path, artifact_path=artifact_path
+            )
+    else:
         file_hash, target_path = artifact.resolve_file_target_hash_path(
-            source_path=src_path, artifact_path=artifact_path
+            source_path=artifact.spec.src_path, artifact_path=artifact_path
         )
-        assert test_case.get("expected_file_target") == target_path
-        assert test_case.get("expected_hash") == file_hash
+        assert expected_hash == file_hash
+        assert expected_target_path == target_path
+
+
+@pytest.mark.parametrize(
+    "artifact,expected_hash,expected_target_path,artifact_path",
+    [
+        (
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path",
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", src_path=str(assets_path() / "results.csv")
+            ),
+            "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
+            "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            "v3io://just/regular/path",
+        ),
+    ],
+)
+def test_log_artifact_by_hash_path(
+    artifact: mlrun.artifacts.Artifact,
+    expected_hash: str,
+    expected_target_path: str,
+    artifact_path: str,
+    monkeypatch,
+):
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = True
+
+    monkeypatch.setattr(
+        mlrun.datastore.DataItem,
+        "upload",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+    monkeypatch.setattr(
+        mlrun.datastore.DataItem,
+        "put",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+
+    logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+        artifact, artifact_path=artifact_path
+    )
+    assert logged_artifact.metadata.hash == expected_hash
+    assert logged_artifact.target_path == expected_target_path
 
 
 def test_resolve_body_hash_path():

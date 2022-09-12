@@ -91,8 +91,22 @@ def make_kaniko_pod(
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
+        if attribute == "service_account":
+            from mlrun.api.api.utils import resolve_project_default_service_account
+
+            (
+                allowed_service_accounts,
+                default_service_account,
+            ) = resolve_project_default_service_account(project)
+            if attr_value:
+                runtime_spec.validate_service_account(allowed_service_accounts)
+            else:
+                attr_value = default_service_account
+
+        if not attr_value:
+            continue
+
+        extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -390,6 +404,7 @@ def get_kaniko_spec_attributes_from_runtime():
         "affinity",
         "tolerations",
         "priority_class_name",
+        "service_account",
     ]
 
 

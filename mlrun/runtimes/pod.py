@@ -158,6 +158,8 @@ class KubeResourceSpec(FunctionSpec):
 
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
+        # default service account is set in mlrun.utils.process_function_service_account
+        # due to project specific defaults
         self.service_account = service_account
         self.image_pull_secret = (
             image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
@@ -265,6 +267,16 @@ class KubeResourceSpec(FunctionSpec):
         if volume_mounts:
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount, volume_mounts_field_name)
+
+    def validate_service_account(self, allowed_service_accounts):
+        if (
+            allowed_service_accounts
+            and self.service_account not in allowed_service_accounts
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Function service account {self.service_account} is not in allowed "
+                + f"service accounts {allowed_service_accounts}"
+            )
 
     def _get_affinity_as_k8s_class_instance(self):
         pass
@@ -1281,16 +1293,8 @@ class KubeResource(BaseRuntime):
                 logger.info(
                     f"Setting default service account to function: {default_service_account}"
                 )
-            return
 
-        if (
-            allowed_service_accounts
-            and self.spec.service_account not in allowed_service_accounts
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Function service account {self.spec.service_account} is not in allowed "
-                + f"service accounts {allowed_service_accounts}"
-            )
+        self.spec.validate_service_account(allowed_service_accounts)
 
 
 def kube_resource_spec_to_pod_spec(

@@ -47,7 +47,7 @@ class NotificationBase:
             return self.custom_html
 
         if not self.runs:
-            return self.header
+            return f"[{self.severity}] {self.header}"
 
         html = f"<h2>Run Results</h2><h3>[{self.severity}] {self.header}</h3>"
         html += "<br>click the hyper links below to see detailed results<br>"

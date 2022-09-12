@@ -899,13 +899,13 @@ class DirArtifact(Artifact):
             raise ValueError("local/source path not specified")
 
         files = os.listdir(self.spec.src_path)
-        for file in files:
-            file_path = os.path.join(self.spec.src_path, file)
+        for file_name in files:
+            file_path = os.path.join(self.spec.src_path, file_name)
             if not os.path.isfile(file_path):
                 raise ValueError(f"file {file_path} not found, cant upload")
 
             if self.spec.target_path:
-                target = os.path.join(self.spec.target_path, file)
+                target = os.path.join(self.spec.target_path, file_name)
             else:
                 _, target = self.resolve_file_target_hash_path(
                     source_path=file_path, artifact_path=artifact_path

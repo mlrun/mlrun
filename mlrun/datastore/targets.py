@@ -15,11 +15,10 @@ import datetime
 import os
 import random
 import time
-import typing
 import warnings
 from collections import Counter
 from copy import copy
-from typing import Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -376,17 +375,17 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
+        attributes: Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
         after_state=None,
-        max_events: typing.Optional[int] = None,
-        flush_after_seconds: typing.Optional[int] = None,
-        storage_options: typing.Dict[str, str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: Dict[str, str] = None,
     ):
         super().__init__(
             self.kind,
@@ -470,7 +469,7 @@ class BaseStoreTarget(DataTargetBase):
         timestamp_key=None,
         chunk_id=0,
         **kwargs,
-    ) -> typing.Optional[int]:
+    ) -> Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -712,17 +711,17 @@ class ParquetTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
+        attributes: Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = None,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
         after_state=None,
-        max_events: typing.Optional[int] = 10000,
-        flush_after_seconds: typing.Optional[int] = 900,
-        storage_options: typing.Dict[str, str] = None,
+        max_events: Optional[int] = 10000,
+        flush_after_seconds: Optional[int] = 900,
+        storage_options: Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1484,17 +1483,17 @@ class MongoDBTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
+        attributes: Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
         after_state=None,
-        max_events: typing.Optional[int] = None,
-        flush_after_seconds: typing.Optional[int] = None,
-        storage_options: typing.Dict[str, str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: Dict[str, str] = None,
         db_name: str = None,
         connection_string: str = None,
         collection_name: str = None,
@@ -1510,9 +1509,22 @@ class MongoDBTarget(BaseStoreTarget):
              MongoDBTarget(connection_string=connection_string, collection_name="coll",
              db_name="my_dataset", chunksize=5, query=query)
 
+        :param name:
+        :param path:
+        :param attributes:
+        :param after_step:
+        :param columns:
+        :param partitioned:
+        :param key_bucketing_number:
+        :param partition_cols:
+        :param time_partitioning_granularity:
+        :param after_state:
+        :param max_events:
+        :param flush_after_seconds:
+        :param storage_options:
+        :param db_name:             the name of the database to access
         :param connection_string:   string connection to mongodb database.
                                     If not set, the MONGODB_CONNECTION_STR environment variable will be used.
-        :param db_name:             the name of the database to access
         :param collection_name:     the name of the collection to access,
                                     from the current database
         :param create_collection:   pass True if you want to create new collection named by
@@ -1708,23 +1720,23 @@ class SqlDBTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
+        attributes: Dict[str, str] = None,
         after_step=None,
         partitioned: bool = False,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
         after_state=None,
-        max_events: typing.Optional[int] = None,
-        flush_after_seconds: typing.Optional[int] = None,
-        storage_options: typing.Dict[str, str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: Dict[str, str] = None,
         db_path: str = None,
         collection_name: str = None,
-        schema: typing.Dict[str, type] = {},
+        schema: Dict[str, Any] = {},
         primary_key_column: str = "",
         if_exists: bool = False,
         create_collection: bool = False,
-        create_according_to_data: bool = False,
+        # create_according_to_data: bool = False,
     ):
         """
         Write to SqlDB as output target for a flow.
@@ -1736,6 +1748,18 @@ class SqlDBTarget(BaseStoreTarget):
              target = SqlDBTarget(collection_name=f'{name}-tatget', db_path=db_path, create_collection=True,
                                    schema=schema, primary_key_column=key)
 
+        :param name:
+        :param path:
+        :param attributes:
+        :param after_step:
+        :param partitioned:
+        :param key_bucketing_number:
+        :param partition_cols:
+        :param time_partitioning_granularity:
+        :param after_state:
+        :param max_events:
+        :param flush_after_seconds:
+        :param storage_options:
         :param db_path:                     url string connection to sql database.
                                             If not set, the SQL_DB_PATH_STRING environment variable will be used.
         :param collection_name:             the name of the collection to access,
@@ -1751,6 +1775,7 @@ class SqlDBTarget(BaseStoreTarget):
                                             collection_name with schema on current database.
         :param create_according_to_data:    (not valid)
         """
+        create_according_to_data = False  # TODO: open for user
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None or collection_name is None:
             attr = {}
@@ -1769,20 +1794,19 @@ class SqlDBTarget(BaseStoreTarget):
                 raise ValueError(f"Collection named {collection_name} is not exist")
 
             elif not collection_exists and create_collection:
+                TYPE_TO_SQL_TYPE = {
+                    int: db.Integer,
+                    str: db.String,
+                    datetime.datetime: db.DateTime,
+                    pd.Timestamp: db.DateTime,
+                    bool: db.Boolean,
+                    float: db.Float,
+                }
                 # creat new collection with the given name
                 columns = []
                 for col, col_type in schema.items():
-                    if col_type == int:
-                        col_type = db.Integer
-                    elif col_type == str:
-                        col_type = db.String
-                    elif col_type == datetime.datetime or col_type == pd.Timestamp:
-                        col_type = db.DateTime
-                    elif col_type == bool:
-                        col_type = db.Boolean
-                    elif col_type == float:
-                        col_type = db.Float
-                    else:
+                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
+                    if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
                         db.Column(

@@ -25,6 +25,7 @@ class NeedsMongoDBAccess:
     """
 
     def __init__(self, webapi=None):
+        _WEB_API_PREFIX = "mongodb+srv://"
         webapi = webapi or os.getenv("MONGODB_CONNECTION_STR")
         if not webapi:
             self._webapi_url = None
@@ -33,8 +34,8 @@ class NeedsMongoDBAccess:
             )
             return
 
-        if not webapi.startswith("mongodb+srv://"):
-            webapi = f"mongodb+srv://{webapi}"
+        if not webapi.startswith(_WEB_API_PREFIX):
+            webapi = f"{_WEB_API_PREFIX}{webapi}"
 
         self._webapi_url = webapi
 
@@ -212,7 +213,7 @@ class SqlDBDriver(storey.Driver):
     async def _save_key(
         self, container, table_path, key, aggr_item, partitioned_by_key, additional_data
     ):
-        from sqlalchemy import exc
+        import sqlalchemy as db
 
         self._lazy_init()
 
@@ -222,7 +223,7 @@ class SqlDBDriver(storey.Driver):
             return_val = self._sql_connection.execute(
                 collection.insert(), [additional_data]
             )
-        except exc.IntegrityError:
+        except db.exc.IntegrityError:
             pass
         return return_val
 
@@ -251,7 +252,7 @@ class SqlDBDriver(storey.Driver):
     async def close(self):
         pass
 
-    async def _get_all_fields(self, key: str, collection):
+    async def _get_all_fields(self, key, collection):
 
         try:
             my_query = f"SELECT * FROM {collection} where {self._primary_key}={key}"

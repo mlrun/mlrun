@@ -56,9 +56,9 @@ class _MondoDBIterator:
         """
         Iterate over given mongoDB collection
 
-        :param iter_query:       dictionary query for mongodb
+        :param collection:       a mongodb collection
         :param iter_chunksize:   number of rows per chunk
-        :param collection:  a mongodb collection
+        :param iter_query:       dictionary query for mongodb
         """
         self.my_collection_iter = collection.find_raw_batches(
             iter_query, batch_size=iter_chunksize
@@ -68,15 +68,13 @@ class _MondoDBIterator:
         return self
 
     def __next__(self):
-        batch = next(self.my_collection_iter)
-        decode_batch = bson.decode_all(batch)
-        curr_df = pd.DataFrame(decode_batch)
+        curr_df = pd.DataFrame(bson.decode_all(next(self.my_collection_iter)))
         curr_df["_id"] = curr_df["_id"].astype(str)
         return curr_df
 
 
 class _SqlDBIterator:
-    def __init__(self, collection, iter_chunksize, iter_query=None):
+    def __init__(self, collection, iter_chunksize):
         """
         Iterate over given Sql collection
 
@@ -910,18 +908,20 @@ class MongoDBSource(BaseSourceDriver):
                               override_collection=True)
 
         :param name:                source name
+        :param max_results_for_table:
         :param query:               dictionary query for mongodb
         :param chunksize:           number of rows per chunk (default large single chunk)
         :param key_field:           the column to be used as the key for events. Can be a list of keys.
         :param time_field:          the column to be parsed as the timestamp for events. Defaults to None
-        :param start_time:          filters out data before this time
-        :param end_time:            filters out data after this time
         :param schedule:            string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
                                     cause the job to run every 30 minutes
+        :param start_time:          filters out data before this time
+        :param end_time:            filters out data after this time
+        :param db_name:             the name of the database to access
         :param connection_string:   string connection to mongodb database.
                                     If not set, the MONGODB_CONNECTION_STR environment variable will be used.
-        :param db_name:             the name of the database to access
         :param collection_name:     the name of the collection to access, from the current database
+        :param spark_options
         """
 
         connection_string = connection_string or os.getenv(
@@ -980,7 +980,7 @@ class MongoDBSource(BaseSourceDriver):
         return return_val
 
     def to_step(self, key_field=None, time_field=None, context=None):
-        # import storey
+        # TODO: import MongoDBSourceStorey from storey when it will removed
         from mlrun.datastore.storeySourse import MongoDBSourceStorey
 
         attributes = self.attributes or {}
@@ -1011,13 +1011,12 @@ class SqlDBSource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        max_results_for_table: int = None,
         chunksize: int = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        start_time=None,
-        end_time=None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
         db_path: str = None,
         collection_name: str = None,
         spark_options: dict = None,
@@ -1031,19 +1030,19 @@ class SqlDBSource(BaseSourceDriver):
                 collection_name='source_name', db_path=self.db, key_field='key'
             )
 
-        :parameter name:            source name
-        :parameter chunksize:       number of rows per chunk (default large single chunk)
-        :parameter key_field:       the column to be used as the key for the collection.
-        :parameter time_field:      the column to be parsed as the timestamp for events. Defaults to None
-        :parameter start_time:      filters out data before this time
-        :parameter end_time:        filters out data after this time
-        :parameter schedule:        string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+        :param name:            source name
+        :param chunksize:       number of rows per chunk (default large single chunk)
+        :param key_field:       the column to be used as the key for the collection.
+        :param time_field:      the column to be parsed as the timestamp for events. Defaults to None
+        :param start_time:      filters out data before this time
+        :param end_time:        filters out data after this time
+        :param schedule:        string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
                                     cause the job to run every 30 minutes
         :param db_path:             url string connection to sql database.
                                     If not set, the SQL_DB_PATH_STRING environment variable will be used.
-        :parameter collection_name: the name of the collection to access,
+        :param collection_name: the name of the collection to access,
                                     from the current database
-        :parameter spark_options:   additional spark read options
+        :param spark_options:   additional spark read options
         """
 
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
@@ -1052,7 +1051,6 @@ class SqlDBSource(BaseSourceDriver):
                 f"cannot specify without db_path arg or secret {self._SQL_DB_PATH_STRING_ENV_VAR}"
             )
         attrs = {
-            "max_results": max_results_for_table,
             "chunksize": chunksize,
             "spark_options": spark_options,
             "collection_name": collection_name,
@@ -1133,4 +1131,5 @@ source_kind_to_driver = {
     BigQuerySource.kind: BigQuerySource,
     SnowflakeSource.kind: SnowflakeSource,
     MongoDBSource.kind: MongoDBSource,
+    SqlDBSource.kind: SqlDBSource,
 }

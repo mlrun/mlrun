@@ -52,6 +52,7 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str]
     monitor_configuration: Optional[dict]
     active: Optional[bool]
+    monitoring_feature_set_uri: Optional[str]
     monitoring_mode: Optional[str] = ModelMonitoringMode.disabled
 
 

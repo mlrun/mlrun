@@ -67,9 +67,11 @@ class NotificationPusher(object):
         header = self.headers.get(run.get("status", {}).get("state", ""), "")
         severity = notification_config.get("severity", NotificationSeverity.INFO)
         params = notification_config.get("params", {})
-        notification_type = notification_config.get("type", "console")
+        notification_type = NotificationTypes(
+            notification_config.get("type", "console")
+        )
 
-        return NotificationTypes.get(notification_type)(header, severity, [run], params)
+        return notification_type.get_notification()(header, severity, [run], params)
 
 
 class CustomNotificationPusher(object):
@@ -85,7 +87,7 @@ class CustomNotificationPusher(object):
         custom_html: str = None,
     ):
         for notification_type in self._notification_types:
-            NotificationTypes.get(notification_type)(
+            NotificationTypes(notification_type).get_notification()(
                 header, severity, runs, self._params, custom_html
             ).send()
 

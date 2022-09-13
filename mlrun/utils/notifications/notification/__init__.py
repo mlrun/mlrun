@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import typing
 
 from .base import NotificationBase, NotificationSeverity  # noqa
@@ -21,18 +22,27 @@ from .ipython import IPythonNotification
 from .slack import SlackNotification
 
 
-class NotificationTypes:
-    types = {
-        "slack": SlackNotification,
-        "console": ConsoleNotification,
-        "ipython": IPythonNotification,
-        "git": GitNotification,
-    }
+class NotificationTypes(str, enum.Enum):
+    console = "console"
+    git = "git"
+    ipython = "ipython"
+    slack = "slack"
 
-    @classmethod
-    def get(cls, notification_type: str) -> typing.Type[NotificationBase]:
-        return cls.types.get(notification_type)
+    def get_notification(self) -> typing.Type[NotificationBase]:
+        return {
+            self.console: ConsoleNotification,
+            self.git: GitNotification,
+            self.ipython: IPythonNotification,
+            self.slack: SlackNotification,
+        }.get(self)
 
     @classmethod
     def all(cls) -> typing.List[str]:
-        return list(cls.types.keys())
+        return list(
+            [
+                cls.console,
+                cls.git,
+                cls.ipython,
+                cls.slack,
+            ]
+        )

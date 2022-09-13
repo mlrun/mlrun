@@ -24,7 +24,7 @@ class IPythonNotification(NotificationBase):
     def __init__(
         self,
         header: str,
-        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.info,
+        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.INFO,
         runs: typing.Union[list, mlrun.lists.RunList] = None,
         params: typing.Dict[str, str] = None,
         custom_html: str = None,

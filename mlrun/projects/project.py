@@ -47,7 +47,7 @@ from ..secrets import SecretsStore
 from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
-from ..utils.notifications import CustomNotificationPusher
+from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import build_function, deploy_function, run_function
 from .pipelines import (
     FunctionsDict,
@@ -785,7 +785,13 @@ class MlrunProject(ModelObj):
         self._initialized = False
         self._secrets = SecretsStore()
         self._artifact_manager = None
-        self._notifiers = CustomNotificationPusher({"slack", "console", "ipython"})
+        self._notifiers = CustomNotificationPusher(
+            [
+                NotificationTypes.slack,
+                NotificationTypes.console,
+                NotificationTypes.ipython,
+            ]
+        )
 
     @property
     def metadata(self) -> ProjectMetadata:

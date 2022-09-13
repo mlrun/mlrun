@@ -462,6 +462,7 @@ class ModelEndpoints:
     ):
         """
         Invoking monitoring deploying functions.
+
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
@@ -531,10 +532,11 @@ class ModelEndpoints:
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
         to monitor the log of the data stream. It is triggered when a new log entry is detected.
         It processes the new events into statistics that are then written to statistics databases.
+
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request.
+        :param auto_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
         """
 
@@ -578,6 +580,7 @@ class ModelEndpoints:
         based on the latest batch of events. By default, this job is executed on the hour every hour.
         Note that if the monitoring batch job was already deployed then you will have to delete the
         old monitoring batch job before deploying a new one.
+
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
@@ -703,6 +706,7 @@ class ModelEndpointStore(ABC):
     def __init__(self, access_key, project):
         """
         Initialize a new model endpoint target.
+
         :param access_key:          Access key with permission to write to DB table.
         :param project:             The name of the project.
         """
@@ -736,8 +740,8 @@ class ModelEndpointStore(ABC):
 
 class ModelEndpointKVStore(ModelEndpointStore, ABC):
     """
-    Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO client and
-    usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
+    Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
+    client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
     def __init__(self, access_key: str, project: str):
@@ -815,16 +819,17 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         feature_analysis: bool = False,
         raise_for_status=v3io.dataplane.RaiseForStatus.never,
     ) -> mlrun.api.schemas.ModelEndpoint:
-        """Get a single model endpoint object. You can apply different time series metrics that will be added to the
+        """
+        Get a single model endpoint object. You can apply different time series metrics that will be added to the
            result.
 
         :param endpoint_id:      The unique id of the model endpoint.
         :param start:            The start time of the metrics.
         :param end:              The end time of the metrics.
-        :param metrics:          A list of metrics to return for the model endpoint. There are pre-defined metrics for model
-                                 endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
-                                 defined by the user. Please note that these metrics are stored in the time series DB and
-                                 the results will be appeared under model_endpoint.spec.metrics.
+        :param metrics:          A list of metrics to return for the model endpoint. There are pre-defined metrics for
+                                 model endpoints such as predictions_per_second and latency_avg_5m but also custom
+                                 metrics defined by the user. Please note that these metrics are stored in the time
+                                 series DB and the results will be appeared under model_endpoint.spec.metrics.
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
                                  the output of the resulting object.
         :param raise_for_status: Raise a specific error based on the given response status code.
@@ -948,8 +953,9 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
 
         :param model:           The name of the model to filter by.
         :param function:        The name of the function to filter by.
-        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value of a label
-                                (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
+        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
+                                of a label (i.e. list("key==value")) or by looking for the existence of a given
+                                key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
 
         :return: List of model endpoints unique ids.
@@ -1078,8 +1084,9 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         :param project:    The name of the project.
         :param model:      The name of the model to filter by.
         :param function:   The name of the function to filter by.
-        :param labels:     A list of labels to filter by. Label filters work by either filtering a specific value of a label
-                           (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
+        :param labels:     A list of labels to filter by. Label filters work by either filtering a specific value of
+                           a label (i.e. list("key==value")) or by looking for the existence of a given
+                           key (i.e. "key").
         :param top_level:  If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
@@ -1128,7 +1135,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
 
         # Prepare the data for the attributes dictionary
         labels = endpoint.metadata.labels or {}
-        searchable_labels = {f"_{k}": v for k, v in labels.items()} if labels else {}
+        searchable_labels = {f"_{k}": v for k, v in labels.items()}
         feature_names = endpoint.spec.feature_names or []
         label_names = endpoint.spec.label_names or []
         feature_stats = endpoint.status.feature_stats or {}
@@ -1282,7 +1289,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         return metrics_mapping
 
 
-class ModelEndpointSQLStore(ModelEndpointStore):
+class ModelEndpointSQLStore(ModelEndpointStore, ABC):
     @abstractmethod
     def write_endpoint(self, endpoint, update=True):
         pass

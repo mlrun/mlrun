@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-import shlex
+import random
 import subprocess
 
 import pytest
@@ -30,13 +30,13 @@ class TestV3ioDataStore(TestMLRunSystem):
         return True
 
     def test_v3io_large_object(self):
-        import random
 
         with open("tempfile_1", "wb") as f:
             file_size = 20 * 1024 * 1024  # 20MB
             f.truncate(file_size)
+            r = random.Random(123)
             for i in range(min(100, file_size)):
-                offset = random.randint(0, file_size - 1)
+                offset = r.randint(0, file_size - 1)
                 f.seek(offset)
                 f.write(bytearray([i]))
         v3io_path = "v3io:///bigdata/test_v3io_large_object"
@@ -45,13 +45,14 @@ class TestV3ioDataStore(TestMLRunSystem):
         data_item.upload("tempfile_1")
         data_item.download("tempfile_2")
 
-        command = shlex.split("cmp tempfile_1 tempfile_2")
-        process = subprocess.Popen(command, stdout=subprocess.PIPE)
-        stdout, stderr = process.communicate()
+        cmp_command = ["cmp", "tempfile_1", "tempfile_2"]
+        cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
+        stdout, stderr = cmp_process.communicate()
 
-        assert (
-            process.returncode == 0
-        ), f"stdout = {stdout}, stderr={stderr}, returncode={process.returncode}"
         data_item.delete()
         os.remove("tempfile_1")
         os.remove("tempfile_2")
+
+        assert (
+            cmp_process.returncode == 0
+        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"

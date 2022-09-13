@@ -483,8 +483,11 @@ def _init_endpoint_record(graph_server, model: V2ModelServer):
 
         db = mlrun.get_run_db()
 
-        db.create_model_endpoint(project=project, endpoint_id=model_endpoint.metadata.uid,
-                                 model_endpoint=model_endpoint)
+        db.create_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
         uid = model_endpoint.metadata.uid
     except Exception as e:
         logger.error("Failed to create endpoint record", exc=e)

@@ -751,8 +751,11 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
 
         db = mlrun.get_run_db()
 
-        db.create_model_endpoint(project=project, endpoint_id=model_endpoint.metadata.uid,
-                                 model_endpoint=model_endpoint)
+        db.create_model_endpoint(
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+            model_endpoint=model_endpoint,
+        )
 
         for model_endpoint in children_uids:
             # here to update that it is a node now
@@ -761,7 +764,11 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
             )
             current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
 
-            db.create_model_endpoint(project=project, endpoint_id=model_endpoint, model_endpoint=current_endpoint)
+            db.create_model_endpoint(
+                project=project,
+                endpoint_id=model_endpoint,
+                model_endpoint=current_endpoint,
+            )
 
     except Exception as exc:
         logger.warning(

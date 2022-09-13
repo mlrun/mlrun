@@ -732,11 +732,11 @@ class SQLDB(RunDBInterface):
         raise NotImplementedError()
 
     def patch_model_endpoint(
-            self,
-            project: str,
-            endpoint_id: str,
-            attributes: dict,
-            access_key: Optional[str] = None,
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
+        access_key: Optional[str] = None,
     ):
         raise NotImplementedError()
 

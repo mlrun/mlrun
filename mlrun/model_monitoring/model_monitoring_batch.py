@@ -787,13 +787,16 @@ class BatchProcessor:
                     )
 
                 attrbs = {
-                        "current_stats": json.dumps(current_stats),
-                        "drift_measures": json.dumps(drift_result),
-                        "drift_status": drift_status.value,
-                    }
+                    "current_stats": json.dumps(current_stats),
+                    "drift_measures": json.dumps(drift_result),
+                    "drift_status": drift_status.value,
+                }
 
-                self.db.patch_model_endpoint(project=self.project,
-                                             endpoint_id=endpoint_id,attributes=attrbs,)
+                self.db.patch_model_endpoint(
+                    project=self.project,
+                    endpoint_id=endpoint_id,
+                    attributes=attrbs,
+                )
 
                 # Update the results in tsdb:
                 tsdb_drift_measures = {

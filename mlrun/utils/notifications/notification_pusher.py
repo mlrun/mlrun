@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import os
 import typing
-from ast import literal_eval
 
+import mlrun
 import mlrun.lists
 import mlrun.utils.helpers
 
@@ -24,12 +25,12 @@ from .notification import NotificationBase, NotificationSeverity, NotificationTy
 
 class NotificationPusher(object):
 
-    headers = {
+    messages = {
         "success": "Run completed",
         "error": "Run failed",
     }
 
-    def __init__(self, runs: typing.Union[list, mlrun.lists.RunList]):
+    def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
         self._notifications = []
 
@@ -45,7 +46,9 @@ class NotificationPusher(object):
             notification.send()
 
     @staticmethod
-    def _should_notify(run: dict, notification_config: dict) -> bool:
+    def _should_notify(
+        run: typing.Union[mlrun.RunObject, dict], notification_config: dict
+    ) -> bool:
         when_states = notification_config.get("when", [])
         condition = notification_config.get("condition", "")
         run_state = run.get("status", {}).get("state", "")
@@ -55,7 +58,7 @@ class NotificationPusher(object):
             if (
                 when_state == "success"
                 and run_state == "success"
-                and (not condition or literal_eval(condition))
+                and (not condition or ast.literal_eval(condition))
             ) or (when_state == "failure" and run_state == "error"):
                 return True
 
@@ -64,14 +67,14 @@ class NotificationPusher(object):
     def _create_notification(
         self, run: dict, notification_config: dict
     ) -> NotificationBase:
-        header = self.headers.get(run.get("status", {}).get("state", ""), "")
+        message = self.messages.get(run.get("status", {}).get("state", ""), "")
         severity = notification_config.get("severity", NotificationSeverity.INFO)
         params = notification_config.get("params", {})
         notification_type = NotificationTypes(
             notification_config.get("type", "console")
         )
 
-        return notification_type.get_notification()(header, severity, [run], params)
+        return notification_type.get_notification()(message, severity, [run], params)
 
 
 class CustomNotificationPusher(object):
@@ -81,14 +84,14 @@ class CustomNotificationPusher(object):
 
     def push(
         self,
-        header: str,
-        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.INFO,
-        runs: typing.Union[list, mlrun.lists.RunList] = None,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
         for notification_type in self._notification_types:
             NotificationTypes(notification_type).get_notification()(
-                header, severity, runs, self._params, custom_html
+                message, severity, runs, self._params, custom_html
             ).send()
 
     def add_notification(
@@ -128,7 +131,7 @@ class CustomNotificationPusher(object):
 
     def push_pipeline_run_results(
         self,
-        runs: typing.Union[list, mlrun.lists.RunList],
+        runs: typing.Union[mlrun.lists.RunList, list],
         push_all: bool = False,
         state: str = None,
     ):

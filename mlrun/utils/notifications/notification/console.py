@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tabulate import tabulate
+import tabulate
 
 import mlrun.utils.helpers
 
@@ -20,8 +20,12 @@ from .base import NotificationBase
 
 
 class ConsoleNotification(NotificationBase):
+    """
+    Client only notification for printing run status notifications in console
+    """
+
     def send(self):
-        print(f"[{self.severity}] {self.header}")
+        print(f"[{self.severity}] {self.message}")
 
         if not self.runs:
             return
@@ -44,4 +48,4 @@ class ConsoleNotification(NotificationBase):
                     result,
                 ]
             )
-        print(tabulate(table, headers=["status", "name", "uid", "results"]))
+        print(tabulate.tabulate(table, headers=["status", "name", "uid", "results"]))

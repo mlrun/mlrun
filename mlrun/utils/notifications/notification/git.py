@@ -23,6 +23,10 @@ from .base import NotificationBase
 
 
 class GitNotification(NotificationBase):
+    """
+    API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
+    """
+
     def send(self):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
@@ -59,6 +63,7 @@ class GitNotification(NotificationBase):
         :param token:    git system security token
         :param server:   url of the git system
         :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
+        :return:         pr comment id
         """
         if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
             gitlab = True
@@ -70,6 +75,7 @@ class GitNotification(NotificationBase):
             repo = repo or environ.get("CI_PROJECT_ID")
             # auto detect GitLab pr id from the environment
             issue = issue or environ.get("CI_MERGE_REQUEST_IID")
+            # replace slash with url encoded slash for GitLab to accept a repo name with slash
             repo = repo.replace("/", "%2F")
             url = (
                 f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"

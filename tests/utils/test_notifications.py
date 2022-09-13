@@ -54,7 +54,7 @@ def test_notification_should_notify(when, condition, run_state, expected):
 @pytest.mark.parametrize(
     "runs,expected,is_table",
     [
-        ([], "[info] test-header", False),
+        ([], "[info] test-message", False),
         (
             [
                 {
@@ -79,7 +79,7 @@ def test_notification_should_notify(when, condition, run_state, expected):
 )
 def test_console_notification(monkeypatch, runs, expected, is_table):
     console_notification = mlrun.utils.notifications.ConsoleNotification(
-        "test-header", "info", runs
+        "test-message", "info", runs
     )
     print_result = ""
 
@@ -105,7 +105,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-header", "type": "mrkdwn"},
+                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
                         "type": "section",
                     }
                 ]
@@ -121,7 +121,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-header", "type": "mrkdwn"},
+                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
                         "type": "section",
                     },
                     {
@@ -146,7 +146,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
             {
                 "blocks": [
                     {
-                        "text": {"text": "[info] test-header", "type": "mrkdwn"},
+                        "text": {"text": "[info] test-message", "type": "mrkdwn"},
                         "type": "section",
                     },
                     {
@@ -165,7 +165,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
 )
 def test_slack_notification(runs, expected):
     slack_notification = mlrun.utils.notifications.SlackNotification(
-        "test-header", "info", runs
+        "test-message", "info", runs
     )
     slack_data = slack_notification._generate_slack_data()
 
@@ -215,9 +215,9 @@ def test_slack_notification(runs, expected):
 )
 def test_git_notification(monkeypatch, params, expected_url, expected_headers):
     git_notification = mlrun.utils.notifications.GitNotification(
-        "test-header", "info", [], params
+        "test-message", "info", [], params
     )
-    expected_body = "[info] test-header"
+    expected_body = "[info] test-message"
 
     requests_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(requests, "post", requests_mock)

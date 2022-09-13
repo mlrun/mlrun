@@ -29,13 +29,13 @@ class NotificationSeverity(enum.Enum):
 class NotificationBase:
     def __init__(
         self,
-        header: str,
-        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.INFO,
-        runs: typing.Union[list, mlrun.lists.RunList] = None,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
         params: typing.Dict[str, str] = None,
         custom_html: str = None,
     ):
-        self.header = header
+        self.message = message
 
         if isinstance(runs, list):
             runs = mlrun.lists.RunList(runs)
@@ -49,16 +49,16 @@ class NotificationBase:
         raise NotImplementedError()
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.header})"
+        return f"{self.__class__.__name__}({self.message})"
 
     def _get_html(self) -> str:
         if self.custom_html:
             return self.custom_html
 
         if not self.runs:
-            return f"[{self.severity}] {self.header}"
+            return f"[{self.severity}] {self.message}"
 
-        html = f"<h2>Run Results</h2><h3>[{self.severity}] {self.header}</h3>"
+        html = f"<h2>Run Results</h2><h3>[{self.severity}] {self.message}</h3>"
         html += "<br>click the hyper links below to see detailed results<br>"
         html += self.runs.show(display=False, short=True)
         return html

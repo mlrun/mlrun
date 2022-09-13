@@ -23,6 +23,10 @@ from .base import NotificationBase
 
 
 class SlackNotification(NotificationBase):
+    """
+    API/Client notification for sending run statuses as a slack message
+    """
+
     emojis = {
         "completed": ":smiley:",
         "running": ":man-running:",
@@ -51,7 +55,7 @@ class SlackNotification(NotificationBase):
             "blocks": [
                 {
                     "type": "section",
-                    "text": self._get_slack_row(f"[{self.severity}] {self.header}"),
+                    "text": self._get_slack_row(f"[{self.severity}] {self.message}"),
                 },
             ]
         }

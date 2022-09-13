@@ -21,15 +21,19 @@ from .base import NotificationBase, NotificationSeverity
 
 
 class IPythonNotification(NotificationBase):
+    """
+    Client only notification for printing rich run statuses in IPython/Jupyter notebooks
+    """
+
     def __init__(
         self,
-        header: str,
-        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.INFO,
-        runs: typing.Union[list, mlrun.lists.RunList] = None,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
         params: typing.Dict[str, str] = None,
         custom_html: str = None,
     ):
-        super().__init__(header, severity, runs, params, custom_html)
+        super().__init__(message, severity, runs, params, custom_html)
         self._ipython = None
         try:
             import IPython

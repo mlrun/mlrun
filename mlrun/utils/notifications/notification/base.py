@@ -12,16 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import typing
 
 import mlrun.lists
+
+
+class NotificationSeverity(enum.Enum):
+    INFO = "info"
+    DEBUG = "debug"
+    VERBOSE = "verbose"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 class NotificationBase:
     def __init__(
         self,
         header: str,
-        severity: str,
+        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.INFO,
         runs: typing.Union[list, mlrun.lists.RunList] = None,
         params: typing.Dict[str, str] = None,
         custom_html: str = None,

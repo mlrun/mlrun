@@ -19,7 +19,7 @@ from ast import literal_eval
 import mlrun.lists
 import mlrun.utils.helpers
 
-from .notification import NotificationBase, NotificationTypes
+from .notification import NotificationBase, NotificationSeverity, NotificationTypes
 
 
 class NotificationPusher(object):
@@ -65,7 +65,7 @@ class NotificationPusher(object):
         self, run: dict, notification_config: dict
     ) -> NotificationBase:
         header = self.headers.get(run.get("status", {}).get("state", ""), "")
-        severity = notification_config.get("severity", "info")
+        severity = notification_config.get("severity", NotificationSeverity.INFO)
         params = notification_config.get("params", {})
         notification_type = notification_config.get("type", "console")
 
@@ -80,7 +80,7 @@ class CustomNotificationPusher(object):
     def push(
         self,
         header: str,
-        severity: str,
+        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.INFO,
         runs: typing.Union[list, mlrun.lists.RunList] = None,
         custom_html: str = None,
     ):

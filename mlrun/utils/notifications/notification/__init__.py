@@ -14,7 +14,7 @@
 
 import typing
 
-from .base import NotificationBase
+from .base import NotificationBase, NotificationSeverity  # noqa
 from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification

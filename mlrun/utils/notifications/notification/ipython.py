@@ -17,14 +17,14 @@ import typing
 import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase
+from .base import NotificationBase, NotificationSeverity
 
 
 class IPythonNotification(NotificationBase):
     def __init__(
         self,
         header: str,
-        severity: str,
+        severity: typing.Union[str, NotificationSeverity] = NotificationSeverity.info,
         runs: typing.Union[list, mlrun.lists.RunList] = None,
         params: typing.Dict[str, str] = None,
         custom_html: str = None,

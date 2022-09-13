@@ -104,9 +104,12 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.api.schemas.ModelMonitoringMode.enabled.value
             ):
-                self.create_monitoring_feature_set(
+                m_fs = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )
+                if m_fs:
+                    # Link model endpoint object to feature set URI
+                    model_endpoint.spec.monitoring_feature_set_uri = m_fs.uri
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
@@ -228,10 +231,7 @@ class ModelEndpoints:
             parquet_target=parquet_path,
         )
 
-        # Link model endpoint object to feature set URI
-        model_endpoint.spec.monitoring_feature_set_uri = feature_set.uri
-
-        return
+        return feature_set
 
     @staticmethod
     def _validate_length_features_and_labels(model_endpoint):

@@ -478,9 +478,8 @@ class ServingRuntime(RemoteRuntime):
                     )
                     child_function.function_object.add_trigger("kafka", trigger)
                 else:
-                    group = re.sub(
-                        "[-,.,\s+]", "_", group
-                    )  # normalize to v3io attr name restrictions
+                    # normalize to v3io attr name restrictions
+                    group = re.sub("[-,.]", "_", group)
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )

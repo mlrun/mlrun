@@ -1092,6 +1092,9 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         :return: A valid filter expression as a string.
         """
 
+        if not project:
+            raise mlrun.errors.MLRunInvalidArgumentError("project can't be empty")
+
         # Add project filter
         filter_expression = [f"project=='{project}'"]
 

@@ -33,38 +33,34 @@ TEST_PROJECT = "test_model_endpoints"
 
 
 def test_build_kv_cursor_filter_expression():
+    # Initialize endpoint store target object
+    endpoint_target = mlrun.api.crud.model_endpoints.ModelEndpointKVStore(
+        project=TEST_PROJECT, access_key=os.environ.get("V3IO_ACCESS_KEY")
+    )
     with pytest.raises(MLRunInvalidArgumentError):
-        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression("")
+        endpoint_target.build_kv_cursor_filter_expression("")
 
-    filter_expression = (
-        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-            project=TEST_PROJECT
-        )
+    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+        project=TEST_PROJECT
     )
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
-    filter_expression = (
-        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-            project=TEST_PROJECT, function="test_function", model="test_model"
-        )
+    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+        project=TEST_PROJECT, function="test_function", model="test_model"
     )
     expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
-    filter_expression = (
-        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-            project=TEST_PROJECT, labels=["lbl1", "lbl2"]
-        )
+    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+        project=TEST_PROJECT, labels=["lbl1", "lbl2"]
     )
     assert (
         filter_expression
         == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
     )
 
-    filter_expression = (
-        mlrun.api.crud.ModelEndpoints().build_kv_cursor_filter_expression(
-            project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
-        )
+    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+        project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
     )
     assert (
         filter_expression == f"project=='{TEST_PROJECT}' AND _lbl1=='1' AND _lbl2=='2'"
@@ -218,9 +214,12 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
-        feature_names, stats, stats
+    # Initialize endpoint store target object
+    endpoint_target = mlrun.api.crud.model_endpoints.ModelEndpointKVStore(
+        project=TEST_PROJECT, access_key=os.environ.get("V3IO_ACCESS_KEY")
     )
+
+    features = endpoint_target.get_endpoint_features(feature_names, stats, stats)
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
     for feature in features:
@@ -233,9 +232,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
-        feature_names, stats, None
-    )
+    features = endpoint_target.get_endpoint_features(feature_names, stats, None)
     assert len(features) == 4
     for feature in features:
         assert feature.expected is not None
@@ -244,9 +241,7 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
-        feature_names, None, stats
-    )
+    features = endpoint_target.get_endpoint_features(feature_names, None, stats)
     assert len(features) == 4
     for feature in features:
         assert feature.expected is None
@@ -255,9 +250,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = mlrun.api.crud.ModelEndpoints().get_endpoint_features(
-        feature_names[1:], None, stats
-    )
+    features = endpoint_target.get_endpoint_features(feature_names[1:], None, stats)
     assert len(features) == 3
 
 

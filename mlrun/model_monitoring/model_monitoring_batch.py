@@ -1,8 +1,23 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import dataclasses
 import datetime
 import json
 import os
+import re
 from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
@@ -19,9 +34,8 @@ import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.constants import EventFieldType
 from mlrun.utils import logger
-
-_TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f%z"
 
 
 class DriftStatus(Enum):
@@ -498,11 +512,11 @@ class BatchProcessor:
             model_monitoring_access_key or v3io_access_key
         )
 
-        # initialize virtual drift object
+        # Initialize virtual drift object
         self.virtual_drift = VirtualDrift(inf_capping=10)
 
-        # define the required paths for the project objects.
-        # note that the kv table, tsdb, and the input stream paths are located at the default location
+        # Define the required paths for the project objects.
+        # Note that the kv table, tsdb, and the input stream paths are located at the default location
         # while the parquet path is located at the user-space location
         template = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default
         kv_path = template.format(project=self.project, kind="endpoints")
@@ -543,7 +557,7 @@ class BatchProcessor:
             stream_path=self.stream_path,
         )
 
-        # get drift thresholds from the model monitoring configuration
+        # Get drift thresholds from the model monitoring configuration
         self.default_possible_drift_threshold = (
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
@@ -551,10 +565,10 @@ class BatchProcessor:
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
 
-        # get a runtime database
+        # Get a runtime database
         self.db = mlrun.get_run_db()
 
-        # get the frames clients based on the v3io configuration
+        # Get the frames clients based on the v3io configuration
         # it will be used later for writing the results into the tsdb
         self.v3io = mlrun.utils.v3io_clients.get_v3io_client(
             access_key=self.v3io_access_key
@@ -565,8 +579,16 @@ class BatchProcessor:
             token=self.v3io_access_key,
         )
 
-        # if an error occurs, it will be raised using the following argument
+        # If an error occurs, it will be raised using the following argument
         self.exception = None
+
+        # Get the batch interval range
+        self.batch_dict = context.parameters[EventFieldType.BATCH_INTERVALS_DICT]
+
+        # TODO: This will be removed in 1.2.0 once the job params can be parsed with different types
+        # Convert batch dict string into a dictionary
+        if isinstance(self.batch_dict, str):
+            self._parse_batch_dict_str()
 
     def post_init(self):
         """
@@ -638,11 +660,14 @@ class BatchProcessor:
                 m_fs = fstore.get_feature_set(
                     f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
                 )
+
+                # Getting batch interval start time and end time
+                start_time, end_time = self.get_interval_range()
+
                 try:
                     df = m_fs.to_dataframe(
-                        start_time=datetime.datetime.now()
-                        - datetime.timedelta(hours=1),
-                        end_time=datetime.datetime.now(),
+                        start_time=start_time,
+                        end_time=end_time,
                         time_column="timestamp",
                     )
 
@@ -672,22 +697,25 @@ class BatchProcessor:
                     )
                     continue
 
-                # get feature names from monitoring feature set
+                # Get feature names from monitoring feature set
                 feature_names = [
                     feature_name["name"]
                     for feature_name in m_fs.spec.features.to_dict()
                 ]
 
-                # create DataFrame based on the input features
+                # Create DataFrame based on the input features
                 stats_columns = [
                     "timestamp",
                     *feature_names,
-                    "prediction",
                 ]
+
+                # Add label names if provided
+                if endpoint.spec.label_names:
+                    stats_columns.extend(endpoint.spec.label_names)
 
                 named_features_df = df[stats_columns].copy()
 
-                # infer feature set stats and schema
+                # Infer feature set stats and schema
                 fstore.api._infer_from_static_df(
                     named_features_df,
                     m_fs,
@@ -773,7 +801,10 @@ class BatchProcessor:
                 # Update the results in tsdb:
                 tsdb_drift_measures = {
                     "endpoint_id": endpoint_id,
-                    "timestamp": pd.to_datetime(timestamp, format=_TIME_FORMAT),
+                    "timestamp": pd.to_datetime(
+                        timestamp,
+                        format=EventFieldType.TIME_FORMAT,
+                    ),
                     "record_type": "drift_measures",
                     "tvd_mean": drift_result["tvd_mean"],
                     "kld_mean": drift_result["kld_mean"],
@@ -792,6 +823,31 @@ class BatchProcessor:
             except Exception as e:
                 logger.error(f"Exception for endpoint {endpoint_id}")
                 self.exception = e
+
+    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+        """Getting batch interval time range"""
+        minutes, hours, days = (
+            self.batch_dict[EventFieldType.MINUTES],
+            self.batch_dict[EventFieldType.HOURS],
+            self.batch_dict[EventFieldType.DAYS],
+        )
+        start_time = datetime.datetime.now() - datetime.timedelta(
+            minutes=minutes, hours=hours, days=days
+        )
+        end_time = datetime.datetime.now()
+        return start_time, end_time
+
+    def _parse_batch_dict_str(self):
+        """Convert batch dictionary string into a valid dictionary"""
+        characters_to_remove = "{} "
+        pattern = "[" + characters_to_remove + "]"
+        # Remove unnecessary characters from the provided string
+        batch_list = re.sub(pattern, "", self.batch_dict).split(",")
+        # Initialize the dictionary of batch interval ranges
+        self.batch_dict = {}
+        for pair in batch_list:
+            pair_list = pair.split(":")
+            self.batch_dict[pair_list[0]] = float(pair_list[1])
 
 
 def handler(context: mlrun.run.MLClientCtx):

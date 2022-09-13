@@ -1,5 +1,21 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
+import shutil
+import tempfile
 import zipfile
 
 import deepdiff
@@ -10,6 +26,16 @@ import mlrun
 import mlrun.errors
 import mlrun.projects.project
 import tests.conftest
+
+
+@pytest.fixture()
+def context():
+    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
+    yield context
+
+    # clean up
+    if context.exists():
+        shutil.rmtree(context)
 
 
 def test_sync_functions():
@@ -190,6 +216,170 @@ def test_build_project_from_minimal_dict():
     mlrun.projects.MlrunProject.from_dict(project_dict)
 
 
+@pytest.mark.parametrize(
+    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "override_context,expect_error,error_msg",
+    [
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            3,
+            True,
+            "",
+            True,
+            "Failed to load project from git, context directory is not empty. "
+            "Set clone param to True to remove the contents of the context directory.",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            0,
+            False,
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "body.txt",
+            True,
+            "projects/assets/body.txt' already exists and is not an empty directory",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            False,
+            0,
+            False,
+            "",
+            False,
+            "",
+        ),
+    ],
+)
+def test_load_project(
+    context,
+    url,
+    project_name,
+    project_files,
+    clone,
+    num_of_files_to_create,
+    create_child_dir,
+    override_context,
+    expect_error,
+    error_msg,
+):
+    temp_files = []
+    child_dir = os.path.join(context, "child")
+
+    # use override context to test invalid paths - it will not be deleted on teardown
+    context = override_context or context
+
+    # create random files
+    if num_of_files_to_create:
+        context.mkdir()
+        temp_files = [
+            tempfile.NamedTemporaryFile(dir=context, delete=False).name
+            for _ in range(num_of_files_to_create)
+        ]
+        for temp_file in temp_files:
+            assert os.path.exists(os.path.join(context, temp_file))
+
+    if create_child_dir:
+        os.mkdir(child_dir)
+
+    if expect_error:
+        with pytest.raises(Exception) as exc:
+            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+
+    for temp_file in temp_files:
+
+        # verify that the context directory was cleaned if clone is True
+        assert os.path.exists(os.path.join(context, temp_file)) is not clone
+
+    if create_child_dir:
+        assert os.path.exists(child_dir) is not clone
+
+    assert project.name == project_name
+    assert project.spec.context == context
+    assert project.spec.source == str(url)
+    for project_file in project_files:
+        assert os.path.exists(os.path.join(context, project_file))
+
+
 def _assert_project_function_objects(project, expected_function_objects):
     project_function_objects = project.spec._function_objects
     assert len(project_function_objects) == len(expected_function_objects)
@@ -220,6 +410,33 @@ def test_set_func_requirements():
         "python -m pip install y",
         "python -m pip install pandas",
     ]
+
+
+def test_set_func_with_tag():
+    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project.set_function(
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        "desc1",
+        tag="v1",
+        image="mlrun/mlrun",
+    )
+
+    func = project.get_function("desc1")
+    assert func.metadata.tag == "v1"
+    project.set_function(
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        "desc1",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc1")
+    assert func.metadata.tag is None
+    project.set_function(
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        "desc2",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc2")
+    assert func.metadata.tag is None
 
 
 def test_function_run_cli():

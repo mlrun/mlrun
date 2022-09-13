@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import datetime
 from http import HTTPStatus
 from typing import List
@@ -212,31 +226,50 @@ def delete_runs(
     name: str = None,
     labels: List[str] = Query([], alias="label"),
     state: str = None,
-    days_ago: int = 0,
+    days_ago: int = None,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    start_time_from = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-        days=days_ago
-    )
-    runs = mlrun.api.crud.Runs().list_runs(
-        db_session,
-        name,
-        project=project,
-        labels=labels,
-        states=[state] if state is not None else None,
-        start_time_from=start_time_from,
-    )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.run,
-        runs,
-        lambda run: (
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project),
-            run.get("metadata", {}).get("uid"),
-        ),
-        mlrun.api.schemas.AuthorizationAction.delete,
-        auth_info,
-    )
+    if not project or project != "*":
+        # Currently we don't differentiate between runs permissions inside a project.
+        # Meaning there is no reason at the moment to query the permission for each run under the project
+        # TODO check for every run when we will manage permission per run inside a project
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.run,
+            project or mlrun.mlconf.default_project,
+            "",
+            mlrun.api.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
+    else:
+        start_time_from = None
+        if days_ago:
+            start_time_from = datetime.datetime.now(
+                datetime.timezone.utc
+            ) - datetime.timedelta(days=days_ago)
+        runs = mlrun.api.crud.Runs().list_runs(
+            db_session,
+            name,
+            project=project,
+            labels=labels,
+            states=[state] if state is not None else None,
+            start_time_from=start_time_from,
+        )
+        projects = set(
+            run.get("metadata", {}).get("project", mlrun.mlconf.default_project)
+            for run in runs
+        )
+        for run_project in projects:
+            # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
+            # TODO Delete only runs from projects that user has permissions to
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+                mlrun.api.schemas.AuthorizationResourceTypes.run,
+                run_project,
+                "",
+                mlrun.api.schemas.AuthorizationAction.delete,
+                auth_info,
+            )
+
     mlrun.api.crud.Runs().delete_runs(
         db_session,
         name,

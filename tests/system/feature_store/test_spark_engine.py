@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
 import sys
@@ -29,6 +43,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
+    pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
@@ -40,46 +55,58 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         env = cls._get_env_from_file()
         cls.spark_service = env["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"]
 
-    def get_local_pq_source_path(self):
-        return os.path.relpath(str(self.assets_path / self.pq_source))
+    @classmethod
+    def get_local_pq_source_path(cls):
+        return os.path.relpath(str(cls.get_assets_path() / cls.pq_source))
 
-    def get_remote_pq_source_path(self, without_prefix=False):
+    @classmethod
+    def get_remote_pq_source_path(cls, without_prefix=False):
         path = "v3io://"
         if without_prefix:
             path = ""
-        path += "/bigdata/" + self.pq_source
+        path += "/bigdata/" + cls.pq_source
         return path
 
-    def get_local_csv_source_path(self):
-        return os.path.relpath(str(self.assets_path / self.csv_source))
-
-    def get_remote_csv_source_path(self, without_prefix=False):
+    def get_remote_pq_target_path(self, without_prefix=False):
         path = "v3io://"
         if without_prefix:
             path = ""
-        path += "/bigdata/" + self.csv_source
+        path += "/bigdata/" + self.pq_target
         return path
 
-    def custom_setup(self):
+    @classmethod
+    def get_local_csv_source_path(cls):
+        return os.path.relpath(str(cls.get_assets_path() / cls.csv_source))
+
+    @classmethod
+    def get_remote_csv_source_path(cls, without_prefix=False):
+        path = "v3io://"
+        if without_prefix:
+            path = ""
+        path += "/bigdata/" + cls.csv_source
+        return path
+
+    @classmethod
+    def custom_setup_class(cls):
         from mlrun import get_run_db
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
-        self._init_env_from_file()
+        cls._init_env_from_file()
 
-        store, _ = store_manager.get_or_create_store(self.get_remote_pq_source_path())
+        store, _ = store_manager.get_or_create_store(cls.get_remote_pq_source_path())
         store.upload(
-            self.get_remote_pq_source_path(without_prefix=True),
-            self.get_local_pq_source_path(),
+            cls.get_remote_pq_source_path(without_prefix=True),
+            cls.get_local_pq_source_path(),
         )
-        store, _ = store_manager.get_or_create_store(self.get_remote_csv_source_path())
+        store, _ = store_manager.get_or_create_store(cls.get_remote_csv_source_path())
         store.upload(
-            self.get_remote_csv_source_path(without_prefix=True),
-            self.get_local_csv_source_path(),
+            cls.get_remote_csv_source_path(without_prefix=True),
+            cls.get_local_csv_source_path(),
         )
 
-        if not self.spark_image_deployed:
-            if not self.test_branch:
+        if not cls.spark_image_deployed:
+            if not cls.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
             else:
                 sj = new_function(
@@ -88,10 +115,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
                 sj.spec.build.image = RemoteSparkRuntime.default_image
                 sj.with_spark_service(spark_service="dummy-spark")
-                sj.spec.build.commands = ["pip install git+" + self.test_branch]
+                sj.spec.build.commands = ["pip install git+" + cls.test_branch]
                 sj.deploy(with_mlrun=False)
                 get_run_db().delete_function(name=sj.metadata.name)
-            self.spark_image_deployed = True
+            cls.spark_image_deployed = True
 
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
@@ -441,7 +468,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        path = "v3io:///bigdata/test_aggregations.parquet"
+        path = "v3io:///bigdata/test_aggregations_emit_every_event.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
@@ -742,3 +769,47 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 spark_context=self.spark_service,
                 run_config=fs.RunConfig(local=False),
             )
+
+    def test_get_offline_features_with_filter(self):
+        key = "patient_id"
+        measurements = fs.FeatureSet(
+            "measurements",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        fs.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        assert measurements.status.targets[0].run_id is not None
+
+        fv_name = "measurements-fv"
+        features = [
+            "measurements.bad",
+            "measurements.department",
+        ]
+
+        my_fv = fs.FeatureVector(
+            fv_name,
+            features,
+            description="my feature vector",
+        )
+        my_fv.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        fs.get_offline_features(
+            fv_name,
+            target=target,
+            query="bad>6 and bad<8",
+            engine="spark",
+            run_config=fs.RunConfig(local=False),
+        )
+        df_res = target.as_df()
+        df = source.to_dataframe()
+        expected_df = df[df["bad"] == 7][["bad", "department"]]
+        expected_df.reset_index(drop=True, inplace=True)
+
+        assert df_res.equals(expected_df)

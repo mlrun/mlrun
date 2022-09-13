@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import json
 import os
@@ -1019,11 +1033,8 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_function_with_build_secret(self):
         fn = self._generate_runtime()
         fn.spec.build.secret = "applied"
-        fn.spec.base_spec["spec"]["imagePullSecrets"] = "not-applied"
-        self.execute_function(fn)
-        deployed_config = self._get_deployed_config()
-        # expects spec.build.secret to overwrite fn.spec.base_spec["spec"]["imagePullSecrets"]
-        # because of nuclio.config.extend_config in compile_function_config
+        _, _, deployed_config = compile_function_config(fn)
+        # expects spec.build.secret to overwrite Nuclio spec["spec"]["imagePullSecrets"]
         assert deployed_config["spec"]["imagePullSecrets"] == fn.spec.build.secret
 
     def test_nuclio_with_preemption_mode(self):

@@ -158,6 +158,8 @@ class KubeResourceSpec(FunctionSpec):
 
         self.replicas = replicas
         self.image_pull_policy = image_pull_policy
+        # default service account is set in mlrun.utils.process_function_service_account
+        # due to project specific defaults
         self.service_account = service_account
         self.image_pull_secret = (
             image_pull_secret or mlrun.mlconf.function.spec.image_pull_secret.default
@@ -266,6 +268,16 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount, volume_mounts_field_name)
 
+    def validate_service_account(self, allowed_service_accounts):
+        if (
+            allowed_service_accounts
+            and self.service_account not in allowed_service_accounts
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Function service account {self.service_account} is not in allowed "
+                + f"service accounts {allowed_service_accounts}"
+            )
+
     def _get_affinity_as_k8s_class_instance(self):
         pass
 
@@ -283,40 +295,79 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_limits(
         self,
         resources_field_name,
-        mem=None,
-        cpu=None,
-        gpus=None,
-        gpu_type="nvidia.com/gpu",
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
     ):
         resources = verify_limits(
             resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
         )
-        update_in(
-            getattr(self, resources_field_name),
-            "limits",
-            resources,
-        )
+        if not patch:
+            update_in(
+                getattr(self, resources_field_name),
+                "limits",
+                resources,
+            )
+        else:
+            for resource, resource_value in resources.items():
+                # gpu_type can contain "." (e.g nvidia.com/gpu) in the name which will result the `update_in` to split
+                # the resource name
+                if resource == gpu_type:
+                    limits: dict = getattr(self, resources_field_name).setdefault(
+                        "limits", {}
+                    )
+                    limits.update({resource: resource_value})
+                else:
+                    update_in(
+                        getattr(self, resources_field_name),
+                        f"limits.{resource}",
+                        resource_value,
+                    )
 
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem=None,
-        cpu=None,
+        mem: str = None,
+        cpu: str = None,
+        patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
-        update_in(
-            getattr(self, resources_field_name),
-            "requests",
-            resources,
-        )
+        if not patch:
+            update_in(
+                getattr(self, resources_field_name),
+                "requests",
+                resources,
+            )
+        else:
+            for resource, resource_value in resources.items():
+                update_in(
+                    getattr(self, resources_field_name),
+                    f"requests.{resource}",
+                    resource_value,
+                )
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        """set pod cpu/memory/gpu limits"""
-        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type)
+    def with_limits(
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set pod cpu/memory/gpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
+        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem=None, cpu=None):
-        """set requested (desired) pod cpu/memory resources"""
-        self._verify_and_set_requests("resources", mem, cpu)
+    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+        """
+        set requested (desired) pod cpu/memory resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self._verify_and_set_requests("resources", mem, cpu, patch)
 
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
@@ -755,6 +806,7 @@ class AutoMountType(str, Enum):
     v3io_fuse = "v3io_fuse"
     pvc = "pvc"
     s3 = "s3"
+    env = "env"
 
     @classmethod
     def _missing_(cls, value):
@@ -778,6 +830,7 @@ class AutoMountType(str, Enum):
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
             mlrun.platforms.mount_s3.__name__,
+            mlrun.platforms.set_env_variables.__name__,
         ]
 
     @classmethod
@@ -811,6 +864,7 @@ class AutoMountType(str, Enum):
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun.platforms.mount_s3,
+            AutoMountType.env: mlrun.platforms.set_env_variables,
         }[self]
 
 
@@ -853,6 +907,15 @@ class KubeResource(BaseRuntime):
         return struct
 
     def apply(self, modify):
+        """
+        Apply a modifier to the runtime which is used to change the runtime's k8s object's spec.
+        Modifiers can be either KFP modifiers or MLRun modifiers (which are compatible with KFP). All modifiers accept
+        a `kfp.dsl.ContainerOp` object, apply some changes on its spec and return it so modifiers can be chained
+        one after the other.
+
+        :param modify: a modifier runnable object
+        :return: the runtime (self) after the modifications
+        """
 
         # Kubeflow pipeline have a hook to add the component to the DAG on ContainerOp init
         # we remove the hook to suppress kubeflow op registration and return it after the apply()
@@ -930,13 +993,26 @@ class KubeResource(BaseRuntime):
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        """set pod cpu/memory/gpu limits"""
-        self.spec.with_limits(mem, cpu, gpus, gpu_type)
+    def with_limits(
+        self,
+        mem: str = None,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set pod cpu/memory/gpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
 
-    def with_requests(self, mem=None, cpu=None):
-        """set requested (desired) pod cpu/memory resources"""
-        self.spec.with_requests(mem, cpu)
+    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+        """
+        set requested (desired) pod cpu/memory resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec.with_requests(mem, cpu, patch=patch)
 
     def with_node_selection(
         self,
@@ -1217,16 +1293,8 @@ class KubeResource(BaseRuntime):
                 logger.info(
                     f"Setting default service account to function: {default_service_account}"
                 )
-            return
 
-        if (
-            allowed_service_accounts
-            and self.spec.service_account not in allowed_service_accounts
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Function service account {self.spec.service_account} is not in allowed "
-                + f"service accounts {allowed_service_accounts}"
-            )
+        self.spec.validate_service_account(allowed_service_accounts)
 
 
 def kube_resource_spec_to_pod_spec(

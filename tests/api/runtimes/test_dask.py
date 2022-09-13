@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import json
 import os
@@ -148,6 +162,44 @@ class TestDaskRuntime(TestRuntimeBase):
             self.v3io_user, self.v3io_access_key
         )
         self._assert_scheduler_pod_args()
+
+    def test_dask_runtime_with_resources_patch(self, db: Session, client: TestClient):
+        runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()
+        runtime.with_scheduler_requests(mem="2G", cpu="3")
+        runtime.with_worker_requests(mem="2G", cpu="3")
+        gpu_type = "nvidia.com/gpu"
+
+        runtime.with_scheduler_limits(mem="4G", cpu="5", gpu_type=gpu_type, gpus=2)
+        runtime.with_worker_limits(mem="4G", cpu="5", gpu_type=gpu_type, gpus=2)
+
+        runtime.with_scheduler_limits(gpus=3)  # default patch = False
+        runtime.with_scheduler_requests(cpu="4", patch=True)
+
+        runtime.with_worker_limits(cpu="10", patch=True)
+        runtime.with_worker_requests(mem="3G")  # default patch = False
+        _ = runtime.client
+
+        self.kube_cluster_mock.assert_called_once()
+
+        self._assert_pod_creation_config(
+            expected_runtime_class_name="dask",
+            assert_create_pod_called=False,
+            assert_namespace_env_variable=False,
+        )
+        self._assert_v3io_mount_or_creds_configured(
+            self.v3io_user, self.v3io_access_key
+        )
+        self._assert_pods_resources(
+            expected_worker_requests={
+                "memory": "3G",
+            },
+            expected_worker_limits={"memory": "4G", "cpu": "10", "nvidia.com/gpu": 2},
+            expected_scheduler_requests={
+                "memory": "2G",
+                "cpu": "4",
+            },
+            expected_scheduler_limits={"nvidia.com/gpu": 3},
+        )
 
     def test_dask_runtime_with_resources(self, db: Session, client: TestClient):
         runtime: mlrun.runtimes.DaskCluster = self._generate_runtime()

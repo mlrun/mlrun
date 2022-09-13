@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
 import string
@@ -13,9 +27,12 @@ import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.artifacts.model
 import mlrun.feature_store
+import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.utils
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -316,9 +333,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 name="model-monitoring-stream", project=self.project_name, tag=""
             )
         )
-        stat = mlrun.get_run_db().get_builder_status(base_runtime)
 
-        assert base_runtime.status.state == "ready", stat
+        # Wait 20 sec if model monitoring stream function is still in building process
+        mlrun.utils.helpers.retry_until_successful(
+            2,
+            20,
+            mlrun.utils.logger,
+            False,
+            self._check_monitoring_building_state,
+            base_runtime=base_runtime,
+        )
 
         # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
@@ -339,7 +363,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
-        sleep(75)
+        sleep(60)
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(
@@ -519,8 +543,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
+        # Define tracking policy
+        tracking_policy = {
+            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
+        }
+
         # Enable model monitoring
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         # Deploy the serving function
         serving_fn.deploy()
@@ -535,6 +564,18 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             model_endpoint.spec.monitoring_mode
             == mlrun.api.schemas.ModelMonitoringMode.enabled.value
         )
+
+        # Validate tracking policy
+        batch_job = db.get_schedule(
+            project=self.project_name, name="model-monitoring-batch"
+        )
+        assert batch_job.cron_trigger.hour == "*/3"
+
+        # TODO: uncomment the following assertion once the auto trainer function
+        #  from mlrun marketplace is upgraded to 1.0.8
+        # assert len(model_obj.spec.feature_stats) == len(
+        #     model_endpoint.spec.feature_names
+        # ) + len(model_endpoint.spec.label_names)
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
@@ -559,3 +600,8 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             ),
             status=ModelEndpointStatus(state=state),
         )
+
+    def _check_monitoring_building_state(self, base_runtime):
+        # Check if model monitoring stream function is ready
+        stat = mlrun.get_run_db().get_builder_status(base_runtime)
+        assert base_runtime.status.state == "ready", stat

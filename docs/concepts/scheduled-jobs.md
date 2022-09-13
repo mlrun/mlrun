@@ -1,9 +1,9 @@
 (scheduled-jobs)=
-# Scheduled Jobs
+# Scheduled jobs
 
-Oftentimes you may want to repeatedly run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
+Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 
-## Create a Job
+## Create a job
 
 MLRun makes it very simple to add a schedule to a given `job`. To showcase this, the following job runs the code below, which resides in a file titled `schedule.py`:
 
@@ -26,7 +26,7 @@ job = mlrun.code_to_function(
 )
 ```
 
-## Add a Schedule
+## Add a schedule
 
 To add a schedule, run the job and specify the `schedule` parameter using Cron syntax like so:
 
@@ -34,4 +34,4 @@ To add a schedule, run the job and specify the `schedule` parameter using Cron s
 job.run(schedule="0 * * * *")
 ```
 
-This will run the job every hour. An execellent resource for generating Cron schedules is [Crontab.guru](https://crontab.guru/).
+This runs the job every hour. An excellent resource for generating Cron schedules is [Crontab.guru](https://crontab.guru/).

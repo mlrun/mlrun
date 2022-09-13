@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import collections
 import re
 import traceback
@@ -485,8 +499,19 @@ def process_function_service_account(function):
     if not get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
         return
 
+    (
+        allowed_service_accounts,
+        default_service_account,
+    ) = resolve_project_default_service_account(function.metadata.project)
+
+    function.validate_and_enrich_service_account(
+        allowed_service_accounts, default_service_account
+    )
+
+
+def resolve_project_default_service_account(project_name: str):
     allowed_service_accounts = mlrun.api.crud.secrets.Secrets().get_project_secret(
-        function.metadata.project,
+        project_name,
         SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "allowed"
@@ -501,7 +526,7 @@ def process_function_service_account(function):
         ]
 
     default_service_account = mlrun.api.crud.secrets.Secrets().get_project_secret(
-        function.metadata.project,
+        project_name,
         SecretProviderName.kubernetes,
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.service_accounts, "default"
@@ -526,9 +551,7 @@ def process_function_service_account(function):
             + f"service accounts {allowed_service_accounts}"
         )
 
-    function.validate_and_enrich_service_account(
-        allowed_service_accounts, default_service_account
-    )
+    return allowed_service_accounts, default_service_account
 
 
 def ensure_function_security_context(function, auth_info: mlrun.api.schemas.AuthInfo):

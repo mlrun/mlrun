@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import unittest
 from http import HTTPStatus
 from os import environ
@@ -205,7 +219,13 @@ class RunDBMock:
             state="ready",
             nuclio_name="test-nuclio-name",
         )
-        return {"data": {"status": status.to_dict()}}
+        return {
+            "data": {
+                "status": status.to_dict(),
+                "metadata": self._function.get("metadata"),
+                "spec": self._function.get("spec"),
+            }
+        }
 
     def get_builder_status(
         self,
@@ -316,6 +336,13 @@ class RunDBMock:
         if non_anonymous:
             expected_envs["S3_NON_ANONYMOUS"] = "true"
         assert expected_envs == env_dict
+
+    def assert_env_variables(self, expected_env_dict):
+        env_list = self._function["spec"]["env"]
+        env_dict = {item["name"]: item["value"] for item in env_list}
+
+        for key, value in expected_env_dict.items():
+            assert env_dict[key] == value
 
     def verify_authorization(
         self,

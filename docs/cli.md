@@ -146,7 +146,7 @@ Example:  `mlrun project -r workflow.py .`
 | -u, &minus;&minus;url  TEXT          | Remote git or archive url of the project |
 | -r, &minus;&minus;run  TEXT          | Run workflow name of .py file |
 | -a, &minus;&minus;arguments TEXT     | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6 
-| -p, &minus;&minus;artifact_path TEXT | Target path/url for workflow artifacts, The string ‘{{workflow.uid}}’ is replaced by workflow id 
+| -p, &minus;&minus;artifact_path TEXT | Target path/url for workflow artifacts.  The string ‘{{workflow.uid}}’ is replaced by workflow id 
 | -x, &minus;&minus;param  TEXT         | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text' |
 | -s, &minus;&minus;secrets TEXT        | Secrets file=<filename> or env=ENV_KEY1,.. |
 | &minus;&minus;namespace TEXT         | k8s namespace |
@@ -243,7 +243,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:1.0.0
+    base_image: mlrun/mlrun:1.0.6
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -273,7 +273,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.0.0
+    base_image: mlrun/mlrun:1.0.6
     source: git://github.com/mlrun/ci-demo.git
 ```
 
@@ -301,7 +301,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.0.0
+    base_image: mlrun/mlrun:1.0.6
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

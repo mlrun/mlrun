@@ -1,8 +1,8 @@
 (configuring-job-resources)=
 # Managing job resources
 
-MLRun orchestrates serverless functions over Kubernetes. You can specify the desired resource requirements (CPU, memory, GPUs) and preferences/priorities in the 
-logical function object. These are used during the function deployment.
+MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
+preferences, and priorities in the logical function object. These are used during the function deployment.
 
 Configuration of job resources is relevant for all supported cloud platforms.
 
@@ -11,8 +11,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
-- [Pod priority](#pod-priority-for-user-jobs)
-- [Node affinity (node selectors)](#node-affinity-node-selectors)
+- [Pod priority for user jobs](#pod-priority-for-user-jobs)
 
 ## Replicas
 
@@ -119,7 +118,7 @@ Preemption mode uses Kubernets Taints and Toleration to enforce the mode selecte
 ### Why preemption mode
 
 On-demand instances provide full control over the instance lifecycle. You decide when to launch, stop, hibernate, start, 
-reboot, or terminate it. With Spot instances you request capacity from specific availabile zones, though it is  
+reboot, or terminate it. With Spot instances you request capacity from specific available zones, though it is  
 susceptible to spot capacity availability. This is a good choice if you can be flexible about when your applications run 
 and if your applications can be interrupted. 
 
@@ -131,11 +130,11 @@ Here are some questions to consider when choosing the type of node:
 - Is this a job that should run only when there are available inexpensive resources?
 
 ```{admonition} Important
-When an MLRun job is running on a spot node and it fails, it won't get back up again. Howewer, if Nuclio goes down due to a spot issue, it 
+When an MLRun job is running on a spot node and it fails, it won't get back up again. However, if Nuclio goes down due to a spot issue, it 
 is brought up by Kubernetes.
 ```
 
-Kuberenetes has a few methods for configuring which nodes to run on. To get a deeper understanding , see [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
+Kuberenetes has a few methods for configuring which nodes to run on. To get a deeper understanding, see [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption).
 Also, you must understand the configuration of the spot nodes as specified by the cloud provider.
 
 ### Stateless and Stateful Applications 
@@ -144,7 +143,7 @@ nodes are designed to run stateful applications while spot nodes are designed fo
 MLRun jobs are more stateful by nature. An MLRun job that is assigned to run on a spot node might be subject to interruption; 
 it would have to be designed so that the job/function state will be saved when scaling to zero.
 
-## Supported preemption modes
+### Supported preemption modes
 
 Preemption mode has three values:
 - Allow: The function pod can run on a spot node if one is available.
@@ -246,53 +245,3 @@ train_fn.run(inputs={"dataset" :my_data})
 
 
 See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
-
-## Node affinity (node selectors)
-
-You can assign a node or a node group for services or for jobs executed by a service. When specified, the service or the pods of a function can only run on nodes whose 
-labels match the node selector entries configured for the specific service. If node selection for the service is not specified, the 
-selection criteria defaults to the Kubernetes default behavior, and jobs run on a random node.
-
-For MLRun and Nuclio, you can also specify node selectors on a per-job basis. The default node selectors (defined at the service level) are 
-applied to all jobs unless you specifically override them for an individual job. 
-
-You can configure node affinity for:
-- Jupyter
-- Presto (The node selection also affects any additional services that are directly affected by Presto, for example hive and mariadb, 
-which are created if Enable hive is checked in the Presto service.)
-- Grafana
-- Shell
-- MLRun (default value applied to all jobs that can be overwritten for individual jobs)
-- Nuclio (default value applied to all jobs that can be overwritten for individual jobs)
-
-See more about [Kubernetes nodeSelector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector).
-
-### UI configuration
-
-Configure node selection on the service level in the service's **Custom Parameters** tab, under **Resources**, by adding or removing 
-Key:Value pairs. For MLRun and Nuclio, this is the default node selection for all MLRun jobs and Nuclio functions. 
-
-You can also configure the node selection for individual MLRun jobs by going to **Platform dashboard | Projects | New Job | Resources | Node 
-selector**, and adding or removing Key:Value pairs. Configure the node selection for individual Nuclio functions when creating a function in 
-the **Confguration** tab, under **Resources**, by adding Key:Value pairs.
-
-### SDK configuration
-
-Configure node selection by adding the key:value pairs in your Jupyter notebook formatted as a Python dictionary. <br>
-For example:
-
-```
-import mlrun
-import os
-train_fn = mlrun.code_to_function('training', 
-                            kind='job', 
-                            handler='my_training_function') 
-train_fn.with_preemption_mode(mode="prevent") 
-train_fn.run(inputs={"dataset" :my_data})
-
-            
-# Add node selection
-func.with_node_selection(node_selector={name})
-```
-
-See [`with_node_selection`](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_node_selection).

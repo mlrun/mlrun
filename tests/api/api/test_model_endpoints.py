@@ -31,11 +31,16 @@ from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 
 TEST_PROJECT = "test_model_endpoints"
 
+# Set a default v3io access key env variable
+v3io_access_key = "1111-2222-3333-4444"
+os.environ["V3IO_ACCESS_KEY"] = v3io_access_key
+
 
 def test_build_kv_cursor_filter_expression():
+
     # Initialize endpoint store target object
     endpoint_target = mlrun.api.crud.model_endpoints.ModelEndpointKVStore(
-        project=TEST_PROJECT, access_key=os.environ.get("V3IO_ACCESS_KEY")
+        project=TEST_PROJECT, access_key=v3io_access_key
     )
     with pytest.raises(MLRunInvalidArgumentError):
         endpoint_target.build_kv_cursor_filter_expression("")
@@ -216,7 +221,7 @@ def test_get_endpoint_features_function():
 
     # Initialize endpoint store target object
     endpoint_target = mlrun.api.crud.model_endpoints.ModelEndpointKVStore(
-        project=TEST_PROJECT, access_key=os.environ.get("V3IO_ACCESS_KEY")
+        project=TEST_PROJECT, access_key=v3io_access_key
     )
 
     features = endpoint_target.get_endpoint_features(feature_names, stats, stats)

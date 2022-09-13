@@ -39,9 +39,11 @@ class TestV3ioDataStore(TestMLRunSystem):
                 offset = r.randint(0, file_size - 1)
                 f.seek(offset)
                 f.write(bytearray([i]))
-        v3io_path = "v3io:///bigdata/test_v3io_large_object"
-        data_item = mlrun.datastore.store_manager.object(v3io_path)
+        object_path = "/bigdata/test_v3io_large_object"
+        v3io_object_url = "v3io://" + object_path
+        data_item = mlrun.datastore.store_manager.object(v3io_object_url)
 
+        # Exercise the DataItem upload flow
         data_item.upload("tempfile_1")
         data_item.download("tempfile_2")
 
@@ -49,6 +51,18 @@ class TestV3ioDataStore(TestMLRunSystem):
         cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
         stdout, stderr = cmp_process.communicate()
 
+        # Do the test again, this time exercising the v3io datastore upload_helper loop
+        os.remove("tempfile_2")
+
+        data_item.store.upload_helper(
+            object_path, "tempfile_1", max_chunk_length=100 * 1024
+        )
+        data_item.download("tempfile_2")
+
+        cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
+        stdout, stderr = cmp_process.communicate()
+
+        # cleanup
         data_item.delete()
         os.remove("tempfile_1")
         os.remove("tempfile_2")

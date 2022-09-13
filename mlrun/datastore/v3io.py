@@ -36,6 +36,8 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
+one_GB = 1024 * 1024 * 1024
+one_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):
@@ -93,14 +95,13 @@ class V3ioStore(DataStore):
             v3io_api=mlrun.mlconf.v3io_api,
         )
 
-    def upload(self, key, src_path):
+    def upload_helper(self, key, src_path, max_chunk_length=one_GB):
         file_size = os.path.getsize(src_path)
-        if file_size <= 1024 * 1024:  # 1MB
+        if file_size <= one_MB:
             http_upload(self.url + self._join(key), src_path, self.headers, None)
             return
         append_header = deepcopy(self.headers)
         append_header["Range"] = "-1"
-        max_chunk_length = 1024 * 1024 * 1024  # 1GB
         with open(src_path, "rb") as file_obj:
             file_offset = 0
             while file_offset < file_size:
@@ -118,6 +119,9 @@ class V3ioStore(DataStore):
                         None,
                     )
                     file_offset = file_offset + chunk_len
+
+    def upload(self, key, src_path):
+        return self.upload_helper(key, src_path)
 
     def get(self, key, size=None, offset=0):
         headers = self.headers

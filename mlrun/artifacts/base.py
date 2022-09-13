@@ -349,7 +349,7 @@ class Artifact(ModelObj):
             )
 
         self.metadata.hash = self.metadata.hash or body_hash
-        if mlrun.mlconf.should_calculate_artifact_hash():
+        if mlrun.mlconf.should_calculate_artifact_hash() and not self.metadata.hash:
             self.metadata.hash = calculate_blob_hash(body)
         self.spec.size = len(body)
 
@@ -369,7 +369,7 @@ class Artifact(ModelObj):
                 source_path, artifact_path
             )
         self.metadata.hash = self.metadata.hash or file_hash
-        if mlrun.mlconf.should_calculate_artifact_hash():
+        if mlrun.mlconf.should_calculate_artifact_hash() and not self.metadata.hash:
             self.metadata.hash = calculate_local_file_hash(source_path)
         self.spec.size = os.stat(source_path).st_size
 
@@ -415,7 +415,7 @@ class Artifact(ModelObj):
     ) -> (str, str):
         """
         constructs the target path by calculating the artifact source hash
-        :param artifact_source: artifact to calculate hash on
+        :param artifact_source: artifact to calculate hash on. May be path to source (str) or content (bytes)
         :param artifact_path: the base path for constructing the target path
         :param hash_method: the method which calculates the hash from the artifact source
         :return: [artifact_hash, target_path]
@@ -896,19 +896,28 @@ class DirArtifact(Artifact):
         :param artifact_path: required only for when generating target_path from artifact hash
         """
         if not self.spec.src_path:
-            raise ValueError("local/source path not specified")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "local/source path not specified"
+            )
 
         files = os.listdir(self.spec.src_path)
         for file_name in files:
             file_path = os.path.join(self.spec.src_path, file_name)
             if not os.path.isfile(file_path):
-                raise ValueError(f"file {file_path} not found, cant upload")
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"file {file_path} not found, cant upload"
+                )
 
             if self.spec.target_path:
                 target = os.path.join(self.spec.target_path, file_name)
-            else:
+            elif mlrun.mlconf.should_generate_target_path_from_artifact_hash():
                 _, target = self.resolve_file_target_hash_path(
                     source_path=file_path, artifact_path=artifact_path
+                )
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "target path is not specified and mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash "
+                    "set to False"
                 )
 
             store_manager.object(url=target).upload(file_path)

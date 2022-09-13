@@ -104,7 +104,7 @@ default_config = {
     "artifacts": {
         # None is handled as True, reason is that we want the client to have precedence on both params bellow
         # for example if the user logs a big artifact and the calculation get stuck for some reason, or it doesn't want
-        # the hash to be calculated so we wasn't the client to be able to configure that ( passed in client-spec )
+        # the hash to be calculated so we want the client to be able to configure that ( passed in client-spec )
         "calculate_hash": None,
         "generate_target_path_from_artifact_hash": False,
     },

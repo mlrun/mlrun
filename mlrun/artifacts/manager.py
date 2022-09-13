@@ -173,7 +173,7 @@ class ArtifactManager:
         item.labels = labels or item.labels
         # if running as part of a workflow, enrich artifact with workflow uid label
         if item.producer.get("workflow"):
-            item.labels.update({"workflow": item.producer.get("workflow")})
+            item.labels.update({"workflow-id": item.producer.get("workflow")})
 
         item.iter = producer.iteration
         item.project = producer.project

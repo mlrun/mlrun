@@ -297,11 +297,14 @@ class HTTPRunDB(RunDBInterface):
             )
             config.artifacts.calculate_hash = (
                 config.artifacts.calculate_hash
-                or server_cfg.get("calculate_artifact_hash")
+                if config.artifacts.calculate_hash is not None
+                else server_cfg.get("calculate_artifact_hash")
             )
             config.artifacts.generate_target_path_from_artifact_hash = (
                 config.artifacts.generate_target_path_from_artifact_hash
-                or server_cfg.get("generate_artifact_target_path_from_artifact_hash")
+                if config.artifacts.generate_artifact_target_path_from_artifact_hash
+                is not None
+                else server_cfg.get("generate_artifact_target_path_from_artifact_hash")
             )
 
             # These have a default value, therefore local config will always have a value, prioritize the

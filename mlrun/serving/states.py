@@ -132,15 +132,8 @@ class BaseStep(ModelObj):
                 self.after.append(name)
         return self
 
-    def error_handler(self, step_name: str = None, state_name=None):
+    def error_handler(self, step_name: str = None):
         """set error handler step (on failure/raise of this step)"""
-        if state_name:
-            warnings.warn(
-                "The state_name parameter is deprecated. Use step_name instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            step_name = step_name or state_name
         if not step_name:
             raise MLRunInvalidArgumentError("Must specify step_name")
         self.on_error = step_name
@@ -636,15 +629,6 @@ class QueueStep(BaseStep):
     def async_object(self):
         return self._async_object
 
-    # def after_step(self, *after):
-    #     # queue steps accept multiple sources
-    #     if self.after:
-    #         if after:
-    #             self.after.append(after)
-    #     else:
-    #         self.after = [after] if after else []
-    #     return self
-    #
     def run(self, event, *args, **kwargs):
         data = event.body
         if not data:
@@ -697,15 +681,6 @@ class FlowStep(BaseStep):
         return self._steps
 
     @property
-    def states(self):
-        warnings.warn(
-            "This property is deprecated. Use steps instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        return self._steps
-
-    @property
     def controller(self):
         """async (storey) flow controller"""
         return self._controller
@@ -713,15 +688,6 @@ class FlowStep(BaseStep):
     @steps.setter
     def steps(self, steps):
         self._steps = ObjectDict.from_dict(classes_map, steps, "task")
-
-    @states.setter
-    def states(self, states):
-        warnings.warn(
-            "This property is deprecated. Use steps instead",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
-        self._steps = ObjectDict.from_dict(classes_map, states, "task")
 
     def add_step(
         self,
@@ -820,15 +786,8 @@ class FlowStep(BaseStep):
         self._last_added = step
         return step
 
-    def clear_children(self, steps: list = None, states: list = None):
+    def clear_children(self, steps: list = None):
         """remove some or all of the states, empty/None for all"""
-        if states:
-            warnings.warn(
-                "This states parameter is deprecated. Use steps instead",
-                # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-                PendingDeprecationWarning,
-            )
-            steps = steps or states
         if not steps:
             steps = self._steps.keys()
         for key in steps:

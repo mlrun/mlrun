@@ -14,6 +14,7 @@
 
 import json
 import os
+import re
 from copy import deepcopy
 from typing import List, Union
 
@@ -456,7 +457,7 @@ class ServingRuntime(RemoteRuntime):
             if stream.path:
                 if function_name not in self._spec.function_refs.keys():
                     raise ValueError(f"function reference {function_name} not present")
-                group = stream.options.get("group", "serving")
+                group = stream.options.get("group", f"{function_name}-consumer-group")
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
@@ -472,11 +473,14 @@ class ServingRuntime(RemoteRuntime):
                     trigger = KafkaTrigger(
                         brokers=brokers,
                         topics=[topic],
-                        consumer_group=f"{function_name}-consumer-group",
+                        consumer_group=group,
                         **trigger_args,
                     )
                     child_function.function_object.add_trigger("kafka", trigger)
                 else:
+                    group = re.sub(
+                        "[-,.,\s+]", "_", group
+                    )  # normalize to v3io attr name restrictions
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )

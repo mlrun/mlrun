@@ -612,7 +612,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         """
 
-        path = self._path_of("artifact", project, uid) + "/" + key
+        endpoint_path = f"projects/{project}/artifacts/{uid}/{key}"
         params = {
             "tag": tag,
         }
@@ -622,32 +622,32 @@ class HTTPRunDB(RunDBInterface):
         error = f"store artifact {project}/{uid}/{key}"
 
         body = _as_json(artifact)
-        self.api_call("POST", path, error, params=params, body=body)
+        self.api_call("POST", endpoint_path, error, params=params, body=body)
 
     def read_artifact(self, key, tag=None, iter=None, project=""):
         """Read an artifact, identified by its key, tag and iteration."""
 
         project = project or config.default_project
         tag = tag or "latest"
-        path = f"projects/{project}/artifact/{key}?tag={tag}"
+        endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
         # The default is legacy format, need to override it.
         params = {"format": schemas.ArtifactsFormat.full.value}
         if iter:
             params["iter"] = str(iter)
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call("GET", endpoint_path, error, params=params)
         return resp.json()["data"]
 
     def del_artifact(self, key, tag=None, project=""):
         """Delete an artifact."""
 
-        path = self._path_of("artifact", project, key)  # TODO: uid?
+        endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
             "tag": tag,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params)
 
     def list_artifacts(
         self,
@@ -691,7 +691,6 @@ class HTTPRunDB(RunDBInterface):
 
         params = {
             "name": name,
-            "project": project,
             "tag": tag,
             "label": labels or [],
             "iter": iter,
@@ -701,7 +700,8 @@ class HTTPRunDB(RunDBInterface):
             "format": schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
-        resp = self.api_call("GET", "artifacts", error, params=params)
+        endpoint_path = f"projects/{project}/artifacts"
+        resp = self.api_call("GET", endpoint_path, error, params=params)
         values = ArtifactList(resp.json()["artifacts"])
         values.tag = tag
         return values
@@ -719,13 +719,13 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         params = {
             "name": name,
-            "project": project,
             "tag": tag,
             "label": labels or [],
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
-        self.api_call("DELETE", "artifacts", error, params=params)
+        endpoint_path = f"projects/{project}/artifacts"
+        self.api_call("DELETE", endpoint_path, error, params=params)
 
     def list_artifact_tags(self, project=None) -> List[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""

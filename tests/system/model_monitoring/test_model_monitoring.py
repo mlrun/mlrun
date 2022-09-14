@@ -582,7 +582,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         m_fs = mlrun.feature_store.get_feature_set(
             f"store://feature-sets/{self.project}/monitoring-serving-diabetes_model-latest:latest"
         )
-        assert model_endpoint.spec.monitoring_feature_set_uri == m_fs.uri
+        assert model_endpoint.status.monitoring_feature_set_uri == m_fs.uri
 
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

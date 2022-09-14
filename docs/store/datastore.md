@@ -88,6 +88,12 @@ authenticate, it is used in several use-cases, such as resolving paths to the ho
   parameters
 * `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
   a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
+* `AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
+  Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
+  ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
+* `AWS_PROFILE` &mdash; name of credentials profile. The profile needs to be defined in the local AWS credentials file. 
+  When using a profile, the authentication secrets (if defined) are ignored, and credentials are retrieved from the 
+  local credentials file
 
 ### Azure Blob storage
 The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed

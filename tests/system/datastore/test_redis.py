@@ -28,8 +28,8 @@ def redis_endpoint(request):
 
 
 @pytest.mark.skipif(
-    not mlrun.mlconf.redis_url,
-    reason="mlrun.mlconf.redis_url is not set, skipping until testing against real redis",
+    not mlrun.mlconf.redis.url,
+    reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
 )
 class TestRedisDataStore(TestMLRunSystem):
     @staticmethod

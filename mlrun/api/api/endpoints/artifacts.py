@@ -33,7 +33,9 @@ from mlrun.utils import is_legacy_artifact, logger
 router = APIRouter()
 
 
+# TODO /artifact/{project}/{uid}/{key:path} should be deprecated in 1.4
 @router.post("/artifact/{project}/{uid}/{key:path}")
+@router.post("/projects/{project}/artifacts/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
     project: str,
@@ -112,7 +114,9 @@ def list_artifact_tags(
     }
 
 
+# TODO /projects/{project}/artifact/{key:path} should be deprecated in 1.4
 @router.get("/projects/{project}/artifact/{key:path}")
+@router.get("/projects/{project}/artifacts/{key:path}")
 def get_artifact(
     project: str,
     key: str,
@@ -137,6 +141,7 @@ def get_artifact(
     }
 
 
+# TODO /artifact/{project}/{uid} should be deprecated in 1.4
 @router.delete("/artifact/{project}/{uid}")
 def delete_artifact(
     project: str,
@@ -157,19 +162,18 @@ def delete_artifact(
     return {}
 
 
-@router.get("/artifacts")
-def list_artifacts(
+def _list_artifacts(
     project: str = None,
     name: str = None,
     tag: str = None,
     kind: str = None,
     category: schemas.ArtifactCategories = None,
-    labels: List[str] = Query([], alias="label"),
-    iter: int = Query(None, ge=0),
-    best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
-    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
+    labels: List[str] = None,
+    iter: int = None,
+    best_iteration: bool = False,
+    format_: ArtifactsFormat = ArtifactsFormat.full,
+    auth_info: mlrun.api.schemas.AuthInfo = None,
+    db_session: Session = None,
 ):
     if project is None:
         project = config.default_project
@@ -203,14 +207,72 @@ def list_artifacts(
     }
 
 
-@router.delete("/artifacts")
-def delete_artifacts(
-    project: str = mlrun.mlconf.default_project,
-    name: str = "",
-    tag: str = "",
+# TODO /artifacts should be deprecated in 1.4
+@router.get("/artifacts")
+def list_artifacts_legacy(
+    project: str = None,
+    name: str = None,
+    tag: str = None,
+    kind: str = None,
+    category: schemas.ArtifactCategories = None,
     labels: List[str] = Query([], alias="label"),
+    iter: int = Query(None, ge=0),
+    best_iteration: bool = Query(False, alias="best-iteration"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+):
+    _list_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        kind=kind,
+        category=category,
+        labels=labels,
+        iter=iter,
+        best_iteration=best_iteration,
+        format_=format_,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
+@router.get("/projects/{project}/artifacts")
+def list_artifacts(
+    project: str = None,
+    name: str = None,
+    tag: str = None,
+    kind: str = None,
+    category: schemas.ArtifactCategories = None,
+    labels: List[str] = Query([], alias="label"),
+    iter: int = Query(None, ge=0),
+    best_iteration: bool = Query(False, alias="best-iteration"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    _list_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        kind=kind,
+        category=category,
+        labels=labels,
+        iter=iter,
+        best_iteration=best_iteration,
+        format_=format_,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
+def _delete_artifacts(
+    project: str = None,
+    name: str = None,
+    tag: str = None,
+    labels: List[str] = None,
+    auth_info: mlrun.api.schemas.AuthInfo = None,
+    db_session: Session = None,
 ):
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session, project, name, tag, labels
@@ -224,6 +286,45 @@ def delete_artifacts(
     )
     mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
     return {}
+
+
+# TODO /artifacts should be deprecated in 1.4
+@router.delete("/artifacts")
+def delete_artifacts_legacy(
+    project: str = mlrun.mlconf.default_project,
+    name: str = "",
+    tag: str = "",
+    labels: List[str] = Query([], alias="label"),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return _delete_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
+@router.delete("/projects/{project}/artifacts")
+def delete_artifacts(
+    project: str = mlrun.mlconf.default_project,
+    name: str = "",
+    tag: str = "",
+    labels: List[str] = Query([], alias="label"),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return _delete_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
 
 
 # Extract project and resource name from legacy artifact structure as well as from new format

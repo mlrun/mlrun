@@ -1495,7 +1495,7 @@ class MlrunProject(ModelObj):
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
-        return self.log_artifact(artifact, artifact_path=artifact_path)
+        return self.log_artifact(artifact, artifact_path=artifact_path, upload=False)
 
     def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs

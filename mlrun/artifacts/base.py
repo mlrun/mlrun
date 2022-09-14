@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import hashlib
 import os
 import tempfile
@@ -909,9 +910,9 @@ class DirArtifact(Artifact):
                 )
 
             if self.spec.target_path:
-                target = os.path.join(self.spec.target_path, file_name)
+                target_path = os.path.join(self.spec.target_path, file_name)
             elif mlrun.mlconf.should_generate_target_path_from_artifact_hash():
-                _, target = self.resolve_file_target_hash_path(
+                _, target_path = self.resolve_file_target_hash_path(
                     source_path=file_path, artifact_path=artifact_path
                 )
             else:
@@ -920,7 +921,9 @@ class DirArtifact(Artifact):
                     "set to False"
                 )
 
-            store_manager.object(url=target).upload(file_path)
+            store_manager.object(url=target_path).upload(file_path)
+            # add files of the directory to the extra data of the artifact with value of the target path
+            self.spec.extra_data[file_name] = target_path
 
 
 class LinkArtifactSpec(ArtifactSpec):
@@ -1199,34 +1202,34 @@ def calculate_blob_hash(data):
 
 
 def upload_extra_data(
-    artifact_spec: Artifact,
+    artifact: Artifact,
     extra_data: dict,
     prefix="",
     update_spec=False,
     artifact_path: str = None,
 ):
+    """upload extra data to the artifact store"""
     if not extra_data:
         return
-    target_path = artifact_spec.target_path
+    # TODO: change to use `artifact.spec` when removing legacy artifacts
+    target_path = artifact.target_path
     for key, item in extra_data.items():
 
         if isinstance(item, bytes):
             if target_path:
                 target = os.path.join(target_path, prefix + key)
             else:
-                _, target = artifact_spec.resolve_body_target_hash_path(
+                _, target = artifact.resolve_body_target_hash_path(
                     item, artifact_path=artifact_path
                 )
 
             store_manager.object(url=target).put(item)
-            artifact_spec.extra_data[prefix + key] = target
+            artifact.extra_data[prefix + key] = target
             continue
 
         if is_relative_path(item):
             src_path = (
-                os.path.join(artifact_spec.src_path, item)
-                if artifact_spec.src_path
-                else item
+                os.path.join(artifact.src_path, item) if artifact.src_path else item
             )
             if not os.path.isfile(src_path):
                 raise ValueError(f"extra data file {src_path} not found")
@@ -1234,13 +1237,15 @@ def upload_extra_data(
             if target_path:
                 target = os.path.join(target_path, item)
             else:
-                _, target = artifact_spec.resolve_file_target_hash_path(
+                _, target = artifact.resolve_file_target_hash_path(
                     src_path, artifact_path=artifact_path
                 )
             store_manager.object(url=target).upload(src_path)
+            artifact.extra_data[prefix + key] = target
+            continue
 
         if update_spec:
-            artifact_spec.extra_data[prefix + key] = item
+            artifact.extra_data[prefix + key] = item
 
 
 def get_artifact_meta(artifact):

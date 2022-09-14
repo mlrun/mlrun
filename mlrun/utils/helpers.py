@@ -436,7 +436,7 @@ yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 yaml.add_multi_representer(enum.Enum, enum_representer, Dumper=yaml.SafeDumper)
 
 
-def dict_to_yaml(struct):
+def dict_to_yaml(struct) -> str:
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as exc:

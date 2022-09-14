@@ -108,7 +108,7 @@ class ModelEndpoints:
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
-                model_endpoint.spec.monitoring_feature_set_uri = m_fs.uri
+                model_endpoint.status.monitoring_feature_set_uri = m_fs.uri
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make
@@ -530,7 +530,6 @@ class ModelEndpoints:
                 algorithm=endpoint.get("algorithm") or None,
                 monitor_configuration=monitor_configuration or None,
                 active=endpoint.get("active") or None,
-                monitoring_feature_set=endpoint.get("monitoring_feature_set_uri") or None,
                 monitoring_mode=endpoint.get("monitoring_mode") or None,
             ),
             status=mlrun.api.schemas.ModelEndpointStatus(
@@ -545,6 +544,7 @@ class ModelEndpoints:
                 drift_status=endpoint.get("drift_status") or None,
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
+                monitoring_feature_set=endpoint.get("monitoring_feature_set_uri") or None,
             ),
         )
 
@@ -658,7 +658,7 @@ class ModelEndpoints:
                 "model_uri": endpoint.spec.model_uri or "",
                 "stream_path": endpoint.spec.stream_path or "",
                 "active": endpoint.spec.active or "",
-                "monitoring_feature_set_uri": endpoint.spec.monitoring_feature_set_uri or "",
+                "monitoring_feature_set_uri": endpoint.status.monitoring_feature_set_uri or "",
                 "monitoring_mode": endpoint.spec.monitoring_mode or "",
                 "state": endpoint.status.state or "",
                 "feature_stats": json.dumps(feature_stats),

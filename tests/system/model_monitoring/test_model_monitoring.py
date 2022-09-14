@@ -27,9 +27,11 @@ import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.artifacts.model
 import mlrun.feature_store
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils
 from mlrun.api.schemas import (
     ModelEndpoint,
@@ -541,8 +543,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
+        # Define tracking policy
+        tracking_policy = {
+            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
+        }
+
         # Enable model monitoring
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         # Deploy the serving function
         serving_fn.deploy()
@@ -557,6 +564,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             model_endpoint.spec.monitoring_mode
             == mlrun.api.schemas.ModelMonitoringMode.enabled.value
         )
+
+        # Validate tracking policy
+        batch_job = db.get_schedule(
+            project=self.project_name, name="model-monitoring-batch"
+        )
+        assert batch_job.cron_trigger.hour == "*/3"
 
         # TODO: uncomment the following assertion once the auto trainer function
         #  from mlrun marketplace is upgraded to 1.0.8

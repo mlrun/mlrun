@@ -27,7 +27,7 @@
   
 .. toctree::
    :maxdepth: 1
-   :caption: Data collection and preparation
+   :caption: Data Collection and Preparation
    
    store/datastore
    data-collect-prep/ingesting_data
@@ -37,7 +37,7 @@
     
 .. toctree::
    :maxdepth: 1
-   :caption: Training
+   :caption: Model Development and Testing
    
    training/create-a-basic-training-job
    training/working-with-data-and-model-artifacts
@@ -49,11 +49,12 @@
   
 .. toctree::
    :maxdepth: 1
-   :caption: Model serving
+   :caption: Building Online ML Services
 
-   serving/custom-model-serving-class
-   serving/test-deploy-model-server
+   serving/serving-overview
    serving/built-in-model-serving
+   serving/test-deploy-model-server
+   serving/custom-model-serving-class
    serving/model-serving-get-started
    feature-store/training-serving
    serving/canary

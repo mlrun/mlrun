@@ -329,8 +329,10 @@ class FeaturesDriftTablePlot:
         self, sample_hist: Tuple[list, list], input_hist: Tuple[list, list]
     ) -> Tuple[go.Scatter, go.Scatter]:
         """
-        Plot the feature's histograms to include in the histograms column. Both histograms are returned to later be
-        added in the same figure, so they will be on top of each other and not separated.
+        Plot the feature's histograms to include in the "histograms" column. Both histograms are returned to later be
+        added in the same figure, so they will be on top of each other and not separated. Both histograms are rescaled
+        to be from 0.0 to 1.0, so they will be drawn in the same scale regardless the amount of elements they were
+        calculated upon.
 
         :param sample_hist: The sample set histogram data.
         :param input_hist:  The input histogram data.
@@ -350,6 +352,8 @@ class FeaturesDriftTablePlot:
         ):
             # Read the histogram tuple:
             counts, bins = histogram
+            # Rescale the counts to be in percentages (between 0.0 to 1.0):
+            counts = np.array(counts) / sum(counts)
             # Convert to NumPy for vectorization:
             bins = np.array(bins)
             # Center the bins (leave the first one):

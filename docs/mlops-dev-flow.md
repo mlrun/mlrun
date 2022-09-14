@@ -37,7 +37,7 @@ a shared catalog to training, serving, and data governance applications. Feature
 enable advanced transformations on unstructured data and complex layouts.
 
 
-## Training
+## Model Development and Testing
 Whether it’s deep learning or machine learning, MLRun allows you to train your models at scale and capture all the relevant metadata for experiments tracking and lineage. 
 
 With MLOps, ML teams build machine learning pipelines that automatically collect and prepare data, select optimal features, run training 

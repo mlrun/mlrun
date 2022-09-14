@@ -46,7 +46,7 @@ _none_type = type(None)
 
 
 default_config = {
-    "namespace": "",  # default kubernetes namespace
+    "namespace": "",  # default kubernetes namespace.
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
     "nuclio_dashboard_url": "",

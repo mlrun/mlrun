@@ -32,7 +32,7 @@ class Constants:
 
     mysql_dsn = "mysql+pymysql://root@mlrun-db:3306/mlrun"
     mysql_backup_command = (
-        "mysqldump --single-transaction --routines --triggers "
+        "mysqldump --single-transaction --routines --triggers --max_allowed_packet=64000000 "
         "-h mlrun-db -P 3306 -u root mlrun > {0}"
     )
     mysql_load_backup_command = "mysql -h mlrun-db -P 3306 -u root mlrun < {0}"

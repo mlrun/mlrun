@@ -41,6 +41,8 @@ alembic~=1.4,<1.6.0
 mergedeep~=1.3
 # 3.2 iguazio system uses 0.9.x - limiting to only patch changes
 v3io-frames~=0.10.2
+# protobuf 3.20.1 breaks v3io-frames
+protobuf<3.20.2
 semver~=2.13
 dask~=2021.11.2
 distributed~=2021.11.2

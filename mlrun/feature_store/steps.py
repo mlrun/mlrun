@@ -41,6 +41,9 @@ class MLRunStep(MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+        """
+        This method define the do method of this class according to the first event type.
+        """
         engine = get_engine(event)
         if engine == "pandas":
             self.do = self._do_pandas
@@ -103,6 +106,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                     violations = 0
                     all_args = []
                     for i in range(body[column].shape[0]):
+                        # check each body entrance if there is validator for it
                         ok, args = validator.check(body.at[i, column])
                         if not ok:
                             violations += 1
@@ -186,6 +190,7 @@ class MapValues(StepToDict, MLRunStep):
         for feature in event.columns:
             feature_map = self.mapping.get(feature, {})
             if "ranges" in feature_map:
+                # create and aplay range map
                 for val, val_range in feature_map.get("ranges", {}).items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
@@ -201,6 +206,7 @@ class MapValues(StepToDict, MLRunStep):
                     "index"
                 ].values
             elif feature_map:
+                # create amd aplay simple map
                 df[self._feature_name(feature)] = event[feature].map(
                     lambda x: feature_map[x]
                 )

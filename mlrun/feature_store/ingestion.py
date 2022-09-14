@@ -48,7 +48,7 @@ def init_featureset_graph(
     graph = featureset.spec.graph.copy()
 
     # init targets (and table)
-    targets = targets or [] or featureset.spec.targets  # TODO : ask yaron
+    targets = targets or []
     server = create_graph_server(graph=graph, parameters={}, verbose=verbose)
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
 
@@ -66,6 +66,7 @@ def init_featureset_graph(
         server.init_object(namespace)
         return graph.wait_for_completion()
     else:
+        # for initialize all the validators of the feature set
         cache.cache_resource(featureset.uri, featureset, True)
 
     server.init_object(namespace)
@@ -92,11 +93,13 @@ def init_featureset_graph(
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
+        # set the entity to be the index of the df
         if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
             event.body = event.body.set_index(featureset.spec.entities[0].name)
         data = server.run(event, get_body=True)
         if data is not None:
             if featureset.spec.entities[0] in data:
+                # drop the entity from the columns because it is the index now
                 data.drop(columns=[featureset.spec.entities[0]], inplace=True)
             for i, target in enumerate(targets):
                 size = target.write_dataframe(

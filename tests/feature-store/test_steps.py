@@ -21,6 +21,7 @@ import pytest
 
 import mlrun
 import mlrun.feature_store as fs
+from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store.steps import (
     DateExtractor,
     DropFeatures,
@@ -96,8 +97,7 @@ def test_pandas_step_onehot(rundb_mock):
 
     # Ingest our transactions dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas,
-        data,
+        data_set_pandas, data, targets=[ParquetTarget(path="./temp.parquet")]
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -117,10 +117,7 @@ def test_pandas_step_onehot(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our transactions dataset through our defined pipeline
-    df = fs.ingest(
-        data_set,
-        data,
-    )
+    df = fs.ingest(data_set, data, targets=[ParquetTarget(path="./temp.parquet")])
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -151,8 +148,7 @@ def test_pandas_step_imputer(rundb_mock):
 
     # Ingest our transactions dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas,
-        data,
+        data_set_pandas, data, targets=[ParquetTarget(path="./temp.parquet")]
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -172,10 +168,7 @@ def test_pandas_step_imputer(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our transactions dataset through our defined pipeline
-    df = fs.ingest(
-        data_set,
-        data,
-    )
+    df = fs.ingest(data_set, data, targets=[ParquetTarget(path="./temp.parquet")])
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -215,8 +208,7 @@ def test_pandas_step_mapval(rundb_mock, with_original):
 
     # Ingest our transactions dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas,
-        data,
+        data_set_pandas, data, targets=[ParquetTarget(path="./temp.parquet")]
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -244,10 +236,7 @@ def test_pandas_step_mapval(rundb_mock, with_original):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our transactions dataset through our defined pipeline
-    df = fs.ingest(
-        data_set,
-        data,
-    )
+    df = fs.ingest(data_set, data, targets=[ParquetTarget(path="./temp.parquet")])
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -283,8 +272,7 @@ def test_pandas_step_data_extractor(rundb_mock):
 
     # Ingest our transactions dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas,
-        data,
+        data_set_pandas, data, targets=[ParquetTarget(path="./temp.parquet")]
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -309,10 +297,7 @@ def test_pandas_step_data_extractor(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our transactions dataset through our defined pipeline
-    df = fs.ingest(
-        data_set,
-        data,
-    )
+    df = fs.ingest(data_set, data, targets=[ParquetTarget(path="./temp.parquet")])
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -347,8 +332,7 @@ def test_pandas_step_data_validator(rundb_mock):
 
     # Ingest our transactions dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas,
-        data,
+        data_set_pandas, data, targets=[ParquetTarget(path="./temp.parquet")]
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -372,10 +356,7 @@ def test_pandas_step_data_validator(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our transactions dataset through our defined pipeline
-    df = fs.ingest(
-        data_set,
-        data,
-    )
+    df = fs.ingest(data_set, data, targets=[ParquetTarget(path="./temp.parquet")])
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -406,8 +387,7 @@ def test_pandas_step_drop_feature(rundb_mock):
 
     # Ingest our transactions dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas,
-        data,
+        data_set_pandas, data, targets=[ParquetTarget(path="./temp.parquet")]
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -427,10 +407,7 @@ def test_pandas_step_drop_feature(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our transactions dataset through our defined pipeline
-    df = fs.ingest(
-        data_set,
-        data,
-    )
+    df = fs.ingest(data_set, data, targets=[ParquetTarget(path="./temp.parquet")])
     pd.testing.assert_frame_equal(
         df,
         df_pandas,

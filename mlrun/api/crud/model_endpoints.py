@@ -544,7 +544,7 @@ class ModelEndpoints:
                 drift_status=endpoint.get("drift_status") or None,
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
-                monitoring_feature_set=endpoint.get("monitoring_feature_set_uri") or None,
+                monitoring_feature_set_uri=endpoint.get("monitoring_feature_set_uri") or None,
             ),
         )
 

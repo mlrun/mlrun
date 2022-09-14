@@ -544,7 +544,8 @@ class ModelEndpoints:
                 drift_status=endpoint.get("drift_status") or None,
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
-                monitoring_feature_set_uri=endpoint.get("monitoring_feature_set_uri") or None,
+                monitoring_feature_set_uri=endpoint.get("monitoring_feature_set_uri")
+                or None,
             ),
         )
 
@@ -658,7 +659,8 @@ class ModelEndpoints:
                 "model_uri": endpoint.spec.model_uri or "",
                 "stream_path": endpoint.spec.stream_path or "",
                 "active": endpoint.spec.active or "",
-                "monitoring_feature_set_uri": endpoint.status.monitoring_feature_set_uri or "",
+                "monitoring_feature_set_uri": endpoint.status.monitoring_feature_set_uri
+                or "",
                 "monitoring_mode": endpoint.spec.monitoring_mode or "",
                 "state": endpoint.status.state or "",
                 "feature_stats": json.dumps(feature_stats),

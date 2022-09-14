@@ -519,7 +519,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 "train_test_split_size": 0.2,
             },
             handler="train",
-            local=True
+            local=True,
         )
 
         # Remove features from model obj and set feature vector uri

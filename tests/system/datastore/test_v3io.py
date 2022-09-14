@@ -63,7 +63,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         os.remove(tempfile_2_path)
 
         data_item.store.upload_helper(
-            object_path, tempfile_1_path, max_chunk_length=100 * 1024
+            object_path, tempfile_1_path, max_chunk_size=100 * 1024
         )
         data_item.download(tempfile_2_path)
 

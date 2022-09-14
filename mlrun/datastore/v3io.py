@@ -36,8 +36,8 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
-one_GB = 1024 * 1024 * 1024
-one_MB = 1024 * 1024
+ONE_GB = 1024 * 1024 * 1024
+ONE_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):
@@ -95,9 +95,10 @@ class V3ioStore(DataStore):
             v3io_api=mlrun.mlconf.v3io_api,
         )
 
-    def upload_helper(self, key, src_path, max_chunk_length=one_GB):
-        file_size = os.path.getsize(src_path)
-        if file_size <= one_MB:
+    def upload_helper(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
+        """helper function for upload method, allows for controlling max_chunk_size in testing"""
+        file_size = os.path.getsize(src_path)  # in bytes
+        if file_size <= ONE_MB:
             http_upload(self.url + self._join(key), src_path, self.headers, None)
             return
         append_header = deepcopy(self.headers)
@@ -105,10 +106,10 @@ class V3ioStore(DataStore):
         with open(src_path, "rb") as file_obj:
             file_offset = 0
             while file_offset < file_size:
-                chunk_len = min(file_size - file_offset, max_chunk_length)
+                chunk_size = min(file_size - file_offset, max_chunk_size)
                 with mmap.mmap(
                     file_obj.fileno(),
-                    length=chunk_len,
+                    length=chunk_size,
                     access=mmap.ACCESS_READ,
                     offset=file_offset,
                 ) as mmap_obj:
@@ -118,7 +119,7 @@ class V3ioStore(DataStore):
                         append_header if file_offset else self.headers,
                         None,
                     )
-                    file_offset = file_offset + chunk_len
+                    file_offset = file_offset + chunk_size
 
     def upload(self, key, src_path):
         return self.upload_helper(key, src_path)

@@ -218,8 +218,8 @@ default_config = {
                 "file_format": "db_backup_%Y%m%d%H%M.db",
                 "use_rotation": True,
                 "rotation_limit": 3,
-                # default is 64MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
-                "max_allowed_packet": 512000000,  # 512MB
+                # default is 16MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
+                "max_allowed_packet": 64000000,  # 64MB
             },
             # None will set this to be equal to the httpdb.max_workers
             "connections_pool_size": None,

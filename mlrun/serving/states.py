@@ -127,6 +127,8 @@ class BaseStep(ModelObj):
         if not append:
             self.after = []
         for name in after:
+            # if its a step/task class (vs a str) extract its name
+            name = name if isinstance(name, str) else name.name
             if name not in self.after:
                 self.after.append(name)
         return self

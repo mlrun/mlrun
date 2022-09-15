@@ -119,7 +119,7 @@ class ModelEndpointStatus(ObjectStatus):
     children: Optional[List[str]]
     children_uids: Optional[List[str]]
     endpoint_type: Optional[EndpointType]
-    monitoring_feature_set_uri: Optional[str] = None
+    monitoring_feature_set_uri: Optional[str]
 
     class Config:
         extra = Extra.allow

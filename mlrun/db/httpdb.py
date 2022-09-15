@@ -351,6 +351,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("force_run_local") or config.force_run_local
             )
             config.function = server_cfg.get("function") or config.function
+            config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
 
         except Exception as exc:
             logger.warning(

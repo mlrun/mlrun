@@ -13,13 +13,15 @@
 # limitations under the License.
 
 import json
-from os import environ
+import os
+import typing
 
 import requests
 
 import mlrun.errors
+import mlrun.lists
 
-from .base import NotificationBase
+from .base import NotificationBase, NotificationSeverity
 
 
 class GitNotification(NotificationBase):
@@ -27,7 +29,13 @@ class GitNotification(NotificationBase):
     API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
     """
 
-    def send(self):
+    def send(
+        self,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+        custom_html: str = None,
+    ):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
         token = (
@@ -36,9 +44,9 @@ class GitNotification(NotificationBase):
             or self.params.get("GITHUB_TOKEN", None)
         )
         server = self.params.get("server", None)
-        gitlab = self.params.get("gitlab", None)
+        gitlab = self.params.get("gitlab", False)
         self._pr_comment(
-            self._get_html(),
+            self._get_html(message, severity, runs, custom_html),
             git_repo,
             git_issue,
             token=token,
@@ -65,16 +73,16 @@ class GitNotification(NotificationBase):
         :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
         :return:         pr comment id
         """
-        if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
+        if ("CI_PROJECT_ID" in os.environ) or (server and "gitlab" in server):
             gitlab = True
-        token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
+        token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GIT_TOKEN")
 
         if gitlab:
             server = server or "gitlab.com"
             headers = {"PRIVATE-TOKEN": token}
-            repo = repo or environ.get("CI_PROJECT_ID")
+            repo = repo or os.environ.get("CI_PROJECT_ID")
             # auto detect GitLab pr id from the environment
-            issue = issue or environ.get("CI_MERGE_REQUEST_IID")
+            issue = issue or os.environ.get("CI_MERGE_REQUEST_IID")
             # replace slash with url encoded slash for GitLab to accept a repo name with slash
             repo = repo.replace("/", "%2F")
             url = (
@@ -82,11 +90,11 @@ class GitNotification(NotificationBase):
             )
         else:
             server = server or "api.github.com"
-            repo = repo or environ.get("GITHUB_REPOSITORY")
+            repo = repo or os.environ.get("GITHUB_REPOSITORY")
             # auto detect pr number if not specified, in github the pr id is identified as an issue id
             # we try and read the pr (issue) id from the github actions event file/object
-            if not issue and "GITHUB_EVENT_PATH" in environ:
-                with open(environ["GITHUB_EVENT_PATH"]) as fp:
+            if not issue and "GITHUB_EVENT_PATH" in os.environ:
+                with open(os.environ["GITHUB_EVENT_PATH"]) as fp:
                     data = fp.read()
                     event = json.loads(data)
                     if "issue" not in event:

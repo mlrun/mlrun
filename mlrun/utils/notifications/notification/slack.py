@@ -14,12 +14,14 @@
 
 import json
 import os
+import typing
 
 import requests
 
+import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase
+from .base import NotificationBase, NotificationSeverity
 
 
 class SlackNotification(NotificationBase):
@@ -33,7 +35,13 @@ class SlackNotification(NotificationBase):
         "error": ":x:",
     }
 
-    def send(self):
+    def send(
+        self,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+        custom_html: str = None,
+    ):
         webhook = self.params.get("webhook", None) or os.environ.get("SLACK_WEBHOOK")
         if not webhook:
             mlrun.utils.helpers.logger.warn(
@@ -41,7 +49,7 @@ class SlackNotification(NotificationBase):
             )
             return
 
-        data = self._generate_slack_data()
+        data = self._generate_slack_data(message, severity, runs)
 
         response = requests.post(
             webhook,
@@ -50,21 +58,26 @@ class SlackNotification(NotificationBase):
         )
         response.raise_for_status()
 
-    def _generate_slack_data(self):
+    def _generate_slack_data(
+        self,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+    ) -> dict:
         data = {
             "blocks": [
                 {
                     "type": "section",
-                    "text": self._get_slack_row(f"[{self.severity}] {self.message}"),
+                    "text": self._get_slack_row(f"[{severity}] {message}"),
                 },
             ]
         }
 
-        if not self.runs:
+        if not runs:
             return data
 
         fields = [self._get_slack_row("*Runs*"), self._get_slack_row("*Results*")]
-        for run in self.runs:
+        for run in runs:
             fields.append(self._get_run_line(run))
             fields.append(self._get_run_result(run))
 

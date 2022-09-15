@@ -27,13 +27,9 @@ class IPythonNotification(NotificationBase):
 
     def __init__(
         self,
-        message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
-        runs: typing.Union[mlrun.lists.RunList, list] = None,
         params: typing.Dict[str, str] = None,
-        custom_html: str = None,
     ):
-        super().__init__(message, severity, runs, params, custom_html)
+        super().__init__(params)
         self._ipython = None
         try:
             import IPython
@@ -45,11 +41,21 @@ class IPythonNotification(NotificationBase):
         except ImportError:
             pass
 
-    def send(self):
+    def send(
+        self,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+        custom_html: str = None,
+    ):
         if not self._ipython:
             mlrun.utils.helpers.logger.warn(
                 "Not in IPython environment, skipping notification"
             )
             return
 
-        self._ipython.display.display(self._ipython.display.HTML(self._get_html()))
+        self._ipython.display.display(
+            self._ipython.display.HTML(
+                self._get_html(message, severity, runs, custom_html)
+            )
+        )

@@ -42,7 +42,9 @@ class NotificationPusher(object):
 
     def push(self):
         for notification_data in self._notification_data:
-            self._load_notification(*notification_data).send()
+            self._send_notification(
+                self._load_notification(notification_data[1]), *notification_data
+            )
 
     @staticmethod
     def _should_notify(
@@ -63,11 +65,7 @@ class NotificationPusher(object):
 
         return False
 
-    def _load_notification(
-        self, run: dict, notification_config: dict
-    ) -> NotificationBase:
-        message = self.messages.get(run.get("status", {}).get("state", ""), "")
-        severity = notification_config.get("severity", NotificationSeverity.INFO)
+    def _load_notification(self, notification_config: dict) -> NotificationBase:
         params = notification_config.get("params", {})
         notification_type = NotificationTypes(
             notification_config.get("type", "console")
@@ -75,24 +73,26 @@ class NotificationPusher(object):
         if notification_type not in self._notifications:
             self._notifications[
                 notification_type
-            ] = notification_type.get_notification()(message, severity, [run], params)
+            ] = notification_type.get_notification()(params)
         else:
-            self._notifications[notification_type].load_notification(
-                {
-                    "message": message,
-                    "severity": severity,
-                    "params": params,
-                },
-                [run],
-            )
+            self._notifications[notification_type].load_notification(params)
 
         return self._notifications[notification_type]
+
+    def _send_notification(
+        self, notification: NotificationBase, run: dict, notification_config: dict
+    ):
+        message = self.messages.get(run.get("status", {}).get("state", ""), "")
+        severity = notification_config.get("severity", NotificationSeverity.INFO)
+        notification.send(message, severity, [run])
 
 
 class CustomNotificationPusher(object):
     def __init__(self, notification_types: typing.List[str] = None):
-        self._params = {}
-        self._notification_types = set(notification_types or [])
+        self._notifications = {
+            notification_type: NotificationTypes(notification_type).get_notification()
+            for notification_type in notification_types
+        }
 
     def push(
         self,
@@ -101,17 +101,18 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        for notification_type in self._notification_types:
-            NotificationTypes(notification_type).get_notification()(
-                message, severity, runs, self._params, custom_html
-            ).send()
+        for notification in self._notifications:
+            notification.send(message, severity, runs, custom_html)
 
     def add_notification(
         self, notification_type: str, params: typing.Dict[str, str] = None
     ):
-        self._notification_types.add(notification_type)
-        if params:
-            self._params.update(params)
+        if notification_type in self._notifications:
+            self._notifications[notification_type].load_notification(params)
+        else:
+            self._notifications[notification_type] = NotificationTypes(
+                notification_type
+            ).get_notification()(params)
 
     def push_pipeline_start_message(
         self,

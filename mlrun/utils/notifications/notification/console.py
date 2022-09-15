@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import typing
+
 import tabulate
 
+import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase
+from .base import NotificationBase, NotificationSeverity
 
 
 class ConsoleNotification(NotificationBase):
@@ -24,14 +27,20 @@ class ConsoleNotification(NotificationBase):
     Client only notification for printing run status notifications in console
     """
 
-    def send(self):
-        print(f"[{self.severity}] {self.message}")
+    def send(
+        self,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+        custom_html: str = None,
+    ):
+        print(f"[{severity}] {message}")
 
-        if not self.runs:
+        if not runs:
             return
 
         table = []
-        for run in self.runs:
+        for run in runs:
             state = run["status"].get("state", "")
             if state == "error":
                 result = run["status"].get("error", "")

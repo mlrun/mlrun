@@ -78,9 +78,7 @@ def test_notification_should_notify(when, condition, run_state, expected):
     ],
 )
 def test_console_notification(monkeypatch, runs, expected, is_table):
-    console_notification = mlrun.utils.notifications.ConsoleNotification(
-        "test-message", "info", runs
-    )
+    console_notification = mlrun.utils.notifications.ConsoleNotification()
     print_result = ""
 
     def set_result(result):
@@ -88,7 +86,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
         print_result = result
 
     monkeypatch.setattr(builtins, "print", set_result)
-    console_notification.send()
+    console_notification.send("test-message", "info", runs)
 
     if is_table:
         expected = tabulate.tabulate(
@@ -164,10 +162,8 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
     ],
 )
 def test_slack_notification(runs, expected):
-    slack_notification = mlrun.utils.notifications.SlackNotification(
-        "test-message", "info", runs
-    )
-    slack_data = slack_notification._generate_slack_data()
+    slack_notification = mlrun.utils.notifications.SlackNotification()
+    slack_data = slack_notification._generate_slack_data("test-message", "info", runs)
 
     assert slack_data == expected
 
@@ -214,14 +210,12 @@ def test_slack_notification(runs, expected):
     ],
 )
 def test_git_notification(monkeypatch, params, expected_url, expected_headers):
-    git_notification = mlrun.utils.notifications.GitNotification(
-        "test-message", "info", [], params
-    )
+    git_notification = mlrun.utils.notifications.GitNotification(params)
     expected_body = "[info] test-message"
 
     requests_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(requests, "post", requests_mock)
-    git_notification.send()
+    git_notification.send("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
         url=expected_url, json={"body": expected_body}, headers=expected_headers

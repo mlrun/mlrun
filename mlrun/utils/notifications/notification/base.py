@@ -29,53 +29,39 @@ class NotificationSeverity(enum.Enum):
 class NotificationBase:
     def __init__(
         self,
+        params: typing.Dict[str, str] = None,
+    ):
+        self.params = params
+
+    def send(
+        self,
         message: str,
         severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
-        params: typing.Dict[str, str] = None,
         custom_html: str = None,
     ):
-        self.message = None
-        self.severity = None
-        self.params = None
-        self.custom_html = None
-        self.runs = None
-        self.load_notification(
-            {
-                "message": message,
-                "severity": severity,
-                "params": params,
-                "custom_html": custom_html,
-            },
-            runs,
-        )
-
-    def send(self):
         raise NotImplementedError()
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.message})"
-
     def load_notification(
-        self, data: typing.Dict, runs: typing.Union[mlrun.lists.RunList, list]
+        self,
+        params: typing.Dict[str, str],
     ) -> None:
-        self.message = data.get("message")
-        self.severity = data.get("severity")
-        self.params = data.get("params", {})
-        self.custom_html = data.get("custom_html")
+        self.params = params
 
-        if isinstance(runs, list):
-            runs = mlrun.lists.RunList(runs)
-        self.runs = runs
+    @staticmethod
+    def _get_html(
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+        custom_html: str = None,
+    ) -> str:
+        if custom_html:
+            return custom_html
 
-    def _get_html(self) -> str:
-        if self.custom_html:
-            return self.custom_html
+        if not runs:
+            return f"[{severity}] {message}"
 
-        if not self.runs:
-            return f"[{self.severity}] {self.message}"
-
-        html = f"<h2>Run Results</h2><h3>[{self.severity}] {self.message}</h3>"
+        html = f"<h2>Run Results</h2><h3>[{severity}] {message}</h3>"
         html += "<br>click the hyper links below to see detailed results<br>"
-        html += self.runs.show(display=False, short=True)
+        html += runs.show(display=False, short=True)
         return html

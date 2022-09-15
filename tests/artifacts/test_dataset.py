@@ -14,6 +14,7 @@
 #
 import pathlib
 
+import dask.dataframe as dd
 import numpy
 import pandas
 import pandas.io.json
@@ -150,6 +151,17 @@ def test_resolve_dataset_hash_path():
             "expected_hash": None,
             "expected_file_target": None,
             "expected_error": mlrun.errors.MLRunInvalidArgumentError,
+        },
+        # tests dask dataframe
+        {
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=dd.from_pandas(pandas.DataFrame({"x": [1, 2]}), npartitions=1),
+                format="csv",
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
+            "expected_error": None,
         },
     ]:
         artifact = test_case.get("artifact")

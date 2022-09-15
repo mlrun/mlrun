@@ -319,10 +319,6 @@ def deploy_function(
                 function=function,
             )
 
-        if getattr(function, "_mock_server", None):
-            function._mock_server = None
-            function.invoke = function._old_invoke
-
         address = function.deploy(
             dashboard=dashboard, tag=tag, verbose=verbose, builder_env=builder_env
         )

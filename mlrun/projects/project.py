@@ -1495,7 +1495,7 @@ class MlrunProject(ModelObj):
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
-        return self.log_artifact(artifact, artifact_path=artifact_path)
+        return self.log_artifact(artifact, artifact_path=artifact_path, upload=False)
 
     def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs
@@ -1887,10 +1887,17 @@ class MlrunProject(ModelObj):
 
     def _enrich_artifact_path_with_workflow_uid(self):
         artifact_path = self.spec.artifact_path or mlrun.mlconf.artifact_path
-        if not mlrun.mlconf.enrich_artifact_path_with_workflow_id:
-            return artifact_path
+
         workflow_uid_string = "{{workflow.uid}}"
-        if workflow_uid_string in artifact_path:
+        if (
+            not mlrun.mlconf.enrich_artifact_path_with_workflow_id
+            # no need to add workflow.uid to the artifact path for uniqueness,
+            # this is already being handled by generating
+            # the artifact target path from the artifact content hash ( body / file etc...)
+            or mlrun.mlconf.should_generate_target_path_from_artifact_hash()
+            # if the artifact path already contains workflow.uid, no need to add it again
+            or workflow_uid_string in artifact_path
+        ):
             return artifact_path
 
         # join paths and replace "\" with "/" (in case of windows clients)

@@ -15,6 +15,8 @@
 import pathlib
 from os.path import isdir
 
+import mlrun.config
+
 from ..db import RunDBInterface
 from ..utils import is_legacy_artifact, is_relative_path, logger
 from .base import (
@@ -83,7 +85,7 @@ class ArtifactProducer:
         self.iteration = 0
         self.inputs = {}
 
-    def get_meta(self):
+    def get_meta(self) -> dict:
         return {"kind": self.kind, "name": self.name, "tag": self.tag}
 
 
@@ -165,11 +167,16 @@ class ArtifactManager:
         item.db_key = db_key if db_key else ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag
-        item.labels = labels or item.labels
+        item.tag = tag or item.tag
+
         item.producer = producer.get_meta()
+        item.labels = labels or item.labels
+        # if running as part of a workflow, enrich artifact with workflow uid label
+        if item.producer.get("workflow"):
+            item.labels.update({"workflow-id": item.producer.get("workflow")})
+
         item.iter = producer.iteration
         item.project = producer.project
-        item.tag = tag or item.tag
 
         if target_path:
             if is_relative_path(target_path):
@@ -182,7 +189,14 @@ class ArtifactManager:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
             target_path = src_path
             upload = False
-        elif not item.is_inline():
+
+        # if mlrun.mlconf.should_generate_target_path_from_artifact_hash() outputs True and the user
+        # didn't pass target_path explicitly then we won't use `generate_target_path` to calculate the target path,
+        # but rather use the `resolve_<body/file>_target_hash_path` in the `item.upload` method.
+        elif (
+            not item.is_inline()
+            and not mlrun.mlconf.should_generate_target_path_from_artifact_hash()
+        ):
             target_path = item.generate_target_path(artifact_path, producer)
 
         if target_path and item.is_dir and not target_path.endswith("/"):
@@ -194,7 +208,7 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
-            item.upload()
+            item.upload(artifact_path=artifact_path)
 
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)

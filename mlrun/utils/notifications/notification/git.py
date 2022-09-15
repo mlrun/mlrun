@@ -101,6 +101,7 @@ class GitNotification(NotificationBase):
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
         resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
         if not resp.ok:
-            errmsg = f"bad pr comment resp!!\n{resp.text}"
-            raise IOError(errmsg)
+            raise mlrun.errors.MLRunBadRequestError(
+                "Failed commenting on PR", response=resp.text, status=resp.status_code
+            )
         return resp.json()["id"]

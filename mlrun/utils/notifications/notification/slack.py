@@ -76,6 +76,9 @@ class SlackNotification(NotificationBase):
         if not runs:
             return data
 
+        if isinstance(runs, list):
+            runs = mlrun.lists.RunList(runs)
+
         fields = [self._get_slack_row("*Runs*"), self._get_slack_row("*Results*")]
         for run in runs:
             fields.append(self._get_run_line(run))

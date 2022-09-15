@@ -39,6 +39,9 @@ class ConsoleNotification(NotificationBase):
         if not runs:
             return
 
+        if isinstance(runs, list):
+            runs = mlrun.lists.RunList(runs)
+
         table = []
         for run in runs:
             state = run["status"].get("state", "")

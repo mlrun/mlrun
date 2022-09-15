@@ -61,6 +61,9 @@ class NotificationBase:
         if not runs:
             return f"[{severity}] {message}"
 
+        if isinstance(runs, list):
+            runs = mlrun.lists.RunList(runs)
+
         html = f"<h2>Run Results</h2><h3>[{severity}] {message}</h3>"
         html += "<br>click the hyper links below to see detailed results<br>"
         html += runs.show(display=False, short=True)

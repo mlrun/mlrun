@@ -19,7 +19,6 @@ import time
 
 import pandas as pd
 import pytest
-import requests
 from nuclio_sdk import Context as NuclioContext
 from sklearn.datasets import load_iris
 
@@ -468,7 +467,7 @@ def test_mock_deploy():
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
 
     # test that it tries real deployment when turned off
-    with pytest.raises(requests.exceptions.MissingSchema):
+    with pytest.raises(Exception):
         mlrun.deploy_function(fn, dashboard="bad-address")
         fn.invoke("/v2/models/my/infer", testdata)
 

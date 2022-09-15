@@ -35,21 +35,38 @@ class NotificationBase:
         params: typing.Dict[str, str] = None,
         custom_html: str = None,
     ):
-        self.message = message
-
-        if isinstance(runs, list):
-            runs = mlrun.lists.RunList(runs)
-
-        self.runs = runs
-        self.severity = severity
-        self.params = params or {}
-        self.custom_html = custom_html
+        self.message = None
+        self.severity = None
+        self.params = None
+        self.custom_html = None
+        self.runs = None
+        self.load_notification(
+            {
+                "message": message,
+                "severity": severity,
+                "params": params,
+                "custom_html": custom_html,
+            },
+            runs,
+        )
 
     def send(self):
         raise NotImplementedError()
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.message})"
+
+    def load_notification(
+        self, data: typing.Dict, runs: typing.Union[mlrun.lists.RunList, list]
+    ) -> None:
+        self.message = data.get("message")
+        self.severity = data.get("severity")
+        self.params = data.get("params", {})
+        self.custom_html = data.get("custom_html")
+
+        if isinstance(runs, list):
+            runs = mlrun.lists.RunList(runs)
+        self.runs = runs
 
     def _get_html(self) -> str:
         if self.custom_html:

@@ -32,18 +32,17 @@ class NotificationPusher(object):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._notifications = []
+        self._notification_data = []
+        self._notifications = {}
 
         for run in self._runs:
             for notification_config in run.get("spec", {}).get("notifications", []):
                 if self._should_notify(run, notification_config):
-                    self._notifications.append(
-                        self._create_notification(run, notification_config)
-                    )
+                    self._notification_data.append((run, notification_config))
 
     def push(self):
-        for notification in self._notifications:
-            notification.send()
+        for notification_data in self._notification_data:
+            self._load_notification(*notification_data).send()
 
     @staticmethod
     def _should_notify(
@@ -64,7 +63,7 @@ class NotificationPusher(object):
 
         return False
 
-    def _create_notification(
+    def _load_notification(
         self, run: dict, notification_config: dict
     ) -> NotificationBase:
         message = self.messages.get(run.get("status", {}).get("state", ""), "")
@@ -73,8 +72,21 @@ class NotificationPusher(object):
         notification_type = NotificationTypes(
             notification_config.get("type", "console")
         )
+        if notification_type not in self._notifications:
+            self._notifications[
+                notification_type
+            ] = notification_type.get_notification()(message, severity, [run], params)
+        else:
+            self._notifications[notification_type].load_notification(
+                {
+                    "message": message,
+                    "severity": severity,
+                    "params": params,
+                },
+                [run],
+            )
 
-        return notification_type.get_notification()(message, severity, [run], params)
+        return self._notifications[notification_type]
 
 
 class CustomNotificationPusher(object):

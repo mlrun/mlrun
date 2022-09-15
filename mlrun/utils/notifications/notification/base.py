@@ -31,7 +31,7 @@ class NotificationBase:
         self,
         params: typing.Dict[str, str] = None,
     ):
-        self.params = params
+        self.params = params or {}
 
     def send(
         self,
@@ -46,7 +46,7 @@ class NotificationBase:
         self,
         params: typing.Dict[str, str],
     ) -> None:
-        self.params = params
+        self.params = params or {}
 
     @staticmethod
     def _get_html(

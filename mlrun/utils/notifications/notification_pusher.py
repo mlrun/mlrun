@@ -90,7 +90,7 @@ class NotificationPusher(object):
 class CustomNotificationPusher(object):
     def __init__(self, notification_types: typing.List[str] = None):
         self._notifications = {
-            notification_type: NotificationTypes(notification_type).get_notification()
+            notification_type: NotificationTypes(notification_type).get_notification()()
             for notification_type in notification_types
         }
 
@@ -101,7 +101,7 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        for notification in self._notifications:
+        for notification in self._notifications.values():
             notification.send(message, severity, runs, custom_html)
 
     def add_notification(

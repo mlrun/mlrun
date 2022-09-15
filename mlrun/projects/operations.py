@@ -280,6 +280,7 @@ def deploy_function(
     verbose: bool = None,
     builder_env: dict = None,
     project_object=None,
+    mock: bool = None,
 ):
     """deploy real-time (nuclio based) functions
 
@@ -290,6 +291,7 @@ def deploy_function(
     :param tag:        extra version tag
     :param verbose     add verbose prints/logs
     :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+    :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -307,6 +309,20 @@ def deploy_function(
         if models:
             for model_args in models:
                 function.add_model(**model_args)
+
+        mock = True if mlrun.mlconf.mock_nuclio_deployment else mock
+        function._set_as_mock(mock)
+        if mock:
+            return DeployStatus(
+                state="ready",
+                outputs={"endpoint": "Mock", "name": function.metadata.name},
+                function=function,
+            )
+
+        if getattr(function, "_mock_server", None):
+            function._mock_server = None
+            function.invoke = function._old_invoke
+
         address = function.deploy(
             dashboard=dashboard, tag=tag, verbose=verbose, builder_env=builder_env
         )

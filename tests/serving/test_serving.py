@@ -19,6 +19,7 @@ import time
 
 import pandas as pd
 import pytest
+import requests
 from nuclio_sdk import Context as NuclioContext
 from sklearn.datasets import load_iris
 
@@ -449,3 +450,33 @@ def test_model_chained():
     assert (
         resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3
     ), "unexpected model results"
+
+
+def test_mock_deploy():
+    project = mlrun.new_project("x", save=False)
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # test mock deployment is working
+    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test mock deployment is working via project object
+    project.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test that it tries real deployment when turned off
+    with pytest.raises(requests.exceptions.MissingSchema):
+        mlrun.deploy_function(fn, dashboard="bad-address")
+        fn.invoke("/v2/models/my/infer", testdata)
+
+    # set the mock through the config
+    fn._set_as_mock(False)
+    mlrun.mlconf.mock_nuclio_deployment = "1"
+
+    mlrun.deploy_function(fn)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    mlrun.mlconf.mock_nuclio_deployment = ""  # clear
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"

@@ -23,11 +23,21 @@ class CacheEntry:
         self.events = [event]
         self.is_late = False
 
+    def add_event(self, context, event, merge_key):
+        if self.is_late:
+            context.logger.warning(f"event id {self} arrived late")
+            return None
+
+        if context.verbose:
+            context.logger.info(f"event id {merge_key} part {self.arrived} arrived")
+        self.arrived += 1
+        self.events.append(event)
+
 
 class Merge(storey.Flow):
     def __init__(
         self,
-        full_event=None,
+        full_event: bool = None,
         key_path: str = None,
         max_behind: int = None,
         expected_num_events: int = None,
@@ -38,7 +48,8 @@ class Merge(storey.Flow):
         Users can subclass and overwrite the `get_join_key()` and `merge_function()` with custom logic
 
         :param key_path:   path to the event join key e.g. 'event["doc_id"]', default is the unique event id
-        :param max_behind: max queue size to hold partial events, events will be dropped is queued longer (default=64)
+        :param max_behind: max queue size to hold unmerged events,
+                           oldest events will be dropped is queued longer (default=64)
         :param expected_num_events:  manually set the expected number of events per key
                                      (keep blank to auto detect from the graph)
         :param full_event: this step accepts the full Event object (body + metadata), not just body
@@ -95,16 +106,7 @@ class Merge(storey.Flow):
         if merge_key in self._cache:
             # old events with that key already exist (cached)
             entry: CacheEntry = self._cache[merge_key]
-            if entry.is_late:
-                self.context.logger.info(f"event id {merge_key} arrived late")
-                return None
-
-            if self.context.verbose:
-                self.context.logger.info(
-                    f"event id {merge_key} part {entry.arrived} arrived"
-                )
-            entry.arrived += 1
-            entry.events.append(event)
+            entry.add_event(self.context, event, merge_key)
 
             if entry.arrived == self._uplinks:
                 # expected number of events arrived, can merge them

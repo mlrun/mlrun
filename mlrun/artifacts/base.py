@@ -348,9 +348,8 @@ class Artifact(ModelObj):
                 body, artifact_path
             )
 
-        self.metadata.hash = self.metadata.hash or body_hash
-        if mlrun.mlconf.should_calculate_artifact_hash() and not self.metadata.hash:
-            self.metadata.hash = calculate_blob_hash(body)
+        if mlrun.mlconf.should_calculate_artifact_hash():
+            self.metadata.hash = body_hash or calculate_blob_hash(body)
         self.spec.size = len(body)
 
         store_manager.object(url=target or self.spec.target_path).put(body)
@@ -368,9 +367,8 @@ class Artifact(ModelObj):
             file_hash, self.spec.target_path = self.resolve_file_target_hash_path(
                 source_path, artifact_path
             )
-        self.metadata.hash = self.metadata.hash or file_hash
-        if mlrun.mlconf.should_calculate_artifact_hash() and not self.metadata.hash:
-            self.metadata.hash = calculate_local_file_hash(source_path)
+        if mlrun.mlconf.should_calculate_artifact_hash():
+            self.metadata.hash = file_hash or calculate_local_file_hash(source_path)
         self.spec.size = os.stat(source_path).st_size
 
         store_manager.object(url=target_path or self.spec.target_path).upload(

@@ -106,67 +106,68 @@ def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
 
 
-@pytest.mark.parametrize(
-    "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
-    (
-        mlrun.artifacts.dataset.DatasetArtifact(
-            df=pandas.DataFrame({"x": [1, 2]}),
-            format="csv",
-        ),
-        "v3io://just/regular/path",
-        "0d1c62a76b705b34bb70f355162f83402f3640e3",
-        "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
-        None,
-    ),
-    (
-        mlrun.artifacts.dataset.DatasetArtifact(
-            df=pandas.DataFrame(
-                numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))
+def test_resolve_dataset_hash_path():
+    for test_case in [
+        {
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame({"x": [1, 2]}),
+                format="csv",
             ),
-            format="parquet",
-        ),
-        "v3io://just/regular/path",
-        "f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2",
-        "v3io://just/regular/path/f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2.parquet",
-        None,
-    ),
-    (
-        mlrun.artifacts.dataset.DatasetArtifact(
-            df=pandas.DataFrame({"x": [1, 2]}),
-        ),
-        "v3io://just/regular/path",
-        "0d1c62a76b705b34bb70f355162f83402f3640e3",
-        "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3",
-        None,
-    ),
-    (
-        mlrun.artifacts.dataset.DatasetArtifact(
-            df=pandas.DataFrame({"x": [1, 2]}),
-        ),
-        None,
-        None,
-        None,
-        mlrun.errors.MLRunInvalidArgumentError,
-    ),
-)
-def test_resolve_dataset_hash_path(
-    artifact: mlrun.artifacts.DatasetArtifact,
-    artifact_path: str,
-    expected_hash: str,
-    expected_target_path: str,
-    expected_error: mlrun.errors.MLRunBaseError,
-):
-    if expected_error:
-        with pytest.raises(expected_error):
-            artifact.resolve_dataframe_target_hash_path(
-                dataframe=artifact.df, artifact_path=artifact_path
-            )
-        return
-    dataset_hash, target_path = artifact.resolve_dataframe_target_hash_path(
-        dataframe=artifact.df, artifact_path=artifact_path
-    )
-    assert expected_hash == dataset_hash
-    assert expected_target_path == target_path
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
+            "expected_error": None,
+        },
+        {
+            # generates incremental values dataframe
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame(
+                    numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))
+                ),
+                format="parquet",
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2",
+            "expected_file_target": "v3io://just/regular/path/f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2.parquet",
+            "expected_error": None,
+        },
+        {
+            # without format
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame({"x": [1, 2]}),
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_error": None,
+        },
+        {
+            # without artifact_path, expected to fail
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame({"x": [1, 2]}),
+            ),
+            "artifact_path": None,
+            "expected_hash": None,
+            "expected_file_target": None,
+            "expected_error": mlrun.errors.MLRunInvalidArgumentError,
+        },
+    ]:
+        artifact = test_case.get("artifact")
+        artifact_path = test_case.get("artifact_path")
+        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
+            "expected_error", None
+        )
+        if expected_error:
+            with pytest.raises(expected_error):
+                artifact.resolve_dataframe_target_hash_path(
+                    dataframe=artifact.df, artifact_path=artifact_path
+                )
+            break
+        dataset_hash, target_path = artifact.resolve_dataframe_target_hash_path(
+            dataframe=artifact.df, artifact_path=artifact_path
+        )
+        assert test_case.get("expected_hash") == dataset_hash
+        assert test_case.get("expected_file_target") == target_path
 
 
 def _generate_dataset_artifact(format_):

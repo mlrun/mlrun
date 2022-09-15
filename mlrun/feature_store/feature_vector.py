@@ -181,7 +181,7 @@ class FeatureVector(ModelObj):
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
         :param features:       list of feature to collect to this vector.
-                               format [<project>/]<feature_set>.<feature_name or *> [as <alias>]
+                                Format [<project>/]<feature_set>.<feature_name or `*`> [as <alias>]
         :param label_feature:  feature name to be used as label data
         :param description:    text description of the vector
         :param with_indexes:   whether to keep the entity and timestamp columns in the response

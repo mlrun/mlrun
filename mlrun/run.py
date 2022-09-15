@@ -852,9 +852,11 @@ def code_to_function(
         else:
             r = RemoteRuntime()
             r.spec.function_kind = subkind
-        handler = handler if ":" in handler else get_in(spec, "spec.handler")
-        r.spec.default_handler = handler
-        r.spec.function_handler = handler
+        # default_handler is only used in :mlrun subkind, determine the handler to invoke in function.run()
+        r.spec.default_handler = handler if subkind == "mlrun" else ""
+        r.spec.function_handler = (
+            handler if handler and ":" in handler else get_in(spec, "spec.handler")
+        )
         if not embed_code:
             r.spec.source = filename
         nuclio_runtime = get_in(spec, "spec.runtime")

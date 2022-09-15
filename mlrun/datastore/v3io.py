@@ -95,7 +95,7 @@ class V3ioStore(DataStore):
             v3io_api=mlrun.mlconf.v3io_api,
         )
 
-    def upload_helper(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
+    def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
         """helper function for upload method, allows for controlling max_chunk_size in testing"""
         file_size = os.path.getsize(src_path)  # in bytes
         if file_size <= ONE_MB:
@@ -122,7 +122,7 @@ class V3ioStore(DataStore):
                     file_offset = file_offset + chunk_size
 
     def upload(self, key, src_path):
-        return self.upload_helper(key, src_path)
+        return self._upload(key, src_path)
 
     def get(self, key, size=None, offset=0):
         headers = self.headers

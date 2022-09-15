@@ -62,7 +62,7 @@ class TestV3ioDataStore(TestMLRunSystem):
         # Do the test again, this time exercising the v3io datastore upload_helper() loop
         os.remove(tempfile_2_path)
 
-        data_item.store.upload_helper(
+        data_item.store._upload(
             object_path, tempfile_1_path, max_chunk_size=100 * 1024
         )
         data_item.download(tempfile_2_path)

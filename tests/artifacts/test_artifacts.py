@@ -162,9 +162,18 @@ def assets_path():
             True,
         ),
         (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", body="asdasdasdasdas", format="parquet"
+            ),
+            None,
+            None,
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
             mlrun.artifacts.Artifact(key="some-artifact", body=b"asdasdasdasdas"),
-            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            None,
+            None,
             "v3io://just/regular/path",
             True,
         ),
@@ -174,6 +183,15 @@ def assets_path():
             ),
             "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
             "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", src_path=str(assets_path() / "results.csv")
+            ),
+            None,
+            None,
             "v3io://just/regular/path",
             True,
         ),
@@ -223,9 +241,26 @@ def test_log_artifact(
     logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
         artifact, artifact_path=artifact_path
     )
-    assert logged_artifact.target_path == expected_target_path
+
+    if not expected_hash and generate_target_path:
+        if artifact.get_body():
+            expected_hash = mlrun.artifacts.base.calculate_blob_hash(
+                artifact.get_body()
+            )
+        else:
+            expected_hash = mlrun.utils.calculate_local_file_hash(
+                artifact.spec.src_path
+            )
+
+    if artifact.spec.format:
+        assert logged_artifact.target_path.endswith(f".{artifact.spec.format}")
+
+    if expected_target_path:
+        assert expected_target_path == logged_artifact.target_path
+
     if expected_hash:
-        assert logged_artifact.metadata.hash == expected_hash
+        assert expected_hash == logged_artifact.metadata.hash
+        assert expected_hash in logged_artifact.target_path
 
 
 @pytest.mark.parametrize(
@@ -238,6 +273,15 @@ def test_log_artifact(
             "v3io://just/regular/path",
             "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
             "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                "results", src_path=str(assets_path() / "results.csv")
+            ),
+            "v3io://just/regular/path",
+            None,
+            None,
             None,
         ),
         (
@@ -267,8 +311,17 @@ def test_resolve_file_hash_path(
     file_hash, target_path = artifact.resolve_file_target_hash_path(
         source_path=artifact.spec.src_path, artifact_path=artifact_path
     )
+    if not expected_hash:
+        expected_hash = mlrun.utils.calculate_local_file_hash(artifact.spec.src_path)
+
     assert expected_hash == file_hash
-    assert expected_target_path == target_path
+    assert expected_hash in target_path
+
+    if artifact.spec.format:
+        assert target_path.endswith(f".{artifact.spec.format}")
+
+    if expected_target_path:
+        assert expected_target_path == target_path
 
 
 @pytest.mark.parametrize(
@@ -282,10 +335,17 @@ def test_resolve_file_hash_path(
             None,
         ),
         (
+            mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            "v3io://just/regular/path",
+            None,
+            None,
+            None,
+        ),
+        (
             mlrun.artifacts.Artifact("results", body=b"asdasdasdasdas"),
             "v3io://just/regular/path",
-            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
-            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            None,
+            None,
             None,
         ),
         (
@@ -320,8 +380,18 @@ def test_resolve_body_hash_path(
     body_hash, target_path = artifact.resolve_body_target_hash_path(
         body=artifact.get_body(), artifact_path=artifact_path
     )
+
+    if not expected_hash:
+        expected_hash = mlrun.artifacts.base.calculate_blob_hash(artifact.get_body())
+
     assert expected_hash == body_hash
-    assert expected_target_path == target_path
+    assert expected_hash in target_path
+
+    if artifact.spec.format:
+        assert target_path.endswith(f".{artifact.spec.format}")
+
+    if expected_target_path:
+        assert expected_target_path == target_path
 
 
 def test_export_import():

@@ -473,13 +473,17 @@ class ModelArtifact(Artifact):
         upload_extra_data(
             artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
         )
-        _, spec_target_path = self.resolve_body_target_hash_path(
-            body=self.to_yaml(), artifact_path=artifact_path
-        )
-        store_manager.object(url=spec_target_path).put(self.to_yaml())
-        self.spec.extra_data[model_spec_filename] = spec_target_path
+
+        spec_body = self.to_yaml()
+        spec_target_path = None
 
         if mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+
+            # resolving target_path for the model spec
+            _, spec_target_path = self.resolve_body_target_hash_path(
+                body=spec_body, artifact_path=artifact_path
+            )
+
             # if mlrun.mlconf.should_generate_target_path_from_artifact_hash() outputs True, then target_path will be
             # will point to the artifact path which is where the model and all its extra data are stored
             self.spec.target_path = (
@@ -491,6 +495,12 @@ class ModelArtifact(Artifact):
             # target path dir, and because we generated the target path of the model from the artifact hash,
             # the model_file doesn't represent the actual target file name of the model, so we need to update it
             self.spec.model_target_file = target_model_path.split("/")[-1]
+
+        spec_target_path = spec_target_path or path.join(
+            self.spec.target_path, model_spec_filename
+        )
+        store_manager.object(url=spec_target_path).put(spec_body)
+        self.spec.extra_data[model_spec_filename] = spec_target_path
 
     def _get_file_body(self):
         body = self.spec.get_body()

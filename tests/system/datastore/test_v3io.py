@@ -47,31 +47,34 @@ class TestV3ioDataStore(TestMLRunSystem):
                 f.write(bytearray([i]))
         object_path = "/bigdata/test_v3io_large_object"
         v3io_object_url = "v3io://" + object_path
-        data_item = mlrun.datastore.store_manager.object(v3io_object_url)
 
-        # Exercise the DataItem upload flow
-        data_item.upload(tempfile_1_path)
-        data_item.download(tempfile_2_path)
+        try:
+            data_item = mlrun.datastore.store_manager.object(v3io_object_url)
 
-        cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
-        stdout, stderr = cmp_process.communicate()
-        assert (
-            cmp_process.returncode == 0
-        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+            # Exercise the DataItem upload flow
+            data_item.upload(tempfile_1_path)
+            data_item.download(tempfile_2_path)
 
-        # Do the test again, this time exercising the v3io datastore upload_helper() loop
-        os.remove(tempfile_2_path)
+            cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
+            stdout, stderr = cmp_process.communicate()
+            assert (
+                cmp_process.returncode == 0
+            ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
 
-        data_item.store._upload(
-            object_path, tempfile_1_path, max_chunk_size=100 * 1024
-        )
-        data_item.download(tempfile_2_path)
+            # Do the test again, this time exercising the v3io datastore upload_helper() loop
+            os.remove(tempfile_2_path)
 
-        cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
-        stdout, stderr = cmp_process.communicate()
-        assert (
-            cmp_process.returncode == 0
-        ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+            data_item.store._upload(
+                object_path, tempfile_1_path, max_chunk_size=100 * 1024
+            )
+            data_item.download(tempfile_2_path)
 
-        # cleanup (local files are cleaned by the TempDir destructor)
-        data_item.delete()
+            cmp_process = subprocess.Popen(cmp_command, stdout=subprocess.PIPE)
+            stdout, stderr = cmp_process.communicate()
+            assert (
+                cmp_process.returncode == 0
+            ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
+
+        finally:
+            # cleanup (local files are cleaned by the TempDir destructor)
+            data_item.delete()

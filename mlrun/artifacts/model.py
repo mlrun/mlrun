@@ -437,7 +437,7 @@ class ModelArtifact(Artifact):
         target_model_path = (
             path.join(self.spec.target_path, self.spec.model_file)
             if self.spec.target_path
-            else self.spec.target_path
+            else None
         )
         body = self.spec.get_body()
         if body:

@@ -31,6 +31,42 @@ class S3Store(DataStore):
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile_name = self._get_secret_or_env("AWS_PROFILE")
+        assume_role_arn = self._get_secret_or_env("AWS_ROLE_ARN")
+
+        # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
+        if assume_role_arn:
+            client = boto3.client(
+                "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+            )
+            temp_credentials = client.assume_role(
+                RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
+            ).get("Credentials")
+            if not temp_credentials:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"cannot assume role {assume_role_arn}"
+                )
+
+            self.s3 = boto3.resource(
+                "s3",
+                region_name=region,
+                aws_access_key_id=temp_credentials["AccessKeyId"],
+                aws_secret_access_key=temp_credentials["SecretAccessKey"],
+                aws_session_token=temp_credentials["SessionToken"],
+                endpoint_url=endpoint_url,
+            )
+            return
+
+        # User asked for a profile to be used. We don't use access-key or secret-key for this, since the
+        # parameters should be in the ~/.aws/credentials file for this to work
+        if profile_name:
+            session = boto3.session.Session(profile_name=profile_name)
+            self.s3 = session.resource(
+                "s3",
+                region_name=region,
+                endpoint_url=endpoint_url,
+            )
+            return
 
         if access_key or secret_key or force_non_anonymous:
             self.s3 = boto3.resource(

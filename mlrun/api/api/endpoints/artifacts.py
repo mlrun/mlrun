@@ -259,7 +259,7 @@ def list_artifacts_legacy(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    _list_artifacts(
+    return _list_artifacts(
         project=project,
         name=name,
         tag=tag,
@@ -288,7 +288,7 @@ def list_artifacts(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    _list_artifacts(
+    return _list_artifacts(
         project=project,
         name=name,
         tag=tag,

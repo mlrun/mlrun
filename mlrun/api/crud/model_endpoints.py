@@ -104,11 +104,11 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.api.schemas.ModelMonitoringMode.enabled.value
             ):
-                m_fs = self.create_monitoring_feature_set(
+                monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
-                model_endpoint.status.monitoring_feature_set_uri = m_fs.uri
+                model_endpoint.status.monitoring_feature_set_uri = monitoring_feature_set.uri
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make

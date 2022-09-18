@@ -83,6 +83,7 @@ class ClientSpec(
             ),
             force_run_local=self._get_config_value_if_not_default("force_run_local"),
             function=self._get_config_value_if_not_default("function"),
+            ce_mode=config.ce.mode,
         )
 
     @staticmethod

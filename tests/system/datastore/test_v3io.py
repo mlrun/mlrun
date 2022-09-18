@@ -48,9 +48,9 @@ class TestV3ioDataStore(TestMLRunSystem):
         object_path = "/bigdata/test_v3io_large_object"
         v3io_object_url = "v3io://" + object_path
 
-        try:
-            data_item = mlrun.datastore.store_manager.object(v3io_object_url)
+        data_item = mlrun.datastore.store_manager.object(v3io_object_url)
 
+        try:
             # Exercise the DataItem upload flow
             data_item.upload(tempfile_1_path)
             data_item.download(tempfile_2_path)
@@ -61,7 +61,7 @@ class TestV3ioDataStore(TestMLRunSystem):
                 cmp_process.returncode == 0
             ), f"stdout = {stdout}, stderr={stderr}, returncode={cmp_process.returncode}"
 
-            # Do the test again, this time exercising the v3io datastore upload_helper() loop
+            # Do the test again, this time exercising the v3io datastore _upload() loop
             os.remove(tempfile_2_path)
 
             data_item.store._upload(

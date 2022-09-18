@@ -119,7 +119,7 @@ class V3ioStore(DataStore):
                         append_header if file_offset else self.headers,
                         None,
                     )
-                    file_offset = file_offset + chunk_size
+                    file_offset += chunk_size
 
     def upload(self, key, src_path):
         return self._upload(key, src_path)

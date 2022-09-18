@@ -41,7 +41,7 @@ class RedisStore(DataStore):
         super().__init__(parent, name, schema, endpoint)
         self.headers = None
 
-        self.endpoint = self.endpoint or mlrun.mlconf.redis_url
+        self.endpoint = self.endpoint or mlrun.mlconf.redis.url
 
         if self.endpoint.startswith("rediss://"):
             self.endpoint = self.endpoint[len("rediss://") :]
@@ -49,7 +49,7 @@ class RedisStore(DataStore):
         elif self.endpoint.startswith("redis://"):
             self.endpoint = self.endpoint[len("redis://") :]
             self.secure = False
-        else:
+        elif self.endpoint == "":
             raise NotImplementedError(f"invalid endpoint: {endpoint}")
 
         self._redis_url = f"{schema}://{self.endpoint}"

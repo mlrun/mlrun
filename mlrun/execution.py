@@ -228,7 +228,7 @@ class MLClientCtx(object):
         self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
         self._artifacts_manager = ArtifactManager(db=self._rundb)
 
-    def get_meta(self):
+    def get_meta(self) -> dict:
         """Reserved for internal use"""
         uri = f"{self._project}/{self.uid}" if self._project else self.uid
         resp = {

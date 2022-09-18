@@ -848,6 +848,7 @@ class Config:
         return True if mlrun.mlconf.namespace else False
 
     def is_nuclio_detected(self):
+        # determine is Nuclio service is detected, when the nuclio_version is not set
         return True if mlrun.mlconf.nuclio_version else False
 
 

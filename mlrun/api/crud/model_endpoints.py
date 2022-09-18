@@ -108,7 +108,9 @@ class ModelEndpoints:
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
-                model_endpoint.status.monitoring_feature_set_uri = monitoring_feature_set.uri
+                model_endpoint.status.monitoring_feature_set_uri = (
+                    monitoring_feature_set.uri
+                )
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
         # of the features. If feature_names was supplied, replace the names set in feature_stats, otherwise - make

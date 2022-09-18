@@ -268,6 +268,7 @@ class NuclioStatus(FunctionStatus):
 class RemoteRuntime(KubeResource):
     kind = "remote"
     _is_nested = False
+    _mock_server = None
 
     @property
     def spec(self) -> NuclioSpec:
@@ -1031,6 +1032,13 @@ class RemoteRuntime(KubeResource):
                 new_env.append(remote_env)
 
         self.spec.env = new_env
+
+    def _set_as_mock(self, enable):
+        # todo: create mock_server for Nuclio
+        if enable:
+            raise NotImplementedError(
+                "Mock (simulation) is currently not supported for Nuclio"
+            )
 
 
 def parse_logs(logs):

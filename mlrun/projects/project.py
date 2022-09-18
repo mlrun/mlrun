@@ -2261,6 +2261,7 @@ class MlrunProject(ModelObj):
         tag: str = None,
         verbose: bool = None,
         builder_env: dict = None,
+        mock: bool = None,
     ):
         """deploy real-time (nuclio based) functions
 
@@ -2271,6 +2272,7 @@ class MlrunProject(ModelObj):
         :param tag:        extra version tag
         :param verbose     add verbose prints/logs
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
         """
         return deploy_function(
             function,
@@ -2281,6 +2283,7 @@ class MlrunProject(ModelObj):
             verbose=verbose,
             builder_env=builder_env,
             project_object=self,
+            mock=mock,
         )
 
     def get_artifact(self, key, tag=None, iter=None):

@@ -206,7 +206,7 @@ class MapValues(StepToDict, MLRunStep):
                     "index"
                 ].values
             elif feature_map:
-                # create amd aplay simple map
+                # create and apply simple map
                 df[self._feature_name(feature)] = event[feature].map(
                     lambda x: feature_map[x]
                 )

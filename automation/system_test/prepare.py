@@ -445,9 +445,7 @@ class SystemTestPreparer:
         if self._override_mlrun_images:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
-        provctl_create_patch_log = (
-            f"/tmp/provctl-create-patch-{time_string}.log"
-        )
+        provctl_create_patch_log = f"/tmp/provctl-create-patch-{time_string}.log"
         self._run_command(
             f"./{provctl_path}",
             args=[
@@ -474,9 +472,7 @@ class SystemTestPreparer:
         self._run_command(f"cat {provctl_create_patch_log}")
 
         self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
-        provctl_patch_mlrun_log = (
-            f"/tmp/provctl-patch-mlrun-{time_string}.log"
-        )
+        provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
             f"./{provctl_path}",
             args=[

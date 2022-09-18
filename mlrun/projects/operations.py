@@ -310,7 +310,7 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock = True if mlrun.mlconf.mock_nuclio_deployment else mock
+        mock = True if mlrun.mlconf.mock_nuclio_deployment and mock is None else mock
         function._set_as_mock(mock)
         if mock:
             return DeployStatus(

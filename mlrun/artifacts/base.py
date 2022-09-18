@@ -339,7 +339,7 @@ class Artifact(ModelObj):
     def _upload_body(self, body, target=None, artifact_path: str = None):
         body_hash = None
         if not target and not self.spec.target_path:
-            if not mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+            if not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Unable to resolve target path, no target path is defined and "
                     "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
@@ -348,7 +348,7 @@ class Artifact(ModelObj):
                 body, artifact_path
             )
 
-        if mlrun.mlconf.should_calculate_artifact_hash():
+        if mlrun.mlconf.artifacts.calculate_hash:
             self.metadata.hash = body_hash or calculate_blob_hash(body)
         self.spec.size = len(body)
 
@@ -359,7 +359,7 @@ class Artifact(ModelObj):
     ):
         file_hash = None
         if not target_path and not self.spec.target_path:
-            if not mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+            if not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Unable to resolve target path, no target path is defined and "
                     "mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash is set to false"
@@ -367,7 +367,7 @@ class Artifact(ModelObj):
             file_hash, self.spec.target_path = self.resolve_file_target_hash_path(
                 source_path, artifact_path
             )
-        if mlrun.mlconf.should_calculate_artifact_hash():
+        if mlrun.mlconf.artifacts.calculate_hash:
             self.metadata.hash = file_hash or calculate_local_file_hash(source_path)
         self.spec.size = os.stat(source_path).st_size
 
@@ -908,7 +908,7 @@ class DirArtifact(Artifact):
 
             if self.spec.target_path:
                 target_path = os.path.join(self.spec.target_path, file_name)
-            elif mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+            elif mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
                 _, target_path = self.resolve_file_target_hash_path(
                     source_path=file_path, artifact_path=artifact_path
                 )
@@ -1118,13 +1118,13 @@ class LegacyArtifact(ModelObj):
                 self._upload_file(src_path)
 
     def _upload_body(self, body, target=None):
-        if mlrun.mlconf.should_calculate_artifact_hash():
+        if mlrun.mlconf.artifacts.calculate_hash:
             self.hash = calculate_blob_hash(body)
         self.size = len(body)
         store_manager.object(url=target or self.target_path).put(body)
 
     def _upload_file(self, src, target=None):
-        if mlrun.mlconf.should_calculate_artifact_hash():
+        if mlrun.mlconf.artifacts.calculate_hash:
             self.hash = calculate_local_file_hash(src)
         self.size = os.stat(src).st_size
         store_manager.object(url=target or self.target_path).upload(src)

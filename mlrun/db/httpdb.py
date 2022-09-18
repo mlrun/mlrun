@@ -308,8 +308,7 @@ class HTTPRunDB(RunDBInterface):
             )
             config.artifacts.generate_target_path_from_artifact_hash = (
                 config.artifacts.generate_target_path_from_artifact_hash
-                if config.artifacts.generate_artifact_target_path_from_artifact_hash
-                is not None
+                if config.artifacts.generate_target_path_from_artifact_hash is not None
                 else server_cfg.get("generate_artifact_target_path_from_artifact_hash")
             )
 

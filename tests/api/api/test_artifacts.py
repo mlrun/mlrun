@@ -101,15 +101,15 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         assert len(resp.json()["artifacts"]) == 0
 
     resp = client.post(
-        f"{LEGACY_API_ARTIFACT_PATH}/{PROJECT}/{UID}/{KEY}?tag={TAG}", data={}
+        f"{LEGACY_API_ARTIFACT_PATH}/{PROJECT}/{UID}/{KEY}?tag={TAG}", data="{}"
     )
     assert resp.status_code == HTTPStatus.OK.value
 
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(
-            project=PROJECT, uid=f"{UID}2", key=KEY, tag=TAG
+            project=PROJECT, uid=f"{UID}2", key=f"{KEY}2", tag=TAG
         ),
-        data={},
+        data="{}",
     )
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -120,23 +120,3 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
         assert len(resp.json()["artifacts"]) == 2
-
-
-def test_list_all_projects_artifacts(db: Session, client: TestClient) -> None:
-    _create_project(client, "prj1")
-    _create_project(client, "prj2")
-
-    resp = client.post(
-        f"{LEGACY_API_ARTIFACT_PATH}/prj1/{UID}/{KEY}?tag={TAG}", data={}
-    )
-    assert resp.status_code == HTTPStatus.OK.value
-
-    resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(project="prj2", uid=UID, key=KEY, tag=TAG),
-        data={},
-    )
-    assert resp.status_code == HTTPStatus.OK.value
-
-    resp = client.get(API_ARTIFACTS_PATH.format(project="*"))
-    assert resp.status_code == HTTPStatus.OK.value
-    assert len(resp.json()["artifacts"]) == 2

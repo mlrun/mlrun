@@ -446,7 +446,7 @@ class SystemTestPreparer:
             override_image_arg = f"--override-images {self._override_mlrun_images}"
 
         provctl_create_patch_log = (
-            f"{str(self.Constants.workdir)}/provctl-create-patch-{time_string}.log"
+            f"/tmp/provctl-create-patch-{time_string}.log"
         )
         self._run_command(
             f"./{provctl_path}",

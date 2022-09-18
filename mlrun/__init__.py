@@ -93,6 +93,7 @@ def set_environment(
     access_key: str = None,
     user_project=False,
     username: str = None,
+    env_file: str = None,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -107,6 +108,7 @@ def set_environment(
         from os import path
         project_name, artifact_path = set_environment(project='my-project')
         set_environment("http://localhost:8080", artifact_path="./")
+        set_environment(env_file="mlrun.env")
         set_environment("<remote-service-url>", access_key="xyz", username="joe")
 
     :param api_path:       location/url of mlrun api service
@@ -115,11 +117,15 @@ def set_environment(
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
     :param user_project:   add the current user name to the provided project name (making it unique per user)
     :param username:       name of the user to authenticate
+    :param env_file:       path/url to .env file (holding MLRun config and other env vars), see: set_env_from_file()
 
     :returns:
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
+    if env_file:
+        set_env_from_file(env_file)
+
     # set before the dbpath (so it will re-connect with the new credentials)
     if access_key:
         environ["V3IO_ACCESS_KEY"] = access_key
@@ -147,7 +153,9 @@ def set_environment(
         get_or_create_project(mlconf.default_project, "./")
 
     if not mlconf.artifact_path and not artifact_path:
-        raise ValueError("please specify a valid artifact_path")
+        raise ValueError(
+            "default artifact_path was not configures, please specify a valid artifact_path"
+        )
 
     if artifact_path:
         if artifact_path.startswith("./"):

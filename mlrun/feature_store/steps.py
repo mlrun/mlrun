@@ -170,12 +170,12 @@ class MapValues(StepToDict, MLRunStep):
         # Is it a regular replacement
         return feature_map.get(value, value)
 
-    def _feature_name(self, feature) -> str:
+    def _get_feature_name(self, feature) -> str:
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
 
     def _do_storey(self, event):
         mapped_values = {
-            self._feature_name(feature): self._map_value(feature, val)
+            self._get_feature_name(feature): self._map_value(feature, val)
             for feature, val in event.items()
             if feature in self.mapping
         }
@@ -202,12 +202,12 @@ class MapValues(StepToDict, MLRunStep):
                 matchdf.index = pd.IntervalIndex.from_arrays(
                     left=matchdf[0], right=matchdf[1], closed="both"
                 )
-                df[self._feature_name(feature)] = matchdf.loc[event[feature]][
+                df[self._get_feature_name(feature)] = matchdf.loc[event[feature]][
                     "index"
                 ].values
             elif feature_map:
                 # create and apply simple map
-                df[self._feature_name(feature)] = event[feature].map(
+                df[self._get_feature_name(feature)] = event[feature].map(
                     lambda x: feature_map[x]
                 )
 
@@ -397,8 +397,10 @@ class DateExtractor(StepToDict, MLRunStep):
         else:
             try:
                 timestamp = event[self.timestamp_col]
-            except Exception:
-                raise ValueError(f"{self.timestamp_col} does not exist in the event")
+            except KeyError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{self.timestamp_col} does not exist in the event"
+                )
         return timestamp
 
     def _do_storey(self, event):

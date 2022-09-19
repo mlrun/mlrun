@@ -1,11 +1,9 @@
-import typing
-
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
-from fastapi import APIRouter, Depends, Query, Request
 
 import mlrun.api.api.deps
+import mlrun.api.crud.tags
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
@@ -36,9 +34,13 @@ async def store_tag(
         # check permission per object type
         await fastapi.concurrency.run_in_threadpool(
             mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
-            object_list.kind,
+            getattr(mlrun.api.schemas.AuthorizationResourceTypes, object_list.kind),
             project,
-            object_list.kind,  # we don't really check per object, just the kind, so passing kind just as a place holder
-            mlrun.api.schemas.AuthorizationAction.store,
-            auth_info,
+            resource_name=None,
+            action=mlrun.api.schemas.AuthorizationAction.store,
+            auth_info=auth_info,
         )
+
+    return mlrun.api.crud.Tags().overwrite_object_tags_with_tag(
+        db_session, project=project, tag=tag, objects=objects.objects
+    )

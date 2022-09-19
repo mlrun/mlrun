@@ -6,8 +6,10 @@ import sqlalchemy.orm
 
 import mlrun.api.schemas
 
+API_PROJECTS_PATH = "projects"
 API_ARTIFACTS_PATH = "projects/{project}/artifacts"
-API_TAGS_PATH = "/projects/{project}/tags/{tag}"
+API_ARTIFACTS_PATH_WITH_TAG = API_ARTIFACTS_PATH + "?tag={tag}"
+API_TAGS_PATH = "projects/{project}/tags/{tag}"
 STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/" + "{uid}/{key}?tag={tag}"
 
 
@@ -18,27 +20,47 @@ class TestTags:
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
-        self._store_artifact(client, tag="tag1")
-        self._store_artifact(client, tag="tag1")
+        tag = "tag1"
+        self._store_artifact(client, tag=tag)
+        self._store_artifact(client, tag=tag)
 
-        resp = client.get(API_ARTIFACTS_PATH.format(project=self.project))
+        resp = client.get(
+            API_ARTIFACTS_PATH_WITH_TAG.format(project=self.project, tag=tag)
+        )
         assert resp.status_code == http.HTTPStatus.OK.value
         assert len(resp.json()["artifacts"]) == 2
-        self._assert_tag(resp.json()["artifacts"], "tag1")
+        self._assert_tag(resp.json()["artifacts"], tag)
 
-        # resp = client.post(API_TAGS_PATH.format(project=self.project, tag="tag2"), json={
-        #     "objects": [
-        #         {
-        #             "kind": "artifact",
-        #             "identifiers": [
-        #                 {
-        #                     "tag": "tag1",
-        #                 }
-        #             ],
-        #         }
-        #     ]
-        # })
-        #
+        overwrite_tag = "tag2"
+        resp = client.post(
+            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
+            json={
+                "objects": [
+                    {
+                        "kind": "artifact",
+                        "identifiers": [
+                            {
+                                "tag": tag,
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+        assert resp.status_code == http.HTTPStatus.OK.value
+
+        resp = client.get(
+            API_ARTIFACTS_PATH_WITH_TAG.format(project=self.project, tag=tag)
+        )
+        assert resp.status_code == http.HTTPStatus.OK.value
+        assert len(resp.json()["artifacts"]) == 0
+
+        resp = client.get(
+            API_ARTIFACTS_PATH_WITH_TAG.format(project=self.project, tag=overwrite_tag)
+        )
+        assert resp.status_code == http.HTTPStatus.OK.value
+        assert len(resp.json()["artifacts"]) == 2
+        self._assert_tag(resp.json()["artifacts"], overwrite_tag)
 
     @staticmethod
     def _assert_tag(artifacts, expected_tag):
@@ -57,7 +79,7 @@ class TestTags:
                 description="banana", source="source", goals="some goals"
             ),
         )
-        resp = client.post("/projects", json=project.dict())
+        resp = client.post(API_PROJECTS_PATH, json=project.dict())
         assert resp.status_code == http.HTTPStatus.CREATED.value
         return resp
 
@@ -67,7 +89,7 @@ class TestTags:
         project: str = None,
         uid: str = None,
         key: str = None,
-        tag: str = "tag1",
+        tag: str = None,
         data: str = "{}",
     ):
         uid = uid or str(uuid.uuid4())

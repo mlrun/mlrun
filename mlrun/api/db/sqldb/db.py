@@ -68,7 +68,6 @@ from mlrun.utils import (
     generate_artifact_uri,
     generate_object_uri,
     get_in,
-    get_in_artifact,
     is_legacy_artifact,
     logger,
     update_in,
@@ -368,17 +367,23 @@ class SQLDB(DBInterface):
                 labels=identifier.labels,
                 kind=identifier.kind,
                 iter=identifier.iter,
+                as_records=True,
             )
         # TODO remove duplicates artifacts entries
         for artifact in artifacts:
             # could be legacy artifact or new artifact so we can't rely on the attributes to be all in the same place
-            artifact_key = get_in_artifact(artifact, "key")
+            # artifact_key = get_in_artifact(artifact, "key")
+            # artifact_uid = get_in_artifact(artifact, "uid")
 
             # delete related tags from artifacts identifiers
             # not committing the session here because we want to do it atomic with the next query
             # TODO delete list of artifacts in one query?
             self._delete_artifact_tags(
-                session, project, artifact_key=artifact_key, tag_name=tag, commit=False
+                session,
+                project,
+                artifact_key=artifact.key,
+                tag_name=artifact.Tag.name,
+                commit=False,
             )
         # tag artifacts with tag
         self.tag_artifacts(session, artifacts, project, name=tag)
@@ -555,6 +560,7 @@ class SQLDB(DBInterface):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
     ):
         project = project or config.default_project
 
@@ -578,6 +584,8 @@ class SQLDB(DBInterface):
         artifact_records = self._find_artifacts(
             session, project, ids, labels, since, until, name, kind, category, iter
         )
+        if as_records:
+            return artifact_records
         indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
         for artifact in artifact_records:
             has_iteration = self._name_with_iter_regex.match(artifact.key)

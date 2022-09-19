@@ -12,7 +12,7 @@ import mlrun.utils.singleton
 
 kind_to_function = {
     "artifact": {
-        "overwrite": mlrun.api.utils.singletons.db.get_db().overwrite_artifacts_with_tag,
+        "overwrite": "overwrite_artifacts_with_tag",
         # "append": mlrun.api.utils.singletons.db.get_db().update_artifact_tags,
     }
 }
@@ -29,10 +29,8 @@ class Tags(
         objects: typing.List[mlrun.api.schemas.TagObject],
     ):
         for obj in objects:
-            overwrite_func: callable = kind_to_function.get(obj.kind, {}).get(
-                "overwrite"
-            )
-            overwrite_func(
+            overwrite_func = kind_to_function.get(obj.kind, {}).get("overwrite")
+            getattr(mlrun.api.utils.singletons.db.get_db(), overwrite_func)(
                 session=db_session,
                 project=project,
                 tag=tag,

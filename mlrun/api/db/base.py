@@ -134,6 +134,7 @@ class DBInterface(ABC):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
     ):
         pass
 

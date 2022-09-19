@@ -16,7 +16,7 @@ import ast
 import os
 import typing
 
-import mlrun
+import mlrun.model
 import mlrun.lists
 import mlrun.utils.helpers
 
@@ -48,7 +48,7 @@ class NotificationPusher(object):
 
     @staticmethod
     def _should_notify(
-        run: typing.Union[mlrun.RunObject, dict], notification_config: dict
+        run: typing.Union[mlrun.model.RunObject, dict], notification_config: dict
     ) -> bool:
         when_states = notification_config.get("when", [])
         condition = notification_config.get("condition", "")

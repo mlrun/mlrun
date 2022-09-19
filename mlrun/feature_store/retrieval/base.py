@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import abc
+from typing import Dict, List
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
@@ -248,7 +249,13 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
-    def _parse_relations(self, feature_set_objects, feature_set_fields):
+    def _parse_relations(
+        self,
+        feature_set_objects: Dict[str, mlrun.feature_store.feature_set.FeatureSet],
+        feature_set_fields: Dict[str, List],
+    ):
+        """This method parse all feature set relations to a format such as self._relations if self._relations is None,
+        and when check if each relation as entity included"""
         if self._relation == {}:
             for name, columns in feature_set_fields.items():
                 feature_set = feature_set_objects[name]

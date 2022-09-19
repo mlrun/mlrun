@@ -2996,6 +2996,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_relation_join(self, engine):
+        """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
                 "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -3011,7 +3012,6 @@ class TestFeatureStore(TestMLRunSystem):
                     "dept9",
                     "dept10",
                 ],
-                "my_index": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
             }
         )
 

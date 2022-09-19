@@ -159,10 +159,10 @@ def get_offline_features(
                                     if relation=None the join  action will be done on the entity column.
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'outer'
                                     indicate join type such as :
-                                    left: use only keys from left frame (SQL: left outer join)
-                                    right: use only keys from right frame (SQL: right outer join)
-                                    outer: use union of keys from both frames (SQL: full outer join)
-                                    inner: use intersection of keys from both frames (SQL: inner join).
+                                    * left: use only keys from left frame (SQL: left outer join)
+                                    * right: use only keys from right frame (SQL: right outer join)
+                                    * outer: use union of keys from both frames (SQL: full outer join)
+                                    * inner: use intersection of keys from both frames (SQL: inner join).
 
     """
     if isinstance(feature_vector, FeatureVector):

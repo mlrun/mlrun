@@ -40,7 +40,10 @@ class LocalFeatureMerger(BaseMerger):
         feature_sets_names = []
         keys = []
         all_columns = list()
-        self._parse_relations(feature_set_objects, feature_set_fields)
+        self._parse_relations(
+            feature_set_objects=feature_set_objects,
+            feature_set_fields=feature_set_fields,
+        )
 
         # extract all dfs from the feature sets.
         for name, columns in feature_set_fields.items():
@@ -126,7 +129,12 @@ class LocalFeatureMerger(BaseMerger):
             )
 
         self.merge(
-            entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns
+            entity_df=entity_rows,
+            entity_timestamp_column=entity_timestamp_column,
+            featuresets=feature_sets,
+            featureset_dfs=dfs,
+            keys=keys,
+            all_columns=all_columns,
         )
 
         self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
@@ -157,10 +165,10 @@ class LocalFeatureMerger(BaseMerger):
         entity_df,
         entity_timestamp_column: str,
         featureset,
-        featureset_df: pd.DataFrame,
-        left_keys,
-        right_keys,
-        columns,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         indexes = None
@@ -209,10 +217,10 @@ class LocalFeatureMerger(BaseMerger):
         entity_df,
         entity_timestamp_column: str,
         featureset,
-        featureset_df: pd.DataFrame,
+        featureset_df,
         left_keys: list,
         right_keys: list,
-        columns,
+        columns: list,
     ):
         indexes = None
         if not right_keys:

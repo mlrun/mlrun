@@ -15,8 +15,8 @@
 import re
 
 import dask.dataframe as dd
+import dask.dataframe.multi as dask_df_multi
 import pandas as pd
-import dask.dataframe.multi as dask_df_multi 
 from dask.distributed import Client
 
 import mlrun
@@ -55,7 +55,10 @@ class DaskFeatureMerger(BaseMerger):
         feature_sets_names = []
         keys = []
         all_columns = list()
-        self._parse_relations(feature_set_objects=feature_set_objects, feature_set_fields=feature_set_fields)
+        self._parse_relations(
+            feature_set_objects=feature_set_objects,
+            feature_set_fields=feature_set_fields,
+        )
 
         for name, columns in feature_set_fields.items():
             feature_set = feature_set_objects[name]
@@ -132,7 +135,12 @@ class DaskFeatureMerger(BaseMerger):
             )
 
         self.merge(
-            entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns
+            entity_df=entity_rows,
+            entity_timestamp_column=entity_timestamp_column,
+            featuresets=feature_sets,
+            featureset_dfs=dfs,
+            keys=keys,
+            all_columns=all_columns,
         )
 
         self._result_df = self._result_df.drop(
@@ -169,10 +177,10 @@ class DaskFeatureMerger(BaseMerger):
         entity_df,
         entity_timestamp_column: str,
         featureset,
-        featureset_df: pd.DataFrame,
-        left_keys,
-        right_keys,
-        columns,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
         indexes = None
         if not right_keys:
@@ -191,7 +199,7 @@ class DaskFeatureMerger(BaseMerger):
             else featureset_df.set_index(entity_timestamp_column, drop=True)
         )
 
-        merged_df = merge_asof(
+        merged_df = dask_df_multi.merge_asof(
             entity_df,
             featureset_df,
             left_index=True,
@@ -208,17 +216,17 @@ class DaskFeatureMerger(BaseMerger):
         entity_df,
         entity_timestamp_column: str,
         featureset,
-        featureset_df: pd.DataFrame,
-        left_keys,
-        right_keys,
-        columns,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         indexes = None
         if not right_keys:
             indexes = list(featureset.spec.entities.keys())
         fs_name = featureset.metadata.name
-        merged_df = merge(
+        merged_df = dask_df_multi.merge(
             entity_df,
             featureset_df,
             on=indexes,

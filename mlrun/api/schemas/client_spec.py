@@ -53,3 +53,7 @@ class ClientSpec(pydantic.BaseModel):
     force_run_local: typing.Optional[str]
     function: typing.Optional[Function]
     redis_url: typing.Optional[str]
+    ce_mode: typing.Optional[str]
+    # not passing them as one object as it possible client user would like to override only one of the params
+    calculate_artifact_hash: typing.Optional[str]
+    generate_artifact_target_path_from_artifact_hash: typing.Optional[str]

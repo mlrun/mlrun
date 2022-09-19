@@ -104,8 +104,12 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.api.schemas.ModelMonitoringMode.enabled.value
             ):
-                self.create_monitoring_feature_set(
+                monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
+                )
+                # Link model endpoint object to feature set URI
+                model_endpoint.status.monitoring_feature_set_uri = (
+                    monitoring_feature_set.uri
                 )
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
@@ -155,6 +159,8 @@ class ModelEndpoints:
         :param db_session:        A session that manages the current dialog with the database.
         :param run_db:            A run db instance which will be used for retrieving the feature vector in case
                                   the features are not found in the model object.
+
+        :return:                  Feature set object for the monitoring of the current model endpoint.
         """
 
         # Define a new feature set
@@ -201,10 +207,9 @@ class ModelEndpoints:
                         )
                     )
         else:
-            logger.info(
+            logger.warn(
                 "Could not find any features in the model object and in the Feature Vector"
             )
-            return
 
         # Define parquet target for this feature set
         parquet_path = (
@@ -227,7 +232,8 @@ class ModelEndpoints:
             model_endpoint=model_endpoint.spec.model,
             parquet_target=parquet_path,
         )
-        return
+
+        return feature_set
 
     @staticmethod
     def _validate_length_features_and_labels(model_endpoint):
@@ -540,6 +546,8 @@ class ModelEndpoints:
                 drift_status=endpoint.get("drift_status") or None,
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
+                monitoring_feature_set_uri=endpoint.get("monitoring_feature_set_uri")
+                or None,
             ),
         )
 
@@ -653,6 +661,8 @@ class ModelEndpoints:
                 "model_uri": endpoint.spec.model_uri or "",
                 "stream_path": endpoint.spec.stream_path or "",
                 "active": endpoint.spec.active or "",
+                "monitoring_feature_set_uri": endpoint.status.monitoring_feature_set_uri
+                or "",
                 "monitoring_mode": endpoint.spec.monitoring_mode or "",
                 "state": endpoint.status.state or "",
                 "feature_stats": json.dumps(feature_stats),

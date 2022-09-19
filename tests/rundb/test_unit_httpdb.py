@@ -110,3 +110,38 @@ def test_connection_reset_causes_retries(
 
     assert requests.Session.request.call_count == call_amount
     requests.Session.request = original_request
+
+
+@pytest.mark.parametrize(
+    "client_value,server_value,expected",
+    [
+        (None, None, None),
+        (True, None, True),
+        (False, None, False),
+        (None, True, True),
+        (None, False, False),
+        (True, True, True),
+        (True, False, True),
+        (False, True, False),
+        (False, False, False),
+    ],
+)
+def test_client_spec_generate_target_path_from_artifact_hash_enrichment(
+    client_value,
+    server_value,
+    expected,
+):
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = client_value
+    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+
+    db.api_call = unittest.mock.Mock()
+    db.api_call.return_value = unittest.mock.Mock(
+        status_code=201,
+        json=lambda: {
+            "version": "v1.1.0",
+            "generate_artifact_target_path_from_artifact_hash": server_value,
+        },
+    )
+
+    db.connect()
+    assert expected == mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash

@@ -447,6 +447,14 @@ class GraphContext:
     def server(self):
         return self._server
 
+    @property
+    def project(self):
+        """current project name (for the current function)"""
+        project, _, _, _ = mlrun.utils.parse_versioned_object_uri(
+            self._server.function_uri
+        )
+        return project
+
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:
             self.logger.error(

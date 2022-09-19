@@ -1248,7 +1248,7 @@ def params_to_step(
             )
         if not name:
             raise MLRunInvalidArgumentError("queue name must be specified")
-        step = QueueStep(name, **class_args)
+        step = QueueStep(name, full_event=full_event, **class_args)
 
     elif class_name and class_name.startswith("*"):
         routes = class_args.get("routes", None)

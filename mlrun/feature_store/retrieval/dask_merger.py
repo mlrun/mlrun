@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
+
 import dask.dataframe as dd
 import pandas as pd
 from dask.dataframe.multi import merge, merge_asof
 from dask.distributed import Client
 
 import mlrun
-import re
 
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
@@ -70,37 +71,45 @@ class DaskFeatureMerger(BaseMerger):
             for key, dict_relation in self._relation.items():
                 if re.findall(f":{name}$", key):
                     for left, right in dict_relation.items():
-                        if right not in column_names and right not in feature_set.spec.entities.keys():
+                        if (
+                            right not in column_names
+                            and right not in feature_set.spec.entities.keys()
+                        ):
                             column_names.append(right)
                             if self._drop_indexes:
                                 self._append_drop_column(right)
-                        if key.split(':')[0] in feature_sets_names:
+                        if key.split(":")[0] in feature_sets_names:
                             right_keys.append(right)
                             left_keys.append(left)
                         temp_key.append(right)
                 elif re.findall(f"^{name}:", key):
                     for left, right in dict_relation.items():
-                        if left not in column_names and left not in feature_set.spec.entities.keys():
+                        if (
+                            left not in column_names
+                            and left not in feature_set.spec.entities.keys()
+                        ):
                             column_names.append(left)
                             if self._drop_indexes:
                                 self._append_drop_column(left)
-                        if key.split(':')[1] in feature_sets_names:
+                        if key.split(":")[1] in feature_sets_names:
                             right_keys.append(left)
                             left_keys.append(right)
                         temp_key.append(left)
 
             df = feature_set.to_dataframe(
-                    columns=column_names,
-                    df_module=dd,
-                    start_time=start_time,
-                    end_time=end_time,
-                    time_column=entity_timestamp_column,
-                    index=False,
-                )
+                columns=column_names,
+                df_module=dd,
+                start_time=start_time,
+                end_time=end_time,
+                time_column=entity_timestamp_column,
+                index=False,
+            )
 
             df = df.persist()
             # rename columns to be unique for each feature set
-            rename_col_dict = {col: f'{col}_{name}' for col in column_names if col not in temp_key}
+            rename_col_dict = {
+                col: f"{col}_{name}" for col in column_names if col not in temp_key
+            }
             df = df.rename(
                 columns=rename_col_dict,
             )
@@ -118,9 +127,13 @@ class DaskFeatureMerger(BaseMerger):
                 else:
                     new_columns.append((col, alias))
             all_columns.append(new_columns)
-            self._update_alias(dictionary={name: alias for name, alias in new_columns if alias})
+            self._update_alias(
+                dictionary={name: alias for name, alias in new_columns if alias}
+            )
 
-        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns)
+        self.merge(
+            entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns
+        )
 
         self._result_df = self._result_df.drop(
             columns=self._drop_columns, errors="ignore"
@@ -151,8 +164,16 @@ class DaskFeatureMerger(BaseMerger):
         to_drop = df.index.name is None
         return df.reset_index(drop=to_drop)
 
-    def _asof_join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df: pd.DataFrame, left_keys,
-                   right_keys, columns):
+    def _asof_join(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df: pd.DataFrame,
+        left_keys,
+        right_keys,
+        columns,
+    ):
         indexes = None
         if not right_keys:
             indexes = list(featureset.spec.entities.keys())
@@ -177,25 +198,39 @@ class DaskFeatureMerger(BaseMerger):
             right_index=True,
             by=indexes,
             left_by=left_keys,
-            right_by=right_keys
+            right_by=right_keys,
         )
 
         return merged_df
 
-    def _join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df: pd.DataFrame, left_keys,
-              right_keys, columns):
+    def _join(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df: pd.DataFrame,
+        left_keys,
+        right_keys,
+        columns,
+    ):
 
         indexes = None
         if not right_keys:
             indexes = list(featureset.spec.entities.keys())
         fs_name = featureset.metadata.name
-        merged_df = dd.merge(entity_df, featureset_df, on=indexes, how=self._join_type, left_on=left_keys,
-                             right_on=right_keys, suffixes=("", f"_{fs_name}_"), )
+        merged_df = dd.merge(
+            entity_df,
+            featureset_df,
+            on=indexes,
+            how=self._join_type,
+            left_on=left_keys,
+            right_on=right_keys,
+            suffixes=("", f"_{fs_name}_"),
+        )
         for col in merged_df.columns:
-            if re.findall(f"_{fs_name}_$",col):
+            if re.findall(f"_{fs_name}_$", col):
                 self._append_drop_column(col)
         return merged_df
-
 
     def get_status(self):
         if self._result_df is None:

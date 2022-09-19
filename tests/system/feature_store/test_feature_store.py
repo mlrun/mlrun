@@ -160,7 +160,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         self._logger.info(f"stocks spec: {stocks_set.to_yaml()}")
         assert (
-                stocks_set.spec.features["name"].description == "some name"
+            stocks_set.spec.features["name"].description == "some name"
         ), "description was not set"
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
@@ -218,10 +218,10 @@ class TestFeatureStore(TestMLRunSystem):
             features
         ), "unexpected num of requested features"
         assert (
-                len(vector.status.features) == features_size
+            len(vector.status.features) == features_size
         ), "unexpected num of returned features"
         assert (
-                len(vector.status.stats) == features_size
+            len(vector.status.stats) == features_size
         ), "unexpected num of feature stats"
         assert vector.status.label_column == "xx", "unexpected label_column name"
 
@@ -247,7 +247,7 @@ class TestFeatureStore(TestMLRunSystem):
             # check that passing a dict (without list) works
             resp = svc.get({"ticker": "GOOG"})
             assert (
-                    resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
+                resp[0]["name"] == "Alphabet Inc" and resp[0]["exchange"] == "NASDAQ"
             ), "unexpected online result"
 
             try:
@@ -265,11 +265,11 @@ class TestFeatureStore(TestMLRunSystem):
             resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
             resp = svc.get([{"ticker": "AAPL"}])
             assert (
-                    resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
+                resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
             ), "unexpected online result"
             resp2 = svc.get([{"ticker": "AAPL"}], as_list=True)
             assert (
-                    len(resp2[0]) == features_size - 1
+                len(resp2[0]) == features_size - 1
             ), "unexpected online vector size"  # -1 label
 
     def test_ingest_and_query(self):
@@ -288,7 +288,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks.*",
         ]
         features_size = (
-                len(features) + 1 + 1
+            len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
 
         # test fetch with the pandas merger engine
@@ -342,7 +342,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert default_df.index.name is None, "index column is not of default type"
         assert "time" not in default_df.columns, "'time' column shouldn't be present"
         assert (
-                "ticker" not in default_df.columns
+            "ticker" not in default_df.columns
         ), "'ticker' column shouldn't be present"
 
         # with_indexes = False, entity_timestamp_column = "time"
@@ -365,10 +365,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert df_no_time.index.name is None, "index column is not of default type"
         assert "time" not in df_no_time.columns, "'time' column should not be present"
         assert (
-                "ticker" not in df_no_time.columns
+            "ticker" not in df_no_time.columns
         ), "'ticker' column shouldn't be present"
         assert (
-                "another_time" in df_no_time.columns
+            "another_time" in df_no_time.columns
         ), "'another_time' column should be present"
 
         # with_indexes = False, entity_timestamp_column = "invalid" - should return the timestamp column
@@ -380,11 +380,11 @@ class TestFeatureStore(TestMLRunSystem):
         ), "index column is not of default type"
         assert df_with_time.index.name is None, "index column is not of default type"
         assert (
-                "ticker" not in df_with_time.columns
+            "ticker" not in df_with_time.columns
         ), "'ticker' column shouldn't be present"
         assert "time" in df_with_time.columns, "'time' column should be present"
         assert (
-                "another_time" not in df_with_time.columns
+            "another_time" not in df_with_time.columns
         ), "'another_time' column should not be present"
 
         vector.spec.with_indexes = True
@@ -402,13 +402,13 @@ class TestFeatureStore(TestMLRunSystem):
             (f"v3io:///bigdata/{project_name}/gof_wt.parquet", False),  # single file
             (f"v3io:///bigdata/{project_name}/gof_wt/", False),  # directory
             (
-                    f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",
-                    True,
+                f"v3io:///bigdata/{project_name}/{{run_id}}/gof_wt.parquet",
+                True,
             ),  # with run_id
         ],
     )
     def test_different_target_paths_for_get_offline_features(
-            self, target_path, should_raise_error
+        self, target_path, should_raise_error
     ):
         stocks = pd.DataFrame(
             {
@@ -446,7 +446,7 @@ class TestFeatureStore(TestMLRunSystem):
         ],
     )
     def test_different_paths_for_ingest_on_storey_engines(
-            self, should_succeed, is_parquet, is_partitioned, target_path
+        self, should_succeed, is_parquet, is_partitioned, target_path
     ):
         fset = FeatureSet("fsname", entities=[Entity("ticker")], engine="storey")
         target = (
@@ -478,7 +478,7 @@ class TestFeatureStore(TestMLRunSystem):
         ],
     )
     def test_different_paths_for_ingest_on_pandas_engines(
-            self, should_succeed, is_parquet, is_partitioned, target_path, chunks
+        self, should_succeed, is_parquet, is_partitioned, target_path, chunks
     ):
         source = CSVSource(
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -526,11 +526,11 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(fset, df, infer_options=fs.InferOptions.default(), **ingest_kw)
 
         assert fset.status.targets[
-                   0
-               ].get_path().get_absolute_path() == fset.get_target_path("parquet")
+            0
+        ].get_path().get_absolute_path() == fset.get_target_path("parquet")
         assert fset.status.targets[
-                   1
-               ].get_path().get_absolute_path() == fset.get_target_path("nosql")
+            1
+        ].get_path().get_absolute_path() == fset.get_target_path("nosql")
 
     def test_feature_set_db(self):
         name = "stocks_test"
@@ -785,7 +785,7 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("partition_cols", [None, ["department"]])
     @pytest.mark.parametrize("time_partitioning_granularity", [None, "day"])
     def test_ingest_partitioned_by_key_and_time(
-            self, key_bucketing_number, partition_cols, time_partitioning_granularity
+        self, key_bucketing_number, partition_cols, time_partitioning_granularity
     ):
         name = f"measurements_{uuid.uuid4()}"
         key = "patient_id"
@@ -839,12 +839,12 @@ class TestFeatureStore(TestMLRunSystem):
             expected_partitions = [f"hash{key_bucketing_number}_key"]
         expected_partitions += partition_cols or []
         if all(
-                value is None
-                for value in [
-                    key_bucketing_number,
-                    partition_cols,
-                    time_partitioning_granularity,
-                ]
+            value is None
+            for value in [
+                key_bucketing_number,
+                partition_cols,
+                time_partitioning_granularity,
+            ]
         ):
             time_partitioning_granularity = (
                 mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
@@ -1464,7 +1464,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector = fs.FeatureVector("my-vec", features)
         with fs.get_online_feature_service(
-                vector, fixed_window_type=fixed_window_type
+            vector, fixed_window_type=fixed_window_type
         ) as svc:
             resp = svc.get([{"first_name": "moshe"}])
             if fixed_window_type == FixedWindowType.CurrentOpenWindow:
@@ -1815,8 +1815,8 @@ class TestFeatureStore(TestMLRunSystem):
         csv_df = pd.read_csv(csv_path)
         assert (
             df1.set_index(keys="name")
-                .sort_index()
-                .equals(csv_df.set_index(keys="name").sort_index())
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
         )
 
         parquet_path = fset.get_target_path(name="parquet")
@@ -1833,8 +1833,8 @@ class TestFeatureStore(TestMLRunSystem):
         csv_df = pd.read_csv(csv_path)
         assert (
             df1.set_index(keys="name")
-                .sort_index()
-                .equals(csv_df.set_index(keys="name").sort_index())
+            .sort_index()
+            .equals(csv_df.set_index(keys="name").sort_index())
         )
 
         parquet_path = fset.get_target_path(name="parquet")
@@ -1863,8 +1863,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert (
             df1.set_index(keys="name")
-                .sort_index()
-                .equals(off1.to_dataframe().sort_index())
+            .sort_index()
+            .equals(off1.to_dataframe().sort_index())
         )
         assert df1.set_index(keys="name").sort_index().equals(dfout1.sort_index())
 
@@ -1874,8 +1874,8 @@ class TestFeatureStore(TestMLRunSystem):
         dfout2 = pd.read_parquet(target.get_target_path())
         assert (
             df2.set_index(keys="name")
-                .sort_index()
-                .equals(off2.to_dataframe().sort_index())
+            .sort_index()
+            .equals(off2.to_dataframe().sort_index())
         )
         assert df2.set_index(keys="name").sort_index().equals(dfout2.sort_index())
 
@@ -2021,7 +2021,7 @@ class TestFeatureStore(TestMLRunSystem):
             if config.v3io_api:
                 api = config.v3io_api
                 if "//" in api:
-                    api = api[api.find("//") + 2:]
+                    api = api[api.find("//") + 2 :]
                 if ":" in api:
                     api = api[: api.find(":")]
             return api
@@ -2475,7 +2475,7 @@ class TestFeatureStore(TestMLRunSystem):
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
         with fs.get_online_feature_service(
-                vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
+            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
             print(svc.vector.status.to_yaml())
 
@@ -2592,7 +2592,7 @@ class TestFeatureStore(TestMLRunSystem):
         ],
     )
     def test_deploy_ingestion_service_with_different_targets(
-            self, targets, feature_set_targets, expected_target_names
+        self, targets, feature_set_targets, expected_target_names
     ):
         fset_name = "dis-set"
         fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
@@ -2974,7 +2974,7 @@ class TestFeatureStore(TestMLRunSystem):
             request_url, json=request_body, headers=headers, verify=False
         )
         assert (
-                response.status_code == 200
+            response.status_code == 200
         ), f"Failed to patch feature vector: {response}"
 
         service = fs.get_online_feature_service(vector_name)
@@ -2999,23 +2999,65 @@ class TestFeatureStore(TestMLRunSystem):
         departments = pd.DataFrame(
             {
                 "id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                "name": ["dept1", "dept2", "dept3", "dept4", "dept5", "dept6", "dept7", "dept8", "dept9", "dept10"],
-                'my_index': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+                "name": [
+                    "dept1",
+                    "dept2",
+                    "dept3",
+                    "dept4",
+                    "dept5",
+                    "dept6",
+                    "dept7",
+                    "dept8",
+                    "dept9",
+                    "dept10",
+                ],
+                "my_index": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
             }
         )
 
         employees = pd.DataFrame(
             {
                 "id": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],
-                "name": ["name1", "name2", "name3", "name4", "name5", "name6", "name7", "name8", "name9", "name10"],
-                "department_id": [1, 1, 1, 2, 2, 2, 6, 6, 6, 11]
+                "name": [
+                    "name1",
+                    "name2",
+                    "name3",
+                    "name4",
+                    "name5",
+                    "name6",
+                    "name7",
+                    "name8",
+                    "name9",
+                    "name10",
+                ],
+                "department_id": [1, 1, 1, 2, 2, 2, 6, 6, 6, 11],
             }
         )
 
         result = pd.DataFrame(
             {
-                "n": ['name1', 'name2', 'name3', 'name4', 'name5', 'name6', 'name7', 'name8', 'name9'],
-                "n2": ["dept1", "dept1", "dept1", "dept2", "dept2", "dept2", "dept6", "dept6", 'dept6'],
+                "n": [
+                    "name1",
+                    "name2",
+                    "name3",
+                    "name4",
+                    "name5",
+                    "name6",
+                    "name7",
+                    "name8",
+                    "name9",
+                ],
+                "n2": [
+                    "dept1",
+                    "dept1",
+                    "dept1",
+                    "dept2",
+                    "dept2",
+                    "dept2",
+                    "dept6",
+                    "dept6",
+                    "dept6",
+                ],
             }
         )
 
@@ -3033,67 +3075,82 @@ class TestFeatureStore(TestMLRunSystem):
                 "dask_cluster_uri": dask_cluster.uri,
             }
         # relations according to departments_set relations
-        departments_set = fs.FeatureSet("departments", entities=[fs.Entity("id")],
-                                        relations={'employees': {'id': 'department_id'}}
-                                        )
-        departments_set.set_targets(targets=['parquet'], with_defaults=False)
+        departments_set = fs.FeatureSet(
+            "departments",
+            entities=[fs.Entity("id")],
+            relations={"employees": {"id": "department_id"}},
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fs.ingest(departments_set, departments)
-        employees_set = fs.FeatureSet("employees", entities=[fs.Entity("id")],
-                                      )
-        employees_set.set_targets(targets=['parquet'], with_defaults=False)
+        employees_set = fs.FeatureSet(
+            "employees",
+            entities=[fs.Entity("id")],
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
         fs.ingest(employees_set, employees)
 
-        features = [
-            "employees.name as n", 'departments.name as n2'
-        ]
+        features = ["employees.name as n", "departments.name as n2"]
 
-        vector = fs.FeatureVector("employees-vec", features, description="Employees feature vector")
+        vector = fs.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
         vector.save()
 
-        resp_1 = fs.get_offline_features(vector, join_type='inner',
-                                         engine_args=engine_args,)
+        resp_1 = fs.get_offline_features(
+            vector,
+            join_type="inner",
+            engine_args=engine_args,
+        )
         assert_frame_equal(result, resp_1.to_dataframe())
 
         # relations according to employees_set relations
-        departments_set = fs.FeatureSet("departments", entities=[fs.Entity("id")],
-                                        )
-        departments_set.set_targets(targets=['parquet'], with_defaults=False)
+        departments_set = fs.FeatureSet(
+            "departments",
+            entities=[fs.Entity("id")],
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fs.ingest(departments_set, departments)
-        employees_set = fs.FeatureSet("employees", entities=[fs.Entity("id")],
-                                      relations={'departments': {'department_id': 'id'}}
-                                      )
-        employees_set.set_targets(targets=['parquet'], with_defaults=False)
+        employees_set = fs.FeatureSet(
+            "employees",
+            entities=[fs.Entity("id")],
+            relations={"departments": {"department_id": "id"}},
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
         fs.ingest(employees_set, employees)
 
-        features = [
-            "employees.name as n", 'departments.name as n2'
-        ]
+        features = ["employees.name as n", "departments.name as n2"]
 
-        vector = fs.FeatureVector("employees-vec", features, description="Employees feature vector")
+        vector = fs.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
         vector.save()
 
-        resp_2 = fs.get_offline_features(vector, join_type='inner',
-                                         engine_args=engine_args,)
+        resp_2 = fs.get_offline_features(
+            vector,
+            join_type="inner",
+            engine_args=engine_args,
+        )
         assert_frame_equal(result, resp_2.to_dataframe())
 
         #  relations according to the argument sent to get offline
         departments_set = fs.FeatureSet("departments", entities=[fs.Entity("id")])
-        departments_set.set_targets(targets=['parquet'], with_defaults=False)
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fs.ingest(departments_set, departments)
         employees_set = fs.FeatureSet("employees", entities=[fs.Entity("id")])
-        employees_set.set_targets(targets=['parquet'], with_defaults=False)
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
         fs.ingest(employees_set, employees)
 
-        features = [
-            "employees.name as n", 'departments.name as n2'
-        ]
-        relations = {'departments:employees': {'id': 'department_id'}}
+        features = ["employees.name as n", "departments.name as n2"]
+        relations = {"departments:employees": {"id": "department_id"}}
 
-        vector = fs.FeatureVector("employees-vec", features, description="Employees feature vector")
+        vector = fs.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
         vector.save()
 
-        resp_3 = fs.get_offline_features(vector, join_type='inner',
-                                         engine_args=engine_args, relations=relations)
+        resp_3 = fs.get_offline_features(
+            vector, join_type="inner", engine_args=engine_args, relations=relations
+        )
         assert_frame_equal(result, resp_3.to_dataframe())
 
 
@@ -3135,7 +3192,7 @@ def verify_target_list_fail(targets, with_defaults=None):
 
 
 def verify_ingest(
-        base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
+    base_data, keys, infer=False, targets=None, infer_options=fs.InferOptions.default()
 ):
     if isinstance(keys, str):
         keys = [keys]
@@ -3157,7 +3214,7 @@ def verify_ingest(
 
 
 def prepare_feature_set(
-        name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
+    name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
     df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
 

@@ -39,17 +39,17 @@ from ..utils import StorePrefix
 
 class FeatureVectorSpec(ModelObj):
     def __init__(
-            self,
-            features=None,
-            description=None,
-            entity_source=None,
-            entity_fields=None,
-            timestamp_field=None,
-            graph=None,
-            label_feature=None,
-            with_indexes=None,
-            function=None,
-            analysis=None,
+        self,
+        features=None,
+        description=None,
+        entity_source=None,
+        entity_fields=None,
+        timestamp_field=None,
+        graph=None,
+        label_feature=None,
+        with_indexes=None,
+        function=None,
+        analysis=None,
     ):
         self._graph: RootFlowStep = None
         self._entity_fields: ObjectList = None
@@ -107,15 +107,15 @@ class FeatureVectorSpec(ModelObj):
 
 class FeatureVectorStatus(ModelObj):
     def __init__(
-            self,
-            state=None,
-            targets=None,
-            features=None,
-            label_column=None,
-            stats=None,
-            preview=None,
-            run_uri=None,
-            index_keys=None,
+        self,
+        state=None,
+        targets=None,
+        features=None,
+        label_column=None,
+        stats=None,
+        preview=None,
+        run_uri=None,
+        index_keys=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -158,12 +158,12 @@ class FeatureVector(ModelObj):
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
-            self,
-            name=None,
-            features=None,
-            label_feature=None,
-            description=None,
-            with_indexes=None,
+        self,
+        name=None,
+        features=None,
+        label_feature=None,
+        description=None,
+        with_indexes=None,
     ):
         """Feature vector, specify selected features, their metadata and material views
 
@@ -320,10 +320,13 @@ class FeatureVector(ModelObj):
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
-                logging.log(logging.WARN, f"feature name/alias {alias} already specified,"
-                                             " you need to use another alias (feature-set.name [as alias])"
-                                             f" by default it changed to be {alias}_{feature_set_full_name}")
-                alias = f'{alias}_{feature_set_full_name}'
+                logging.log(
+                    logging.WARN,
+                    f"feature name/alias {alias} already specified,"
+                    " you need to use another alias (feature-set.name [as alias])"
+                    f" by default it changed to be {alias}_{feature_set_full_name}",
+                )
+                alias = f"{alias}_{feature_set_full_name}"
 
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
@@ -343,7 +346,7 @@ class FeatureVector(ModelObj):
             if feature_name == "*":
                 for field in feature_fields:
                     if field != feature_set_object.spec.timestamp_key and not (
-                            feature_set == label_column_fset and field == label_column_name
+                        feature_set == label_column_fset and field == label_column_name
                     ):
                         if alias:
                             add_feature(
@@ -465,9 +468,9 @@ class OnlineVectorService:
 
         # validate we have valid input struct
         if (
-                not entity_rows
-                or not isinstance(entity_rows, list)
-                or not isinstance(entity_rows[0], (list, dict))
+            not entity_rows
+            or not isinstance(entity_rows, list)
+            or not isinstance(entity_rows[0], (list, dict))
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"input data is of type {type(entity_rows)}. must be a list of lists or list of dicts"
@@ -476,7 +479,7 @@ class OnlineVectorService:
         # if list of list, convert to dicts (with the index columns as the dict keys)
         if isinstance(entity_rows[0], list):
             if not self._index_columns or len(entity_rows[0]) != len(
-                    self._index_columns
+                self._index_columns
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "input list must be in the same size of the index_keys list"
@@ -507,8 +510,8 @@ class OnlineVectorService:
                 actual_columns = data.keys()
                 for column in requested_columns:
                     if (
-                            column not in actual_columns
-                            and column != self.vector.status.label_column
+                        column not in actual_columns
+                        and column != self.vector.status.label_column
                     ):
                         data[column] = None
 

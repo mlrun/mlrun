@@ -26,7 +26,7 @@ class BaseMerger(abc.ABC):
 
     def __init__(self, vector, **engine_args):
         self._relation = dict()
-        self._join_type = 'inner'
+        self._join_type = "inner"
         self.vector = vector
 
         self._result_df = None
@@ -59,18 +59,18 @@ class BaseMerger(abc.ABC):
             self._alias[key] = val
 
     def start(
-            self,
-            entity_rows=None,
-            entity_timestamp_column=None,
-            target=None,
-            drop_columns=None,
-            start_time=None,
-            end_time=None,
-            with_indexes=None,
-            update_stats=None,
-            query=None,
-            join_type='inner',
-            relations=None
+        self,
+        entity_rows=None,
+        entity_timestamp_column=None,
+        target=None,
+        drop_columns=None,
+        start_time=None,
+        end_time=None,
+        with_indexes=None,
+        update_stats=None,
+        query=None,
+        join_type="inner",
+        relations=None,
     ):
         self._target = target
         self._join_type = join_type
@@ -103,9 +103,15 @@ class BaseMerger(abc.ABC):
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
 
-        return self._generate_vector(entity_rows, entity_timestamp_column, feature_set_objects=feature_set_objects,
-                                     feature_set_fields=feature_set_fields, start_time=start_time, end_time=end_time,
-                                     query=query)
+        return self._generate_vector(
+            entity_rows,
+            entity_timestamp_column,
+            feature_set_objects=feature_set_objects,
+            feature_set_fields=feature_set_fields,
+            start_time=start_time,
+            end_time=end_time,
+            query=query,
+        )
 
     def _write_to_target(self):
         if self._target:
@@ -140,25 +146,25 @@ class BaseMerger(abc.ABC):
 
     @abc.abstractmethod
     def _generate_vector(
-            self,
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects,
-            feature_set_fields,
-            start_time=None,
-            end_time=None,
-            query=None,
+        self,
+        entity_rows,
+        entity_timestamp_column,
+        feature_set_objects,
+        feature_set_fields,
+        start_time=None,
+        end_time=None,
+        query=None,
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 
     def merge(
-            self,
-            entity_df,
-            entity_timestamp_column: str,
-            featuresets: list,
-            featureset_dfs: list,
-            keys: list = None,
-            all_columns: list = None
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featuresets: list,
+        featureset_dfs: list,
+        keys: list = None,
+        all_columns: list = None,
     ):
         """join the entities and feature set features into a result dataframe"""
         merged_df = entity_df
@@ -174,10 +180,12 @@ class BaseMerger(abc.ABC):
             else:
                 all_columns = [[]] * len(featureset_dfs)
             entity_timestamp_column = (
-                    entity_timestamp_column or featureset.spec.timestamp_key
+                entity_timestamp_column or featureset.spec.timestamp_key
             )
 
-        for featureset, featureset_df, lr_key, columns in zip(featuresets, featureset_dfs, keys, all_columns):
+        for featureset, featureset_df, lr_key, columns in zip(
+            featuresets, featureset_dfs, keys, all_columns
+        ):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
             else:
@@ -190,34 +198,34 @@ class BaseMerger(abc.ABC):
                 featureset_df,
                 lr_key[0],
                 lr_key[1],
-                columns
+                columns,
             )
 
         self._result_df = merged_df
 
     @abc.abstractmethod
     def _asof_join(
-            self,
-            entity_df,
-            entity_timestamp_column: str,
-            featureset,
-            featureset_df,
-            left_keys: list,
-            right_keys: list,
-            columns: list
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
     @abc.abstractmethod
     def _join(
-            self,
-            entity_df,
-            entity_timestamp_column: str,
-            featureset,
-            featureset_df,
-            left_keys: list,
-            right_keys: list,
-            columns: list
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
         raise NotImplementedError("_join() operation not implemented in class")
 
@@ -247,16 +255,23 @@ class BaseMerger(abc.ABC):
                 feature_set = feature_set_objects[name]
                 fs_relations = feature_set.spec.relations
                 for other_fs, relation in fs_relations.items():
-                    if f'{name}:{other_fs}' not in self._relation or f'{other_fs}:{name}' not in self._relation:
-                        self._relation[f'{name}:{other_fs}'] = relation
+                    if (
+                        f"{name}:{other_fs}" not in self._relation
+                        or f"{other_fs}:{name}" not in self._relation
+                    ):
+                        self._relation[f"{name}:{other_fs}"] = relation
 
         # check all relations are included entities
         for relation_name, relation in self._relation.items():
-            first_fs, second_fs = relation_name.split(':')
-            first_entities, second_entities = feature_set_objects[first_fs].spec.entities.keys(), \
-                                              feature_set_objects[second_fs].spec.entities.keys()
+            first_fs, second_fs = relation_name.split(":")
+            first_entities, second_entities = (
+                feature_set_objects[first_fs].spec.entities.keys(),
+                feature_set_objects[second_fs].spec.entities.keys(),
+            )
             for key, val in relation.items():
                 if key not in first_entities and val not in second_entities:
-                    raise mlrun.errors.MLRunInvalidArgumentError(f'Relation have to include entities therefore '
-                                                                 f'the relation {key}:{val} between {first_fs} to '
-                                                                 f'{second_fs} is not valid')
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Relation have to include entities therefore "
+                        f"the relation {key}:{val} between {first_fs} to "
+                        f"{second_fs} is not valid"
+                    )

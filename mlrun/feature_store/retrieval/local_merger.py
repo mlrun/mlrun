@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
+
 import pandas as pd
 
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
-import re
 
 
 class LocalFeatureMerger(BaseMerger):
@@ -24,14 +25,14 @@ class LocalFeatureMerger(BaseMerger):
         super().__init__(vector, **engine_args)
 
     def _generate_vector(
-            self,
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects,
-            feature_set_fields,
-            start_time=None,
-            end_time=None,
-            query=None,
+        self,
+        entity_rows,
+        entity_timestamp_column,
+        feature_set_objects,
+        feature_set_fields,
+        start_time=None,
+        end_time=None,
+        query=None,
     ):
 
         feature_sets = []
@@ -56,21 +57,27 @@ class LocalFeatureMerger(BaseMerger):
             for key, dict_relation in self._relation.items():
                 if re.findall(f":{name}$", key):
                     for left, right in dict_relation.items():
-                        if right not in column_names and right not in feature_set.spec.entities.keys():
+                        if (
+                            right not in column_names
+                            and right not in feature_set.spec.entities.keys()
+                        ):
                             column_names.append(right)
                             if self._drop_indexes:
                                 self._append_drop_column(right)
-                        if key.split(':')[0] in feature_sets_names:
+                        if key.split(":")[0] in feature_sets_names:
                             right_keys.append(right)
                             left_keys.append(left)
                         temp_key.append(right)
                 elif re.findall(f"^{name}:", key):
                     for left, right in dict_relation.items():
-                        if left not in column_names and left not in feature_set.spec.entities.keys():
+                        if (
+                            left not in column_names
+                            and left not in feature_set.spec.entities.keys()
+                        ):
                             column_names.append(left)
                             if self._drop_indexes:
                                 self._append_drop_column(left)
-                        if key.split(':')[1] in feature_sets_names:
+                        if key.split(":")[1] in feature_sets_names:
                             right_keys.append(left)
                             left_keys.append(right)
                         temp_key.append(left)
@@ -78,8 +85,8 @@ class LocalFeatureMerger(BaseMerger):
             # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
             # column is from a specific feature set (can't be entity timestamp)
             if (
-                    entity_timestamp_column in column_names
-                    or feature_set.spec.timestamp_key == entity_timestamp_column
+                entity_timestamp_column in column_names
+                or feature_set.spec.timestamp_key == entity_timestamp_column
             ):
                 df = feature_set.to_dataframe(
                     columns=column_names,
@@ -93,9 +100,12 @@ class LocalFeatureMerger(BaseMerger):
                     time_column=entity_timestamp_column,
                 )
             # rename columns to be unique for each feature set
-            rename_col_dict = {col: f'{col}_{name}' for col in column_names if col not in temp_key}
+            rename_col_dict = {
+                col: f"{col}_{name}" for col in column_names if col not in temp_key
+            }
             df.rename(
-                columns=rename_col_dict, inplace=True,
+                columns=rename_col_dict,
+                inplace=True,
             )
 
             dfs.append(df)
@@ -111,15 +121,20 @@ class LocalFeatureMerger(BaseMerger):
                 else:
                     new_columns.append((col, alias))
             all_columns.append(new_columns)
-            self._update_alias(dictionary={name: alias for name, alias in new_columns if alias})
+            self._update_alias(
+                dictionary={name: alias for name, alias in new_columns if alias}
+            )
 
-        self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns)
+        self.merge(
+            entity_rows, entity_timestamp_column, feature_sets, dfs, keys, all_columns
+        )
 
         self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
 
         # renaming all columns according to self._alias
         self._result_df.rename(
-            columns=self._alias, inplace=True,
+            columns=self._alias,
+            inplace=True,
         )
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(
@@ -137,8 +152,16 @@ class LocalFeatureMerger(BaseMerger):
         self._result_df = self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
-    def _asof_join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df: pd.DataFrame, left_keys,
-                   right_keys, columns):
+    def _asof_join(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df: pd.DataFrame,
+        left_keys,
+        right_keys,
+        columns,
+    ):
 
         indexes = None
         if not right_keys:
@@ -166,27 +189,42 @@ class LocalFeatureMerger(BaseMerger):
             right_on=featureset.spec.timestamp_key,
             by=indexes,
             left_by=left_keys,
-            right_by=right_keys
+            right_by=right_keys,
         )
 
         # Undo indexing tricks for asof merge
         # to return the correct indexes and not
         # overload `index` columns
         if (
-                "index" not in indexes
-                and index_col_not_in_entity
-                and index_col_not_in_featureset
-                and "index" in merged_df.columns
+            "index" not in indexes
+            and index_col_not_in_entity
+            and index_col_not_in_featureset
+            and "index" in merged_df.columns
         ):
             merged_df = merged_df.drop(columns="index")
         return merged_df
 
-    def _join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df: pd.DataFrame, left_keys: list,
-              right_keys: list, columns):
+    def _join(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df: pd.DataFrame,
+        left_keys: list,
+        right_keys: list,
+        columns,
+    ):
         indexes = None
         if not right_keys:
             indexes = list(featureset.spec.entities.keys())
         fs_name = featureset.metadata.name
-        merged_df = pd.merge(entity_df, featureset_df, on=indexes, how=self._join_type, left_on=left_keys,
-                             right_on=right_keys, suffixes=("", f"_{fs_name}"), )
+        merged_df = pd.merge(
+            entity_df,
+            featureset_df,
+            on=indexes,
+            how=self._join_type,
+            left_on=left_keys,
+            right_on=right_keys,
+            suffixes=("", f"_{fs_name}"),
+        )
         return merged_df

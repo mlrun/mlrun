@@ -117,8 +117,16 @@ class SparkFeatureMerger(BaseMerger):
         self._write_to_target()
         return OfflineVectorResponse(self)
 
-    def _asof_join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df, left_keys, right_keys,
-                   columns):
+    def _asof_join(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
+        left_keys,
+        right_keys,
+        columns,
+    ):
 
         """Perform an as of join between entity and featureset.
         Join conditions:
@@ -183,7 +191,16 @@ class SparkFeatureMerger(BaseMerger):
 
         return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
 
-    def _join(self, entity_df, entity_timestamp_column: str, featureset, featureset_df, left_keys, right_keys, columns):
+    def _join(
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
+        left_keys,
+        right_keys,
+        columns,
+    ):
 
         """
         spark dataframes join

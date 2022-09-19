@@ -31,8 +31,8 @@ def run_merge_job(
     drop_columns=None,
     with_indexes=None,
     query=None,
-    join_type='inner',
-    relations=None
+    join_type="inner",
+    relations=None,
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -61,8 +61,8 @@ def run_merge_job(
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
-            'join_type': join_type,
-            'relations': relations
+            "join_type": join_type,
+            "relations": relations,
         },
         inputs={"entity_rows": entity_rows},
     )

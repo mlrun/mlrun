@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Union
 
 import pandas
 import storey

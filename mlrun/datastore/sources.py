@@ -51,28 +51,6 @@ def get_source_step(source, key_fields=None, time_field=None, context=None):
     return source.to_step(key_fields, time_field, context)
 
 
-class _MondoDBIterator:
-    def __init__(self, collection, iter_chunksize, iter_query):
-        """
-        Iterate over given mongoDB collection
-
-        :param collection:       a mongodb collection
-        :param iter_chunksize:   number of rows per chunk
-        :param iter_query:       dictionary query for mongodb
-        """
-        self.my_collection_iter = collection.find_raw_batches(
-            iter_query, batch_size=iter_chunksize
-        )
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        curr_df = pd.DataFrame(bson.decode_all(next(self.my_collection_iter)))
-        curr_df["_id"] = curr_df["_id"].astype(str)
-        return curr_df
-
-
 class _SqlDBIterator:
     def __init__(self, collection, iter_chunksize):
         """
@@ -873,134 +851,6 @@ class KafkaSource(OnlineSource):
         return func
 
 
-class MongoDBSource(BaseSourceDriver):
-    kind = "mongodb"
-    support_storey = True
-    support_spark = False
-    # A constant for the environment variable name of the mongodb connection string:
-    _MONGO_CONNECTION_STRING_ENV_VAR = "MONGO_CONNECTION_STRING"
-
-    def __init__(
-        self,
-        name: str = "",
-        max_results_for_table: int = None,
-        query: dict = None,
-        chunksize: int = None,
-        key_field: str = None,
-        time_field: str = None,
-        schedule: str = None,
-        start_time: Union[datetime, str] = None,
-        end_time: Union[datetime, str] = None,
-        db_name: str = None,
-        connection_string: str = None,
-        collection_name: str = None,
-        spark_options: dict = None,
-    ):
-        """
-        Reads MongoDB as input source for a flow.
-
-        example::
-            CONNECTION_STRING = "???"
-            target = MongoDBTarget(connection_string=CONNECTION_STRING,
-                              db_name="db_name",
-                              collection_name='collection',
-                              create_collection=True,
-                              override_collection=True)
-
-        :param name:                source name
-        :param max_results_for_table:
-        :param query:               dictionary query for mongodb
-        :param chunksize:           number of rows per chunk (default large single chunk)
-        :param key_field:           the column to be used as the key for events. Can be a list of keys.
-        :param time_field:          the column to be parsed as the timestamp for events. Defaults to None
-        :param schedule:            string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-                                    cause the job to run every 30 minutes
-        :param start_time:          filters out data before this time
-        :param end_time:            filters out data after this time
-        :param db_name:             the name of the database to access
-        :param connection_string:   string connection to mongodb database.
-                                    If not set, the MONGODB_CONNECTION_STR environment variable will be used.
-        :param collection_name:     the name of the collection to access, from the current database
-        :param spark_options
-        """
-
-        connection_string = connection_string or os.getenv(
-            self._MONGO_CONNECTION_STRING_ENV_VAR
-        )
-        if connection_string is None:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without connection_string arg or secret {self._MONGO_CONNECTION_STRING_ENV_VAR}"
-            )
-        attrs = {
-            "query": query,
-            "collection_name": collection_name,
-            "db_name": db_name,
-            "max_results": max_results_for_table,
-            "chunksize": chunksize,
-            "spark_options": spark_options,
-            "connection_string": connection_string,
-        }
-        attrs = {key: value for key, value in attrs.items() if value is not None}
-        super().__init__(
-            name,
-            attributes=attrs,
-            key_field=key_field,
-            time_field=time_field,
-            schedule=schedule,
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-    def to_dataframe(self) -> Union[pd.DataFrame, _MondoDBIterator]:
-        from pymongo import MongoClient
-
-        query = self.attributes.get("query")
-        db_name = self.attributes.get("db_name")
-        collection_name = self.attributes.get("collection_name")
-        connection_string = self.attributes.get("connection_string")
-        chunksize = self.attributes.get("chunksize")
-
-        if collection_name and db_name:
-            # connect and read the desired collection
-            mongodb_client = MongoClient(connection_string)
-            db = mongodb_client[db_name]
-            collection = db[collection_name]
-
-            if chunksize:
-                return_val = _MondoDBIterator(collection, chunksize, query)
-            else:
-                df = pd.DataFrame(list(collection.find(query)))
-                df["_id"] = df["_id"].astype(str)
-                return_val = df
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "collection_name and db_name args must be specified"
-            )
-        mongodb_client.close()
-        return return_val
-
-    def to_step(self, key_field=None, time_field=None, context=None):
-        # TODO: import MongoDBSourceStorey from storey when it will removed
-        from mlrun.datastore.storeySourse import MongoDBSourceStorey
-
-        attributes = self.attributes or {}
-        if context:
-            attributes["context"] = context
-
-        return MongoDBSourceStorey(
-            key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
-            storage_options=self._get_store().get_storage_options(),
-            end_filter=self.end_time,
-            start_filter=self.start_time,
-            filter_column=self.time_field or time_field,
-            **attributes,
-        )
-
-    def is_iterator(self):
-        return True if self.attributes.get("chunksize") else False
-
-
 class SqlDBSource(BaseSourceDriver):
 
     kind = "sqldb"
@@ -1130,6 +980,5 @@ source_kind_to_driver = {
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
     SnowflakeSource.kind: SnowflakeSource,
-    MongoDBSource.kind: MongoDBSource,
     SqlDBSource.kind: SqlDBSource,
 }

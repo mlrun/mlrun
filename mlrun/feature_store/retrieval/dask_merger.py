@@ -16,7 +16,6 @@ import re
 
 import dask.dataframe as dd
 import dask.dataframe.multi as dask_df_multi
-import pandas as pd
 from dask.distributed import Client
 
 import mlrun

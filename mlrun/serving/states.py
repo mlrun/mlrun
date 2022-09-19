@@ -1248,7 +1248,13 @@ def params_to_step(
             )
         if not name:
             raise MLRunInvalidArgumentError("queue name must be specified")
-        step = QueueStep(name, full_event=full_event, **class_args)
+        # Pass full_event on only if it's explicitly defined
+        if full_event is not None:
+            new_class_args = {}
+            new_class_args.update(class_args)
+            new_class_args["full_event"] = full_event
+            class_args = new_class_args
+        step = QueueStep(name, **class_args)
 
     elif class_name and class_name.startswith("*"):
         routes = class_args.get("routes", None)
@@ -1300,6 +1306,7 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
+                    print(f'!!! _init_async_objects: step={step}, step.options={step.options}')
                     options = {}
                     options.update(step.options)
                     kafka_bootstrap_servers = options.pop("kafka_bootstrap_servers")

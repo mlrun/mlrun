@@ -141,25 +141,6 @@ def get_artifact(
     }
 
 
-def _delete_artifact(
-    project: str,
-    uid: str,
-    key: str,
-    tag: str = "",
-    auth_info: mlrun.api.schemas.AuthInfo = None,
-    db_session: Session = None,
-):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.api.schemas.AuthorizationAction.delete,
-        auth_info,
-    )
-    mlrun.api.crud.Artifacts().delete_artifact(db_session, key, tag, project)
-    return {}
-
-
 # TODO /artifact/{project}/{uid} should be deprecated in 1.4
 @router.delete("/artifact/{project}/{uid}")
 def delete_artifact_legacy(
@@ -199,49 +180,23 @@ def delete_artifact(
     )
 
 
-def _list_artifacts(
-    project: str = None,
-    name: str = None,
-    tag: str = None,
-    kind: str = None,
-    category: schemas.ArtifactCategories = None,
-    labels: List[str] = None,
-    iter: int = None,
-    best_iteration: bool = False,
-    format_: ArtifactsFormat = ArtifactsFormat.full,
+def _delete_artifact(
+    project: str,
+    uid: str,
+    key: str,
+    tag: str = "",
     auth_info: mlrun.api.schemas.AuthInfo = None,
     db_session: Session = None,
 ):
-    if project is None:
-        project = config.default_project
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-
-    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
-        db_session,
-        project,
-        name,
-        tag,
-        labels,
-        kind=kind,
-        category=category,
-        iter=iter,
-        best_iteration=best_iteration,
-        format_=format_,
-    )
-
-    artifacts = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
-        artifacts,
-        _artifact_project_and_resource_name_extractor,
+        project,
+        key,
+        mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    return {
-        "artifacts": artifacts,
-    }
+    mlrun.api.crud.Artifacts().delete_artifact(db_session, key, tag, project)
+    return {}
 
 
 # TODO /artifacts should be deprecated in 1.4
@@ -303,26 +258,49 @@ def list_artifacts(
     )
 
 
-def _delete_artifacts(
+def _list_artifacts(
     project: str = None,
     name: str = None,
     tag: str = None,
+    kind: str = None,
+    category: schemas.ArtifactCategories = None,
     labels: List[str] = None,
+    iter: int = None,
+    best_iteration: bool = False,
+    format_: ArtifactsFormat = ArtifactsFormat.full,
     auth_info: mlrun.api.schemas.AuthInfo = None,
     db_session: Session = None,
 ):
-    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
-        db_session, project, name, tag, labels
+    if project is None:
+        project = config.default_project
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+
+    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
+        db_session,
+        project,
+        name,
+        tag,
+        labels,
+        kind=kind,
+        category=category,
+        iter=iter,
+        best_iteration=best_iteration,
+        format_=format_,
+    )
+
+    artifacts = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         _artifact_project_and_resource_name_extractor,
-        mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
-    return {}
+    return {
+        "artifacts": artifacts,
+    }
 
 
 # TODO /artifacts should be deprecated in 1.4
@@ -362,6 +340,28 @@ def delete_artifacts(
         auth_info=auth_info,
         db_session=db_session,
     )
+
+
+def _delete_artifacts(
+    project: str = None,
+    name: str = None,
+    tag: str = None,
+    labels: List[str] = None,
+    auth_info: mlrun.api.schemas.AuthInfo = None,
+    db_session: Session = None,
+):
+    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
+        db_session, project, name, tag, labels
+    )
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.artifact,
+        artifacts,
+        _artifact_project_and_resource_name_extractor,
+        mlrun.api.schemas.AuthorizationAction.delete,
+        auth_info,
+    )
+    mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
+    return {}
 
 
 # Extract project and resource name from legacy artifact structure as well as from new format

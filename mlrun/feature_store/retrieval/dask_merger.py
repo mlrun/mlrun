@@ -218,7 +218,7 @@ class DaskFeatureMerger(BaseMerger):
         if not right_keys:
             indexes = list(featureset.spec.entities.keys())
         fs_name = featureset.metadata.name
-        merged_df = dd.merge(
+        merged_df = merge(
             entity_df,
             featureset_df,
             on=indexes,

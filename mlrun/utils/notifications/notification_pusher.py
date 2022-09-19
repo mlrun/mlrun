@@ -16,8 +16,8 @@ import ast
 import os
 import typing
 
-import mlrun.model
 import mlrun.lists
+import mlrun.model
 import mlrun.utils.helpers
 
 from .notification import NotificationBase, NotificationSeverity, NotificationTypes

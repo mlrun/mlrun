@@ -16,7 +16,7 @@ import re
 
 import dask.dataframe as dd
 import pandas as pd
-from dask.dataframe.multi import merge, merge_asof
+import dask.dataframe.multi as dask_df_multi 
 from dask.distributed import Client
 
 import mlrun

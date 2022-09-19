@@ -792,7 +792,7 @@ def code_to_function(
         fn.metadata.project = project or mlconf.default_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
-        fn.metadata.labels = labels
+        fn.metadata.labels = labels or {}
 
     def resolve_nuclio_subkind(kind):
         is_nuclio = kind.startswith("nuclio")

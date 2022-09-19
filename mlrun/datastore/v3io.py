@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mmap
+import os
 import time
 from copy import deepcopy
 from datetime import datetime
@@ -34,6 +36,8 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
+ONE_GB = 1024 * 1024 * 1024
+ONE_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):
@@ -91,8 +95,34 @@ class V3ioStore(DataStore):
             v3io_api=mlrun.mlconf.v3io_api,
         )
 
+    def _upload(self, key: str, src_path: str, max_chunk_size: int = ONE_GB):
+        """helper function for upload method, allows for controlling max_chunk_size in testing"""
+        file_size = os.path.getsize(src_path)  # in bytes
+        if file_size <= ONE_MB:
+            http_upload(self.url + self._join(key), src_path, self.headers, None)
+            return
+        append_header = deepcopy(self.headers)
+        append_header["Range"] = "-1"
+        with open(src_path, "rb") as file_obj:
+            file_offset = 0
+            while file_offset < file_size:
+                chunk_size = min(file_size - file_offset, max_chunk_size)
+                with mmap.mmap(
+                    file_obj.fileno(),
+                    length=chunk_size,
+                    access=mmap.ACCESS_READ,
+                    offset=file_offset,
+                ) as mmap_obj:
+                    http_put(
+                        self.url + self._join(key),
+                        mmap_obj,
+                        append_header if file_offset else self.headers,
+                        None,
+                    )
+                    file_offset += chunk_size
+
     def upload(self, key, src_path):
-        http_upload(self.url + self._join(key), src_path, self.headers, None)
+        return self._upload(key, src_path)
 
     def get(self, key, size=None, offset=0):
         headers = self.headers

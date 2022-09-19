@@ -27,6 +27,7 @@ from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
+import pandas
 import yaml
 from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
@@ -433,7 +434,7 @@ yaml.add_representer(Timestamp, date_representer, Dumper=yaml.SafeDumper)
 yaml.add_multi_representer(enum.Enum, enum_representer, Dumper=yaml.SafeDumper)
 
 
-def dict_to_yaml(struct):
+def dict_to_yaml(struct) -> str:
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as exc:
@@ -997,6 +998,11 @@ def calculate_local_file_hash(filename):
         for n in iter(lambda: f.readinto(mv), 0):
             h.update(mv[:n])
     return h.hexdigest()
+
+
+def calculate_dataframe_hash(dataframe: pandas.DataFrame):
+    # https://stackoverflow.com/questions/49883236/how-to-generate-a-hash-or-checksum-value-on-python-dataframe-created-from-a-fix/62754084#62754084
+    return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
 def fill_artifact_path_template(artifact_path, project):

@@ -650,8 +650,6 @@ class HTTPRunDB(RunDBInterface):
         tag = tag or "latest"
         path = f"projects/{project}/artifact/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
-        # The default is legacy format, need to override it.
-        # params = {"format": schemas.ArtifactsFormat.full.value}
         params = {}
         if iter:
             params["iter"] = str(iter)

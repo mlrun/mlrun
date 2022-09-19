@@ -1001,7 +1001,6 @@ class MongoDBSource(BaseSourceDriver):
         return True if self.attributes.get("chunksize") else False
 
 
-
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,

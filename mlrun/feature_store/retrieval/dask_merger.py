@@ -63,7 +63,7 @@ class DaskFeatureMerger(BaseMerger):
             column_names = [name for name, alias in columns]
             feature_sets_names.append(name)
 
-            # updating the columns list that needed for tho join.
+            # updating the columns list that needed for the join.
             # Build left and right keys for the join apply
             right_keys = []
             left_keys = []

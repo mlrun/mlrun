@@ -47,7 +47,7 @@ class BaseMerger(abc.ABC):
             if self._drop_indexes:
                 self._append_drop_column(key)
 
-    def _update_alias(self, key: str = None, val: str = None, dictionary: dict=None):
+    def _update_alias(self, key: str = None, val: str = None, dictionary: dict = None):
         if dictionary is not None:
             # adding dictionary to alias
             self._alias.update(dictionary)
@@ -59,22 +59,22 @@ class BaseMerger(abc.ABC):
             self._alias[key] = val
 
     def start(
-        self,
-        entity_rows=None,
-        entity_timestamp_column=None,
-        target=None,
-        drop_columns=None,
-        start_time=None,
-        end_time=None,
-        with_indexes=None,
-        update_stats=None,
-        query=None,
-        join_type='inner',
-        relation=None
+            self,
+            entity_rows=None,
+            entity_timestamp_column=None,
+            target=None,
+            drop_columns=None,
+            start_time=None,
+            end_time=None,
+            with_indexes=None,
+            update_stats=None,
+            query=None,
+            join_type='inner',
+            relations=None
     ):
         self._target = target
         self._join_type = join_type
-        self._relation = relation
+        self._relation = relations or {}
 
         # calculate the index columns and columns we need to drop
         self._drop_columns = drop_columns or self._drop_columns
@@ -140,25 +140,25 @@ class BaseMerger(abc.ABC):
 
     @abc.abstractmethod
     def _generate_vector(
-        self,
-        entity_rows,
-        entity_timestamp_column,
-        feature_set_objects,
-        feature_set_fields,
-        start_time=None,
-        end_time=None,
-        query=None,
+            self,
+            entity_rows,
+            entity_timestamp_column,
+            feature_set_objects,
+            feature_set_fields,
+            start_time=None,
+            end_time=None,
+            query=None,
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 
     def merge(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featuresets: list,
-        featureset_dfs: list,
-        keys: list = None,
-        all_columns: list = None
+            self,
+            entity_df,
+            entity_timestamp_column: str,
+            featuresets: list,
+            featureset_dfs: list,
+            keys: list = None,
+            all_columns: list = None
     ):
         """join the entities and feature set features into a result dataframe"""
         merged_df = entity_df
@@ -174,7 +174,7 @@ class BaseMerger(abc.ABC):
             else:
                 all_columns = [[]] * len(featureset_dfs)
             entity_timestamp_column = (
-                entity_timestamp_column or featureset.spec.timestamp_key
+                    entity_timestamp_column or featureset.spec.timestamp_key
             )
 
         for featureset, featureset_df, lr_key, columns in zip(featuresets, featureset_dfs, keys, all_columns):
@@ -197,27 +197,27 @@ class BaseMerger(abc.ABC):
 
     @abc.abstractmethod
     def _asof_join(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featureset,
-        featureset_df,
-        left_keys: list,
-        right_keys: list,
-        columns: list
+            self,
+            entity_df,
+            entity_timestamp_column: str,
+            featureset,
+            featureset_df,
+            left_keys: list,
+            right_keys: list,
+            columns: list
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
     @abc.abstractmethod
     def _join(
-        self,
-        entity_df,
-        entity_timestamp_column: str,
-        featureset,
-        featureset_df,
-        left_keys: list,
-        right_keys: list,
-        columns: list
+            self,
+            entity_df,
+            entity_timestamp_column: str,
+            featureset,
+            featureset_df,
+            left_keys: list,
+            right_keys: list,
+            columns: list
     ):
         raise NotImplementedError("_join() operation not implemented in class")
 
@@ -241,3 +241,22 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
+    def _parse_relations(self, feature_set_objects, feature_set_fields):
+        if self._relation == {}:
+            for name, columns in feature_set_fields.items():
+                feature_set = feature_set_objects[name]
+                fs_relations = feature_set.spec.relations
+                for other_fs, relation in fs_relations.items():
+                    if f'{name}:{other_fs}' not in self._relation or f'{other_fs}:{name}' not in self._relation:
+                        self._relation[f'{name}:{other_fs}'] = relation
+
+        # check all relations are included entities
+        for relation_name, relation in self._relation.items():
+            first_fs, second_fs = relation_name.split(':')
+            first_entities, second_entities = feature_set_objects[first_fs].spec.entities.keys(), \
+                                              feature_set_objects[second_fs].spec.entities.keys()
+            for key, val in relation.items():
+                if key not in first_entities and val not in second_entities:
+                    raise mlrun.errors.MLRunInvalidArgumentError(f'Relation have to include entities therefore '
+                                                                 f'the relation {key}:{val} between {first_fs} to '
+                                                                 f'{second_fs} is not valid')

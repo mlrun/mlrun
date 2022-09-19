@@ -53,8 +53,8 @@ class DaskFeatureMerger(BaseMerger):
         dfs = []
         feature_sets_names = []
         keys = []
-        aliases = dict()
         all_columns = list()
+        self._parse_relations(feature_set_objects, feature_set_fields)
 
         for name, columns in feature_set_fields.items():
             feature_set = feature_set_objects[name]
@@ -72,7 +72,8 @@ class DaskFeatureMerger(BaseMerger):
                     for left, right in dict_relation.items():
                         if right not in column_names and right not in feature_set.spec.entities.keys():
                             column_names.append(right)
-                            self._append_drop_column(right)
+                            if self._drop_indexes:
+                                self._append_drop_column(right)
                         if key.split(':')[0] in feature_sets_names:
                             right_keys.append(right)
                             left_keys.append(left)
@@ -81,7 +82,8 @@ class DaskFeatureMerger(BaseMerger):
                     for left, right in dict_relation.items():
                         if left not in column_names and left not in feature_set.spec.entities.keys():
                             column_names.append(left)
-                            self._append_drop_column(left)
+                            if self._drop_indexes:
+                                self._append_drop_column(left)
                         if key.split(':')[1] in feature_sets_names:
                             right_keys.append(left)
                             left_keys.append(right)

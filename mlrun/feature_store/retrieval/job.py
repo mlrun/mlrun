@@ -32,7 +32,7 @@ def run_merge_job(
     with_indexes=None,
     query=None,
     join_type='inner',
-    relation=None
+    relations=None
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -62,7 +62,7 @@ def run_merge_job(
             "with_indexes": with_indexes,
             "query": query,
             'join_type': join_type,
-            'relation': relation
+            'relations': relations
         },
         inputs={"entity_rows": entity_rows},
     )
@@ -123,7 +123,7 @@ from mlrun.feature_store.retrieval import LocalFeatureMerger
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
                   timestamp_column=None, drop_columns=None, with_indexes=None, 
-                  query=None, join_type='inner', relation=None):
+                  query=None, join_type='inner', relations=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -134,7 +134,7 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
     merger = LocalFeatureMerger(vector)
     resp = merger.start(entity_rows, entity_timestamp_column, store_target, 
                         drop_columns, with_indexes=with_indexes, 
-                        query=query, join_type=join_type, relation=relation)
+                        query=query, join_type=join_type, relations=relations)
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)
     context.log_result('target', target)

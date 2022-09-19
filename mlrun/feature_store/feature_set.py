@@ -55,7 +55,7 @@ class FeatureAggregation(ModelObj):
     """feature aggregation requirements"""
 
     def __init__(
-        self, name=None, column=None, operations=None, windows=None, period=None
+            self, name=None, column=None, operations=None, windows=None, period=None
     ):
         self.name = name
         self.column = column
@@ -66,22 +66,22 @@ class FeatureAggregation(ModelObj):
 
 class FeatureSetSpec(ModelObj):
     def __init__(
-        self,
-        owner=None,
-        description=None,
-        entities=None,
-        features=None,
-        partition_keys=None,
-        timestamp_key=None,
-        label_column=None,
-        relations=None,
-        source=None,
-        targets=None,
-        graph=None,
-        function=None,
-        analysis=None,
-        engine=None,
-        output_path=None,
+            self,
+            owner=None,
+            description=None,
+            entities=None,
+            features=None,
+            partition_keys=None,
+            timestamp_key=None,
+            label_column=None,
+            relations=None,
+            source=None,
+            targets=None,
+            graph=None,
+            function=None,
+            analysis=None,
+            engine=None,
+            output_path=None,
     ):
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -97,7 +97,7 @@ class FeatureSetSpec(ModelObj):
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
-        self.relations = relations or {}
+        self._relations = relations or {}
         self.source = source
         self.targets = targets or []
         self.graph = graph
@@ -184,19 +184,28 @@ class FeatureSetSpec(ModelObj):
     def source(self, source: DataSource):
         self._source = self._verify_dict(source, "source", DataSource)
 
+    @property
+    def relations(self) -> Dict[str, Dict[str, str]]:
+        """feature set relations dict"""
+        return self._relations
+
+    @relations.setter
+    def relations(self, relations: Dict[str, Dict[str, str]]):
+        self._relations = relations
+
     def require_processing(self):
         return len(self._graph.steps) > 0
 
 
 class FeatureSetStatus(ModelObj):
     def __init__(
-        self,
-        state=None,
-        targets=None,
-        stats=None,
-        preview=None,
-        function_uri=None,
-        run_uri=None,
+            self,
+            state=None,
+            targets=None,
+            stats=None,
+            preview=None,
+            function_uri=None,
+            run_uri=None,
     ):
         self.state = state or "created"
         self._targets: ObjectList = None
@@ -222,8 +231,8 @@ class FeatureSetStatus(ModelObj):
         for target in self._targets:
             actual_target_path = get_target_driver(target).get_target_path()
             if (
-                actual_target_path == target_path
-                or actual_target_path.rstrip("/") == target_path
+                    actual_target_path == target_path
+                    or actual_target_path.rstrip("/") == target_path
             ):
                 target.last_written = last_written
 
@@ -247,13 +256,14 @@ class FeatureSet(ModelObj):
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
     def __init__(
-        self,
-        name: str = None,
-        description: str = None,
-        entities: List[Union[Entity, str]] = None,
-        timestamp_key: str = None,
-        engine: str = None,
-        label_column: str = None,
+            self,
+            name: str = None,
+            description: str = None,
+            entities: List[Union[Entity, str]] = None,
+            timestamp_key: str = None,
+            engine: str = None,
+            label_column: str = None,
+            relations: Dict[str, Dict[str, str]] = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -269,6 +279,9 @@ class FeatureSet(ModelObj):
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
         :param label_column:  name of the label column (the one holding the target (y) values)
+        :param relations:     dictionary that indicates all the relations this feature set
+                              have with another feature sets. The format of this dictionary is
+                              {"feature_set_name": {"my_column":"other_feature_set_column", ...}...}
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -282,6 +295,7 @@ class FeatureSet(ModelObj):
             timestamp_key=timestamp_key,
             engine=engine,
             label_column=label_column,
+            relations=relations
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -334,8 +348,8 @@ class FeatureSet(ModelObj):
         return fullname
 
     def _override_run_db(
-        self,
-        session,
+            self,
+            session,
     ):
         # Import here, since this method only runs in API context. If this import was global, client would need
         # API requirements and would fail.
@@ -360,11 +374,11 @@ class FeatureSet(ModelObj):
             return target.get_path().get_absolute_path()
 
     def set_targets(
-        self,
-        targets=None,
-        with_defaults=True,
-        default_final_step=None,
-        default_final_state=None,
+            self,
+            targets=None,
+            with_defaults=True,
+            default_final_step=None,
+            default_final_state=None,
     ):
         """set the desired target list or defaults
 
@@ -435,9 +449,9 @@ class FeatureSet(ModelObj):
             self.save()
 
     def update_targets_for_ingest(
-        self,
-        targets: List[DataTargetBase],
-        overwrite: bool = None,
+            self,
+            targets: List[DataTargetBase],
+            overwrite: bool = None,
     ):
         if not targets:
             return
@@ -448,16 +462,16 @@ class FeatureSet(ModelObj):
         if not overwrite:
             # silent=True always because targets are not guaranteed to be found in status
             status_targets = (
-                self._reload_and_get_status_targets(
-                    target_names=ingestion_target_names, silent=True
-                )
-                or {}
+                    self._reload_and_get_status_targets(
+                        target_names=ingestion_target_names, silent=True
+                    )
+                    or {}
             )
 
         update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
-        self, target_names: List[str] = None, silent: bool = False
+            self, target_names: List[str] = None, silent: bool = False
     ):
         try:
             self.reload(update_spec=False)
@@ -493,11 +507,11 @@ class FeatureSet(ModelObj):
         return source is not None and source.path is not None and source.path != "None"
 
     def add_entity(
-        self,
-        name: str,
-        value_type: mlrun.data_types.ValueType = None,
-        description: str = None,
-        labels: Optional[Dict[str, str]] = None,
+            self,
+            name: str,
+            value_type: mlrun.data_types.ValueType = None,
+            description: str = None,
+            labels: Optional[Dict[str, str]] = None,
     ):
         """add/set an entity (dataset index)
 
@@ -580,17 +594,17 @@ class FeatureSet(ModelObj):
         self._aggregations[name] = new_aggregation
 
     def add_aggregation(
-        self,
-        column,
-        operations,
-        windows,
-        period=None,
-        name=None,
-        step_name=None,
-        after=None,
-        before=None,
-        state_name=None,
-        emit_policy: EmitPolicy = None,
+            self,
+            column,
+            operations,
+            windows,
+            period=None,
+            name=None,
+            step_name=None,
+            after=None,
+            before=None,
+            state_name=None,
+            emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
 
@@ -752,14 +766,14 @@ class FeatureSet(ModelObj):
         return graph.plot(filename, format, targets=targets, **kw)
 
     def to_dataframe(
-        self,
-        columns=None,
-        df_module=None,
-        target_name=None,
-        start_time=None,
-        end_time=None,
-        time_column=None,
-        **kwargs,
+            self,
+            columns=None,
+            df_module=None,
+            target_name=None,
+            start_time=None,
+            end_time=None,
+            time_column=None,
+            **kwargs,
     ):
         """return featureset (offline) data as dataframe
 
@@ -799,9 +813,9 @@ class FeatureSet(ModelObj):
                     if col == target.time_partitioning_granularity:
                         break
             elif (
-                target.partitioned
-                and not target.partition_cols
-                and not target.key_bucketing_number
+                    target.partitioned
+                    and not target.partition_cols
+                    and not target.key_bucketing_number
             ):
                 drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
             if drop_cols:
@@ -835,11 +849,11 @@ class FeatureSet(ModelObj):
 
 class SparkAggregateByKey(StepToDict):
     def __init__(
-        self,
-        key_columns: List[str],
-        time_column: str,
-        aggregates: List[Dict],
-        emit_policy: Union[EmitPolicy, Dict] = None,
+            self,
+            key_columns: List[str],
+            time_column: str,
+            aggregates: List[Dict],
+            emit_policy: Union[EmitPolicy, Dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column
@@ -998,7 +1012,7 @@ class SparkAggregateByKey(StepToDict):
 
             return (
                 union_df.filter(window_filter)
-                .groupBy(rowid_col)
-                .agg(*first_value_aggs)
-                .drop(rowid_col)
+                    .groupBy(rowid_col)
+                    .agg(*first_value_aggs)
+                    .drop(rowid_col)
             )

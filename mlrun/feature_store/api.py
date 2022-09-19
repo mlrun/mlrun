@@ -87,21 +87,21 @@ def _features_to_vector_and_check_permissions(features, update_stats):
 
 
 def get_offline_features(
-    feature_vector: Union[str, FeatureVector],
-    relation: Optional[Dict[str, Dict[str, str]]],
-    entity_rows=None,
-    entity_timestamp_column: str = None,
-    target: DataTargetBase = None,
-    run_config: RunConfig = None,
-    drop_columns: List[str] = None,
-    start_time: Union[str, pd.Timestamp] = None,
-    end_time: Union[str, pd.Timestamp] = None,
-    with_indexes: bool = False,
-    update_stats: bool = False,
-    engine: str = None,
-    engine_args: dict = None,
-    query: str = None,
-    join_type: str = 'inner'
+        feature_vector: Union[str, FeatureVector],
+        entity_rows=None,
+        entity_timestamp_column: str = None,
+        target: DataTargetBase = None,
+        run_config: RunConfig = None,
+        drop_columns: List[str] = None,
+        start_time: Union[str, pd.Timestamp] = None,
+        end_time: Union[str, pd.Timestamp] = None,
+        with_indexes: bool = False,
+        update_stats: bool = False,
+        engine: str = None,
+        engine_args: dict = None,
+        query: str = None,
+        relations: Dict[str, Dict[str, str]] = None,
+        join_type: str = 'inner'
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -123,31 +123,47 @@ def get_offline_features(
             "stock-quotes.ask as mycol",
             "stocks.*",
         ]
+
+        relations = {"stock-quotes:stocks":{"ticker":"ticker"}}
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100",
+            relations=relations
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
 
-    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
-                            permissions
-    :param entity_rows:    dataframe with entity rows to join with
-    :param target:         where to write the results to
-    :param drop_columns:   list of columns to drop from the final result
+    :param feature_vector:          feature vector uri or FeatureVector object. passing feature vector obj requires
+                                    update permissions
+    :param entity_rows:             dataframe with entity rows to join with
+    :param target:                  where to write the results to
+    :param drop_columns:            list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
-    :param run_config:     function and/or run configuration
-                           see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
-        entity_timestamp_column must be passed when using time filtering.
-    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
-        entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
-    :param engine:          processing engine kind ("local", "dask", or "spark")
-    :param engine_args:     kwargs for the processing engine
-    :param query:          The query string used to filter rows
+    :param run_config:              function and/or run configuration
+                                    see :py:class:`~mlrun.feature_store.RunConfig`
+    :param start_time:              datetime, low limit of time needed to be filtered. Optional.
+                                    entity_timestamp_column must be passed when using time filtering.
+    :param end_time:                datetime, high limit of time needed to be filtered. Optional.
+                                    entity_timestamp_column must be passed when using time filtering.
+    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
+                                    (default False)
+    :param update_stats:            update features statistics from the requested feature sets on the vector.
+                                    Default is False.
+    :param engine:                  processing engine kind ("local", "dask", or "spark")
+    :param engine_args:             kwargs for the processing engine
+    :param query:                   The query string used to filter rows
+    :param relations:                A Dictionary that indicate all the relations between different feature sets.
+                                    The format is
+                                    {"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}
+                                    if relation=None the join  action will be done on the entity column.
+    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'outer'
+                                    indicate join type such as :
+                                    left: use only keys from left frame (SQL: left outer join)
+                                    right: use only keys from right frame (SQL: right outer join)
+                                    outer: use union of keys from both frames (SQL: full outer join)
+                                    inner: use intersection of keys from both frames (SQL: inner join).
+
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -157,7 +173,7 @@ def get_offline_features(
     )
 
     entity_timestamp_column = (
-        entity_timestamp_column or feature_vector.spec.timestamp_field
+            entity_timestamp_column or feature_vector.spec.timestamp_field
     )
 
     if run_config:
@@ -171,7 +187,7 @@ def get_offline_features(
             with_indexes=with_indexes,
             query=query,
             join_type=join_type,
-            relation=relation
+            relations=relations
         )
 
     start_time = str_to_timestamp(start_time)
@@ -196,16 +212,16 @@ def get_offline_features(
         update_stats=update_stats,
         query=query,
         join_type=join_type,
-        relation=relation
+        relations=relations
     )
 
 
 def get_online_feature_service(
-    feature_vector: Union[str, FeatureVector],
-    run_config: RunConfig = None,
-    fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-    impute_policy: dict = None,
-    update_stats: bool = False,
+        feature_vector: Union[str, FeatureVector],
+        run_config: RunConfig = None,
+        fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+        impute_policy: dict = None,
+        update_stats: bool = False,
 ) -> OnlineVectorService:
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
@@ -300,16 +316,16 @@ def _rename_source_dataframe_columns(df):
 
 
 def ingest(
-    featureset: Union[FeatureSet, str] = None,
-    source=None,
-    targets: List[DataTargetBase] = None,
-    namespace=None,
-    return_df: bool = True,
-    infer_options: InferOptions = InferOptions.default(),
-    run_config: RunConfig = None,
-    mlrun_context=None,
-    spark_context=None,
-    overwrite=None,
+        featureset: Union[FeatureSet, str] = None,
+        source=None,
+        targets: List[DataTargetBase] = None,
+        namespace=None,
+        return_df: bool = True,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
+        mlrun_context=None,
+        spark_context=None,
+        overwrite=None,
 ) -> Optional[pd.DataFrame]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
@@ -499,8 +515,8 @@ def ingest(
         import pyspark.sql
 
         if (
-            isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
-            and run_config is not None
+                isinstance(source, (pd.DataFrame, pyspark.sql.DataFrame))
+                and run_config is not None
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "DataFrame source is illegal when ingesting with remote spark or spark operator"
@@ -546,7 +562,7 @@ def ingest(
         return_df=calculate_df,
     )
     if not InferOptions.get_common_options(
-        infer_stats, InferOptions.Index
+            infer_stats, InferOptions.Index
     ) and InferOptions.get_common_options(infer_options, InferOptions.Index):
         infer_stats += InferOptions.Index
 
@@ -555,9 +571,9 @@ def ingest(
     if isinstance(source, DataSource):
         for target in featureset.status.targets:
             if (
-                target.last_written == datetime.min
-                and source.schedule
-                and source.start_time
+                    target.last_written == datetime.min
+                    and source.schedule
+                    and source.start_time
             ):
                 # datetime.min is a special case that indicated that nothing was written in storey. we need the fix so
                 # in the next scheduled run, we will have the same start time
@@ -569,14 +585,14 @@ def ingest(
 
 
 def preview(
-    featureset: FeatureSet,
-    source,
-    entity_columns: list = None,
-    timestamp_key: str = None,
-    namespace=None,
-    options: InferOptions = None,
-    verbose: bool = False,
-    sample_size: int = None,
+        featureset: FeatureSet,
+        source,
+        entity_columns: list = None,
+        timestamp_key: str = None,
+        namespace=None,
+        options: InferOptions = None,
+        verbose: bool = False,
+        sample_size: int = None,
 ) -> pd.DataFrame:
     """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -651,12 +667,12 @@ def preview(
 
 
 def _run_ingestion_job(
-    featureset: Union[FeatureSet, str],
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    name: str = None,
-    infer_options: InferOptions = InferOptions.default(),
-    run_config: RunConfig = None,
+        featureset: Union[FeatureSet, str],
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
 ):
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -670,12 +686,12 @@ def _run_ingestion_job(
 
 
 def deploy_ingestion_service(
-    featureset: Union[FeatureSet, str],
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    name: str = None,
-    run_config: RunConfig = None,
-    verbose=False,
+        featureset: Union[FeatureSet, str],
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        run_config: RunConfig = None,
+        verbose=False,
 ):
     """Start real-time ingestion service using nuclio function
 
@@ -754,15 +770,15 @@ def deploy_ingestion_service(
 
 
 def _ingest_with_spark(
-    spark=None,
-    featureset: Union[FeatureSet, str] = None,
-    source: BaseSourceDriver = None,
-    targets: List[BaseStoreTarget] = None,
-    infer_options: InferOptions = InferOptions.default(),
-    mlrun_context=None,
-    namespace=None,
-    overwrite=None,
-    return_df=None,
+        spark=None,
+        featureset: Union[FeatureSet, str] = None,
+        source: BaseSourceDriver = None,
+        targets: List[BaseStoreTarget] = None,
+        infer_options: InferOptions = InferOptions.default(),
+        mlrun_context=None,
+        namespace=None,
+        overwrite=None,
+        return_df=None,
 ):
     created_spark_context = False
     try:
@@ -841,8 +857,8 @@ def _ingest_with_spark(
                 timestamp_col = df_to_write[timestamp_key]
                 for partition in spark_options["partitionBy"]:
                     if (
-                        partition not in df_to_write.columns
-                        and partition in time_unit_to_op
+                            partition not in df_to_write.columns
+                            and partition in time_unit_to_op
                     ):
                         op = time_unit_to_op[partition]
                         df_to_write = df_to_write.withColumn(
@@ -889,11 +905,11 @@ def _post_ingestion(context, featureset, spark=None):
 
 
 def _infer_from_static_df(
-    df,
-    featureset,
-    entity_columns=None,
-    options: InferOptions = InferOptions.default(),
-    sample_size=None,
+        df,
+        featureset,
+        entity_columns=None,
+        options: InferOptions = InferOptions.default(),
+        sample_size=None,
 ):
     """infer feature-set schema & stats from static dataframe (without pipeline)"""
     if hasattr(df, "to_dataframe"):
@@ -922,12 +938,12 @@ def _infer_from_static_df(
 
 
 def set_task_params(
-    featureset: FeatureSet,
-    source: DataSource = None,
-    targets: List[DataTargetBase] = None,
-    parameters: dict = None,
-    infer_options: InferOptions = InferOptions.Null,
-    overwrite=None,
+        featureset: FeatureSet,
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        parameters: dict = None,
+        infer_options: InferOptions = InferOptions.Null,
+        overwrite=None,
 ):
     """convert ingestion parameters to dict, return source + params dict"""
     source = source or featureset.spec.source

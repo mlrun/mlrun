@@ -33,6 +33,9 @@ test_filename = here / "test.txt"
 with open(test_filename, "r") as f:
     test_string = f.read()
 
+# Used to test dataframe functionality (will be saved as csv)
+test_df_string = "col1,col2,col3\n1,2,3"
+
 credential_params = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
 
 
@@ -55,10 +58,14 @@ class TestAwsS3:
 
         object_dir = "test_mlrun_s3_objects"
         object_file = f"file_{random.randint(0, 1000)}.txt"
+        csv_file = f"file_{random.randint(0,1000)}.csv"
 
         self._bucket_path = "s3://" + self._bucket_name
         self._object_path = object_dir + "/" + object_file
+        self._df_path = object_dir + "/" + csv_file
+
         self._object_url = self._bucket_path + "/" + self._object_path
+        self._df_url = self._bucket_path + "/" + self._df_path
         self._blob_url = self._object_url + ".blob"
 
         logger.info(f"Object URL: {self._object_url}")
@@ -66,6 +73,8 @@ class TestAwsS3:
     def _perform_aws_s3_tests(self, secrets=None):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         data_item.put(test_string)
+        df_data_item = mlrun.run.get_dataitem(self._df_url, secrets=secrets)
+        df_data_item.put(test_df_string)
 
         response = data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
@@ -78,11 +87,18 @@ class TestAwsS3:
 
         dir_list = mlrun.run.get_dataitem(self._bucket_path).listdir()
         assert self._object_path in dir_list, "File not in container dir-list"
+        assert self._df_path in dir_list, "CSV file not in container dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(self._blob_url)
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
+
+        # Verify as_df() creates a proper DF. Note that the AWS case as_df() works through the fsspec interface, that's
+        # why it's important to test it as well.
+        df = df_data_item.as_df()
+        assert list(df) == ["col1", "col2", "col3"]
+        assert df.shape == (1, 3)
 
     def test_project_secrets_credentials(self):
         # This simulates running a job in a pod with project-secrets assigned to it

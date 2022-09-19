@@ -118,7 +118,7 @@ def get_artifact(
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -167,7 +167,7 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

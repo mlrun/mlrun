@@ -651,7 +651,8 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/artifact/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
         # The default is legacy format, need to override it.
-        params = {"format": schemas.ArtifactsFormat.full.value}
+        # params = {"format": schemas.ArtifactsFormat.full.value}
+        params = {}
         if iter:
             params["iter"] = str(iter)
         resp = self.api_call("GET", path, error, params=params)

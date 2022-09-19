@@ -94,6 +94,15 @@ class DBInterface(ABC):
     def del_runs(self, session, name="", project="", labels=None, state="", days_ago=0):
         pass
 
+    def overwrite_artifacts_with_tag(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactObject],
+    ):
+        pass
+
     @abstractmethod
     def store_artifact(
         self,

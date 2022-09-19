@@ -113,6 +113,15 @@ class FileDB(DBInterface):
             self.db.del_runs, name, project, labels, state, days_ago
         )
 
+    def overwrite_artifacts_with_tag(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactObject],
+    ):
+        raise NotImplementedError()
+
     def store_artifact(
         self,
         session,

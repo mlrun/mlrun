@@ -14,7 +14,7 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories, ArtifactsFormat
+from .artifact import ArtifactCategories, ArtifactObject, ArtifactsFormat
 from .auth import (
     AuthInfo,
     AuthorizationAction,
@@ -148,3 +148,4 @@ from .secret import (
     SecretsData,
     UserSecretCreationRequest,
 )
+from .tag import TagObject, TagsObjects

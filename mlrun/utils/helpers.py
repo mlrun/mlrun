@@ -1318,6 +1318,27 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def get_in_artifact(artifact, key, default=None):
+    if is_legacy_artifact(artifact):
+        return artifact.get(key, default)
+    else:
+        try:
+            return artifact.metadata.get(key, default)
+        except AttributeError:
+            pass
+        try:
+            return artifact.spec.get(key, default)
+        except AttributeError:
+            pass
+        try:
+            return artifact.status.get(key, default)
+        except AttributeError:
+            pass
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"invalid artifact couldn't get key {key} in {artifact}"
+        )
+
+
 def set_paths(pythonpath=""):
     """update the sys path"""
     if not pythonpath:

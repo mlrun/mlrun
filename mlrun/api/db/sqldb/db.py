@@ -68,6 +68,7 @@ from mlrun.utils import (
     generate_artifact_uri,
     generate_object_uri,
     get_in,
+    get_in_artifact,
     is_legacy_artifact,
     logger,
     update_in,
@@ -347,6 +348,40 @@ class SQLDB(DBInterface):
         state = run_state(run_dict)
         run_record.state = state
         run_dict.setdefault("status", {})["state"] = state
+
+    @retry_on_conflict
+    def overwrite_artifacts_with_tag(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self.list_artifacts(
+                session,
+                project=project,
+                name=identifier.name,
+                tag=identifier.tag,
+                labels=identifier.labels,
+                kind=identifier.kind,
+                iter=identifier.iter,
+            )
+        # TODO remove duplicates artifacts entries
+        for artifact in artifacts:
+            # could be legacy artifact or new artifact so we can't rely on the attributes to be all in the same place
+            artifact_key = get_in_artifact(artifact, "key")
+
+            # delete related tags from artifacts identifiers
+            # not committing the session here because we want to do it atomic with the next query
+            # TODO delete list of artifacts in one query?
+            self._delete_artifact_tags(
+                session, project, artifact_key=artifact_key, tag_name=tag, commit=False
+            )
+        # tag artifacts with tag
+        self.tag_artifacts(session, artifacts, project, name=tag)
 
     @retry_on_conflict
     def store_artifact(

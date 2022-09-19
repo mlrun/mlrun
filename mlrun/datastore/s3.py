@@ -25,6 +25,8 @@ from .base import DataStore, FileStats, get_range
 class S3Store(DataStore):
     def __init__(self, parent, schema, name, endpoint=""):
         super().__init__(parent, name, schema, endpoint)
+        # will be used in case user asks to assume a role and work through fsspec
+        self._temp_credentials = None
         region = None
 
         access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
@@ -39,10 +41,10 @@ class S3Store(DataStore):
             client = boto3.client(
                 "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
             )
-            temp_credentials = client.assume_role(
+            self._temp_credentials = client.assume_role(
                 RoleArn=assume_role_arn, RoleSessionName="assumeRoleSession"
             ).get("Credentials")
-            if not temp_credentials:
+            if not self._temp_credentials:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"cannot assume role {assume_role_arn}"
                 )
@@ -50,9 +52,9 @@ class S3Store(DataStore):
             self.s3 = boto3.resource(
                 "s3",
                 region_name=region,
-                aws_access_key_id=temp_credentials["AccessKeyId"],
-                aws_secret_access_key=temp_credentials["SecretAccessKey"],
-                aws_session_token=temp_credentials["SessionToken"],
+                aws_access_key_id=self._temp_credentials["AccessKeyId"],
+                aws_secret_access_key=self._temp_credentials["SecretAccessKey"],
+                aws_session_token=self._temp_credentials["SessionToken"],
                 endpoint_url=endpoint_url,
             )
             return
@@ -106,18 +108,32 @@ class S3Store(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
-        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        if self._temp_credentials:
+            key = self._temp_credentials["AccessKeyId"]
+            secret = self._temp_credentials["SecretAccessKey"]
+            token = self._temp_credentials["SessionToken"]
+        else:
+            key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+            secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+            token = None
+
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile = self._get_secret_or_env("AWS_PROFILE")
 
         storage_options = dict(
-            anon=not (force_non_anonymous or (key and secret)), key=key, secret=secret
+            anon=not (force_non_anonymous or (key and secret)),
+            key=key,
+            secret=secret,
+            token=token,
         )
 
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         if endpoint_url:
             client_kwargs = {"endpoint_url": endpoint_url}
             storage_options["client_kwargs"] = client_kwargs
+
+        if profile:
+            storage_options["profile"] = profile
 
         return storage_options
 

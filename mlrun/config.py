@@ -414,6 +414,10 @@ default_config = {
         "backoff_factor": 1,
         "status_codes": [500, 502, 503, 504],
     },
+    "ce": {
+        # ce mode can be one of: "", lite, full
+        "mode": "",
+    },
 }
 
 

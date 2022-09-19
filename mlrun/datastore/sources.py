@@ -18,7 +18,6 @@ from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-import bson
 import pandas as pd
 import v3io
 import v3io.dataplane

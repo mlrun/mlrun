@@ -55,7 +55,7 @@ class DaskFeatureMerger(BaseMerger):
         feature_sets_names = []
         keys = []
         all_columns = list()
-        self._parse_relations(feature_set_objects, feature_set_fields)
+        self._parse_relations(feature_set_objects=feature_set_objects, feature_set_fields=feature_set_fields)
 
         for name, columns in feature_set_fields.items():
             feature_set = feature_set_objects[name]

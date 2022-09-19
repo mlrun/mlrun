@@ -963,8 +963,13 @@ def project(
             or environ.get("CI_MERGE_REQUEST_IID")
         )
         if gitops:
-            proj.notifiers.git_comment(
-                git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
+            proj.notifiers.add_notification(
+                "git",
+                {
+                    "repo": git_repo,
+                    "issue": git_issue,
+                    "token": proj.get_param("GIT_TOKEN"),
+                },
             )
         try:
             proj.run(
@@ -988,7 +993,7 @@ def project(
             print(message)
 
         if had_error:
-            proj.notifiers.push(message)
+            proj.notifiers.push(message, "error")
         if had_error:
             exit(1)
 

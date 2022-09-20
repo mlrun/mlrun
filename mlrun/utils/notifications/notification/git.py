@@ -16,7 +16,7 @@ import json
 import os
 import typing
 
-import requests
+import grequests
 
 import mlrun.errors
 import mlrun.lists
@@ -29,7 +29,7 @@ class GitNotification(NotificationBase):
     API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
     """
 
-    def send(
+    async def send(
         self,
         message: str,
         severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
@@ -45,7 +45,7 @@ class GitNotification(NotificationBase):
         )
         server = self.params.get("server", None)
         gitlab = self.params.get("gitlab", False)
-        self._pr_comment(
+        await self._pr_comment(
             self._get_html(message, severity, runs, custom_html),
             git_repo,
             git_issue,
@@ -55,7 +55,7 @@ class GitNotification(NotificationBase):
         )
 
     @staticmethod
-    def _pr_comment(
+    async def _pr_comment(
         message: str,
         repo: str = None,
         issue: int = None,
@@ -107,7 +107,9 @@ class GitNotification(NotificationBase):
                 "Authorization": f"token {token}",
             }
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-        resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
+        resp = await grequests.post(
+            url=url, json={"body": str(message)}, headers=headers
+        )
         if not resp.ok:
             raise mlrun.errors.MLRunBadRequestError(
                 "Failed commenting on PR", response=resp.text, status=resp.status_code

@@ -31,6 +31,7 @@ import mlrun
 import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.errors
+import mlrun.model
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -52,6 +53,7 @@ from mlrun.api.db.sqldb.models import (
     Function,
     Log,
     MarketplaceSource,
+    NotificationConfig,
     Project,
     Run,
     Schedule,
@@ -2431,6 +2433,18 @@ class SQLDB(DBInterface):
         finally:
             pass
 
+    def _get_notification_config(self, session, run_id, name):
+        try:
+            resp = self._query(
+                session,
+                NotificationConfig,
+                run_id=run_id,
+                name=name,
+            ).one_or_none()
+            return resp
+        finally:
+            pass
+
     def _delete_empty_labels(self, session, cls):
         session.query(cls).filter(cls.parent == NULL).delete()
         session.commit()
@@ -3202,3 +3216,54 @@ class SQLDB(DBInterface):
         ):
             return True
         return False
+
+    def store_notification_configs(
+        self,
+        session,
+        notification_config_models: typing.List[NotificationConfig],
+        run_uid: str,
+        project: str,
+        iter: int = 0,
+    ):
+        run = self._get_run(session, run_uid, project, iter)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run not found: uid={run_uid}, project={project}, iter={iter}"
+            )
+
+        notification_configs = []
+        for notification_config_model in notification_config_models:
+            notification_config = self._get_notification_config(
+                session, run_uid, notification_config_model.name
+            )
+            if not notification_config:
+                notification_config = NotificationConfig(
+                    name=notification_config_model.name, run_id=run.id
+                )
+
+            notification_config.kind = notification_config_model.kind
+            notification_config.message = notification_config_model.message
+            notification_config.severity = notification_config_model.severity
+            notification_config.params = notification_config_model.params
+
+            notification_configs.append(notification_config)
+
+        self._upsert(session, notification_configs)
+
+    def list_notification_configs(
+        self,
+        session,
+        run_uid: str,
+        project: str = "",
+        iter: int = 0,
+    ) -> typing.List[mlrun.model.NotificationConfig]:
+        run = self._get_run(session, run_uid, project, iter)
+        if not run:
+            return []
+
+        return [
+            mlrun.model.NotificationConfig.from_dict(notification_config.to_dict())
+            for notification_config in self._query(
+                session, NotificationConfig, run_id=run.id
+            ).all()
+        ]

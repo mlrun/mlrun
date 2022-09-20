@@ -30,8 +30,11 @@ from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
+import mlrun.api.db.sqldb.session
+import mlrun.api.utils.singletons.db
 import mlrun.errors
 import mlrun.utils.helpers
+import mlrun.utils.notifications
 import mlrun.utils.regex
 from mlrun.api import schemas
 from mlrun.api.constants import LogSources
@@ -344,7 +347,7 @@ class BaseRuntime(ModelObj):
         self._enrich_function()
 
         if local:
-            return self._run_local(
+            result = self._run_local(
                 runspec,
                 schedule,
                 local_code_path,
@@ -356,6 +359,7 @@ class BaseRuntime(ModelObj):
                 inputs,
                 artifact_path,
             )
+            self._save_or_fire_notification_configs(result, local)
 
         run = self._create_run_object(runspec)
 
@@ -448,6 +452,8 @@ class BaseRuntime(ModelObj):
             except RunError as err:
                 last_err = err
                 result = self._update_run_state(task=run, err=err)
+
+        self._save_or_fire_notification_configs(run, local)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -859,6 +865,35 @@ class BaseRuntime(ModelObj):
             self._get_db().update_run(updates, uid, project, iter=iter)
 
         return resp
+
+    def _save_or_fire_notification_configs(
+        self, runobj: RunObject, local: bool = False
+    ):
+        if not runobj.spec.notification_configs:
+            return
+
+        # if the run is remote, and we are in the SDK, we let the api deal with the notifications
+        # so there's nothing to do here.
+        # Otherwise, we continue on.
+        if local:
+
+            # If the run is local, we can assume that watch=True, therefore this code runs
+            # once the run is completed, and we can just fire the notifications.
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()
+
+        elif self._is_api_server:
+
+            # If in the api server, we can assume that watch=False, so we save notification
+            # configs to the DB, for the run monitor to later pick up and fire.
+            db = mlrun.api.utils.singletons.db.get_db()
+            session = mlrun.api.db.sqldb.session.create_session()
+            db.store_notification_configs(
+                session,
+                runobj.spec.notification_configs,
+                runobj.metadata.uid,
+                runobj.metadata.project,
+                runobj.metadata.iteration,
+            )
 
     def _force_handler(self, handler):
         if not handler:
@@ -2016,6 +2051,7 @@ class BaseRuntimeHandler(ABC):
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
+            mlrun.utils.notifications.NotificationPusher([run]).push()
 
     def _build_list_resources_response(
         self,

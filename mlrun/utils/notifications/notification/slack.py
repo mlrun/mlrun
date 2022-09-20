@@ -16,7 +16,7 @@ import json
 import os
 import typing
 
-import requests
+import grequests
 
 import mlrun.lists
 import mlrun.utils.helpers
@@ -35,7 +35,7 @@ class SlackNotification(NotificationBase):
         "error": ":x:",
     }
 
-    def send(
+    async def send(
         self,
         message: str,
         severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
@@ -51,7 +51,7 @@ class SlackNotification(NotificationBase):
 
         data = self._generate_slack_data(message, severity, runs)
 
-        response = requests.post(
+        response = await grequests.post(
             webhook,
             data=json.dumps(data),
             headers={"Content-Type": "application/json"},

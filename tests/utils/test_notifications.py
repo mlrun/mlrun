@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import builtins
 import unittest.mock
 
+import grequests
 import pytest
-import requests
 import tabulate
 
 import mlrun.utils.notifications
@@ -168,6 +169,7 @@ def test_slack_notification(runs, expected):
     assert slack_data == expected
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "params,expected_url,expected_headers",
     [
@@ -209,13 +211,15 @@ def test_slack_notification(runs, expected):
         ),
     ],
 )
-def test_git_notification(monkeypatch, params, expected_url, expected_headers):
+async def test_git_notification(monkeypatch, params, expected_url, expected_headers):
     git_notification = mlrun.utils.notifications.GitNotification(params)
     expected_body = "[info] test-message"
 
-    requests_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr(requests, "post", requests_mock)
-    git_notification.send("test-message", "info", [])
+    request_future = asyncio.Future()
+    request_future.set_result(unittest.mock.MagicMock())
+    requests_mock = unittest.mock.MagicMock(return_value=request_future)
+    monkeypatch.setattr(grequests, "post", requests_mock)
+    await git_notification.send("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
         url=expected_url, json={"body": expected_body}, headers=expected_headers

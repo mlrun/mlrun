@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import ast
+import asyncio
 import os
 import typing
 
@@ -41,10 +42,15 @@ class NotificationPusher(object):
                     self._notification_data.append((run, notification_config))
 
     def push(self):
+        loop = asyncio.get_event_loop()
+        tasks = []
         for notification_data in self._notification_data:
-            self._send_notification(
-                self._load_notification(notification_data[1]), *notification_data
+            tasks.append(
+                self._send_notification(
+                    self._load_notification(notification_data[1]), *notification_data
+                )
             )
+        loop.run_until_complete(asyncio.gather(*tasks))
 
     @staticmethod
     def _should_notify(
@@ -67,24 +73,29 @@ class NotificationPusher(object):
 
     def _load_notification(self, notification_config: dict) -> NotificationBase:
         params = notification_config.get("params", {})
+        name = notification_config.get("name", "")
         notification_type = NotificationTypes(
-            notification_config.get("type", "console")
+            notification_config.get("kind", "console")
         )
-        if notification_type not in self._notifications:
+        notification_key = name or notification_type
+        if notification_key not in self._notifications:
             self._notifications[
-                notification_type
-            ] = notification_type.get_notification()(params)
+                notification_key
+            ] = notification_type.get_notification()(name, params)
         else:
-            self._notifications[notification_type].load_notification(params)
+            self._notifications[notification_key].load_notification(params)
 
-        return self._notifications[notification_type]
+        return self._notifications[notification_key]
 
-    def _send_notification(
+    async def _send_notification(
         self, notification: NotificationBase, run: dict, notification_config: dict
     ):
         message = self.messages.get(run.get("status", {}).get("state", ""), "")
         severity = notification_config.get("severity", NotificationSeverity.INFO)
-        notification.send(message, severity, [run])
+        if asyncio.iscoroutinefunction(notification.send):
+            await notification.send(message, severity, [run])
+        else:
+            notification.send(message, severity, [run])
 
 
 class CustomNotificationPusher(object):
@@ -101,7 +112,27 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
+        loop = asyncio.get_event_loop()
+        tasks = []
         for notification in self._notifications.values():
+            tasks.append(
+                self._send_notification(
+                    notification, message, severity, runs, custom_html
+                )
+            )
+        loop.run_until_complete(asyncio.gather(*tasks))
+
+    @staticmethod
+    async def _send_notification(
+        notification: NotificationBase,
+        message: str,
+        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] = None,
+        custom_html: str = None,
+    ):
+        if asyncio.iscoroutinefunction(notification.send):
+            await notification.send(message, severity, runs, custom_html)
+        else:
             notification.send(message, severity, runs, custom_html)
 
     def add_notification(

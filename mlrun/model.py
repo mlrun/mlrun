@@ -346,6 +346,24 @@ class ImageBuilder(ModelObj):
         self.build_pod = None
 
 
+class NotificationConfig(ModelObj):
+    """Notification Config specification"""
+
+    def __init__(
+        self,
+        kind=None,
+        name=None,
+        message=None,
+        severity=None,
+        params=None,
+    ):
+        self.kind = kind
+        self.name = name
+        self.message = message
+        self.severity = severity
+        self.params = params or {}
+
+
 class RunMetadata(ModelObj):
     """Run metadata"""
 
@@ -460,6 +478,7 @@ class RunSpec(ModelObj):
         scrape_metrics=None,
         hyper_param_options=None,
         allow_empty_resources=None,
+        notification_configs=None,
     ):
 
         self._hyper_param_options = None
@@ -481,6 +500,7 @@ class RunSpec(ModelObj):
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
+        self._notification_configs = notification_configs or []
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -545,6 +565,15 @@ class RunSpec(ModelObj):
             else:
                 return str(self.handler)
         return ""
+
+    @property
+    def notification_configs(self):
+        return self._notification_configs
+
+    @notification_configs.setter
+    def notification_configs(self, notification_configs):
+        self._verify_list(notification_configs, "notification_configs")
+        self._notification_configs = notification_configs
 
 
 class RunStatus(ModelObj):

@@ -209,6 +209,9 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
+        notification_configs = relationship(
+            "NotificationConfig", back_populates="run", cascade="all, delete-orphan"
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"
@@ -483,6 +486,28 @@ with warnings.catch_warnings():
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
         )
+
+    class NotificationConfig(Base, BaseModel):
+        __tablename__ = "notification_configs"
+        __table_args__ = (
+            UniqueConstraint("name", "run_id", name="_notification_configs_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        message = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        params = Column("params", JSON)
+        run_id = Column(Integer, ForeignKey("runs.id"))
 
 
 # Must be after all table definitions

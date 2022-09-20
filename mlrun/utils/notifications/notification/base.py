@@ -29,8 +29,10 @@ class NotificationSeverity(enum.Enum):
 class NotificationBase:
     def __init__(
         self,
+        name: str = None,
         params: typing.Dict[str, str] = None,
     ):
+        self.name = name
         self.params = params or {}
 
     def send(
@@ -48,8 +50,8 @@ class NotificationBase:
     ) -> None:
         self.params = params or {}
 
-    @staticmethod
     def _get_html(
+        self,
         message: str,
         severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
@@ -57,6 +59,9 @@ class NotificationBase:
     ) -> str:
         if custom_html:
             return custom_html
+
+        if self.name:
+            message = f"{self.name}: {message}"
 
         if not runs:
             return f"[{severity}] {message}"

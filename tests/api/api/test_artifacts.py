@@ -18,6 +18,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
+import mlrun.artifacts
+from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
 KEY = "some-key"
@@ -120,3 +122,52 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
         assert len(resp.json()["artifacts"]) == 2
+
+
+def test_list_artifacts_format(db: Session, client: TestClient) -> None:
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(key="some-artifact", body="123")
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(
+            project=PROJECT, uid=f"{UID}", key=f"{KEY}", tag=TAG
+        ),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # default format is "full"
+    for artifact_path in [
+        f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}",
+        API_ARTIFACTS_PATH.format(project=PROJECT),
+    ]:
+        resp = client.get(artifact_path)
+        assert resp.status_code == HTTPStatus.OK.value
+
+        artifacts = resp.json()["artifacts"]
+        assert len(artifacts) == 1
+        assert not is_legacy_artifact(artifacts[0])
+
+    # request legacy format
+    for artifact_path in [
+        f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}&format=legacy",
+        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=legacy",
+    ]:
+        resp = client.get(artifact_path)
+        assert resp.status_code == HTTPStatus.OK.value
+
+        artifacts = resp.json()["artifacts"]
+        assert len(artifacts) == 1
+        assert is_legacy_artifact(artifacts[0])
+
+    # explicitly request full format
+    for artifact_path in [
+        f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}&format=full",
+        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=full",
+    ]:
+        resp = client.get(artifact_path)
+        assert resp.status_code == HTTPStatus.OK.value
+
+        artifacts = resp.json()["artifacts"]
+        assert len(artifacts) == 1
+        assert not is_legacy_artifact(artifacts[0])

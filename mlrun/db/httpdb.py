@@ -312,7 +312,7 @@ class HTTPRunDB(RunDBInterface):
                 else server_cfg.get("generate_artifact_target_path_from_artifact_hash")
             )
 
-            config.redis.url = config.redis.url or server_cfg.get("redis.url")
+            config.redis.url = config.redis.url or server_cfg.get("redis_url")
 
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first

@@ -730,8 +730,8 @@ class ServingRuntime(RemoteRuntime):
             return
 
         logger.info(
-            "Deploying function MOCK (for simulation)...\n"
-            "Turn off the mock (mock=False) for real deployment to Nuclio"
+            "Deploying serving function MOCK (for simulation)...\n"
+            "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
         server = self.to_mock_server()
         self._mock_server = server

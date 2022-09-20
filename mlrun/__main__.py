@@ -21,7 +21,7 @@ from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
-from subprocess import Popen
+from subprocess import Popen, STDOUT
 from sys import executable
 from urllib.parse import urlparse
 
@@ -760,7 +760,8 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option("--logs-path", "-l", help="logs directory path")
 @click.option("--data-volume", "-v", help="path prefix to the location of artifacts")
 @click.option("--verbose", is_flag=True, help="verbose log")
-def db(port, dirpath, dsn, logs_path, data_volume, verbose):
+@click.option("--background", "-b", is_flag=True, help="run in background process")
+def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     """Run HTTP api/database server"""
     env = environ.copy()
     if port is not None:
@@ -786,10 +787,15 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose):
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
-    child = Popen(cmd, env=env)
-    returncode = child.wait()
-    if returncode != 0:
-        raise SystemExit(returncode)
+    if background:
+        print("Starting MLRun API service in the background...")
+        child = Popen(cmd, env=env, stdout=open('mlrun-stdout.log', 'w'), stderr=STDOUT)
+        print(f"background pid: {child.pid}, logs written to mlrun-stdout.log")
+    else:
+        child = Popen(cmd, env=env)
+        returncode = child.wait()
+        if returncode != 0:
+            raise SystemExit(returncode)
 
 
 @main.command()

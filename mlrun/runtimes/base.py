@@ -360,6 +360,7 @@ class BaseRuntime(ModelObj):
                 artifact_path,
             )
             self._save_or_fire_notification_configs(result, local)
+            return result
 
         run = self._create_run_object(runspec)
 

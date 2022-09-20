@@ -28,6 +28,7 @@ TAG = "some-tag"
 LEGACY_API_PROJECTS_PATH = "projects"
 LEGACY_API_ARTIFACT_PATH = "artifact"
 LEGACY_API_ARTIFACTS_PATH = "artifacts"
+LEGACY_API_GET_ARTIFACT_PATH = "projects/{project}/artifact/{key}"
 
 API_ARTIFACTS_PATH = "projects/{project}/artifacts"
 STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/" + "{uid}/{key}?tag={tag}"
@@ -126,12 +127,10 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
 
 def test_list_artifacts_format(db: Session, client: TestClient) -> None:
     _create_project(client)
-    artifact = mlrun.artifacts.Artifact(key="some-artifact", body="123")
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
 
     resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(
-            project=PROJECT, uid=f"{UID}", key=f"{KEY}", tag=TAG
-        ),
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
         data=artifact.to_json(),
     )
     assert resp.status_code == HTTPStatus.OK.value
@@ -171,3 +170,47 @@ def test_list_artifacts_format(db: Session, client: TestClient) -> None:
         artifacts = resp.json()["artifacts"]
         assert len(artifacts) == 1
         assert not is_legacy_artifact(artifacts[0])
+
+
+def test_get_artifact_format(db: Session, client: TestClient) -> None:
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", project=PROJECT)
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # default format is "full"
+    for artifact_path in [
+        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY)}?tag={TAG}",
+        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}/{KEY}?tag={TAG}",
+    ]:
+        resp = client.get(artifact_path)
+        assert resp.status_code == HTTPStatus.OK.value
+
+        artifact = resp.json()
+        assert not is_legacy_artifact(artifact["data"])
+
+    # request legacy format
+    for artifact_path in [
+        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY)}?tag={TAG}&format=legacy",
+        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}/{KEY}?tag={TAG}&format=legacy",
+    ]:
+        resp = client.get(artifact_path)
+        assert resp.status_code == HTTPStatus.OK.value
+
+        artifact = resp.json()
+        assert is_legacy_artifact(artifact["data"])
+
+    # explicitly request full format
+    for artifact_path in [
+        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY)}?tag={TAG}&format=full",
+        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}/{KEY}?tag={TAG}&format=full",
+    ]:
+        resp = client.get(artifact_path)
+        assert resp.status_code == HTTPStatus.OK.value
+
+        artifact = resp.json()
+        assert not is_legacy_artifact(artifact["data"])

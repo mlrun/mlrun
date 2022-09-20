@@ -183,6 +183,28 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
+    class NotificationConfig(Base, BaseModel):
+        __tablename__ = "notification_configs"
+        __table_args__ = (
+            UniqueConstraint("name", "run_id", name="_notification_configs_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        message = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        params = Column("params", JSON)
+        run_id = Column(Integer, ForeignKey("runs.id"))
+
     class Run(Base, HasStruct):
         __tablename__ = "runs"
         __table_args__ = (
@@ -206,7 +228,7 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP, default=datetime.utcnow)
         labels = relationship(Label)
         notification_configs = relationship(
-            "NotificationConfig", back_populates="run", cascade="all, delete-orphan"
+            NotificationConfig, back_populates="run_id", cascade="all, delete-orphan"
         )
 
         def get_identifier_string(self) -> str:
@@ -451,28 +473,6 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         version = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
-
-    class NotificationConfig(Base, BaseModel):
-        __tablename__ = "notification_configs"
-        __table_args__ = (
-            UniqueConstraint("name", "run_id", name="_notification_configs_uc"),
-        )
-
-        id = Column(Integer, primary_key=True)
-        name = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        kind = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        message = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        severity = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        params = Column("params", JSON)
-        run_id = Column(Integer, ForeignKey("runs.id"))
 
 
 # Must be after all table definitions

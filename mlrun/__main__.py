@@ -21,7 +21,7 @@ from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path
 from pprint import pprint
-from subprocess import STDOUT, Popen
+from subprocess import Popen
 from sys import executable
 from urllib.parse import urlparse
 
@@ -789,8 +789,16 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     cmd = [executable, "-m", "mlrun.api.main"]
     if background:
         print("Starting MLRun API service in the background...")
-        child = Popen(cmd, env=env, stdout=open("mlrun-stdout.log", "w"))
-        print(f"background pid: {child.pid}, logs written to mlrun-stdout.log")
+        child = Popen(
+            cmd,
+            env=env,
+            stdout=open("mlrun-stdout.log", "w"),
+            stderr=open("mlrun-stderr.log", "w"),
+            start_new_session=True,
+        )
+        print(
+            f"background pid: {child.pid}, logs written to mlrun-stdout.log and mlrun-stderr.log"
+        )
     else:
         child = Popen(cmd, env=env)
         returncode = child.wait()

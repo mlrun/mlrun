@@ -126,7 +126,7 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         assert len(resp.json()["artifacts"]) == 2
 
 
-def test_list_artifacts_format(db: Session, client: TestClient) -> None:
+def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> None:
     _create_project(client)
     artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
 
@@ -173,9 +173,9 @@ def test_list_artifacts_format(db: Session, client: TestClient) -> None:
         assert not is_legacy_artifact(artifacts[0])
 
 
-def test_get_artifact_format(db: Session, client: TestClient) -> None:
+def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None:
     _create_project(client)
-    artifact = mlrun.artifacts.Artifact(key=KEY, body="123", project=PROJECT)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
 
     resp = client.post(
         STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),

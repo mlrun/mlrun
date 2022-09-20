@@ -789,7 +789,7 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     cmd = [executable, "-m", "mlrun.api.main"]
     if background:
         print("Starting MLRun API service in the background...")
-        child = Popen(cmd, env=env, stdout=open("mlrun-stdout.log", "w"), stderr=STDOUT)
+        child = Popen(cmd, env=env, stdout=open("mlrun-stdout.log", "w"))
         print(f"background pid: {child.pid}, logs written to mlrun-stdout.log")
     else:
         child = Popen(cmd, env=env)

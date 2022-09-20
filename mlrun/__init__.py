@@ -134,7 +134,7 @@ def set_environment(
     if username:
         environ["V3IO_USERNAME"] = username
 
-    mlconf.dbpath = mlconf.dbpath or api_path
+    mlconf.dbpath = api_path or mlconf.dbpath
     if not mlconf.dbpath:
         raise ValueError("DB/API path was not detected, please specify its address")
 

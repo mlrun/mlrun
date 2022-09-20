@@ -131,9 +131,9 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
-    # when set it will force the mock=True in deploy_function(),
-    # set to "auto" will use mock of Nuclio is not detected (no nuclio_version)
-    "mock_nuclio_deployment": "auto",
+    # when set (True or non empty str) it will force the mock=True in deploy_function(),
+    # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
+    "mock_nuclio_deployment": "",
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",

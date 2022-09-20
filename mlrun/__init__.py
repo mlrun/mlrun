@@ -94,6 +94,7 @@ def set_environment(
     user_project=False,
     username: str = None,
     env_file: str = None,
+    mock_functions: str = None,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -118,7 +119,8 @@ def set_environment(
     :param user_project:   add the current user name to the provided project name (making it unique per user)
     :param username:       name of the user to authenticate
     :param env_file:       path/url to .env file (holding MLRun config and other env vars), see: set_env_from_file()
-
+    :param mock_functions: set to True to create local/mock functions instead of real containers,
+                           set to "auto" to auto determine based on the presence of k8s/Nuclio
     :returns:
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
@@ -135,6 +137,11 @@ def set_environment(
     mlconf.dbpath = mlconf.dbpath or api_path
     if not mlconf.dbpath:
         raise ValueError("DB/API path was not detected, please specify its address")
+
+    if mock_functions is not None:
+        mock_functions = "1" if mock_functions is True else mock_functions
+        mlconf.force_run_local = mock_functions
+        mlconf.mock_nuclio_deployment = mock_functions
 
     # check connectivity and load remote defaults
     get_run_db()
@@ -154,7 +161,7 @@ def set_environment(
 
     if not mlconf.artifact_path and not artifact_path:
         raise ValueError(
-            "default artifact_path was not configures, please specify a valid artifact_path"
+            "default artifact_path was not configured, please specify a valid artifact_path"
         )
 
     if artifact_path:

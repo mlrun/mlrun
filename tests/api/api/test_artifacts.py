@@ -28,10 +28,11 @@ TAG = "some-tag"
 LEGACY_API_PROJECTS_PATH = "projects"
 LEGACY_API_ARTIFACT_PATH = "artifact"
 LEGACY_API_ARTIFACTS_PATH = "artifacts"
-LEGACY_API_GET_ARTIFACT_PATH = "projects/{project}/artifact/{key}"
+LEGACY_API_GET_ARTIFACT_PATH = "projects/{project}/artifact/{key}?tag={tag}"
 
 API_ARTIFACTS_PATH = "projects/{project}/artifacts"
-STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/" + "{uid}/{key}?tag={tag}"
+STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{uid}/{key}?tag={tag}"
+GET_API_ARTIFACT_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
@@ -184,8 +185,8 @@ def test_get_artifact_format(db: Session, client: TestClient) -> None:
 
     # default format is "full"
     for artifact_path in [
-        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY)}?tag={TAG}",
-        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}/{KEY}?tag={TAG}",
+        LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG),
+        GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG),
     ]:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
@@ -195,8 +196,8 @@ def test_get_artifact_format(db: Session, client: TestClient) -> None:
 
     # request legacy format
     for artifact_path in [
-        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY)}?tag={TAG}&format=legacy",
-        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}/{KEY}?tag={TAG}&format=legacy",
+        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy",
+        f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy",
     ]:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value
@@ -206,8 +207,8 @@ def test_get_artifact_format(db: Session, client: TestClient) -> None:
 
     # explicitly request full format
     for artifact_path in [
-        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY)}?tag={TAG}&format=full",
-        f"{API_ARTIFACTS_PATH.format(project=PROJECT)}/{KEY}?tag={TAG}&format=full",
+        f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=full",
+        f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=full",
     ]:
         resp = client.get(artifact_path)
         assert resp.status_code == HTTPStatus.OK.value

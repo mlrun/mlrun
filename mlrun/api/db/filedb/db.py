@@ -122,6 +122,24 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
+    def append_tag_to_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactObject],
+    ):
+        raise NotImplementedError()
+
+    def delete_tag_from_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactObject],
+    ):
+        raise NotImplementedError()
+
     def store_artifact(
         self,
         session,

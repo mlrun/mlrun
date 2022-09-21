@@ -103,6 +103,24 @@ class DBInterface(ABC):
     ):
         pass
 
+    def append_tag_to_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactObject],
+    ):
+        pass
+
+    def delete_tag_from_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactObject],
+    ):
+        pass
+
     @abstractmethod
     def store_artifact(
         self,

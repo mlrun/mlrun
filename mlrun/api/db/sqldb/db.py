@@ -356,6 +356,7 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
     ):
+        """Note: this function is being used by mlrun.api.crud.Tags.overwrite_artifacts_with_tag"""
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
@@ -384,6 +385,7 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
     ):
+        """Note: this function is being used by mlrun.api.crud.Tags.append_tag_to_artifacts"""
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
@@ -406,6 +408,7 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
     ):
+        """Note: this function is being used by mlrun.api.crud.Tags.delete_tag_from_objects"""
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:

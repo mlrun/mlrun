@@ -68,8 +68,8 @@ class Tags(
                 identifiers=obj.identifiers,
             )
 
+    @staticmethod
     def delete_tag_from_objects(
-        self,
         db_session: sqlalchemy.orm.Session,
         project: str,
         tag: str,

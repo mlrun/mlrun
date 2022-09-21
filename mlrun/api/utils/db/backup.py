@@ -97,6 +97,7 @@ class DBBackupUtil(object):
         dsn_data = mlrun.api.utils.db.mysql.MySQLUtil.get_mysql_dsn_data()
         self._run_shell_command(
             "mysqldump --single-transaction --routines --triggers "
+            f"--max_allowed_packet={mlconf.httpdb.db.backup.max_allowed_packet} "
             f"-h {dsn_data['host']} "
             f"-P {dsn_data['port']} "
             f"-u {dsn_data['username']} "

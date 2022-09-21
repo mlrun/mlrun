@@ -792,7 +792,7 @@ def code_to_function(
         fn.metadata.project = project or mlconf.default_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
-        fn.metadata.labels = labels
+        fn.metadata.labels = labels or fn.metadata.labels
 
     def resolve_nuclio_subkind(kind):
         is_nuclio = kind.startswith("nuclio")
@@ -1170,7 +1170,7 @@ def get_object(url, secrets=None, size=None, offset=0, db=None):
     return stores.object(url=url).get(size, offset)
 
 
-def get_dataitem(url, secrets=None, db=None):
+def get_dataitem(url, secrets=None, db=None) -> mlrun.datastore.DataItem:
     """get mlrun dataitem object (from path/url)"""
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.schemas
 
 PROJECT = "prj"
-KEY = "some-key"
+KEY = "some-key/with-slash"
 UID = "some-uid"
 TAG = "some-tag"
 LEGACY_API_PROJECTS_PATH = "projects"

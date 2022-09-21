@@ -144,7 +144,7 @@ def get_artifact(
 # TODO /artifact/{project}/{uid} should be deprecated in 1.4
 @router.delete("/artifact/{project}/{uid}")
 @router.delete("/projects/{project}/artifacts/{uid}")
-def delete_artifacts(
+def delete_artifact(
     project: str,
     uid: str,
     key: str,

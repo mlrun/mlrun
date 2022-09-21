@@ -182,6 +182,7 @@ setup(
         "mlrun.serving",
         "mlrun.utils",
         "mlrun.utils.version",
+        "mlrun.utils.notifications",
     ],
     install_requires=install_requires,
     extras_require=extras_require,

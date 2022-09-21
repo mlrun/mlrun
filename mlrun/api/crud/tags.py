@@ -27,7 +27,8 @@ import mlrun.utils.singleton
 kind_to_function = {
     "artifact": {
         "overwrite": "overwrite_artifacts_with_tag",
-        # "append": mlrun.api.utils.singletons.db.get_db().update_artifact_tags,
+        "append": "append_tag_to_artifacts",
+        "delete": "delete_tag_from_artifacts",
     }
 }
 
@@ -54,8 +55,15 @@ class Tags(
     @staticmethod
     def append_tag_to_objects(
         db_session: sqlalchemy.orm.Session,
+        project: str,
         tag: str,
         objects: typing.List[mlrun.api.schemas.TagObject],
     ):
         for obj in objects:
-            pass
+            append_func = kind_to_function.get(obj.kind, {}).get("append")
+            getattr(mlrun.api.utils.singletons.db.get_db(), append_func)(
+                session=db_session,
+                project=project,
+                tag=tag,
+                identifiers=obj.identifiers,
+            )

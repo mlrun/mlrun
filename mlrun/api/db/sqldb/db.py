@@ -376,6 +376,28 @@ class SQLDB(DBInterface):
         # tag artifacts with tag
         self.tag_artifacts(session, artifacts, project, name=tag)
 
+    def append_tag_to_artifacts(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self.list_artifacts(
+                session,
+                project=project,
+                name=identifier.name,
+                tag=identifier.tag,
+                labels=identifier.labels,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                as_records=True,
+            )
+        self.tag_artifacts(session, artifacts, project, name=tag)
+
     @retry_on_conflict
     def store_artifact(
         self,

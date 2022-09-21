@@ -2438,7 +2438,7 @@ class SQLDB(DBInterface):
             resp = self._query(
                 session,
                 NotificationConfig,
-                run_id=run_id,
+                run=run_id,
                 name=name,
             ).one_or_none()
             return resp
@@ -3238,7 +3238,7 @@ class SQLDB(DBInterface):
             )
             if not notification_config:
                 notification_config = NotificationConfig(
-                    name=notification_config_model.name, run_id=run.id
+                    name=notification_config_model.name, run=run.id
                 )
 
             notification_config.kind = notification_config_model.kind
@@ -3264,6 +3264,6 @@ class SQLDB(DBInterface):
         return [
             mlrun.model.NotificationConfig.from_dict(notification_config.to_dict())
             for notification_config in self._query(
-                session, NotificationConfig, run_id=run.id
+                session, NotificationConfig, run=run.id
             ).all()
         ]

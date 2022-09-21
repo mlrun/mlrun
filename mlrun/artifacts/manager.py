@@ -169,7 +169,7 @@ class ArtifactManager:
         item.metadata.tree = producer.tag
         item.metadata.tag = tag or item.metadata.tag
 
-        item.metadata.producer = producer.get_meta()
+        item.spec.producer = producer.get_meta()
         item.metadata.labels = labels or item.metadata.labels
         # if running as part of a workflow, enrich artifact with workflow uid label
         if item.spec.producer.get("workflow"):

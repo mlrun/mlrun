@@ -131,7 +131,8 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
-    # when set it will force the mock=True in deploy_function(), TBD allow "auto" to detect Nuclio
+    # when set (True or non empty str) it will force the mock=True in deploy_function(),
+    # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
     "mock_nuclio_deployment": "",
     "background_tasks": {
         # enabled / disabled
@@ -845,6 +846,10 @@ class Config:
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
         return True if mlrun.mlconf.namespace else False
+
+    def is_nuclio_detected(self):
+        # determine is Nuclio service is detected, when the nuclio_version is not set
+        return True if mlrun.mlconf.nuclio_version else False
 
 
 # Global configuration

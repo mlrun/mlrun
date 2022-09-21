@@ -27,8 +27,8 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.api.schemas
+import mlrun.utils.notifications
 from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
-from mlrun.utils.notifications import CustomNotificationPusher
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -488,7 +488,7 @@ class _PipelineRunner(abc.ABC):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: CustomNotificationPusher = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -583,7 +583,7 @@ class _KFPRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: CustomNotificationPusher = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -686,7 +686,7 @@ class _LocalRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: CustomNotificationPusher = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -809,7 +809,7 @@ class _RemoteRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: CustomNotificationPusher = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60

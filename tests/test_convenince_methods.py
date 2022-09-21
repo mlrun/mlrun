@@ -57,6 +57,32 @@ def test_env_from_file():
     for key in env_dict.keys():
         del os.environ[key]
 
+    # test setting env_file using set_environment()
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(env_file=env_path, artifact_path=artifact_path)
+    for key, value in env_dict.items():
+        assert os.environ[key] == value
+    for key in env_dict.keys():
+        del os.environ[key]
+
+
+def test_mock_functions():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    local_config = mlrun.mlconf.force_run_local
+
+    # test setting env_file using set_environment()
+    artifact_path = mlrun.mlconf.artifact_path or "./"
+    mlrun.set_environment(mock_functions=True, artifact_path=artifact_path)
+    assert mlrun.mlconf.mock_nuclio_deployment == "1"
+    assert mlrun.mlconf.force_run_local == "1"
+
+    mlrun.set_environment(mock_functions="auto", artifact_path=artifact_path)
+    assert mlrun.mlconf.mock_nuclio_deployment == "auto"
+    assert mlrun.mlconf.force_run_local == "auto"
+
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
+    mlrun.mlconf.force_run_local = local_config
+
 
 def test_bad_env_files():
     bad_envs = ["badenv1"]

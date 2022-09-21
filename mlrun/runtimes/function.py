@@ -1037,7 +1037,8 @@ class RemoteRuntime(KubeResource):
         # todo: create mock_server for Nuclio
         if enable:
             raise NotImplementedError(
-                "Mock (simulation) is currently not supported for Nuclio"
+                "Mock (simulation) is currently not supported for Nuclio, Turn off the mock (mock=False) "
+                "and make sure Nuclio is installed for real deployment to Nuclio"
             )
 
 

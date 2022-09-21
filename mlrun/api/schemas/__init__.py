@@ -148,4 +148,4 @@ from .secret import (
     SecretsData,
     UserSecretCreationRequest,
 )
-from .tag import TagObject, TagsObjects
+from .tag import Tag, TagObjects

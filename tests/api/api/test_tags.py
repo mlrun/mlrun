@@ -51,16 +51,12 @@ class TestArtifactTags:
         response = client.post(
             API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "tag": tag,
-                            }
-                        ],
+                        "tag": tag,
                     }
-                ]
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -88,16 +84,12 @@ class TestArtifactTags:
         response = client.post(
             API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "labels": {"artifact_name": "artifact1"},
-                            },
-                        ],
-                    }
-                ]
+                        "labels": {"artifact_name": "artifact1"},
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -130,16 +122,12 @@ class TestArtifactTags:
         response = client.post(
             API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -172,17 +160,13 @@ class TestArtifactTags:
         response = client.post(
             API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                                "tag": overwrite_tag,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                        "tag": overwrite_tag,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -215,19 +199,15 @@ class TestArtifactTags:
         response = client.post(
             API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                            {
-                                "name": artifact2_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                    {
+                        "name": artifact2_key,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -258,16 +238,12 @@ class TestArtifactTags:
         response = client.put(
             API_TAGS_PATH.format(project=self.project, tag=new_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "labels": {"artifact_name": "artifact1"},
-                            },
-                        ],
-                    }
-                ]
+                        "labels": {"artifact_name": "artifact1"},
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -301,16 +277,12 @@ class TestArtifactTags:
         response = client.put(
             API_TAGS_PATH.format(project=self.project, tag=new_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "tag": tag,
-                            },
-                        ],
-                    }
-                ]
+                        "tag": tag,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -345,16 +317,12 @@ class TestArtifactTags:
         response = client.put(
             API_TAGS_PATH.format(project=self.project, tag=new_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -388,19 +356,15 @@ class TestArtifactTags:
         response = client.put(
             API_TAGS_PATH.format(project=self.project, tag=new_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                            {
-                                "name": artifact2_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                    {
+                        "name": artifact2_key,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -434,16 +398,12 @@ class TestArtifactTags:
         response = client.put(
             API_TAGS_PATH.format(project=self.project, tag=tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -472,16 +432,12 @@ class TestArtifactTags:
         response = client.put(
             API_TAGS_PATH.format(project=self.project, tag=new_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "tag": tag,
-                            },
-                        ],
-                    }
-                ]
+                        "tag": tag,
+                    },
+                ],
             },
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -493,19 +449,15 @@ class TestArtifactTags:
         response = client.delete(
             API_TAGS_PATH.format(project=self.project, tag=new_tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "tag": tag,
-                            },
-                        ],
-                    }
-                ]
+                        "tag": tag,
+                    },
+                ],
             },
         )
-        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
         response_body = self._list_artifacts_and_assert(
             client, tag=tag, expected_number_of_artifacts=2
@@ -534,19 +486,15 @@ class TestArtifactTags:
         response = client.delete(
             API_TAGS_PATH.format(project=self.project, tag=tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                ],
             },
         )
-        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
         response_body = self._list_artifacts_and_assert(
             client, tag=tag, expected_number_of_artifacts=1
@@ -570,22 +518,18 @@ class TestArtifactTags:
         response = client.delete(
             API_TAGS_PATH.format(project=self.project, tag=tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                            {
-                                "name": artifact2_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                    {
+                        "name": artifact2_key,
+                    },
+                ],
             },
         )
-        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
 
@@ -608,22 +552,18 @@ class TestArtifactTags:
         response = client.delete(
             API_TAGS_PATH.format(project=self.project, tag=tag),
             json={
-                "objects": [
+                "kind": "artifact",
+                "identifiers": [
                     {
-                        "kind": "artifact",
-                        "identifiers": [
-                            {
-                                "name": artifact1_key,
-                            },
-                            {
-                                "name": artifact2_key,
-                            },
-                        ],
-                    }
-                ]
+                        "name": artifact1_key,
+                    },
+                    {
+                        "name": artifact2_key,
+                    },
+                ],
             },
         )
-        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
 

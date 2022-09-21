@@ -19,17 +19,14 @@ import pydantic
 from .artifact import ArtifactObject
 
 
-class TagObject(pydantic.BaseModel):
+class Tag(pydantic.BaseModel):
+    name: str
+    project: str
+
+
+class TagObjects(pydantic.BaseModel):
     """Tag object"""
 
     kind: str
     # TODO: Add more types to the list for new supported tagged objects
     identifiers: typing.List[typing.Union[ArtifactObject]]
-
-
-class TagsObjects(pydantic.BaseModel):
-    """
-    Tags objects list
-    """
-
-    objects: typing.List[TagObject]

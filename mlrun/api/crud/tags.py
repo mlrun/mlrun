@@ -42,45 +42,42 @@ class Tags(
         db_session: sqlalchemy.orm.Session,
         project: str,
         tag: str,
-        objects: typing.List[mlrun.api.schemas.TagObject],
+        tag_objects: mlrun.api.schemas.TagObjects,
     ):
-        for obj in objects:
-            overwrite_func = kind_to_function.get(obj.kind, {}).get("overwrite")
-            getattr(mlrun.api.utils.singletons.db.get_db(), overwrite_func)(
-                session=db_session,
-                project=project,
-                tag=tag,
-                identifiers=obj.identifiers,
-            )
+        overwrite_func = kind_to_function.get(tag_objects.kind, {}).get("overwrite")
+        getattr(mlrun.api.utils.singletons.db.get_db(), overwrite_func)(
+            session=db_session,
+            project=project,
+            tag=tag,
+            identifiers=tag_objects.identifiers,
+        )
 
     @staticmethod
     def append_tag_to_objects(
         db_session: sqlalchemy.orm.Session,
         project: str,
         tag: str,
-        objects: typing.List[mlrun.api.schemas.TagObject],
+        tag_objects: mlrun.api.schemas.TagObjects,
     ):
-        for obj in objects:
-            append_func = kind_to_function.get(obj.kind, {}).get("append")
-            getattr(mlrun.api.utils.singletons.db.get_db(), append_func)(
-                session=db_session,
-                project=project,
-                tag=tag,
-                identifiers=obj.identifiers,
-            )
+        append_func = kind_to_function.get(tag_objects.kind, {}).get("append")
+        getattr(mlrun.api.utils.singletons.db.get_db(), append_func)(
+            session=db_session,
+            project=project,
+            tag=tag,
+            identifiers=tag_objects.identifiers,
+        )
 
     @staticmethod
     def delete_tag_from_objects(
         db_session: sqlalchemy.orm.Session,
         project: str,
         tag: str,
-        objects: typing.List[mlrun.api.schemas.TagObject],
+        tag_objects: mlrun.api.schemas.TagObjects,
     ):
-        for obj in objects:
-            delete_func = kind_to_function.get(obj.kind, {}).get("delete")
-            getattr(mlrun.api.utils.singletons.db.get_db(), delete_func)(
-                session=db_session,
-                project=project,
-                tag=tag,
-                identifiers=obj.identifiers,
-            )
+        delete_func = kind_to_function.get(tag_objects.kind, {}).get("delete")
+        getattr(mlrun.api.utils.singletons.db.get_db(), delete_func)(
+            session=db_session,
+            project=project,
+            tag=tag,
+            identifiers=tag_objects.identifiers,
+        )

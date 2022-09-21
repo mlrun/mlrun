@@ -1284,15 +1284,24 @@ def generate_target_path(item: Artifact, artifact_path, producer):
     # path convention: artifact_path[/{run_name}]/{iter}/{key}.{suffix}
     # todo: add run_id here (vs in the .run() methods), support items dedup (by hash)
     artifact_path = artifact_path or ""
-    if artifact_path and not artifact_path.endswith("/"):
-        artifact_path += "/"
+    if artifact_path and not artifact_path.endswith(os.sep):
+        artifact_path += os.sep
     if producer.kind == "run":
-        artifact_path += f"{producer.name}/{item.iter or 0}/"
+        artifact_path += f"{producer.name}{os.sep}{item.metadata.iter or 0}{os.sep}"
+    if item.spec.src_path:
+        path_components = item.spec.src_path.split(os.sep)
+        # Check if the `src_path` is starting with a '/':
+        if path_components[0] == '':
+            path_components.pop(0)
+        # If the `src_path` contained directories, append them to the artifact path:
+        if len(path_components) > 1:
+            artifact_path += os.sep.join(path_components[:-1])
+            artifact_path += os.sep
 
     suffix = "/"
     if not item.is_dir:
-        suffix = os.path.splitext(item.src_path or "")[1]
-        if not suffix and item.format:
-            suffix = f".{item.format}"
+        suffix = os.path.splitext(item.spec.src_path or "")[1]
+        if not suffix and item.spec.format:
+            suffix = f".{item.spec.format}"
 
-    return f"{artifact_path}{item.key}{suffix}"
+    return f"{artifact_path}{item.metadata.key}{suffix}"

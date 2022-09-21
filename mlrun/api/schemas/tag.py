@@ -23,6 +23,7 @@ class TagObject(pydantic.BaseModel):
     """Tag object"""
 
     kind: str
+    # TODO: Add more types to the list for new supported tagged objects
     identifiers: typing.List[typing.Union[ArtifactObject]]
 
 
@@ -32,26 +33,3 @@ class TagsObjects(pydantic.BaseModel):
     """
 
     objects: typing.List[TagObject]
-
-
-"""
-{
-  "objects": [
-        {
-          "kind": artifact,
-          "identifiers": [
-                {
-                  "id": "123",
-                },
-                {
-                  "path": "path",
-                  "tag": "tag",
-                },
-                {
-                  "key": "key",
-                }
-           ],
-        }
-    ]
-}
-"""

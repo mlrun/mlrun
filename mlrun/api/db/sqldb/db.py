@@ -370,21 +370,9 @@ class SQLDB(DBInterface):
                 as_records=True,
             )
         # TODO remove duplicates artifacts entries
-        for artifact in artifacts:
-            # could be legacy artifact or new artifact so we can't rely on the attributes to be all in the same place
-            # artifact_key = get_in_artifact(artifact, "key")
-            # artifact_uid = get_in_artifact(artifact, "uid")
-
-            # delete related tags from artifacts identifiers
-            # not committing the session here because we want to do it atomic with the next query
-            # TODO delete list of artifacts in one query?
-            self._delete_artifact_tags(
-                session,
-                project,
-                artifact_key=artifact.key,
-                tag_name=artifact.Tag.name,
-                commit=False,
-            )
+        # delete related tags from artifacts identifiers
+        # not committing the session here because we want to do it atomic with the next query
+        self._delete_artifacts_tags(session, project, artifacts, commit=False)
         # tag artifacts with tag
         self.tag_artifacts(session, artifacts, project, name=tag)
 
@@ -642,6 +630,27 @@ class SQLDB(DBInterface):
             kw["tag"] = tag
 
         self._delete(session, Artifact, **kw)
+
+    def _delete_artifacts_tags(
+        self,
+        session,
+        project: str,
+        artifacts: typing.List[Artifact],
+        commit: bool = True,
+    ):
+        artifacts_keys = [str(artifact.key) for artifact in artifacts]
+        query = (
+            session.query(Artifact.Tag)
+            .join(Artifact)
+            .filter(
+                Artifact.project == project,
+                Artifact.key.in_(artifacts_keys),
+            )
+        )
+        for tag in query:
+            session.delete(tag)
+        if commit:
+            session.commit()
 
     def _delete_artifact_tags(
         self, session, project, artifact_key, tag_name="", commit=True

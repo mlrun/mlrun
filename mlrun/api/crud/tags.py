@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.db.sqldb.db
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
@@ -26,9 +27,9 @@ import mlrun.utils.singleton
 
 kind_to_function = {
     "artifact": {
-        "overwrite": "overwrite_artifacts_with_tag",
-        "append": "append_tag_to_artifacts",
-        "delete": "delete_tag_from_artifacts",
+        "overwrite": mlrun.api.db.sqldb.db.SQLDB.overwrite_artifacts_with_tag.__name__,
+        "append": mlrun.api.db.sqldb.db.SQLDB.append_tag_to_artifacts.__name__,
+        "delete": mlrun.api.db.sqldb.db.SQLDB.delete_tag_from_artifacts.__name__,
     }
 }
 

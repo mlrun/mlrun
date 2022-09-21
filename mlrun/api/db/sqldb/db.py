@@ -14,6 +14,7 @@
 #
 import asyncio
 import collections
+import functools
 import re
 import typing
 from copy import deepcopy
@@ -96,6 +97,7 @@ def retry_on_conflict(function):
     This why we implemented this retry as a decorator that comes "around" the existing functions
     """
 
+    @functools.wraps(function)
     def wrapper(*args, **kwargs):
         def _try_function():
             try:
@@ -125,6 +127,7 @@ def retry_on_conflict(function):
         else:
             return function(*args, **kwargs)
 
+    # wrapper.__name__ = function.__name__
     return wrapper
 
 
@@ -356,7 +359,6 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
     ):
-        """Note: this function is being used by mlrun.api.crud.Tags.overwrite_artifacts_with_tag"""
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
@@ -385,7 +387,6 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
     ):
-        """Note: this function is being used by mlrun.api.crud.Tags.append_tag_to_artifacts"""
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
@@ -408,7 +409,6 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
     ):
-        """Note: this function is being used by mlrun.api.crud.Tags.delete_tag_from_objects"""
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:

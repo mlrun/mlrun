@@ -1303,7 +1303,7 @@ def generate_target_path(item: Artifact, artifact_path, producer):
             artifact_path += os.sep
         # If the file name was specified in the `src_path`, take it as the file name instead of the key:
         if "." in path_components[-1]:
-            file_name, suffix = os.path.splitext(path_components[-1])[0]
+            file_name, suffix = os.path.splitext(path_components[-1])
 
     # Discover the suffix in case the item is not a directory:
     if item.is_dir:

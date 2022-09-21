@@ -127,7 +127,6 @@ def retry_on_conflict(function):
         else:
             return function(*args, **kwargs)
 
-    # wrapper.__name__ = function.__name__
     return wrapper
 
 
@@ -615,6 +614,10 @@ class SQLDB(DBInterface):
             session, project, ids, labels, since, until, name, kind, category, iter
         )
         if as_records:
+            if best_iteration:
+                raise mlrun.errors.MLRunConflictError(
+                    "as_records is not supported with best_iteration=True"
+                )
             return artifact_records
         indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
         for artifact in artifact_records:
@@ -691,8 +694,6 @@ class SQLDB(DBInterface):
             )
         )
         if tags:
-            if isinstance(tags, str):
-                tags = [tags]
             query = query.filter(Artifact.Tag.name.in_(tags))
         for tag in query:
             session.delete(tag)

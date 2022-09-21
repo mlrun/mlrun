@@ -3,7 +3,7 @@
 - [The challenge](#the-challenge)
 - [MLRun - The Open Source MLOps Orchestration](#why-mlrun)
 - [Architecture](#architecture)
-- [Basic components](#basic-components)
+- [What can you do with MLRun?](#what-can-you-do)
 
 <a id="the-challenge"></a>
 ## The challenge
@@ -67,22 +67,36 @@ While each of those layers is independent, the integration provides much greater
 
 When one of the components detailed above is updated, it immediately impacts the feature generation, the model serving pipeline, and the monitoring. MLRun applies versioning to each component, as well as versioning and rolling upgrades across components.
 
-<a id="basic-components"></a>
-## Basic components
+<a id="what-can-you-do"></a>
+## What can you do with MLRun?
 
-MLRun has the following main components that are used throughout the system:
+With MLRun, you get a complete MLOps solution, supporting the following scenarios
 
-- <a id="def-project"></a>**Project** &mdash; a container for organizing all of your work on a particular activity.
-    Projects consist of metadata, source code, workflows, data and artifacts, models, triggers, and member management for user collaboration. Read more in [Projects](./projects/project.html).
+### Ingest and process data
 
-- <a id="def-function"></a>**Function** &mdash; a software package with one or more methods and runtime-specific attributes (such as image, command, arguments, and environment). Read more in [MLRun serverless functions](./concepts/functions-concepts.html) and {ref}`functions`.
+MLRun supports all data types including:
+- Structured data, such as table or semi-structured data, such as JSON
+- Text unstructured data
+- Other unstructured data, such as image or video processing
 
-- <a id="def-run"></a>**Run** &mdash; an object that contains information about an executed function.
-    The run object is created as a result of running a function, and contains the function attributes (such as arguments, inputs, and outputs), as well the execution status and results (including links to output artifacts). Read more in {ref}`submitting-tasks-jobs-to-functions`.
+MLRun also includes data transformation capabilities, this allows you to change the data as part of your data ingestion process. Alternatively, you may choose to use the raw data as-is (e.g., if all data transformation occurs prior to data ingestion).
 
-- <a id="def-artifact"></a>**Artifact** &mdash; versioned data artifacts (such as data sets, files and models) are produced or consumed by functions, runs, and workflows. Read more in [Artifacts](./store/artifacts.html).
+### Continuous model development
 
-- <a id="def-workflow"></a>**Workflow** &mdash; defines a functions pipeline or a directed acyclic graph (DAG) to execute using [Kubeflow Pipelines](https://www.kubeflow.org/docs/pipelines/pipelines-quickstart/)
-  or MLRun [Real-time serving pipelines](./serving/serving-graph.html). Read more in [Workflows](./projects/workflows.html).
-  
-- **UI** &mdash; a graphical user interface (dashboard) for displaying and managing projects and their contained experiments, artifacts, and code.
+MLRun has model training capabilities, you can develop and test your model in MLRun, or reference an external pre-trained model. With MLRun you can train with any existing framework, such as scikit-learn, XGBoost and LightGBM, as well as deep learning frameworks such as Tensorflow, PyTorch and SpaCy.
+
+By defining feature vectors, you can define a feature selection process, and train a model using only the most crucial features. MLRun further supports the training process by allow hyperparameter tuning and model training at scale, by leveraging frameworks such as Dask and Horovod (MPI).
+
+If you choose to use an existing model, you can bring your own, or use pre-trained model, such as those provided by Hugging Face.
+
+### Deploy models & ML applications
+
+It is possible to run models using online serving as well as batch inference. MLRun takes model execution a step further, and allow you to define a whole pipeline along with the model. This allows you to perform additional tasks, such as data manipulation prior to running a model as well as act upon the result of the model (e.g., for decisioning or for using the model output as a feature of other models).
+
+### Model & data monitoring
+
+Monitoring is built-in and is easy to set-up. One of the key advantages of using MLRun is that you don't have to create your own monitoring solution, as you can easily get operational, model and data results and alerts with an easy-to-use API. As an added bonus, you get monitoring UI out-of-the-box.
+
+### MLOps automation and CI/CD
+
+One of the key advantages of having the Data Engineer and Data Scientist use MLRun, is automation. An ML Engineer will have all the required building blocks created during the development and test processes available to easily automate using Continuous Integration and Continuous Deployment.

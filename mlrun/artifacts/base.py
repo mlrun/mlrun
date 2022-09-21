@@ -1281,27 +1281,35 @@ def get_artifact_meta(artifact):
 
 
 def generate_target_path(item: Artifact, artifact_path, producer):
-    # path convention: artifact_path[/{run_name}]/{iter}/{key}.{suffix}
+    # path convention: artifact_path[/{run_name}]/{iter}/src_path/{key}.{suffix}
     # todo: add run_id here (vs in the .run() methods), support items dedup (by hash)
     artifact_path = artifact_path or ""
     if artifact_path and not artifact_path.endswith(os.sep):
         artifact_path += os.sep
     if producer.kind == "run":
         artifact_path += f"{producer.name}{os.sep}{item.metadata.iter or 0}{os.sep}"
+
+    # Set the file name to be the key by default:
+    file_name = item.metadata.key
+    suffix: str = None  # Should start with a '.'
     if item.spec.src_path:
         path_components = item.spec.src_path.split(os.sep)
         # Check if the `src_path` is starting with a '/':
-        if path_components[0] == '':
+        if path_components[0] == "":
             path_components.pop(0)
         # If the `src_path` contained directories, append them to the artifact path:
         if len(path_components) > 1:
             artifact_path += os.sep.join(path_components[:-1])
             artifact_path += os.sep
+        # If the file name was specified in the `src_path`, take it as the file name instead of the key:
+        if "." in path_components[-1]:
+            file_name, suffix = os.path.splitext(path_components[-1])[0]
 
-    suffix = "/"
-    if not item.is_dir:
-        suffix = os.path.splitext(item.spec.src_path or "")[1]
-        if not suffix and item.spec.format:
-            suffix = f".{item.spec.format}"
+    # Discover the suffix in case the item is not a directory:
+    if item.is_dir:
+        suffix = os.sep
+    elif suffix is None:
+        # If the suffix was not given in the `src_path`, try getting it from the spec format:
+        suffix = f".{item.spec.format}" or os.sep
 
-    return f"{artifact_path}{item.metadata.key}{suffix}"
+    return f"{artifact_path}{file_name}{suffix}"

@@ -109,7 +109,9 @@ class GitNotification(NotificationBase):
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json={"body": message}) as resp:
+            async with session.post(
+                url, headers=headers, json={"body": message}
+            ) as resp:
                 if not resp.ok:
                     resp_text = await resp.text()
                     raise mlrun.errors.MLRunBadRequestError(

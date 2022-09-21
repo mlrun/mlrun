@@ -3238,7 +3238,7 @@ class SQLDB(DBInterface):
             )
             if not notification_config:
                 notification_config = NotificationConfig(
-                    name=notification_config_model.name, run=run.id
+                    name=notification_config_model.name, run=run.id, project=project
                 )
 
             notification_config.kind = notification_config_model.kind

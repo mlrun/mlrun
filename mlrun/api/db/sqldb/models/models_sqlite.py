@@ -190,6 +190,7 @@ with warnings.catch_warnings():
         )
 
         id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
         name = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )

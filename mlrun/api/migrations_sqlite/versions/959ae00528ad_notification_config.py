@@ -34,6 +34,7 @@ def upgrade():
     op.create_table(
         "notification_configs",
         sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("project", sa.String(length=255)),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("kind", sa.String(length=255), nullable=False),
         sa.Column("message", sa.String(length=255), nullable=False),

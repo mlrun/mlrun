@@ -61,4 +61,3 @@ deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0
 python-dotenv~=0.17.0
-grequests~=0.6.0

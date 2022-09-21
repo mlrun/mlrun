@@ -16,7 +16,7 @@ import json
 import os
 import typing
 
-import grequests
+import aiohttp
 
 import mlrun.lists
 import mlrun.utils.helpers
@@ -51,12 +51,9 @@ class SlackNotification(NotificationBase):
 
         data = self._generate_slack_data(message, severity, runs)
 
-        response = await grequests.post(
-            webhook,
-            data=json.dumps(data),
-            headers={"Content-Type": "application/json"},
-        )
-        response.raise_for_status()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(webhook, json=data) as response:
+                response.raise_for_status()
 
     def _generate_slack_data(
         self,

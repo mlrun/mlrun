@@ -16,7 +16,7 @@ import json
 import os
 import typing
 
-import grequests
+import aiohttp
 
 import mlrun.errors
 import mlrun.lists
@@ -107,11 +107,13 @@ class GitNotification(NotificationBase):
                 "Authorization": f"token {token}",
             }
             url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-        resp = await grequests.post(
-            url=url, json={"body": str(message)}, headers=headers
-        )
-        if not resp.ok:
-            raise mlrun.errors.MLRunBadRequestError(
-                "Failed commenting on PR", response=resp.text, status=resp.status_code
-            )
-        return resp.json()["id"]
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json={"body": message}) as resp:
+                if not resp.ok:
+                    resp_text = await resp.text()
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"Failed commenting on PR: {resp_text}", status=resp.status
+                    )
+                data = await resp.json()
+                return data.get("id")

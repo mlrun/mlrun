@@ -42,7 +42,7 @@ class NotificationPusher(object):
                     self._notification_data.append((run, notification_config))
 
     def push(self):
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         tasks = []
         for notification_data in self._notification_data:
             tasks.append(
@@ -112,7 +112,7 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         tasks = []
         for notification in self._notifications.values():
             tasks.append(

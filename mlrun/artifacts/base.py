@@ -280,7 +280,12 @@ class Artifact(ModelObj):
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
     def before_log(self):
-        pass
+        for key, item in self.spec.extra_data.items():
+            if isinstance(item, Artifact):
+                self.spec.extra_data[key] = item.spec.target_path
+            elif hasattr(item, "target_path"):
+                # TODO: Remove once mlrun 1.2.0 is out as `LegacyArtifact` will be deleted.
+                self.spec.extra_data[key] = item.target_path
 
     @property
     def is_dir(self):

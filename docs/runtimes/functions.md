@@ -1,5 +1,5 @@
 (Functions)=
-# Functions
+# Overview
 
 All the executions in MLRun are based on **Serverless Functions**. The functions allow specifying code and 
 all the operational aspects (image, required packages, [cpu/mem/gpu resources](../runtimes/configuring-job-resources.html#cpu-gpu-and-memory-limits-for-user-jobs), [storage](../runtimes/function-storage.html), environment, etc.). 
@@ -26,16 +26,3 @@ MLRun has an open [public marketplace](https://www.mlrun.org/marketplace/functio
 use in your projects. 
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>
-
-**In this section:**
-
-```{toctree}
-:maxdepth: 1
-
-../concepts/functions-overview
-using-functions
-mlrun_code_annotations
-code-archive
-function-storage
-images
-```

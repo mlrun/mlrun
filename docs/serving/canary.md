@@ -1,5 +1,5 @@
 (canary)=
-# Canary deployment
+# Canary and rolling upgrades
 
 ```{admonition} Note
 Relevant when MLRun is executed in the [Iguazio platform](https://www.iguazio.com/docs/latest-release/) (**"the platform"**).

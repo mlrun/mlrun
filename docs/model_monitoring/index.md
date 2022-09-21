@@ -1,6 +1,6 @@
 (model_monitoring)=
 
-# Model monitoring (beta)
+# Model and data monitoring (beta)
 
 ```{note}
 Model monitoring is based on Iguazio's streaming technology. Contact Iguazio to enable this feature.
@@ -24,5 +24,4 @@ application visualization tool that can be added as a service in the Iguazio pla
 :maxdepth: 1
 
 model-monitoring-deployment
-initial-setup-configuration
 ```

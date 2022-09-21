@@ -118,7 +118,7 @@ class FileDB(DBInterface):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactObject],
+        identifiers: List[schemas.ArtifactIdentifier],
     ):
         raise NotImplementedError()
 
@@ -127,7 +127,7 @@ class FileDB(DBInterface):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactObject],
+        identifiers: List[schemas.ArtifactIdentifier],
     ):
         raise NotImplementedError()
 
@@ -136,7 +136,7 @@ class FileDB(DBInterface):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactObject],
+        identifiers: List[schemas.ArtifactIdentifier],
     ):
         raise NotImplementedError()
 

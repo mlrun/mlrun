@@ -16,7 +16,7 @@ import typing
 
 import pydantic
 
-from .artifact import ArtifactObject
+from .artifact import ArtifactIdentifier
 
 
 class Tag(pydantic.BaseModel):
@@ -29,4 +29,4 @@ class TagObjects(pydantic.BaseModel):
 
     kind: str
     # TODO: Add more types to the list for new supported tagged objects
-    identifiers: typing.List[typing.Union[ArtifactObject]]
+    identifiers: typing.List[typing.Union[ArtifactIdentifier]]

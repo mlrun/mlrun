@@ -357,7 +357,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
+        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -366,8 +366,6 @@ class SQLDB(DBInterface):
                 session,
                 project=project,
                 name=identifier.name,
-                tag=identifier.tag,
-                labels=identifier.labels,
                 kind=identifier.kind,
                 iter=identifier.iter,
                 as_records=True,
@@ -385,7 +383,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
+        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -394,8 +392,6 @@ class SQLDB(DBInterface):
                 session,
                 project=project,
                 name=identifier.name,
-                tag=identifier.tag,
-                labels=identifier.labels,
                 kind=identifier.kind,
                 iter=identifier.iter,
                 as_records=True,
@@ -407,7 +403,7 @@ class SQLDB(DBInterface):
         session: Session,
         project: str,
         tag: str,
-        identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
+        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
     ):
         # query all artifacts which match the identifiers
         artifacts = []
@@ -416,8 +412,6 @@ class SQLDB(DBInterface):
                 session,
                 project=project,
                 name=identifier.name,
-                tag=identifier.tag,
-                labels=identifier.labels,
                 kind=identifier.kind,
                 iter=identifier.iter,
                 as_records=True,

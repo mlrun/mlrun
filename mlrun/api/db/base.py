@@ -99,7 +99,7 @@ class DBInterface(ABC):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactObject],
+        identifiers: List[schemas.ArtifactIdentifier],
     ):
         pass
 
@@ -108,7 +108,7 @@ class DBInterface(ABC):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactObject],
+        identifiers: List[schemas.ArtifactIdentifier],
     ):
         pass
 
@@ -117,7 +117,7 @@ class DBInterface(ABC):
         session,
         project: str,
         tag: str,
-        identifiers: List[schemas.ArtifactObject],
+        identifiers: List[schemas.ArtifactIdentifier],
     ):
         pass
 

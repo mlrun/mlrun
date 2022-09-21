@@ -16,7 +16,8 @@ import asyncio
 import builtins
 import unittest.mock
 
-import grequests
+import aiohttp
+
 import pytest
 import tabulate
 
@@ -212,15 +213,21 @@ def test_slack_notification(runs, expected):
     ],
 )
 async def test_git_notification(monkeypatch, params, expected_url, expected_headers):
-    git_notification = mlrun.utils.notifications.GitNotification(params)
-    expected_body = "[info] test-message"
+    git_notification = mlrun.utils.notifications.GitNotification("git", params)
+    expected_body = "[info] git: test-message"
+
+    response_json_future = asyncio.Future()
+    response_json_future.set_result({"id": "response-id"})
+    response_mock = unittest.mock.MagicMock()
+    response_mock.json = unittest.mock.MagicMock(return_value=response_json_future)
 
     request_future = asyncio.Future()
-    request_future.set_result(unittest.mock.MagicMock())
+    request_future.set_result(response_mock)
+
     requests_mock = unittest.mock.MagicMock(return_value=request_future)
-    monkeypatch.setattr(grequests, "post", requests_mock)
+    monkeypatch.setattr(aiohttp.ClientSession, "post", requests_mock)
     await git_notification.send("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
-        url=expected_url, json={"body": expected_body}, headers=expected_headers
+        expected_url, headers=expected_headers, json={"body": expected_body},
     )

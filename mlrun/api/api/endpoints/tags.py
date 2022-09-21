@@ -51,7 +51,8 @@ async def overwrite_object_tags_with_tag(
             getattr(mlrun.api.schemas.AuthorizationResourceTypes, object_list.kind),
             project,
             resource_name=None,
-            action=mlrun.api.schemas.AuthorizationAction.store,
+            # not actually overwriting objects, just overwriting the objects tags
+            action=mlrun.api.schemas.AuthorizationAction.update,
             auth_info=auth_info,
         )
 
@@ -91,12 +92,53 @@ async def append_tag_to_objects(
             getattr(mlrun.api.schemas.AuthorizationResourceTypes, object_list.kind),
             project,
             resource_name=None,
-            action=mlrun.api.schemas.AuthorizationAction.store,
+            action=mlrun.api.schemas.AuthorizationAction.update,
             auth_info=auth_info,
         )
 
     await fastapi.concurrency.run_in_threadpool(
         mlrun.api.crud.Tags().append_tag_to_objects,
+        db_session,
+        project,
+        tag,
+        objects.objects,
+    )
+    return {}
+
+
+@router.delete("/projects/{project}/tags/{tag}")
+async def delete_tag_from_objects(
+    project: str,
+    tag: str,
+    objects: mlrun.api.schemas.TagsObjects,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_info,
+    )
+
+    for object_list in objects.objects:
+        # check permission per object type
+        await fastapi.concurrency.run_in_threadpool(
+            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+            getattr(mlrun.api.schemas.AuthorizationResourceTypes, object_list.kind),
+            project,
+            resource_name=None,
+            # not actually deleting objects, just deleting the objects tags
+            action=mlrun.api.schemas.AuthorizationAction.update,
+            auth_info=auth_info,
+        )
+
+    await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.crud.Tags().delete_tag_from_objects,
         db_session,
         project,
         tag,

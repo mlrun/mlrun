@@ -67,3 +67,19 @@ class Tags(
                 tag=tag,
                 identifiers=obj.identifiers,
             )
+
+    def delete_tag_from_objects(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str,
+        tag: str,
+        objects: typing.List[mlrun.api.schemas.TagObject],
+    ):
+        for obj in objects:
+            delete_func = kind_to_function.get(obj.kind, {}).get("delete")
+            getattr(mlrun.api.utils.singletons.db.get_db(), delete_func)(
+                session=db_session,
+                project=project,
+                tag=tag,
+                identifiers=obj.identifiers,
+            )

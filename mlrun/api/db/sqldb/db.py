@@ -376,6 +376,7 @@ class SQLDB(DBInterface):
         # tag artifacts with tag
         self.tag_artifacts(session, artifacts, project, name=tag)
 
+    @retry_on_conflict
     def append_tag_to_artifacts(
         self,
         session: Session,
@@ -397,6 +398,28 @@ class SQLDB(DBInterface):
                 as_records=True,
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
+
+    def delete_tag_from_artifacts(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.api.schemas.ArtifactObject],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self.list_artifacts(
+                session,
+                project=project,
+                name=identifier.name,
+                tag=identifier.tag,
+                labels=identifier.labels,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                as_records=True,
+            )
+        self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
 
     @retry_on_conflict
     def store_artifact(
@@ -658,6 +681,7 @@ class SQLDB(DBInterface):
         session,
         project: str,
         artifacts: typing.List[Artifact],
+        tags: typing.List[str] = None,
         commit: bool = True,
     ):
         artifacts_keys = [str(artifact.key) for artifact in artifacts]
@@ -669,6 +693,10 @@ class SQLDB(DBInterface):
                 Artifact.key.in_(artifacts_keys),
             )
         )
+        if tags:
+            if isinstance(tags, str):
+                tags = [tags]
+            query = query.filter(Artifact.Tag.name.in_(tags))
         for tag in query:
             session.delete(tag)
         if commit:

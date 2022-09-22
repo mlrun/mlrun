@@ -14,7 +14,6 @@
 #
 import json
 import os
-import traceback
 import typing
 from abc import ABC, abstractmethod
 
@@ -46,8 +45,9 @@ from mlrun.utils import logger
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
 
-    def create(
-        self,
+    @classmethod
+    def create_model_endpoint(
+        cls,
         db_session: sqlalchemy.orm.Session,
         access_key: str,
         model_endpoint: mlrun.api.schemas.ModelEndpoint,
@@ -91,7 +91,7 @@ class ModelEndpoints:
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
                 model_label_names = [
-                    self._clean_feature_name(f.name) for f in model_obj.outputs
+                    cls._clean_feature_name(f.name) for f in model_obj.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
 
@@ -104,7 +104,7 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.api.schemas.ModelMonitoringMode.enabled.value
             ):
-                monitoring_feature_set = self.create_monitoring_feature_set(
+                monitoring_feature_set = cls.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
@@ -119,13 +119,13 @@ class ModelEndpoints:
             logger.info("Feature stats found, cleaning feature names")
             if model_endpoint.spec.feature_names:
                 # Validate that the length of feature_stats is equal to the length of feature_names and label_names
-                self._validate_length_features_and_labels(model_endpoint)
+                cls._validate_length_features_and_labels(model_endpoint)
 
                 # Clean feature names in both feature_stats and feature_names
             (
                 model_endpoint.status.feature_stats,
                 model_endpoint.spec.feature_names,
-            ) = self._adjust_feature_names_and_stats(model_endpoint)
+            ) = cls._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
 
             logger.info(
                 "Done preparing feature names and stats",
@@ -140,7 +140,7 @@ class ModelEndpoints:
         model_endpoint_target = get_endpoint_target(
             project=model_endpoint.metadata.project, access_key=access_key
         )
-        model_endpoint_target.write_endpoint(endpoint=model_endpoint)
+        model_endpoint_target.write_model_endpoint(endpoint=model_endpoint)
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -261,8 +261,9 @@ class ModelEndpoints:
                 f"label_names({len_of_label_names}"
             )
 
+    @classmethod
     def _adjust_feature_names_and_stats(
-        self, model_endpoint
+        cls, model_endpoint
     ) -> typing.Tuple[typing.Dict, typing.List]:
         """
         Create a clean matching version of feature names for both feature_stats and feature_names. Please note that
@@ -278,7 +279,7 @@ class ModelEndpoints:
         for i, (feature, stats) in enumerate(
             model_endpoint.status.feature_stats.items()
         ):
-            clean_name = self._clean_feature_name(feature)
+            clean_name = cls._clean_feature_name(feature)
             clean_feature_stats[clean_name] = stats
             # Exclude the label columns from the feature names
             if (
@@ -290,7 +291,7 @@ class ModelEndpoints:
         return clean_feature_stats, clean_feature_names
 
     @staticmethod
-    def patch(
+    def patch_model_endpoint(
         project: str,
         endpoint_id: str,
         attributes: dict,
@@ -308,18 +309,18 @@ class ModelEndpoints:
         model_endpoint_target = get_endpoint_target(
             project=project, access_key=access_key
         )
-        model_endpoint_target.update_endpoint(
+        model_endpoint_target.update_model_endpoint(
             endpoint_id=endpoint_id, attributes=attributes
         )
 
     @staticmethod
-    def delete(
+    def delete_model_endpoint(
         project: str,
         endpoint_id: str,
         access_key: str,
     ):
         """
-        Delete the KV record of a given model endpoint based on endpoint id.
+        Delete the record of a given model endpoint based on endpoint id.
 
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
@@ -328,14 +329,14 @@ class ModelEndpoints:
         model_endpoint_target = get_endpoint_target(
             project=project, access_key=access_key
         )
-        model_endpoint_target.delete_endpoint(endpoint_id=endpoint_id)
+        model_endpoint_target.delete_model_endpoint(endpoint_id=endpoint_id)
 
     @staticmethod
-    def get_endpoint(
+    def get_model_endpoint(
         auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
-        metrics: typing.Optional[typing.List[str]] = None,
+        metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -363,7 +364,7 @@ class ModelEndpoints:
         model_endpoint_target = get_endpoint_target(
             project=project, access_key=auth_info.data_session
         )
-        return model_endpoint_target.get_endpoint(
+        return model_endpoint_target.get_model_endpoint(
             endpoint_id=endpoint_id,
             metrics=metrics,
             start=start,
@@ -373,17 +374,17 @@ class ModelEndpoints:
         )
 
     @staticmethod
-    def list_endpoints(
+    def list_model_endpoints(
         auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
-        model: typing.Optional[str] = None,
-        function: typing.Optional[str] = None,
-        labels: typing.Optional[typing.List[str]] = None,
-        metrics: typing.Optional[typing.List[str]] = None,
+        model: str = None,
+        function: str = None,
+        labels: typing.List[str] = None,
+        metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
-        top_level: typing.Optional[bool] = False,
-        uids: typing.Optional[typing.List[str]] = None,
+        top_level: bool = False,
+        uids: typing.List[str] = None,
     ) -> mlrun.api.schemas.model_endpoints.ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -442,13 +443,13 @@ class ModelEndpoints:
 
         # If list of model endpoint ids was not provided, retrieve it from the DB
         if uids is None:
-            uids = endpoint_target.get_endpoint_list(
+            uids = endpoint_target.list_model_endpoints(
                 function=function, model=model, labels=labels, top_level=top_level
             )
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
-            endpoint = endpoint_target.get_endpoint(
+            endpoint = endpoint_target.get_model_endpoint(
                 metrics=metrics,
                 endpoint_id=endpoint_id,
                 start=start,
@@ -479,7 +480,7 @@ class ModelEndpoints:
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
-            auto_info=auth_info,
+            auth_info=auth_info,
             tracking_policy=tracking_policy,
         )
         self.deploy_model_monitoring_batch_processing(
@@ -498,7 +499,7 @@ class ModelEndpoints:
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
-        endpoints = self.list_endpoints(auth_info, project_name)
+        endpoints = self.list_model_endpoints(auth_info, project_name)
         if endpoints.endpoints:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project_name} can not be deleted since related resources found: model endpoints"
@@ -519,7 +520,7 @@ class ModelEndpoints:
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
-        endpoints = self.list_endpoints(auth_info, project_name)
+        endpoints = self.list_model_endpoints(auth_info, project_name)
 
         endpoint_target = get_endpoint_target(
             access_key=auth_info.data_session, project=project_name
@@ -531,7 +532,7 @@ class ModelEndpoints:
         project: str,
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
-        auto_info: mlrun.api.schemas.AuthInfo,
+        auth_info: mlrun.api.schemas.AuthInfo,
         tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
@@ -542,7 +543,7 @@ class ModelEndpoints:
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auto_info:                   The auth info of the request.
+        :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
         """
 
@@ -570,7 +571,7 @@ class ModelEndpoints:
         )
 
         mlrun.api.api.endpoints.functions._build_function(
-            db_session=db_session, auth_info=auto_info, function=fn
+            db_session=db_session, auth_info=auth_info, function=fn
         )
 
     def deploy_model_monitoring_batch_processing(
@@ -671,30 +672,38 @@ class ModelEndpoints:
 
     @staticmethod
     def get_access_key(auth_info: mlrun.api.schemas.AuthInfo):
+        """
+        Getting access key from the current data session. This method is usually used to verify that the session
+        is valid and contains an access key.
+
+        param auth_info: The auth info of the request.
+
+        :return: Access key as a string.
+        """
         access_key = auth_info.data_session
         if not access_key:
             raise mlrun.errors.MLRunBadRequestError("Data session is missing")
         return access_key
 
     @staticmethod
-    def _get_batching_interval_param(intervals_list):
+    def _get_batching_interval_param(intervals_list: typing.List):
         """Converting each value in the intervals list into a float number. None
         Values will be converted into 0.0.
 
-        example::
-        Applying the function on a scheduling policy that is based on every hour exactly
-        _get_batching_interval_param(intervals_list=[0, '*/1', None])
-        The result will be: (0.0, 1.0, 0.0)
+        param intervals_list: A list of values based on the ScheduleCronTrigger expression. Note that at the moment
+                              it supports minutes, hours, and days. e.g. [0, '*/1', None] represents on the hour
+                              every hour.
 
+        :return: A tuple of:
+                 [0] = minutes interval as a float
+                 [1] = hours interval as a float
+                 [2] = days interval as a float
         """
-        return tuple(
-            map(
-                lambda element: 0.0
-                if isinstance(element, (float, int)) or element is None
-                else float(f"0{element.partition('/')[-1]}"),
-                intervals_list,
-            )
-        )
+        return tuple([
+            0.0 if isinstance(interval, (float, int)) or interval is None
+            else float(f"0{interval.partition('/')[-1]}")
+            for interval in intervals_list
+        ])
 
     @staticmethod
     def _convert_to_cron_string(cron_trigger):
@@ -704,12 +713,12 @@ class ModelEndpoints:
         ).replace("None", "*")
 
 
-class ModelEndpointStore(ABC):
+class _ModelEndpointStore(ABC):
     """
     An abstract class to handle the model endpoint in the DB target.
     """
 
-    def __init__(self, access_key, project):
+    def __init__(self, access_key: str, project: str):
         """
         Initialize a new model endpoint target.
 
@@ -720,31 +729,83 @@ class ModelEndpointStore(ABC):
         self.project = project
 
     @abstractmethod
-    def write_endpoint(self, endpoint):
+    def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
+        """
+        Create a new endpoint record in the DB table.
+
+        :param endpoint: ModelEndpoint object that will be written into the DB.
+        """
         pass
 
     @abstractmethod
-    def update_endpoint(self, endpoint_id, attributes):
+    def update_model_endpoint(self, endpoint_id: str, attributes: dict):
+        """
+        Update a model endpoint record with a given attributes.
+
+        :param endpoint_id: The unique id of the model endpoint.
+        :param attributes: Dictionary of attributes that will be used for update the model endpoint. Note that the keys
+                           of the attributes dictionary should exist in the KV table.
+
+        """
         pass
 
     @abstractmethod
-    def delete_endpoint(self, endpoint_id):
+    def delete_model_endpoint(self, endpoint_id: str):
+        """
+        Deletes the record of a given model endpoint id.
+
+        :param endpoint_id: The unique id of the model endpoint.
+        """
         pass
 
     @abstractmethod
-    def get_endpoint(
+    def get_model_endpoint(
         self,
-        metrics: typing.Optional[typing.List[str]] = None,
+        metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
         endpoint_id: str = None,
         raise_for_status=None,
-    ):
+    ) -> mlrun.api.schemas.ModelEndpoint:
+        """
+        Get a single model endpoint object. You can apply different time series metrics that will be added to the
+           result.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param start:            The start time of the metrics.
+        :param end:              The end time of the metrics.
+        :param metrics:          A list of metrics to return for the model endpoint. There are pre-defined metrics for
+                                 model endpoints such as predictions_per_second and latency_avg_5m but also custom
+                                 metrics defined by the user. Please note that these metrics are stored in the time
+                                 series DB and the results will be appeared under model_endpoint.spec.metrics.
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+                                 the output of the resulting object.
+        :param raise_for_status: Raise a specific error based on the given response status code.
+
+        :return: A ModelEndpoint object.
+        """
+        pass
+
+    def list_model_endpoints(self, model: str, function: str, labels: typing.List, top_level: bool):
+        """
+        Returns a list of endpoint unique ids, supports filtering by model, function,
+        labels or top level. By default, when no filters are applied, all available endpoint ids for the given project
+        will be listed.
+
+        :param model:           The name of the model to filter by.
+        :param function:        The name of the function to filter by.
+        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
+                                of a label (i.e. list("key==value")) or by looking for the existence of a given
+                                key (i.e. "key").
+        :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
+
+        :return: List of model endpoints unique ids.
+        """
         pass
 
 
-class ModelEndpointKVStore(ModelEndpointStore, ABC):
+class _ModelEndpointKVStore(_ModelEndpointStore):
     """
     Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
@@ -757,9 +818,9 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
             endpoint=mlrun.mlconf.v3io_api
         )
         # Get the KV table path and container
-        self.path, self.container = self._path_and_container()
+        self.path, self.container = self._get_path_and_container()
 
-    def write_endpoint(self, endpoint):
+    def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
         """
         Create a new endpoint record in the KV table.
 
@@ -777,7 +838,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
             attributes=attributes,
         )
 
-    def update_endpoint(self, endpoint_id: str, attributes: dict):
+    def update_model_endpoint(self, endpoint_id: str, attributes: dict):
         """
         Update a model endpoint record with a given attributes.
 
@@ -797,7 +858,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
 
         logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
-    def delete_endpoint(
+    def delete_model_endpoint(
         self,
         endpoint_id: str,
     ):
@@ -816,12 +877,12 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
-    def get_endpoint(
+    def get_model_endpoint(
         self,
         endpoint_id: str = None,
         start: str = "now-1h",
         end: str = "now",
-        metrics: typing.Optional[typing.List[str]] = None,
+        metrics: typing.List[str] = None,
         feature_analysis: bool = False,
         raise_for_status=v3io.dataplane.RaiseForStatus.never,
     ) -> mlrun.api.schemas.ModelEndpoint:
@@ -885,26 +946,26 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
             spec=mlrun.api.schemas.ModelEndpointSpec(
                 function_uri=endpoint.get("function_uri"),
                 model=endpoint.get("model"),
-                model_class=endpoint.get("model_class") or None,
-                model_uri=endpoint.get("model_uri") or None,
+                model_class=endpoint.get("model_class"),
+                model_uri=endpoint.get("model_uri"),
                 feature_names=feature_names or None,
                 label_names=label_names or None,
-                stream_path=endpoint.get("stream_path") or None,
-                algorithm=endpoint.get("algorithm") or None,
+                stream_path=endpoint.get("stream_path"),
+                algorithm=endpoint.get("algorithm"),
                 monitor_configuration=monitor_configuration or None,
-                active=endpoint.get("active") or None,
-                monitoring_mode=endpoint.get("monitoring_mode") or None,
+                active=endpoint.get("active"),
+                monitoring_mode=endpoint.get("monitoring_mode"),
             ),
             status=mlrun.api.schemas.ModelEndpointStatus(
-                state=endpoint.get("state") or None,
+                state=endpoint.get("state"),
                 feature_stats=feature_stats or None,
                 current_stats=current_stats or None,
                 children=children or None,
-                first_request=endpoint.get("first_request") or None,
-                last_request=endpoint.get("last_request") or None,
-                accuracy=endpoint.get("accuracy") or None,
-                error_count=endpoint.get("error_count") or None,
-                drift_status=endpoint.get("drift_status") or None,
+                first_request=endpoint.get("first_request"),
+                last_request=endpoint.get("last_request"),
+                accuracy=endpoint.get("accuracy"),
+                error_count=endpoint.get("error_count"),
+                drift_status=endpoint.get("drift_status"),
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
             ),
@@ -938,7 +999,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
 
         return endpoint_obj
 
-    def _path_and_container(self):
+    def _get_path_and_container(self):
         """Getting path and container based on the model monitoring configurations"""
         path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
             project=self.project,
@@ -951,7 +1012,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
         return path, container
 
-    def get_endpoint_list(self, model, function, labels, top_level):
+    def list_model_endpoints(self, model: str, function: str, labels: typing.List, top_level: bool):
         """
         Returns a list of endpoint unique ids, supports filtering by model, function,
         labels or top level. By default, when no filters are applied, all available endpoint ids for the given project
@@ -1004,40 +1065,29 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
 
         # Delete model endpoint record from KV table
         for endpoint in endpoints.endpoints:
-            self.delete_endpoint(
+            self.delete_model_endpoint(
                 endpoint.metadata.uid,
             )
 
         # Delete remain records in the KV
-        try:
-            all_records = self.client.kv.new_cursor(
+        all_records = self.client.kv.new_cursor(
+            container=self.container,
+            table_path=self.path,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            access_key=self.access_key,
+        ).all()
+
+        all_records = [r["__name"] for r in all_records]
+
+        # Cleanup KV
+        for record in all_records:
+            self.client.kv.delete(
                 container=self.container,
                 table_path=self.path,
-                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                key=record,
                 access_key=self.access_key,
-            ).all()
-
-            all_records = [r["__name"] for r in all_records]
-
-            # Cleanup KV
-            for record in all_records:
-                self.client.kv.delete(
-                    container=self.container,
-                    table_path=self.path,
-                    key=record,
-                    access_key=self.access_key,
-                    raise_for_status=v3io.dataplane.RaiseForStatus.never,
-                )
-        except RuntimeError as exc:
-            # KV might raise an exception even it was set not raise one.  exception is raised if path is empty or
-            # not exist, therefore ignoring failures until they'll fix the bug.
-            # TODO: remove try except after bug is fixed
-            logger.debug(
-                "Failed cleaning model endpoints KV. Ignoring",
-                exc=str(exc),
-                traceback=traceback.format_exc(),
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
-            pass
 
         # Cleanup TSDB
         frames = mlrun.utils.v3io_clients.get_frames_client(
@@ -1078,10 +1128,10 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
     @staticmethod
     def build_kv_cursor_filter_expression(
         project: str,
-        function: typing.Optional[str] = None,
-        model: typing.Optional[str] = None,
-        labels: typing.Optional[typing.List[str]] = None,
-        top_level: typing.Optional[bool] = False,
+        function: str = None,
+        model: str = None,
+        labels: typing.List[str] = None,
+        top_level: bool = False,
     ) -> str:
         """
         Convert the provided filters into a valid filter expression. The expected filter expression includes different
@@ -1133,7 +1183,7 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         return " AND ".join(filter_expression)
 
     @staticmethod
-    def get_params(endpoint):
+    def get_params(endpoint: mlrun.api.schemas.ModelEndpoint) -> typing.Dict:
         """
         Retrieving the relevant attributes from the model endpoint object.
 
@@ -1179,14 +1229,14 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         return attributes
 
     @staticmethod
-    def _json_loads_if_not_none(field: typing.Any):
+    def _json_loads_if_not_none(field: typing.Any)->typing.Any:
         return json.loads(field) if field is not None else None
 
     @staticmethod
     def get_endpoint_features(
         feature_names: typing.List[str],
-        feature_stats: typing.Optional[dict],
-        current_stats: typing.Optional[dict],
+        feature_stats: dict = None,
+        current_stats: dict = None,
     ) -> typing.List[mlrun.api.schemas.Features]:
         """
         Getting a new list of features that exist in feature_names along with their expected (feature_stats) and
@@ -1298,30 +1348,33 @@ class ModelEndpointKVStore(ModelEndpointStore, ABC):
         return metrics_mapping
 
 
-class ModelEndpointSQLStore(ModelEndpointStore, ABC):
+class _ModelEndpointSQLStore(_ModelEndpointStore):
     @abstractmethod
-    def write_endpoint(self, endpoint, update=True):
-        pass
+    def write_model_endpoint(self, endpoint, update=True):
+        raise NotImplementedError
 
     @abstractmethod
-    def update_endpoint(self, endpoint_id, attributes):
-        pass
+    def update_model_endpoint(self, endpoint_id, attributes):
+        raise NotImplementedError
 
     @abstractmethod
-    def delete_endpoint(self, endpoint_id):
-        pass
+    def delete_model_endpoint(self, endpoint_id):
+        raise NotImplementedError
 
     @abstractmethod
-    def get_endpoint(
+    def get_model_endpoint(
         self,
-        metrics: typing.Optional[typing.List[str]] = None,
+        metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
         endpoint_id: str = None,
         raise_for_status=None,
     ):
-        pass
+        raise NotImplementedError
+
+    def list_model_endpoints(self, model: str, function: str, labels: typing.List, top_level: bool):
+        raise NotImplementedError
 
 
 def get_endpoint_target(project, access_key):
@@ -1334,6 +1387,6 @@ def get_endpoint_target(project, access_key):
              model endpoint record such as write, update, get and delete.
     """
     if mlrun.mlconf.model_endpoint_monitoring.store_type == "kv":
-        return ModelEndpointKVStore(project=project, access_key=access_key)
+        return _ModelEndpointKVStore(project=project, access_key=access_key)
     else:
-        return ModelEndpointSQLStore(project=project, access_key=access_key)
+        return _ModelEndpointSQLStore(project=project, access_key=access_key)

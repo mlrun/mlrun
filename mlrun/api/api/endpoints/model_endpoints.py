@@ -56,11 +56,11 @@ def create_model_endpoint(
     :return: Starlette response object.
     """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.store,
-        auth_info,
+        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.api.schemas.AuthorizationAction.store,
+        auth_info=auth_info,
     )
     # get_access_key will validate the needed auth (which is used later) exists in the request
     mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
@@ -74,7 +74,7 @@ def create_model_endpoint(
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
 
-    mlrun.api.crud.ModelEndpoints().create(
+    mlrun.api.crud.ModelEndpoints().create_model_endpoint(
         db_session=db_session,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
@@ -107,17 +107,17 @@ def patch_model_endpoint(
     :return: Starlette response object.
     """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.store,
-        auth_info,
+        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.api.schemas.AuthorizationAction.update,
+        auth_info=auth_info,
     )
 
     # get_access_key will validate the needed auth (which is used later) exists in the request
     mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
 
-    mlrun.api.crud.ModelEndpoints().patch(
+    mlrun.api.crud.ModelEndpoints().patch_model_endpoint(
         project=project,
         endpoint_id=endpoint_id,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
@@ -148,14 +148,17 @@ def delete_endpoint_record(
     """
 
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.api.schemas.AuthorizationAction.delete,
-        auth_info,
+        resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project_name=project,
+        resource_name=endpoint_id,
+        action=mlrun.api.schemas.AuthorizationAction.delete,
+        auth_info=auth_info,
     )
 
-    mlrun.api.crud.ModelEndpoints().delete(
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+
+    mlrun.api.crud.ModelEndpoints().delete_model_endpoint(
         project=project,
         endpoint_id=endpoint_id,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
@@ -164,7 +167,7 @@ def delete_endpoint_record(
 
 
 @router.get("/projects/{project}/model-endpoints", response_model=ModelEndpointList)
-def list_endpoints(
+def list_model_endpoints(
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
@@ -217,12 +220,12 @@ def list_endpoints(
     """
 
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-        project,
-        mlrun.api.schemas.AuthorizationAction.read,
-        auth_info,
+        project_name=project,
+        action=mlrun.api.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
     )
 
-    endpoints = mlrun.api.crud.ModelEndpoints().list_endpoints(
+    endpoints = mlrun.api.crud.ModelEndpoints().list_model_endpoints(
         auth_info=auth_info,
         project=project,
         model=model,
@@ -251,7 +254,7 @@ def list_endpoints(
 @router.get(
     "/projects/{project}/model-endpoints/{endpoint_id}", response_model=ModelEndpoint
 )
-def get_endpoint(
+def get_model_endpoint(
     project: str,
     endpoint_id: str,
     start: str = Query(default="now-1h"),
@@ -288,7 +291,7 @@ def get_endpoint(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.crud.ModelEndpoints().get_endpoint(
+    return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,

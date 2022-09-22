@@ -586,15 +586,12 @@ class SQLDB(DBInterface):
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
 
-        query = session.query(Artifact)
-        filters = [Artifact.key == key]
-        if project:
-            filters.append(Artifact.project == project)
+        query = session.query(Artifact).filter(
+            Artifact.key == key, Artifact.project == project
+        )
         if tag:
-            filters.append(Artifact.Tag.name == tag)
-            query = query.join(Artifact.Tag)
+            query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag)
 
-        query = query.filter(*filters)
         objects_deleted = False
         for artifact in query:
             objects_deleted = True

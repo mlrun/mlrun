@@ -36,5 +36,3 @@
    api/index
    cli
    glossary
-
-  

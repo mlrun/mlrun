@@ -78,11 +78,3 @@ offline implementation for the feature vectors, with data versioning both in ter
 point, and the offline datasets that were created to train each model.
 
 See more information in {ref}`training with the feature store <retrieve-offline-data>` and {ref}`training-serving`.
-
-**Further Reading**
-
-```{contents}
-feature-sets
-feature-vectors
-./end-to-end-demo/index
-```

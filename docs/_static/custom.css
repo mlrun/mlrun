@@ -1,3 +1,6 @@
 body {
   --sd-color-card-background: #eff4f7;
 }
+div.navbar-brand-box {
+	padding-top: 1em !important; 
+}

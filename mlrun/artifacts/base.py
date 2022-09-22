@@ -17,7 +17,6 @@ import tempfile
 import typing
 import warnings
 import zipfile
-from typing import Union
 
 import yaml
 
@@ -1278,52 +1277,19 @@ def get_artifact_meta(artifact):
     return artifact_spec, extra_dataitems
 
 
-def generate_target_path(
-    item: Union[Artifact, LegacyArtifact], artifact_path: str, producer
-):
-    # path convention: artifact_path[/{run_name}]/{iter}/src_path/{key}.{suffix}
-    if isinstance(item, Artifact):
-        metadata_iter = item.metadata.iter
-        metadata_key = item.metadata.key
-        spec_src_path = item.spec.src_path
-        spec_format = item.spec.format
-    else:  # LegacyArtifact
-        metadata_iter = item.iter
-        metadata_key = item.key
-        spec_src_path = item.src_path
-        spec_format = item.format
-
+def generate_target_path(item: Artifact, artifact_path, producer):
+    # path convention: artifact_path[/{run_name}]/{iter}/{key}.{suffix}
     # todo: add run_id here (vs in the .run() methods), support items dedup (by hash)
     artifact_path = artifact_path or ""
     if artifact_path and not artifact_path.endswith("/"):
         artifact_path += "/"
     if producer.kind == "run":
-        artifact_path += f"{producer.name}/{metadata_iter or 0}/"
+        artifact_path += f"{producer.name}/{item.iter or 0}/"
 
-    # Set the file name to be the key by default:
-    file_name = metadata_key
-    suffix = ""  # Should start with a '.'
-    if spec_src_path:
-        path_components = spec_src_path.split("/")
-        # Check if the `src_path` is starting with a '/':
-        if path_components[0] == "":
-            path_components.pop(0)
-        # If the `src_path` contained directories, append them to the artifact path:
-        if len(path_components) > 1:
-            artifact_path += "/".join(path_components[:-1])
-            artifact_path += "/"
-        # If the file name was specified in the `src_path`, take it as the file name instead of the key. Otherwise,
-        # append it to the artifact path as well:
-        if "." in path_components[-1]:
-            file_name, suffix = os.path.splitext(path_components[-1])
-        else:
-            artifact_path += f"{path_components[-1]}/"
+    suffix = "/"
+    if not item.is_dir:
+        suffix = os.path.splitext(item.src_path or "")[1]
+        if not suffix and item.format:
+            suffix = f".{item.format}"
 
-    # Discover the suffix in case the item is not a directory:
-    if item.is_dir:
-        suffix = "/"
-    # If the suffix was not given in the `src_path`, try getting it from the spec format:
-    elif suffix == "" and spec_format:
-        suffix = f".{spec_format}"
-
-    return f"{artifact_path}{file_name}{suffix}"
+    return f"{artifact_path}{item.key}{suffix}"

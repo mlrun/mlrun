@@ -105,21 +105,21 @@ def test_generate_target_path():
             Artifact("k3", src_path="model.pkl"),
             0,
             FakeProducer("j1"),
-            "j1/0/model.pkl",
+            "j1/0/k3.pkl",
         ),
         (
             "x",
             Artifact("k4", src_path="a.b"),
             None,
             FakeProducer(kind="project"),
-            "x/a.b",
+            "x/k4.b",
         ),
         (
             "",
             Model("k5", model_dir="y", model_file="model.pkl"),
             0,
             FakeProducer("j1"),
-            "j1/0/y/k5/",
+            "j1/0/k5/",
         ),
         (
             "x",
@@ -127,27 +127,6 @@ def test_generate_target_path():
             None,
             FakeProducer(kind="project"),
             "x/k6/",
-        ),
-        (
-            "x",
-            Artifact("k1", src_path="my/local/path"),
-            None,
-            FakeProducer("j1"),
-            "x/j1/0/my/local/path/k1",
-        ),
-        (
-            "x",
-            Artifact("k1", src_path="my/local/file.txt"),
-            None,
-            FakeProducer("j1"),
-            "x/j1/0/my/local/file.txt",
-        ),
-        (
-            "x",
-            Artifact("k1", src_path="my/local/path", format="h5"),
-            None,
-            FakeProducer("j1"),
-            "x/j1/0/my/local/path/k1.h5",
         ),
     ]
     for artifact_path, artifact, iter, producer, expected in cases:

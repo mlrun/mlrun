@@ -44,6 +44,7 @@ common function methods:
 
 **In this section**
 ```{toctree}
+:hidden:
 :maxdepth: 1
 
 ../runtimes/dask-overview

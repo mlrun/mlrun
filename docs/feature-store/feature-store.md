@@ -86,8 +86,6 @@ point, and the offline datasets that were created to train each model.
 ## Further reading
 
 For more information, see: 
-- {ref}`create-use-feature-vectors`
-- {ref}`feature-store-data-ingestion`
 - {ref}`training-fs`
 - {ref}`training-serving`
 - {ref}`basic-demo`
@@ -98,7 +96,7 @@ For more information, see:
 ```{toctree}
 :maxdepth: 1
 
-fsets-ingest-transform
+feature-sets
 feature-vectors
 ./end-to-end-demo/index
 ```

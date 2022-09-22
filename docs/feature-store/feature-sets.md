@@ -23,7 +23,7 @@ The feature set object contains the following information:
 - [Ingest data into the Feature Store](#ingest-data-into-the-feature-store)
   
    
-## Create a Feature Set
+## Create a feature set
 
 Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 

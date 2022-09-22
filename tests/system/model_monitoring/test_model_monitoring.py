@@ -582,6 +582,17 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             model_endpoint.status.monitoring_feature_set_uri
         )
 
+        monitoring_feature_set = mlrun.feature_store.get_feature_set(
+            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
+        )
+
+        # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version
+        # tag from the feature set URI)
+        assert (
+            model_endpoint.status.monitoring_feature_set_uri
+            == monitoring_feature_set.uri.replace(":latest", "")
+        )
+
     @staticmethod
     def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
         return mlrun.api.schemas.AuthInfo(

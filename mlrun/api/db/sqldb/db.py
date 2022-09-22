@@ -367,6 +367,10 @@ class SQLDB(DBInterface):
                 name=identifier.name,
                 kind=identifier.kind,
                 iter=identifier.iter,
+                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
+                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+                # list_artifacts method (_resolve_tag)
+                tag=identifier.uid,
                 as_records=True,
             )
         # TODO remove duplicates artifacts entries
@@ -393,6 +397,10 @@ class SQLDB(DBInterface):
                 name=identifier.name,
                 kind=identifier.kind,
                 iter=identifier.iter,
+                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
+                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+                # list_artifacts method (_resolve_tag)
+                tag=identifier.uid,
                 as_records=True,
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
@@ -413,6 +421,10 @@ class SQLDB(DBInterface):
                 name=identifier.name,
                 kind=identifier.kind,
                 iter=identifier.iter,
+                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
+                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+                # list_artifacts method (_resolve_tag)
+                tag=identifier.uid,
                 as_records=True,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])

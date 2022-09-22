@@ -51,6 +51,7 @@ class ArtifactIdentifier(pydantic.BaseModel):
     # name actually maps to key in the DB (_find_artifacts for reference), should we rename it?
     name: typing.Optional[str]
     iter: typing.Optional[str]
+    uid: typing.Optional[str]
     # TODO support more identifiers like below
     # uid: typing.Optional[str]
     # hash: typing.Optional[str]

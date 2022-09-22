@@ -69,6 +69,83 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["name"] == artifact1_name
 
+    def test_overwrite_artifact_tags_by_uid_identifier(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        self._create_project(client)
+
+        tag = "tag1"
+        overwrite_tag = "tag2"
+        _, _, artifact1_name, artifact1_uid, _, _, _ = self._store_artifact(
+            client,
+            tag=tag,
+        )
+        _, _, artifact2_name, artifact2_uid, _, _, _ = self._store_artifact(
+            client, tag=tag
+        )
+
+        response = client.post(
+            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
+            json={
+                "kind": "artifact",
+                "identifiers": [
+                    {
+                        "uid": artifact1_uid,
+                    },
+                ],
+            },
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["name"] == artifact2_name
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=overwrite_tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["name"] == artifact1_name
+
+    def test_overwrite_artifact_tags_by_multiple_uid_identifiers(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        self._create_project(client)
+
+        tag = "tag1"
+        overwrite_tag = "tag2"
+        _, _, artifact1_name, artifact1_uid, _, _, _ = self._store_artifact(
+            client,
+            tag=tag,
+        )
+        _, _, artifact2_name, artifact2_uid, _, _, _ = self._store_artifact(
+            client, tag=tag
+        )
+
+        response = client.post(
+            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
+            json={
+                "kind": "artifact",
+                "identifiers": [
+                    {
+                        "uid": artifact1_uid,
+                    },
+                    {
+                        "uid": artifact2_uid,
+                    },
+                ],
+            },
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+
+        self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=overwrite_tag, expected_number_of_artifacts=2
+        )
+        for artifact in response_body["artifacts"]:
+            assert artifact["name"] in [artifact1_name, artifact2_name]
+
     def test_overwrite_artifact_tags_by_multiple_name_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
@@ -130,6 +207,45 @@ class TestArtifactTags:
                 "identifiers": [
                     {
                         "name": artifact1_key,
+                    },
+                ],
+            },
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=2
+        )
+        for artifact in response_body["artifacts"]:
+            assert artifact["name"] in [artifact1_name, artifact2_name]
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["name"] == artifact1_name
+
+    def test_append_artifact_tags_by_uid_identifier(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        self._create_project(client)
+
+        tag = "tag1"
+        new_tag = "tag2"
+        _, _, artifact1_name, artifact1_uid, _, _, _ = self._store_artifact(
+            client,
+            tag=tag,
+        )
+        _, _, artifact2_name, artifact2_uid, _, _, _ = self._store_artifact(
+            client, tag=tag
+        )
+
+        response = client.put(
+            API_TAGS_PATH.format(project=self.project, tag=new_tag),
+            json={
+                "kind": "artifact",
+                "identifiers": [
+                    {
+                        "uid": artifact1_uid,
                     },
                 ],
             },
@@ -244,6 +360,37 @@ class TestArtifactTags:
                 "identifiers": [
                     {
                         "name": artifact1_key,
+                    },
+                ],
+            },
+        )
+        assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["name"] == artifact2_name
+
+    def test_delete_artifact_tag_by_uid_identifier(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        self._create_project(client)
+
+        tag = "tag1"
+        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
+        _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
+            client, tag=tag
+        )
+
+        response = client.delete(
+            API_TAGS_PATH.format(project=self.project, tag=tag),
+            json={
+                "kind": "artifact",
+                "identifiers": [
+                    {
+                        "uid": artifact1_uid,
                     },
                 ],
             },

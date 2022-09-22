@@ -1121,6 +1121,7 @@ def _assert_db_resources_in_project(
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
             or cls.__name__ == "Log"
+            or cls.__name__ == "NotificationConfig"
             or (
                 cls.__tablename__ == "projects_labels"
                 and project_member_mode == "follower"

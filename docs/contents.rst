@@ -13,7 +13,7 @@
       
    projects/project
    runtimes/serverless-functions
-   data/data-feature-store
+   concepts/data-feature-store
    feature-store/feature-store
    projects/workflows
    serving/serving-graph

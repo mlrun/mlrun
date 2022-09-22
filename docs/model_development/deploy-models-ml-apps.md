@@ -6,8 +6,8 @@
 ```{toctree}
 :maxdepth: 1
 
-serving/serving-overview
-serving/online-model-serving-classes
-feature-store/training-serving
-serving/canary
+../serving/serving-overview
+../serving/online-model-serving-classes
+../feature-store/training-serving
+../serving/canary
 ```

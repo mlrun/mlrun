@@ -586,19 +586,29 @@ class SQLDB(DBInterface):
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
 
+        query = session.query(Artifact)
+        filters = [Artifact.key == key]
+        if project:
+            filters.append(Artifact.project == project)
+        if tag:
+            filters.append(Artifact.Tag.name == tag)
+            query = query.join(Artifact.Tag)
+
+        query = query.filter(*filters)
+        objects_deleted = False
+        for artifact in query:
+            objects_deleted = True
+            session.delete(artifact)
+
+        if not objects_deleted:
+            return
+
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_artifact_tags(session, project, key, tag, commit=False)
         self._delete_class_labels(
             session, Artifact, project=project, key=key, commit=False
         )
-        kw = {
-            "key": key,
-            "project": project,
-        }
-        if tag:
-            kw["tag"] = tag
-
-        self._delete(session, Artifact, **kw)
+        session.commit()
 
     def _delete_artifact_tags(
         self, session, project, artifact_key, tag_name="", commit=True

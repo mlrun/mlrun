@@ -17,7 +17,6 @@ import builtins
 import unittest.mock
 
 import aiohttp
-
 import pytest
 import tabulate
 
@@ -229,5 +228,7 @@ async def test_git_notification(monkeypatch, params, expected_url, expected_head
     await git_notification.send("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
-        expected_url, headers=expected_headers, json={"body": expected_body},
+        expected_url,
+        headers=expected_headers,
+        json={"body": expected_body},
     )

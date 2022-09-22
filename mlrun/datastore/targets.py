@@ -759,14 +759,11 @@ class ParquetTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        if partition_cols:
-            df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
-        else:
-            with fs.open(target_path, "wb") as fp:
-                # In order to save the DataFrame in parquet format, all of the column names must be strings:
-                df.columns = [str(column) for column in df.columns.tolist()]
-                # Save to parquet:
-                df.to_parquet(fp, **kwargs)
+        if partition_cols is None:
+            partition_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
+        # In order to save the DataFrame in parquet format, all of the column names must be strings:
+        df.columns = [str(column) for column in df.columns.tolist()]
+        df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

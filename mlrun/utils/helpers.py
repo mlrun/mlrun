@@ -1067,15 +1067,16 @@ def is_legacy_artifact(artifact):
 
 
 def get_in_artifact(artifact, key, default=None):
+    """ artifact can be dict or Artifact object """
     if is_legacy_artifact(artifact):
-        return artifact.get(key, default)
+        return getattr(artifact, key, default)
     else:
         if hasattr(artifact.metadata, key):
-            return artifact.metadata.key or default
+            return getattr(artifact.metadata, key, default)
         if hasattr(artifact.spec, key):
-            return artifact.spec.key or default
+            return getattr(artifact.spec, key, default)
         if hasattr(artifact.status, key):
-            return artifact.status.key or default
+            return getattr(artifact.status, key, default)
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"invalid artifact couldn't get key {key} in {artifact}"
         )

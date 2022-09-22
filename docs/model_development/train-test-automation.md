@@ -6,5 +6,5 @@
 ```{toctree}
 :maxdepth: 1
 
-..feature-store/retrieve-offline-data
+../feature-store/retrieve-offline-data
 ```

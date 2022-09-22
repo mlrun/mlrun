@@ -76,14 +76,14 @@ The training job automatically generates a set of results and versioned artifact
 
 For serving, once you validate the feature vector, use the **online** feature service, based on the 
 nosql target defined in the feature set for real-time serving. For serving, you define a serving class derived from 
-`mlrun.serving.V2ModelServer`. In the class `load` method call the `get_online_feature_service` function with the vector name, which returns 
+`mlrun.serving.V2ModelServer`. In the class `load` method, call the `get_online_feature_service` function with the vector name, which returns 
 a feature service object. In the class `preprocess` method, call the feature service `get` method to get the values of those features.
 
 Using this feature store centric process, using one computation graph definition for a feature set, you receive an automatic online and 
 offline implementation for the feature vectors, with data versioning both in terms of the actual graph that was used to calculate each data 
 point, and the offline datasets that were created to train each model.
 
-See more information in {ref}`training-fs` and {ref}`training-serving`.
+See more information in {ref}`training with the feature store <retrieve-offline-data>` and {ref}`training-serving`.
 
 **In this section**
 

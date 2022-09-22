@@ -25,16 +25,8 @@
    
    data-collect-prep/ingest-process-data
    model_development/continuous-model-development
-       
-.. toctree::
-   :maxdepth: 1
-   :caption: Deploy models and ML applications / online pipelines
-   
-   serving/serving-overview
-   serving/online-model-serving-classes
-   feature-store/training-serving
-   serving/canary
-  
+   model_development/deploy-models-ml-apps
+     
 .. toctree::
    :maxdepth: 1
    :caption: Model and data monitoring

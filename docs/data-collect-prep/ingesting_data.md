@@ -1,10 +1,9 @@
 (ingesting_data)=
-# Ingesting data
+# Using data sources and items
 
-MLRun provides a set of tools and capabilities to streamline the task of data ingestion and processing. For an 
-end-to-end framework for data processing, management, and serving, MLRun has the feature-store capabilities, which are
-described in {ref}`feature-store`. However, in many cases the full feature-store capabilities are 
-not needed, in which cases MLRun provides a set of utilities to facilitate data ingestion, collection and processing.
+**In this section**
+- [Connecting to data sources](#connecting-to-data-sources)
+- [Data processing](#data-processing)
 
 ## Connecting to data sources
 Accessing data from multiple source types is possible through MLRun's `DataItem` object. This object plugs into the 

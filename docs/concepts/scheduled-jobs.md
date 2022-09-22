@@ -1,5 +1,5 @@
 (scheduled-jobs)=
-# Scheduled jobs
+# Scheduled jobs and workflows
 
 Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 

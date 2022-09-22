@@ -6,12 +6,13 @@ authentication mechanisms across types and providers.
 
 Working with the abstractions enable you to securely access different data sources through a single API, many continuance methods (e.g. to/from DataFrame, get, download, list, ..), automated data movement, and versioning.
 
-MLRun provides three main abstractions to access structured and unstructured data:
+MLRun provides these main abstractions to access structured and unstructured data:
 
 **In this section**
 ```{toctree}
 :maxdepth: 1
 
+../store/datastore
 data-items
 ../store/artifacts
 ```

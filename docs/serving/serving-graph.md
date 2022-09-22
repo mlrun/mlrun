@@ -1,4 +1,4 @@
-(serving)=
+(serving-graph)=
 # Online serving pipelines (graphs)
 
 MLRun graphs enable building and running DAGs (directed acyclic graph). 

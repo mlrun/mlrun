@@ -12,7 +12,7 @@
    :caption: Core components
       
    projects/project
-   runtimes/serverless-functions
+   runtimes/functions
    concepts/data-feature-store
    feature-store/feature-store
    projects/workflows
@@ -25,14 +25,9 @@
    
    data-collect-prep/ingest-process-data
    model_development/continuous-model-development
-   model_development/deploy-models-ml-apps
-     
-.. toctree::
-   :maxdepth: 1
-   :caption: Model and data monitoring
-
+   serving/serving-overview
    model_monitoring/initial-setup-configuration
-  
+     
 .. toctree::
    :maxdepth: 1
    :caption: References

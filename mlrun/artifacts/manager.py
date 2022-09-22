@@ -13,7 +13,6 @@
 # limitations under the License.
 import pathlib
 from os.path import isdir
-from typing import Union
 
 import mlrun.config
 
@@ -129,7 +128,7 @@ class ArtifactManager:
     def log_artifact(
         self,
         producer,
-        item: Union[str, Artifact],
+        item,
         body=None,
         target_path="",
         tag="",
@@ -149,14 +148,14 @@ class ArtifactManager:
             else:
                 item = Artifact(key, body, **kwargs)
         else:
-            key = item.metadata.key
-            target_path = target_path or item.spec.target_path
+            key = item.key
+            target_path = target_path or item.target_path
 
-        src_path = local_path or item.spec.src_path  # TODO: remove src_path
+        src_path = local_path or item.src_path  # TODO: remove src_path
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
-        item.spec.format = format or item.spec.format
-        item.spec.src_path = src_path
+        item.format = format or item.format
+        item.src_path = src_path
 
         if db_key is None:
             # set the default artifact db key
@@ -164,21 +163,19 @@ class ArtifactManager:
                 db_key = producer.name + "_" + key
             else:
                 db_key = key
-        item.spec.db_key = db_key if db_key else ""
-        item.spec.viewer = viewer or item.spec.viewer
-        item.metadata.tree = producer.tag
-        item.metadata.tag = tag or item.metadata.tag
+        item.db_key = db_key if db_key else ""
+        item.viewer = viewer or item.viewer
+        item.tree = producer.tag
+        item.tag = tag or item.tag
 
-        item.spec.producer = producer.get_meta()
-        item.metadata.labels = labels or item.metadata.labels
+        item.producer = producer.get_meta()
+        item.labels = labels or item.labels
         # if running as part of a workflow, enrich artifact with workflow uid label
-        if item.spec.producer.get("workflow"):
-            item.metadata.labels.update(
-                {"workflow-id": item.spec.producer.get("workflow")}
-            )
+        if item.producer.get("workflow"):
+            item.labels.update({"workflow-id": item.producer.get("workflow")})
 
-        item.metadata.iter = producer.iteration
-        item.metadata.project = producer.project
+        item.iter = producer.iteration
+        item.project = producer.project
 
         if target_path:
             if is_relative_path(target_path):
@@ -204,7 +201,7 @@ class ArtifactManager:
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
 
-        item.spec.target_path = target_path
+        item.target_path = target_path
 
         item.before_log()
         self.artifacts[key] = item
@@ -214,10 +211,10 @@ class ArtifactManager:
 
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)
-        size = str(item.spec.size) or "?"
+        size = str(item.size) or "?"
         db_str = "Y" if (self.artifact_db and db_key) else "N"
         logger.debug(
-            f"log artifact {key} at {item.spec.target_path}, size: {size}, db: {db_str}"
+            f"log artifact {key} at {item.target_path}, size: {size}, db: {db_str}"
         )
         return item
 

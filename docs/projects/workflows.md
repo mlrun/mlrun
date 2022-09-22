@@ -20,10 +20,10 @@ Refer to the **{ref}`tutorial`** for complete examples.
 ```{toctree}
 :maxdepth: 1
 
-../workflows/workflow-overview
-../workflows/mlrun-execution-context
-../workflows/submitting-tasks-jobs-to-functions
+../concepts/workflow-overview
+../concepts/mlrun-execution-context
+../concepts/submitting-tasks-jobs-to-functions
 <!-- ../runtimes/run-multistage-workflows -->
-../workflows/scheduled-jobs
-../workflows/model-training
+../concepts/scheduled-jobs
+../concepts/model-training
 ```

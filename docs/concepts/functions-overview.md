@@ -1,5 +1,5 @@
 (function_runtimes)=
-# Function `kind`s
+# Kinds of functions
 
 When you create an MLRun function you need to specify a runtime kind (e.g. `kind='job'`). Each runtime supports 
 its own specific attributes (e.g. Jars for Spark, Triggers for Nuclio, Auto-scaling for Dask, etc.).
@@ -55,7 +55,7 @@ handle the orchestration and monitoring of the distributed task.
 ```{toctree}
 :maxdepth: 1
 
-dask-overview
-horovod
-spark-operator
+../runtimes/dask-overview
+../runtimes/horovod
+../runtimes/spark-operator
 ```

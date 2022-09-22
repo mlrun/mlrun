@@ -5,12 +5,12 @@
 :maxdepth: 1
 
 functions
-functions-overview
+../concepts/functions-overview
 mlrun_code_annotations
 code-archive
 function-storage
 images
-node-affinity
+../concepts/node-affinity
 configuring-job-resources
 load-from-marketplace
 ```

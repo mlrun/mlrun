@@ -14,6 +14,7 @@
 #
 import http
 import json
+import typing
 import uuid
 
 import fastapi.testclient
@@ -31,7 +32,7 @@ STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/" + "{uid}/{key}?tag={tag}"
 class TestArtifactTags:
     project = "test-project"
 
-    def test_overwrite_artifact_tags_by_name_identifier(
+    def test_overwrite_artifact_tags_by_key_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
@@ -46,16 +47,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.post(
-            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                ],
-            },
+        response = self._overwrite_artifact_tags(
+            client=client,
+            tag=overwrite_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -84,16 +81,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.post(
-            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "uid": artifact1_uid,
-                    },
-                ],
-            },
+        response = self._overwrite_artifact_tags(
+            client=client,
+            tag=overwrite_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -122,19 +115,13 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.post(
-            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "uid": artifact1_uid,
-                    },
-                    {
-                        "uid": artifact2_uid,
-                    },
-                ],
-            },
+        response = self._overwrite_artifact_tags(
+            client=client,
+            tag=overwrite_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+                mlrun.api.schemas.ArtifactIdentifier(uid=artifact2_uid),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -146,7 +133,7 @@ class TestArtifactTags:
         for artifact in response_body["artifacts"]:
             assert artifact["name"] in [artifact1_name, artifact2_name]
 
-    def test_overwrite_artifact_tags_by_multiple_name_identifiers(
+    def test_overwrite_artifact_tags_by_multiple_key_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
@@ -161,19 +148,13 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.post(
-            API_TAGS_PATH.format(project=self.project, tag=overwrite_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                    {
-                        "name": artifact2_key,
-                    },
-                ],
-            },
+        response = self._overwrite_artifact_tags(
+            client=client,
+            tag=overwrite_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -185,7 +166,7 @@ class TestArtifactTags:
         for artifact in response_body["artifacts"]:
             assert artifact["name"] in [artifact1_name, artifact2_name]
 
-    def test_append_artifact_tags_by_name_identifier(
+    def test_append_artifact_tags_by_key_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
@@ -200,16 +181,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.put(
-            API_TAGS_PATH.format(project=self.project, tag=new_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                ],
-            },
+        response = self._append_artifact_tag(
+            client=client,
+            tag=new_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -239,16 +216,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.put(
-            API_TAGS_PATH.format(project=self.project, tag=new_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "uid": artifact1_uid,
-                    },
-                ],
-            },
+        response = self._append_artifact_tag(
+            client=client,
+            tag=new_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -263,7 +236,7 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["name"] == artifact1_name
 
-    def test_append_artifact_tags_by_multiple_name_identifiers(
+    def test_append_artifact_tags_by_multiple_key_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
@@ -278,19 +251,13 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.put(
-            API_TAGS_PATH.format(project=self.project, tag=new_tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                    {
-                        "name": artifact2_key,
-                    },
-                ],
-            },
+        response = self._append_artifact_tag(
+            client=client,
+            tag=new_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -320,16 +287,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.put(
-            API_TAGS_PATH.format(project=self.project, tag=tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                ],
-            },
+        response = self._append_artifact_tag(
+            client=client,
+            tag=tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
 
@@ -339,7 +302,7 @@ class TestArtifactTags:
         for artifact in response_body["artifacts"]:
             assert artifact["name"] in [artifact1_name, artifact2_name]
 
-    def test_delete_artifact_tag_by_name_identifier(
+    def test_delete_artifact_tag_by_key_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
@@ -353,16 +316,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.delete(
-            API_TAGS_PATH.format(project=self.project, tag=tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                ],
-            },
+        response = self._delete_artifact_tag(
+            client=client,
+            tag=tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
@@ -384,16 +343,12 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.delete(
-            API_TAGS_PATH.format(project=self.project, tag=tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "uid": artifact1_uid,
-                    },
-                ],
-            },
+        response = self._delete_artifact_tag(
+            client=client,
+            tag=tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(uid=artifact1_uid),
+            ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
@@ -402,7 +357,7 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["name"] == artifact2_name
 
-    def test_delete_artifact_tag_by_multiple_name_identifiers(
+    def test_delete_artifact_tag_by_multiple_key_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         self._create_project(client)
@@ -416,19 +371,13 @@ class TestArtifactTags:
             client, tag=tag
         )
 
-        response = client.delete(
-            API_TAGS_PATH.format(project=self.project, tag=tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                    {
-                        "name": artifact2_key,
-                    },
-                ],
-            },
+        response = self._delete_artifact_tag(
+            client=client,
+            tag=tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
@@ -450,23 +399,77 @@ class TestArtifactTags:
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
 
-        response = client.delete(
-            API_TAGS_PATH.format(project=self.project, tag=tag),
-            json={
-                "kind": "artifact",
-                "identifiers": [
-                    {
-                        "name": artifact1_key,
-                    },
-                    {
-                        "name": artifact2_key,
-                    },
-                ],
-            },
+        response = self._delete_artifact_tag(
+            client=client,
+            tag=tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact1_key),
+                mlrun.api.schemas.ArtifactIdentifier(key=artifact2_key),
+            ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
         self._list_artifacts_and_assert(client, tag=tag, expected_number_of_artifacts=0)
+
+    def _delete_artifact_tag(
+        self,
+        client,
+        tag: str,
+        identifiers: typing.List[
+            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+        ],
+        project: str = None,
+    ):
+        return client.delete(
+            API_TAGS_PATH.format(project=project or self.project, tag=tag),
+            json=self._generate_tag_identifiers_json(identifiers=identifiers),
+        )
+
+    def _append_artifact_tag(
+        self,
+        client,
+        tag: str,
+        identifiers: typing.List[
+            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+        ],
+        project: str = None,
+    ):
+        return client.put(
+            API_TAGS_PATH.format(project=project or self.project, tag=tag),
+            json=self._generate_tag_identifiers_json(identifiers=identifiers),
+        )
+
+    def _overwrite_artifact_tags(
+        self,
+        client,
+        tag: str,
+        identifiers: typing.List[
+            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+        ],
+        project: str = None,
+    ):
+        return client.post(
+            API_TAGS_PATH.format(project=project or self.project, tag=tag),
+            json=self._generate_tag_identifiers_json(identifiers=identifiers),
+        )
+
+    @staticmethod
+    def _generate_tag_identifiers_json(
+        identifiers: typing.List[
+            typing.Union[typing.Dict, mlrun.api.schemas.ArtifactIdentifier]
+        ],
+    ):
+        return {
+            "kind": "artifact",
+            "identifiers": [
+                (
+                    identifier.dict()
+                    if isinstance(identifier, mlrun.api.schemas.ArtifactIdentifier)
+                    else identifier
+                )
+                for identifier in identifiers
+            ],
+        }
 
     def _list_artifacts_and_assert(
         self,

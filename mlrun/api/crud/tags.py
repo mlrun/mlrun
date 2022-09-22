@@ -23,7 +23,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 
-kind_to_function = {
+kind_to_function_names = {
     "artifact": {
         "overwrite": mlrun.api.db.sqldb.db.SQLDB.overwrite_artifacts_with_tag.__name__,
         "append": mlrun.api.db.sqldb.db.SQLDB.append_tag_to_artifacts.__name__,
@@ -42,7 +42,9 @@ class Tags(
         tag: str,
         tag_objects: mlrun.api.schemas.TagObjects,
     ):
-        overwrite_func = kind_to_function.get(tag_objects.kind, {}).get("overwrite")
+        overwrite_func = kind_to_function_names.get(tag_objects.kind, {}).get(
+            "overwrite"
+        )
         if not overwrite_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find overwrite function for object kind: {tag_objects.kind}"
@@ -61,7 +63,7 @@ class Tags(
         tag: str,
         tag_objects: mlrun.api.schemas.TagObjects,
     ):
-        append_func = kind_to_function.get(tag_objects.kind, {}).get("append")
+        append_func = kind_to_function_names.get(tag_objects.kind, {}).get("append")
         if not append_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find append function for object kind: {tag_objects.kind}"
@@ -80,7 +82,7 @@ class Tags(
         tag: str,
         tag_objects: mlrun.api.schemas.TagObjects,
     ):
-        delete_func = kind_to_function.get(tag_objects.kind, {}).get("delete")
+        delete_func = kind_to_function_names.get(tag_objects.kind, {}).get("delete")
         if not delete_func:
             raise mlrun.errors.MLRunNotFoundError(
                 f"couldn't find delete function for object kind: {tag_objects.kind}"

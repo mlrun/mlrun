@@ -1070,18 +1070,12 @@ def get_in_artifact(artifact, key, default=None):
     if is_legacy_artifact(artifact):
         return artifact.get(key, default)
     else:
-        try:
-            return artifact.metadata.get(key, default)
-        except AttributeError:
-            pass
-        try:
-            return artifact.spec.get(key, default)
-        except AttributeError:
-            pass
-        try:
-            return artifact.status.get(key, default)
-        except AttributeError:
-            pass
+        if hasattr(artifact.metadata, key):
+            return artifact.metadata.key or default
+        if hasattr(artifact.spec, key):
+            return artifact.spec.key or default
+        if hasattr(artifact.status, key):
+            return artifact.status.key or default
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"invalid artifact couldn't get key {key} in {artifact}"
         )

@@ -364,7 +364,7 @@ class SQLDB(DBInterface):
             artifacts += self.list_artifacts(
                 session,
                 project=project,
-                name=identifier.name,
+                name=identifier.key,
                 kind=identifier.kind,
                 iter=identifier.iter,
                 # will be changed to uid, after refactoring the code, currently to list artifacts by uid
@@ -394,7 +394,7 @@ class SQLDB(DBInterface):
             artifacts += self.list_artifacts(
                 session,
                 project=project,
-                name=identifier.name,
+                name=identifier.key,
                 kind=identifier.kind,
                 iter=identifier.iter,
                 # will be changed to uid, after refactoring the code, currently to list artifacts by uid
@@ -418,7 +418,7 @@ class SQLDB(DBInterface):
             artifacts += self.list_artifacts(
                 session,
                 project=project,
-                name=identifier.name,
+                name=identifier.key,
                 kind=identifier.kind,
                 iter=identifier.iter,
                 # will be changed to uid, after refactoring the code, currently to list artifacts by uid
@@ -627,7 +627,7 @@ class SQLDB(DBInterface):
         )
         if as_records:
             if best_iteration:
-                raise mlrun.errors.MLRunConflictError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "as_records is not supported with best_iteration=True"
                 )
             return artifact_records

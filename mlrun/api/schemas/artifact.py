@@ -48,12 +48,10 @@ class ArtifactCategories(str, enum.Enum):
 class ArtifactIdentifier(pydantic.BaseModel):
     # artifact kind
     kind: typing.Optional[str]
-    # name actually maps to key in the DB (_find_artifacts for reference), should we rename it?
-    name: typing.Optional[str]
+    key: typing.Optional[str]
     iter: typing.Optional[str]
     uid: typing.Optional[str]
-    # TODO support more identifiers like below
-    # uid: typing.Optional[str]
+    # TODO support hash once saved as a column in the artifacts table
     # hash: typing.Optional[str]
 
 

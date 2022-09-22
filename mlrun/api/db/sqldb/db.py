@@ -592,12 +592,10 @@ class SQLDB(DBInterface):
         if tag:
             query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag)
 
-        objects_deleted = False
-        for artifact in query:
-            objects_deleted = True
-            session.delete(artifact)
-
-        if not objects_deleted:
+        # Cannot delete yet, because tag and label deletion queries join with the artifacts table, so the objects
+        # still need to be there.
+        artifacts = query.all()
+        if not artifacts:
             return
 
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
@@ -605,6 +603,8 @@ class SQLDB(DBInterface):
         self._delete_class_labels(
             session, Artifact, project=project, key=key, commit=False
         )
+        for artifact in artifacts:
+            session.delete(artifact)
         session.commit()
 
     def _delete_artifact_tags(

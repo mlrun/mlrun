@@ -27,12 +27,8 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.api.schemas
-from mlrun.utils import (
-    RunNotifications,
-    logger,
-    new_pipe_meta,
-    parse_versioned_object_uri,
-)
+import mlrun.utils.notifications
+from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -492,7 +488,7 @@ class _PipelineRunner(abc.ABC):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -546,7 +542,7 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             ttl=workflow_spec.ttl,
         )
-        project.notifiers.push_start_message(
+        project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
             id,
@@ -587,7 +583,7 @@ class _KFPRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -618,7 +614,7 @@ class _KFPRunner(_PipelineRunner):
             text += f", state={state}"
 
         notifiers = notifiers or project.notifiers
-        notifiers.push(text, runs)
+        notifiers.push(text, "info", runs)
 
         if raise_error:
             raise raise_error
@@ -652,7 +648,9 @@ class _LocalRunner(_PipelineRunner):
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         pipeline_context.workflow_artifact_path = artifact_path
-        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name, pipeline_id=workflow_id
+        )
         try:
             workflow_handler(**workflow_spec.args)
             state = mlrun.run.RunStatuses.succeeded
@@ -660,11 +658,11 @@ class _LocalRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
+                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
-        project.notifiers.push_run_results(
+        project.notifiers.push_pipeline_run_results(
             pipeline_context.runs_map.values(), state=state
         )
         pipeline_context.clear()
@@ -688,7 +686,7 @@ class _LocalRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -771,7 +769,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}"
+                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
@@ -782,7 +780,7 @@ class _RemoteRunner(_PipelineRunner):
                 state=state,
             )
 
-        project.notifiers.push_start_message(
+        project.notifiers.push_pipeline_start_message(
             project.metadata.name,
         )
         pipeline_context.clear()
@@ -811,7 +809,7 @@ class _RemoteRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60

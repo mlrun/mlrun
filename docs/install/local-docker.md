@@ -113,7 +113,7 @@ For the quickest experience with MLRun you can deploy MLRun with a pre integrate
 ```sh
 export HOST_IP=<your host IP address>
 export SHARED_DIR=~/mlrun-data
-mkdir $SHARED_DIR -p
+mkdir -p $SHARED_DIR
 docker-compose -f compose.with-jupyter.yaml up
 ```
 

@@ -44,16 +44,10 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import (
-    RunNotifications,
-    is_ipython,
-    is_legacy_artifact,
-    is_relative_path,
-    logger,
-    update_in,
-)
+from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
+from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import build_function, deploy_function, run_function
 from .pipelines import (
     FunctionsDict,
@@ -791,7 +785,13 @@ class MlrunProject(ModelObj):
         self._initialized = False
         self._secrets = SecretsStore()
         self._artifact_manager = None
-        self._notifiers = RunNotifications(with_slack=True)
+        self._notifiers = CustomNotificationPusher(
+            [
+                NotificationTypes.slack,
+                NotificationTypes.console,
+                NotificationTypes.ipython,
+            ]
+        )
 
     @property
     def metadata(self) -> ProjectMetadata:
@@ -1894,7 +1894,7 @@ class MlrunProject(ModelObj):
             # no need to add workflow.uid to the artifact path for uniqueness,
             # this is already being handled by generating
             # the artifact target path from the artifact content hash ( body / file etc...)
-            or mlrun.mlconf.should_generate_target_path_from_artifact_hash()
+            or mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
             # if the artifact path already contains workflow.uid, no need to add it again
             or workflow_uid_string in artifact_path
         ):
@@ -2049,7 +2049,7 @@ class MlrunProject(ModelObj):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: CustomNotificationPusher = None,
     ):
         warnings.warn(
             "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "
@@ -2261,6 +2261,7 @@ class MlrunProject(ModelObj):
         tag: str = None,
         verbose: bool = None,
         builder_env: dict = None,
+        mock: bool = None,
     ):
         """deploy real-time (nuclio based) functions
 
@@ -2271,6 +2272,7 @@ class MlrunProject(ModelObj):
         :param tag:        extra version tag
         :param verbose     add verbose prints/logs
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
         """
         return deploy_function(
             function,
@@ -2281,6 +2283,7 @@ class MlrunProject(ModelObj):
             verbose=verbose,
             builder_env=builder_env,
             project_object=self,
+            mock=mock,
         )
 
     def get_artifact(self, key, tag=None, iter=None):

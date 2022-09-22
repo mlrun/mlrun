@@ -431,7 +431,7 @@ class ModelArtifact(Artifact):
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
         """
-        # if mlrun.mlconf.should_generate_target_path_from_artifact_hash() outputs True and the user
+        # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True and the user
         # didn't pass target_path explicitly, then target_path will be calculated right before uploading the artifact
         # using `resolve_<body/file>_target_hash_path`
         target_model_path = (
@@ -477,14 +477,14 @@ class ModelArtifact(Artifact):
         spec_body = self.to_yaml()
         spec_target_path = None
 
-        if mlrun.mlconf.should_generate_target_path_from_artifact_hash():
+        if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
 
             # resolving target_path for the model spec
             _, spec_target_path = self.resolve_body_target_hash_path(
                 body=spec_body, artifact_path=artifact_path
             )
 
-            # if mlrun.mlconf.should_generate_target_path_from_artifact_hash() outputs True, then target_path will be
+            # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True, then target_path will be
             # will point to the artifact path which is where the model and all its extra data are stored
             self.spec.target_path = (
                 artifact_path + "/"

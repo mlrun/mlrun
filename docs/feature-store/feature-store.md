@@ -83,13 +83,7 @@ Using this feature store centric process, using one computation graph definition
 offline implementation for the feature vectors, with data versioning both in terms of the actual graph that was used to calculate each data 
 point, and the offline datasets that were created to train each model.
 
-## Further reading
-
-For more information, see: 
-- {ref}`training-fs`
-- {ref}`training-serving`
-- {ref}`basic-demo`
-
+See more information in {ref}`training-fs` and {ref}`training-serving`.
 
 **In this section**
 

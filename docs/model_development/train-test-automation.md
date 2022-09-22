@@ -6,5 +6,5 @@
 ```{toctree}
 :maxdepth: 1
 
-../feature-store/training-fs
+..feature-store/retrieve-offline-data
 ```

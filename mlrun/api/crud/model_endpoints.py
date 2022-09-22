@@ -699,11 +699,14 @@ class ModelEndpoints:
                  [1] = hours interval as a float
                  [2] = days interval as a float
         """
-        return tuple([
-            0.0 if isinstance(interval, (float, int)) or interval is None
-            else float(f"0{interval.partition('/')[-1]}")
-            for interval in intervals_list
-        ])
+        return tuple(
+            [
+                0.0
+                if isinstance(interval, (float, int)) or interval is None
+                else float(f"0{interval.partition('/')[-1]}")
+                for interval in intervals_list
+            ]
+        )
 
     @staticmethod
     def _convert_to_cron_string(cron_trigger):
@@ -787,7 +790,9 @@ class _ModelEndpointStore(ABC):
         """
         pass
 
-    def list_model_endpoints(self, model: str, function: str, labels: typing.List, top_level: bool):
+    def list_model_endpoints(
+        self, model: str, function: str, labels: typing.List, top_level: bool
+    ):
         """
         Returns a list of endpoint unique ids, supports filtering by model, function,
         labels or top level. By default, when no filters are applied, all available endpoint ids for the given project
@@ -1012,7 +1017,9 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(path)
         return path, container
 
-    def list_model_endpoints(self, model: str, function: str, labels: typing.List, top_level: bool):
+    def list_model_endpoints(
+        self, model: str, function: str, labels: typing.List, top_level: bool
+    ):
         """
         Returns a list of endpoint unique ids, supports filtering by model, function,
         labels or top level. By default, when no filters are applied, all available endpoint ids for the given project
@@ -1229,7 +1236,7 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         return attributes
 
     @staticmethod
-    def _json_loads_if_not_none(field: typing.Any)->typing.Any:
+    def _json_loads_if_not_none(field: typing.Any) -> typing.Any:
         return json.loads(field) if field is not None else None
 
     @staticmethod
@@ -1373,7 +1380,9 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
     ):
         raise NotImplementedError
 
-    def list_model_endpoints(self, model: str, function: str, labels: typing.List, top_level: bool):
+    def list_model_endpoints(
+        self, model: str, function: str, labels: typing.List, top_level: bool
+    ):
         raise NotImplementedError
 
 

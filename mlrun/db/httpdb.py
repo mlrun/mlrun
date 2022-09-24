@@ -313,6 +313,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
             config.redis.url = config.redis.url or server_cfg.get("redis_url")
+            # allow client to set the default partial WA for luck of support of per-target auxiliary options
             config.redis.type = config.redis.type or server_cfg.get("redis_type")
 
             # These have a default value, therefore local config will always have a value, prioritize the

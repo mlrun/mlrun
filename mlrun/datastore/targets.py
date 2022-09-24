@@ -1166,7 +1166,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             redis_type = RedisType.CLUSTER
         else:
             raise NotImplementedError(
-                f"invalid redis type (should be either 'cluster' or 'standalone'): {mlrun.mlconf.redis.type}"
+                f"invalid redis type {mlrun.mlconf.redis.type} - should be one of {'cluster', 'standalone'})"
             )
 
         return Table(

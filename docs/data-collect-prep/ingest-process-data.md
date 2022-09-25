@@ -1,4 +1,4 @@
-(ingesting_data)=
+(ingesting-process-data)=
 # Ingest and process data
 
 MLRun provides a set of tools and capabilities to streamline the task of data ingestion and processing. For an 

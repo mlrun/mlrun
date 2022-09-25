@@ -1,5 +1,5 @@
 (continuous-model-development)=
-# Continuous model development
+# Develop & train models
 
 **In this section**
 
@@ -7,5 +7,5 @@
 :maxdepth: 1
 
 model-training-tracking
-train-test-automation
+../feature-store/retrieve-offline-data
 ```

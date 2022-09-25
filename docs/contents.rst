@@ -26,7 +26,7 @@
    data-collect-prep/ingest-process-data
    model_development/continuous-model-development
    serving/serving-overview
-   model_monitoring/initial-setup-configuration
+   model_monitoring/monitoring
      
 .. toctree::
    :maxdepth: 1

@@ -13,9 +13,9 @@
       
    projects/project
    runtimes/functions
-   concepts/data-feature-store
+   concepts/data
    feature-store/feature-store
-   projects/workflows
+   concepts/runs-workflows
    serving/serving-graph
    model_monitoring/index
     
@@ -23,7 +23,7 @@
    :maxdepth: 1
    :caption: MLOps tasks
    
-   data-collect-prep/ingest-process-data
+   data-prep/data-prep
    model_development/continuous-model-development
    serving/serving-overview
    model_monitoring/monitoring

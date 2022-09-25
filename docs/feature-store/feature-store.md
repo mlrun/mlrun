@@ -24,6 +24,7 @@ engine for serving, and batch one for training.
 
 feature-store-overview
 feature-sets
+transformations
 feature-vectors
 ./end-to-end-demo/index
 ```

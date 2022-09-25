@@ -15,4 +15,5 @@ ingesting_data
 logging_datasets
 ../runtimes/spark-operator
 ingest-data-fs
+../feature-store/using-spark-engine
 ```

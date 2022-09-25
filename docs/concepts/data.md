@@ -13,6 +13,7 @@ MLRun provides these main abstractions to access structured and unstructured dat
 :maxdepth: 1
 
 ../store/datastore
-data-items
+../store/data-items
 ../store/artifacts
+../store/models
 ```

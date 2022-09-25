@@ -143,6 +143,79 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def overwrite_object_tags(
+        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
+    ):
+        pass
+
+    def append_tag_to_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+    ):
+        pass
+
+    def delete_tag_from_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+    ):
+        pass
+
+    def overwrite_artifacts_tags(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        pass
+
+    def append_tag_to_artifacts(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        pass
+
+    def delete_tag_from_artifacts(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        pass
+
+    @staticmethod
+    def _resolve_artifacts_identifiers_to_tag_objects(
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ) -> schemas.TagObjects:
+        identifiers = artifacts_identifiers or []
+        if key or uid or iter or kind:
+            identifiers.append(
+                schemas.ArtifactIdentifier(key=key, uid=uid, iter=iter, kind=kind)
+            )
+        return schemas.TagObjects(kind="artifact", identifiers=identifiers)
+
+    @abstractmethod
     def delete_project(
         self,
         name: str,

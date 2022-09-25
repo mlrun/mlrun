@@ -312,6 +312,117 @@ class SQLDB(RunDBInterface):
             self.db.list_artifact_tags, self.session, project
         )
 
+    def overwrite_object_tags(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+    ):
+        return self._transform_db_error(
+            self.db.overwrite_object_tags,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def append_tag_to_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+    ):
+        return self._transform_db_error(
+            self.db.append_tag_to_objects,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def delete_tag_from_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+    ):
+        return self._transform_db_error(
+            self.db.delete_tag_from_objects,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def overwrite_artifacts_tags(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        tag_objects = self._resolve_artifacts_identifiers_to_tag_objects(
+            artifacts_identifiers=artifacts_identifiers,
+            key=key,
+            uid=uid,
+            iter=iter,
+            kind=kind,
+        )
+        return self._transform_db_error(
+            self.db.overwrite_object_tags,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def append_tag_to_artifacts(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        tag_objects = self._resolve_artifacts_identifiers_to_tag_objects(
+            artifacts_identifiers=artifacts_identifiers,
+            key=key,
+            uid=uid,
+            iter=iter,
+            kind=kind,
+        )
+        return self._transform_db_error(
+            self.db.append_tag_to_objects,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def delete_tag_from_artifacts(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        tag_objects = self._resolve_artifacts_identifiers_to_tag_objects(
+            artifacts_identifiers=artifacts_identifiers,
+            key=key,
+            uid=uid,
+            iter=iter,
+            kind=kind,
+        )
+        return self._transform_db_error(
+            self.db.delete_tag_from_objects,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
     def store_schedule(self, data):
         return self._transform_db_error(self.db.store_schedule, self.session, data)
 

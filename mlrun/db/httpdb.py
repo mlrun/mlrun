@@ -1993,6 +1993,185 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
 
+    def overwrite_object_tags(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: Union[mlrun.api.schemas.TagObjects, dict],
+    ):
+        """Overwrite the tags of a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to set on the objects.
+        :param tag_objects: The objects to overwrite the tags of.
+        """
+
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed overwriting tags {tag_name}"
+        self.api_call(
+            "POST",
+            path,
+            error_message,
+            body=dict_to_json(
+                tag_objects.dict()
+                if isinstance(tag_objects, mlrun.api.schemas.TagObjects)
+                else tag_objects
+            ),
+        )
+
+    def append_tag_to_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: Union[mlrun.api.schemas.TagObjects, dict],
+    ):
+        """Append a tag to a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to append to the objects.
+        :param tag_objects: The objects to append the tag to.
+        """
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed appending tag {tag_name}"
+        self.api_call(
+            "PUT",
+            path,
+            error_message,
+            body=dict_to_json(
+                tag_objects.dict()
+                if isinstance(tag_objects, mlrun.api.schemas.TagObjects)
+                else tag_objects
+            ),
+        )
+
+    def delete_tag_from_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: Union[mlrun.api.schemas.TagObjects, dict],
+    ):
+        """Delete a tag from a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to delete from the objects.
+        :param tag_objects: The objects to delete the tag from.
+
+        """
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed deleting tag from {tag_name}"
+        self.api_call(
+            "DELETE",
+            path,
+            error_message,
+            body=dict_to_json(
+                tag_objects.dict()
+                if isinstance(tag_objects, mlrun.api.schemas.TagObjects)
+                else tag_objects
+            ),
+        )
+
+    def overwrite_artifacts_tags(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[
+            Union[mlrun.api.schemas.ArtifactIdentifier, dict]
+        ] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        """Overwrite the tags of a list of artifacts.
+        You can either provide a list of artifacts identifiers or a single artifact identifier.
+
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        :param artifacts_identifiers: A list of artifacts identifiers to tag.
+        Each artifact is a dict with the following keys:
+            ``uid``, ``kind``, ``key`` and ``iter``.
+        :param key: The key of the artifacts to tag.
+        :param uid: The uid of the artifacts to tag.
+        :param iter: The iteration of the artifacts to tag.
+        :param kind: The artifact kind to tag.
+        """
+        tag_objects = self._resolve_artifacts_identifiers_to_tag_objects(
+            artifacts_identifiers=artifacts_identifiers,
+            key=key,
+            uid=uid,
+            iter=iter,
+            kind=kind,
+        )
+        self.overwrite_object_tags(project, tag_name, tag_objects)
+
+    def append_tag_to_artifacts(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[
+            Union[mlrun.api.schemas.ArtifactIdentifier, dict]
+        ] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        """Append tag to a list of artifacts.
+        You can either provide a list of artifacts identifiers or a single artifact identifier.
+
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        :param artifacts_identifiers: A list of artifacts identifiers to tag.
+        Each artifact is a dict with the following keys:
+            ``uid``, ``kind``, ``key`` and ``iter``.
+        :param key: The key of the artifacts to tag.
+        :param uid: The uid of the artifacts to tag.
+        :param iter: The iteration of the artifacts to tag.
+        :param kind: The artifact kind to tag.
+        """
+        tag_objects = self._resolve_artifacts_identifiers_to_tag_objects(
+            artifacts_identifiers=artifacts_identifiers,
+            key=key,
+            uid=uid,
+            iter=iter,
+            kind=kind,
+        )
+        self.append_tag_to_objects(project, tag_name, tag_objects)
+
+    def delete_tag_from_artifacts(
+        self,
+        project: str,
+        tag_name: str,
+        artifacts_identifiers: List[
+            Union[mlrun.api.schemas.ArtifactIdentifier, dict]
+        ] = None,
+        key: str = None,
+        uid: str = None,
+        iter: int = None,
+        kind: str = None,
+    ):
+        """Delete tag from a list of artifacts.
+        You can either provide a list of artifacts identifiers or a single artifact identifier.
+
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        :param artifacts_identifiers: A list of artifacts identifiers to tag.
+        Each artifact is a dict with the following keys:
+            ``uid``, ``kind``, ``key`` and ``iter``.
+        :param key: The key of the artifacts to tag.
+        :param uid: The uid of the artifacts to tag.
+        :param iter: The iteration of the artifacts to tag.
+        :param kind: The artifact kind to tag.
+        """
+        tag_objects = self._resolve_artifacts_identifiers_to_tag_objects(
+            artifacts_identifiers=artifacts_identifiers,
+            key=key,
+            uid=uid,
+            iter=iter,
+            kind=kind,
+        )
+        self.delete_tag_from_objects(project, tag_name, tag_objects)
+
     def list_projects(
         self,
         owner: str = None,

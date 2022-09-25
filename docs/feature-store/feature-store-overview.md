@@ -1,5 +1,5 @@
 (feature-store-overview)=
-## Feature store overview
+# Feature store overview
 
 In machine-learning scenarios, generating a new feature, called feature engineering, takes a tremendous amount of work. The same features 
 must be used both for training, based on historical data, and for the model prediction based on the online or real-time data. This creates a 

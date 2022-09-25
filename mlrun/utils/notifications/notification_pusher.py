@@ -42,7 +42,10 @@ class NotificationPusher(object):
                     self._notification_data.append((run, notification_config))
 
     def push(self):
-        loop = asyncio.new_event_loop()
+        # push all notifications in separate event loop to avoid blocking main thread
+        main_event_loop = asyncio.get_event_loop()
+        notification_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(notification_loop)
         tasks = []
         for notification_data in self._notification_data:
             tasks.append(
@@ -50,7 +53,8 @@ class NotificationPusher(object):
                     self._load_notification(notification_data[1]), *notification_data
                 )
             )
-        loop.run_until_complete(asyncio.gather(*tasks))
+        notification_loop.run_until_complete(asyncio.gather(*tasks))
+        asyncio.set_event_loop(main_event_loop)
 
     @staticmethod
     def _should_notify(
@@ -112,7 +116,10 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        loop = asyncio.new_event_loop()
+        # push all notifications in separate event loop to avoid blocking main thread
+        main_event_loop = asyncio.get_event_loop()
+        notification_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(notification_loop)
         tasks = []
         for notification in self._notifications.values():
             tasks.append(
@@ -120,7 +127,8 @@ class CustomNotificationPusher(object):
                     notification, message, severity, runs, custom_html
                 )
             )
-        loop.run_until_complete(asyncio.gather(*tasks))
+        notification_loop.run_until_complete(asyncio.gather(*tasks))
+        asyncio.set_event_loop(main_event_loop)
 
     @staticmethod
     async def _send_notification(

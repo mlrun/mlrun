@@ -53,4 +53,5 @@ class ClientSpec(pydantic.BaseModel):
     force_run_local: typing.Optional[str]
     function: typing.Optional[Function]
     redis_url: typing.Optional[str]
+    redis_type: typing.Optional[str]
     ce_mode: typing.Optional[str]

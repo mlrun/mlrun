@@ -461,3 +461,22 @@ class FileDB(DBInterface):
             return func(*args, **kwargs)
         except RunDBError as exc:
             raise DBError(exc.args)
+
+    def store_notification_configs(
+        self,
+        session,
+        notification_config_models,
+        run_uid: str,
+        project: str,
+        iter: int = 0,
+    ):
+        raise NotImplementedError()
+
+    def list_notification_configs(
+        self,
+        session,
+        run_uid: str,
+        project: str = "",
+        iter: int = 0,
+    ):
+        raise NotImplementedError()

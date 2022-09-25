@@ -7,7 +7,7 @@ lists of parameters, and [secrets](../secrets.html).
 You can create project definitions using the SDK or a yaml file and store those in the MLRun DB, a file, or an archive.  Project 
 jobs/workflows refer to all project resources by name, establishing a separation between configuration and code.
 
-Projects can be mapped to `git` repositories or IDE project (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and [CI/CD](../projects/ci-integration.html). 
+Projects can be mapped to `git` repositories or IDE project (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and {ref}`ci-integration`. 
 Project access can be restricted to a set of users and roles.
 
 Projects can be loaded/cloned using a single command. Once the project is loaded you can execute the functions or workflows locally, 

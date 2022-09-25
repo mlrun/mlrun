@@ -1,4 +1,4 @@
-(model_monitoring)=
+(model-monitoring)=
 
 # Model and data monitoring (beta)
 

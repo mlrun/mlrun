@@ -1,5 +1,5 @@
 (cli)=
-# Command-Line Interface (Tech preview) <!-- omit in toc -->
+# Command-Line Interface
 
 - [CLI commands](#cli-commands)
 - [Building and running a function from a Git Repository](#building-and-running-a-function-from-a-git-repository)

@@ -42,7 +42,7 @@ class NotificationPusher(object):
                     self._notification_data.append((run, notification_config))
 
     def push(self):
-        # push all notifications in separate event loop to avoid blocking main thread
+        # push all notifications in separate event loop to avoid interfering with the main loop
         main_event_loop = asyncio.get_event_loop()
         notification_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(notification_loop)
@@ -116,7 +116,7 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        # push all notifications in separate event loop to avoid blocking main thread
+        # push all notifications in separate event loop to avoid interfering with the main loop
         main_event_loop = asyncio.get_event_loop()
         notification_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(notification_loop)

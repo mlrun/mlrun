@@ -24,7 +24,7 @@
    :caption: MLOps tasks
    
    data-prep/data-prep
-   model_development/continuous-model-development
+   model-development/continuous-model-development
    serving/serving-overview
    model_monitoring/monitoring
      

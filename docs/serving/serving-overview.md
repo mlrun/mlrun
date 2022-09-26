@@ -13,5 +13,6 @@ MLRun serving supports advanced real-time data processing and model serving pipe
 
 ../serving/online-model-serving-classes
 ../feature-store/training-serving
+../batch_inference/index
 ../serving/canary
 ```

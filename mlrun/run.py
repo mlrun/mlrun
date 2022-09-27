@@ -1904,7 +1904,7 @@ def handler(
     Example::
 
             import mlrun
-        
+
             @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
             def my_handler(array: np.ndarray, m: int):
                 array = array * m

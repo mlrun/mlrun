@@ -208,7 +208,7 @@ def get_online_feature_service(
         There are two ways to use the function:
 
         1. As context manager
-        
+
             Example::
 
                 with get_online_feature_service(vector_uri) as svc:
@@ -223,7 +223,7 @@ def get_online_feature_service(
                     resp = svc.get([{"id": "C123487"}])
 
         2. as simple function, note that in that option you need to close the session.
-        
+
             Example::
 
                 svc = get_online_feature_service(vector_uri)
@@ -254,7 +254,7 @@ def get_online_feature_service(
                             value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
                             values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
-    :param update_stats:      update features statistics from the requested feature sets on the vector. Default is False.
+    :param update_stats:      update features statistics from the requested feature sets on the vector. Default: False.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True

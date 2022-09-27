@@ -265,7 +265,7 @@ class VotingEnsemble(BaseModelRouter):
             Sends the event to the specific <model>[/versions/<ver>]
         - `<prefix>/operation`
             Sends the event to all models and applies `vote(self, event)`
-        
+
         The `VotingEnsemble` applies the following logic:
         Incoming Event -> Router Preprocessing -> Send to model/s ->
         Apply all model/s logic (Preprocessing -> Prediction -> Postprocessing) ->
@@ -298,7 +298,7 @@ class VotingEnsemble(BaseModelRouter):
             fn.add_model(<model_name>, <model_path>, <model_class_name>)
 
         How to extend the VotingEnsemble:
-        
+
         The VotingEnsemble applies its logic using the `logic(predictions)` function.
         The `logic()` function receives an array of (# samples, # predictors) which you
         can then use to apply whatever logic you may need.

@@ -1141,7 +1141,8 @@ def list_pipelines(
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
-    :param full:       Deprecated, use `format_` instead. if True will set `format_` to full, otherwise `format_` will be used
+    :param full:       Deprecated, use `format_` instead. if True will set `format_` to full, otherwise `format_` will
+                       be used
     :param page_token: A page token to request the next page of results. The token is acquired from the nextPageToken
                        field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
@@ -1903,20 +1904,20 @@ def handler(
     Example::
 
             import mlrun
-            
+        
             @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
             def my_handler(array: np.ndarray, m: int):
                 array = array * m
                 m += 1
                 return array, "I won't be logged", m
-            
+
             mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
             run_object = mlrun_function.run(
                 handler="my_handler",
                 inputs={"array": "store://my_array_Artifact"},
                 params={"m": 2}
             )
-            
+
             >>> run_object.outputs
             {'my_multiplier': 3, 'my_array': 'store://...'}
     """

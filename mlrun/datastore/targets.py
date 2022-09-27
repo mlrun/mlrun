@@ -693,7 +693,7 @@ class ParquetTarget(BaseStoreTarget):
      or after flush_after_seconds (if flush_after_seconds is set). Default 10k events
     :param flush_after_seconds: optional. Maximum number of seconds to hold events before they are written.
      All events will be written on flow termination, or after max_events are accumulated (if max_events is set).
-      Default 15 minutes
+     Default 15 minutes
     """
 
     kind = TargetTypes.parquet

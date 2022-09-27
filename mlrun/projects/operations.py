@@ -289,7 +289,7 @@ def deploy_function(
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
-    :param verbose     add verbose prints/logs
+    :param verbose:    add verbose prints/logs
     :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
     :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
     :param project_object:  override the project object to use, will default to the project set in the runtime context.

@@ -204,9 +204,12 @@ def get_online_feature_service(
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
-    There are two ways to use the function
-    1. As context manager
-        example::
+    :**usage**:
+        There are two ways to use the function:
+
+        1. As context manager
+        
+            Example::
 
                 with get_online_feature_service(vector_uri) as svc:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
@@ -214,45 +217,44 @@ def get_online_feature_service(
                     resp = svc.get([{"ticker": "AAPL"}], as_list=True)
                     print(resp)
 
-            example with imputing::
+            Example with imputing::
 
                 with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
 
-    2. as simple function, note that in that option you need to close the session.
-        example::
+        2. as simple function, note that in that option you need to close the session.
+        
+            Example::
 
-            svc = get_online_feature_service(vector_uri)
-            try:
-                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-                print(resp)
-                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-                print(resp)
+                svc = get_online_feature_service(vector_uri)
+                try:
+                    resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                    print(resp)
+                    resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                    print(resp)
 
-            finally:
-                svc.close()
+                finally:
+                    svc.close()
 
+            Example with imputing::
 
-        example with imputing::
-
-            svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
-            try:
-                resp = svc.get([{"id": "C123487"}])
-            except Exception as e:
-                handling exception...
-            finally:
-                svc.close()
-
+                svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+                try:
+                    resp = svc.get([{"id": "C123487"}])
+                except Exception as e:
+                    handling exception...
+                finally:
+                    svc.close()
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
-                              permissions
+                            permissions
     :param run_config:        function and/or run configuration for remote jobs/services
     :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
-                              value indicate which value will be used in case the feature is NaN/empty, the replaced
-                              value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
-                              values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+                            value indicate which value will be used in case the feature is NaN/empty, the replaced
+                            value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
+                            values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param update_stats:      update features statistics from the requested feature sets on the vector. Default is False.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -347,7 +349,7 @@ def ingest(
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
-                                    False for scheduled ingest - does not delete the target)
+                          False for scheduled ingest - does not delete the target)
     :return:              if return_df is True, a dataframe will be returned based on the graph
     """
     if isinstance(source, pd.DataFrame):

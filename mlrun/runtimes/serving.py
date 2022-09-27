@@ -311,11 +311,12 @@ class ServingRuntime(RemoteRuntime):
                                 the image of the model monitoring stream.
 
                                 example::
-                                # initialize a new serving function
-                                serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
-                                # apply model monitoring and set monitoring batch job to run every 3 hours
-                                tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
-                                serving_fn.set_tracking(tracking_policy=tracking_policy)
+                                
+                                    # initialize a new serving function
+                                    serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+                                    # apply model monitoring and set monitoring batch job to run every 3 hours
+                                    tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
+                                    serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         """
 

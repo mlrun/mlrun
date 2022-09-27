@@ -2265,14 +2265,14 @@ class MlrunProject(ModelObj):
     ):
         """deploy real-time (nuclio based) functions
 
-        :param function:   name of the function (in the project) or function object
-        :param dashboard:  url of the remote Nuclio dashboard (when not local)
-        :param models:     list of model items
-        :param env:        dict of extra environment variables
-        :param tag:        extra version tag
-        :param verbose     add verbose prints/logs
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
+        :param function:    name of the function (in the project) or function object
+        :param dashboard:   url of the remote Nuclio dashboard (when not local)
+        :param models:      list of model items
+        :param env:         dict of extra environment variables
+        :param tag:         extra version tag
+        :param verbose:     add verbose prints/logs
+        :param builder_env: env vars dict for source archive config/credentials e.g. `builder_env={"GIT_TOKEN": token}`
+        :param mock:        deploy mock server vs a real Nuclio function (for local simulations)
         """
         return deploy_function(
             function,

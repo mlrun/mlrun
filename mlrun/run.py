@@ -1141,7 +1141,7 @@ def list_pipelines(
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
-    :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
+    :param full:       Deprecated, use `format_` instead. if True will set `format_` to full, otherwise `format_` will be used
     :param page_token: A page token to request the next page of results. The token is acquired from the nextPageToken
                        field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
@@ -1610,7 +1610,7 @@ class ContextHandler:
 
     The context handler have 3 duties:
       1. Check if the user used MLRun to run the wrapped function and if so, get the MLRun context.
-      2. Parse the user's inputs (MLRun `DataItem`s) to the function.
+      2. Parse the user's inputs (MLRun `DataItem`) to the function.
       3. Log the function's outputs to MLRun.
     """
 
@@ -1860,17 +1860,17 @@ def handler(
     MLRun's handler is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
     outputs logging.
 
-    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Defaulted to None.
+    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Default: None.
     :param outputs: Logging configurations for the function's returned values. Expecting a list of tuples and None
                     values:
 
                     * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
-                            indicate the key and the artifact type will be defaulted accorrding to the returned value
+                            indicate the key and the artifact type will be defaulted according to the returned value
                             type.
                     * tuple - A tuple of:
 
                       * [0]: str - The key (name) of the artifact to use for the logged output.
-                      * [1]: Union[`ArtifactType`, str] = "result" - An `ArtifactType` enum or an equivilient
+                      * [1]: Union[`ArtifactType`, str] = "result" - An `ArtifactType` enum or an equivalent
                         string, that indicates how to log the returned value. The artifact types can be one of:
 
                         * DATASET = "dataset"
@@ -1886,37 +1886,39 @@ def handler(
 
                     * None - Do not log the output.
 
-                    The list legnth must be equal to the total amount of returned values from the function. Default to
+                    The list length must be equal to the total amount of returned values from the function. Default to
                     None - meaning no outputs will be logged.
 
-    :param inputs: Parsing configurations for the argumetns passed as inputs via the `run` method of an MLRun function.
+    :param inputs: Parsing configurations for the arguments passed as inputs via the `run` method of an MLRun function.
                    Can be passed as a boolean value or a dictionary:
 
                    * True - Parse all found inputs to the assigned type hint in the function's signature. If there is no
                             type hint assigned, the value will remain an `mlrun.DataItem`.
-                   * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`s.
+                   * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`.
                    * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse the
                                        `mlrun.DataItem` to.
 
                    Defaulted to True.
 
-    example::
-        import mlrun
+    Example::
 
-        @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
-        def my_handler(array: np.ndarray, m: int):
-            array = array * m
-            m += 1
-            return array, "I won't be logged", m
-
-        >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
-        >>> run_object = mlrun_function.run(
-        ...     handler="my_handler",
-        ...     inputs={"array": "store://my_array_Artifact"},
-        ...     params={"m": 2}
-        ... )
-        >>> run_object.outputs
-        {'my_multiplier': 3, 'my_array': 'store://...'}
+            import mlrun
+            
+            @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
+            def my_handler(array: np.ndarray, m: int):
+                array = array * m
+                m += 1
+                return array, "I won't be logged", m
+            
+            mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
+            run_object = mlrun_function.run(
+                handler="my_handler",
+                inputs={"array": "store://my_array_Artifact"},
+                params={"m": 2}
+            )
+            
+            >>> run_object.outputs
+            {'my_multiplier': 3, 'my_array': 'store://...'}
     """
 
     def decorator(func: Callable):

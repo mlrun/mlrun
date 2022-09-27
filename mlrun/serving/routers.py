@@ -260,11 +260,12 @@ class VotingEnsemble(BaseModelRouter):
         the different added models.
 
         You can use it by calling:
-        - <prefix>/<model>[/versions/<ver>]/operation
-            Sends the event to the specific <model>[/versions/<ver>]
-        - <prefix>/operation
-            Sends the event to all models and applies `vote(self, event)`
 
+        - `<prefix>/<model>[/versions/<ver>]/operation`
+            Sends the event to the specific <model>[/versions/<ver>]
+        - `<prefix>/operation`
+            Sends the event to all models and applies `vote(self, event)`
+        
         The `VotingEnsemble` applies the following logic:
         Incoming Event -> Router Preprocessing -> Send to model/s ->
         Apply all model/s logic (Preprocessing -> Prediction -> Postprocessing) ->
@@ -274,9 +275,9 @@ class VotingEnsemble(BaseModelRouter):
         once on the router level, with only model-specific adjustments at the
         model level.
 
-        * When enabling model tracking via `set_tracking()` the ensemble logic
-        predictions will appear with model name as the given VotingEnsemble name
-        or "VotingEnsemble" by default.
+            When enabling model tracking via `set_tracking()` the ensemble logic
+            predictions will appear with model name as the given VotingEnsemble name
+            or "VotingEnsemble" by default.
 
         Example::
 
@@ -296,8 +297,8 @@ class VotingEnsemble(BaseModelRouter):
             fn.add_model(<model_name>, <model_path>, <model_class_name>)
             fn.add_model(<model_name>, <model_path>, <model_class_name>)
 
-        How to extend the VotingEnsemble
-        --------------------------------
+        How to extend the VotingEnsemble:
+        
         The VotingEnsemble applies its logic using the `logic(predictions)` function.
         The `logic()` function receives an array of (# samples, # predictors) which you
         can then use to apply whatever logic you may need.
@@ -324,13 +325,13 @@ class VotingEnsemble(BaseModelRouter):
                               to event["y"] resulting in {"x": 5, "resp": <result>}
         :param vote_type:     Voting type to be used (from `VotingTypes`).
                               by default will try to self-deduct upon the first event:
-                                - float prediction type: regression
-                                - int prediction type: classification
+                              - float prediction type: regression
+                              - int prediction type: classification
         :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
         :param prediction_col_name: The dict key for the predictions column in the model's responses output.
                               Example: If the model returns
-                                       {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
-                                       the prediction_col_name should be `prediction`.
+                              `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`
+                              the prediction_col_name should be `prediction`.
                               by default, `prediction`
         :param kwargs:        extra arguments
         """

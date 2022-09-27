@@ -24,4 +24,5 @@ application visualization tool that can be added as a service in the Iguazio pla
 :maxdepth: 1
 
 model-monitoring-deployment
+initial-setup-configuration
 ```

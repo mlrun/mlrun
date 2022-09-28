@@ -153,6 +153,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def delete_objects_tag(
         self,
         project: str,
@@ -161,6 +162,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def tag_artifacts(
         self,
         artifacts,
@@ -170,6 +172,7 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    @abstractmethod
     def delete_artifacts_tags(
         self,
         artifacts,
@@ -187,7 +190,7 @@ class RunDBInterface(ABC):
             dictionaries, or a single object.
         :return: :py:class:`~mlrun.api.schemas.TagObjects`
         """
-        from mlrun.artifacts.base import Artifact
+        import mlrun.artifacts.base
 
         if not isinstance(artifacts, list):
             artifacts = [artifacts]
@@ -195,7 +198,9 @@ class RunDBInterface(ABC):
         artifact_identifiers = []
         for artifact in artifacts:
             artifact_obj = (
-                artifact.to_dict() if isinstance(artifact, Artifact) else artifact
+                artifact.to_dict()
+                if isinstance(artifact, mlrun.artifacts.base.Artifact)
+                else artifact
             )
             artifact_identifiers.append(
                 schemas.ArtifactIdentifier(

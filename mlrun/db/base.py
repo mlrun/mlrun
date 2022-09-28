@@ -17,6 +17,7 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
+import mlrun.utils
 from mlrun.api import schemas
 from mlrun.api.schemas import ModelEndpoint
 
@@ -143,12 +144,16 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def overwrite_object_tags(
-        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+        replace: bool = False,
     ):
         pass
 
-    def append_tag_to_objects(
+    def delete_objects_tag(
         self,
         project: str,
         tag_name: str,
@@ -156,49 +161,51 @@ class RunDBInterface(ABC):
     ):
         pass
 
-    def delete_tag_from_objects(
+    def tag_artifacts(
         self,
+        artifacts,
         project: str,
         tag_name: str,
-        tag_objects: schemas.TagObjects,
+        replace: bool = False,
     ):
         pass
 
-    def overwrite_artifacts_tags(
+    def delete_artifacts_tags(
         self,
+        artifacts,
         project: str,
         tag_name: str,
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
     ):
         pass
 
-    def append_tag_to_artifacts(
-        self,
-        project: str,
-        tag_name: str,
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
-    ):
-        pass
+    @staticmethod
+    def _resolve_artifacts_to_tag_objects(
+        artifacts,
+    ) -> schemas.TagObjects:
+        """
+        :param artifacts: Can be a list of :py:class:`~mlrun.artifacts.Artifact` objects or
+            dictionaries, or a single object.
+        :return: :py:class:`~mlrun.api.schemas.TagObjects`
+        """
+        from mlrun.artifacts.base import Artifact
 
-    def delete_tag_from_artifacts(
-        self,
-        project: str,
-        tag_name: str,
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
-    ):
-        pass
+        if not isinstance(artifacts, list):
+            artifacts = [artifacts]
+
+        artifact_identifiers = []
+        for artifact in artifacts:
+            artifact_obj = (
+                artifact.to_dict() if isinstance(artifact, Artifact) else artifact
+            )
+            artifact_identifiers.append(
+                schemas.ArtifactIdentifier(
+                    key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
+                    kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
+                    iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
+                )
+            )
+        return schemas.TagObjects(kind="artifact", identifiers=artifact_identifiers)
 
     @staticmethod
     def _resolve_artifacts_identifiers_to_tag_objects(

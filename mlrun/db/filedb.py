@@ -475,54 +475,34 @@ class FileRunDB(RunDBInterface):
         ]
         return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
-    def overwrite_object_tags(
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+        replace: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def delete_objects_tag(
         self, project: str, tag_name: str, tag_objects: schemas.TagObjects
     ):
         raise NotImplementedError()
 
-    def append_tag_to_objects(
-        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
-    ):
-        raise NotImplementedError()
-
-    def delete_tag_from_objects(
-        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
-    ):
-        raise NotImplementedError()
-
-    def overwrite_artifacts_tags(
+    def tag_artifacts(
         self,
+        artifacts,
         project: str,
         tag_name: str,
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
+        replace: bool = False,
     ):
         raise NotImplementedError()
 
-    def append_tag_to_artifacts(
+    def delete_artifacts_tags(
         self,
+        artifacts,
         project: str,
         tag_name: str,
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
-    ):
-        raise NotImplementedError()
-
-    def delete_tag_from_artifacts(
-        self,
-        project: str,
-        tag_name: str,
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
     ):
         raise NotImplementedError()
 

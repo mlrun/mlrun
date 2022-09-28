@@ -119,10 +119,10 @@ def clone_git(url, context, secrets=None, clone=True):
         username = token
         password = "x-oauth-basic"
 
+    clone_path = f"https://{host}{url_obj.path}"
+    enriched_clone_path = ""
     if username:
-        clone_path = f"https://{username}:{password}@{host}{url_obj.path}"
-    else:
-        clone_path = f"https://{host}{url_obj.path}"
+        enriched_clone_path = f"https://{username}:{password}@{host}{url_obj.path}"
 
     branch = None
     tag = None
@@ -136,7 +136,15 @@ def clone_git(url, context, secrets=None, clone=True):
             url = url.replace("#" + refs, f"#refs/heads/{refs}")
             branch = refs
 
-    repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
+    repo = Repo.clone_from(
+        enriched_clone_path or clone_path, context, single_branch=True, b=branch
+    )
+
+    if enriched_clone_path:
+
+        # override enriched clone path for security reasons
+        repo.remotes[0].set_url(clone_path, enriched_clone_path)
+
     if tag:
         repo.git.checkout(tag)
 

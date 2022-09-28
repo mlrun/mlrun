@@ -219,19 +219,10 @@ def add_code_metadata(path=""):
         repo = Repo(path, search_parent_directories=True)
         remotes = [remote.url for remote in repo.remotes]
         if len(remotes) > 0:
-
-            # remove credentials from remote url for security reasons
-            # remote = remove_credentials_from_origin(remotes[0])
             return f"{remotes[0]}#{repo.head.commit.hexsha}"
     except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
         pass
     return None
-
-
-def remove_credentials_from_origin(remote):
-    if "@" in remote:
-        return remote[: remote.index("//") + 2] + remote[remote.index("@") + 1 :]
-    return remote
 
 
 def set_if_none(struct, key, value):

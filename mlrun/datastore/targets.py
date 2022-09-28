@@ -498,7 +498,7 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            partition_cols = []
+            partition_cols = None
             target_df = df
             if timestamp_key and (
                 self.partitioned or self.time_partitioning_granularity
@@ -509,6 +509,7 @@ class BaseStoreTarget(DataTargetBase):
                     time_partitioning_granularity = (
                         mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
                     )
+                partition_cols = []
                 for unit, fmt in [
                     ("year", "%Y"),
                     ("month", "%m"),
@@ -759,8 +760,6 @@ class ParquetTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        if partition_cols is None:
-            partition_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
         # In order to save the DataFrame in parquet format, all of the column names must be strings:
         df.columns = [str(column) for column in df.columns.tolist()]
         df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)

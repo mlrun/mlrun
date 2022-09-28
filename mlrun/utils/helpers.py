@@ -1066,15 +1066,15 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
-def get_in_artifact(artifact, key, default=None, raise_on_missing=False):
+def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
     """artifact can be dict or Artifact object"""
     if is_legacy_artifact(artifact):
-        return getattr(artifact, key, default)
+        return artifact.get(key, default)
     else:
         for block in ["metadata", "spec", "status"]:
-            block_obj = getattr(artifact, block, {})
-            if block_obj and hasattr(block_obj, key):
-                return getattr(block_obj, key)
+            block_obj = artifact.get(block, {})
+            if block_obj and key in block_obj:
+                return block_obj.get(key, default)
 
         if raise_on_missing:
             raise mlrun.errors.MLRunInvalidArgumentError(

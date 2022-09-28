@@ -499,8 +499,7 @@ def test_tagging_artifacts(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project, save=False)
-    db.create_project(proj_obj)
+    proj_obj = mlrun.new_project(project)
 
     logged_artifact = proj_obj.log_artifact(
         "my-artifact",
@@ -509,7 +508,7 @@ def test_tagging_artifacts(create_server):
 
     db.tag_artifacts(logged_artifact, project, tag_name="add-tag")
 
-    artifacts = db.list_artifacts(project, tag="add-tag")
+    artifacts = db.list_artifacts(project=proj_obj.name, tag="add-tag")
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
@@ -519,8 +518,7 @@ def test_replacing_artifact_tags(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project, save=False)
-    db.create_project(proj_obj)
+    proj_obj = mlrun.new_project(project)
 
     tag = "my-tag"
     new_tag = "new-tag"
@@ -531,17 +529,17 @@ def test_replacing_artifact_tags(create_server):
         tag=tag,
     )
 
-    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
+    artifacts = db.list_artifacts(project=proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
     db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag, replace=True)
 
-    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
+    artifacts = db.list_artifacts(project=proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 0, "bad list results - wrong number of artifacts"
 
-    artifacts = db.list_artifacts(proj_obj.name, tag=new_tag)
+    artifacts = db.list_artifacts(project=proj_obj.name, tag=new_tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
@@ -551,8 +549,7 @@ def test_delete_artifact_tags(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(proj_obj.name, save=False)
-    db.create_project(proj_obj)
+    proj_obj = mlrun.new_project(project)
 
     tag = "my-tag"
     new_tag = "new-tag"
@@ -561,7 +558,7 @@ def test_delete_artifact_tags(create_server):
         body=b"some data",
         tag=tag,
     )
-    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
+    artifacts = db.list_artifacts(project=proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
@@ -569,11 +566,11 @@ def test_delete_artifact_tags(create_server):
 
     db.delete_artifacts_tags(logged_artifact, proj_obj.name, tag_name=tag)
 
-    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
+    artifacts = db.list_artifacts(project=proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 0, "bad list results - wrong number of artifacts"
 
-    artifacts = db.list_artifacts(proj_obj.name, tag=new_tag)
+    artifacts = db.list_artifacts(project=proj_obj.name, tag=new_tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 

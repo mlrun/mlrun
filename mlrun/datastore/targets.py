@@ -494,11 +494,13 @@ class BaseStoreTarget(DataTargetBase):
         else:
             target_path = generate_path_with_chunk(self, chunk_id)
             fs = self._get_store().get_filesystem(False)
+            partition_cols = []
+            if target_path.endswith("parquet") or target_path.endswith("pq"):
+                partition_cols = None
             if fs.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            partition_cols = None
             target_df = df
             if timestamp_key and (
                 self.partitioned or self.time_partitioning_granularity
@@ -509,7 +511,6 @@ class BaseStoreTarget(DataTargetBase):
                     time_partitioning_granularity = (
                         mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
                     )
-                partition_cols = []
                 for unit, fmt in [
                     ("year", "%Y"),
                     ("month", "%m"),

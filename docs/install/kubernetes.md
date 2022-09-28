@@ -23,7 +23,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - Storage: 7Gi
 
 ``` {admonition} Note
-The MLRun CE resources (mlrun-api, mlrun-ui, mlrun-db, minio, mpi-operator, nuclio, jupyter) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
+The MLRun Community Edition resources (mlrun-api, mlrun-ui, mlrun-db, minio, mpi-operator, nuclio, jupyter) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
 ## Installing on Docker Desktop
@@ -59,10 +59,13 @@ To learn about the various UI options and their usage, see:
 
 ### Chart Details
 
-The MLRun CE chart includes the following stack:
-
-* Nuclio - https://github.com/nuclio/nuclio
+The MLRun CE (Community Edition) chart arrives in 2 flavors - lite and full.
+The lite version is the default installation and includes the following components:
 * MLRun - https://github.com/mlrun/mlrun
+  - MLRun API
+  - MLRun UI
+  - MLRun DB (MySQL)
+* Nuclio - https://github.com/nuclio/nuclio
 * Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * Minio - https://github.com/minio/minio/tree/master/helm/minio
@@ -141,22 +144,7 @@ Once the installation is complete, the helm command will print the URLs and Port
 
 ## Installing Full Version
 
-The Community Edition arrives in 2 flavors - lite and full.
-The lite version is the default installation and includes the following components:
-- MLRun API
-- MLRun UI
-- MLRun DB (MySQL)
-- Minio
-- MPI Operator
-- Nuclio
-- Jupyter
-
-The full version includes all the lite components plus the following:
-- Spark Operator
-- Kubeflow Pipelines
-- Grafana & Prometheus
-
-To install the full version, use the following command:
+To install the full version of the chart, use the following command:
 
 ```bash
 helm --namespace mlrun \

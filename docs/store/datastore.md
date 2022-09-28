@@ -6,11 +6,7 @@ A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguaz
 **In this section**
 - [Shared data stores](#shared-data-stores)
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
-   - [v3io](#v3io)
-   - [S3](#s3)
-   - [Azure Blob storage](#azure-blob-storage)
-   - [Google cloud storage](#google-cloud-storage)
-
+   
 ## Shared data stores
 
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)

@@ -7,7 +7,7 @@ MLRun comprises two parts: MLRun Server and MLRUN client.
 
 **In this section**
 - [Deployment options](#deployment-options)
-- [Non-root user support](#non-root-support)
+- [Non-root user support](#non-root-user-support)
 - [Security context](#security-context)
 - [Set up your client](#Set-up-your-client)
 - [MLRun client backward compatibility](#MLRun-client-backward-compatibility)
@@ -25,14 +25,14 @@ There are several deployment options:
   the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
   
-## Non-root user support (#non-root-support)
+## Non-root user support
 
 By default, MLRun assigns the root user to MLRun runtimes and pods. You can improve the security context by changing the security mode, 
 which is implemented by Igauzio during installation, and applied system-wide:
 - Override: Use the user id of the user that triggered the current run or use the nogroupid for group id. Requires Iguazio v3.5.1.
 - Disabled: Security context is not auto applied (the system aplies the root user). (default)
 
-## Security context (#security-context)
+## Security context
 
 If your system is configured in disabled mode, you can apply the security context to individual runtimes/pods by using `function.with_security_context`, and the job is assigned to the user or to the user's group that ran the job.<br>
 (You cannot override the user of individual jobs if the system is configured in override mode.) The options are:

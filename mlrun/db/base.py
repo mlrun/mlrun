@@ -190,6 +190,7 @@ class RunDBInterface(ABC):
             dictionaries, or a single object.
         :return: :py:class:`~mlrun.api.schemas.TagObjects`
         """
+        # to avoid circular imports we import here
         import mlrun.artifacts.base
 
         if not isinstance(artifacts, list):

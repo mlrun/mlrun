@@ -28,6 +28,7 @@ import pytest
 
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.artifacts.base
 from mlrun import RunObject
 from mlrun.api import schemas
 from mlrun.db.httpdb import HTTPRunDB
@@ -499,12 +500,12 @@ def test_tagging_artifacts(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project)
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
 
-    logged_artifact = proj_obj.log_artifact(
-        "my-artifact",
-        body=b"some data",
-    )
+    artifact = mlrun.artifacts.base.Artifact("my-artifact", body=b"some data")
+
+    logged_artifact = db.store_artifact("my-artifact", artifact, "some-uid", project=proj_obj.name)
 
     db.tag_artifacts(logged_artifact, project, tag_name="add-tag")
 
@@ -518,16 +519,16 @@ def test_replacing_artifact_tags(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project)
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
 
     tag = "my-tag"
     new_tag = "new-tag"
 
-    logged_artifact = proj_obj.log_artifact(
-        "my-artifact",
-        body=b"some data",
-        tag=tag,
-    )
+    artifact = mlrun.artifacts.base.Artifact("my-artifact", body=b"some data")
+
+    logged_artifact = db.store_artifact("my-artifact", artifact, "some-uid", project=proj_obj.name, tag=tag)
 
     artifacts = db.list_artifacts(project=proj_obj.name, tag=tag)
     print(artifacts)
@@ -549,15 +550,15 @@ def test_delete_artifact_tags(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project)
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
 
     tag = "my-tag"
     new_tag = "new-tag"
-    logged_artifact = proj_obj.log_artifact(
-        "my-artifact",
-        body=b"some data",
-        tag=tag,
-    )
+    artifact = mlrun.artifacts.base.Artifact("my-artifact", body=b"some data")
+
+    logged_artifact = db.store_artifact("my-artifact", artifact, "some-uid", project=proj_obj.name, tag=tag)
+
     artifacts = db.list_artifacts(project=proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"

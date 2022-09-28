@@ -152,4 +152,5 @@ def test_resolve_artifacts_to_tag_objects():
     artifact = mlrun.artifacts.base.Artifact("some-key", "some-value")
 
     tag_objects = db._resolve_artifacts_to_tag_objects([artifact])
-    print(tag_objects)
+    assert len(tag_objects.identifiers) == 1
+    assert tag_objects.identifiers[0].key == "some-key"

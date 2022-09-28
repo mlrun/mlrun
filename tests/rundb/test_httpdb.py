@@ -494,6 +494,81 @@ def _create_feature_vector(name):
     }
 
 
+def test_tagging_artifacts(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
+    logged_artifact = proj_obj.log_artifact(
+        "my-artifact",
+        body=b"some data",
+    )
+
+    db.tag_artifacts(logged_artifact, project, tag_name="add-tag")
+
+    artifacts = db.list_artifacts(project, tag="add-tag")
+    assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
+
+
+def test_replacing_artifact_tags(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
+    tag = "my-tag"
+    new_tag = "new-tag"
+
+    logged_artifact = proj_obj.log_artifact(
+        "my-artifact",
+        body=b"some data",
+        tag=tag,
+    )
+
+    artifacts = db.list_artifacts(project, tag=tag)
+    assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
+
+    db.tag_artifacts(logged_artifact, project, tag_name=new_tag, replace=True)
+
+    artifacts = db.list_artifacts(project, tag=tag)
+    assert len(artifacts) == 0, "bad list results - wrong number of artifacts"
+
+    artifacts = db.list_artifacts(project, tag=new_tag)
+    assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
+
+
+def test_delete_artifact_tags(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
+    tag = "my-tag"
+    new_tag = "new-tag"
+    logged_artifact = proj_obj.log_artifact(
+        "my-artifact",
+        body=b"some data",
+        tag=tag,
+    )
+
+    db.tag_artifacts(logged_artifact, project, tag_name=new_tag)
+
+    db.delete_artifacts_tags(logged_artifact, project, tag_name=tag)
+
+    artifacts = db.list_artifacts(project, tag=tag)
+    assert len(artifacts) == 0, "bad list results - wrong number of artifacts"
+
+    artifacts = db.list_artifacts(project, tag=new_tag)
+    assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
+
+
 def test_feature_vectors(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn

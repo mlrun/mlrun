@@ -213,21 +213,6 @@ class RunDBInterface(ABC):
             )
         return schemas.TagObjects(kind="artifact", identifiers=artifact_identifiers)
 
-    @staticmethod
-    def _resolve_artifacts_identifiers_to_tag_objects(
-        artifacts_identifiers: List[Union[schemas.ArtifactIdentifier, dict]] = None,
-        key: str = None,
-        uid: str = None,
-        iter: int = None,
-        kind: str = None,
-    ) -> schemas.TagObjects:
-        identifiers = artifacts_identifiers or []
-        if key or uid or iter or kind:
-            identifiers.append(
-                schemas.ArtifactIdentifier(key=key, uid=uid, iter=iter, kind=kind)
-            )
-        return schemas.TagObjects(kind="artifact", identifiers=identifiers)
-
     @abstractmethod
     def delete_project(
         self,

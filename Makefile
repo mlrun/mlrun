@@ -438,9 +438,9 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		tests/test_notebooks.py \
-		tests/rundb/test_httpdb.py
+		tests/rundb/test_httpdb.py::test_tagging_artifacts \
+		tests/rundb/test_httpdb.py::test_replacing_artifact_tags \
+		tests/rundb/test_httpdb.py::test_delete_artifact_tags
 
 .PHONY: test-migrations-dockerized
 test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docker container

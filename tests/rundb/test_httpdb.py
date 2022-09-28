@@ -531,17 +531,17 @@ def test_replacing_artifact_tags(create_server):
         tag=tag,
     )
 
-    artifacts = db.list_artifacts(project, tag=tag)
+    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
-    db.tag_artifacts(logged_artifact, project, tag_name=new_tag, replace=True)
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag, replace=True)
 
-    artifacts = db.list_artifacts(project, tag=tag)
+    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 0, "bad list results - wrong number of artifacts"
 
-    artifacts = db.list_artifacts(project, tag=new_tag)
+    artifacts = db.list_artifacts(proj_obj.name, tag=new_tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
@@ -551,7 +551,7 @@ def test_delete_artifact_tags(create_server):
     db: HTTPRunDB = server.conn
 
     project = "newproj"
-    proj_obj = mlrun.new_project(project, save=False)
+    proj_obj = mlrun.new_project(proj_obj.name, save=False)
     db.create_project(proj_obj)
 
     tag = "my-tag"
@@ -561,19 +561,19 @@ def test_delete_artifact_tags(create_server):
         body=b"some data",
         tag=tag,
     )
-    artifacts = db.list_artifacts(project, tag=tag)
+    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 
-    db.tag_artifacts(logged_artifact, project, tag_name=new_tag)
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag)
 
-    db.delete_artifacts_tags(logged_artifact, project, tag_name=tag)
+    db.delete_artifacts_tags(logged_artifact, proj_obj.name, tag_name=tag)
 
-    artifacts = db.list_artifacts( project, tag=tag)
+    artifacts = db.list_artifacts(proj_obj.name, tag=tag)
     print(artifacts)
     # assert len(artifacts) == 0, "bad list results - wrong number of artifacts"
 
-    artifacts = db.list_artifacts( project, tag=new_tag)
+    artifacts = db.list_artifacts(proj_obj.name, tag=new_tag)
     print(artifacts)
     # assert len(artifacts) == 1, "bad list results - wrong number of artifacts"
 

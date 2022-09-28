@@ -211,7 +211,7 @@ You can use your code on a local machine while running your functions on a remot
 
 Before you begin, ensure that the following prerequisites are met:
 
-- The MLRun version installed with the MLRun Kit is the same as the MLRun version on your remote cluster. If needed, upgrade MLRun 
+- The MLRun version installed with the MLRun CE is the same as the MLRun version on your remote cluster. If needed, upgrade MLRun 
 either in your local installation or on the remote cluster so that they match.
 - You have remote access to your MLRun service (i.e. to the service URL on the remote Kubernetes cluster).
 

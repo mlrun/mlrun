@@ -136,7 +136,7 @@ def clone_git(url, context, secrets=None, clone=True):
             url = url.replace("#" + refs, f"#refs/heads/{refs}")
             branch = refs
 
-    # if we clone without the enriched clone path, the user will be prompted for username/password
+    # when using the CLI and clone path was not enriched, username/password input will be requested via shell
     repo = Repo.clone_from(
         enriched_clone_path or clone_path, context, single_branch=True, b=branch
     )

@@ -706,16 +706,18 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        db_session=None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
+        workflow_name = name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
+        via_api = db_session is not None
 
         try:
             # Creating the load project and workflow running function:
             load_and_run_fn = mlrun.new_function(
                 name=runner_name,
-                project=project.name,
+                project=project.metadata.name,
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
@@ -730,7 +732,7 @@ class _RemoteRunner(_PipelineRunner):
                     "spec": {
                         "parameters": {
                             "url": project.spec.source,
-                            "project_name": project.name,
+                            "project_name": project.metadata.name,
                             "workflow_name": workflow_name or workflow_spec.name,
                             "workflow_path": workflow_spec.path,
                             "workflow_arguments": workflow_spec.args,
@@ -768,9 +770,10 @@ class _RemoteRunner(_PipelineRunner):
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)
-            project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
-            )
+            if not via_api:
+                project.notifiers.push(
+                    f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
+                )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
                 run_id,
@@ -780,9 +783,10 @@ class _RemoteRunner(_PipelineRunner):
                 state=state,
             )
 
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-        )
+        if not via_api:
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+            )
         pipeline_context.clear()
         return _PipelineRunStatus(
             run_id,

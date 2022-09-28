@@ -219,11 +219,11 @@ def add_code_metadata(path=""):
         repo = Repo(path, search_parent_directories=True)
         remotes = [remote for remote in repo.remotes]
         if len(remotes) > 0:
-            remote_url = remotes[0].urls[0]
+            for remote_url in remotes[0].urls:
 
-            # remove credentials from remote url for security reasons
-            # remote = remove_credentials_from_origin(remotes[0])
-            return f"{remote_url}#{repo.head.commit.hexsha}"
+                # remove credentials from remote url for security reasons
+                # remote = remove_credentials_from_origin(remotes[0])
+                return f"{remote_url}#{repo.head.commit.hexsha}"
     except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
         pass
     return None

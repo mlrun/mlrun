@@ -23,7 +23,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - Storage: 7Gi
 
 ``` {admonition} Note
-The MLRun Community Edition resources (mlrun-api, mlrun-ui, mlrun-db, minio, mpi-operator, nuclio, jupyter) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
+The MLRun Community Edition resources are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
 ## Installing on Docker Desktop

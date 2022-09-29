@@ -1,0 +1,285 @@
+Package|Version|License|Home Page
+asgiref|3.5.2|BSD|https://github.com/django/asgiref/
+absl-py|1.1.0|Apache 2.0|https://github.com/abseil/abseil-py
+fastapi|0.78.0|(Licence not found)|https://github.com/tiangolo/fastapi
+azure-keyvault-secrets|4.3.0|MIT License|https://github.com/Azure/azure-sdk-for-python/tree/master/sdk/keyvault/azure-keyvault-secrets
+click|8.0.4|BSD-3-Clause|https://palletsprojects.com/p/click/
+alabaster|0.7.12|UNKNOWN|https://alabaster.readthedocs.io
+bokeh|2.4.3|BSD-3-Clause|https://github.com/bokeh/bokeh
+decorator|4.4.2|new BSD License|https://github.com/micheles/decorator
+google-cloud-bigquery-storage|2.13.2|Apache 2.0|https://github.com/googleapis/python-bigquery-storage
+gitdb|4.0.5|BSD License|https://github.com/gitpython-developers/gitdb
+async-timeout|4.0.2|Apache 2|https://github.com/aio-libs/async-timeout
+fire|0.4.0|Apache Software License|https://github.com/google/python-fire
+absolufy-imports|0.3.0|MIT|https://github.com/MarcoGorelli/absolufy-imports
+gitpython|3.1.7|UNKNOWN|https://github.com/gitpython-developers/GitPython
+cloudpickle|2.1.0|BSD 3-Clause License|https://github.com/cloudpipe/cloudpickle
+azure-storage-blob|12.11.0|MIT License|https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob
+deepdiff|5.0.2|MIT|https://github.com/seperman/deepdiff
+alembic|1.5.8|MIT|https://alembic.sqlalchemy.org
+google-cloud-core|2.3.1|Apache 2.0|https://github.com/googleapis/python-cloud-core
+boto3|1.17.106|Apache License 2.0|https://github.com/boto/boto3
+adal|1.2.7|MIT|https://github.com/AzureAD/azure-activedirectory-library-for-python
+flake8|3.8.3|MIT|https://gitlab.com/pycqa/flake8
+asynctest|0.13.0|Apache 2|https://github.com/Martiusweb/asynctest/
+colorama|0.4.4|BSD|https://github.com/tartley/colorama
+google-api-core|2.8.1|Apache 2.0|https://github.com/googleapis/python-api-core
+google-cloud-storage|1.44.0|Apache 2.0|https://github.com/googleapis/python-storage
+anyio|3.6.1|MIT|
+babel|2.8.0|BSD|http://babel.pocoo.org/
+botocore|1.20.106|Apache License 2.0|https://github.com/boto/botocore
+defusedxml|0.6.0|PSFL|https://github.com/tiran/defusedxml
+adlfs|2021.8.2|BSD|https://github.com/dask/adlfs/
+frozenlist|1.3.0|Apache 2|https://github.com/aio-libs/frozenlist
+attrs|19.3.0|MIT|https://www.attrs.org/
+google-api-python-client|1.12.11|Apache 2.0|https://github.com/googleapis/google-api-python-client/
+backcall|0.2.0|UNKNOWN|https://github.com/takluyver/backcall
+appdirs|1.4.4|MIT|http://github.com/ActiveState/appdirs
+commonmark|0.9.1|BSD-3-Clause|https://github.com/rtfd/commonmark.py
+deprecated|1.2.10|MIT|https://github.com/tantale/deprecated
+google-crc32c|1.3.0|Apache 2.0|https://github.com/googleapis/python-crc32c
+cachetools|4.1.1|MIT|https://github.com/tkem/cachetools/
+fsspec|2021.8.1|BSD|http://github.com/intake/filesystem_spec
+azure-common|1.1.27|MIT License|https://github.com/Azure/azure-sdk-for-python
+aiobotocore|1.4.2|Apache 2|https://github.com/aio-libs/aiobotocore
+google-auth|1.35.0|Apache 2.0|https://github.com/googleapis/google-auth-library-python
+bcrypt|3.2.0|Apache License, Version 2.0|https://github.com/pyca/bcrypt/
+appnope|0.1.0|BSD|http://github.com/minrk/appnope
+cryptography|3.3.2|BSD or Apache License, Version 2.0|https://github.com/pyca/cryptography
+google-resumable-media|2.3.3|Apache 2.0|https://github.com/googleapis/google-resumable-media-python
+distributed|2021.11.2|BSD|https://distributed.dask.org
+certifi|2020.6.20|MPL-2.0|https://certifiio.readthedocs.io/en/latest/
+future|0.18.2|MIT|https://python-future.org
+azure-core|1.22.1|MIT License|https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/core/azure-core
+google-auth-httplib2|0.1.0|Apache 2.0|https://github.com/GoogleCloudPlatform/google-auth-library-python-httplib2
+beautifulsoup4|4.9.3|MIT|http://www.crummy.com/software/BeautifulSoup/bs4/
+aiohttp|3.8.1|Apache 2|https://github.com/aio-libs/aiohttp
+cycler|0.10.0|BSD|http://github.com/matplotlib/cycler
+docstring-parser|0.14.1|MIT|https://github.com/rr-/docstring_parser
+googleapis-common-protos|1.56.2|Apache-2.0|https://github.com/googleapis/python-api-common-protos
+cffi|1.14.1|MIT|http://cffi.readthedocs.org
+apscheduler|3.6.3|MIT|https://github.com/agronholm/apscheduler
+gcsfs|2021.8.1|BSD|https://github.com/dask/gcsfs
+google-auth-oauthlib|0.5.2|Apache 2.0|https://github.com/GoogleCloudPlatform/google-auth-library-python-oauthlib
+azure-datalake-store|0.0.52|MIT License|https://github.com/Azure/azure-data-lake-store-python
+black|22.3.0|MIT|https://github.com/psf/black
+aioitertools|0.8.0|(Licence not found)|https://aioitertools.omnilib.dev
+docutils|0.15.2|public domain, Python, 2-Clause BSD, GPL 3 (see COPYING.txt)|http://docutils.sourceforge.net/
+dask|2021.11.2|BSD|https://github.com/dask/dask/
+chardet|3.0.4|LGPL|https://github.com/chardet/chardet
+graphviz|0.16|MIT|https://github.com/xflr6/graphviz
+argo-models|2.2.1a0|UNKNOWN|https://github.com/e2fyi/argo-models
+gevent|21.12.0|MIT|http://www.gevent.org/
+google-cloud-bigquery|3.2.0|Apache 2.0|https://github.com/googleapis/python-bigquery
+azure-identity|1.6.1|MIT License|https://github.com/Azure/azure-sdk-for-python/tree/master/sdk/identity/azure-identity
+aiosignal|1.2.0|Apache 2|https://github.com/aio-libs/aiosignal
+bleach|3.1.5|Apache Software License|https://github.com/mozilla/bleach
+dask-kubernetes|0.11.0|BSD|https://github.com/dask/dask-kubernetes
+entrypoints|0.3|UNKNOWN|https://github.com/takluyver/entrypoints
+charset-normalizer|2.0.12|MIT|https://github.com/ousret/charset_normalizer
+greenlet|1.1.3|MIT License|https://greenlet.readthedocs.io/
+argon2-cffi|20.1.0|MIT|https://argon2-cffi.readthedocs.io/
+grequests|0.6.0|BSD|https://github.com/kennethreitz/grequests
+joblib|0.16.0|BSD|https://joblib.readthedocs.io
+httptools|0.1.1|MIT|https://github.com/MagicStack/httptools
+ipython|7.16.1|BSD|https://ipython.org
+mergedeep|1.3.0|UNKNOWN|https://github.com/clarketm/mergedeep
+multidict|4.7.6|Apache 2|https://github.com/aio-libs/multidict
+jupyterlab-widgets|1.0.0|BSD-3-Clause|https://github.com/jupyter-widgets/ipywidgets
+kubernetes-asyncio|11.3.0|Apache License Version 2.0|https://github.com/tomplus/kubernetes_asyncio
+nbformat|5.0.7|BSD|http://jupyter.org
+ordered-set|4.0.2|MIT-LICENSE|https://github.com/LuminosoInsight/ordered-set
+grpcio|1.41.1|Apache License 2.0|https://grpc.io
+httpx|0.22.0|BSD|https://github.com/encode/httpx
+jsonschema|3.2.0|UNKNOWN|https://github.com/Julian/jsonschema
+mistune|0.8.4|BSD|https://github.com/lepture/mistune
+ipython-genutils|0.2.0|BSD|http://ipython.org
+lightgbm|3.3.2|The MIT License (Microsoft)|https://github.com/microsoft/LightGBM
+kafka-python|2.0.2|Apache License 2.0|https://github.com/dpkp/kafka-python
+mypy-extensions|0.4.3|MIT License|https://github.com/python/mypy_extensions
+nest-asyncio|1.4.0|BSD|https://github.com/erdewit/nest_asyncio
+orjson|3.3.1|Apache-2.0 OR MIT|https://github.com/ijl/orjson
+grpcio-status|1.41.1|Apache License 2.0|https://grpc.io
+humanfriendly|8.2|MIT|https://humanfriendly.readthedocs.io
+jupyter-cache|0.4.3|MIT|https://github.com/ExecutableBookProject/jupyter-cache
+mlrun|1.1.0+sa|MIT|https://github.com/mlrun/mlrun
+locket|1.0.0|BSD-2-Clause|http://github.com/mwilliamson/locket.py
+keyring|21.2.1|UNKNOWN|https://github.com/jaraco/keyring
+ipywidgets|7.6.3|BSD|http://ipython.org
+mysql-connector-python|8.0.26|GNU GPLv2 (with FOSS License Exception)|http://dev.mysql.com/doc/connector-python/en/index.html
+notebook|6.0.3|BSD|http://jupyter.org
+packaging|20.4|BSD-2-Clause or Apache-2.0|https://github.com/pypa/packaging
+grpcio-tools|1.41.1|Apache License 2.0|https://grpc.io
+jupyter-client|6.1.6|BSD|https://jupyter.org
+idna|2.10|BSD-like|https://github.com/kjd/idna
+more-itertools|8.4.0|MIT|https://github.com/more-itertools/more-itertools
+mako|1.1.3|MIT|https://www.makotemplates.org/
+myst-nb|0.10.0|BSD-3|https://github.com/executablebooks/myst_nb
+isodate|0.6.0|BSD|https://github.com/gweis/isodate/
+kfp|1.8.12|UNKNOWN|https://github.com/kubeflow/pipelines
+nuclio-jupyter|0.9.1|MIT|https://github.com/nuclio/nuclio-jupyter
+pandas|1.2.3|BSD|https://pandas.pydata.org
+h11|0.12.0|MIT|https://github.com/python-hyper/h11
+jupyter-core|4.6.3|BSD|https://jupyter.org
+imagesize|1.2.0|MIT|https://github.com/shibukawa/imagesize_py
+msal|1.13.0|MIT|https://github.com/AzureAD/microsoft-authentication-library-for-python
+isort|5.7.0|MIT|https://pycqa.github.io/isort/
+myst-parser|0.12.10|MIT|https://github.com/executablebooks/MyST-Parser
+markdown-it-py|0.5.8|MIT|https://github.com/executablebooks/markdown-it-py
+kfp-pipeline-spec|0.1.16|Apache 2.0|https://github.com/kubeflow/pipelines
+nuclio-sdk|0.3.2|Apache 2|https://github.com/nuclio/nuclio-sdk-py
+pandocfilters|1.4.2|UNKNOWN|http://github.com/jgm/pandocfilters
+heapdict|1.0.1|BSD|http://stutzbachenterprises.com/
+jupyter-server|1.10.2|UNKNOWN|https://jupyter.org
+jedi|0.17.2|MIT|https://github.com/davidhalter/jedi
+importlib-metadata|1.7.0|Apache Software License|http://importlib-metadata.readthedocs.io/
+msal-extensions|0.3.0|UNKNOWN|UNKNOWN
+nbclient|0.5.4|BSD|https://jupyter.org
+markupsafe|2.1.1|BSD-3-Clause|https://palletsprojects.com/p/markupsafe/
+numpy|1.19.1|BSD|https://www.numpy.org
+kfp-server-api|1.8.2|Apache 2.0|https://github.com/kubeflow/pipelines
+paramiko|2.7.2|LGPL|https://github.com/paramiko/paramiko/
+httpcore|0.14.7|BSD|https://github.com/encode/httpcore
+jupyter-server-mathjax|0.2.3|BSD|http://jupyter.org
+jinja2|3.0.3|BSD-3-Clause|https://palletsprojects.com/p/jinja/
+inflection|0.5.1|MIT|https://github.com/jpvanhal/inflection
+msgpack|0.6.2|Apache 2.0|https://msgpack.org/
+nbconvert|5.6.1|BSD|https://jupyter.org
+matplotlib|3.3.0|PSF|https://matplotlib.org
+kiwisolver|1.2.0|BSD|https://github.com/nucleic/kiwi
+numpydoc|0.9.1|BSD|https://numpydoc.readthedocs.io
+parso|0.7.1|MIT|https://github.com/davidhalter/parso
+httplib2|0.20.4|MIT|https://github.com/httplib2/httplib2
+jupyter-sphinx|0.3.2|BSD|https://github.com/jupyter/jupyter-sphinx/
+jmespath|0.10.0|MIT|https://github.com/jmespath/jmespath.py
+ipykernel|5.3.4|BSD|https://ipython.org
+nbdime|3.1.0|BSD|https://nbdime.readthedocs.io
+msrest|0.6.21|MIT License|https://github.com/Azure/msrest-for-python
+mccabe|0.6.1|Expat license|https://github.com/pycqa/mccabe
+kubernetes|12.0.1|Apache License Version 2.0|https://github.com/kubernetes-client/python
+partd|1.2.0|BSD|http://github.com/dask/partd/
+oauthlib|3.1.0|BSD|https://github.com/oauthlib/oauthlib
+pathspec|0.9.0|MPL 2.0|https://github.com/cpburnz/python-path-specification
+pluggy|0.13.1|MIT license|https://github.com/pytest-dev/pluggy
+py|1.9.0|MIT license|https://py.readthedocs.io/
+pyflakes|2.2.0|MIT|https://github.com/PyCQA/pyflakes
+pytest|5.4.3|MIT license|https://docs.pytest.org/en/latest/
+pytz|2020.1|MIT|http://pythonhosted.org/pytz
+requests-oauthlib|1.3.0|ISC|https://github.com/requests/requests-oauthlib
+scipy|1.5.2|BSD|https://www.scipy.org
+sniffio|1.2.0|MIT -or- Apache License 2.0|https://github.com/python-trio/sniffio
+sphinx-togglebutton|0.2.3|MIT License|https://github.com/executablebooks/sphinx-togglebutton
+pexpect|4.8.0|ISC license|https://pexpect.readthedocs.io/
+portalocker|1.7.1|PSF|https://github.com/WoLpH/portalocker
+pyarrow|5.0.0|Apache License, Version 2.0|https://arrow.apache.org/
+pygithub|1.53|UNKNOWN|http://pygithub.readthedocs.io/en/latest/
+pytest-alembic|0.4.0|MIT|https://github.com/schireson/pytest-alembic
+requests-toolbelt|0.9.1|Apache 2.0|https://toolbelt.readthedocs.org
+pyyaml|5.3.1|MIT|https://github.com/yaml/pyyaml
+seaborn|0.10.1|BSD (3-clause)|https://seaborn.pydata.org
+snowballstemmer|2.0.0|BSD-3-Clause|https://github.com/snowballstem/snowball
+sphinxcontrib-applehelp|1.0.2|BSD|http://sphinx-doc.org/
+pickleshare|0.7.5|MIT|https://github.com/pickleshare/pickleshare
+prometheus-client|0.8.0|Apache Software License 2.0|https://github.com/prometheus/client_python
+pyasn1|0.4.8|BSD|https://github.com/etingof/pyasn1
+pygments|2.6.1|BSD License|https://pygments.org/
+pytest-asyncio|0.15.1|Apache 2.0|https://github.com/pytest-dev/pytest-asyncio
+requests-unixsocket|0.2.0|Apache-2|https://github.com/msabramo/requests-unixsocket
+semver|2.13.0|BSD|https://github.com/python-semver/python-semver
+pyzmq|19.0.1|LGPL+BSD|https://pyzmq.readthedocs.org
+sortedcontainers|2.2.2|Apache 2.0|http://www.grantjenks.com/docs/sortedcontainers/
+sphinxcontrib-devhelp|1.0.2|BSD|http://sphinx-doc.org/
+pillow|7.2.0|HPND|https://python-pillow.org
+prompt-toolkit|3.0.5|UNKNOWN|https://github.com/prompt-toolkit/python-prompt-toolkit
+pyjwt|1.7.1|MIT|http://github.com/jpadilla/pyjwt
+pyasn1-modules|0.2.8|BSD-2-Clause|https://github.com/etingof/pyasn1-modules
+pytest-httpserver|1.0.4|MIT|https://github.com/csernazs/pytest-httpserver
+rfc3986|1.5.0|Apache 2.0|http://rfc3986.readthedocs.io
+send2trash|1.5.0|BSD License|https://github.com/hsoft/send2trash
+readme-renderer|26.0|Apache License, Version 2.0|https://github.com/pypa/readme_renderer
+soupsieve|2.2.1|MIT License|https://github.com/facelessuser/soupsieve
+sphinxcontrib-htmlhelp|1.0.3|BSD|http://sphinx-doc.org/
+pip|22.0.4|MIT|https://pip.pypa.io/
+proto-plus|1.20.6|Apache 2.0|https://github.com/googleapis/proto-plus-python.git
+pymysql|1.0.2|"MIT"|https://github.com/PyMySQL/PyMySQL/
+pycodestyle|2.6.0|Expat license|https://pycodestyle.readthedocs.io/
+rsa|4.6|ASL 2|https://stuvel.eu/rsa
+python-dateutil|2.8.1|Dual License|https://dateutil.readthedocs.io
+setuptools|49.2.0|UNKNOWN|https://github.com/pypa/setuptools
+recommonmark|0.6.0|MIT|https://github.com/rtfd/recommonmark
+sphinx|3.5.4|BSD|http://sphinx-doc.org/
+sphinxcontrib-jsmath|1.0.1|BSD|http://sphinx-doc.org/
+pkginfo|1.5.0.1|MIT|https://code.launchpad.net/~tseaver/pkginfo/trunk
+protobuf|3.20.1|BSD-3-Clause|https://developers.google.com/protocol-buffers/
+pycparser|2.20|BSD|https://github.com/eliben/pycparser
+pynacl|1.4.0|Apache License 2.0|https://github.com/pyca/pynacl/
+python-dotenv|0.17.1|UNKNOWN|https://github.com/theskumar/python-dotenv
+s3fs|2021.8.1|BSD|http://github.com/dask/s3fs/
+simplejson|3.17.3|MIT License|https://github.com/simplejson/simplejson
+regex|2020.7.14|Python Software Foundation License|https://bitbucket.org/mrabarnett/mrab-regex
+sphinx-book-theme|0.0.42|BSD|https://jupyterbook.org/
+sphinxcontrib-qthelp|1.0.3|BSD|http://sphinx-doc.org/
+platformdirs|2.5.2|(Licence not found)|
+psutil|5.7.2|BSD|https://github.com/giampaolo/psutil
+pyparsing|2.4.7|MIT License|https://github.com/pyparsing/pyparsing/
+pydantic|1.10.2|MIT|https://github.com/pydantic/pydantic
+s3transfer|0.4.2|Apache License 2.0|https://github.com/boto/s3transfer
+python-editor|1.0.4|Apache|https://github.com/fmoo/python-editor
+six|1.15.0|MIT|https://github.com/benjaminp/six
+requests|2.24.0|Apache 2.0|https://requests.readthedocs.io
+sphinx-copybutton|0.3.0|MIT License|https://github.com/ExecutableBookProject/sphinx-copybutton
+sphinxcontrib-serializinghtml|1.1.4|BSD|http://sphinx-doc.org/
+plotly|5.8.2|MIT|https://plotly.com/python/
+ptyprocess|0.6.0|UNKNOWN|https://github.com/pexpect/ptyprocess
+pyrsistent|0.16.0|MIT|http://github.com/tobgu/pyrsistent/
+pydata-sphinx-theme|0.4.3|BSD|https://github.com/pandas-dev/pydata-sphinx-theme
+scikit-learn|1.0.2|new BSD|http://scikit-learn.org
+smmap|3.0.4|BSD|https://github.com/gitpython-developers/smmap
+pytimeparse|1.1.8|License :: OSI Approved :: MIT License|https://github.com/wroberts/pytimeparse
+requests-mock|1.9.3|Apache-2|https://requests-mock.readthedocs.io/
+sphinx-rtd-theme|0.5.2|MIT|https://github.com/readthedocs/sphinx_rtd_theme
+sqlalchemy|1.3.18|MIT|http://www.sqlalchemy.org
+sqlite3-to-mysql|1.4.3|MIT|https://github.com/techouse/sqlite3-to-mysql
+terminado|0.8.3|UNKNOWN|https://github.com/jupyter/terminado
+traitlets|4.3.3|BSD|http://ipython.org
+urllib3|1.25.11|MIT|https://urllib3.readthedocs.io/
+websocket-client|0.57.0|BSD|https://github.com/websocket-client/websocket-client.git
+zict|2.0.0|BSD|http://zict.readthedocs.io/en/latest/
+testpath|0.4.4|UNKNOWN|https://github.com/jupyter/testpath
+starlette|0.19.1|BSD|https://github.com/encode/starlette
+twine|3.1.1|UNKNOWN|https://twine.readthedocs.io/
+uvicorn|0.17.6|BSD|https://www.uvicorn.org/
+websockets|8.1|BSD|https://github.com/aaugustin/websockets
+zipp|3.1.0|UNKNOWN|https://github.com/jaraco/zipp
+storey|1.1.5|Apache|https://github.com/mlrun/storey
+threadpoolctl|2.1.0|UNKNOWN|https://github.com/joblib/threadpoolctl
+typed-ast|1.5.4|Apache License 2.0|https://github.com/python/typed_ast
+uvloop|0.14.0|MIT|http://github.com/MagicStack/uvloop
+werkzeug|2.1.2|BSD-3-Clause|https://palletsprojects.com/p/werkzeug/
+zope.event|4.5.0|ZPL 2.1|https://github.com/zopefoundation/zope.event
+toml|0.10.1|MIT|https://github.com/uiri/toml
+strip-hints|0.1.9|MIT|https://github.com/abarker/strip-hints
+typer|0.4.1|(Licence not found)|https://github.com/tiangolo/typer
+v3io|0.5.15|MIT|https://github.com/v3io/v3io-py
+wheel|0.34.2|MIT|https://github.com/pypa/wheel
+zope.interface|5.4.0|ZPL 2.1|https://github.com/zopefoundation/zope.interface
+tomli|2.0.1|(Licence not found)|
+tabulate|0.8.9|MIT|https://github.com/astanin/python-tabulate
+typing-extensions|4.3.0|(Licence not found)|
+v3io-frames|0.10.2|MIT|https://github.com/v3io/frames
+widgetsnbextension|3.5.1|BSD|http://ipython.org
+toolz|0.10.0|BSD|https://github.com/pytoolz/toolz/
+tblib|1.7.0|BSD-2-Clause|https://github.com/ionelmc/python-tblib
+tzlocal|2.1|MIT|https://github.com/regebro/tzlocal
+v3iofs|0.1.10|MIT|https://github.com/v3io/v3iofs-py
+wrapt|1.12.1|BSD|https://github.com/GrahamDumpleton/wrapt
+tenacity|8.0.1|Apache 2.0|https://github.com/jd/tenacity
+tornado|6.0.4|http://www.apache.org/licenses/LICENSE-2.0|http://www.tornadoweb.org/
+ujson|4.0.2|UNKNOWN|https://github.com/ultrajson/ultrajson
+wcwidth|0.2.5|MIT|https://github.com/jquast/wcwidth
+xgboost|1.1.1|Apache-2.0|https://github.com/dmlc/xgboost
+tqdm|4.48.0|MPLv2.0, MIT Licences|https://github.com/tqdm/tqdm
+termcolor|1.1.0|MIT|http://pypi.python.org/pypi/termcolor
+uritemplate|3.0.1|BSD 3-Clause License or Apache License, Version 2.0|https://uritemplate.readthedocs.org
+webencodings|0.5.1|BSD|https://github.com/SimonSapin/python-webencodings
+yarl|1.5.0|Apache 2|https://github.com/aio-libs/yarl/

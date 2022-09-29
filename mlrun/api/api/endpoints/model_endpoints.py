@@ -62,8 +62,7 @@ def create_model_endpoint(
         action=mlrun.api.schemas.AuthorizationAction.store,
         auth_info=auth_info,
     )
-    # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
@@ -118,9 +117,6 @@ def patch_model_endpoint(
         auth_info=auth_info,
     )
 
-    # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
-
     mlrun.api.crud.ModelEndpoints().patch_model_endpoint(
         project=project,
         endpoint_id=endpoint_id,
@@ -162,9 +158,6 @@ def delete_endpoint_record(
         action=mlrun.api.schemas.AuthorizationAction.delete,
         auth_info=auth_info,
     )
-
-    # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
 
     mlrun.api.crud.ModelEndpoints().delete_model_endpoint(
         project=project,

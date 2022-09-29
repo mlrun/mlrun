@@ -6,6 +6,10 @@
 Monitoring required at the moment Iguazio's streaming technology. Open-source integration with Kafka is under development.
 ```
 
+```{note}
+This is currently a beta feature.
+```
+
 The MLRun's model monitoring service includes built-in model monitoring and reporting capability. With monitoring you get
 out-of-the-box analysis of:
 
@@ -23,8 +27,10 @@ You have the option to set up notifications on various channels once an issue is
 to your IT via email and slack when operational performance metrics pass a threshold. You can also set-up automated actions, for example,
 call a CI/CD pipeline when data drift is detected and allow a data scientist to review the model with the revised data.
 
+Refer to the [model monitoring & drift detection tutorial](../tutorial/05-model-monitoring.html) for an end-to-end example.
+
 **In this section**
-  
+
 ```{toctree}
 :maxdepth: 1
 

@@ -959,8 +959,10 @@ def project(
     print(proj.to_yaml())
 
     if run:
+        print("schedule_before", schedule)
         if schedule.lower() in ["true", "yes", "1"]:
             schedule = True
+        print("schedule",schedule)
         workflow_path = None
         if run.endswith(".py"):
             workflow_path = run

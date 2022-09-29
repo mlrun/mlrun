@@ -22,26 +22,26 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
 import mlrun.api.crud
+import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
-from mlrun.api.schemas import ModelEndpoint, ModelEndpointList
 from mlrun.errors import MLRunConflictError
 
 router = APIRouter()
 
 
-@router.put(
+@router.post(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    status_code=HTTPStatus.NO_CONTENT.value,
+    response_model=mlrun.api.schemas.ModelEndpoint,
 )
 def create_model_endpoint(
     project: str,
     endpoint_id: str,
-    model_endpoint: ModelEndpoint,
+    model_endpoint: mlrun.api.schemas.ModelEndpoint,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-) -> Response:
+) -> mlrun.api.schemas.ModelEndpoint:
     """
     Create a DB record of a given ModelEndpoint object.
 
@@ -53,7 +53,7 @@ def create_model_endpoint(
                             endpoint id record, we need to use the db session for getting information from an existing
                             model artifact and also for storing the new model monitoring feature set.
 
-    :return: Starlette response object.
+    :return: A Model endpoint object.
     """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
@@ -79,12 +79,16 @@ def create_model_endpoint(
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
     )
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+    return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
+        auth_info=auth_info,
+        project=project,
+        endpoint_id=endpoint_id,
+    )
 
 
 @router.patch(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    status_code=HTTPStatus.NO_CONTENT.value,
+    response_model=mlrun.api.schemas.ModelEndpoint,
 )
 def patch_model_endpoint(
     project: str,
@@ -93,7 +97,7 @@ def patch_model_endpoint(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-) -> Response:
+) -> mlrun.api.schemas.ModelEndpoint:
     """
     Update a DB record of a given ModelEndpoint object.
 
@@ -104,7 +108,7 @@ def patch_model_endpoint(
                           dictionary should exist in the DB target.
     :param auth_info:     The auth info of the request.
 
-    :return: Starlette response object.
+    :return: A Model endpoint object.
     """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
@@ -123,7 +127,11 @@ def patch_model_endpoint(
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         attributes=json.loads(attributes),
     )
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
+    return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
+        auth_info=auth_info,
+        project=project,
+        endpoint_id=endpoint_id,
+    )
 
 
 @router.delete(
@@ -166,7 +174,10 @@ def delete_endpoint_record(
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
-@router.get("/projects/{project}/model-endpoints", response_model=ModelEndpointList)
+@router.get(
+    "/projects/{project}/model-endpoints",
+    response_model=mlrun.api.schemas.ModelEndpointList,
+)
 def list_model_endpoints(
     project: str,
     model: Optional[str] = Query(None),
@@ -180,7 +191,7 @@ def list_model_endpoints(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-) -> ModelEndpointList:
+) -> mlrun.api.schemas.ModelEndpointList:
     """
     Returns a list of endpoints of type 'ModelEndpoint', supports filtering by model, function, tag,
     labels or top level. By default, when no filters are applied, all available endpoints for the given project will be
@@ -252,7 +263,8 @@ def list_model_endpoints(
 
 
 @router.get(
-    "/projects/{project}/model-endpoints/{endpoint_id}", response_model=ModelEndpoint
+    "/projects/{project}/model-endpoints/{endpoint_id}",
+    response_model=mlrun.api.schemas.ModelEndpoint,
 )
 def get_model_endpoint(
     project: str,
@@ -265,7 +277,7 @@ def get_model_endpoint(
         mlrun.api.api.deps.authenticate_request
     ),
     raise_for_status=None,
-) -> ModelEndpoint:
+) -> mlrun.api.schemas.ModelEndpoint:
     """Get a single model endpoint object. You can apply different time series metrics that will be added to the
        result.
 

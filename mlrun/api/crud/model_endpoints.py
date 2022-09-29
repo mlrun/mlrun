@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import json
 import os
 import typing
@@ -45,9 +46,8 @@ from mlrun.utils import logger
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
 
-    @classmethod
     def create_model_endpoint(
-        cls,
+        self,
         db_session: sqlalchemy.orm.Session,
         access_key: str,
         model_endpoint: mlrun.api.schemas.ModelEndpoint,
@@ -91,7 +91,7 @@ class ModelEndpoints:
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
                 model_label_names = [
-                    cls._clean_feature_name(f.name) for f in model_obj.outputs
+                    self._clean_feature_name(f.name) for f in model_obj.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
 
@@ -104,7 +104,7 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.api.schemas.ModelMonitoringMode.enabled.value
             ):
-                monitoring_feature_set = cls.create_monitoring_feature_set(
+                monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
@@ -119,13 +119,13 @@ class ModelEndpoints:
             logger.info("Feature stats found, cleaning feature names")
             if model_endpoint.spec.feature_names:
                 # Validate that the length of feature_stats is equal to the length of feature_names and label_names
-                cls._validate_length_features_and_labels(model_endpoint)
+                self._validate_length_features_and_labels(model_endpoint)
 
                 # Clean feature names in both feature_stats and feature_names
             (
                 model_endpoint.status.feature_stats,
                 model_endpoint.spec.feature_names,
-            ) = cls._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
+            ) = self._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
 
             logger.info(
                 "Done preparing feature names and stats",
@@ -261,9 +261,8 @@ class ModelEndpoints:
                 f"label_names({len_of_label_names}"
             )
 
-    @classmethod
     def _adjust_feature_names_and_stats(
-        cls, model_endpoint
+        self, model_endpoint
     ) -> typing.Tuple[typing.Dict, typing.List]:
         """
         Create a clean matching version of feature names for both feature_stats and feature_names. Please note that
@@ -279,7 +278,7 @@ class ModelEndpoints:
         for i, (feature, stats) in enumerate(
             model_endpoint.status.feature_stats.items()
         ):
-            clean_name = cls._clean_feature_name(feature)
+            clean_name = self._clean_feature_name(feature)
             clean_feature_stats[clean_name] = stats
             # Exclude the label columns from the feature names
             if (
@@ -820,7 +819,7 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         super().__init__(access_key=access_key, project=project)
         # Initialize a V3IO client instance
         self.client = mlrun.utils.v3io_clients.get_v3io_client(
-            endpoint=mlrun.mlconf.v3io_api
+            endpoint=mlrun.mlconf.v3io_api, access_key=access_key
         )
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
@@ -839,7 +838,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             container=self.container,
             table_path=self.path,
             key=endpoint.metadata.uid,
-            access_key=self.access_key,
             attributes=attributes,
         )
 
@@ -857,7 +855,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             container=self.container,
             table_path=self.path,
             key=endpoint_id,
-            access_key=self.access_key,
             attributes=attributes,
         )
 
@@ -877,7 +874,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             container=self.container,
             table_path=self.path,
             key=endpoint_id,
-            access_key=self.access_key,
         )
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
@@ -918,7 +914,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             container=self.container,
             table_path=self.path,
             key=endpoint_id,
-            access_key=self.access_key,
             raise_for_status=raise_for_status,
         )
         endpoint = endpoint.output.item
@@ -1039,7 +1034,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         cursor = self.client.kv.new_cursor(
             container=self.container,
             table_path=self.path,
-            access_key=self.access_key,
             filter_expression=self.build_kv_cursor_filter_expression(
                 self.project,
                 function,
@@ -1081,7 +1075,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
             container=self.container,
             table_path=self.path,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
-            access_key=self.access_key,
         ).all()
 
         all_records = [r["__name"] for r in all_records]
@@ -1092,7 +1085,6 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
                 container=self.container,
                 table_path=self.path,
                 key=record,
-                access_key=self.access_key,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
 
@@ -1388,14 +1380,54 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
 
 def get_endpoint_target(project, access_key):
     """
-    Getting the DB target type based on mlrun.config.model_endpoint_monitoring.store_type
+    Getting the DB target type based on mlrun.config.model_endpoint_monitoring.store_type.
+
     :param project:             The name of the project.
     :param access_key:          Access key with permission to write to DB table.
 
     :return: ModelEndpointTarget object. Using this object, the user can apply different operations on the
              model endpoint record such as write, update, get and delete.
     """
-    if mlrun.mlconf.model_endpoint_monitoring.store_type == "kv":
-        return _ModelEndpointKVStore(project=project, access_key=access_key)
-    else:
-        return _ModelEndpointSQLStore(project=project, access_key=access_key)
+
+    # Get store type value from ModelEndpointStoreType enum class
+    model_endpoint_store_type = ModelEndpointStoreType(
+        mlrun.mlconf.model_endpoint_monitoring.store_type
+    )
+
+    # Convert into model endpoint store target object
+    return model_endpoint_store_type.to_endpoint_target(project, access_key)
+
+
+class ModelEndpointStoreType(enum.Enum):
+    """Enum class to handle the different store type values for saving a model endpoint record."""
+
+    kv = "kv"
+    sql = "sql"
+
+    def to_endpoint_target(self, project, access_key):
+        """
+        Return a ModelEndpointTarget object based on the provided enum value.
+
+        :param project:             The name of the project.
+        :param access_key:          Access key with permission to write to DB table.
+
+        :return: ModelEndpointTarget object.
+        """
+
+        if self.value == ModelEndpointStoreType.kv.value:
+            return _ModelEndpointKVStore(project=project, access_key=access_key)
+        elif self.value == ModelEndpointStoreType.sql.value:
+            return _ModelEndpointSQLStore(project=project, access_key=access_key)
+
+    @classmethod
+    def _missing_(cls, value: typing.Any):
+        """A lookup function to handle an invalid value.
+
+        :param value: Provided enum (invalid) value.
+
+        """
+        valid_values = list(cls.__members__.keys())
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "%r is not a valid %s, please choose a valid value: %s."
+            % (value, cls.__name__, valid_values)
+        )

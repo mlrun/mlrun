@@ -2431,12 +2431,12 @@ class HTTPRunDB(RunDBInterface):
         access_key: Optional[str] = None,
     ):
         """
-        Creates or updates a KV record with the given model_endpoint record
+        Creates a DB record with the given model_endpoint record.
 
-        :param project: The name of the project
-        :param endpoint_id: The id of the endpoint
-        :param model_endpoint: An object representing the model endpoint
-        :param access_key: V3IO access key, when None, will be look for in environ
+        :param project: The name of the project.
+        :param endpoint_id: The id of the endpoint.
+        :param model_endpoint: An object representing the model endpoint.
+        :param access_key: V3IO access key, when None, will be look for in environ.
         """
         access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
         if not access_key:
@@ -2447,7 +2447,7 @@ class HTTPRunDB(RunDBInterface):
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="PUT",
+            method="POST",
             path=path,
             body=model_endpoint.json(),
             headers={"X-V3io-Access-Key": access_key},
@@ -2597,7 +2597,28 @@ class HTTPRunDB(RunDBInterface):
 
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
-        :param attributes: fields to update.
+        :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
+                           of this dictionary should exist in the target table. Note that the values should be
+                           from type string or from a valid numerical type such as int or float.
+
+                           example::
+
+                           # Generate current stats for two features
+                           current_stats = {'tvd_sum': 2.2,
+                                            'tvd_mean': 0.5,
+                                            'hellinger_sum': 3.6,
+                                            'hellinger_mean': 0.9,
+                                            'kld_sum': 24.2,
+                                             kld_mean': 6.0,
+                                            'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                                            'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+
+                           # Create attributes dictionary according to the required format
+                           attributes = {
+                                "current_stats": json.dumps(current_stats),
+                                "drift_status": "DRIFT_DETECTED",
+                           }
+
         :param access_key: V3IO access key, when None, will be look for in environ.
         """
         access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")

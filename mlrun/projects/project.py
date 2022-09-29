@@ -1987,13 +1987,12 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            print("if schedule:")
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
         else:
             workflow_spec.schedule = None
-        print(" workflow_spec.schedule:", workflow_spec.schedule)
+
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:

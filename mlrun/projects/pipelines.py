@@ -720,7 +720,6 @@ class _RemoteRunner(_PipelineRunner):
                 image=mlrun.mlconf.default_base_image,
             )
             msg = "executing workflow "
-            print(" workflow_spec.schedule_2:", workflow_spec.schedule)
             if workflow_spec.schedule:
                 msg += "scheduling "
             logger.info(

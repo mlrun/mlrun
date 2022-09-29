@@ -27,6 +27,8 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 03-model-serving
 04-pipeline
 05-model-monitoring
+06-add-mlops-to-code
+07-batch-infer
 ../feature-store/basic-demo
 MLRun demos repository <https://github.com/mlrun/demos>
 ```

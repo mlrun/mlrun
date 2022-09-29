@@ -128,7 +128,7 @@ class Metric:
         """
         Display the metric and its result.
 
-        :param full: Whether to print a full display of the metric, including the metric arguments. Defaulted to False.
+        :param full: Whether to print a full display of the metric, including the metric arguments. Default: False.
         """
         result = self._result if self._result is not None else "?"
         print(f"{self._name} = {result}")

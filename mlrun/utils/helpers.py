@@ -22,17 +22,15 @@ import time
 import typing
 from datetime import datetime, timezone
 from importlib import import_module
-from os import environ, path
+from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas
-import requests
 import yaml
 from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
-from tabulate import tabulate
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -670,61 +668,6 @@ def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
         )
 
 
-def pr_comment(
-    message: str,
-    repo: str = None,
-    issue: int = None,
-    token=None,
-    server=None,
-    gitlab=False,
-):
-    """push comment message to Git system PR/issue
-
-    :param message:  test message
-    :param repo:     repo name (org/repo)
-    :param issue:    pull-request/issue number
-    :param token:    git system security token
-    :param server:   url of the git system
-    :param gitlab:   set to True for GitLab (MLRun will try to auto detect the Git system)
-    """
-    if ("CI_PROJECT_ID" in environ) or (server and "gitlab" in server):
-        gitlab = True
-    token = token or environ.get("GITHUB_TOKEN") or environ.get("GIT_TOKEN")
-
-    if gitlab:
-        server = server or "gitlab.com"
-        headers = {"PRIVATE-TOKEN": token}
-        repo = repo or environ.get("CI_PROJECT_ID")
-        # auto detect GitLab pr id from the environment
-        issue = issue or environ.get("CI_MERGE_REQUEST_IID")
-        repo = repo.replace("/", "%2F")
-        url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
-    else:
-        server = server or "api.github.com"
-        repo = repo or environ.get("GITHUB_REPOSITORY")
-        # auto detect pr number if not specified, in github the pr id is identified as an issue id
-        # we try and read the pr (issue) id from the github actions event file/object
-        if not issue and "GITHUB_EVENT_PATH" in environ:
-            with open(environ["GITHUB_EVENT_PATH"]) as fp:
-                data = fp.read()
-                event = json.loads(data)
-                if "issue" not in event:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"issue not found in github actions event\ndata={data}"
-                    )
-                issue = event["issue"].get("number")
-        headers = {
-            "Accept": "application/vnd.github.v3+json",
-            "Authorization": f"token {token}",
-        }
-        url = f"https://{server}/repos/{repo}/issues/{issue}/comments"
-    resp = requests.post(url=url, json={"body": str(message)}, headers=headers)
-    if not resp.ok:
-        errmsg = f"bad pr comment resp!!\n{resp.text}"
-        raise IOError(errmsg)
-    return resp.json()["id"]
-
-
 def fill_object_hash(object_dict, uid_property_name, tag=""):
     # remove tag, hash, date from calculation
     object_dict.setdefault("metadata", {})
@@ -901,201 +844,6 @@ def are_strings_in_exception_chain_messages(
             return True
         exception = exception.__cause__
     return False
-
-
-class RunNotifications:
-    def __init__(self, with_ipython=True, with_slack=False, secrets=None):
-        self._hooks = []
-        self._html = ""
-        self._with_print = False
-        self._secrets = secrets or {}
-        self.with_ipython = with_ipython
-        if with_slack and "SLACK_WEBHOOK" in environ:
-            self.slack()
-        self.print(skip_ipython=True)
-
-    def push_start_message(
-        self, project, commit_id=None, id=None, has_workflow_url=False
-    ):
-        message = f"Pipeline started in project {project}"
-        if id:
-            message += f" id={id}"
-        commit_id = (
-            commit_id or environ.get("GITHUB_SHA") or environ.get("CI_COMMIT_SHA")
-        )
-        if commit_id:
-            message += f", commit={commit_id}"
-        if has_workflow_url:
-            url = get_workflow_url(project, id)
-        else:
-            url = get_ui_url(project)
-        html = ""
-        if url:
-            html = (
-                message
-                + f'<div><a href="{url}" target="_blank">click here to view progress</a></div>'
-            )
-            message = message + f", check progress in {url}"
-        self.push(message, html=html)
-
-    def push_run_results(self, runs, push_all=False, state=None):
-        """push a structured table with run results to notification targets
-
-        :param runs:  list if run objects (RunObject)
-        :param push_all: push all notifications (including already notified runs)
-        :param state: final run state
-        """
-        had_errors = 0
-        runs_list = []
-        for r in runs:
-            notified = getattr(r, "_notified", False)
-            if not notified or push_all:
-                if r.status.state == "error":
-                    had_errors += 1
-                runs_list.append(r.to_dict())
-                r._notified = True
-
-        text = "pipeline run finished"
-        if had_errors:
-            text += f" with {had_errors} errors"
-        if state:
-            text += f", state={state}"
-        self.push(text, runs_list)
-
-    def push(self, message, runs=None, html=None):
-        if isinstance(runs, list):
-            runs = mlrun.lists.RunList(runs)
-        self._html = None
-        for h in self._hooks:
-            try:
-                h(message, runs, html)
-            except Exception as exc:
-                logger.warning(f"failed to push notification, {exc}")
-        if self.with_ipython and is_ipython:
-            import IPython
-
-            IPython.display.display(
-                IPython.display.HTML(self._get_html(html or message, runs))
-            )
-
-    def _get_html(self, message, runs):
-        if self._html:
-            return self._html
-        if not runs:
-            return message
-
-        html = "<h2>Run Results</h2>" + message
-        html += "<br>click the hyper links below to see detailed results<br>"
-        html += runs.show(display=False, short=True)
-        self._html = html
-        return html
-
-    def print(self, skip_ipython=None):
-        def _print(message, runs, html=None):
-            if not runs:
-                print(message)
-                return
-
-            table = []
-            for r in runs:
-                state = r["status"].get("state", "")
-                if state == "error":
-                    result = r["status"].get("error", "")
-                else:
-                    result = dict_to_str(r["status"].get("results", {}))
-
-                table.append(
-                    [
-                        state,
-                        r["metadata"]["name"],
-                        ".." + r["metadata"]["uid"][-6:],
-                        result,
-                    ]
-                )
-            print(
-                message
-                + "\n"
-                + tabulate(table, headers=["status", "name", "uid", "results"])
-            )
-
-        if not self._with_print and not (
-            skip_ipython and self.with_ipython and is_ipython
-        ):
-            self._hooks.append(_print)
-            self._with_print = True
-        return self
-
-    def slack(self, webhook=""):
-        emoji = {"completed": ":smiley:", "running": ":man-running:", "error": ":x:"}
-        webhook = (
-            webhook
-            or environ.get("SLACK_WEBHOOK")
-            or self._secrets.get("SLACK_WEBHOOK")
-        )
-        if not webhook:
-            raise ValueError("Slack webhook is not set")
-
-        def row(text):
-            return {"type": "mrkdwn", "text": text}
-
-        def _slack(message, runs, html=None):
-            fields = [row("*Runs*"), row("*Results*")]
-            for r in runs or []:
-                meta = r["metadata"]
-                url = get_ui_url(meta.get("project"), meta.get("uid"))
-                if url:
-                    line = f'<{url}|*{meta.get("name")}*>'
-                else:
-                    line = meta.get("name")
-                state = r["status"].get("state", "")
-                line = f'{emoji.get(state, ":question:")}  {line}'
-
-                fields.append(row(line))
-                if state == "error":
-                    error_status = r["status"].get("error", "")
-                    result = f"*{error_status}*"
-                else:
-                    result = dict_to_str(r["status"].get("results", {}), ", ")
-                fields.append(row(result or "None"))
-
-            data = {
-                "blocks": [
-                    {"type": "section", "text": {"type": "mrkdwn", "text": message}}
-                ]
-            }
-
-            if runs:
-                for i in range(0, len(fields), 8):
-                    data["blocks"].append(
-                        {"type": "section", "fields": fields[i : i + 8]}
-                    )
-            response = requests.post(
-                webhook,
-                data=json.dumps(data),
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
-
-        self._hooks.append(_slack)
-        return self
-
-    def git_comment(
-        self, git_repo=None, git_issue=None, token=None, server=None, gitlab=False
-    ):
-        def _comment(message, runs, html=None):
-            pr_comment(
-                self._get_html(html or message, runs),
-                git_repo,
-                git_issue,
-                token=token
-                or self._secrets.get("GIT_TOKEN")
-                or self._secrets.get("GITHUB_TOKEN"),
-                server=server,
-                gitlab=gitlab,
-            )
-
-        self._hooks.append(_comment)
-        return self
 
 
 def create_class(pkg_class: str):
@@ -1316,6 +1064,22 @@ def is_legacy_artifact(artifact):
         return "metadata" not in artifact
     else:
         return not hasattr(artifact, "metadata")
+
+
+def get_in_artifact(artifact, key, default=None):
+    """artifact can be dict or Artifact object"""
+    if is_legacy_artifact(artifact):
+        return getattr(artifact, key, default)
+    else:
+        if hasattr(artifact.metadata, key):
+            return getattr(artifact.metadata, key, default)
+        if hasattr(artifact.spec, key):
+            return getattr(artifact.spec, key, default)
+        if hasattr(artifact.status, key):
+            return getattr(artifact.status, key, default)
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"invalid artifact couldn't get key {key} in {artifact}"
+        )
 
 
 def set_paths(pythonpath=""):

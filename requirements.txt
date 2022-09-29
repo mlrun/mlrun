@@ -27,7 +27,8 @@ ipython~=7.0
 nuclio-jupyter~=0.9.1
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
-pandas~=1.2
+# limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us
+pandas~=1.2, <1.5.0
 # used as a the engine for parquet files by pandas
 pyarrow>=1,<7
 pyyaml~=5.1

@@ -110,3 +110,11 @@ class TestRedisDataStore(TestMLRunSystem):
         assert set(expected) == set(
             actual
         ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+
+        # clean test objects
+        dir_item.store.rm("/dir-0/", recursive=True)
+        expected = []
+        actual = dir_item.listdir()
+        assert set(expected) == set(
+            actual
+        ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"

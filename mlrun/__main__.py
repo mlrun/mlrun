@@ -896,7 +896,7 @@ def logs(uid, project, offset, db, watch):
     "--schedule",
     type=str,
     default=None,
-    help="a standard crontab expression string, for help see: "
+    help="a standard crontab expression string, for help see: ,for using the pre-defined workflow's schedule, set `--schedule true`"
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron",
 )
 def project(
@@ -959,10 +959,8 @@ def project(
     print(proj.to_yaml())
 
     if run:
-        print("schedule_before", schedule)
         if schedule.lower() in ["true", "yes", "1"]:
             schedule = True
-        print("schedule",schedule)
         workflow_path = None
         if run.endswith(".py"):
             workflow_path = run

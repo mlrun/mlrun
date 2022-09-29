@@ -1,5 +1,5 @@
 (mlrun-serving-overview)=
-# Deploy models and ML applications
+# Online model serving
 
 MLRun can produce managed real-time serverless pipelines from various tasks, including MLRun models or standard model files.
 The pipelines use a real-time serverless engine, called Nuclio, which can be deployed anywhere and is capable of delivering intensive data, I/O, and compute workloads.
@@ -8,11 +8,15 @@ Serving a model begins by creating a serving function. This function can run one
 
 MLRun serving supports advanced real-time data processing and model serving pipelines. For more details and examples, see the {ref}`MLRun serving pipelines <serving>` documentation.
 
+
+**In this section**
+
 ```{toctree}
 :maxdepth: 1
 
-../serving/online-model-serving-classes
-../feature-store/training-serving
-../batch_inference/batch_inference
-../serving/canary
+built-in-model-serving
+custom-model-serving-class
+test-deploy-model-server
+model-api
 ```
+   

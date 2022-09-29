@@ -25,7 +25,7 @@
    
    data-collect-prep/ingest-process-data
    model_development/continuous-model-development
-   serving/serving-overview
+   deployment/deploy-models-and-ml-applications
    model_monitoring/initial-setup-configuration
      
 .. toctree::

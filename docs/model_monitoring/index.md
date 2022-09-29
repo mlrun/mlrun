@@ -18,7 +18,7 @@ out-of-the-box analysis of:
   feature-level performance. This gives you better insights for the reasons behind a particular result
 - **Data drift**: the change in model input data that potentially leads to model performance degradation. There are various
   statistical metrics and drift metrics that you can use in order to identify data drift.
-- **Concept drift**: applies to the target sometimes the statistical properties of the target variable, which the model is
+- **Concept drift**: applies to the target. Sometimes the statistical properties of the target variable, which the model is
   trying to predict, change over time in unforeseen ways.
 - **Operational performance**: applies to the overall health of the system. This applies to data (e.g., whether all the
   expected data arrives to the model) as well as the model (e.g., response time, and throughput). 

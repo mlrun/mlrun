@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
 import uuid
 
@@ -153,6 +154,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             self.topic_out,
             bootstrap_servers=self.brokers,
             auto_offset_reset="earliest",
+            consumer_timeout_ms=10 * 60 * 1000,
         )
 
         # Test runs
@@ -181,9 +183,15 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
-        graph.to(">>", "q1", path=f"kafka://{self.brokers}/{self.topic}").to(
+        graph.to(">>", "q1", path=f"kafka://{self.brokers}/{self.topic}",).to(
             name="child", class_name="Identity", function="child"
-        ).to(">>", "out", path=self.topic_out, kafka_bootstrap_servers=self.brokers)
+        ).to(
+            ">>",
+            "out",
+            path=self.topic_out,
+            kafka_bootstrap_servers=self.brokers,
+            full_event=False,
+        )
 
         graph.add_step(
             name="other-child", class_name="Augment", after="q1", function="other-child"
@@ -209,19 +217,30 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         resp = requests.post(url, json={"hello": "world"})
         assert resp.status_code == 200
 
+        expected_record = b'{"hello": "world"}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+
         self._logger.debug("Waiting for data to arrive in output topic")
         kafka_consumer.subscribe([self.topic_out])
         record1 = next(kafka_consumer)
         assert (
-            record1.value == b'{"hello": "world"}'
-            or record1.value == b'{"hello": "world", "more_stuff": 5}'
+            record1.value == expected_record or record1.value == expected_other_record
         )
         record2 = next(kafka_consumer)
         assert (
-            record2.value == b'{"hello": "world"}'
-            or record2.value == b'{"hello": "world", "more_stuff": 5}'
+            record2.value == expected_record or record2.value == expected_other_record
         )
-        assert record1 != record2
+        kafka_consumer.unsubscribe()
+
+        # Intermediate record should have been written as a full event
+        kafka_consumer.subscribe([self.topic])
+        record = next(kafka_consumer)
+        record = json.loads(record.value.decode("utf8"))
+        print(record)
+        assert record["full_event_wrapper"] is True
+        assert record["body"] == {"hello": "world"}
+        assert "time" in record.keys()
+        assert "id" in record.keys()
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

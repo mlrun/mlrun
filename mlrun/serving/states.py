@@ -1306,9 +1306,6 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    print(
-                        f"!!! _init_async_objects: step={step}, step.options={step.options}"
-                    )
                     options = {}
                     options.update(step.options)
                     kafka_bootstrap_servers = options.pop(

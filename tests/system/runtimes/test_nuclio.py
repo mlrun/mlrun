@@ -236,7 +236,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_consumer.subscribe([self.topic])
         record = next(kafka_consumer)
         record = json.loads(record.value.decode("utf8"))
-        print(record)
+        self._logger.debug(f"Intermediate record: {record}")
         assert record["full_event_wrapper"] is True
         assert record["body"] == {"hello": "world"}
         assert "time" in record.keys()

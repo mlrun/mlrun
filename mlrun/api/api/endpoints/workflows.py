@@ -71,38 +71,42 @@ def submit_workflow(
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"{name} workflow not found in project"
         )
+
+    workflow_spec = None
     if not spec:
         for workflow in project.spec.workflows:
             if workflow["name"] == name:
-                spec = workflow
+                workflow_spec = workflow
                 break
+    else:
+        workflow_spec = spec
 
-    print_debug("workflow_spec", spec)  # TODO: Remove!
+    print_debug("workflow_spec", workflow_spec)  # TODO: Remove!
     # Preparing inputs for _RemoteRunner.run():
     if source:
         project.spec.source = source
     if arguments:
-        if hasattr(spec, "args"):
-            if spec.args is None:
-                spec.args = {}
+        if hasattr(workflow_spec, "args"):
+            if workflow_spec.args is None:
+                workflow_spec.args = {}
             else:
-                spec.args.update(arguments)
+                workflow_spec.args.update(arguments)
         else:
-            if "args" in spec:
-                spec["args"].update(arguments)
+            if "args" in workflow_spec:
+                workflow_spec["args"].update(arguments)
             else:
-                spec["args"] = arguments
+                workflow_spec["args"] = arguments
     workflow_spec = (
-        mlrun.projects.pipelines.WorkflowSpec.from_dict(spec.dict())
-        if hasattr(spec, "dict")
-        else mlrun.projects.pipelines.WorkflowSpec.from_dict(spec)
+        mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec.dict())
+        if hasattr(workflow_spec, "dict")
+        else mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec)
     )
 
     workflow_spec.run_local = True  # Running remotely local workflows
     print_debug("final workflow spec", workflow_spec)  # TODO: Remove!
     # Printing input for debug:  # TODO: Remove!
     print_debug("project", project)  # TODO: Remove!
-    print_debug("handler", spec.handler)  # TODO: Remove!
+    print_debug("handler", workflow_spec.handler)  # TODO: Remove!
     print_debug("artifact_path", artifact_path)  # TODO: Remove!
     print_debug("namespace", namespace)  # TODO: Remove!
 
@@ -110,7 +114,7 @@ def submit_workflow(
         project=project,
         workflow_spec=workflow_spec,
         name=name,
-        workflow_handler=spec.handler,
+        workflow_handler=workflow_spec.handler,
         artifact_path=artifact_path,
         namespace=namespace,
         db_session=mlrun.api.api.utils.get_run_db_instance(db_session),

@@ -1,3 +1,6 @@
+import copy
+import typing
+
 import mlrun
 import mlrun.api.schemas
 import mlrun.api.api.deps
@@ -6,11 +9,17 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.auth.verifier
 import mlrun.projects.pipelines
 from typing import Dict, Optional
-
+from mlrun.api.api.utils import log_and_raise
 import fastapi
 from sqlalchemy.orm import Session
 
 router = fastapi.APIRouter()
+
+
+def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
+    for wf in project.spec.workflows:
+        if wf['name'] == workflow:
+            return wf
 
 
 def print_debug(key, val):
@@ -63,44 +72,42 @@ def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
+
+    existing_workflows = [workflow["name"] for workflow in project.spec.workflows]
+
+    # Taking from spec input or looking inside the project's workflows:
+    if spec:
+        workflow_name = spec.name or name
+        spec.name = workflow_name
+        if workflow_name in existing_workflows:
+            # Update with favor to the workflow's spec from the input.:
+            workflow = _get_workflow_by_name(project, spec.name)
+            workflow_spec = copy.deepcopy(workflow)
+            workflow_spec.update(spec.dict())
+        else:
+            workflow_spec = spec.dict()
+    else:
+        workflow_spec = _get_workflow_by_name(project, name)
+
     print_debug("project's workflows", project.spec.workflows)  # TODO: Remove!
     print_debug("main workflow", project.spec.workflows[0])  # TODO: Remove!
     # Verifying that project has a workflow name:
-    workflow_names = [workflow["name"] for workflow in project.spec.workflows]
-    if name not in workflow_names:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"{name} workflow not found in project"
-        )
 
-    workflow_spec = None
-    if not spec:
-        for workflow in project.spec.workflows:
-            if workflow["name"] == name:
-                workflow_spec = workflow
-                break
-    else:
-        workflow_spec = spec
+    if not workflow_spec:
+        log_and_raise(
+            reason=f"{name} workflow not found in project",
+        )
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec)
 
     print_debug("workflow_spec", workflow_spec)  # TODO: Remove!
     # Preparing inputs for _RemoteRunner.run():
     if source:
         project.spec.source = source
+
     if arguments:
-        if hasattr(workflow_spec, "args"):
-            if workflow_spec.args is None:
-                workflow_spec.args = {}
-            else:
-                workflow_spec.args.update(arguments)
-        else:
-            if "args" in workflow_spec:
-                workflow_spec["args"].update(arguments)
-            else:
-                workflow_spec["args"] = arguments
-    workflow_spec = (
-        mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec.dict())
-        if hasattr(workflow_spec, "dict")
-        else mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec)
-    )
+        if not workflow_spec.args:
+            workflow_spec.args = {}
+        workflow_spec.args.update(arguments)
 
     workflow_spec.run_local = True  # Running remotely local workflows
     print_debug("final workflow spec", workflow_spec)  # TODO: Remove!
@@ -121,11 +128,3 @@ def submit_workflow(
     )
     print_debug("run result", run)  # TODO: Remove!
     return run.run_id
-
-
-# questions:
-# 1. which arguments to pass?
-# 2. which arguments are optional / obligatory ?
-# 3. which permission checks to do?
-# 4. path of router discussion
-# put in the run object status the run id.

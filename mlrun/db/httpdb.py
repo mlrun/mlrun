@@ -32,6 +32,7 @@ from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 
 from ..api.schemas import ModelEndpoint
+from ..artifacts import Artifact
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
@@ -1994,6 +1995,97 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
+
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        objects: Union[mlrun.api.schemas.TagObjects, dict],
+        replace: bool = False,
+    ):
+        """Tag a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to set on the objects.
+        :param objects: The objects to tag.
+        :param replace: Whether to replace the existing tags of the objects or to add the new tag to them.
+        """
+
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed to tag {tag_name} on objects {objects}"
+        method = "POST" if replace else "PUT"
+        self.api_call(
+            method,
+            path,
+            error_message,
+            body=dict_to_json(
+                objects.dict()
+                if isinstance(objects, mlrun.api.schemas.TagObjects)
+                else objects
+            ),
+        )
+
+    def delete_objects_tag(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: Union[mlrun.api.schemas.TagObjects, dict],
+    ):
+        """Delete a tag from a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to delete from the objects.
+        :param tag_objects: The objects to delete the tag from.
+
+        """
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed deleting tag from {tag_name}"
+        self.api_call(
+            "DELETE",
+            path,
+            error_message,
+            body=dict_to_json(
+                tag_objects.dict()
+                if isinstance(tag_objects, mlrun.api.schemas.TagObjects)
+                else tag_objects
+            ),
+        )
+
+    def tag_artifacts(
+        self,
+        artifacts: Union[List[Artifact], List[dict], Artifact, dict],
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        """Tag a list of artifacts.
+
+        :param artifacts: The artifacts to tag. Can be a list of :py:class:`~mlrun.artifacts.Artifact` objects or
+            dictionaries, or a single object.
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        :param replace: If True, replace existing tags, otherwise append to existing tags.
+        """
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+        print(tag_objects)
+        self.tag_objects(project, tag_name, objects=tag_objects, replace=replace)
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        """Delete tag from a list of artifacts.
+
+        :param artifacts: The artifacts to delete the tag from. Can be a list of :py:class:`~mlrun.artifacts.Artifact`
+            objects or dictionaries, or a single object.
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        """
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+
+        self.delete_objects_tag(project, tag_name, tag_objects)
 
     def list_projects(
         self,

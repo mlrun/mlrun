@@ -894,8 +894,9 @@ def logs(uid, project, offset, db, watch):
 )
 @click.option(
     "--schedule",
-    type=str,
+    type=(str, bool),
     default=None,
+    is_flag=True,
     help="To create a schedule define a standard crontab expression string."
     "for help see: "
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
@@ -961,8 +962,8 @@ def project(
     print(proj.to_yaml())
 
     if run:
-        if schedule.lower() in ["true"]:
-            schedule = True
+        # if schedule.lower() == "true" and schedule is not None:
+        #     schedule = True
         workflow_path = None
         if run.endswith(".py"):
             workflow_path = run

@@ -1,4 +1,4 @@
-# Using the Spark execution engine
+# Ingest features with Spark
 
 The feature store supports using Spark for ingesting, transforming, and writing results to data targets. When 
 using Spark, the internal execution graph is executed synchronously by utilizing a Spark session to perform read and

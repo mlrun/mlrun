@@ -313,7 +313,9 @@ class HTTPRunDB(RunDBInterface):
                 else server_cfg.get("generate_artifact_target_path_from_artifact_hash")
             )
 
-            config.redis.url = config.redis.url or server_cfg.get("redis.url")
+            config.redis.url = config.redis.url or server_cfg.get("redis_url")
+            # allow client to set the default partial WA for lack of support of per-target auxiliary options
+            config.redis.type = config.redis.type or server_cfg.get("redis_type")
 
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
@@ -823,17 +825,17 @@ class HTTPRunDB(RunDBInterface):
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
-        Function applies for runs of type ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``, and will return per
+        Function applies for runs of type `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`, and will return per
         runtime kind a list of the runtime resources (which may have already completed their execution).
 
         :param project: Get only runtime resources of a specific project, by default None, which will return only the
-        projects you're authorized to see.
+            projects you're authorized to see.
         :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
             to their labels.
-        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param kind: The kind of runtime to query. May be one of `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`
         :param object_id: The identifier of the mlrun object to query its runtime resources. for most function runtimes,
-        runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the runtime
-        resources are per Function, for which the identifier is the Function's name.
+            runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the runtime
+            resources are per Function, for which the identifier is the Function's name.
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
@@ -913,19 +915,19 @@ class HTTPRunDB(RunDBInterface):
         """Delete all runtime resources which are in terminal state.
 
         :param project: Delete only runtime resources of a specific project, by default None, which will delete only
-        from the projects you're authorized to delete from.
+            from the projects you're authorized to delete from.
         :param label_selector: Delete only runtime resources matching the label selector.
-        :param kind: The kind of runtime to delete. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param kind: The kind of runtime to delete. May be one of `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`
         :param object_id: The identifier of the mlrun object to delete its runtime resources. for most function
-        runtimes, runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the
-        runtime resources are per Function, for which the identifier is the Function's name.
+            runtimes, runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the
+            runtime resources are per Function, for which the identifier is the Function's name.
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
-        period didn't pass.
+            period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-        the moment they moved to terminal state.
+            the moment they moved to terminal state.
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
-        that were removed.
+            that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
@@ -2599,7 +2601,7 @@ class HTTPRunDB(RunDBInterface):
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
-        (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+            (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics
         :param end: The end time of the metrics
@@ -2651,7 +2653,7 @@ class HTTPRunDB(RunDBInterface):
         :param start: The start time of the metrics
         :param end: The end time of the metrics
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
-        the output of the resulting object
+            the output of the resulting object
         :param access_key: V3IO access key, when None, will be look for in environ
         """
         access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")

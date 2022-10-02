@@ -896,7 +896,7 @@ def logs(uid, project, offset, db, watch):
     "--schedule",
     type=str,
     default=None,
-    help="a standard crontab expression string,for using the pre-defined workflow's schedule, set --schedule true."
+    help="to create a schedule define a standard crontab expression string, to use the pre-defined workflow's schedule, set --schedule true."
     "for help see: "
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron",
 )

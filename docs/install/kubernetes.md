@@ -3,9 +3,10 @@
 
 **In this section**
 - [Prerequisites](#prerequisites)
+- [Community Edition Flavors](#community-edition-flavors)
 - [Installing on Docker Desktop](#installing-on-docker-desktop)
-- [Installing the chart](#installing-the-chart)
-- [Installing Full Version](#installing-full-version)
+- [Installing the Lite Version](#installing-the-lite-version)
+- [Installing the Full Version](#installing-the-full-version)
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
 - [Advanced chart configuration](#advanced-chart-configuration)
@@ -21,10 +22,31 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 7Gi
+- RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 
 ``` {admonition} Note
 The MLRun Community Edition resources are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
+
+## Community Edition Flavors
+
+The MLRun CE (Community Edition) chart arrives in 2 flavors - lite and full.
+The lite version is the default installation and includes the following components:
+* MLRun - https://github.com/mlrun/mlrun
+  - MLRun API
+  - MLRun UI
+  - MLRun DB (MySQL)
+* Nuclio - https://github.com/nuclio/nuclio
+* Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
+* MPI Operator - https://github.com/kubeflow/mpi-operator
+* Minio - https://github.com/minio/minio/tree/master/helm/minio
+
+Full Version also includes:
+* Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
+* Pipelines - https://github.com/kubeflow/pipelines
+* Prometheus stack - https://github.com/prometheus-community/helm-charts
+  - Prometheus
+  - Grafana
 
 ## Installing on Docker Desktop
 
@@ -55,27 +77,7 @@ To learn about the various UI options and their usage, see:
 
 
 <a id="installing-the-chart"></a>
-## Installing the chart
-
-### Chart Details
-
-The MLRun CE (Community Edition) chart arrives in 2 flavors - lite and full.
-The lite version is the default installation and includes the following components:
-* MLRun - https://github.com/mlrun/mlrun
-  - MLRun API
-  - MLRun UI
-  - MLRun DB (MySQL)
-* Nuclio - https://github.com/nuclio/nuclio
-* Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
-* MPI Operator - https://github.com/kubeflow/mpi-operator
-* Minio - https://github.com/minio/minio/tree/master/helm/minio
-
-Full Version also includes:
-* Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
-* Pipelines - https://github.com/kubeflow/pipelines
-* Prometheus stack - https://github.com/prometheus-community/helm-charts
-
-### Install procedure
+## Installing the Lite Version
 
 ```{admonition} Note
 These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
@@ -140,9 +142,9 @@ Where:
  - `<registry-url>` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
  - `<host-machine-address>` is the IP address of the host machine (or `$(minikube ip)` if using minikube).
 
-Once the installation is complete, the helm command will print the URLs and Ports of all the MLRun CE services.
+Once the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
 
-## Installing Full Version
+## Installing the Full Version
 
 To install the full version of the chart, use the following command:
 
@@ -253,9 +255,8 @@ helm --namespace mlrun uninstall mlrun-ce
 ```
 
 #### Note on terminating pods and hanging resources
-It is important to note that this chart generates several persistent volume claims in order to provide the user 
-with persistency (via PVC) out of the box. Upon uninstallation, any hanging / terminating pods will hold the PVCs and 
-PVs respectively, as those prevent their safe removal.
+This chart generates several persistent volume claims that provide persistency (via PVC) out of the box. 
+Upon uninstallation, any hanging / terminating pods will hold the PVCs and PVs respectively, as those prevent their safe removal.
 Since pods that are stuck in terminating state seem to be a never-ending plague in k8s, note this,
 and remember to clean the remaining PVs and PVCs.
 

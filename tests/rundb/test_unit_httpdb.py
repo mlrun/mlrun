@@ -20,9 +20,9 @@ import unittest.mock
 import pytest
 import requests
 
+import mlrun.artifacts.base
 import mlrun.config
 import mlrun.db.httpdb
-import mlrun.artifacts.base
 
 
 class SomeEnumClass(str, enum.Enum):
@@ -146,6 +146,7 @@ def test_client_spec_generate_target_path_from_artifact_hash_enrichment(
 
     db.connect()
     assert expected == mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
+
 
 def test_resolve_artifacts_to_tag_objects():
     db = mlrun.db.httpdb.HTTPRunDB("fake-url")

@@ -34,7 +34,7 @@ class Logger:
         # Save the context:
         self._context = context
 
-        # Set up the logger's mode (defaulted to Training):
+        # Set up the logger's mode (default:  Training):
         self._mode = LoggingMode.TRAINING
 
         # Set up the results dictionaries - a dictionary of metrics for all the iteration results by their epochs:

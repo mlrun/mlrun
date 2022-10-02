@@ -14,6 +14,7 @@
 #
 import asyncio
 import collections
+import functools
 import re
 import typing
 from copy import deepcopy
@@ -98,6 +99,7 @@ def retry_on_conflict(function):
     This why we implemented this retry as a decorator that comes "around" the existing functions
     """
 
+    @functools.wraps(function)
     def wrapper(*args, **kwargs):
         def _try_function():
             try:
@@ -351,6 +353,85 @@ class SQLDB(DBInterface):
         run_dict.setdefault("status", {})["state"] = state
 
     @retry_on_conflict
+    def overwrite_artifacts_with_tag(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self.list_artifacts(
+                session,
+                project=project,
+                name=identifier.key,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
+                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+                # list_artifacts method (_resolve_tag)
+                tag=identifier.uid,
+                as_records=True,
+            )
+        # TODO remove duplicates artifacts entries
+        # delete related tags from artifacts identifiers
+        # not committing the session here because we want to do it atomic with the next query
+        self._delete_artifacts_tags(session, project, artifacts, commit=False)
+        # tag artifacts with tag
+        self.tag_artifacts(session, artifacts, project, name=tag)
+
+    @retry_on_conflict
+    def append_tag_to_artifacts(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self.list_artifacts(
+                session,
+                project=project,
+                name=identifier.key,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
+                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+                # list_artifacts method (_resolve_tag)
+                tag=identifier.uid,
+                as_records=True,
+            )
+        self.tag_artifacts(session, artifacts, project, name=tag)
+
+    def delete_tag_from_artifacts(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self.list_artifacts(
+                session,
+                project=project,
+                name=identifier.key,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
+                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+                # list_artifacts method (_resolve_tag)
+                tag=identifier.uid,
+                as_records=True,
+            )
+        self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    @retry_on_conflict
     def store_artifact(
         self,
         session,
@@ -522,6 +603,7 @@ class SQLDB(DBInterface):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
     ):
         project = project or config.default_project
 
@@ -545,6 +627,12 @@ class SQLDB(DBInterface):
         artifact_records = self._find_artifacts(
             session, project, ids, labels, since, until, name, kind, category, iter
         )
+        if as_records:
+            if best_iteration:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "as_records is not supported with best_iteration=True"
+                )
+            return artifact_records
         indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
         for artifact in artifact_records:
             has_iteration = self._name_with_iter_regex.match(artifact.key)
@@ -588,19 +676,50 @@ class SQLDB(DBInterface):
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
 
+        query = session.query(Artifact).filter(
+            Artifact.key == key, Artifact.project == project
+        )
+        if tag:
+            query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag)
+
+        # Cannot delete yet, because tag and label deletion queries join with the artifacts table, so the objects
+        # still need to be there.
+        artifacts = query.all()
+        if not artifacts:
+            return
+
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_artifact_tags(session, project, key, tag, commit=False)
         self._delete_class_labels(
             session, Artifact, project=project, key=key, commit=False
         )
-        kw = {
-            "key": key,
-            "project": project,
-        }
-        if tag:
-            kw["tag"] = tag
+        for artifact in artifacts:
+            session.delete(artifact)
+        session.commit()
 
-        self._delete(session, Artifact, **kw)
+    def _delete_artifacts_tags(
+        self,
+        session,
+        project: str,
+        artifacts: typing.List[Artifact],
+        tags: typing.List[str] = None,
+        commit: bool = True,
+    ):
+        artifacts_keys = [str(artifact.key) for artifact in artifacts]
+        query = (
+            session.query(Artifact.Tag)
+            .join(Artifact)
+            .filter(
+                Artifact.project == project,
+                Artifact.key.in_(artifacts_keys),
+            )
+        )
+        if tags:
+            query = query.filter(Artifact.Tag.name.in_(tags))
+        for tag in query:
+            session.delete(tag)
+        if commit:
+            session.commit()
 
     def _delete_artifact_tags(
         self, session, project, artifact_key, tag_name="", commit=True

@@ -1060,13 +1060,14 @@ def new_task(
 class TargetPathObject:
     """Class configuring the target path
     This class will take consideration of a few parameters to create the correct end result path:
-    * run_id - if run_id is provided target will be considered as run_id mode
-               which require to contain a {run_id} place holder in the path.
-    * is_single_file - if true then run_id must be the directory containing the output file
-                       or generated before the file name (run_id/output.file).
-    * base_path - if contains the place holder for run_id, run_id must not be None.
-                  if run_id passed and place holder doesn't exist the place holder will
-                  be generated in the correct place.
+
+    - :run_id: if run_id is provided target will be considered as run_id mode which require to
+        contain a {run_id} place holder in the path.
+    - :is_single_file: if true then run_id must be the directory containing the output file
+        or generated before the file name (run_id/output.file).
+    - :base_path: if contains the place holder for run_id, run_id must not be None.
+        if run_id passed and place holder doesn't exist the place holder will
+        be generated in the correct place.
     """
 
     def __init__(

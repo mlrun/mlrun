@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import redis
 import redis.cluster
 from storey.redis_driver import RedisType
@@ -56,10 +54,14 @@ class RedisStore(DataStore):
 
         self._redis = None
 
-        if os.environ.get("MLRUN_REDIS_TYPE") == "cluster":
+        if mlrun.mlconf.redis.type == "standalone":
+            self._redis_type = RedisType.STANDALONE
+        elif mlrun.mlconf.redis.type == "cluster":
             self._redis_type = RedisType.CLUSTER
         else:
-            self._redis_type = RedisType.STANDALONE
+            raise NotImplementedError(
+                f"invalid redis type {mlrun.mlconf.redis.type} - should be one of {'cluster', 'standalone'})"
+            )
 
     @property
     def redis(self):
@@ -135,6 +137,7 @@ class RedisStore(DataStore):
             key = key[len("redis://") :]
 
         if recursive:
+            key += "*" if key.endswith("/") else "/*"
             for key in self.redis.scan_iter(key):
                 self.redis.delete(key)
         else:

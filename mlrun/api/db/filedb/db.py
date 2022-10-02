@@ -113,6 +113,33 @@ class FileDB(DBInterface):
             self.db.del_runs, name, project, labels, state, days_ago
         )
 
+    def overwrite_artifacts_with_tag(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        raise NotImplementedError()
+
+    def append_tag_to_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        raise NotImplementedError()
+
+    def delete_tag_from_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        raise NotImplementedError()
+
     def store_artifact(
         self,
         session,
@@ -145,6 +172,7 @@ class FileDB(DBInterface):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until

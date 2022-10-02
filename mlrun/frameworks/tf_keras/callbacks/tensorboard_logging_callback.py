@@ -65,7 +65,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
                                       update. Notice that writing to tensorboard too frequently may cause the training
-                                      to be slower. Defaulted to 'epoch'.
+                                      to be slower. Default: 'epoch'.
         """
         super(_TFKerasTensorboardLogger, self).__init__(
             statistics_functions=statistics_functions,
@@ -318,7 +318,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         to tensorboard. Can be passed as a string equal to 'epoch' for per epoch and
                                         'batch' for per single batch, or as an integer specifying per how many
                                         iterations to update. Notice that writing to tensorboard too frequently may
-                                        cause the training to be slower. Defaulted to 'epoch'.
+                                        cause the training to be slower. Default: 'epoch'.
         :param auto_log:                Whether or not to enable auto logging for logging the context parameters and
                                         trying to track common static and dynamic hyperparameters such as learning rate.
 

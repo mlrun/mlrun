@@ -280,7 +280,9 @@ class Artifact(ModelObj):
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
     def before_log(self):
-        pass
+        for key, item in self.spec.extra_data.items():
+            if hasattr(item, "get_target_path"):
+                self.spec.extra_data[key] = item.get_target_path()
 
     @property
     def is_dir(self):

@@ -1,5 +1,5 @@
 (cli)=
-# Command-Line Interface (Tech preview) <!-- omit in toc -->
+# Command-Line Interface
 
 - [CLI commands](#cli-commands)
 - [Building and running a function from a Git Repository](#building-and-running-a-function-from-a-git-repository)
@@ -146,7 +146,7 @@ Example:  `mlrun project -r workflow.py .`
 | -u, &minus;&minus;url  TEXT          | Remote git or archive url of the project |
 | -r, &minus;&minus;run  TEXT          | Run workflow name of .py file |
 | -a, &minus;&minus;arguments TEXT     | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6 
-| -p, &minus;&minus;artifact_path TEXT | Target path/url for workflow artifacts.  The string ‘{{workflow.uid}}’ is replaced by workflow id 
+| -p, &minus;&minus;artifact_path TEXT | Target path/url for workflow artifacts.  The string `{{workflow.uid}}` is replaced by workflow id 
 | -x, &minus;&minus;param  TEXT         | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text' |
 | -s, &minus;&minus;secrets TEXT        | Secrets file=<filename> or env=ENV_KEY1,.. |
 | &minus;&minus;namespace TEXT         | k8s namespace |

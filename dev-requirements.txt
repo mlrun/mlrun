@@ -4,7 +4,7 @@ twine~=3.1
 black~=22.0
 flake8~=3.8
 # 5.0.0 isn't supported on 3.7 / 3.8
-importlib_metadata<5.0.0; python_version < "3.7"
+importlib_metadata<5.0.0; python_version <= "3.7"
 pytest-asyncio~=0.15.0
 pytest-alembic~=0.4.0
 pytest-httpserver~=1.0

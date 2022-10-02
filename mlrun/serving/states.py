@@ -1311,7 +1311,9 @@ def _init_async_objects(context, steps):
                     )
                     options = {}
                     options.update(step.options)
-                    kafka_bootstrap_servers = options.pop("kafka_bootstrap_servers")
+                    kafka_bootstrap_servers = options.pop(
+                        "kafka_bootstrap_servers", None
+                    )
                     if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
                         topic, bootstrap_servers = parse_kafka_url(
                             stream_path, kafka_bootstrap_servers

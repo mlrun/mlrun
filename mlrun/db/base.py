@@ -17,7 +17,6 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
-import mlrun.utils
 from mlrun.api import schemas
 from mlrun.api.schemas import ModelEndpoint
 
@@ -206,7 +205,10 @@ class RunDBInterface(ABC):
             artifact_identifiers.append(
                 schemas.ArtifactIdentifier(
                     key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
-                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
+                    # we are passing tree as uid when storing an artifact, so if uid is not defined,
+                    # pass the tree as uid
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid")
+                    or mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )

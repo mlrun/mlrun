@@ -61,17 +61,18 @@ def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    print("project's workflows", project.spec.workflows)
+    print_debug("project's workflows", project.spec.workflows)
     # Verifying that project has a workflow name:
-    workflow_names = [workflow.name for workflow in project.spec.workflows]
+    workflow_names = [workflow["name"] for workflow in project.spec.workflows]
     if name not in workflow_names:
         raise mlrun.errors.MLRunInvalidArgumentError(f'{name} workflow not found in project')
     if not spec:
         for workflow in project.spec.workflows:
-            if workflow.name == name:
+            if workflow["name"] == name:
                 spec = workflow
+                spec = mlrun.api.schemas.WorkflowSpec(**spec)
                 break
-
+    print_debug('workflow_spec', spec)
     # Preparing inputs for _RemoteRunner.run():
     if source:
         project.spec.source = source

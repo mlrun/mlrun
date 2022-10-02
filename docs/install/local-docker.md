@@ -160,4 +160,3 @@ The Jupyter environment is pre-configured to work with the local MLRun and Nucli
 You can switch to a remote or managed MLRun cluster by editing the `mlrun.env` file in the Jupyter files tree.
 
 The artifacts and DB are stored under **/home/jovyan/data** (`/data` in Jupyter tree). 
-

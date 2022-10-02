@@ -1070,6 +1070,8 @@ def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
     """artifact can be dict or Artifact object"""
     if is_legacy_artifact(artifact):
         return artifact.get(key, default)
+    elif key == "kind":
+        return artifact.get(key, default)
     else:
         for block in ["metadata", "spec", "status"]:
             block_obj = artifact.get(block, {})

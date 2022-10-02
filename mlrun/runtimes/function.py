@@ -285,6 +285,11 @@ class RemoteRuntime(KubeResource):
         self.spec.config[key] = value
         return self
 
+    def set_annotation(self, key, val):
+        self.spec.base_spec["metadata"]["annotations"][key] = str(val)
+        print(self.spec.base_spec)
+        return self
+
     def add_volume(self, local, remote, name="fs", access_key="", user=""):
         raise Exception("deprecated, use .apply(mount_v3io())")
 
@@ -1181,6 +1186,11 @@ def compile_function_config(
                 "spec.affinity",
                 mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
             )
+
+    # enable annotations
+    if function.metadata.annotations:
+        config = function.spec.base_spec
+        update_in(config, "metadata.annotations", function.metadata.annotations)
 
     # don't send tolerations if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.7.5"):

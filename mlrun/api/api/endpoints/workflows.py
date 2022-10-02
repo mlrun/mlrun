@@ -1,5 +1,5 @@
 import copy
-import typing
+from http import HTTPStatus
 
 import mlrun
 import mlrun.api.schemas
@@ -31,7 +31,7 @@ def print_debug(key, val):
 
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
-    # response_model=mlrun.api.schemas.PipelinesOutput,
+    status_code=HTTPStatus.ACCEPTED.value,
 )
 def submit_workflow(
     project: str,

@@ -64,6 +64,7 @@ def submit_workflow(
         auth_info=auth_info,
     )
     print_debug("project's workflows", project.spec.workflows)  # TODO: Remove!
+    print_debug("main workflow", project.spec.workflows[0])  # TODO: Remove!
     # Verifying that project has a workflow name:
     workflow_names = [workflow["name"] for workflow in project.spec.workflows]
     if name not in workflow_names:

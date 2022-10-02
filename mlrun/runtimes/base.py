@@ -200,7 +200,8 @@ class BaseRuntime(ModelObj):
         return self
 
     def set_annotation(self, key, value):
-        self.metadata.annotations[key] = str(value)
+        self._metadata.annotations[key] = str(value)
+        print(self._metadata.annotations)
         return self
 
     @property

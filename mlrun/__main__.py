@@ -961,9 +961,8 @@ def project(
     print(proj.to_yaml())
 
     if run:
-        if schedule is not None:
-            if schedule.lower() in ["1", "yes", "y", "t", "true"]:
-                schedule = True
+        if schedule is not None and schedule.lower() in ["1", "yes", "y", "t", "true"]:
+            schedule = True
         workflow_path = None
         if run.endswith(".py"):
             workflow_path = run

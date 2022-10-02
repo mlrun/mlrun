@@ -22,7 +22,7 @@ def print_debug(key, val):
 
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
-    response_model=mlrun.api.schemas.PipelinesOutput,
+    # response_model=mlrun.api.schemas.PipelinesOutput,
 )
 def submit_workflow(
     project: str,
@@ -61,7 +61,7 @@ def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    print_debug("project's workflows", project.spec.workflows)
+    print_debug("project's workflows", project.spec.workflows)  # TODO: Remove!
     # Verifying that project has a workflow name:
     workflow_names = [workflow["name"] for workflow in project.spec.workflows]
     if name not in workflow_names:
@@ -72,7 +72,7 @@ def submit_workflow(
                 spec = workflow
                 spec = mlrun.api.schemas.WorkflowSpec(**spec)
                 break
-    print_debug('workflow_spec', spec)
+    print_debug('workflow_spec', spec)  # TODO: Remove!
     # Preparing inputs for _RemoteRunner.run():
     if source:
         project.spec.source = source
@@ -85,6 +85,12 @@ def submit_workflow(
     workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(spec.dict())
 
     workflow_spec.run_local = True  # Running remotely local workflows
+    print_debug('final workflow spec', workflow_spec)  # TODO: Remove!
+    # Printing input for debug:  # TODO: Remove!
+    print_debug("project", project)  # TODO: Remove!
+    print_debug("handler", spec.handler)  # TODO: Remove!
+    print_debug("artifact_path", artifact_path)  # TODO: Remove!
+    print_debug("namespace", namespace)  # TODO: Remove!
 
     run = mlrun.projects.pipelines._RemoteRunner.run(
         project=project,
@@ -95,6 +101,7 @@ def submit_workflow(
         namespace=namespace,
         db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
     )
+    print_debug('run result', run)  # TODO: Remove!
     return run.run_id
 
 

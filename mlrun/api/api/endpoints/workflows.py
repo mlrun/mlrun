@@ -14,9 +14,9 @@ router = fastapi.APIRouter()
 
 
 def print_debug(key, val):
-    prefix = '<DEBUG YONI>\n'
-    suffix = '\n<END DEBUG YONI>'
-    msg = f'{key}: {val}\n type: {type(val)}'
+    prefix = "<DEBUG YONI>\n"
+    suffix = "\n<END DEBUG YONI>"
+    msg = f"{key}: {val}\n type: {type(val)}"
     print(prefix + msg + suffix)
 
 
@@ -33,18 +33,20 @@ def submit_workflow(
     source: Optional[str] = None,
     run_name: Optional[str] = None,
     namespace: Optional[str] = None,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(mlrun.api.api.deps.authenticate_request),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    print_debug('input workflow_name', name)  # TODO: Remove!
+    print_debug("input workflow_name", name)  # TODO: Remove!
     # Getting project:
-    project = mlrun.api.utils.singletons.project_member.get_project_member().get_project(
-        db_session=db_session,
-        name=project,
-        leader_session=auth_info.session
+    project = (
+        mlrun.api.utils.singletons.project_member.get_project_member().get_project(
+            db_session=db_session, name=project, leader_session=auth_info.session
+        )
     )
     # Debugging:
-    print_debug('project_name', project.metadata.name)  # TODO: Remove!
+    print_debug("project_name", project.metadata.name)  # TODO: Remove!
     # Checking CREATE run permission
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.run,
@@ -65,27 +67,38 @@ def submit_workflow(
     # Verifying that project has a workflow name:
     workflow_names = [workflow["name"] for workflow in project.spec.workflows]
     if name not in workflow_names:
-        raise mlrun.errors.MLRunInvalidArgumentError(f'{name} workflow not found in project')
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"{name} workflow not found in project"
+        )
     if not spec:
         for workflow in project.spec.workflows:
             if workflow["name"] == name:
                 spec = workflow
-                spec = mlrun.api.schemas.WorkflowSpec(**spec)
                 break
-    print_debug('workflow_spec', spec)  # TODO: Remove!
+
+    print_debug("workflow_spec", spec)  # TODO: Remove!
     # Preparing inputs for _RemoteRunner.run():
     if source:
         project.spec.source = source
     if arguments:
-        if spec.args is None:
-            spec.args = {}
+        if hasattr(spec, "args"):
+            if spec.args is None:
+                spec.args = {}
+            else:
+                spec.args.update(arguments)
         else:
-            spec.args.update(arguments)
-
-    workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(spec.dict())
+            if "args" in spec:
+                spec["args"].update(arguments)
+            else:
+                spec["args"] = arguments
+    workflow_spec = (
+        mlrun.projects.pipelines.WorkflowSpec.from_dict(spec.dict())
+        if hasattr(spec, "dict")
+        else mlrun.projects.pipelines.WorkflowSpec.from_dict(spec)
+    )
 
     workflow_spec.run_local = True  # Running remotely local workflows
-    print_debug('final workflow spec', workflow_spec)  # TODO: Remove!
+    print_debug("final workflow spec", workflow_spec)  # TODO: Remove!
     # Printing input for debug:  # TODO: Remove!
     print_debug("project", project)  # TODO: Remove!
     print_debug("handler", spec.handler)  # TODO: Remove!
@@ -101,7 +114,7 @@ def submit_workflow(
         namespace=namespace,
         db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
     )
-    print_debug('run result', run)  # TODO: Remove!
+    print_debug("run result", run)  # TODO: Remove!
     return run.run_id
 
 

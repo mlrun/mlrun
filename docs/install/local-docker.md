@@ -33,6 +33,8 @@ Add the `-d` flag to `docker-compose` for running in detached mode (in the backg
 ```{admonition} Note
 Support for running as a non-root user was added in 1.0.5, hence the underlying exposed port was changed.
 If you want to use previous mlrun versions, modify the mlrun-ui port from 8090 back to 80.
+
+If you are running more than one instance of MLRun, change the exposed port.
 ```
 **Watch the installation:**
 
@@ -159,6 +161,3 @@ You can switch to a remote or managed MLRun cluster by editing the `mlrun.env` f
 
 The artifacts and DB are stored under **/home/jovyan/data** (`/data` in Jupyter tree). 
 
-```{admonition} Note
-The port reconfiguration is need in case of usage more than one instance of MLRun in docker compose.
-```

@@ -61,7 +61,7 @@ def apply_mlrun(
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
     :param model:                    The model to wrap. Can be loaded from the model path given as well.
-    :param model_name:               The model name to use for storing the model artifact. Defaulted to "model".
+    :param model_name:               The model name to use for storing the model artifact. Default: "model".
     :param tag:                      The model's tag to log with.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                      update). If model is not provided, it will be loaded from this path.

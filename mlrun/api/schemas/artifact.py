@@ -49,7 +49,7 @@ class ArtifactIdentifier(pydantic.BaseModel):
     # artifact kind
     kind: typing.Optional[str]
     key: typing.Optional[str]
-    iter: typing.Optional[str]
+    iter: typing.Optional[int]
     uid: typing.Optional[str]
     # TODO support hash once saved as a column in the artifacts table
     # hash: typing.Optional[str]

@@ -45,7 +45,7 @@ class Estimator:
         self._context = context
         self._metrics = metrics if metrics is not None else []
 
-        # Setup the logger's mode (defaulted to Training):
+        # Setup the logger's mode (default:  Training):
         self._mode = LoggingMode.TRAINING
 
         # Prepare the dictionaries to hold the results. Once they are logged they will be moved from one to another:
@@ -114,7 +114,7 @@ class Estimator:
         :param y_true:           The ground truth values to send for the metrics functions.
         :param y_pred:           The predictions to send for the metrics functions.
         :param is_probabilities: True if the 'y_pred' is a prediction of probabilities (from 'predict_proba') and False
-                                 if not. Defaulted to False.
+                                 if not. Default: False.
         """
         # Calculate the metrics results:
         self._calculate_results(

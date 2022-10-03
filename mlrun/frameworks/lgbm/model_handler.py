@@ -232,7 +232,7 @@ class LGBMModelHandler(MLModelHandler):
                                     Defaulted to True.
         :param input_sample:        An inputs sample with the names and data types of the inputs of the model.
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                    handler has a MLRun context set. Defaulted to None.
+                                    handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

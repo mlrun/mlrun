@@ -48,12 +48,13 @@ def watch_stream(
     """watch on a v3io stream and print data every interval
 
     example::
+
         watch_stream('v3io:///users/admin/mystream')
 
     :param url:        stream url
     :param shard_ids:  range or list of shard IDs
     :param seek_to:    where to start/seek ('EARLIEST', 'LATEST', 'TIME', 'SEQUENCE')
-    :param interval    watch interval time in seconds, 0 to run once and return
+    :param interval:   watch interval time in seconds, 0 to run once and return
     :param is_json:    indicate the payload is json (will be deserialized)
     """
     interval = 3 if interval is None else interval

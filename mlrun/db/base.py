@@ -478,13 +478,14 @@ class RunDBInterface(ABC):
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key: Optional[str] = None,
     ):
         pass
 
     @abstractmethod
     def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key: Optional[str] = None
+        self,
+        project: str,
+        endpoint_id: str,
     ):
         pass
 
@@ -498,7 +499,6 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key: Optional[str] = None,
     ):
         pass
 
@@ -511,7 +511,6 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        access_key: Optional[str] = None,
     ):
         pass
 
@@ -521,7 +520,6 @@ class RunDBInterface(ABC):
         project: str,
         endpoint_id: str,
         attributes: dict,
-        access_key: Optional[str] = None,
     ):
         pass
 

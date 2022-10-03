@@ -57,7 +57,7 @@ class ModelEndpoints:
         mlrun.config.model_endpoint_monitoring.store_type (KV by default).
 
         :param db_session:             A session that manages the current dialog with the database.
-        :param access_key:             Access key with permission to write to KV table.
+        :param access_key:             Access key with permission to write to DB table.
         :param model_endpoint:         Model endpoint object to update.
 
         """
@@ -1416,8 +1416,10 @@ class ModelEndpointStoreType(enum.Enum):
 
         if self.value == ModelEndpointStoreType.kv.value:
             return _ModelEndpointKVStore(project=project, access_key=access_key)
-        elif self.value == ModelEndpointStoreType.sql.value:
-            return _ModelEndpointSQLStore(project=project, access_key=access_key)
+
+        # Assuming SQL store target if store type is not KV.
+        # Update these lines once there are more than two store target types.
+        return _ModelEndpointSQLStore(project=project, access_key=access_key)
 
     @classmethod
     def _missing_(cls, value: typing.Any):

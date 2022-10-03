@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import os
 import tempfile
 import time
 import traceback
@@ -2520,7 +2519,6 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key: Optional[str] = None,
     ):
         """
         Creates a DB record with the given model_endpoint record.
@@ -2528,14 +2526,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param model_endpoint: An object representing the model endpoint.
-        :param access_key: V3IO access key, when None, will be look for in environ.
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
@@ -2548,21 +2539,13 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        access_key: Optional[str] = None,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
-        :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
@@ -2579,7 +2562,6 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key: Optional[str] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
     ) -> schemas.ModelEndpointList:
@@ -2607,12 +2589,6 @@ class HTTPRunDB(RunDBInterface):
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints"
         response = self.api_call(
@@ -2639,7 +2615,6 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-        access_key: Optional[str] = None,
     ) -> schemas.ModelEndpoint:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
@@ -2651,14 +2626,7 @@ class HTTPRunDB(RunDBInterface):
         :param end: The end time of the metrics
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
             the output of the resulting object
-        :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
@@ -2678,7 +2646,6 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         endpoint_id: str,
         attributes: dict,
-        access_key: Optional[str] = None,
     ):
         """
         Updates model endpoint with provided attributes.
@@ -2709,12 +2676,7 @@ class HTTPRunDB(RunDBInterface):
 
         :param access_key: V3IO access key, when None, will be look for in environ.
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
+
         attributes = {"attributes": _as_json(attributes)}
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(

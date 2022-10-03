@@ -1,5 +1,5 @@
-(continuous-model-development)=
-# Develop & train models
+(development)=
+# Develop and train models
 
 **In this section**
 

@@ -90,6 +90,7 @@ class FeatureSetSpec(ModelObj):
         self._source = None
         self._engine = None
         self._function: FunctionReference = None
+        self._relations = relations
 
         self.owner = owner
         self.description = description
@@ -97,7 +98,6 @@ class FeatureSetSpec(ModelObj):
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
-        self._relations = relations or {}
         self.source = source
         self.targets = targets or []
         self.graph = graph
@@ -185,12 +185,12 @@ class FeatureSetSpec(ModelObj):
         self._source = self._verify_dict(source, "source", DataSource)
 
     @property
-    def relations(self) -> Dict[str, Dict[str, str]]:
+    def relations(self) -> Dict[str, Entity]:
         """feature set relations dict"""
         return self._relations
 
     @relations.setter
-    def relations(self, relations: Dict[str, Dict[str, str]]):
+    def relations(self, relations: Dict[str, Entity]):
         self._relations = relations
 
     def require_processing(self):
@@ -263,7 +263,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        relations: Dict[str, Dict[str, str]] = None,
+        relations: Dict[str, Entity] = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 

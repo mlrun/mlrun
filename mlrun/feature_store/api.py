@@ -47,6 +47,7 @@ from .common import (
     verify_feature_vector_permissions,
 )
 from .feature_set import FeatureSet
+import mlrun.feature_store as fs
 from .feature_vector import (
     FeatureVector,
     FixedWindowType,
@@ -100,7 +101,7 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
-    relations: Dict[str, Dict[str, str]] = None,
+    relations: Dict[str, fs.Entity] = None,
     join_type: str = "inner",
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
@@ -153,10 +154,7 @@ def get_offline_features(
     :param engine:                  processing engine kind ("local", "dask", or "spark")
     :param engine_args:             kwargs for the processing engine
     :param query:                   The query string used to filter rows
-    :param relations:                A Dictionary that indicate all the relations between different feature sets.
-                                    The format is
-                                    {"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}
-                                    if relation=None the join  action will be done on the entity column.
+    :param relations:                ???
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'outer'
                                     indicate join type such as :
                                     * left: use only keys from left frame (SQL: left outer join)

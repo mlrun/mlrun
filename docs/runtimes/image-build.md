@@ -113,8 +113,8 @@ project.build_function(
 ### Working with code repository
 As the code matures and evolves, the code will usually be stored in a git code repository.
 When the MLRun project is associated with a git repo (see {ref}`create-projects` for details), functions can be added
-by calling {py:func}`~mlrun.projects.MlrunProject.set_function()` and setting `with_repo=True`. This indicates that the code of the 
-function should be retrieved from the project code repository.
+by calling {py:func}`~mlrun.projects.MlrunProject.set_function()` and setting `with_repo=True`. This indicates that the 
+code of the function should be retrieved from the project code repository.
 
 In this case, the entire code repository will be retrieved from git as part of the image-building process, and cloned
 into the built image. This is recommended when the function relies on code spread across multiple files and also is 
@@ -122,8 +122,8 @@ usually preferred for production code, since it means that the code of the funct
 to the code will not cause instability in deployed images.
 
 During the development phase it may be desired to retrieve the code in runtime, rather than re-build the function
-image every time the code changes. To enable this, set `project.spec.load_source_on_run=True` which tells MLRun to
-retrieve the code from the repository in runtime.
+image every time the code changes. To enable this, use {py:func}`~mlrun.projects.MlrunProject.set_source()` which
+gets a path to the source (can be a git repository or a tar or zip file) and set `pull_at_runtime=True`.
 
 ### Using a private Docker registry
 By default, images will be pushed to the registry configured during MLRun deployment, using the registry credentials 

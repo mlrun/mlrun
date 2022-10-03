@@ -127,4 +127,5 @@ def submit_workflow(
         db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
     )
     print_debug("run result", run)  # TODO: Remove!
-    return run.run_id
+    if run:
+        return run.run_id

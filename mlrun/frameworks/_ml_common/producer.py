@@ -37,7 +37,7 @@ class MLProducer(Producer):
 
         :param stage:            The current stage to log at.
         :param is_probabilities: True if the 'y_pred' is a prediction of probabilities (from 'predict_proba') and False
-                                 if not. Defaulted to False.
+                                 if not. Default: False.
         :param kwargs:           All of the required produce arguments to pass onto the plans.
         """
         # Produce all the artifacts according to the given stage:
@@ -61,7 +61,7 @@ class MLProducer(Producer):
 
         :param stage:            The stage to produce the artifact to check if its ready.
         :param is_probabilities: True if the 'y_pred' that will be sent to 'produce' is a prediction of probabilities
-                                 (from 'predict_proba') and False if not. Defaulted to False.
+                                 (from 'predict_proba') and False if not. Default: False.
         :param kwargs:           All of the required produce arguments to pass onto the plans.
         """
         # Initialize a new list of plans for all the plans that will still need to be produced:

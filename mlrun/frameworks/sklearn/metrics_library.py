@@ -56,7 +56,7 @@ class MetricsLibrary(ABC):
         :param metrics:         The metrics parameter passed to the function. Can be passed as a dictionary or a list of
                                 metrics.
         :param context:         A context to look in if the configuration was passed as a parameter.
-        :param include_default: Whether to include the default in addition to the provided metrics. Defaulted to True.
+        :param include_default: Whether to include the default in addition to the provided metrics. Default: True.
         :param default_kwargs:  Additional key word arguments to pass to the 'default' method of the given metrics
                                 library class.
 

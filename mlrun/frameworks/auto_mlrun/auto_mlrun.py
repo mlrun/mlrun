@@ -376,7 +376,7 @@ class AutoMLRun:
         :param context:                  A MLRun context.
         :param framework:                The model's framework. It must be provided for local paths or urls. If None,
                                          AutoMLRun will assume the model path is of a store uri model artifact and try
-                                         to get the framework from it. Defaulted to None.
+                                         to get the framework from it. Default: None.
         :param kwargs:                   Additional parameters for the specific framework's ModelHandler class.
 
         :return: The model inside a MLRun model handler.
@@ -478,7 +478,7 @@ class AutoMLRun:
         :param auto_log:                 Whether to enable auto-logging capabilities of MLRun or not. Auto logging will
                                          add default artifacts and metrics besides the one you can pass here.
         :param framework:                The model's framework. If None, AutoMLRun will try to figure out the framework.
-                                         From the provided model or model path. Defaulted to None.
+                                         From the provided model or model path. Default: None.
         :param kwargs:                   Additional parameters for the specific framework's 'apply_mlrun' function like
                                          metrics, callbacks and more (read the docs of the required framework to know
                                          more).

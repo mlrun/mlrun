@@ -20,6 +20,7 @@ import unittest.mock
 import pytest
 import requests
 
+import mlrun.artifacts.base
 import mlrun.config
 import mlrun.db.httpdb
 
@@ -145,3 +146,17 @@ def test_client_spec_generate_target_path_from_artifact_hash_enrichment(
 
     db.connect()
     assert expected == mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
+
+
+def test_resolve_artifacts_to_tag_objects():
+    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    artifact = mlrun.artifacts.base.Artifact("some-key", "some-value")
+    artifact.metadata.iter = 1
+    artifact.metadata.tree = "some-uid"
+
+    tag_objects = db._resolve_artifacts_to_tag_objects([artifact])
+    assert len(tag_objects.identifiers) == 1
+    assert tag_objects.identifiers[0].key == "some-key"
+    assert tag_objects.identifiers[0].iter == 1
+    assert tag_objects.identifiers[0].kind == "artifact"
+    assert tag_objects.identifiers[0].uid == "some-uid"

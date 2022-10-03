@@ -94,7 +94,7 @@ class TFKerasModelHandler(DLModelHandler):
                                          * If given a loaded model object and the model name is None, the name will be
                                            set to the model's object name / class.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
         :param context:                  MLRun context to work with for logging the model.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
@@ -336,9 +336,9 @@ class TFKerasModelHandler(DLModelHandler):
                                 type). If the model has multiple inputs, a list is expected in the order of the input
                                 ports. If not provided, the method will try to extract the input signature of the model.
         :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
-                                named with the model name given. Defaulted to None (not saving).
+                                named with the model name given. Default: None (not saving).
         :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                handler has a MLRun context set. Defaulted to None.
+                                handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

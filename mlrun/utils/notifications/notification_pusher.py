@@ -17,6 +17,7 @@ import asyncio
 import os
 import typing
 
+import mlrun.api.utils.singletons.k8s
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -77,6 +78,15 @@ class NotificationPusher(object):
 
     def _load_notification(self, notification_config: dict) -> NotificationBase:
         params = notification_config.get("params", {})
+        params_secret = params.get("secret", "")
+        if params_secret:
+            k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+            if not k8s:
+                raise mlrun.errors.MLRunRuntimeError(
+                    "Not running in k8s environment, cannot load notification params secret"
+                )
+            params = k8s.load_secret(params_secret)
+
         name = notification_config.get("name", "")
         notification_type = NotificationTypes(
             notification_config.get("kind", "console")

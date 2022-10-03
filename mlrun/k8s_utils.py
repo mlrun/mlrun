@@ -420,6 +420,16 @@ class K8sHelper:
         k8s_secret.data = secret_data
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
 
+    def load_secret(self, secret_name, namespace=""):
+        namespace = namespace or self.resolve_namespace(namespace)
+
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
+        except ApiException:
+            return None
+
+        return k8s_secret.data
+
     def delete_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
         self.delete_secrets(secret_name, secrets, namespace)

@@ -873,7 +873,7 @@ class BaseRuntime(ModelObj):
         if not runobj.spec.notification_configs:
             return
 
-        # if the run is remote, and we are in the SDK, we let the api deal with the notifications
+        # If the run is remote, and we are in the SDK, we let the api deal with the notifications
         # so there's nothing to do here.
         # Otherwise, we continue on.
         if local:

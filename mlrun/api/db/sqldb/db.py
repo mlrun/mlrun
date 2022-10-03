@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session, aliased
 import mlrun
 import mlrun.api.db.session
 import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.model
 from mlrun.api import schemas
@@ -3363,7 +3364,19 @@ class SQLDB(DBInterface):
             notification_config.kind = notification_config_model.kind
             notification_config.message = notification_config_model.message
             notification_config.severity = notification_config_model.severity
-            notification_config.params = notification_config_model.params
+
+            k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+            if k8s:
+                # store params as secret
+                secret_name = f"notification-{run_uid}-{notification_config.name}"
+                secret_data = notification_config_model.params
+                k8s.store_secrets(secret_name, secret_data)
+                notification_config.params_secret = secret_name
+            else:
+                logger.warn(
+                    "K8s not available, not storing notification params as secret"
+                )
+                notification_config.params = notification_config_model.params
 
             notification_configs.append(notification_config)
 

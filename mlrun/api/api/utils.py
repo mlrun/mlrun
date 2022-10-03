@@ -16,6 +16,7 @@ import collections
 import re
 import traceback
 import typing
+import uuid
 from hashlib import sha1
 from http import HTTPStatus
 from os import environ
@@ -29,6 +30,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
@@ -179,6 +181,7 @@ def _generate_function_and_task_from_submit_run_body(
             function = enrich_function_from_dict(function, function_dict)
 
     apply_enrichment_and_validation_on_function(function, auth_info)
+    apply_enrichment_and_validation_on_task(task)
 
     return function, task
 
@@ -188,6 +191,34 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
         _submit_run, db_session, auth_info, data
     )
     return response
+
+
+def apply_enrichment_and_validation_on_task(
+    task, mask_notification_config_params: bool = True
+):
+    if mask_notification_config_params:
+        # Masking notification config params from the task object
+        mask_notification_config_params_on_task(task)
+
+
+def mask_notification_config_params_on_task(task):
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    if not k8s:
+        logger.warning(
+            "Kubernetes cluster unavailable, skipping masking notification config params"
+        )
+        return
+
+    notification_configs = task.get("spec", {}).get("notification_configs", [])
+    if notification_configs:
+        for notification_config in notification_configs:
+            params = notification_config.get("params", {})
+            if "secret" not in params:
+
+                # unique secret name per notification config
+                secret_name = f"notification-{str(uuid.uuid4())}"
+                k8s.store_secrets(secret_name, params)
+                notification_config["params"] = {"secret": secret_name}
 
 
 def apply_enrichment_and_validation_on_function(

@@ -66,7 +66,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
-        format_: ArtifactsFormat = ArtifactsFormat.legacy,
+        format_: ArtifactsFormat = ArtifactsFormat.full,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = mlrun.api.utils.singletons.db.get_db().read_artifact(
@@ -93,7 +93,7 @@ class Artifacts(
         category: typing.Optional[mlrun.api.schemas.ArtifactCategories] = None,
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
-        format_: ArtifactsFormat = ArtifactsFormat.legacy,
+        format_: ArtifactsFormat = ArtifactsFormat.full,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:

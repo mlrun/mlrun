@@ -18,6 +18,17 @@ production pipelines with minimal engineering efforts.
 
 <p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
 
+
+### MLRun Deployment
+
+MLRun has two main components, the service and the client (SDK):
+
+- MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
+- MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
+
+<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
+
+
 ### MLRun: An Integrated and Open Approach
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 

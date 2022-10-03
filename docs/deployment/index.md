@@ -1,6 +1,6 @@
 (deployment)=
 
-# Deploy models and ML applications
+# Deploy models and applications
 
 One of the advantages of using MLRun, is simplifying the deployment process. Deployment is more than just model
 deployment. Models usually run as part of a greater system which requires data processing before and after

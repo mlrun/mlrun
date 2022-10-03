@@ -27,22 +27,22 @@ This page explains how MLRun addressed the [**MLOps Tasks**](#mlops-tasks) and t
 
 ```{grid-item-card} Ingest and process data
 :text-align: center
-:link: ./data-collect-prep/ingest-process-data.html
+:link: ./data-prep/index.html
 ```
 
 ```{grid-item-card} Develop and train models 
 :text-align: center
-:link: ./model_development/continuous-model-development.html
+:link: ./development/index.html
 ```
 
 ```{grid-item-card} Deploy models and apps
 :text-align: center
-:link: ./serving/serving-overview.html
+:link: ./deployment/index.html
 ```
 
 ```{grid-item-card} Monitor and alert
 :text-align: center
-:link: ./model_monitoring/monitoring.html
+:link: ./monitoring/index.html
 ```
 
 ````
@@ -71,7 +71,7 @@ Project access can be restricted to a set of users and roles.
 
 MLRun provides abstract interfaces to various offline and online [**data sources**](./concepts/data-feature-store.html), supports batch or realtime data processing at scale, data lineage and versioning, and more. 
 In addition, the MLRun [**Feature Store**](./feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
-{bdg-link-primary-line}`more... <./data-collect-prep/ingest-process-data.html>`
+{bdg-link-primary-line}`more... <./data-prep/index.html>`
 
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Feature Store <./feature-store/feature-store.html>`
@@ -83,10 +83,10 @@ In addition, the MLRun [**Feature Store**](./feature-store/feature-store.html) a
 ### Develop and train models
 
 MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, tracks each experiments, register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services or can work with 3rd party training/auto-ML services.
-{bdg-link-primary-line}`more... <./model_development/continuous-model-development.html>`
+{bdg-link-primary-line}`more... <./development/index.html>`
 
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Model Training and Tracking <./model-development/model-training-tracking.html>`
+{bdg-link-info}`Model Training and Tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch Runs and Workflows <./concepts/runs-workflows.html>`
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Train & Eval Models <./tutorial/02-model-training.html>`
@@ -95,7 +95,7 @@ MLRun allows you to easily build ML pipelines that take data from various source
 ### Deploy models and applications
 
 MLRun rapidly deploys and manages production-grade real-time or batch application pipelines using elastic and resilient serverless functions. MLRun addresses the entire ML application: intercepting application/user requests, running data processing tasks, inferencing using one or more models, driving actions, and integrating with the application logic.
-{bdg-link-primary-line}`more... <./serving/serving-overview.html>`
+{bdg-link-primary-line}`more... <./deployment/index.html>`
 
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Realtime Pipelines <./serving/serving-graph.html>`
@@ -108,16 +108,16 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 ### Monitor and alert
 
 Observability is built into the different MLRun objects (data, functions, jobs, models, pipelines, etc.), eliminating the need for complex integrations and code instrumentation. With MLRun, you can observe the application/model resource usage and model behavior (drift, performance, etc.), define custom app metrics, and trigger alerts or retraining jobs.
-{bdg-link-primary-line}`more... <./model_monitoring/index.html>`
+{bdg-link-primary-line}`more... <./monitoring/index.html>`
 
 {octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Model Monitoring Overview <./model_monitoring/model-monitoring-deployment.html>`
+{bdg-link-info}`Model Monitoring Overview <./monitoring/model-monitoring-deployment.html>`
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model Monitoring & Drift Detection <./tutorial/05-model-monitoring.html>`
 
 `````
 
-
+<a id="core-components"></a>
 ## MLRun Core components
 
 MLRun includes the following major components
@@ -142,7 +142,7 @@ MLRun includes the following major components
 ```{grid-item-card} Data & Artifacts
 :columns: 6 4 4 2
 :text-align: center
-:link: ./concepts/data-feature-store.html
+:link: ./concepts/data.html
 ```
 
 ```{grid-item-card} Feature Store
@@ -166,7 +166,7 @@ MLRun includes the following major components
 ```{grid-item-card} Monitoring
 :columns: 6 4 4 2
 :text-align: center
-:link: ./model_monitoring/index.html
+:link: ./monitoring/index.html
 ```
 
 ````
@@ -183,7 +183,7 @@ MLRun includes the following major components
 
 [**Real-Time Serving Pipeline:**](./serving/serving-graph.html) Rapid deployment of scalable data and ML pipelines using real-time serverless technology, including API handling, data preparation/enrichment, model serving, ensembles, driving and measuring actions, etc.
 
-[**Real-Time monitoring:**](./model_monitoring/index.html) monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
+[**Real-Time monitoring:**](./monitoring/index.html) monitors data, models, resources, and production components and provides a feedback loop for exploring production data, identifying drift, alerting on anomalies or data quality issues, triggering retraining jobs, measuring business impact, etc.
 
 `````
 

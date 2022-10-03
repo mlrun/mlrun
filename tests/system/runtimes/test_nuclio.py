@@ -14,6 +14,7 @@
 #
 import json
 import os
+import time
 import uuid
 
 import pytest
@@ -92,6 +93,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
     project_name = "stream-project"
     stream_container = "bigdata"
     stream_path = "/test_nuclio/test_serving_with_child_function/"
+    stream_path_out = "/test_nuclio/test_serving_with_child_function_out/"
 
     def custom_teardown(self):
         v3io_client = v3io.dataplane.Client(
@@ -120,12 +122,85 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         graph.to(
             ">>", "q1", path=f"v3io:///{self.stream_container}{self.stream_path}"
-        ).to(name="child", class_name="Identity", function="child")
+        ).to(name="child", class_name="Identity", function="child").to(
+            ">>",
+            "out",
+            path=f"/{self.stream_container}{self.stream_path_out}",
+            full_event=False,
+        )
 
-        function.add_child_function("child", child_code_path, "mlrun/mlrun")
+        graph.add_step(
+            name="otherchild", class_name="Augment", after="q1", function="otherchild"
+        )
+
+        graph["out"].after_step("otherchild")
+
+        function.add_child_function(
+            "child",
+            child_code_path,
+            image="mlrun/mlrun",
+        )
+        function.add_child_function(
+            "otherchild",
+            child_code_path,
+            image="mlrun/mlrun",
+        )
 
         self._logger.debug("Deploying nuclio function")
-        function.deploy()
+        url = function.deploy()
+
+        self._logger.debug("Triggering nuclio function")
+        resp = requests.post(url, json={"hello": "world"})
+        assert resp.status_code == 200
+
+        time.sleep(10)
+
+        client = v3io.dataplane.Client()
+
+        resp = client.stream.seek(
+            self.stream_container, self.stream_path_out, 0, "EARLIEST"
+        )
+        self._logger.debug(f"Out stream Seek response: {resp.status_code}: {resp.body}")
+        location = json.loads(resp.body.decode("utf8"))["Location"]
+        resp = client.stream.get_records(
+            self.stream_container, self.stream_path_out, shard_id=0, location=location
+        )
+        self._logger.debug(
+            f"Out stream GetRecords response: {resp.status_code}: {resp.body}"
+        )
+        assert resp.status_code == 200
+
+        assert len(resp.output.records) == 2
+        record1, record2 = resp.output.records
+
+        expected_record = b'{"hello": "world"}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+
+        assert record1.data == expected_record or record1.data == expected_other_record
+        assert record2.data == expected_record or record2.data == expected_other_record
+
+        resp = client.stream.seek(
+            self.stream_container, self.stream_path, 0, "EARLIEST"
+        )
+        self._logger.debug(
+            f"Intermediate stream Seek response: {resp.status_code}: {resp.body}"
+        )
+        location = json.loads(resp.body.decode("utf8"))["Location"]
+        resp = client.stream.get_records(
+            self.stream_container, self.stream_path, shard_id=0, location=location
+        )
+        self._logger.debug(
+            f"Intermediate stream GetRecords response: {resp.status_code}: {resp.body}"
+        )
+        assert resp.status_code == 200
+        assert len(resp.output.records) == 1
+        record = resp.output.records[0]
+        record = json.loads(record.data.decode("utf8"))
+        self._logger.debug(f"Intermediate record: {record}")
+        assert record["full_event_wrapper"] is True
+        assert record["body"] == {"hello": "world"}
+        assert "time" in record.keys()
+        assert "id" in record.keys()
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

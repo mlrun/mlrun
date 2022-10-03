@@ -195,55 +195,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster.
-
-### Prerequisites
-
-Before you begin, ensure that the following prerequisites are met:
-
-- The MLRun version installed with the MLRun CE is the same as the MLRun version on your remote cluster. If needed, upgrade MLRun 
-either in your local installation or on the remote cluster so that they match.
-- You have remote access to your MLRun service (i.e. to the service URL on the remote Kubernetes cluster).
-
-### Setting environment variables
-
-Define your MLRun configuration. 
-
-- As a minimum requirement: Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
-
-    ```ini
-    MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
-    ```
-
-- To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
-artifact. You can use template values in the artifact path. The supported values are:
-   - `{{project}}` to include the project name in the path.
-   - `{{run.uid}}` to include the specific run uid in the artifact path. 
-
-   For example:
-
-    ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
-    ```
-    
-   or:
-
-    ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
-    ```
-    
-- If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well. Replace the `<...>` placeholders with the details for your specific platform cluster:
-
-    ```ini
-    V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-    V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
-    V3IO_ACCESS_KEY=<platform access key>
-    ```
-
-    You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of 
-    any page, and select **Access Keys** from the menu. In the **Access Keys** dialog, either copy an existing access key or create a new 
-    key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
-    shell or Jupyter Notebook service.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your client environment](remote.md) for more information.
 
 ## Advanced chart configuration
 

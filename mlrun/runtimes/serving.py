@@ -311,11 +311,12 @@ class ServingRuntime(RemoteRuntime):
                                 the image of the model monitoring stream.
 
                                 example::
-                                # initialize a new serving function
-                                serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
-                                # apply model monitoring and set monitoring batch job to run every 3 hours
-                                tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
-                                serving_fn.set_tracking(tracking_policy=tracking_policy)
+
+                                    # initialize a new serving function
+                                    serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+                                    # apply model monitoring and set monitoring batch job to run every 3 hours
+                                    tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
+                                    serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         """
 
@@ -730,8 +731,8 @@ class ServingRuntime(RemoteRuntime):
             return
 
         logger.info(
-            "Deploying function MOCK (for simulation)...\n"
-            "Turn off the mock (mock=False) for real deployment to Nuclio"
+            "Deploying serving function MOCK (for simulation)...\n"
+            "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
         server = self.to_mock_server()
         self._mock_server = server

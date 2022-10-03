@@ -200,7 +200,7 @@ class ParquetSource(BaseSourceDriver):
          'filter_column' <= end_filter. Default is None
     :parameter filter_column: Optional. if not None, the results will be filtered by this column and
          start_filter & end_filter
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+    :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
@@ -321,12 +321,12 @@ class BigQuerySource(BaseSourceDriver):
     :parameter chunksize: number of rows per chunk (default large single chunk)
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+    :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter gcp_project: google cloud project name
-    :parameter spark_options: additional spart read options
+    :parameter spark_options: additional spark read options
     """
 
     kind = "bigquery"
@@ -502,7 +502,7 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter name: source name
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+    :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time

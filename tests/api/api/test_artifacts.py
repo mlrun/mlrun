@@ -22,7 +22,7 @@ import mlrun.artifacts
 from mlrun.utils.helpers import is_legacy_artifact
 
 PROJECT = "prj"
-KEY = "some-key"
+KEY = "some-key/with-slash"
 UID = "some-uid"
 TAG = "some-tag"
 LEGACY_API_PROJECTS_PATH = "projects"

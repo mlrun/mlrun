@@ -1066,6 +1066,25 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
+    """artifact can be dict or Artifact object"""
+    if is_legacy_artifact(artifact):
+        return artifact.get(key, default)
+    elif key == "kind":
+        return artifact.get(key, default)
+    else:
+        for block in ["metadata", "spec", "status"]:
+            block_obj = artifact.get(block, {})
+            if block_obj and key in block_obj:
+                return block_obj.get(key, default)
+
+        if raise_on_missing:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"artifact {artifact} is missing metadata/spec/status"
+            )
+        return default
+
+
 def set_paths(pythonpath=""):
     """update the sys path"""
     if not pythonpath:

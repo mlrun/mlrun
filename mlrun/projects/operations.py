@@ -66,6 +66,7 @@ def run_function(
     selector: str = None,
     project_object=None,
     auto_build: bool = None,
+    schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -123,6 +124,10 @@ def run_function(
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param auto_build:      when set to True and the function require build it will be built on the first
                             function run, use only if you dont plan on changing the build config between runs
+    :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
+                            (which will be converted to the class using its `from_crontab` constructor),
+                            see this link for help:
+                            https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
 
     :return: MLRun RunObject or KubeFlow containerOp
     """
@@ -162,6 +167,7 @@ def run_function(
             local=local,
             artifact_path=pipeline_context.workflow_artifact_path,
             auto_build=auto_build,
+            schedule=schedule,
         )
         if run_result:
             run_result._notified = False
@@ -289,7 +295,7 @@ def deploy_function(
     :param models:     list of model items
     :param env:        dict of extra environment variables
     :param tag:        extra version tag
-    :param verbose     add verbose prints/logs
+    :param verbose:    add verbose prints/logs
     :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
     :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
@@ -310,7 +316,10 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock = True if mlrun.mlconf.mock_nuclio_deployment and mock is None else mock
+        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
+        if mock_nuclio and mock_nuclio == "auto":
+            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
+        mock = True if mock_nuclio and mock is None else mock
         function._set_as_mock(mock)
         if mock:
             return DeployStatus(

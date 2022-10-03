@@ -93,6 +93,8 @@ def set_environment(
     access_key: str = None,
     user_project=False,
     username: str = None,
+    env_file: str = None,
+    mock_functions: str = None,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -107,6 +109,7 @@ def set_environment(
         from os import path
         project_name, artifact_path = set_environment(project='my-project')
         set_environment("http://localhost:8080", artifact_path="./")
+        set_environment(env_file="mlrun.env")
         set_environment("<remote-service-url>", access_key="xyz", username="joe")
 
     :param api_path:       location/url of mlrun api service
@@ -115,20 +118,30 @@ def set_environment(
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
     :param user_project:   add the current user name to the provided project name (making it unique per user)
     :param username:       name of the user to authenticate
-
+    :param env_file:       path/url to .env file (holding MLRun config and other env vars), see: set_env_from_file()
+    :param mock_functions: set to True to create local/mock functions instead of real containers,
+                           set to "auto" to auto determine based on the presence of k8s/Nuclio
     :returns:
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
+    if env_file:
+        set_env_from_file(env_file)
+
     # set before the dbpath (so it will re-connect with the new credentials)
     if access_key:
         environ["V3IO_ACCESS_KEY"] = access_key
     if username:
         environ["V3IO_USERNAME"] = username
 
-    mlconf.dbpath = mlconf.dbpath or api_path
+    mlconf.dbpath = api_path or mlconf.dbpath
     if not mlconf.dbpath:
         raise ValueError("DB/API path was not detected, please specify its address")
+
+    if mock_functions is not None:
+        mock_functions = "1" if mock_functions is True else mock_functions
+        mlconf.force_run_local = mock_functions
+        mlconf.mock_nuclio_deployment = mock_functions
 
     # check connectivity and load remote defaults
     get_run_db()
@@ -147,7 +160,9 @@ def set_environment(
         get_or_create_project(mlconf.default_project, "./")
 
     if not mlconf.artifact_path and not artifact_path:
-        raise ValueError("please specify a valid artifact_path")
+        raise ValueError(
+            "default artifact_path was not configured, please specify a valid artifact_path"
+        )
 
     if artifact_path:
         if artifact_path.startswith("./"):

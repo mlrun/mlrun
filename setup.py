@@ -181,6 +181,8 @@ setup(
         "mlrun.runtimes.sparkjob",
         "mlrun.serving",
         "mlrun.utils",
+        "mlrun.utils.notifications",
+        "mlrun.utils.notifications.notification",
         "mlrun.utils.version",
     ],
     install_requires=install_requires,

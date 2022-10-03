@@ -38,8 +38,8 @@ common function methods:
 * set_env(name, value)
 * set_envs(env_vars)
 * gpus(gpus, gpu_type)
-* with_limits(mem, cpu, gpus, gpu_type)
-* with_requests(mem, cpu)
+* with_limits(mem, cpu, gpus, gpu_type, ephemeral_storage)
+* with_requests(mem, cpu, ephemeral_storage)
 * set_env_from_secret(name, secret, secret_key)
 
 **In this section**

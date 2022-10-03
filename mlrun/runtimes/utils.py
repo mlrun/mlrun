@@ -464,6 +464,7 @@ def verify_limits(
     cpu=None,
     gpus=None,
     gpu_type="nvidia.com/gpu",
+    ephemeral_storage=None,
 ):
     if mem:
         verify_field_regex(
@@ -484,14 +485,23 @@ def verify_limits(
             gpus,
             mlrun.utils.regex.k8s_resource_quantity_regex,
         )
-    return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
+    # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-ephemeral_storage
+    if ephemeral_storage:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.limits.ephemeral_storage",
+            ephemeral_storage,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    return generate_resources(
+        mem=mem,
+        cpu=cpu,
+        gpus=gpus,
+        gpu_type=gpu_type,
+        ephemeral_storage=ephemeral_storage,
+    )
 
 
-def verify_requests(
-    resources_field_name,
-    mem=None,
-    cpu=None,
-):
+def verify_requests(resources_field_name, mem=None, cpu=None, ephemeral_storage=None):
     if mem:
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.memory",
@@ -504,7 +514,14 @@ def verify_requests(
             cpu,
             mlrun.utils.regex.k8s_resource_quantity_regex,
         )
-    return generate_resources(mem=mem, cpu=cpu)
+    # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#local-ephemeral_storage
+    if ephemeral_storage:
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.requests.ephemeral_storage",
+            ephemeral_storage,
+            mlrun.utils.regex.k8s_resource_quantity_regex,
+        )
+    return generate_resources(mem=mem, cpu=cpu, ephemeral_storage=ephemeral_storage)
 
 
 def get_gpu_from_resource_requirement(requirement: dict):
@@ -512,24 +529,26 @@ def get_gpu_from_resource_requirement(requirement: dict):
     Because there could be different types of gpu types, and we don't know all the gpu types possible,
     we want to get the gpu type and its value, we can figure out the type by knowing what resource types are static
     and the possible number of resources.
-    Kubernetes support 3 types of resources, two of which their name doesn't change : cpu, memory.
+    Kubernetes support 3 types of resources, two of which their name doesn't change : cpu, memory & ephemeral_storage.
     :param requirement: requirement resource ( limits / requests ) which contain the resources.
     """
     if not requirement:
         return None, None
 
-    if len(requirement) > 3:
+    if len(requirement) > 4:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Unable to resolve the gpu type because there are more than 3 resources"
+            "Unable to resolve the gpu type because there are more than 4 resources"
         )
     for resource, value in requirement.items():
-        if resource not in ["cpu", "memory"]:
+        if resource not in ["cpu", "memory", "ephemeral-storage"]:
             return resource, value
     return None, None
 
 
-def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-    """get pod cpu/memory/gpu resources dict"""
+def generate_resources(
+    mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu", ephemeral_storage=None
+):
+    """get pod cpu/memory/gpu/ephemeral_storage resources dict"""
     resources = {}
     if gpus:
         resources[gpu_type] = gpus
@@ -537,6 +556,8 @@ def generate_resources(mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu")
         resources["memory"] = mem
     if cpu:
         resources["cpu"] = cpu
+    if ephemeral_storage:
+        resources["ephemeral-storage"] = ephemeral_storage
     return resources
 
 

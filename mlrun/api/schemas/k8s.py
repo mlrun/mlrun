@@ -22,6 +22,7 @@ class ResourceSpec(pydantic.BaseModel):
     cpu: typing.Optional[str]
     memory: typing.Optional[str]
     gpu: typing.Optional[str]
+    ephemeral_storage: typing.Optional[str]
 
 
 class Resources(pydantic.BaseModel):

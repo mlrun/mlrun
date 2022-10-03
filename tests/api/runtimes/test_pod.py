@@ -165,6 +165,47 @@ class TestKubeResource(TestRuntimeBase):
                 if not case.get("gpus"):
                     kube_resource.with_requests(case.get("memory"), case.get("cpu"))
 
+    def test_with_limits_regex_validation_with_ephemeral_storage(self):
+        cases = [
+            {"cpu": "no-number", "expected_failure": True},
+            {"memory": "1g", "expected_failure": True},  # common mistake
+            {"gpus": "1GPU", "expected_failure": True},
+            {"cpu": "12e6"},
+            {"memory": "12Mi"},
+            {"memory": "12M"},
+            {"ephemeral-storage": "100M"},
+        ]
+        for case in cases:
+            kube_resource = mlrun.runtimes.pod.KubeResource()
+            if case.get("expected_failure"):
+                with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                    kube_resource.with_limits(
+                        case.get("memory"),
+                        case.get("cpu"),
+                        case.get("gpus"),
+                        case.get("ephemeral-storage"),
+                    )
+                if not case.get("gpus"):
+                    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+                        kube_resource.with_requests(
+                            case.get("memory"),
+                            case.get("cpu"),
+                            case.get("ephemeral-storage"),
+                        )
+            else:
+                kube_resource.with_limits(
+                    case.get("memory"),
+                    case.get("cpu"),
+                    case.get("gpus"),
+                    case.get("ephemeral-storage"),
+                )
+                if not case.get("gpus"):
+                    kube_resource.with_requests(
+                        case.get("memory"),
+                        case.get("cpu"),
+                        case.get("ephemeral-storage"),
+                    )
+
     @staticmethod
     def _set_with_node_selection(
         resource: mlrun.runtimes.pod.KubeResource, attr_name: str, attr

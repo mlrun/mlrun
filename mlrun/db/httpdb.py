@@ -2450,7 +2450,6 @@ class HTTPRunDB(RunDBInterface):
             method="POST",
             path=path,
             body=model_endpoint.json(),
-            headers={"X-V3io-Access-Key": access_key},
         )
 
     def delete_model_endpoint_record(
@@ -2477,7 +2476,6 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(
             method="DELETE",
             path=path,
-            headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2538,7 +2536,6 @@ class HTTPRunDB(RunDBInterface):
                 "top-level": top_level,
                 "uid": uids,
             },
-            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -2581,7 +2578,6 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
-            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
 
@@ -2633,7 +2629,6 @@ class HTTPRunDB(RunDBInterface):
             method="PATCH",
             path=path,
             params=attributes,
-            headers={"X-V3io-Access-Key": access_key},
         )
 
     def create_marketplace_source(

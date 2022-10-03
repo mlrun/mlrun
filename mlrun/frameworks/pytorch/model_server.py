@@ -102,7 +102,7 @@ class PyTorchModelServer(V2ModelServer):
                                          model.
         :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
                                          True.
-        :param to_list:                  Whether to return a list instead of a torch.Tensor. Defaulted to False.
+        :param to_list:                  Whether to return a list instead of a torch.Tensor. Default: False.
         :param protocol:                 -
         :param class_args:               -
         """

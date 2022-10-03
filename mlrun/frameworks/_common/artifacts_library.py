@@ -53,7 +53,7 @@ class ArtifactsLibrary(ABC):
         :param artifacts:         The artifacts parameter passed to the function. Can be passed as a configuration
                                   dictionary or an initialized plans list that will simply be returned.
         :param context:           A context to look in if the configuration was passed as a parameter.
-        :param include_default:   Whether to include the default in addition to the provided plans. Defaulted to True.
+        :param include_default:   Whether to include the default in addition to the provided plans. Default: True.
         :param default_kwargs:    Additional key word arguments to pass to the 'default' method of the given artifact
                                   library class.
 

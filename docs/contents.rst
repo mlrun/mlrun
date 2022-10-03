@@ -17,7 +17,7 @@
    feature-store/feature-store
    concepts/runs-workflows
    serving/serving-graph
-   model_monitoring/index
+   concepts/deployment-monitoring
     
 .. toctree::
    :maxdepth: 1
@@ -26,7 +26,7 @@
    data-prep/data-prep
    model-development/continuous-model-development
    serving/serving-overview
-   model_monitoring/monitoring
+   model_monitoring/index
      
 .. toctree::
    :maxdepth: 1

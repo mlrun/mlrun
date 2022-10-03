@@ -34,6 +34,7 @@ from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
@@ -1791,9 +1792,9 @@ class TestFeatureStore(TestMLRunSystem):
         agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
 
         # Make sure the map step was added right after the aggregation step
-        assert len(quotes_set.graph.states) == 2
-        assert quotes_set.graph.states[aggregates_step].after is None
-        assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
+        assert len(quotes_set.graph.steps) == 2
+        assert quotes_set.graph.steps[aggregates_step].after == []
+        assert quotes_set.graph.steps["somemap1"].after == [aggregates_step]
 
     def test_featureset_uri(self):
         stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
@@ -2997,6 +2998,30 @@ class TestFeatureStore(TestMLRunSystem):
             assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
+
+    # regression test for #2424
+    def test_pandas_write_parquet(self):
+        prediction_set = fstore.FeatureSet(
+            name="myset", entities=[fstore.Entity("id")], engine="pandas"
+        )
+
+        df = pd.DataFrame({"id": ["a", "b"], "number": [11, 22]})
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            outdir = f"{tempdir}/test_pandas_write_parquet/"
+            prediction_set.set_targets(
+                with_defaults=False, targets=[ParquetTarget(path=outdir)]
+            )
+
+            returned_df = fstore.ingest(prediction_set, df)
+
+            read_back_df = pd.read_parquet(outdir)
+
+            assert read_back_df.equals(returned_df)
+            assert read_back_df.to_dict() == {
+                "id": {0: "a", 1: "b"},
+                "number": {0: 11, 1: 22},
+            }
 
 
 def verify_purge(fset, targets):

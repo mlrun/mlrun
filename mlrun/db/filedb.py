@@ -475,6 +475,37 @@ class FileRunDB(RunDBInterface):
         ]
         return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+        replace: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def delete_objects_tag(
+        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
+    ):
+        raise NotImplementedError()
+
+    def tag_artifacts(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        raise NotImplementedError()
+
     def get_project(self, name: str) -> mlrun.api.schemas.Project:
         raise NotImplementedError()
 

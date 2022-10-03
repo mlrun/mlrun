@@ -312,6 +312,76 @@ class SQLDB(RunDBInterface):
             self.db.list_artifact_tags, self.session, project
         )
 
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+        replace: bool = False,
+    ):
+        import mlrun.api.crud
+
+        if replace:
+            return self._transform_db_error(
+                mlrun.api.crud.Tags().overwrite_object_tags_with_tag,
+                self.session,
+                project,
+                tag_name,
+                tag_objects,
+            )
+
+        return self._transform_db_error(
+            mlrun.api.crud.Tags().append_tag_to_objects,
+            self.session,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def delete_objects_tag(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+    ):
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Tags().delete_tag_from_objects,
+            self.session,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def tag_artifacts(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+
+        return self._transform_db_error(
+            self.db.tag_objects, project, tag_name, tag_objects, replace
+        )
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+
+        return self._transform_db_error(
+            self.db.delete_objects_tag,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
     def store_schedule(self, data):
         return self._transform_db_error(self.db.store_schedule, self.session, data)
 

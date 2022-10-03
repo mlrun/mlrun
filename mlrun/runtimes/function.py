@@ -314,29 +314,33 @@ class RemoteRuntime(KubeResource):
     ):
         """Load nuclio function from remote source
 
-                Note: remote source may require credentials, those can be stored in the project secrets or passed
-                in the function.deploy() using the builder_env dict, see the required credentials per source:
-                v3io - "V3IO_ACCESS_KEY".
-                git - "GIT_USERNAME", "GIT_PASSWORD".
-                AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
+        Note: remote source may require credentials, those can be stored in the project secrets or passed
+        in the function.deploy() using the builder_env dict, see the required credentials per source:
 
-                :param source: a full path to the nuclio function source (code entry) to load the function from
-                :param handler: a path to the function's handler, including path inside archive/git repo
-                :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-                :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        - v3io - "V3IO_ACCESS_KEY".
+        - git - "GIT_USERNAME", "GIT_PASSWORD".
+        - AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
 
-                Examples::
-                    git:
-                        fn.with_source_archive("git://github.com/org/repo#my-branch",
-                          handler="main:handler",
-                          workdir="path/inside/repo")
-                    s3:
-                        fn.spec.nuclio_runtime = "golang"
-                        fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
-                          handler="my_func:Handler",
-                          workdir="path/inside/functions/archive",
-                          runtime="golang")
-        )
+        :param source: a full path to the nuclio function source (code entry) to load the function from
+        :param handler: a path to the function's handler, including path inside archive/git repo
+        :param workdir: working dir  relative to the archive root (e.g. 'subdir')
+        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+
+        :Examples:
+
+            git::
+
+                fn.with_source_archive("git://github.com/org/repo#my-branch",
+                        handler="main:handler",
+                        workdir="path/inside/repo")
+
+            s3::
+
+                fn.spec.nuclio_runtime = "golang"
+                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                    handler="my_func:Handler",
+                    workdir="path/inside/functions/archive",
+                    runtime="golang")
         """
         self.spec.build.source = source
         # update handler in function_handler

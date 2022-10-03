@@ -26,6 +26,7 @@ from uuid import uuid4
 import deepdiff
 import pytest
 
+import mlrun.artifacts.base
 import mlrun.errors
 import mlrun.projects.project
 from mlrun import RunObject
@@ -492,6 +493,82 @@ def _create_feature_vector(name):
         },
         "status": {"state": "created"},
     }
+
+
+def test_tagging_artifacts(create_server):
+    _, db = _configure_run_db_server(create_server)
+
+    tag = "tag"
+    add_tag = "new-tag"
+    proj_obj, logged_artifact = _generate_project_and_artifact(tag=tag)
+
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=add_tag)
+
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+    _assert_artifacts(db, proj_obj.name, add_tag, 1)
+
+
+def test_replacing_artifact_tags(create_server):
+    _, db = _configure_run_db_server(create_server)
+
+    tag = "tag"
+    new_tag = "new-tag"
+    proj_obj, logged_artifact = _generate_project_and_artifact(tag=tag)
+
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag, replace=True)
+
+    _assert_artifacts(db, proj_obj.name, tag, 0)
+    _assert_artifacts(db, proj_obj.name, new_tag, 1)
+
+
+def test_delete_artifact_tags(create_server):
+    _, db = _configure_run_db_server(create_server)
+
+    tag = "tag"
+    new_tag = "new-tag"
+    proj_obj, logged_artifact = _generate_project_and_artifact(tag=tag)
+
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+
+    db.tag_artifacts(logged_artifact, proj_obj.name, tag_name=new_tag)
+
+    _assert_artifacts(db, proj_obj.name, new_tag, 1)
+    _assert_artifacts(db, proj_obj.name, tag, 1)
+
+    db.delete_artifacts_tags(logged_artifact, proj_obj.name, tag_name=tag)
+
+    _assert_artifacts(db, proj_obj.name, new_tag, 1)
+    _assert_artifacts(db, proj_obj.name, tag, 0)
+
+
+def _generate_project_and_artifact(project: str = "newproj", tag: str = None):
+    proj_obj = mlrun.new_project(project)
+
+    logged_artifact = proj_obj.log_artifact(
+        "my-artifact",
+        body=b"some data",
+        tag=tag,
+    )
+    return proj_obj, logged_artifact
+
+
+def _assert_artifacts(db, project: str, tag: str, expected_count: int):
+    artifacts = db.list_artifacts(project=project, tag=tag)
+    assert (
+        len(artifacts) == expected_count
+    ), "bad list results - wrong number of artifacts"
+
+
+def _configure_run_db_server(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+    mlrun.mlconf.dbpath = server.url
+    mlrun.db._run_db = db
+    mlrun.db._last_db_url = server.url
+
+    return server, db
 
 
 def test_feature_vectors(create_server):

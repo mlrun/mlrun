@@ -164,7 +164,7 @@ class MLUtils(CommonUtils, ABC):
         :param y:                            A collection of ground truth labels corresponding to the inputs.
         :param target_columns_names:         List of names or indices to give the columns of the ground truth labels.
         :param default_target_column_prefix: A default value to join the y columns in case one of them is found in x (so
-                                             there won't be any duplicates). Defaulted to: "y_".
+                                             there won't be any duplicates). Default: "y_".
 
         :return: A tuple of:
                  [0] = The concatenated x and y as a single DataFrame.

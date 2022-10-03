@@ -136,12 +136,12 @@ class TestAwsS3:
         self._perform_aws_s3_tests(secrets=secrets)
 
     @pytest.mark.skipif(
-        not aws_s3_configured(extra_params=["AWS_ROLE_ARN"]),
+        not aws_s3_configured(extra_params=["MLRUN_AWS_ROLE_ARN"]),
         reason="Role ARN not configured",
     )
     def test_using_role_arn(self):
         params = credential_params.copy()
-        params.append("AWS_ROLE_ARN")
+        params.append("MLRUN_AWS_ROLE_ARN")
         for param in params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)

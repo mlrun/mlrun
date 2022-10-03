@@ -42,7 +42,7 @@ class Producer:
         self._context = context
         self._plans = plans if plans is not None else []
 
-        # Set up the logger's mode (defaulted to Training):
+        # Set up the logger's mode (default:  Training):
         self._mode = LoggingMode.TRAINING
 
         # Prepare the dictionaries to hold the artifacts. Once they are logged they will be moved from one to another:

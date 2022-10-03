@@ -13,11 +13,11 @@
       
    projects/project
    runtimes/functions
-   concepts/data-feature-store
+   concepts/data
    feature-store/feature-store
-   projects/workflows
+   concepts/runs-workflows
    serving/serving-graph
-   model_monitoring/index
+   concepts/deployment-monitoring
     
 .. toctree::
    :maxdepth: 1

@@ -244,7 +244,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         Replace the properties of the given object according to the configuration in the MLRun interface.
 
         :param obj:        The object to replace its properties.
-        :param properties: The properties to replace in the object. Defaulted to all the properties in the interface
+        :param properties: The properties to replace in the object. Default: all the properties in the interface
                            '_REPLACE_PROPERTIES' dictionary.
         """
         # Set default replacing properties if there are no properties given:
@@ -288,7 +288,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
 
         :param obj:       The object to replace its functions / methods.
-        :param functions: The functions / methods to replace in the object. Defaulted to all the functions / methods in
+        :param functions: The functions / methods to replace in the object. Default: all the functions / methods in
                           the interface '_REPLACE_METHODS' and '_REPLACE_FUNCTIONS' lists.
         """
         # Set default list if there are no functions / methods to restore:

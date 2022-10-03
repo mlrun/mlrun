@@ -43,7 +43,7 @@ class Plan(ABC):
 
     def is_reproducible(self, *args, **kwargs) -> bool:
         """
-        Check whether the plan should be used to produce multiple times or only once. Defaulted to return False.
+        Check whether the plan should be used to produce multiple times or only once. Default: return False.
 
         :return: True if the plan is reproducible and False otherwise.
         """

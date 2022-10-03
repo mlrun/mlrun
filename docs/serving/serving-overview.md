@@ -8,7 +8,6 @@ Serving a model begins by creating a serving function. This function can run one
 
 MLRun serving supports advanced real-time data processing and model serving pipelines. For more details and examples, see the {ref}`MLRun serving pipelines <serving-graph>` documentation.
 
-
 **In this section**
 
 ```{toctree}

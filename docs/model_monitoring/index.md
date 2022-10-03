@@ -1,27 +1,39 @@
-(model_monitoring)=
+(model-monitoring)=
 
-# Model and data monitoring (beta)
+# Model, Data, and App monitoring
 
 ```{note}
-Model monitoring is based on Iguazio's streaming technology. Contact Iguazio to enable this feature.
+Monitoring required at the moment Iguazio's streaming technology. Open-source integration with Kafka is under development.
 ```
 
-MLRun's model monitoring service tracks the performance of models in production to help identify
-potential issues with concept drift and prediction accuracy before they impact business goals.
-Typically, model monitoring is used by devops for tracking model performance, and by data scientists to track model drift.
-Two monitoring types are supported:
-- Model operational performance (latency, requests per second, etc.).
-- Drift detection &mdash; identifies potential issues with the model. See [Drift Analysis](./model-monitoring-deployment.html#drift-analysis) for more details.
+```{note}
+This is currently a beta feature.
+```
 
-Model monitoring provides warning alerts that can be sent to stakeholders for processing.
+The MLRun's model monitoring service includes built-in model monitoring and reporting capability. With monitoring you get
+out-of-the-box analysis of:
 
-The model monitoring data can be viewed using Iguazio's user interface or through Grafana dashboards. Grafana is an interactive web 
-application visualization tool that can be added as a service in the Iguazio platform. See [Model monitoring using Grafana dashboards](./model-monitoring-deployment.html#model-monitoring-using-grafana-dashboards) for more details.
+- **Model performance**: machine learning models train on data. It is important you know how well they perform in production.
+  When you analyze the model performance, it is important you monitor not just the overall model performance, but also the
+  feature-level performance. This gives you better insights for the reasons behind a particular result
+- **Data drift**: the change in model input data that potentially leads to model performance degradation. There are various
+  statistical metrics and drift metrics that you can use in order to identify data drift.
+- **Concept drift**: applies to the target. Sometimes the statistical properties of the target variable, which the model is
+  trying to predict, change over time in unforeseen ways.
+- **Operational performance**: applies to the overall health of the system. This applies to data (e.g., whether all the
+  expected data arrives to the model) as well as the model (e.g., response time, and throughput). 
+
+You have the option to set up notifications on various channels once an issue is detection. For example, you can set-up notification
+to your IT via email and slack when operational performance metrics pass a threshold. You can also set-up automated actions, for example,
+call a CI/CD pipeline when data drift is detected and allow a data scientist to review the model with the revised data.
+
+Refer to the [**model monitoring & drift detection tutorial**](../tutorial/05-model-monitoring.html) for an end-to-end example.
 
 **In this section**
-  
+
 ```{toctree}
 :maxdepth: 1
 
 model-monitoring-deployment
+initial-setup-configuration
 ```

@@ -1,4 +1,4 @@
-(deploy-models-and-ml-applications)=
+(deployment)=
 
 # Deploy models and ML applications
 

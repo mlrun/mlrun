@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import traceback
 import typing
 
@@ -298,9 +299,18 @@ class Member(
         :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
         also sync deletions that may occur without updating us the follower
         """
-        leader_projects, latest_updated_at = self._leader_client.list_projects(
-            self._sync_session, self._synced_until_datetime
-        )
+        try:
+            leader_projects, latest_updated_at = self._leader_client.list_projects(
+                self._sync_session, self._synced_until_datetime
+            )
+        except Exception:
+
+            # if we failed to get projects from the leader, we'll try get all the
+            # projects without the updated_at filter
+            leader_projects, latest_updated_at = self._leader_client.list_projects(
+                self._sync_session
+            )
+
         db_session = mlrun.api.db.session.create_session()
         try:
             db_projects = mlrun.api.crud.Projects().list_projects(
@@ -340,6 +350,12 @@ class Member(
                         mlrun.api.schemas.DeletionStrategy.cascading,
                     )
             if latest_updated_at:
+
+                # sanity and defensive programming - if the leader returned a latest_updated_at that is older
+                # than the epoch, we'll set it to the epoch
+                epoch = datetime.datetime.utcfromtimestamp(0)
+                if latest_updated_at < epoch:
+                    latest_updated_at = epoch
                 self._synced_until_datetime = latest_updated_at
         finally:
             mlrun.api.db.session.close_session(db_session)

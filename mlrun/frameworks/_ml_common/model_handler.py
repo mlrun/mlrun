@@ -93,7 +93,7 @@ class MLModelHandler(ModelHandler, ABC):
                                          model.
         :param context:                  MLRun context to work with for logging the model.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.PKL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.PKL'.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters are invalid.
         """

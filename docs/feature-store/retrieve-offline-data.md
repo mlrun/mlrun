@@ -1,5 +1,5 @@
 (retrieve-offline-data)=
-# Retrieve offline data
+# Training with the feature store
 
 **In this section**
 - [Creating an offline dataset](#creating-an-offline-dataset)

@@ -54,6 +54,7 @@ def test_job_file():
     assert fn.kind == "job", "kind not set, test failed"
     assert fn.spec.build.functionSourceCode, "code not embedded"
     assert fn.spec.build.origin_filename == filename, "did not record filename"
+    assert type(fn.metadata.labels) == dict, "metadata labels were not set"
     run = fn.run(workdir=str(examples_path), local=True)
 
     project, uri, tag, hash_key = parse_versioned_object_uri(run.spec.function)

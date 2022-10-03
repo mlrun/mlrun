@@ -452,9 +452,14 @@ def test_model_chained():
 
 
 def test_mock_deploy():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    nuclio_version_config = mlrun.mlconf.nuclio_version
     project = mlrun.new_project("x", save=False)
     fn = mlrun.new_function("tests", kind="serving")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # disable config
+    mlrun.mlconf.mock_nuclio_deployment = ""
 
     # test mock deployment is working
     mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
@@ -473,9 +478,20 @@ def test_mock_deploy():
 
     # set the mock through the config
     fn._set_as_mock(False)
-    mlrun.mlconf.mock_nuclio_deployment = "1"
+    mlrun.mlconf.mock_nuclio_deployment = "auto"
+    mlrun.mlconf.nuclio_version = ""
 
     mlrun.deploy_function(fn)
     resp = fn.invoke("/v2/models/my/infer", testdata)
-    mlrun.mlconf.mock_nuclio_deployment = ""  # clear
     assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    mlrun.mlconf.mock_nuclio_deployment = "1"
+    mlrun.mlconf.nuclio_version = "1.1"
+
+    mlrun.deploy_function(fn)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # return config valued
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
+    mlrun.mlconf.nuclio_version = nuclio_version_config

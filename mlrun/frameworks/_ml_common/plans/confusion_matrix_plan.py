@@ -49,7 +49,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         :param sample_weight: Sample weights to apply.
         :param normalize:     One of {'true', 'pred', 'all'} to normalize the confusion matrix over the true values
                               (rows), the predicted values (columns) or all. If None, confusion matrix will not be
-                              normalized. Defaulted to None.
+                              normalized. Default: None.
         """
         # Store the parameters:
         self._labels = labels

@@ -2159,6 +2159,7 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2191,6 +2192,10 @@ class MlrunProject(ModelObj):
         :param verbose:         add verbose prints/logs
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
+        :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
+                                (which will be converted to the class using its `from_crontab` constructor),
+                                see this link for help:
+                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2212,6 +2217,7 @@ class MlrunProject(ModelObj):
             selector=selector,
             project_object=self,
             auto_build=auto_build,
+            schedule=schedule,
         )
 
     def build_function(
@@ -2265,14 +2271,14 @@ class MlrunProject(ModelObj):
     ):
         """deploy real-time (nuclio based) functions
 
-        :param function:   name of the function (in the project) or function object
-        :param dashboard:  url of the remote Nuclio dashboard (when not local)
-        :param models:     list of model items
-        :param env:        dict of extra environment variables
-        :param tag:        extra version tag
-        :param verbose     add verbose prints/logs
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :param mock:       deploy mock server vs a real Nuclio function (for local simulations)
+        :param function:    name of the function (in the project) or function object
+        :param dashboard:   url of the remote Nuclio dashboard (when not local)
+        :param models:      list of model items
+        :param env:         dict of extra environment variables
+        :param tag:         extra version tag
+        :param verbose:     add verbose prints/logs
+        :param builder_env: env vars dict for source archive config/credentials e.g. `builder_env={"GIT_TOKEN": token}`
+        :param mock:        deploy mock server vs a real Nuclio function (for local simulations)
         """
         return deploy_function(
             function,

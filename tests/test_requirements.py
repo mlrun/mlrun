@@ -128,6 +128,7 @@ def test_requirement_specifiers_convention():
         "pyarrow": {">=1,<7"},
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.20.1, !=3.20.2, <4"},
+        "pandas": {"~=1.2, <1.5.0"},
     }
 
     for (

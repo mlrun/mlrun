@@ -15,6 +15,8 @@
 import enum
 import typing
 
+import pydantic
+
 
 class ArtifactCategories(str, enum.Enum):
     model = "model"
@@ -41,6 +43,16 @@ class ArtifactCategories(str, enum.Enum):
                 ],
                 True,
             )
+
+
+class ArtifactIdentifier(pydantic.BaseModel):
+    # artifact kind
+    kind: typing.Optional[str]
+    key: typing.Optional[str]
+    iter: typing.Optional[int]
+    uid: typing.Optional[str]
+    # TODO support hash once saved as a column in the artifacts table
+    # hash: typing.Optional[str]
 
 
 class ArtifactsFormat(str, enum.Enum):

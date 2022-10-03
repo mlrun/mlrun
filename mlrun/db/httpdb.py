@@ -653,7 +653,8 @@ class HTTPRunDB(RunDBInterface):
         tag = tag or "latest"
         endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
-        params = {}
+        # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
+        params = {"format": schemas.ArtifactsFormat.full.value}
         if iter:
             params["iter"] = str(iter)
         resp = self.api_call("GET", endpoint_path, error, params=params)

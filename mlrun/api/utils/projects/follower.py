@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import datetime
+import pytz
 import traceback
 import typing
 
@@ -353,7 +354,7 @@ class Member(
 
                 # sanity and defensive programming - if the leader returned a latest_updated_at that is older
                 # than the epoch, we'll set it to the epoch
-                epoch = datetime.datetime.utcfromtimestamp(0)
+                epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))
                 if latest_updated_at < epoch:
                     latest_updated_at = epoch
                 self._synced_until_datetime = latest_updated_at

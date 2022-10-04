@@ -25,6 +25,9 @@ kfp~=1.8.0
 nest-asyncio~=1.0
 ipython~=7.0
 nuclio-jupyter~=0.9.1
+# nuclio-jupyter 0.9.3 requires nbconvert 6.4 which requires Jinja2>=3.0
+# for some reason when installing mlrun on a venv that already had lower version of jinja2 it didn't upgrade it
+# therefore adding it explictly (~=3.1 to match mlrun docs requirements)
 Jinja2~=3.1
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0

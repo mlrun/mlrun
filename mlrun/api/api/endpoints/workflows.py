@@ -1,24 +1,25 @@
 import copy
 from http import HTTPStatus
-
-import mlrun
-import mlrun.api.schemas
-import mlrun.api.api.deps
-import mlrun.api.api.utils
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.auth.verifier
-import mlrun.projects.pipelines
 from typing import Dict, Optional
-from mlrun.api.api.utils import log_and_raise
+
 import fastapi
 from sqlalchemy.orm import Session
+
+import mlrun
+import mlrun.api.api.deps
+import mlrun.api.api.utils
+import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.singletons.project_member
+import mlrun.projects.pipelines
+from mlrun.api.api.utils import log_and_raise
 
 router = fastapi.APIRouter()
 
 
 def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
     for wf in project.spec.workflows:
-        if wf['name'] == workflow:
+        if wf["name"] == workflow:
             return wf
 
 

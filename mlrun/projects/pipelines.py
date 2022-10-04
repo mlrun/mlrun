@@ -26,6 +26,7 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
+import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.utils.notifications
 from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
@@ -33,7 +34,6 @@ from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
-from ..api.api.utils import apply_enrichment_and_validation_on_function
 
 
 def get_workflow_engine(engine_kind, local=False):
@@ -710,7 +710,9 @@ class _RemoteRunner(_PipelineRunner):
         db_session=None,
         auth_info=None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.split("-")[-1] if f"{project.metadata.name}-" in name else name
+        workflow_name = (
+            name.split("-")[-1] if f"{project.metadata.name}-" in name else name
+        )
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
         via_api = db_session is not None and auth_info is not None
@@ -725,7 +727,7 @@ class _RemoteRunner(_PipelineRunner):
             )
 
             if via_api:
-                apply_enrichment_and_validation_on_function(
+                mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
                     function=load_and_run_fn,
                     auth_info=auth_info,
                 )
@@ -781,7 +783,8 @@ class _RemoteRunner(_PipelineRunner):
             logger.error(trace)
             if not via_api:
                 project.notifiers.push(
-                    f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
+                    f"Workflow {workflow_name} run failed!, error: {e}\n{trace}",
+                    "error",
                 )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(

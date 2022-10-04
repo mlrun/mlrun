@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 import datetime
-import pytz
 import traceback
 import typing
 
 import humanfriendly
 import mergedeep
+import pytz
 import sqlalchemy.orm
 
 import mlrun.api.crud

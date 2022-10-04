@@ -33,6 +33,7 @@ from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
+from ..api.api.utils import apply_enrichment_and_validation_on_function
 
 
 def get_workflow_engine(engine_kind, local=False):
@@ -707,11 +708,12 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         db_session=None,
+        auth_info=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
-        via_api = db_session is not None
+        via_api = db_session is not None and auth_info is not None
 
         try:
             # Creating the load project and workflow running function:
@@ -721,6 +723,13 @@ class _RemoteRunner(_PipelineRunner):
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
+
+            if via_api:
+                apply_enrichment_and_validation_on_function(
+                    function=load_and_run_fn,
+                    auth_info=auth_info,
+                )
+
             msg = "executing workflow "
             if workflow_spec.schedule:
                 msg += "scheduling "

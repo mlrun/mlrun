@@ -125,6 +125,7 @@ def submit_workflow(
         artifact_path=artifact_path,
         namespace=namespace,
         db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
+        auth_info=auth_info,
     )
     print_debug("run result", run)  # TODO: Remove!
     if run:

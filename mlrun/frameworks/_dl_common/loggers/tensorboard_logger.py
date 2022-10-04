@@ -89,7 +89,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
                                       update. Notice that writing to tensorboard too frequently may cause the training
-                                      to be slower. Defaulted to 'epoch'.
+                                      to be slower. Default: 'epoch'.
 
         :raise MLRunInvalidArgumentError: If the `update_frequency` is illegal or if `tensorboard_directory` and
                                           `context` were not given.
@@ -604,7 +604,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         """
         Extract the given epoch results from all the collected values and results.
 
-        :param epoch: The epoch to get the results. Defaulted to the last epoch (-1).
+        :param epoch: The epoch to get the results. Default: the last epoch (-1).
 
         :return: A dictionary where the keys are the collected value and the values are the results.
         """

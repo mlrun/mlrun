@@ -4,7 +4,7 @@
 This figure illustrates a simplistic flow of an MLRun serving graph with remote invocation:
 <img src="../_static/images/graph-flow.png" alt="graph-flow" width="600"/>
 
-As explained in {ref}`serving`, the serving graph is based on Nuclio functions. 
+As explained in {ref}`serving-graph`, the serving graph is based on Nuclio functions. 
 
 **In this section**
 - [Using Nuclio with stream triggers](#using-Nuclio-with-stream-triggers)

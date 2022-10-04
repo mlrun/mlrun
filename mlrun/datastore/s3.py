@@ -34,7 +34,7 @@ class S3Store(DataStore):
         endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
         profile_name = self._get_secret_or_env("AWS_PROFILE")
-        assume_role_arn = self._get_secret_or_env("AWS_ROLE_ARN")
+        assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:

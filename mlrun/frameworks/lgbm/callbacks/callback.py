@@ -26,7 +26,7 @@ class Callback(ABC):
 
     * order: int = 10 - The priority of the callback to be called first. Lower value means higher priority. Defaulted to
       10.
-    * before_iteration: bool = False - Whether to call this callback before each iteration or after. Defaulted to after
+    * before_iteration: bool = False - Whether to call this callback before each iteration or after. Default: after
       (False).
 
     LightGBM will pass a `CallbackEnv` object to the callbacks - a `NamedTuple` with the following items:
@@ -76,7 +76,7 @@ class Callback(ABC):
 
         :param order:            The priority of the callback to be called first. Lower value means higher priority.
                                  Defaulted to 10.
-        :param before_iteration: Whether to call this callback before each iteration or after. Defaulted to after
+        :param before_iteration: Whether to call this callback before each iteration or after. Default: after
                                  (False).
         """
         self.order = order

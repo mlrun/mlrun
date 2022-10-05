@@ -767,31 +767,12 @@ def code_to_function(
             return name
         return f"{origin}:{name}"
 
-    def update_common(fn, spec):
-        fn.spec.image = image or get_in(spec, "spec.image", "")
-        fn.spec.build.base_image = get_in(spec, "spec.build.baseImage")
-        fn.spec.build.commands = get_in(spec, "spec.build.commands")
-        fn.spec.build.secret = get_in(spec, "spec.build.secret")
-
-        if requirements:
-            fn.with_requirements(requirements)
-
-        if embed_code:
-            fn.spec.build.functionSourceCode = get_in(
-                spec, "spec.build.functionSourceCode"
-            )
-
-        if fn.kind != "local":
-            fn.spec.env = get_in(spec, "spec.env")
-            for vol in get_in(spec, "spec.volumes", []):
-                fn.spec.volumes.append(vol.get("volume"))
-                fn.spec.volume_mounts.append(vol.get("volumeMount"))
-
+    def update_meta(fn):
         fn.spec.description = description
         fn.metadata.project = project or mlconf.default_project
         fn.metadata.tag = tag
         fn.metadata.categories = categories
-        fn.metadata.labels = labels or fn.metadata.labels
+        fn.metadata.labels = labels
 
     def resolve_nuclio_subkind(kind):
         is_nuclio = kind.startswith("nuclio")
@@ -851,22 +832,23 @@ def code_to_function(
         else:
             r = RemoteRuntime()
             r.spec.function_kind = subkind
-        # default_handler is only used in :mlrun subkind, determine the handler to invoke in function.run()
-        r.spec.default_handler = handler if subkind == "mlrun" else ""
-        r.spec.function_handler = (
-            handler if handler and ":" in handler else get_in(spec, "spec.handler")
-        )
-        if not embed_code:
-            r.spec.source = filename
-        nuclio_runtime = get_in(spec, "spec.runtime")
-        if nuclio_runtime and not nuclio_runtime.startswith("py"):
-            r.spec.nuclio_runtime = nuclio_runtime
+        if image:
+            r.spec.image = image
+        r.spec.default_handler = handler
+        if embed_code:
+            update_in(spec, "kind", "Function")
+            r.spec.base_spec = spec
+        else:
+            r.spec.function_handler = handler
+
         if not name:
             raise ValueError("name must be specified")
         r.metadata.name = name
         r.spec.build.code_origin = code_origin
         r.spec.build.origin_filename = filename or (name + ".ipynb")
-        update_common(r, spec)
+        if requirements:
+            r.with_requirements(requirements)
+        update_meta(r)
         return r
 
     if kind is None or kind in ["", "Function"]:
@@ -884,23 +866,37 @@ def code_to_function(
     r.handler = h[0] if len(h) <= 1 else h[1]
     r.metadata = get_in(spec, "spec.metadata")
     r.metadata.name = name
+    r.spec.image = image or get_in(spec, "spec.image", "")
     build = r.spec.build
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
+    build.base_image = get_in(spec, "spec.build.baseImage")
+    build.commands = get_in(spec, "spec.build.commands")
     build.extra = get_in(spec, "spec.build.extra")
-    if not embed_code:
+    if embed_code:
+        build.functionSourceCode = get_in(spec, "spec.build.functionSourceCode")
+    else:
         if code_output:
             r.spec.command = code_output
         else:
             r.spec.command = filename
 
     build.image = get_in(spec, "spec.build.image")
-    update_common(r, spec)
+    build.secret = get_in(spec, "spec.build.secret")
+    if requirements:
+        r.with_requirements(requirements)
     r.verify_base_image()
+
+    if r.kind != "local":
+        r.spec.env = get_in(spec, "spec.env")
+        for vol in get_in(spec, "spec.volumes", []):
+            r.spec.volumes.append(vol.get("volume"))
+            r.spec.volume_mounts.append(vol.get("volumeMount"))
 
     if with_doc:
         update_function_entry_points(r, code)
     r.spec.default_handler = handler
+    update_meta(r)
     return r
 
 

@@ -839,6 +839,7 @@ def code_to_function(
             update_in(spec, "kind", "Function")
             r.spec.base_spec = spec
         else:
+            r.spec.source = filename
             r.spec.function_handler = handler
 
         if not name:
@@ -1136,8 +1137,7 @@ def list_pipelines(
 ) -> Tuple[int, Optional[int], List[dict]]:
     """List pipelines
 
-    :param full:       Deprecated, use `format_` instead. if True will set `format_` to full, otherwise `format_` will
-                       be used
+    :param full:       Deprecated, use format_ instead. if True will set format_ to full, otherwise format_ will be used
     :param page_token: A page token to request the next page of results. The token is acquired from the nextPageToken
                        field of the response from the previous call or can be omitted when fetching the first page.
     :param page_size:  The number of pipelines to be listed per page. If there are more pipelines than this number, the
@@ -1166,7 +1166,7 @@ def get_object(url, secrets=None, size=None, offset=0, db=None):
     return stores.object(url=url).get(size, offset)
 
 
-def get_dataitem(url, secrets=None, db=None) -> mlrun.datastore.DataItem:
+def get_dataitem(url, secrets=None, db=None):
     """get mlrun dataitem object (from path/url)"""
     stores = store_manager.set(secrets, db=db)
     return stores.object(url=url)

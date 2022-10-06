@@ -120,6 +120,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
+        # full_event defaults to True
         graph.to(
             ">>", "q1", path=f"v3io:///{self.stream_container}{self.stream_path}"
         ).to(name="child", class_name="Identity", function="child").to(
@@ -259,6 +260,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
+        # full_event defaults to True
         graph.to(">>", "q1", path=f"kafka://{self.brokers}/{self.topic}",).to(
             name="child", class_name="Identity", function="child"
         ).to(

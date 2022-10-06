@@ -127,15 +127,20 @@ def submit_workflow(
         kind="job",
         image=mlrun.mlconf.default_base_image,
     )
-    print_debug('auth_info', auth_info)
+    print_debug('auth_info', auth_info)  # TODO: Remove!
     try:
+        print_debug('load and run function 1', load_and_run_fn)  # TODO: Remove!
         run_db = get_run_db_instance(db_session)
+        print_debug('load and run function 2', load_and_run_fn)  # TODO: Remove!
         load_and_run_fn.set_db_connection(run_db)
-        print_debug('load and run function', load_and_run_fn)
+        print_debug('load and run function 3', load_and_run_fn)  # TODO: Remove!
+        load_and_run_fn.save()
+        print_debug('load and run function 4', load_and_run_fn)  # TODO: Remove!
         apply_enrichment_and_validation_on_function(
             function=load_and_run_fn,
             auth_info=auth_info,
         )
+        print_debug('load and run function 5', load_and_run_fn)  # TODO: Remove!
         load_and_run_fn.save()
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
     except Exception as err:

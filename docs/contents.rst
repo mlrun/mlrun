@@ -17,16 +17,16 @@
    feature-store/feature-store
    concepts/runs-workflows
    serving/serving-graph
-   model_monitoring/index
+   concepts/monitoring
     
 .. toctree::
    :maxdepth: 1
    :caption: MLOps tasks
    
-   data-prep/data-prep
-   model-development/continuous-model-development
-   serving/serving-overview
-   model_monitoring/monitoring
+   data-prep/index
+   development/index
+   deployment/index
+   monitoring/index
      
 .. toctree::
    :maxdepth: 1

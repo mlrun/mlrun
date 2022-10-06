@@ -100,7 +100,7 @@ def init_featureset_graph(
         if data is not None:
             if featureset.spec.entities[0] in data:
                 # drop the entity from the columns because it is the index now
-                data.drop(columns=[featureset.spec.entities[0]], inplace=True)
+                data.set_index(drop=True)
             for i, target in enumerate(targets):
                 size = target.write_dataframe(
                     data,

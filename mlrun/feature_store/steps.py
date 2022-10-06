@@ -42,7 +42,7 @@ class MLRunStep(MapClass):
 
     def do(self, event):
         """
-        This method define the do method of this class according to the first event type.
+        This method defines the do method of this class according to the first event type.
         """
         engine = get_engine(event)
         if engine == "pandas":
@@ -101,25 +101,24 @@ class FeaturesetValidator(StepToDict, MLRunStep):
     def _do_pandas(self, event):
         body = event.body
         for column in body:
-            for name, validator in self._validators.items():
-                if name == column:
-                    violations = 0
-                    all_args = []
-                    for i in range(body[column].shape[0]):
-                        # check each body entrance if there is validator for it
-                        ok, args = validator.check(body.at[i, column])
-                        if not ok:
-                            violations += 1
-                            all_args.append(args)
-                            message = args.pop("message")
-                    if violations != 0:
-                        text = f" column={name},"
-                        text += f" has {violations} violations"
-                        if event.time:
-                            text += f" time={event.time}"
-                        print(
-                            f"{validator.severity}! {name} {message},{text} args={all_args}"
-                        )
+            validator = self._validators.get(column, None)
+            if validator:
+                violations = 0
+                all_args = []
+                for i in range(body[column].shape[0]):
+                    # check each body entry if there is validator for it
+                    ok, args = validator.check(body.at[i, column])
+                    if not ok:
+                        violations += 1
+                        all_args.append(args)
+                        message = args.pop("message")
+                if violations != 0:
+                    text = f" column={column}, has {violations} violations"
+                    if event.time:
+                        text += f" time={event.time}"
+                    print(
+                        f"{validator.severity}! {column} {message},{text} args={all_args}"
+                    )
         return event
 
 
@@ -190,7 +189,7 @@ class MapValues(StepToDict, MLRunStep):
         for feature in event.columns:
             feature_map = self.mapping.get(feature, {})
             if "ranges" in feature_map:
-                # create and aplay range map
+                # create and apply range map
                 for val, val_range in feature_map.get("ranges", {}).items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
@@ -257,7 +256,7 @@ class Imputer(StepToDict, MLRunStep):
 
 
 class OneHotEncoder(StepToDict, MLRunStep):
-    def __init__(self, mapping: Dict[str, Union[int, str]], **kwargs):
+    def __init__(self, mapping: Dict[str, List[Union[int, str]]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -277,7 +276,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
-        self.pandas_engine = None
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])
@@ -311,7 +309,7 @@ class OneHotEncoder(StepToDict, MLRunStep):
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
             event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
-        event.drop(columns=[*self.mapping.keys()], inplace=True)
+        event.drop(columns=list(self.mapping.keys()), inplace=True)
         return event
 
     @staticmethod
@@ -507,10 +505,10 @@ class DropFeatures(StepToDict, MLRunStep):
         example::
 
             feature_set = fs.FeatureSet("fs-new",
-                                            entities=[fs.Entity("id")],
-                                            description="feature set",
-                                            engine="pandas",
-                                            )
+                                        entities=[fs.Entity("id")],
+                                        description="feature set",
+                                        engine="pandas",
+                                        )
             # Pre-processing grpah steps
             feature_set.graph.to(DropFeatures(features=["age"]))
             df_pandas = fs.ingest(feature_set, data)
@@ -521,7 +519,12 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_storey(self, event):
         for feature in self.features:
-            del event[feature]
+            try:
+                del event[feature]
+            except KeyError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The ingesting data doesnt " f"contain feature named {feature}"
+                )
         return event
 
     def _do_pandas(self, event):

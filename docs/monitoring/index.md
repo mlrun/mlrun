@@ -1,6 +1,6 @@
-(model-monitoring)=
+(monitoring)=
 
-# Model, Data, and App monitoring
+# Monitor and alert
 
 ```{note}
 Monitoring required at the moment Iguazio's streaming technology. Open-source integration with Kafka is under development.

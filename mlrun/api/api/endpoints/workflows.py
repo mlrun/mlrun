@@ -127,10 +127,11 @@ def submit_workflow(
         kind="job",
         image=mlrun.mlconf.default_base_image,
     )
-
+    print_debug('auth_info', auth_info)
     try:
         run_db = get_run_db_instance(db_session)
         load_and_run_fn.set_db_connection(run_db)
+        print_debug('load and run function', load_and_run_fn)
         apply_enrichment_and_validation_on_function(
             function=load_and_run_fn,
             auth_info=auth_info,

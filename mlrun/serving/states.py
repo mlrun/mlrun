@@ -1253,10 +1253,8 @@ def params_to_step(
             raise MLRunInvalidArgumentError("queue name must be specified")
         # Pass full_event on only if it's explicitly defined
         if full_event is not None:
-            new_class_args = {}
-            new_class_args.update(class_args)
-            new_class_args["full_event"] = full_event
-            class_args = new_class_args
+            class_args = class_args.copy()
+            class_args["full_event"] = full_event
         step = QueueStep(name, **class_args)
 
     elif class_name and class_name.startswith("*"):

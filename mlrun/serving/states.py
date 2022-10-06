@@ -1230,6 +1230,9 @@ def params_to_step(
     class_args=None,
 ):
     """return step object from provided params or classes/objects"""
+
+    class_args = class_args or {}
+
     if class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)

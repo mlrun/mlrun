@@ -176,8 +176,9 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         expected_record = b'{"hello": "world"}'
         expected_other_record = b'{"hello": "world", "more_stuff": 5}'
 
-        assert record1.data == expected_record or record1.data == expected_other_record
-        assert record2.data == expected_record or record2.data == expected_other_record
+        assert (
+            record1.data == expected_record and record2.data == expected_other_record
+        ) or (record2.data == expected_record and record1.data == expected_other_record)
 
         resp = client.stream.seek(
             self.stream_container, self.stream_path, 0, "EARLIEST"
@@ -298,12 +299,11 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         self._logger.debug("Waiting for data to arrive in output topic")
         kafka_consumer.subscribe([self.topic_out])
         record1 = next(kafka_consumer)
-        assert (
-            record1.value == expected_record or record1.value == expected_other_record
-        )
         record2 = next(kafka_consumer)
         assert (
-            record2.value == expected_record or record2.value == expected_other_record
+            record1.value == expected_record and record2.value == expected_other_record
+        ) or (
+            record2.value == expected_record or record1.value == expected_other_record
         )
         kafka_consumer.unsubscribe()
 

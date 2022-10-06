@@ -305,7 +305,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         gpu_type = [
             resource_type
             for resource_type in resources.keys()
-            if resource_type not in ["cpu", "memory", "ephemeral-storage"]
+            if resource_type not in ["cpu", "memory", "ephemeral_storage"]
         ]
         if len(gpu_type) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -173,7 +173,7 @@ class TestKubeResource(TestRuntimeBase):
             {"cpu": "12e6"},
             {"memory": "12Mi"},
             {"memory": "12M"},
-            {"ephemeral-storage": "100M"},
+            {"ephemeral_storage": "100M"},
         ]
         for case in cases:
             kube_resource = mlrun.runtimes.pod.KubeResource()
@@ -183,27 +183,27 @@ class TestKubeResource(TestRuntimeBase):
                         case.get("memory"),
                         case.get("cpu"),
                         case.get("gpus"),
-                        case.get("ephemeral-storage"),
+                        case.get("ephemeral_storage"),
                     )
                 if not case.get("gpus"):
                     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
                         kube_resource.with_requests(
                             case.get("memory"),
                             case.get("cpu"),
-                            case.get("ephemeral-storage"),
+                            case.get("ephemeral_storage"),
                         )
             else:
                 kube_resource.with_limits(
                     case.get("memory"),
                     case.get("cpu"),
                     case.get("gpus"),
-                    case.get("ephemeral-storage"),
+                    case.get("ephemeral_storage"),
                 )
                 if not case.get("gpus"):
                     kube_resource.with_requests(
                         case.get("memory"),
                         case.get("cpu"),
-                        case.get("ephemeral-storage"),
+                        case.get("ephemeral_storage"),
                     )
 
     @staticmethod

@@ -120,14 +120,14 @@ class TestKubejobRuntime(TestRuntimeBase):
             cpu=expected_limits["cpu"],
             gpus=expected_limits[gpu_type],
             gpu_type=gpu_type,
-            ephemeral_storage=expected_limits["ephemeral-storage"],
+            ephemeral_storage=expected_limits["ephemeral_storage"],
         )
 
         expected_requests = generate_resources(mem=2, cpu=3, ephemeral_storage=10)
         runtime.with_requests(
             mem=expected_requests["memory"],
             cpu=expected_requests["cpu"],
-            ephemeral_storage=expected_requests["ephemeral-storage"],
+            ephemeral_storage=expected_requests["ephemeral_storage"],
         )
 
         self.execute_function(runtime)

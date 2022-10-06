@@ -367,7 +367,7 @@ class KubeResourceSpec(FunctionSpec):
         ephemeral_storage: str = None,
     ):
         """
-        set pod cpu/memory/gpu/ephemeral-storage limits
+        set pod cpu/memory/gpu/ephemeral_storage limits
         by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
         """
         self._verify_and_set_limits(
@@ -388,7 +388,7 @@ class KubeResourceSpec(FunctionSpec):
         ephemeral_storage: str = None,
     ):
         """
-        set requested (desired) pod cpu/memory/ephemeral-storage resources
+        set requested (desired) pod cpu/memory/ephemeral_storage resources
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
         self._verify_and_set_requests("resources", mem, cpu, patch, ephemeral_storage)
@@ -396,7 +396,7 @@ class KubeResourceSpec(FunctionSpec):
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
     ):
-        resources_types = ["cpu", "memory", "ephemeral-storage"]
+        resources_types = ["cpu", "memory", "ephemeral_storage"]
         resource_requirements = ["requests", "limits"]
         default_resources = mlconf.get_default_function_pod_resources()
         if resources:
@@ -409,23 +409,20 @@ class KubeResourceSpec(FunctionSpec):
             return resources
         else:
             resources = default_resources
-        requests_ephemeral_storage:str = resources["requests"].get("ephemeral-storage",None)
         
         resources["requests"] = verify_requests(
             resources_field_name,
             mem=resources["requests"]["memory"],
             cpu=resources["requests"]["cpu"],
-            ephemeral_storage=requests_ephemeral_storage,
+            ephemeral_storage=resources["requests"].get("ephemeral_storage",None),
         )
         gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
         
-        limits_ephemeral_storage:str = resources["limits"].get("ephemeral-storage",None)
-
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
-            ephemeral_storage=limits_ephemeral_storage,
+            ephemeral_storage=resources["limits"].get("ephemeral_storage",None),
             gpus=gpu_value,
             gpu_type=gpu_type,
         )
@@ -1026,7 +1023,7 @@ class KubeResource(BaseRuntime):
         ephemeral_storage: str = None,
     ):
         """
-        set pod cpu/memory/gpu/ephemeral-storage limits
+        set pod cpu/memory/gpu/ephemeral_storage limits
         by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
         """
         self.spec.with_limits(
@@ -1041,7 +1038,7 @@ class KubeResource(BaseRuntime):
         ephemeral_storage: str = None,
     ):
         """
-        set requested (desired) pod cpu/memory/ephemeral-storage resources
+        set requested (desired) pod cpu/memory/ephemeral_storage resources
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
         self.spec.with_requests(

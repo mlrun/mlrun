@@ -540,7 +540,7 @@ def get_gpu_from_resource_requirement(requirement: dict):
             "Unable to resolve the gpu type because there are more than 4 resources"
         )
     for resource, value in requirement.items():
-        if resource not in ["cpu", "memory", "ephemeral-storage"]:
+        if resource not in ["cpu", "memory", "ephemeral_storage"]:
             return resource, value
     return None, None
 
@@ -557,7 +557,7 @@ def generate_resources(
     if cpu:
         resources["cpu"] = cpu
     if ephemeral_storage:
-        resources["ephemeral-storage"] = ephemeral_storage
+        resources["ephemeral_storage"] = ephemeral_storage
     return resources
 
 

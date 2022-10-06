@@ -415,13 +415,13 @@ default_config = {
             "cpu": None,
             "memory": None,
             "gpu": None,
-            "ephemeral-storage": None,
+            "ephemeral_storage": None,
         },
         "limits": {
             "cpu": None, 
             "memory": None, 
             "gpu": None, 
-            "ephemeral-storage": None
+            "ephemeral_storage": None
         },
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
@@ -741,7 +741,7 @@ class Config:
         :param requirement: kubernetes requirement resource one of the following : requests, limits
         :param with_gpu: whether to return requirement resources with nvidia.com/gpu field (e.g. you cannot specify
          GPU requests without specifying GPU limits) https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
-        :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu, ephemeral-storage)
+        :return: a dict containing the defaults resources (cpu, memory, nvidia.com/gpu, ephemeral_storage)
         """
         resources: dict = copy.deepcopy(config.default_function_pod_resources.to_dict())
         gpu_type = "nvidia.com/gpu"
@@ -937,7 +937,7 @@ def _validate_config(config):
 
 
 def _convert_resources_to_str(config: dict = None):
-    resources_types = ["cpu", "memory", "gpu", "ephemeral-storage"]
+    resources_types = ["cpu", "memory", "gpu", "ephemeral_storage"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):
         return

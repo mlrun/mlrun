@@ -762,13 +762,13 @@ class TestRuntimeBase:
                         "cpu": None,
                         "memory": None,
                         "gpu": None,
-                        "ephemeral-storage": None,
+                        "ephemeral_storage": None,
                     },
                     "limits": {
                         "cpu": None,
                         "memory": None,
                         "gpu": None,
-                        "ephemeral-storage": None,
+                        "ephemeral_storage": None,
                     },
                 },
                 "expected_resources": {},
@@ -779,17 +779,17 @@ class TestRuntimeBase:
                     "requests": {
                         "cpu": "25m",
                         "memory": "1M",
-                        "ephemeral-storage": "100M",
+                        "ephemeral_storage": "100M",
                     },
-                    "limits": {"cpu": "2", "memory": "1G", "ephemeral-storage": "100M"},
+                    "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": "100M"},
                 },
                 "expected_resources": {
                     "requests": {
                         "cpu": "25m",
                         "memory": "1M",
-                        "ephemeral-storage": "100M",
+                        "ephemeral_storage": "100M",
                     },
-                    "limits": {"cpu": "2", "memory": "1G", "ephemeral-storage": "100M"},
+                    "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": "100M"},
                 },
             },
         ]:

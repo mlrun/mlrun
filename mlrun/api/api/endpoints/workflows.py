@@ -1,4 +1,5 @@
 import copy
+import traceback
 from http import HTTPStatus
 from typing import Dict, Optional
 
@@ -12,7 +13,8 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.projects.pipelines
-from mlrun.api.api.utils import log_and_raise
+from mlrun.utils.helpers import logger
+from mlrun.api.api.utils import log_and_raise, get_run_db_instance, apply_enrichment_and_validation_on_function
 
 router = fastapi.APIRouter()
 
@@ -118,6 +120,27 @@ def submit_workflow(
     print_debug("artifact_path", artifact_path)  # TODO: Remove!
     print_debug("namespace", namespace)  # TODO: Remove!
 
+    # Creating the load and run function in the server-side way:
+    load_and_run_fn = mlrun.new_function(
+        name=f"workflow-runner-{workflow_spec.name}",
+        project=project.metadata.name,
+        kind="job",
+        image=mlrun.mlconf.default_base_image,
+    )
+
+    try:
+        run_db = get_run_db_instance(db_session)
+        load_and_run_fn.set_db_connection(run_db)
+        apply_enrichment_and_validation_on_function(
+            function=load_and_run_fn,
+            auth_info=auth_info,
+        )
+        load_and_run_fn.save()
+        logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+
     run = mlrun.projects.pipelines._RemoteRunner.run(
         project=project,
         workflow_spec=workflow_spec,
@@ -125,9 +148,11 @@ def submit_workflow(
         workflow_handler=workflow_spec.handler,
         artifact_path=artifact_path,
         namespace=namespace,
-        db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
-        auth_info=auth_info,
+        api_function=load_and_run_fn,
+        # db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
+        # auth_info=auth_info,
     )
+
     print_debug("run result", run)  # TODO: Remove!
     if run:
         return run.run_id

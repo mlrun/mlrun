@@ -29,6 +29,7 @@ nuclio-jupyter~=0.9.1
 # for some reason when installing mlrun on a venv that already had a lower version of jinja2 it didn't upgrade it
 # therefore adding it explicitly (~=3.1 to match mlrun docs requirements)
 Jinja2~=3.1
+importlib_metadata>=3.6
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
 # limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us

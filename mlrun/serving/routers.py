@@ -23,6 +23,7 @@ import numpy
 from numpy.core.fromnumeric import mean
 
 import mlrun
+import mlrun.utils.model_monitoring
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 from ..api.schemas import (
@@ -34,6 +35,7 @@ from ..api.schemas import (
 )
 from ..config import config
 from ..utils.model_monitoring import EndpointType
+from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
@@ -708,28 +710,52 @@ class VotingEnsemble(BaseModelRouter):
         return request
 
 
-def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
+def _init_endpoint_record(
+    graph_server: GraphServer, voting_ensemble: VotingEnsemble
+) -> str:
+    """
+    Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
+    endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
+    already exist in the DB, we skip the creation process. Otherwise, it writes the new model endpoint record to the DB.
+
+    :param graph_server:    A GraphServer object which will be used for getting the function uri.
+    :param voting_ensemble: Voting ensemble serving class. It contains important details for the model endpoint record
+                            such as model name, model path, model version, and the ids of the children model endpoints.
+
+    :return: Model endpoint unique ID.
+    """
+
     logger.info("Initializing endpoint records")
 
-    endpoint_uid = None
+    # Getting project name from the function uri
+    project, _, _, _ = parse_versioned_object_uri(graph_server.function_uri)
 
+    # Generating version model value based on the model name and model version
+    if voting_ensemble.version:
+        versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
+    else:
+        versioned_model_name = f"{voting_ensemble.name}:latest"
+
+    # Generating model endpoint ID based on function uri and model version
+    endpoint_uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+    ).uid
+
+    # If model endpoint object was found in DB, skip the creation process.
     try:
-        project, uri, tag, hash_key = parse_versioned_object_uri(
-            graph_server.function_uri
-        )
+        mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=endpoint_uid)
 
-        if voting_ensemble.version:
-            versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
-        else:
-            versioned_model_name = f"{voting_ensemble.name}:latest"
+    except mlrun.errors.MLRunNotFoundError:
+        logger.info("Create a new model endpoint record", endpoint_id=endpoint_uid)
 
+        # Get the children model endpoints ids
         children_uids = []
         for _, c in voting_ensemble.routes.items():
             if hasattr(c, "endpoint_uid"):
                 children_uids.append(c.endpoint_uid)
 
         model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(project=project),
+            metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
             spec=ModelEndpointSpec(
                 function_uri=graph_server.function_uri,
                 model=versioned_model_name,
@@ -748,23 +774,20 @@ def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
                 children_uids=children_uids,
             ),
         )
-        endpoint_uid = model_endpoint.metadata.uid
 
         db = mlrun.get_run_db()
-
         db.create_or_patch_model_endpoint(
             project=project,
             endpoint_id=model_endpoint.metadata.uid,
             model_endpoint=model_endpoint,
         )
 
+        # Update model endpoint children type
         for model_endpoint in children_uids:
-            # here to update that it is a node now
             current_endpoint = db.get_model_endpoint(
                 project=project, endpoint_id=model_endpoint
             )
             current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
-
             db.create_or_patch_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint,

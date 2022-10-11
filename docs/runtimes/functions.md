@@ -27,6 +27,7 @@ mlrun_code_annotations
 code-archive
 function-storage
 images
+image-build
 ../concepts/node-affinity
 configuring-job-resources
 load-from-marketplace

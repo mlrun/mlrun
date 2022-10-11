@@ -10,7 +10,7 @@ click~=8.0.0
 # kfp 1.8.13 requires typing-extensions>=3.7.4,<5
 # for some reason when installing mlrun on a venv that already had typing-extensions==3.7.4.3 it didn't upgrade it to
 # >=3.10.0 although it was installing starlette 0.19.1
-# therefore adding it explictly
+# therefore adding it explicitly
 typing-extensions>=3.10.0,<5
 # in some environments for some reason the protobuf installed was 3.20.0 instead of 3.20.1,
 # when installing google-cloud-storage which required >=3.20.1, <5 it was upgrading the protobuf version to the latest
@@ -25,6 +25,10 @@ kfp~=1.8.0
 nest-asyncio~=1.0
 ipython~=7.0
 nuclio-jupyter~=0.9.1
+# nuclio-jupyter 0.9.3 requires nbconvert 6.4.5 which requires importlib_metadata>=3.6
+# when installing mlrun with old version of pip on a venv that already had a lower version of importlib_metadata it didn't upgrade it
+# therefore adding it explicitly
+importlib_metadata>=3.6
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
 # limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us

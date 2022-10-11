@@ -33,8 +33,11 @@ If the function is not a single file function, and it requires access to multipl
 you should set the `with_repo=True` to add the entire repo code into the destination container during build or run time.
 
 ```{admonition} Note
-When using `with_repo=True` the functions need to be deployed (`function.deploy()`) to build a container, unless you set `project.spec.load_source_on_run=True` which instructs MLRun to load the git/archive repo into the function container 
-at run time and do not require a build (this is simpler when developing, for production it's preferred to build the image with the code)
+When using `with_repo=True` the function needs to be deployed using 
+{py:func}`~mlrun.projects.MlrunProject.deploy_function()` to build a container. Alternatively, you can use 
+{py:func}`~mlrun.projects.MlrunProject.set_source()` with `pull_at_runtime=True` which instructs MLRun to load the 
+git/archive repo into the function container at run time and therefore does not require a build (this is simpler when 
+developing, although for production it's preferred to build the image with the code.)
 ```
 
 Examples:

@@ -127,6 +127,7 @@ def submit_workflow(
         kind="job",
         image=mlrun.mlconf.default_base_image,
     )
+    load_and_run_fn.fill_credentials()
     print_debug('db_session', db_session)  # TODO: Remove!
     print_debug('auth_info', auth_info)  # TODO: Remove!
     try:

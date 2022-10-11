@@ -222,3 +222,14 @@ jobs:
           # See the License for the specific language governing permissions and
           # limitations under the License.
           "
+
+  notify-slack:
+    name: Check Copyright Existence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: slackapi/slack-github-action@v1.22.0
+        with:
+          channel-id: ${{ SLACK_MLRUN_DEV_CHANNEL_ID }}
+          slack-message: "I made it? @tomt"
+        env:
+          SLACK_BOT_TOKEN: "${{ secrets.SLACK_BOT_TOKEN }}"

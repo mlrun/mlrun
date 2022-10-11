@@ -127,7 +127,10 @@ def submit_workflow(
         kind="job",
         image=mlrun.mlconf.default_base_image,
     )
-    load_and_run_fn.fill_credentials()
+    # load_and_run_fn.apply(mlrun.mount_v3io())
+    # load_and_run_fn: mlrun.runtimes.KubejobRuntime
+    # load_and_run_fn.set_env_from_secret()
+    # load_and_run_fn.fill_credentials()
     print_debug('db_session', db_session)  # TODO: Remove!
     print_debug('auth_info', auth_info)  # TODO: Remove!
     try:
@@ -136,6 +139,7 @@ def submit_workflow(
         run_db = get_run_db_instance(db_session)
         print_debug('run_db', run_db)  # TODO: Remove!
         load_and_run_fn.set_db_connection(run_db)
+        load_and_run_fn.metadata.credentials.access_key = "$generate"
         print_debug('function_db_connection after', load_and_run_fn._db_conn)  # TODO: Remove!
         load_and_run_fn.save()
         apply_enrichment_and_validation_on_function(

@@ -224,7 +224,7 @@ jobs:
           "
 
   notify-slack:
-    name: Check Copyright Existence
+    name: Notify Slack
     runs-on: ubuntu-latest
     steps:
       - uses: slackapi/slack-github-action@v1.22.0

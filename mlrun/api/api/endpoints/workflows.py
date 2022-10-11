@@ -126,6 +126,7 @@ def submit_workflow(
         project=project.metadata.name,
         kind="job",
         image=mlrun.mlconf.default_base_image,
+        kfp=('kfp' in workflow_spec.engine),
     )
 
     try:

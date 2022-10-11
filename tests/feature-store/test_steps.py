@@ -76,7 +76,7 @@ def test_set_event_random_id():
 
 
 def test_pandas_step_onehot(rundb_mock):
-    data = get_data()
+    data, _ = get_data()
     # One Hot Encode the newly defined mappings
     one_hot_encoder_mapping = {
         "department": list(data["department"].unique()),
@@ -103,7 +103,34 @@ def test_pandas_step_onehot(rundb_mock):
         data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
     )
 
+    data_ref = pd.DataFrame(
+        {
+            "name": data["name"],
+            "age": data["age"],
+            "department_IT": [1, 0, 0, 0, 1],
+            "department_RD": [0, 1, 1, 0, 0],
+            "department_Marketing": [0, 0, 0, 1, 0],
+            "timestamp": [
+                time.time(),
+                time.time(),
+                time.time(),
+                time.time(),
+                time.time(),
+            ],
+        },
+        index=[0, 1, 2, 3, 4],
+    )
+
     assert isinstance(df_pandas, pd.DataFrame)
+    pd.testing.assert_frame_equal(
+        df_pandas,
+        data_ref,
+        check_dtype=True,
+        check_index_type=True,
+        check_column_type=True,
+        check_like=True,
+        check_names=True,
+    )
 
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
@@ -133,7 +160,7 @@ def test_pandas_step_onehot(rundb_mock):
 
 
 def test_pandas_step_imputer(rundb_mock):
-    data = get_data(True)
+    data, data_ref = get_data(True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -142,7 +169,7 @@ def test_pandas_step_imputer(rundb_mock):
         engine="pandas",
     )
     # Pre-processing grpah steps
-    data_set_pandas.graph.to(Imputer(mapping={"department": "RD"}))
+    data_set_pandas.graph.to(Imputer(mapping={"department": "IT"}))
     data_set_pandas._run_db = rundb_mock
 
     data_set_pandas.reload = unittest.mock.Mock()
@@ -157,6 +184,15 @@ def test_pandas_step_imputer(rundb_mock):
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
+    pd.testing.assert_frame_equal(
+        df_pandas,
+        data_ref,
+        check_dtype=True,
+        check_index_type=True,
+        check_column_type=True,
+        check_like=True,
+        check_names=True,
+    )
 
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
@@ -165,7 +201,7 @@ def test_pandas_step_imputer(rundb_mock):
         description="feature set",
     )
     # Pre-processing grpah steps
-    data_set.graph.to(Imputer(mapping={"department": "RD"}))
+    data_set.graph.to(Imputer(mapping={"department": "IT"}))
     data_set._run_db = rundb_mock
 
     data_set.reload = unittest.mock.Mock()
@@ -187,7 +223,7 @@ def test_pandas_step_imputer(rundb_mock):
 
 @pytest.mark.parametrize("with_original", [True, False])
 def test_pandas_step_mapval(rundb_mock, with_original):
-    data = get_data()
+    data, _ = get_data()
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -218,8 +254,28 @@ def test_pandas_step_mapval(rundb_mock, with_original):
         data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
     )
 
-    assert isinstance(df_pandas, pd.DataFrame)
+    if with_original:
+        data_ref = data.copy()
+        data_ref = data_ref.set_index("id", drop=True)
+        data_ref["age_mapped"] = ["adult", "child", "adult", "adult", "child"]
+        data_ref["department_mapped"] = [1, 3, 3, 2, 1]
+    else:
+        age = ["adult", "child", "adult", "adult", "child"]
+        department = [1, 3, 3, 2, 1]
+        data_ref = pd.DataFrame(
+            {"age": age, "department": department}, index=[0, 1, 2, 3, 4]
+        )
 
+    assert isinstance(df_pandas, pd.DataFrame)
+    pd.testing.assert_frame_equal(
+        df_pandas,
+        data_ref,
+        check_dtype=True,
+        check_index_type=True,
+        check_column_type=True,
+        check_like=True,
+        check_names=True,
+    )
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
@@ -256,7 +312,7 @@ def test_pandas_step_mapval(rundb_mock, with_original):
 
 
 def test_pandas_step_data_extractor(rundb_mock):
-    data = get_data()
+    data, _ = get_data()
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -283,9 +339,20 @@ def test_pandas_step_data_extractor(rundb_mock):
     df_pandas = fs.ingest(
         data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
     )
-
+    data_ref = data.copy()
+    data_ref = data_ref.set_index("id", drop=True)
+    data_ref["timestamp_day_of_week"] = [3, 3, 3, 3, 3]
+    data_ref["timestamp_hour"] = [0, 0, 0, 0, 0]
     assert isinstance(df_pandas, pd.DataFrame)
-
+    pd.testing.assert_frame_equal(
+        df_pandas,
+        data_ref,
+        check_dtype=True,
+        check_index_type=True,
+        check_column_type=True,
+        check_like=True,
+        check_names=True,
+    )
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
@@ -319,7 +386,7 @@ def test_pandas_step_data_extractor(rundb_mock):
 
 
 def test_pandas_step_data_validator(rundb_mock):
-    data = get_data()
+    data, _ = get_data()
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -345,9 +412,18 @@ def test_pandas_step_data_validator(rundb_mock):
     df_pandas = fs.ingest(
         data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
     )
-
+    data_ref = data.copy()
+    data_ref = data_ref.set_index("id", drop=True)
     assert isinstance(df_pandas, pd.DataFrame)
-
+    pd.testing.assert_frame_equal(
+        df_pandas,
+        data_ref,
+        check_dtype=True,
+        check_index_type=True,
+        check_column_type=True,
+        check_like=True,
+        check_names=True,
+    )
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
@@ -380,7 +456,7 @@ def test_pandas_step_data_validator(rundb_mock):
 
 
 def test_pandas_step_drop_feature(rundb_mock):
-    data = get_data()
+    data, _ = get_data()
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -402,9 +478,19 @@ def test_pandas_step_drop_feature(rundb_mock):
     df_pandas = fs.ingest(
         data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
     )
-
+    data_ref = data.copy()
+    data_ref = data_ref.set_index("id", drop=True)
+    data_ref.drop(columns=["age"], inplace=True)
     assert isinstance(df_pandas, pd.DataFrame)
-
+    pd.testing.assert_frame_equal(
+        df_pandas,
+        data_ref,
+        check_dtype=True,
+        check_index_type=True,
+        check_column_type=True,
+        check_like=True,
+        check_names=True,
+    )
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
@@ -435,13 +521,23 @@ def test_pandas_step_drop_feature(rundb_mock):
 def get_data(with_none=False):
     names = ["A", "B", "C", "D", "E"]
     ages = [33, 4, 76, 90, 24]
-    department = ["IT", "RD", "RD", "Marketing", "IT"]
-    if with_none:
-        department = [None, "RD", "RD", "Marketing", "IT"]
     timestamp = [time.time(), time.time(), time.time(), time.time(), time.time()]
+    department = ["IT", "RD", "RD", "Marketing", "IT"]
+    data_ref = None
+    if with_none:
+        data_ref = pd.DataFrame(
+            {
+                "name": names,
+                "age": ages,
+                "department": department,
+                "timestamp": timestamp,
+            },
+            index=[0, 1, 2, 3, 4],
+        )
+        department = [None, "RD", "RD", "Marketing", "IT"]
     data = pd.DataFrame(
         {"name": names, "age": ages, "department": department, "timestamp": timestamp},
         index=[0, 1, 2, 3, 4],
     )
     data["id"] = data.index
-    return data
+    return data, data_ref

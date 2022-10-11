@@ -523,7 +523,7 @@ class DropFeatures(StepToDict, MLRunStep):
                 del event[feature]
             except KeyError:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"The ingesting data doesnt " f"contain feature named {feature}"
+                    f"The ingesting data doesn't contain a feature named '{feature}'"
                 )
         return event
 

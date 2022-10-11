@@ -42,5 +42,5 @@ MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:
 # kafka brokers string for kafka tests
 MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:
 
-# mongoDB connection string for test_mongoDB
-MLRUN_SYSTEM_TESTS_MONGODB_CONNECTION_STRING:
+# sql db path string for test_sql_db
+SQL_DB_PATH_STRING:

@@ -51,22 +51,22 @@ def get_source_step(source, key_fields=None, time_field=None, context=None):
 
 
 class _SqlDBIterator:
-    def __init__(self, collection, iter_chunksize):
+    def __init__(self, table, iter_chunksize):
         """
-        Iterate over given Sql collection
+        Iterate over given Sql table
 
         :param iter_chunksize:   number of rows per chunk
-        :param collection:  sql collection
+        :param table:  sql table
         """
-        self.collection = collection
+        self.table = table
         self.iter_chunksize = iter_chunksize
-        self.keys = self.collection.keys()
+        self.keys = self.table.keys()
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        chunk = self.collection.fetchmany(self.iter_chunksize)
+        chunk = self.table.fetchmany(self.iter_chunksize)
         if len(chunk) != 0:
             return pd.DataFrame(chunk, columns=self.keys)
         else:
@@ -867,7 +867,7 @@ class SqlDBSource(BaseSourceDriver):
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
         db_path: str = None,
-        collection_name: str = None,
+        table_name: str = None,
         spark_options: dict = None,
     ):
         """
@@ -889,7 +889,7 @@ class SqlDBSource(BaseSourceDriver):
                                     cause the job to run every 30 minutes
         :param db_path:             url string connection to sql database.
                                     If not set, the SQL_DB_PATH_STRING environment variable will be used.
-        :param collection_name: the name of the collection to access,
+        :param table_name: the name of the collection to access,
                                     from the current database
         :param spark_options:   additional spark read options
         """
@@ -902,7 +902,7 @@ class SqlDBSource(BaseSourceDriver):
         attrs = {
             "chunksize": chunksize,
             "spark_options": spark_options,
-            "collection_name": collection_name,
+            "table_name": table_name,
             "db_path": db_path,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
@@ -921,33 +921,33 @@ class SqlDBSource(BaseSourceDriver):
 
         query = self.attributes.get("query")
         db_path = self.attributes.get("db_path")
-        collection_name = self.attributes.get("collection_name")
+        table_name = self.attributes.get("table_name")
         chunksize = self.attributes.get("chunksize")
-        if collection_name and db_path:
+        if table_name and db_path:
             engine = db.create_engine(db_path)
             metadata = db.MetaData()
-            connection = engine.connect()
-            collection = db.Table(
-                collection_name, metadata, autoload=True, autoload_with=engine
+            table = engine.connect()
+            table = db.Table(
+                table_name, metadata, autoload=True, autoload_with=engine
             )
-            results = connection.execute(db.select([collection]))
+            results = table.execute(db.select([table]))
             if chunksize:
                 return _SqlDBIterator(
-                    collection=results, iter_chunksize=chunksize, iter_query=query
+                    table=results, iter_chunksize=chunksize, iter_query=query
                 )
             else:
                 results = results.fetchall()
                 df = pd.DataFrame(results)
                 df.columns = results[0].keys()
-                connection.close()
+                table.close()
                 return df
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "collection_name and db_name args must be specified"
+                "table_name and db_name args must be specified"
             )
 
     def to_step(self, key_field=None, time_field=None, context=None):
-        from mlrun.datastore.storeySourse import SqlDBSourceStorey
+        from mlrun.datastore.storey_source import SqlDBSourceStorey
 
         attributes = self.attributes or {}
         if context:

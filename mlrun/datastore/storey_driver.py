@@ -21,7 +21,7 @@ class SqlDBDriver(storey.Driver):
     """
     Database connection to Sql data basw.
     :param db_path: url string connection to sql database.
-    :param primary_key: the primary key of the collection.
+    :param primary_key: the primary key of the table.
     """
 
     def __init__(
@@ -48,7 +48,7 @@ class SqlDBDriver(storey.Driver):
             self._engine = db.create_engine(self._db_path)
             self._sql_connection = self._engine.connect()
 
-    def collection(self, table_path):
+    def table(self, table_path):
         import sqlalchemy as db
 
         metadata = db.MetaData()
@@ -74,11 +74,11 @@ class SqlDBDriver(storey.Driver):
 
         self._lazy_init()
 
-        collection = self.collection(table_path)
+        table = self.table(table_path)
         return_val = None
         try:
             return_val = self._sql_connection.execute(
-                collection.insert(), [additional_data]
+                table.insert(), [additional_data]
             )
         except db.exc.IntegrityError:
             pass
@@ -86,9 +86,9 @@ class SqlDBDriver(storey.Driver):
 
     async def _load_aggregates_by_key(self, container, table_path, key):
         self._lazy_init()
-        collection = self.collection(table_path)
+        table = self.table(table_path)
         try:
-            agg_val, values = await self._get_all_fields(key, collection)
+            agg_val, values = await self._get_all_fields(key, table)
             if not agg_val:
                 agg_val = None
             if not values:
@@ -99,9 +99,9 @@ class SqlDBDriver(storey.Driver):
 
     async def _load_by_key(self, container, table_path, key, attribute):
         self._lazy_init()
-        collection = self.collection(table_path)
+        table = self.table(table_path)
         if attribute == "*":
-            _, values = await self._get_all_fields(key, collection)
+            _, values = await self._get_all_fields(key, table)
         else:
             values = None
         return values
@@ -109,10 +109,10 @@ class SqlDBDriver(storey.Driver):
     async def close(self):
         pass
 
-    async def _get_all_fields(self, key, collection):
+    async def _get_all_fields(self, key, table):
 
         try:
-            my_query = f"SELECT * FROM {collection} where {self._primary_key}={key}"
+            my_query = f"SELECT * FROM {table} where {self._primary_key}={key}"
             results = self._sql_connection.execute(my_query).fetchall()
         except Exception as e:
             raise RuntimeError(f"Failed to get key {key}. Response error was: {e}")
@@ -121,9 +121,9 @@ class SqlDBDriver(storey.Driver):
             results[0]._fields[i]: results[0][i] for i in range(len(results[0]))
         }
 
-    async def _get_specific_fields(self, key: str, collection, attributes: List[str]):
+    async def _get_specific_fields(self, key: str, table, attributes: List[str]):
         try:
-            my_query = f"SELECT {','.join(attributes)} FROM {collection} where {self._primary_key}={key}"
+            my_query = f"SELECT {','.join(attributes)} FROM {table} where {self._primary_key}={key}"
             results = self._sql_connection.execute(my_query).fetchall()
         except Exception as e:
             raise RuntimeError(f"Failed to get key {key}. Response error was: {e}")

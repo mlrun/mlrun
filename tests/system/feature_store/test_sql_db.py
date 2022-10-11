@@ -108,7 +108,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         origin_df.to_sql(source_name, sqlite_connection, if_exists="replace")
         sqlite_connection.close()
         source = SqlDBSource(
-            collection_name=source_name, db_path=self.db, key_field=key
+            table_name=source_name, db_path=self.db, key_field=key
         )
 
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
@@ -135,7 +135,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
 
         # test source
         source = SqlDBSource(
-            collection_name=source_name, db_path=self.db, key_field=key
+            table_name=source_name, db_path=self.db, key_field=key
         )
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         one_hot_encoder_mapping = {
@@ -168,7 +168,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
 
         # test source
         source = SqlDBSource(
-            collection_name=source_name, db_path=self.db, key_field=key
+            table_name=source_name, db_path=self.db, key_field=key
         )
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
@@ -195,9 +195,9 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         schema = self.get_schema(target_name)
 
         target = SqlDBTarget(
-            collection_name=target_name,
+            table_name=target_name,
             db_path=self.db,
-            create_collection=True,
+            create_table=True,
             schema=schema,
             primary_key_column=key,
         )
@@ -225,9 +225,9 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         sqlite_connection.close()
 
         target = SqlDBTarget(
-            collection_name=target_name,
+            table_name=target_name,
             db_path=self.db,
-            create_collection=False,
+            create_table=False,
             primary_key_column=key,
         )
         feature_set = fs.FeatureSet(f"fs-{target_name}-tr", entities=[fs.Entity(key)])
@@ -247,9 +247,9 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         schema = self.get_schema(target_name)
 
         target = SqlDBTarget(
-            collection_name=target_name,
+            table_name=target_name,
             db_path=self.db,
-            create_collection=True,
+            create_table=True,
             schema=schema,
             primary_key_column=key,
         )
@@ -299,13 +299,13 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         sqlite_connection.close()
 
         source = SqlDBSource(
-            collection_name=f"{name}-source", db_path=self.db, key_field=key
+            table_name=f"{name}-source", db_path=self.db, key_field=key
         )
 
         target = SqlDBTarget(
-            collection_name=f"{name}-tatget",
+            table_name=f"{name}-tatget",
             db_path=self.db,
-            create_collection=True,
+            create_table=True,
             schema=schema,
             primary_key_column=key,
         )

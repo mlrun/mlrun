@@ -1493,11 +1493,11 @@ class SqlDBTarget(BaseStoreTarget):
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
         db_path: str = None,
-        collection_name: str = None,
+        table_name: str = None,
         schema: Dict[str, Any] = {},
         primary_key_column: str = "",
-        if_exists: bool = False,
-        create_collection: bool = False,
+        if_exists: str = 'append',
+        create_table: bool = False,
         # create_according_to_data: bool = False,
     ):
         """
@@ -1507,7 +1507,7 @@ class SqlDBTarget(BaseStoreTarget):
              db_path = "sqlite:///stockmarket.db"
              schema = {'time': datetime.datetime, 'ticker': str,
                     'bid': float, 'ask': float, 'ind': int}
-             target = SqlDBTarget(collection_name=f'{name}-tatget', db_path=db_path, create_collection=True,
+             target = SqlDBTarget(table_name=f'{name}-tatget', db_path=db_path, create_table=True,
                                    schema=schema, primary_key_column=key)
 
         :param name:
@@ -1524,38 +1524,38 @@ class SqlDBTarget(BaseStoreTarget):
         :param storage_options:
         :param db_path:                     url string connection to sql database.
                                             If not set, the SQL_DB_PATH_STRING environment variable will be used.
-        :param collection_name:             the name of the collection to access,
+        :param table_name:                  the name of the table to access,
                                             from the current database
-        :param schema:                      the schema of the collection (must pass when
-                                            create_collection=True)
-        :param primary_key_column:          the primary key of the collection (must pass always)
-        :param if_exists:                   {'fail', 'replace', 'append'}, default 'fail'
+        :param schema:                      the schema of the table (must pass when
+                                            create_table=True)
+        :param primary_key_column:          the primary key of the table (must pass always)
+        :param if_exists:                   {'fail', 'replace', 'append'}, default 'append'
                                             - fail: If table exists, do nothing.
                                             - replace: If table exists, drop it, recreate it, and insert data.
                                             - append: If table exists, insert data. Create if does not exist.
-        :param create_collection:           pass True if you want to create new collection named by
-                                            collection_name with schema on current database.
+        :param create_table:                pass True if you want to create new table named by
+                                            table_name with schema on current database.
         :param create_according_to_data:    (not valid)
         """
         create_according_to_data = False  # TODO: open for user
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
-        if db_path is None or collection_name is None:
+        if db_path is None or table_name is None:
             attr = {}
         else:
-            # check for collection existence and acts according to the user input
+            # check for table existence and acts according to the user input
             self._primary_key_column = primary_key_column
             import sqlalchemy as db
 
             engine = db.create_engine(db_path)
             sql_connection = engine.connect()
             metadata = db.MetaData()
-            collection_exists = engine.dialect.has_table(
-                sql_connection, collection_name
+            table_exists = engine.dialect.has_table(
+                sql_connection, table_name
             )
-            if not collection_exists and not create_collection:
-                raise ValueError(f"Collection named {collection_name} is not exist")
+            if not table_exists and not create_table:
+                raise ValueError(f"Table named {table_name} is not exist")
 
-            elif not collection_exists and create_collection:
+            elif not table_exists and create_table:
                 TYPE_TO_SQL_TYPE = {
                     int: db.Integer,
                     str: db.String,
@@ -1564,7 +1564,7 @@ class SqlDBTarget(BaseStoreTarget):
                     bool: db.Boolean,
                     float: db.Float,
                 }
-                # creat new collection with the given name
+                # creat new table with the given name
                 columns = []
                 for col, col_type in schema.items():
                     col_type = TYPE_TO_SQL_TYPE.get(col_type)
@@ -1576,18 +1576,18 @@ class SqlDBTarget(BaseStoreTarget):
                         )
                     )
 
-                db.Table(collection_name, metadata, *columns)
+                db.Table(table_name, metadata, *columns)
                 metadata.create_all(engine)
                 if_exists = "append"
 
             attr = {
-                "collection_name": collection_name,
+                "table_name": table_name,
                 "db_path": db_path,
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
             }
             path = (
-                f"mlrunSql://@{db_path}//@{collection_name}"
+                f"mlrunSql://@{db_path}//@{table_name}"
                 f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}"
             )
             sql_connection.close()
@@ -1627,12 +1627,12 @@ class SqlDBTarget(BaseStoreTarget):
     def get_table_object(self):
         from storey import Table
 
-        from mlrun.datastore.storeyDriver import SqlDBDriver
+        from mlrun.datastore.storey_driver import SqlDBDriver
 
         # TODO use options/cred
-        (db_path, collection_name, _, _, primary_key) = self._parse_url()
+        (db_path, table_name, _, _, primary_key) = self._parse_url()
         return Table(
-            f"{db_path}/{collection_name}",
+            f"{db_path}/{table_name}",
             SqlDBDriver(db_path=db_path, primary_key=primary_key.split("/")[0]),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
@@ -1676,14 +1676,14 @@ class SqlDBTarget(BaseStoreTarget):
     ):
         import sqlalchemy as db
 
-        db_path, collection_name, _, _, _ = self._parse_url()
+        db_path, table_name, _, _, _ = self._parse_url()
         engine = db.create_engine(db_path)
         sql_connection = engine.connect()
         metadata = db.MetaData()
-        temp = db.Table(collection_name, metadata, autoload=True, autoload_with=engine)
-        results = sql_connection.execute(db.select([temp])).fetchall()
+        temp_table = db.Table(table_name, metadata, autoload=True, autoload_with=engine)
+        results = sql_connection.execute(db.select([temp_table])).fetchall()
         sql_connection.close()
-        df = pd.DataFrame(results, columns=temp.columns.keys())
+        df = pd.DataFrame(results, columns=temp_table.columns.keys())
         if self._primary_key_column:
             df.set_index(self._primary_key_column, inplace=True)
         if columns:
@@ -1701,7 +1701,7 @@ class SqlDBTarget(BaseStoreTarget):
         else:
             (
                 db_path,
-                collection_name,
+                table_name,
                 create_according_to_data,
                 if_exists,
             ) = self._parse_url()
@@ -1711,7 +1711,7 @@ class SqlDBTarget(BaseStoreTarget):
             if create_according_to_data:
                 # todo : create according to fist row.
                 pass
-            df.to_sql(collection_name, sqlite_connection, if_exists=if_exists)
+            df.to_sql(table_name, sqlite_connection, if_exists=if_exists)
 
     def _parse_url(self):
         path = self.path[len("mlrunSql:///") :]

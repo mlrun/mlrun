@@ -21,13 +21,13 @@ from storey.dtypes import _termination_obj
 
 
 class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID):
-    """Use mongodb collection as input source for a flow.
+    """Use dql table as input source for a flow.
 
-    :parameter key_field: the primary key of the collection.
+    :parameter key_field: the primary key of the table.
     :parameter time_field: column to be used as time for events.
     :parameter id_field: column to be used as ID for events.
     :parameter db_name: url string connection to sql database.
-    :parameter collection_name: the name of the collection to access,
+    :parameter table_name: the name of the table to access,
                                 from the current database
     :parameter start_filter: If not None, the results will be filtered by partitions and 'filter_column' > start_filter.
                             Default is None (not in use)
@@ -39,7 +39,7 @@ class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID)
     def __init__(
         self,
         db_path: str = None,
-        collection_name: str = None,
+        table_name: str = None,
         key_field: Optional[Union[str, List[str]]] = None,
         start_filter: Optional[datetime] = None,
         end_filter: Optional[datetime] = None,
@@ -57,10 +57,10 @@ class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID)
         storey.sources._IterableSource.__init__(self, **kwargs)
         storey.sources.WithUUID.__init__(self)
 
-        if not all([db_path, collection_name]):
-            raise ValueError("cannot specify without db_path and collection_name args")
+        if not all([db_path, table_name]):
+            raise ValueError("cannot specify without db_path and table_name args")
 
-        self.collection_name = collection_name
+        self.table_name = table_name
         self.db_path = db_path
 
         self._key_field = key_field
@@ -79,10 +79,10 @@ class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID)
         engine = db.create_engine(self.db_path)
         metadata = db.MetaData()
         connection = engine.connect()
-        collection = db.Table(
-            self.collection_name, metadata, autoload=True, autoload_with=engine
+        table = db.Table(
+            self.table_name, metadata, autoload=True, autoload_with=engine
         )
-        results = connection.execute(db.select([collection])).fetchall()
+        results = connection.execute(db.select([table])).fetchall()
         df = pandas.DataFrame(results)
         df.columns = results[0].keys()
         df.set_index("index", inplace=True)

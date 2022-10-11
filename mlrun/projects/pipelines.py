@@ -26,7 +26,6 @@ from kfp import dsl
 from kfp.compiler import compiler
 
 import mlrun
-# import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.utils.notifications
 from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
@@ -708,15 +707,12 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         api_function=None,
-        # db_session=None,
-        # auth_info=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = (
             name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         )
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
-        # via_api = db_session is not None and auth_info is not None
         via_api = api_function is not None
 
         try:
@@ -727,12 +723,6 @@ class _RemoteRunner(_PipelineRunner):
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
-
-            # if via_api:
-            #     mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-            #         function=load_and_run_fn,
-            #         auth_info=auth_info,
-            #     )
 
             msg = "executing workflow "
             if workflow_spec.schedule:

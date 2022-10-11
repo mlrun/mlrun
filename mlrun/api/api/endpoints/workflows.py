@@ -127,32 +127,22 @@ def submit_workflow(
         kind="job",
         image=mlrun.mlconf.default_base_image,
     )
-    # load_and_run_fn.apply(mlrun.mount_v3io())
-    # load_and_run_fn: mlrun.runtimes.KubejobRuntime
-    # load_and_run_fn.set_env_from_secret()
-    # load_and_run_fn.fill_credentials()
-    print_debug('db_session', db_session)  # TODO: Remove!
-    print_debug('auth_info', auth_info)  # TODO: Remove!
+
     try:
-        print_debug('load and run function', load_and_run_fn)  # TODO: Remove!
-        print_debug('function_db_connection before', load_and_run_fn._db_conn)  # TODO: Remove!
         run_db = get_run_db_instance(db_session)
-        print_debug('run_db', run_db)  # TODO: Remove!
         load_and_run_fn.set_db_connection(run_db)
         load_and_run_fn.metadata.credentials.access_key = "$generate"
-        print_debug('function_db_connection after', load_and_run_fn._db_conn)  # TODO: Remove!
-        load_and_run_fn.save()
         apply_enrichment_and_validation_on_function(
             function=load_and_run_fn,
             auth_info=auth_info,
         )
-        print_debug('load and run function 5', load_and_run_fn)  # TODO: Remove!
         load_and_run_fn.save()
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
 
+    print_debug('workflow spec', workflow_spec)  # TODO: Remove!
     run = mlrun.projects.pipelines._RemoteRunner.run(
         project=project,
         workflow_spec=workflow_spec,
@@ -161,8 +151,6 @@ def submit_workflow(
         artifact_path=artifact_path,
         namespace=namespace,
         api_function=load_and_run_fn,
-        # db_session=mlrun.api.api.utils.get_run_db_instance(db_session),
-        # auth_info=auth_info,
     )
 
     print_debug("run result", run)  # TODO: Remove!

@@ -728,7 +728,7 @@ def _init_endpoint_record(
     logger.info("Initializing endpoint records")
 
     # Getting project name from the function uri
-    project, _, _, _ = parse_versioned_object_uri(graph_server.function_uri)
+    project, uri, tag, hash_key = parse_versioned_object_uri(graph_server.function_uri)
 
     # Generating version model value based on the model name and model version
     if voting_ensemble.version:

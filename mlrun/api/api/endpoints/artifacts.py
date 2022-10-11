@@ -33,7 +33,9 @@ from mlrun.utils import is_legacy_artifact, logger
 router = APIRouter()
 
 
+# TODO /artifact/{project}/{uid}/{key:path} should be deprecated in 1.4
 @router.post("/artifact/{project}/{uid}/{key:path}")
+@router.post("/projects/{project}/artifacts/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
     project: str,
@@ -112,13 +114,15 @@ def list_artifact_tags(
     }
 
 
+# TODO /projects/{project}/artifact/{key:path} should be deprecated in 1.4
 @router.get("/projects/{project}/artifact/{key:path}")
+@router.get("/projects/{project}/artifacts/{key:path}")
 def get_artifact(
     project: str,
     key: str,
     tag: str = "latest",
     iter: int = 0,
-    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -137,7 +141,9 @@ def get_artifact(
     }
 
 
+# TODO /artifact/{project}/{uid} should be deprecated in 1.4
 @router.delete("/artifact/{project}/{uid}")
+@router.delete("/projects/{project}/artifacts/{uid}")
 def delete_artifact(
     project: str,
     uid: str,
@@ -157,7 +163,9 @@ def delete_artifact(
     return {}
 
 
+# TODO /artifacts should be deprecated in 1.4
 @router.get("/artifacts")
+@router.get("/projects/{project}/artifacts")
 def list_artifacts(
     project: str = None,
     name: str = None,
@@ -167,7 +175,7 @@ def list_artifacts(
     labels: List[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
     best_iteration: bool = Query(False, alias="best-iteration"),
-    format_: ArtifactsFormat = Query(ArtifactsFormat.legacy, alias="format"),
+    format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -203,7 +211,27 @@ def list_artifacts(
     }
 
 
+# TODO /artifacts should be deprecated in 1.4
 @router.delete("/artifacts")
+def delete_artifacts_legacy(
+    project: str = mlrun.mlconf.default_project,
+    name: str = "",
+    tag: str = "",
+    labels: List[str] = Query([], alias="label"),
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    return _delete_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
+@router.delete("/projects/{project}/artifacts")
 def delete_artifacts(
     project: str = mlrun.mlconf.default_project,
     name: str = "",
@@ -211,6 +239,24 @@ def delete_artifacts(
     labels: List[str] = Query([], alias="label"),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
+):
+    return _delete_artifacts(
+        project=project,
+        name=name,
+        tag=tag,
+        labels=labels,
+        auth_info=auth_info,
+        db_session=db_session,
+    )
+
+
+def _delete_artifacts(
+    project: str = None,
+    name: str = None,
+    tag: str = None,
+    labels: List[str] = None,
+    auth_info: mlrun.api.schemas.AuthInfo = None,
+    db_session: Session = None,
 ):
     artifacts = mlrun.api.crud.Artifacts().list_artifacts(
         db_session, project, name, tag, labels

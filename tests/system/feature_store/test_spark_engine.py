@@ -55,14 +55,16 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         env = cls._get_env_from_file()
         cls.spark_service = env["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"]
 
-    def get_local_pq_source_path(self):
-        return os.path.relpath(str(self.assets_path / self.pq_source))
+    @classmethod
+    def get_local_pq_source_path(cls):
+        return os.path.relpath(str(cls.get_assets_path() / cls.pq_source))
 
-    def get_remote_pq_source_path(self, without_prefix=False):
+    @classmethod
+    def get_remote_pq_source_path(cls, without_prefix=False):
         path = "v3io://"
         if without_prefix:
             path = ""
-        path += "/bigdata/" + self.pq_source
+        path += "/bigdata/" + cls.pq_source
         return path
 
     def get_remote_pq_target_path(self, without_prefix=False):
@@ -72,36 +74,39 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         path += "/bigdata/" + self.pq_target
         return path
 
-    def get_local_csv_source_path(self):
-        return os.path.relpath(str(self.assets_path / self.csv_source))
+    @classmethod
+    def get_local_csv_source_path(cls):
+        return os.path.relpath(str(cls.get_assets_path() / cls.csv_source))
 
-    def get_remote_csv_source_path(self, without_prefix=False):
+    @classmethod
+    def get_remote_csv_source_path(cls, without_prefix=False):
         path = "v3io://"
         if without_prefix:
             path = ""
-        path += "/bigdata/" + self.csv_source
+        path += "/bigdata/" + cls.csv_source
         return path
 
-    def custom_setup(self):
+    @classmethod
+    def custom_setup_class(cls):
         from mlrun import get_run_db
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
-        self._init_env_from_file()
+        cls._init_env_from_file()
 
-        store, _ = store_manager.get_or_create_store(self.get_remote_pq_source_path())
+        store, _ = store_manager.get_or_create_store(cls.get_remote_pq_source_path())
         store.upload(
-            self.get_remote_pq_source_path(without_prefix=True),
-            self.get_local_pq_source_path(),
+            cls.get_remote_pq_source_path(without_prefix=True),
+            cls.get_local_pq_source_path(),
         )
-        store, _ = store_manager.get_or_create_store(self.get_remote_csv_source_path())
+        store, _ = store_manager.get_or_create_store(cls.get_remote_csv_source_path())
         store.upload(
-            self.get_remote_csv_source_path(without_prefix=True),
-            self.get_local_csv_source_path(),
+            cls.get_remote_csv_source_path(without_prefix=True),
+            cls.get_local_csv_source_path(),
         )
 
-        if not self.spark_image_deployed:
-            if not self.test_branch:
+        if not cls.spark_image_deployed:
+            if not cls.test_branch:
                 RemoteSparkRuntime.deploy_default_image()
             else:
                 sj = new_function(
@@ -110,10 +115,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
                 sj.spec.build.image = RemoteSparkRuntime.default_image
                 sj.with_spark_service(spark_service="dummy-spark")
-                sj.spec.build.commands = ["pip install git+" + self.test_branch]
+                sj.spec.build.commands = ["pip install git+" + cls.test_branch]
                 sj.deploy(with_mlrun=False)
                 get_run_db().delete_function(name=sj.metadata.name)
-            self.spark_image_deployed = True
+            cls.spark_image_deployed = True
 
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
@@ -463,7 +468,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        path = "v3io:///bigdata/test_aggregations.parquet"
+        path = "v3io:///bigdata/test_aggregations_emit_every_event.parquet"
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 

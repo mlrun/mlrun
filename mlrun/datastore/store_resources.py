@@ -22,7 +22,7 @@ from mlrun.utils.helpers import (
     parse_versioned_object_uri,
 )
 
-from ..platforms.iguazio import parse_v3io_path
+from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target
 
@@ -71,7 +71,6 @@ class ResourceCache:
             from storey import Driver, Table, V3ioDriver
         except ImportError:
             raise ImportError("storey package is not installed, use pip install storey")
-
         if uri in self._tabels:
             return self._tabels[uri]
         if uri in [".", ""] or uri.startswith("$"):  # $.. indicates in-mem table
@@ -79,10 +78,22 @@ class ResourceCache:
             return self._tabels[uri]
 
         if uri.startswith("v3io://") or uri.startswith("v3ios://"):
-            endpoint, uri = parse_v3io_path(uri)
+            endpoint, uri = parse_path(uri)
             self._tabels[uri] = Table(
                 uri,
                 V3ioDriver(webapi=endpoint),
+                flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            )
+            return self._tabels[uri]
+
+        if uri.startswith("redis://") or uri.startswith("rediss://"):
+            from storey.redis_driver import RedisDriver
+
+            endpoint, uri = parse_path(uri)
+            endpoint = endpoint or mlrun.mlconf.redis.url
+            self._tabels[uri] = Table(
+                uri,
+                RedisDriver(redis_url=endpoint, key_prefix="/"),
                 flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
             )
             return self._tabels[uri]

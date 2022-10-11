@@ -98,8 +98,8 @@ class TFKerasModelServer(V2ModelServer):
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
         :param model_format:             The format used to save the model. One of the members of the
-                                         TFKerasModelHandler.ModelFormats class. Defaulted to SavedModel.
-        :param to_list:                  Whether to return a list instead of a numpy.ndarray. Defaulted to False.
+                                         TFKerasModelHandler.ModelFormats class. Default: SavedModel.
+        :param to_list:                  Whether to return a list instead of a numpy.ndarray. Default: False.
         :param protocol:                 -
         :param class_args:               -
         """

@@ -38,7 +38,7 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
+from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
 from ..utils import enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -128,6 +128,7 @@ class NuclioSpec(KubeResourceSpec):
         "readiness_timeout",
         "function_handler",
         "nuclio_runtime",
+        "base_image_pull",
     ]
 
     def __init__(
@@ -211,6 +212,9 @@ class NuclioSpec(KubeResourceSpec):
         #  we need to do one of the two
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
+        # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
+        # indicate that the base image should be pulled from the container registry (not cached)
+        self.base_image_pull: bool = None
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -264,6 +268,7 @@ class NuclioStatus(FunctionStatus):
 class RemoteRuntime(KubeResource):
     kind = "remote"
     _is_nested = False
+    _mock_server = None
 
     @property
     def spec(self) -> NuclioSpec:
@@ -309,29 +314,33 @@ class RemoteRuntime(KubeResource):
     ):
         """Load nuclio function from remote source
 
-                Note: remote source may require credentials, those can be stored in the project secrets or passed
-                in the function.deploy() using the builder_env dict, see the required credentials per source:
-                v3io - "V3IO_ACCESS_KEY".
-                git - "GIT_USERNAME", "GIT_PASSWORD".
-                AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
+        Note: remote source may require credentials, those can be stored in the project secrets or passed
+        in the function.deploy() using the builder_env dict, see the required credentials per source:
 
-                :param source: a full path to the nuclio function source (code entry) to load the function from
-                :param handler: a path to the function's handler, including path inside archive/git repo
-                :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-                :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        - v3io - "V3IO_ACCESS_KEY".
+        - git - "GIT_USERNAME", "GIT_PASSWORD".
+        - AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
 
-                Examples::
-                    git:
-                        fn.with_source_archive("git://github.com/org/repo#my-branch",
-                          handler="main:handler",
-                          workdir="path/inside/repo")
-                    s3:
-                        fn.spec.nuclio_runtime = "golang"
-                        fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
-                          handler="my_func:Handler",
-                          workdir="path/inside/functions/archive",
-                          runtime="golang")
-        )
+        :param source: a full path to the nuclio function source (code entry) to load the function from
+        :param handler: a path to the function's handler, including path inside archive/git repo
+        :param workdir: working dir  relative to the archive root (e.g. 'subdir')
+        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+
+        :Examples:
+
+            git::
+
+                fn.with_source_archive("git://github.com/org/repo#my-branch",
+                        handler="main:handler",
+                        workdir="path/inside/repo")
+
+            s3::
+
+                fn.spec.nuclio_runtime = "golang"
+                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                    handler="my_func:Handler",
+                    workdir="path/inside/functions/archive",
+                    runtime="golang")
         """
         self.spec.build.source = source
         # update handler in function_handler
@@ -460,7 +469,7 @@ class RemoteRuntime(KubeResource):
         """
         endpoint = None
         if "://" in stream_path:
-            endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
+            endpoint, stream_path = parse_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
         extra_attributes = extra_attributes or {}
@@ -1028,6 +1037,14 @@ class RemoteRuntime(KubeResource):
 
         self.spec.env = new_env
 
+    def _set_as_mock(self, enable):
+        # todo: create mock_server for Nuclio
+        if enable:
+            raise NotImplementedError(
+                "Mock (simulation) is currently not supported for Nuclio, Turn off the mock (mock=False) "
+                "and make sure Nuclio is installed for real deployment to Nuclio"
+            )
+
 
 def parse_logs(logs):
     logs = json.loads(logs)
@@ -1206,7 +1223,8 @@ def compile_function_config(
     # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
     if function.spec.build.secret:
         nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
-
+    if function.spec.base_image_pull:
+        nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:

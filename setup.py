@@ -98,6 +98,7 @@ extras_require = {
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
     "google-cloud-bigquery": ["google-cloud-bigquery~=3.0"],
     "kafka": ["kafka-python~=2.0"],
+    "redis": ["redis~=4.3"],
 }
 extras_require["complete"] = sorted(
     {
@@ -149,6 +150,7 @@ setup(
         "mlrun.artifacts",
         "mlrun.data_types",
         "mlrun.datastore",
+        "mlrun.datastore.wasbfs",
         "mlrun.db",
         "mlrun.feature_store",
         "mlrun.feature_store.retrieval",
@@ -179,6 +181,8 @@ setup(
         "mlrun.runtimes.sparkjob",
         "mlrun.serving",
         "mlrun.utils",
+        "mlrun.utils.notifications",
+        "mlrun.utils.notifications.notification",
         "mlrun.utils.version",
     ],
     install_requires=install_requires,

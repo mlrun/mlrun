@@ -96,7 +96,7 @@ class LGBMModelServer(V2ModelServer):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param to_list:                  Whether to return a list instead of a `np.ndarray`. Defaulted to True.
+        :param to_list:                  Whether to return a list instead of a `np.ndarray`. Default: True.
         :param protocol:                 -
         :param class_args:               -
         """

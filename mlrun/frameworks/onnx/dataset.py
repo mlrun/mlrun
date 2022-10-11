@@ -37,11 +37,11 @@ class ONNXDataset:
 
         :param x:                     The data to handle.
         :param y:                     Ground truth for the data 'x'.
-        :param batch_size:            The batch size to use. Defaulted to 1.
+        :param batch_size:            The batch size to use. Default: 1.
         :param x_transforms:          A list of callable transforms to apply on the 'x' data.
         :param y_transforms:          A list of callable transforms to apply on the 'y' ground truth.
         :param is_batched_transforms: Whether the given transforms support batched data or not. If not, the transform
-                                      will be applied on each item of a given batch. Defaulted to False.
+                                      will be applied on each item of a given batch. Default: False.
         """
         # Store given parameters:
         self._x = x

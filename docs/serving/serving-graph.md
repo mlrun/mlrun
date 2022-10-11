@@ -1,5 +1,4 @@
-(serving)=
-
+(serving-graph)=
 # Real-time serving pipelines (graphs)
 
 MLRun graphs enable building and running DAGs (directed acyclic graph). 
@@ -41,6 +40,7 @@ The serving graphs are used by [MLRun’s Feature Store](../feature-store/featur
 getting-started
 use-cases
 realtime-pipelines
+model-serving-get-started
 writing-custom-steps
 available-steps
 demos

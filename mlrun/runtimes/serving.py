@@ -36,7 +36,7 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger, set_paths
+from ..utils import get_caller_globals, logger, model_monitoring, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
@@ -90,6 +90,7 @@ class ServingSpec(NuclioSpec):
         "default_class",
         "secret_sources",
         "track_models",
+        "tracking_policy",
     ]
 
     def __init__(
@@ -125,6 +126,7 @@ class ServingSpec(NuclioSpec):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
+        tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
         node_name=None,
@@ -189,6 +191,7 @@ class ServingSpec(NuclioSpec):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
+        self.tracking_policy = tracking_policy
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
 
@@ -293,16 +296,37 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
+        tracking_policy: Union[model_monitoring.TrackingPolicy, dict] = None,
     ):
-        """set tracking stream parameters:
+        """set tracking parameters:
 
-        :param stream_path:  path/url of the tracking stream e.g. v3io:///users/mike/mystream
-                             you can use the "dummy://" path for test/simulation
-        :param batch:        micro batch size (send micro batches of N records at a time)
-        :param sample:       sample size (send only one of N records)
-        :param stream_args:  stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param stream_path:     Path/url of the tracking stream e.g. v3io:///users/mike/mystream
+                                you can use the "dummy://" path for test/simulation.
+        :param batch:           Micro batch size (send micro batches of N records at a time).
+        :param sample:          Sample size (send only one of N records).
+        :param stream_args:     Stream initialization parameters, e.g. shards, retention_in_hours, ..
+        :param tracking_policy: Tracking policy object or a dictionary that will be converted into a tracking policy
+                                object. By using TrackingPolicy, the user can apply his model monitoring requirements,
+                                such as setting the scheduling policy of the model monitoring batch job or changing
+                                the image of the model monitoring stream.
+
+                                example::
+
+                                    # initialize a new serving function
+                                    serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+                                    # apply model monitoring and set monitoring batch job to run every 3 hours
+                                    tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
+                                    serving_fn.set_tracking(tracking_policy=tracking_policy)
+
         """
+
+        # Applying model monitoring configurations
         self.spec.track_models = True
+        self.spec.tracking_policy = model_monitoring.TrackingPolicy()
+        if tracking_policy:
+            self.spec.tracking_policy = self.spec.tracking_policy.from_dict(
+                tracking_policy
+            )
         if stream_path:
             self.spec.parameters["log_stream"] = stream_path
         if batch:
@@ -612,6 +636,7 @@ class ServingRuntime(RemoteRuntime):
             "graph_initializer": self.spec.graph_initializer,
             "error_stream": self.spec.error_stream,
             "track_models": self.spec.track_models,
+            "tracking_policy": self.spec.tracking_policy,
             "default_content_type": self.spec.default_content_type,
         }
 
@@ -697,3 +722,29 @@ class ServingRuntime(RemoteRuntime):
         :return: graphviz graph object
         """
         return self.spec.graph.plot(filename, format=format, source=source, **kw)
+
+    def _set_as_mock(self, enable):
+        if not enable:
+            if self._mock_server:
+                self.invoke = self._old_invoke
+            self._mock_server = None
+            return
+
+        logger.info(
+            "Deploying serving function MOCK (for simulation)...\n"
+            "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
+        )
+        server = self.to_mock_server()
+        self._mock_server = server
+        self._old_invoke = self.invoke
+
+        def invoke(
+            path: str,
+            body=None,
+            method: str = None,
+            headers: dict = None,
+            **kwargs,
+        ):
+            return self._mock_server.test(path, body, method, headers)
+
+        self.invoke = invoke

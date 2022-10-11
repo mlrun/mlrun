@@ -752,6 +752,7 @@ class _RemoteRunner(_PipelineRunner):
                     "metadata": {"name": workflow_name},
                 }
             )
+            print(f'RUN_SPEC: {runspec.to_yaml()}')
             runspec = runspec.set_label("job-type", "workflow-runner").set_label(
                 "workflow", workflow_name
             )

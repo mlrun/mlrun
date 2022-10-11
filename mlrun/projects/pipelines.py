@@ -708,6 +708,9 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         api_function=None,
     ) -> typing.Optional[_PipelineRunStatus]:
+        print(f'workflow_spec from RemoteRunner: {workflow_spec}')
+        print(f'workflow_spec.run_local from RemoteRunner: {workflow_spec.run_local}')
+        print(f'workflow_spec.to_yaml from RemoteRunner: {workflow_spec.to_yaml()}')
         workflow_name = (
             name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         )

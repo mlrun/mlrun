@@ -103,6 +103,7 @@ autoclass_content = "both"
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 html_theme_options = {
     "github_url": "https://github.com/mlrun/mlrun",
@@ -113,7 +114,7 @@ html_theme_options = {
     "path_to_docs": "docs",
     "home_page_in_toc": False,
     "repository_branch": "development",
-    "show_navbar_depth": 0,
+    "show_navbar_depth": 1,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
     "google_analytics_id": "",

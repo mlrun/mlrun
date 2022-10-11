@@ -88,7 +88,7 @@ class WasbFS(AbstractFileSystem):
 
     def info(self, path, refresh=False, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)
-        return self.azure_blob_fs.info(self._parent, az_path, refresh, **kwargs)
+        return self.azure_blob_fs.info(az_path, refresh, **kwargs)
 
     def glob(self, path, **kwargs):
         az_path = self._convert_wasb_schema_to_az(path)

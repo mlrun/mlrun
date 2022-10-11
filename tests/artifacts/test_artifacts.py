@@ -13,6 +13,10 @@
 # limitations under the License.
 #
 import pathlib
+import typing
+import unittest.mock
+
+import pytest
 
 import mlrun
 import mlrun.artifacts
@@ -131,35 +135,297 @@ def test_generate_target_path():
             artifact, artifact_path, producer
         )
         print(f"\ntarget:   {target}\nexpected: {expected}")
+        assert target == expected
+
+
+def assets_path():
+    return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+@pytest.mark.parametrize(
+    "artifact,expected_hash,expected_target_path,artifact_path,generate_target_path",
+    [
+        (
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", body="asdasdasdasdas", format="parquet"
+            ),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3.parquet",
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", body="asdasdasdasdas", format="parquet"
+            ),
+            None,
+            None,
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(key="some-artifact", body=b"asdasdasdasdas"),
+            None,
+            None,
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", src_path=str(assets_path() / "results.csv")
+            ),
+            "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
+            "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", src_path=str(assets_path() / "results.csv")
+            ),
+            None,
+            None,
+            "v3io://just/regular/path",
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", src_path=str(assets_path() / "results.csv")
+            ),
+            None,
+            "v3io://just/regular/path/test/0/some-artifact.csv",
+            "v3io://just/regular/path",
+            False,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                key="some-artifact", body="asdasdasdasdas", format="parquet"
+            ),
+            None,
+            "v3io://just/regular/path/test/0/some-artifact.parquet",
+            "v3io://just/regular/path",
+            False,
+        ),
+    ],
+)
+def test_log_artifact(
+    artifact: mlrun.artifacts.Artifact,
+    expected_hash: str,
+    expected_target_path: str,
+    artifact_path: str,
+    generate_target_path: bool,
+    monkeypatch,
+):
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
+        generate_target_path
+    )
+
+    monkeypatch.setattr(
+        mlrun.datastore.DataItem,
+        "upload",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+    monkeypatch.setattr(
+        mlrun.datastore.DataItem,
+        "put",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+
+    logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+        artifact, artifact_path=artifact_path
+    )
+
+    if not expected_hash and generate_target_path:
+        if artifact.get_body():
+            expected_hash = mlrun.artifacts.base.calculate_blob_hash(
+                artifact.get_body()
+            )
+        else:
+            expected_hash = mlrun.utils.calculate_local_file_hash(
+                artifact.spec.src_path
+            )
+
+    if artifact.spec.format:
+        assert logged_artifact.target_path.endswith(f".{artifact.spec.format}")
+
+    if expected_target_path:
+        assert expected_target_path == logged_artifact.target_path
+
+    if expected_hash:
+        assert expected_hash == logged_artifact.metadata.hash
+        assert expected_hash in logged_artifact.target_path
+
+
+@pytest.mark.parametrize(
+    "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
+    [
+        (
+            mlrun.artifacts.Artifact(
+                "results", src_path=str(assets_path() / "results.csv")
+            ),
+            "v3io://just/regular/path",
+            "4697a8195a0e8ef4e1ee3119268337c8e0afabfc",
+            "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                "results", src_path=str(assets_path() / "results.csv")
+            ),
+            "v3io://just/regular/path",
+            None,
+            None,
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact(
+                "results", src_path=str(assets_path() / "results.csv")
+            ),
+            None,
+            None,
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+    ],
+)
+def test_resolve_file_hash_path(
+    artifact: mlrun.artifacts.Artifact,
+    artifact_path: str,
+    expected_hash: str,
+    expected_target_path: str,
+    expected_error: mlrun.errors.MLRunBaseError,
+):
+    if expected_error:
+        with pytest.raises(expected_error):
+            artifact.resolve_file_target_hash_path(
+                source_path=artifact.spec.src_path, artifact_path=artifact_path
+            )
+        return
+    file_hash, target_path = artifact.resolve_file_target_hash_path(
+        source_path=artifact.spec.src_path, artifact_path=artifact_path
+    )
+    if not expected_hash:
+        expected_hash = mlrun.utils.calculate_local_file_hash(artifact.spec.src_path)
+
+    assert expected_hash == file_hash
+    assert expected_hash in target_path
+
+    if artifact.spec.format:
+        assert target_path.endswith(f".{artifact.spec.format}")
+
+    if expected_target_path:
+        assert expected_target_path == target_path
+
+
+@pytest.mark.parametrize(
+    "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
+    [
+        (
+            mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            "v3io://just/regular/path",
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            "v3io://just/regular/path",
+            None,
+            None,
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact("results", body=b"asdasdasdasdas"),
+            "v3io://just/regular/path",
+            None,
+            None,
+            None,
+        ),
+        (
+            mlrun.artifacts.Artifact("results", body={"ba": "nana"}),
+            "v3io://just/regular/path",
+            None,
+            None,
+            TypeError,
+        ),
+        (
+            mlrun.artifacts.Artifact("results", body="asdasdasdasdas"),
+            None,
+            None,
+            None,
+            mlrun.errors.MLRunInvalidArgumentError,
+        ),
+    ],
+)
+def test_resolve_body_hash_path(
+    artifact: mlrun.artifacts.Artifact,
+    artifact_path: str,
+    expected_hash: str,
+    expected_target_path: str,
+    expected_error: typing.Union[mlrun.errors.MLRunBaseError, TypeError],
+):
+    if expected_error:
+        with pytest.raises(expected_error):
+            artifact.resolve_body_target_hash_path(
+                body=artifact.get_body(), artifact_path=artifact_path
+            )
+        return
+    body_hash, target_path = artifact.resolve_body_target_hash_path(
+        body=artifact.get_body(), artifact_path=artifact_path
+    )
+
+    if not expected_hash:
+        expected_hash = mlrun.artifacts.base.calculate_blob_hash(artifact.get_body())
+
+    assert expected_hash == body_hash
+    assert expected_hash in target_path
+
+    if artifact.spec.format:
+        assert target_path.endswith(f".{artifact.spec.format}")
+
+    if expected_target_path:
+        assert expected_target_path == target_path
 
 
 def test_export_import():
     project = mlrun.new_project("log-mod", save=False)
     target_project = mlrun.new_project("log-mod2", save=False)
-    model = project.log_model(
-        "mymod",
-        body=b"123",
-        model_file="model.pkl",
-        extra_data={"kk": b"456"},
-        artifact_path=results_dir,
-    )
+    for mode in [False, True]:
+        mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = mode
 
-    for suffix in ["yaml", "json", "zip"]:
-        # export the artifact to a file
-        model.export(f"{results_dir}/a.{suffix}")
-
-        # import and log the artifact to the new project
-        artifact = target_project.import_artifact(
-            f"{results_dir}/a.{suffix}", f"mod-{suffix}", artifact_path=results_dir
+        model = project.log_model(
+            "mymod",
+            body=b"123",
+            model_file="model.pkl",
+            extra_data={"kk": b"456"},
+            artifact_path=results_dir,
         )
-        assert artifact.kind == "model"
-        assert artifact.metadata.key == f"mod-{suffix}"
-        assert artifact.metadata.project == "log-mod2"
-        temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(artifact.uri)
-        with open(temp_path, "rb") as fp:
-            data = fp.read()
-        assert data == b"123"
-        assert extra_dataitems["kk"].get() == b"456"
+
+        for suffix in ["yaml", "json", "zip"]:
+            # export the artifact to a file
+            model.export(f"{results_dir}/a.{suffix}")
+
+            # import and log the artifact to the new project
+            artifact = target_project.import_artifact(
+                f"{results_dir}/a.{suffix}", f"mod-{suffix}", artifact_path=results_dir
+            )
+            assert artifact.kind == "model"
+            assert artifact.metadata.key == f"mod-{suffix}"
+            assert artifact.metadata.project == "log-mod2"
+            temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
+                artifact.uri
+            )
+            with open(temp_path, "rb") as fp:
+                data = fp.read()
+            assert data == b"123"
+            assert extra_dataitems["kk"].get() == b"456"
 
 
 def test_inline_body():

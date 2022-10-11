@@ -266,13 +266,13 @@ class PyTorchModelHandler(DLModelHandler):
                                         "input layer name": {0: "batch_size"},
                                         "output layer name": {0: "batch_size"},
                                     }
-                                    If provided, the 'is_batched' flag will be ignored. Defaulted to None.
+                                    If provided, the 'is_batched' flag will be ignored. Default: None.
         :param is_batched:          Whether to include a batch size as the first axis in every input and output layer.
                                     Defaulted to True. Will be ignored if 'dynamic_axes' is provided.
         :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
-                                    be named with the model name given. Defaulted to None (not saving).
+                                    be named with the model name given. Default: None (not saving).
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                    handler has a MLRun context set. Defaulted to None.
+                                    handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

@@ -759,6 +759,7 @@ class _RemoteRunner(_PipelineRunner):
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
+                verbose=True,  # TODO: Remove!
             )
             if workflow_spec.schedule:
                 return

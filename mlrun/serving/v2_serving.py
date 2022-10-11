@@ -14,7 +14,7 @@
 import threading
 import time
 import traceback
-from typing import Dict
+from typing import Dict, Union
 
 import mlrun
 from mlrun.api.schemas import (
@@ -154,7 +154,9 @@ class V2ModelServer(StepToDict):
             return
 
         if not self.context.is_mock or self.context.server.track_models:
-            self.model_endpoint_uid = _init_endpoint_record(server, self)
+            self.model_endpoint_uid = _init_endpoint_record(
+                graph_server=server, model=self
+            )
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -449,7 +451,9 @@ class _ModelLogPusher:
                 self.output_stream.push([data])
 
 
-def _init_endpoint_record(graph_server: GraphServer, model: V2ModelServer) -> str:
+def _init_endpoint_record(
+    graph_server: GraphServer, model: V2ModelServer
+) -> Union[str, None]:
     """
     Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
     endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
@@ -464,19 +468,27 @@ def _init_endpoint_record(graph_server: GraphServer, model: V2ModelServer) -> st
 
     logger.info("Initializing endpoint records")
 
-    # Getting project name from the function uri
-    project, uri, tag, hash_key = parse_versioned_object_uri(graph_server.function_uri)
+    # Generate required values for the model endpoint record
+    try:
+        # Getting project name from the function uri
+        project, uri, tag, hash_key = parse_versioned_object_uri(
+            graph_server.function_uri
+        )
 
-    # Generating version model value based on the model name and model version
-    if model.version:
-        versioned_model_name = f"{model.name}:{model.version}"
-    else:
-        versioned_model_name = f"{model.name}:latest"
+        # Generating version model value based on the model name and model version
+        if model.version:
+            versioned_model_name = f"{model.name}:{model.version}"
+        else:
+            versioned_model_name = f"{model.name}:latest"
 
-    # Generating model endpoint ID based on function uri and model version
-    uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
-        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
-    ).uid
+        # Generating model endpoint ID based on function uri and model version
+        uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+            function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+        ).uid
+
+    except Exception as e:
+        logger.error("Failed to generate required values for model endpoint", exc=e)
+        return None
 
     # If model endpoint object was found in DB, skip the creation process.
     try:

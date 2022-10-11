@@ -418,22 +418,29 @@ def _mask_v3io_access_key_env_var(
         )
 
 
+def print_debug(key, val):
+    prefix = "<DEBUG YONI>\n"
+    suffix = "\n<END DEBUG YONI>"
+    msg = f"{key}: {val}\n type: {type(val)}"
+    print(prefix + msg + suffix)
+
+
 def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo):
-    import api
+
     if (
         not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
         and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
     ):
-        api.workflows.print_debug('1 function.metadata.credentials', function.metadata.credentials)
-        api.workflows.print_debug('1 function.metadata.credentials', function.metadata.credentials.access_key)
+        print_debug('1 function.metadata.credentials', function.metadata.credentials)
+        print_debug('1 function.metadata.credentials', function.metadata.credentials.access_key)
         function: mlrun.runtimes.pod.KubeResource
         if (
             function.metadata.credentials.access_key
             == mlrun.model.Credentials.generate_access_key
         ):
-            api.workflows.print_debug('2 function.metadata.credentials', function.metadata.credentials)
-            api.workflows.print_debug('2 function.metadata.credentials', function.metadata.credentials.access_key)
-            api.workflows.print_debug('2 auth_info.access_key', auth_info.access_key)
+            print_debug('2 function.metadata.credentials', function.metadata.credentials)
+            print_debug('2 function.metadata.credentials', function.metadata.credentials.access_key)
+            print_debug('2 auth_info.access_key', auth_info.access_key)
             if not auth_info.access_key:
                 auth_info.access_key = mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
                     auth_info.session
@@ -443,12 +450,12 @@ def ensure_function_has_auth_set(function, auth_info: mlrun.api.schemas.AuthInfo
                     mlrun.api.utils.clients.iguazio.SessionPlanes.control,
                     mlrun.api.utils.clients.iguazio.SessionPlanes.data,
                 ]
-                api.workflows.print_debug('3 auth_info.access_key', auth_info.access_key)
-                api.workflows.print_debug('3 auth_info.access_key', auth_info)
+                print_debug('3 auth_info.access_key', auth_info.access_key)
+                print_debug('3 auth_info.access_key', auth_info)
 
             function.metadata.credentials.access_key = auth_info.access_key
-        api.workflows.print_debug('4 function.metadata.credentials', function.metadata.credentials)
-        api.workflows.print_debug('4 function.metadata.credentials.access_key', function.metadata.credentials.access_key)
+        print_debug('4 function.metadata.credentials', function.metadata.credentials)
+        print_debug('4 function.metadata.credentials.access_key', function.metadata.credentials.access_key)
         if not function.metadata.credentials.access_key:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Function access key must be set (function.metadata.credentials.access_key)"

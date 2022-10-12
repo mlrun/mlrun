@@ -38,6 +38,11 @@ MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.13
 MLRUN_PIP_VERSION ?= 22.2.0
+# MLRUN_GPU_PIP_VERSION is used because pip declaration in the dockerfile of gpu image is almost at the start of the file
+# which will cause the cache to be mostly invalidated if we change the pip version, because we are unable to rebuild
+# the image until we will move to newer python version, we will use the old one which is 22.0.0
+# TODO: remove this variable when we will move to newer python version
+MLRUN_GPU_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -286,7 +291,7 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_GPU_PIP_VERSION) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \

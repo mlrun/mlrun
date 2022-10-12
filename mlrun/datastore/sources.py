@@ -926,11 +926,9 @@ class SqlDBSource(BaseSourceDriver):
         if table_name and db_path:
             engine = db.create_engine(db_path)
             metadata = db.MetaData()
-            table = engine.connect()
-            table = db.Table(
-                table_name, metadata, autoload=True, autoload_with=engine
-            )
-            results = table.execute(db.select([table]))
+            connection = engine.connect()
+            table = db.Table(table_name, metadata, autoload=True, autoload_with=engine)
+            results = connection.execute(db.select([table]))
             if chunksize:
                 return _SqlDBIterator(
                     table=results, iter_chunksize=chunksize, iter_query=query
@@ -939,7 +937,7 @@ class SqlDBSource(BaseSourceDriver):
                 results = results.fetchall()
                 df = pd.DataFrame(results)
                 df.columns = results[0].keys()
-                table.close()
+                connection.close()
                 return df
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

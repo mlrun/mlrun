@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2022 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,22 +24,22 @@ from mlrun.datastore.targets import SqlDBTarget
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
 
-CREDENTIALS_ENV = "MLRUN_SYSTEM_TESTS_MONGODB_CONNECTION_STRING"
+CREDENTIALS_ENV = "SQL_DB_PATH_STRING"
 
 
-def _are_mongodb_connection_string_not_set() -> bool:
-    return False
+def _are_sql_connection_string_set() -> bool:
+    return True
 
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(
-    _are_mongodb_connection_string_not_set(),
+    not _are_sql_connection_string_set(),
     reason=f"Environment variable {CREDENTIALS_ENV} is not defined",
 )
 @pytest.mark.enterprise
-class TestFeatureStoreMongoDB(TestMLRunSystem):
-    project_name = "fs-system-test-sqldb"
+class TestFeatureStoreSqlDB(TestMLRunSystem):
+    project_name = "fs-system-test-sqldb-1"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -90,26 +90,24 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         yield
         # drop all the collection on self.db
         engine = db.create_engine(self.db)
-        sql_connection = engine.connect()
-        metadata = db.MetaData()
-        metadata.reflect(bind=engine)
-        # and drop them, if they exist
-        metadata.drop_all(bind=engine, checkfirst=True)
-        engine.dispose()
-        sql_connection.close()
+        with engine.connect() as conn:
+            metadata = db.MetaData()
+            metadata.reflect(bind=engine)
+            # and drop them, if they exist
+            metadata.drop_all(bind=engine, checkfirst=True)
+            engine.dispose()
+            conn.close()
 
     @pytest.mark.parametrize(
-        "source_name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
+        "source_name, key", [("stocks", "ticker"), ("trades", "ind")]
     )
     def test_sql_source_basic(self, source_name: str, key: str):
         engine = db.create_engine(self.db, echo=True)
-        sqlite_connection = engine.connect()
-        origin_df = self.get_data(source_name)
-        origin_df.to_sql(source_name, sqlite_connection, if_exists="replace")
-        sqlite_connection.close()
-        source = SqlDBSource(
-            table_name=source_name, db_path=self.db, key_field=key
-        )
+        with engine.connect() as conn:
+            origin_df = self.get_data(source_name)
+            origin_df.to_sql(source_name, conn, if_exists="replace")
+            conn.close()
+        source = SqlDBSource(table_name=source_name, db_path=self.db, key_field=key)
 
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         df = fs.ingest(feature_set, source=source)
@@ -122,21 +120,18 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         "source_name, key, encoder_col",
         [
             ("stocks", "ticker", "exchange"),
-            ("trades", "ind", "ticker"),
             ("quotes", "ind", "ticker"),
         ],
     )
     def test_sql_source_with_step(self, source_name: str, key: str, encoder_col: str):
         engine = db.create_engine(self.db, echo=True)
-        sqlite_connection = engine.connect()
-        origin_df = self.get_data(source_name)
-        origin_df.to_sql(source_name, sqlite_connection, if_exists="replace")
-        sqlite_connection.close()
+        with engine.connect() as conn:
+            origin_df = self.get_data(source_name)
+            origin_df.to_sql(source_name, conn, if_exists="replace")
+            conn.close()
 
         # test source
-        source = SqlDBSource(
-            table_name=source_name, db_path=self.db, key_field=key
-        )
+        source = SqlDBSource(table_name=source_name, db_path=self.db, key_field=key)
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         one_hot_encoder_mapping = {
             encoder_col: list(origin_df[encoder_col].unique()),
@@ -161,15 +156,13 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         self, source_name: str, key: str, aggr_col: str
     ):
         engine = db.create_engine(self.db, echo=True)
-        sqlite_connection = engine.connect()
-        origin_df = self.get_data(source_name)
-        origin_df.to_sql(source_name, sqlite_connection, if_exists="replace")
-        sqlite_connection.close()
+        with engine.connect() as conn:
+            origin_df = self.get_data(source_name)
+            origin_df.to_sql(source_name, conn, if_exists="replace")
+            conn.close()
 
         # test source
-        source = SqlDBSource(
-            table_name=source_name, db_path=self.db, key_field=key
-        )
+        source = SqlDBSource(table_name=source_name, db_path=self.db, key_field=key)
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"
@@ -188,7 +181,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         assert df.equals(df_ref)
 
     @pytest.mark.parametrize(
-        "target_name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
+        "target_name, key", [("stocks", "ticker"), ("quotes", "ind")]
     )
     def test_sql_target_basic(self, target_name: str, key: str):
         origin_df = self.get_data(target_name)
@@ -213,16 +206,16 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
         assert df[columns].equals(origin_df[columns])
 
     @pytest.mark.parametrize(
-        "target_name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
+        "target_name, key", [("stocks", "ticker"), ("trades", "ind")]
     )
     def test_sql_target_without_create(self, target_name: str, key: str):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
         engine = db.create_engine(self.db, echo=True)
-        sqlite_connection = engine.connect()
-        metadata = db.MetaData()
-        self._create(schema, target_name, metadata, engine, key)
-        sqlite_connection.close()
+        with engine.connect() as conn:
+            metadata = db.MetaData()
+            self._create(schema, target_name, metadata, engine, key)
+            conn.close()
 
         target = SqlDBTarget(
             table_name=target_name,
@@ -241,7 +234,7 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
 
         assert df[columns].equals(origin_df[columns])
 
-    @pytest.mark.parametrize("target_name, key", [("trades", "ind"), ("quotes", "ind")])
+    @pytest.mark.parametrize("target_name, key", [("quotes", "ind")])
     def test_sql_get_online_feature_basic(self, target_name: str, key: str):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
@@ -286,17 +279,15 @@ class TestFeatureStoreMongoDB(TestMLRunSystem):
 
         assert ref_output == output
 
-    @pytest.mark.parametrize(
-        "name, key", [("stocks", "ticker"), ("trades", "ind"), ("quotes", "ind")]
-    )
+    @pytest.mark.parametrize("name, key", [("stocks", "ticker"), ("trades", "ind")])
     def test_sql_source_and_target_basic(self, name: str, key: str):
         origin_df = self.get_data(name)
         schema = self.get_schema(name)
 
         engine = db.create_engine(self.db, echo=True)
-        sqlite_connection = engine.connect()
-        origin_df.to_sql(f"{name}-source", sqlite_connection, if_exists="replace")
-        sqlite_connection.close()
+        with engine.connect() as conn:
+            origin_df.to_sql(f"{name}-source", conn, if_exists="replace")
+            conn.close()
 
         source = SqlDBSource(
             table_name=f"{name}-source", db_path=self.db, key_field=key

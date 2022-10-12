@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2022 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,9 +79,7 @@ class SqlDBSourceStorey(storey.sources._IterableSource, storey.sources.WithUUID)
         engine = db.create_engine(self.db_path)
         metadata = db.MetaData()
         connection = engine.connect()
-        table = db.Table(
-            self.table_name, metadata, autoload=True, autoload_with=engine
-        )
+        table = db.Table(self.table_name, metadata, autoload=True, autoload_with=engine)
         results = connection.execute(db.select([table])).fetchall()
         df = pandas.DataFrame(results)
         df.columns = results[0].keys()

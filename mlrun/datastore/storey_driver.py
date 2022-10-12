@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2022 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,9 +77,7 @@ class SqlDBDriver(storey.Driver):
         table = self.table(table_path)
         return_val = None
         try:
-            return_val = self._sql_connection.execute(
-                table.insert(), [additional_data]
-            )
+            return_val = self._sql_connection.execute(table.insert(), [additional_data])
         except db.exc.IntegrityError:
             pass
         return return_val

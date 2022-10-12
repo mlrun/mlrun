@@ -36,7 +36,6 @@ from .utils import parse_kafka_url, store_path_to_spark
 
 
 class TargetTypes:
-    mongodb = "mongodb"
     csv = "csv"
     parquet = "parquet"
     nosql = "nosql"
@@ -60,7 +59,6 @@ class TargetTypes:
             TargetTypes.kafka,
             TargetTypes.dataframe,
             TargetTypes.custom,
-            TargetTypes.mongodb,
             TargetTypes.sql,
         ]
 
@@ -386,6 +384,7 @@ class BaseStoreTarget(DataTargetBase):
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
+        schema: Dict[str, Any] = None,
     ):
         super().__init__(
             self.kind,
@@ -400,6 +399,7 @@ class BaseStoreTarget(DataTargetBase):
             max_events,
             flush_after_seconds,
             after_state,
+            schema=schema,
         )
         if after_state:
             warnings.warn(
@@ -421,6 +421,7 @@ class BaseStoreTarget(DataTargetBase):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
+        self.schema = schema
 
         self._target = None
         self._resource = None
@@ -551,6 +552,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        driver.schema = spec.schema
 
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
@@ -1496,7 +1498,7 @@ class SqlDBTarget(BaseStoreTarget):
         table_name: str = None,
         schema: Dict[str, Any] = {},
         primary_key_column: str = "",
-        if_exists: str = 'append',
+        if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
     ):
@@ -1544,41 +1546,6 @@ class SqlDBTarget(BaseStoreTarget):
         else:
             # check for table existence and acts according to the user input
             self._primary_key_column = primary_key_column
-            import sqlalchemy as db
-
-            engine = db.create_engine(db_path)
-            sql_connection = engine.connect()
-            metadata = db.MetaData()
-            table_exists = engine.dialect.has_table(
-                sql_connection, table_name
-            )
-            if not table_exists and not create_table:
-                raise ValueError(f"Table named {table_name} is not exist")
-
-            elif not table_exists and create_table:
-                TYPE_TO_SQL_TYPE = {
-                    int: db.Integer,
-                    str: db.String,
-                    datetime.datetime: db.DateTime,
-                    pd.Timestamp: db.DateTime,
-                    bool: db.Boolean,
-                    float: db.Float,
-                }
-                # creat new table with the given name
-                columns = []
-                for col, col_type in schema.items():
-                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
-                    if col_type is None:
-                        raise TypeError(f"{col_type} unsupported type")
-                    columns.append(
-                        db.Column(
-                            col, col_type, primary_key=(col == primary_key_column)
-                        )
-                    )
-
-                db.Table(table_name, metadata, *columns)
-                metadata.create_all(engine)
-                if_exists = "append"
 
             attr = {
                 "table_name": table_name,
@@ -1588,9 +1555,8 @@ class SqlDBTarget(BaseStoreTarget):
             }
             path = (
                 f"mlrunSql://@{db_path}//@{table_name}"
-                f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}"
+                f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}//@{create_table}"
             )
-            sql_connection.close()
 
         if attributes:
             attributes.update(attr)
@@ -1611,6 +1577,7 @@ class SqlDBTarget(BaseStoreTarget):
             flush_after_seconds=flush_after_seconds,
             storage_options=storage_options,
             after_state=after_state,
+            schema=schema,
         )
 
     def add_writer_state(
@@ -1630,7 +1597,7 @@ class SqlDBTarget(BaseStoreTarget):
         from mlrun.datastore.storey_driver import SqlDBDriver
 
         # TODO use options/cred
-        (db_path, table_name, _, _, primary_key) = self._parse_url()
+        (db_path, table_name, _, _, primary_key, _) = self._parse_url()
         return Table(
             f"{db_path}/{table_name}",
             SqlDBDriver(db_path=db_path, primary_key=primary_key.split("/")[0]),
@@ -1651,6 +1618,7 @@ class SqlDBTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
         table = self._resource.uri
+        self._create_sql_table()
         graph.add_step(
             name=self.name or "SqlTarget",
             after=after,
@@ -1660,7 +1628,6 @@ class SqlDBTarget(BaseStoreTarget):
             header=True,
             table=table,
             index_cols=key_columns,
-            # storage_options=self._get_store().get_storage_options(),
             **self.attributes,
         )
 
@@ -1676,18 +1643,20 @@ class SqlDBTarget(BaseStoreTarget):
     ):
         import sqlalchemy as db
 
-        db_path, table_name, _, _, _ = self._parse_url()
+        db_path, table_name, _, _, _, _ = self._parse_url()
         engine = db.create_engine(db_path)
-        sql_connection = engine.connect()
-        metadata = db.MetaData()
-        temp_table = db.Table(table_name, metadata, autoload=True, autoload_with=engine)
-        results = sql_connection.execute(db.select([temp_table])).fetchall()
-        sql_connection.close()
-        df = pd.DataFrame(results, columns=temp_table.columns.keys())
-        if self._primary_key_column:
-            df.set_index(self._primary_key_column, inplace=True)
-        if columns:
-            df = df[columns]
+        with engine.connect() as conn:
+            metadata = db.MetaData()
+            temp_table = db.Table(
+                table_name, metadata, autoload=True, autoload_with=engine
+            )
+            results = conn.execute(db.select([temp_table])).fetchall()
+            conn.close()
+            df = pd.DataFrame(results, columns=temp_table.columns.keys())
+            if self._primary_key_column:
+                df.set_index(self._primary_key_column, inplace=True)
+            if columns:
+                df = df[columns]
         return df
 
     def write_dataframe(
@@ -1695,7 +1664,8 @@ class SqlDBTarget(BaseStoreTarget):
     ):
         import sqlalchemy as db
 
-        # {‘fail’, ‘replace’, ‘append’} #
+        self._create_sql_table()
+
         if hasattr(df, "rdd"):
             raise ValueError("Spark is not supported")
         else:
@@ -1704,6 +1674,8 @@ class SqlDBTarget(BaseStoreTarget):
                 table_name,
                 create_according_to_data,
                 if_exists,
+                _,
+                _,
             ) = self._parse_url()
             create_according_to_data = bool(create_according_to_data)
             engine = db.create_engine(db_path, echo=True)
@@ -1719,6 +1691,54 @@ class SqlDBTarget(BaseStoreTarget):
 
     def purge(self):
         pass
+
+    def _create_sql_table(self):
+        import sqlalchemy as db
+
+        (
+            db_path,
+            table_name,
+            create_according_to_data,
+            if_exists,
+            primary_key_column,
+            create_table,
+        ) = self._parse_url()
+        engine = db.create_engine(db_path)
+        with engine.connect() as conn:
+            metadata = db.MetaData()
+            table_exists = engine.dialect.has_table(conn, table_name)
+            if not table_exists and not create_table:
+                raise ValueError(f"Table named {table_name} is not exist")
+
+            elif not table_exists and create_table:
+                TYPE_TO_SQL_TYPE = {
+                    int: db.Integer,
+                    str: db.String,
+                    datetime.datetime: db.DateTime,
+                    pd.Timestamp: db.DateTime,
+                    bool: db.Boolean,
+                    float: db.Float,
+                }
+                # creat new table with the given name
+                columns = []
+                for col, col_type in self.schema.items():
+                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
+                    if col_type is None:
+                        raise TypeError(f"{col_type} unsupported type")
+                    columns.append(
+                        db.Column(
+                            col, col_type, primary_key=(col == primary_key_column)
+                        )
+                    )
+
+                db.Table(table_name, metadata, *columns)
+                metadata.create_all(engine)
+                if_exists = "append"
+                self.path = (
+                    f"mlrunSql://@{db_path}//@{table_name}"
+                    f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}//@{create_table}"
+                )
+                conn.close()
 
 
 kind_to_driver = {

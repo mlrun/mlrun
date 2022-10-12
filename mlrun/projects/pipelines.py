@@ -708,9 +708,6 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         api_function=None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        print(f'workflow_spec from RemoteRunner: {workflow_spec}')
-        print(f'workflow_spec.run_local from RemoteRunner: {workflow_spec.run_local}')
-        print(f'workflow_spec.to_yaml from RemoteRunner: {workflow_spec.to_yaml()}')
         workflow_name = (
             name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         )
@@ -755,7 +752,6 @@ class _RemoteRunner(_PipelineRunner):
                     "metadata": {"name": workflow_name},
                 }
             )
-            print(f'RUN_SPEC: {runspec.to_yaml()}')
             runspec = runspec.set_label("job-type", "workflow-runner").set_label(
                 "workflow", workflow_name
             )
@@ -763,7 +759,6 @@ class _RemoteRunner(_PipelineRunner):
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
-                verbose=True,  # TODO: Remove!
             )
             if workflow_spec.schedule:
                 return

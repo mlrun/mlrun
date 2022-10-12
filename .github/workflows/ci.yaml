@@ -56,8 +56,8 @@ jobs:
     - name: Lint
       run: make lint
 
-  check-conflicts:
-    name: Check for conflicts
+  verify-no-conflicts:
+    name: Verify no conflicts
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2

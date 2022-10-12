@@ -26,7 +26,39 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
 
-class FeaturesetValidator(StepToDict, MapClass):
+def get_engine(first_event):
+    if hasattr(first_event, "body"):
+        first_event = first_event.body
+    if isinstance(first_event, pd.DataFrame):
+        return "pandas"
+    return "storey"
+
+
+class MLRunStep(MapClass):
+    def __init__(self, **kwargs):
+        """Abstract class for mlrun step.
+        Can be used in pandas/storey feature set ingestion"""
+        super().__init__(**kwargs)
+
+    def do(self, event):
+        """
+        This method defines the do method of this class according to the first event type.
+        """
+        engine = get_engine(event)
+        if engine == "pandas":
+            self.do = self._do_pandas
+        else:
+            self.do = self._do_storey
+        return self.do(event)
+
+    def _do_pandas(self, event):
+        raise NotImplementedError
+
+    def _do_storey(self, event):
+        raise NotImplementedError
+
+
+class FeaturesetValidator(StepToDict, MLRunStep):
     """Validate feature values according to the feature set validation policy"""
 
     def __init__(self, featureset=None, columns=None, name=None, **kwargs):
@@ -51,7 +83,7 @@ class FeaturesetValidator(StepToDict, MapClass):
                 feature.validator.set_feature(feature)
                 self._validators[key] = feature.validator
 
-    def do(self, event):
+    def _do_storey(self, event):
         body = event.body
         for name, validator in self._validators.items():
             if name in body:
@@ -66,8 +98,31 @@ class FeaturesetValidator(StepToDict, MapClass):
                     )
         return event
 
+    def _do_pandas(self, event):
+        body = event.body
+        for column in body:
+            validator = self._validators.get(column, None)
+            if validator:
+                violations = 0
+                all_args = []
+                for i in range(body[column].shape[0]):
+                    # check each body entry if there is validator for it
+                    ok, args = validator.check(body.at[i, column])
+                    if not ok:
+                        violations += 1
+                        all_args.append(args)
+                        message = args.pop("message")
+                if violations != 0:
+                    text = f" column={column}, has {violations} violations"
+                    if event.time:
+                        text += f" time={event.time}"
+                    print(
+                        f"{validator.severity}! {column} {message},{text} args={all_args}"
+                    )
+        return event
 
-class MapValues(StepToDict, MapClass):
+
+class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
@@ -114,12 +169,12 @@ class MapValues(StepToDict, MapClass):
         # Is it a regular replacement
         return feature_map.get(value, value)
 
-    def _feature_name(self, feature) -> str:
+    def _get_feature_name(self, feature) -> str:
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
 
-    def do(self, event):
+    def _do_storey(self, event):
         mapped_values = {
-            self._feature_name(feature): self._map_value(feature, val)
+            self._get_feature_name(feature): self._map_value(feature, val)
             for feature, val in event.items()
             if feature in self.mapping
         }
@@ -129,13 +184,44 @@ class MapValues(StepToDict, MapClass):
 
         return mapped_values
 
+    def _do_pandas(self, event):
+        df = pd.DataFrame()
+        for feature in event.columns:
+            feature_map = self.mapping.get(feature, {})
+            if "ranges" in feature_map:
+                # create and apply range map
+                for val, val_range in feature_map.get("ranges", {}).items():
+                    min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                    max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                    feature_map["ranges"][val] = [min_val, max_val]
 
-class Imputer(StepToDict, MapClass):
+                matchdf = pd.DataFrame.from_dict(
+                    feature_map["ranges"], "index"
+                ).reset_index()
+                matchdf.index = pd.IntervalIndex.from_arrays(
+                    left=matchdf[0], right=matchdf[1], closed="both"
+                )
+                df[self._get_feature_name(feature)] = matchdf.loc[event[feature]][
+                    "index"
+                ].values
+            elif feature_map:
+                # create and apply simple map
+                df[self._get_feature_name(feature)] = event[feature].map(
+                    lambda x: feature_map[x]
+                )
+
+        if self.with_original_features:
+            df = pd.concat([event, df], axis=1)
+        df.index = event.index
+        return df
+
+
+class Imputer(StepToDict, MLRunStep):
     def __init__(
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Dict[str, Dict[str, Any]] = None,
+        mapping: Dict[str, Any] = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -155,15 +241,22 @@ class Imputer(StepToDict, MapClass):
             return self.mapping.get(feature, self.default_value)
         return value
 
-    def do(self, event):
+    def _do_storey(self, event):
         imputed_values = {
             feature: self._impute(feature, val) for feature, val in event.items()
         }
         return imputed_values
 
+    def _do_pandas(self, event):
+        for feature in event.columns:
+            val = self.mapping.get(feature, self.default_value)
+            if val is not None:
+                event[feature].fillna(val, inplace=True)
+        return event
 
-class OneHotEncoder(StepToDict, MapClass):
-    def __init__(self, mapping: Dict[str, Union[int, str]], **kwargs):
+
+class OneHotEncoder(StepToDict, MLRunStep):
+    def __init__(self, mapping: Dict[str, List[Union[int, str]]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -203,11 +296,21 @@ class OneHotEncoder(StepToDict, MapClass):
 
         return {feature: value}
 
-    def do(self, event):
+    def _do_storey(self, event):
         encoded_values = {}
+
         for feature, val in event.items():
             encoded_values.update(self._encode(feature, val))
         return encoded_values
+
+    def _do_pandas(self, event):
+
+        for key, values in self.mapping.items():
+            event[key] = pd.Categorical(event[key], categories=list(values))
+            encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
+            event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
+        event.drop(columns=list(self.mapping.keys()), inplace=True)
+        return event
 
     @staticmethod
     def _sanitized_category(category):
@@ -217,7 +320,7 @@ class OneHotEncoder(StepToDict, MapClass):
         return category
 
 
-class DateExtractor(StepToDict, MapClass):
+class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
@@ -285,16 +388,21 @@ class DateExtractor(StepToDict, MapClass):
         timestamp_col = timestamp_col if timestamp_col else "timestamp"
         return f"{timestamp_col}_{part}"
 
-    def do(self, event):
+    def _extract_timestamp(self, event):
         # Extract timestamp
         if self.timestamp_col is None:
             timestamp = event["timestamp"]
         else:
             try:
                 timestamp = event[self.timestamp_col]
-            except Exception:
-                raise ValueError(f"{self.timestamp_col} does not exist in the event")
+            except KeyError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"{self.timestamp_col} does not exist in the event"
+                )
+        return timestamp
 
+    def _do_storey(self, event):
+        timestamp = self._extract_timestamp(event)
         # Extract specified parts
         timestamp = pd.Timestamp(timestamp)
         for part in self.parts:
@@ -302,6 +410,16 @@ class DateExtractor(StepToDict, MapClass):
             extracted_part = getattr(timestamp, part)
             # Add to event
             event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+        return event
+
+    def _do_pandas(self, event):
+        timestamp = self._extract_timestamp(event)
+        # Extract specified parts
+        for part in self.parts:
+            # Extract part and add it to event
+            event[self._get_key_name(part, self.timestamp_col)] = timestamp.map(
+                lambda x: getattr(pd.Timestamp(x), part)
+            )
         return event
 
 
@@ -376,3 +494,38 @@ class SetEventMetadata(MapClass):
         for func in self._tagging_funcs:
             func(event)
         return event
+
+
+class DropFeatures(StepToDict, MLRunStep):
+    def __init__(self, features: List[str], **kwargs):
+        """Drop all the features from feature list
+
+        :param features:    string list of the features names to drop
+
+        example::
+
+            feature_set = fs.FeatureSet("fs-new",
+                                        entities=[fs.Entity("id")],
+                                        description="feature set",
+                                        engine="pandas",
+                                        )
+            # Pre-processing grpah steps
+            feature_set.graph.to(DropFeatures(features=["age"]))
+            df_pandas = fs.ingest(feature_set, data)
+
+        """
+        super().__init__(**kwargs)
+        self.features = features
+
+    def _do_storey(self, event):
+        for feature in self.features:
+            try:
+                del event[feature]
+            except KeyError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"The ingesting data doesn't contain a feature named '{feature}'"
+                )
+        return event
+
+    def _do_pandas(self, event):
+        return event.drop(columns=self.features)

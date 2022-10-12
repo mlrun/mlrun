@@ -4,6 +4,8 @@
 MLRun model serving allows composition of multi-stage, real-time pipelines, that include data manipulation and execution of models. The 
 architecture allows high scalability while maintaining low latency performance.
 
+For more information see {ref}`mlrun-serving-overview`, {ref}`using_built_in_model_serving_classes`, and {ref}`custom-model-serving-class`.
+
 ## Basic model serving
 
 The most basic model serving capability is deployment of a single model. To do that, you:
@@ -12,8 +14,6 @@ The most basic model serving capability is deployment of a single model. To do t
 3. {ref}`test-deploy-model-server`, using the {py:meth}`~mlrun.runtimes.ServingRuntime.deploy` method.
 
 This results in a single model endpoint that can execute the model and return the model prediction. 
-
-See {ref}`custom-model-serving-class` and {ref}`using_built_in_model_serving_classes`.
 
 Optionally, you can create a mock server, which runs the model as an in-memory object within your development environment. 
 This allows testing the model without deploying it.

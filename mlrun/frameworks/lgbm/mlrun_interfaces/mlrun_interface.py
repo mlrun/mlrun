@@ -177,7 +177,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         call will use these configurations to initialize callbacks and log the model at the end of training.
 
         :param context:                       MLRun context to log to.
-        :param log_model:                     Whether to log the model at the end of training. Defaulted to True.
+        :param log_model:                     Whether to log the model at the end of training. Default: True.
         :param model_handler_kwargs:          Keyword arguments to use for initializing the model handler for the newly
                                               trained model.
         :param log_model_kwargs:              Keyword arguments to use for calling the handler's `log` method.

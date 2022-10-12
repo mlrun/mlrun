@@ -1,9 +1,9 @@
 # In our docker images we're copying the requirements files and pip installing them before copying and installing the
-# whole code. We're doing that to levarage docker build cache so that we won't need to actually install all of the
+# whole code. We're doing that to leverage docker build cache so that we won't need to actually install all the
 # requirements for every change in the code (which causes a cache miss in the copy command for the whole code) but we'll
-# get "requirement is already satisified" which causes the pip install of the mlrun package itself to be very quick.
+# get "requirement is already satisfied" which causes the pip install of the mlrun package itself to be very quick.
 # The extras requirements definition sits in the setup.py itself, therefore without this file these requirements were
-# installed only in the last phase of installing mlrun, which causes this step to be longer and lower the effectivness
+# installed only in the last phase of installing mlrun, which causes this step to be longer and lowers the effectiveness
 # of the above trick. To overcome this we have this file, which is a copy of all the requirements defined in the extras
 # in setup.py so that we'll be able to copy and install this in the layer with all other requirements making the last
 # layer (which is most commonly being re-built) as thin as possible

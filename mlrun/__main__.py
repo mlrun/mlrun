@@ -760,7 +760,8 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option("--logs-path", "-l", help="logs directory path")
 @click.option("--data-volume", "-v", help="path prefix to the location of artifacts")
 @click.option("--verbose", is_flag=True, help="verbose log")
-def db(port, dirpath, dsn, logs_path, data_volume, verbose):
+@click.option("--background", "-b", is_flag=True, help="run in background process")
+def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     """Run HTTP api/database server"""
     env = environ.copy()
     if port is not None:
@@ -786,10 +787,23 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose):
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
-    child = Popen(cmd, env=env)
-    returncode = child.wait()
-    if returncode != 0:
-        raise SystemExit(returncode)
+    if background:
+        print("Starting MLRun API service in the background...")
+        child = Popen(
+            cmd,
+            env=env,
+            stdout=open("mlrun-stdout.log", "w"),
+            stderr=open("mlrun-stderr.log", "w"),
+            start_new_session=True,
+        )
+        print(
+            f"background pid: {child.pid}, logs written to mlrun-stdout.log and mlrun-stderr.log"
+        )
+    else:
+        child = Popen(cmd, env=env)
+        returncode = child.wait()
+        if returncode != 0:
+            raise SystemExit(returncode)
 
 
 @main.command()
@@ -882,8 +896,10 @@ def logs(uid, project, offset, db, watch):
     "--schedule",
     type=str,
     default=None,
-    help="a standard crontab expression string, for help see: "
-    "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron",
+    help="To create a schedule define a standard crontab expression string."
+    "for help see: "
+    "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
+    "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
 def project(
     context,
@@ -945,6 +961,8 @@ def project(
     print(proj.to_yaml())
 
     if run:
+        if schedule is not None and schedule.lower() in ["1", "yes", "y", "t", "true"]:
+            schedule = True
         workflow_path = None
         if run.endswith(".py"):
             workflow_path = run
@@ -963,8 +981,13 @@ def project(
             or environ.get("CI_MERGE_REQUEST_IID")
         )
         if gitops:
-            proj.notifiers.git_comment(
-                git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
+            proj.notifiers.add_notification(
+                "git",
+                {
+                    "repo": git_repo,
+                    "issue": git_issue,
+                    "token": proj.get_param("GIT_TOKEN"),
+                },
             )
         try:
             proj.run(
@@ -988,7 +1011,7 @@ def project(
             print(message)
 
         if had_error:
-            proj.notifiers.push(message)
+            proj.notifiers.push(message, "error")
         if had_error:
             exit(1)
 

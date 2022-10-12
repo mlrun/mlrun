@@ -28,6 +28,7 @@ __all__ = [
     "HttpSource",
     "StreamSource",
     "KafkaSource",
+    "RedisStore",
 ]
 
 import mlrun.datastore.wasbfs

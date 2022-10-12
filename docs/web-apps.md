@@ -1,2 +1,0 @@
-(web-apps)=
-# Web applications

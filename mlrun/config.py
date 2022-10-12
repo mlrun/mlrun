@@ -101,10 +101,21 @@ default_config = {
     "artifact_path": "",  # default artifacts path/url
     # Add {{workflow.uid}} to artifact_path unless user specified a path manually
     "enrich_artifact_path_with_workflow_id": True,
+    "artifacts": {
+        "calculate_hash": True,
+        # None is handled as False, reason we set None instead of False is that if the server have set the value to
+        # some value while the client didn't change it, the server value will be applied.
+        # But if both the server and the client set some value, we want the client to take precedence over the server.
+        # By setting the default to None we are able to differentiate between the two cases.
+        "generate_target_path_from_artifact_hash": None,
+    },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
     "v3io_api": "http://v3io-webapi:8081",
-    "redis_url": "redis://localhost:6379",
+    "redis": {
+        "url": "",
+        "type": "standalone",  # can be "standalone" or "cluster"
+    },
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format
@@ -121,6 +132,9 @@ default_config = {
     "ignored_notebook_tags": "",
     # when set it will force the local=True in run_function(), set to "auto" will run local if there is no k8s
     "force_run_local": "auto",
+    # when set (True or non empty str) it will force the mock=True in deploy_function(),
+    # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
+    "mock_nuclio_deployment": "",
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
@@ -218,6 +232,8 @@ default_config = {
                 "file_format": "db_backup_%Y%m%d%H%M.db",
                 "use_rotation": True,
                 "rotation_limit": 3,
+                # default is 16MB, max 1G, for more info https://dev.mysql.com/doc/refman/8.0/en/packet-too-large.html
+                "max_allowed_packet": 64000000,  # 64MB
             },
             # None will set this to be equal to the httpdb.max_workers
             "connections_pool_size": None,
@@ -409,6 +425,10 @@ default_config = {
         "max_retries": 3,
         "backoff_factor": 1,
         "status_codes": [500, 502, 503, 504],
+    },
+    "ce": {
+        # ce mode can be one of: "", lite, full
+        "mode": "",
     },
 }
 
@@ -827,6 +847,10 @@ class Config:
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
         return True if mlrun.mlconf.namespace else False
+
+    def is_nuclio_detected(self):
+        # determine is Nuclio service is detected, when the nuclio_version is not set
+        return True if mlrun.mlconf.nuclio_version else False
 
 
 # Global configuration

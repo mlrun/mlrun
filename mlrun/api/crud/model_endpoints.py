@@ -33,6 +33,7 @@ import mlrun.config
 import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.helpers
 import mlrun.runtimes.function
 import mlrun.utils.helpers
@@ -103,8 +104,12 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.api.schemas.ModelMonitoringMode.enabled.value
             ):
-                self.create_monitoring_feature_set(
+                monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
+                )
+                # Link model endpoint object to feature set URI
+                model_endpoint.status.monitoring_feature_set_uri = (
+                    monitoring_feature_set.uri
                 )
 
         # If feature_stats was either populated by model_uri or by manual input, make sure to keep the names
@@ -154,6 +159,8 @@ class ModelEndpoints:
         :param db_session:        A session that manages the current dialog with the database.
         :param run_db:            A run db instance which will be used for retrieving the feature vector in case
                                   the features are not found in the model object.
+
+        :return:                  Feature set object for the monitoring of the current model endpoint.
         """
 
         # Define a new feature set
@@ -200,10 +207,9 @@ class ModelEndpoints:
                         )
                     )
         else:
-            logger.info(
+            logger.warn(
                 "Could not find any features in the model object and in the Feature Vector"
             )
-            return
 
         # Define parquet target for this feature set
         parquet_path = (
@@ -226,7 +232,8 @@ class ModelEndpoints:
             model_endpoint=model_endpoint.spec.model,
             parquet_target=parquet_path,
         )
-        return
+
+        return feature_set
 
     @staticmethod
     def _validate_length_features_and_labels(model_endpoint):
@@ -539,6 +546,8 @@ class ModelEndpoints:
                 drift_status=endpoint.get("drift_status") or None,
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
+                monitoring_feature_set_uri=endpoint.get("monitoring_feature_set_uri")
+                or None,
             ),
         )
 
@@ -572,25 +581,29 @@ class ModelEndpoints:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
+        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
         Invoking monitoring deploying functions.
-        :param project:                     The name of the project
-        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
         """
         self.deploy_model_monitoring_stream_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auto_info=auth_info,
+            tracking_policy=tracking_policy,
         )
         self.deploy_model_monitoring_batch_processing(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
+            tracking_policy=tracking_policy,
         )
 
     def write_endpoint_to_kv(
@@ -648,6 +661,8 @@ class ModelEndpoints:
                 "model_uri": endpoint.spec.model_uri or "",
                 "stream_path": endpoint.spec.stream_path or "",
                 "active": endpoint.spec.active or "",
+                "monitoring_feature_set_uri": endpoint.status.monitoring_feature_set_uri
+                or "",
                 "monitoring_mode": endpoint.spec.monitoring_mode or "",
                 "state": endpoint.status.state or "",
                 "feature_stats": json.dumps(feature_stats),
@@ -742,7 +757,7 @@ class ModelEndpoints:
         )
         access_key = auth_info.data_session
 
-        # we would ideally base on config.v3io_api but can't for backwards compatibility reasons,
+        # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
@@ -830,15 +845,17 @@ class ModelEndpoints:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auto_info: mlrun.api.schemas.AuthInfo,
+        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
         to monitor the log of the data stream. It is triggered when a new log entry is detected.
         It processes the new events into statistics that are then written to statistics databases.
-        :param project:                     The name of the project
-        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
         """
 
         logger.info(
@@ -861,29 +878,31 @@ class ModelEndpoints:
             )
 
         fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
-            project, model_monitoring_access_key, db_session
+            project, model_monitoring_access_key, db_session, tracking_policy
         )
 
         mlrun.api.api.endpoints.functions._build_function(
             db_session=db_session, auth_info=auto_info, function=fn
         )
 
-    @staticmethod
     def deploy_model_monitoring_batch_processing(
+        self,
         project: str,
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.api.schemas.AuthInfo,
+        tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
     ):
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
         based on the latest batch of events. By default, this job is executed on the hour every hour.
         Note that if the monitoring batch job was already deployed then you will have to delete the
         old monitoring batch job before deploying a new one.
-        :param project:                     The name of the project
-        :param model_monitoring_access_key: Access key to apply the model monitoring process
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
         """
 
         logger.info(
@@ -891,7 +910,7 @@ class ModelEndpoints:
             project=project,
         )
 
-        # try to list functions that named model monitoring batch
+        # Try to list functions that named model monitoring batch
         # to make sure that this job has not yet been deployed
         function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
             session=db_session, name="model-monitoring-batch", project=project
@@ -904,12 +923,13 @@ class ModelEndpoints:
             )
             return
 
-        # create a monitoring batch job function object
+        # Create a monitoring batch job function object
         fn = mlrun.model_monitoring.helpers.get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,
             auth_info=auth_info,
+            tracking_policy=tracking_policy,
         )
 
         # Get the function uri
@@ -919,16 +939,39 @@ class ModelEndpoints:
         task = mlrun.new_task(name="model-monitoring-batch", project=project)
         task.spec.function = function_uri
 
+        # Apply batching interval params
+        interval_list = [
+            tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ]["minute"],
+            tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ]["hour"],
+            tracking_policy[
+                model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+            ]["day"],
+        ]
+        minutes, hours, days = self._get_batching_interval_param(interval_list)
+        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
+
+        task.spec.parameters[
+            model_monitoring_constants.EventFieldType.BATCH_INTERVALS_DICT
+        ] = batch_dict
+
         data = {
             "task": task.to_dict(),
-            "schedule": "0 */1 * * *",
+            "schedule": self._convert_to_cron_string(
+                tracking_policy[
+                    model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
+                ]
+            ),
         }
 
         logger.info(
             "Deploying model monitoring batch processing function", project=project
         )
 
-        # add job schedule policy (every hour by default)
+        # Add job schedule policy (every hour by default)
         mlrun.api.api.utils._submit_run(
             db_session=db_session, auth_info=auth_info, data=data
         )
@@ -1006,3 +1049,30 @@ class ModelEndpoints:
         if not access_key:
             raise mlrun.errors.MLRunBadRequestError("Data session is missing")
         return access_key
+
+    @staticmethod
+    def _get_batching_interval_param(intervals_list):
+        """Converting each value in the intervals list into a float number. None
+        Values will be converted into 0.0.
+
+        example::
+        Applying the function on a scheduling policy that is based on every hour exactly
+        _get_batching_interval_param(intervals_list=[0, '*/1', None])
+        The result will be: (0.0, 1.0, 0.0)
+
+        """
+        return tuple(
+            map(
+                lambda element: 0.0
+                if isinstance(element, (float, int)) or element is None
+                else float(f"0{element.partition('/')[-1]}"),
+                intervals_list,
+            )
+        )
+
+    @staticmethod
+    def _convert_to_cron_string(cron_trigger):
+        """Converting the batch interval dictionary into a ScheduleCronTrigger expression"""
+        return "{} {} {} * *".format(
+            cron_trigger["minute"], cron_trigger["hour"], cron_trigger["day"]
+        ).replace("None", "*")

@@ -103,7 +103,7 @@ class XGBoostModelHandler(MLModelHandler):
                                          model.
         :param context:                  MLRun context to work with for logging the model.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.PKL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.PKL'.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters are invalid.
         """
@@ -201,7 +201,7 @@ class XGBoostModelHandler(MLModelHandler):
                                     Defaulted to True.
         :param input_sample:        An inputs sample with the names and data types of the inputs of the model.
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                    handler has a MLRun context set. Defaulted to None.
+                                    handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

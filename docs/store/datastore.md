@@ -6,11 +6,7 @@ A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguaz
 **In this section**
 - [Shared data stores](#shared-data-stores)
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
-   - [v3io](#v3io)
-   - [S3](#s3)
-   - [Azure Blob storage](#azure-blob-storage)
-   - [Google cloud storage](#google-cloud-storage)
-
+   
 ## Shared data stores
 
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
@@ -88,6 +84,13 @@ authenticate, it is used in several use-cases, such as resolving paths to the ho
   parameters
 * `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
   a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
+* `MLRUN_AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
+  Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
+  ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
+* `AWS_PROFILE` &mdash; name of credentials profile from a local AWS credentials file. 
+  When using a profile, the authentication secrets (if defined) are ignored, and credentials are retrieved from the 
+  file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
+  example)
 
 ### Azure Blob storage
 The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed

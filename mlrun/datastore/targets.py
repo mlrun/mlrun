@@ -504,6 +504,8 @@ class BaseStoreTarget(DataTargetBase):
                 if dir:
                     os.makedirs(dir, exist_ok=True)
             partition_cols = []
+            if target_path.endswith(".parquet") or target_path.endswith(".pq"):
+                partition_cols = None
             target_df = df
             if timestamp_key and (
                 self.partitioned or self.time_partitioning_granularity
@@ -699,7 +701,7 @@ class ParquetTarget(BaseStoreTarget):
      or after flush_after_seconds (if flush_after_seconds is set). Default 10k events
     :param flush_after_seconds: optional. Maximum number of seconds to hold events before they are written.
      All events will be written on flow termination, or after max_events are accumulated (if max_events is set).
-      Default 15 minutes
+     Default 15 minutes
     """
 
     kind = TargetTypes.parquet
@@ -765,14 +767,9 @@ class ParquetTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        if partition_cols:
-            df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
-        else:
-            with fs.open(target_path, "wb") as fp:
-                # In order to save the DataFrame in parquet format, all of the column names must be strings:
-                df.columns = [str(column) for column in df.columns.tolist()]
-                # Save to parquet:
-                df.to_parquet(fp, **kwargs)
+        # In order to save the DataFrame in parquet format, all of the column names must be strings:
+        df.columns = [str(column) for column in df.columns.tolist()]
+        df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -1162,12 +1159,22 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
     def get_table_object(self):
         from storey import Table
-        from storey.redis_driver import RedisDriver
+        from storey.redis_driver import RedisDriver, RedisType
 
         endpoint, uri = parse_path(self.get_target_path())
+        endpoint = endpoint or mlrun.mlconf.redis.url
+        if mlrun.mlconf.redis.type == "standalone":
+            redis_type = RedisType.STANDALONE
+        elif mlrun.mlconf.redis.type == "cluster":
+            redis_type = RedisType.CLUSTER
+        else:
+            raise NotImplementedError(
+                f"invalid redis type {mlrun.mlconf.redis.type} - should be one of {'cluster', 'standalone'})"
+            )
+
         return Table(
             uri,
-            RedisDriver(redis_url=endpoint, key_prefix="/"),
+            RedisDriver(redis_type=redis_type, redis_url=endpoint, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 

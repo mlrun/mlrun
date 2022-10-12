@@ -1340,8 +1340,8 @@ def _generate_original_function(
                 },
             ],
             "resources": {
-                "limits": {"cpu": "40m", "memory": "128Mi", "nvidia.com/gpu": "7"},
-                "requests": {"cpu": "15m", "memory": "86Mi"},
+                "limits": {"cpu": "40m", "memory": "128Mi", "nvidia.com/gpu": "7", 'ephemeral_storage': None},
+                "requests": {"cpu": "15m", "memory": "86Mi",'ephemeral_storage': None},
             },
             "env": [
                 {"name": "OLD_ENV_VAR_KEY", "value": "old-env-var-value"},

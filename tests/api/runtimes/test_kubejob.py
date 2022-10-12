@@ -96,6 +96,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             cpu=expected_limits["cpu"],
             gpus=expected_limits[gpu_type],
             gpu_type=gpu_type,
+            ephemeral_storage=None
         )
 
         expected_requests = generate_resources(mem=2, cpu=3)

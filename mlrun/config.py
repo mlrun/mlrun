@@ -752,9 +752,6 @@ class Config:
             resource_requirement[gpu_type] = resource_requirement.pop(gpu)
         else:
             resource_requirement.pop(gpu)
-        print(resources)
-        print(resource_requirement)
-        
         return resource_requirement
 
     def to_dict(self):

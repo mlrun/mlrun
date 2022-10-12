@@ -754,6 +754,7 @@ class _RemoteRunner(_PipelineRunner):
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
+                artifact_path=artifact_path,
             )
             if workflow_spec.schedule:
                 return

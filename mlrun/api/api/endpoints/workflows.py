@@ -112,7 +112,7 @@ def submit_workflow(
             workflow_spec.args = {}
         workflow_spec.args.update(arguments)
 
-    workflow_spec.run_local = True  # Running remotely local workflows
+    # workflow_spec.run_local = True  # Running remotely local workflows
     print_debug("final workflow spec", workflow_spec)  # TODO: Remove!
     # Printing input for debug:  # TODO: Remove!
     print_debug("project", project)  # TODO: Remove!

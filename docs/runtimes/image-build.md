@@ -8,15 +8,16 @@ This page details this process and the available options.
 ## When is a build required?
 
 In many cases an MLRun runtime can be executed without having to build an image. This will be true when
-the basic MLRun images fulfill all the requirements for the code to execute. It will be required to build an image 
+the basic MLRun images fulfill all the requirements for the code to execute. It is required to build an image 
 if one of the following is true:
 
-1. Code is using additional Python packages, OS packages, scripts or other configurations that need to be applied
-2. Using different base-images or different versions of MLRun images than provided by default
-3. Executed source code has changed, and the image has the code packaged in it - see
-   [here](mlrun_jobs.html#deploy-build-the-function-container) for more details on source code, and using 
-   {py:func}`~mlrun.runtimes.BaseRuntime.with_code()` to avoid re-building the image when the code has changed
-4. Running nuclio functions, which are packaged as images (build is triggered by MLRun and performed by nuclio)
+- The code uses additional Python packages, OS packages, scripts or other configurations that need to be applied
+- The code uses different base-images or different versions of MLRun images than provided by default
+- Executed source code has changed, and the image has the code packaged in it - see
+  [here](mlrun_jobs.html#deploy-build-the-function-container) for more details on source code, and using 
+  {py:func}`~mlrun.runtimes.BaseRuntime.with_code()` to avoid re-building the image when the code has changed
+- The code runs nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
+  nuclio)
 
 The build process in MLRun is based on [Kaniko](https://github.com/GoogleContainerTools/kaniko) and automated by MLRun -
 MLRun generates the dockerfile for the build process, and configures Kaniko with parameters needed for the build.
@@ -48,10 +49,10 @@ project.run_function("trainer", auto_build=True)
 
 Using the `auto_build` option is only suitable when the build configuration does not change between runs of the
 runtime. For example, if during the development process new requirements were added, the `auto_build` parameter should
-not be used, and manual build will be needed to re-trigger a build of the image.
+not be used, and manual build is needed to re-trigger a build of the image.
 
 In the example above, the `requirements` parameter was used to specify a list of additional Python packages required by
-the code. This option directly affects the image build process - each requirement will be installed using `pip` as 
+the code. This option directly affects the image build process - each requirement is installed using `pip` as 
 part of the docker-build process. The `requirements` parameter can also contain a path to a requirements file, making
 it easier to reuse an existing configuration rather than specify a list of packages.
 
@@ -63,7 +64,7 @@ options that control and configure the build process.
 
 ### Specifying base image
 To use an existing image as the base image for building the image, set the image name in the `base_image` parameter.
-Note that this is the image that will be serving as base (dockerfile `FROM` property), not to be confused with the 
+Note that this image serves as the base (dockerfile `FROM` property), and should not to be confused with the 
 resulting image name, as specified in the `image` parameter.
 
 ```python
@@ -90,16 +91,16 @@ project.build_function(
 )
 ```
 
-These commands will be added as `RUN` operations to the dockerfile generating the image.
+These commands are added as `RUN` operations to the dockerfile generating the image.
 
 ### MLRun package deployment
-The `with_mlrun` and `mlrun_version_specifier` parameters allows control over the inclusion of the MLRun package in the
+The `with_mlrun` and `mlrun_version_specifier` parameters allow control over the inclusion of the MLRun package in the
 build process. Depending on the base-image used for the build, the MLRun package may already be available in which 
 case use `with_mlrun=False`. If not specified, MLRun will attempt to detect this situation - if the image used is one 
-of the default MLRun images released with MLRun, `with_mlrun` will automatically be set to `False`.
-If the code executing requires a different version of MLRun than the one used to deploy the function, 
-set the `mlrun_version_specifier` to point at the specific version needed. This will use the published MLRun images
-of the specified version instead. 
+of the default MLRun images released with MLRun, `with_mlrun` is automatically set to `False`.
+If the code execution requires a different version of MLRun than the one used to deploy the function, 
+set the `mlrun_version_specifier` to point at the specific version needed. This uses the published MLRun images
+of the specified version instead.
 For example:
 
 ```python
@@ -126,16 +127,16 @@ image every time the code changes. To enable this, use {py:func}`~mlrun.projects
 gets a path to the source (can be a git repository or a tar or zip file) and set `pull_at_runtime=True`.
 
 ### Using a private Docker registry
-By default, images will be pushed to the registry configured during MLRun deployment, using the registry credentials 
-configured. 
+By default, images are pushed to the registry configured during MLRun deployment, using the configured registry 
+credentials.
 
-To push resulting images to a different registry, the registry URL should be provided in the `image` parameter. If
-the registry requires credentials, a k8s secret containing these credentials should be created, and its name should be
-passed in the `secret_name` parameter.
+To push resulting images to a different registry, specify the registry URL in the `image` parameter. If
+the registry requires credentials, create a k8s secret containing these credentials, and pass its name in the 
+`secret_name` parameter.
 
 When using ECR as registry, MLRun uses Kaniko's ECR credentials helper, in which case the secret provided should contain
 AWS credentials needed to create ECR repositories, as described [here](https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr).
-MLRun detects automatically that the registry is an ECR registry (based on its path) and configures Kaniko to
+MLRun detects automatically that the registry is an ECR registry based on its URL and configures Kaniko to
 use the ECR helper. For example:
 
 ```python
@@ -169,7 +170,7 @@ function, use {py:func}`~mlrun.projects.deploy_function()` instead of using
 
 ## Creating default Spark runtime images
 When using Spark to execute code, either using a Spark service (remote-spark) or the Spark operator, an image is 
-required which contains both Spark binaries and dependencies and MLRun code and dependencies. 
+required that contains both Spark binaries and dependencies, and MLRun code and dependencies. 
 This image is used in the following scenarios:
 
 1. For remote-spark, the image is used to run the initial MLRun code which will submit the Spark job using the 

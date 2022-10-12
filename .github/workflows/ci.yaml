@@ -233,4 +233,4 @@ jobs:
           channel-id: "G01E9GEQ18B"
           payload: "{\"text\": \"posting from a github action\"}"
         env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_BOT_TOKEN: 'blabla'

@@ -75,7 +75,7 @@ default_config = {
     "spark_operator_version": "spark-3",  # the version of the spark operator in use
     "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
-    "default_base_image": "yonishelach/mlrun-api:workflow-endpoint-21",  # default base image when doing .deploy()
+    "default_base_image": "yonishelach/mlrun-api:submit-workflow",  # default base image when doing .deploy()
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)

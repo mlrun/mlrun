@@ -331,7 +331,8 @@ class KubejobRuntime(KubeResource):
             elif not workdir.startswith("/"):
                 # relative path mapped to real path in the job pod
                 workdir = os.path.join("/mlrun", workdir)
-
+        print(f'<YONI DEBUG> result image: {self.full_image_path(client_version=runobj.metadata.labels.get("mlrun/client_version"))}')  # TODO: Remove!
+        print(f'<YONI DEBUG> client version: {runobj.metadata.labels.get("mlrun/client_version")}')  # TODO: Remove!
         pod_spec = func_to_pod(
             self.full_image_path(
                 client_version=runobj.metadata.labels.get("mlrun/client_version")

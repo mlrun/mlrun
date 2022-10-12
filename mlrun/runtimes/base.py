@@ -439,8 +439,6 @@ class BaseRuntime(ModelObj):
         else:
             # single run
             try:
-                print("Running from here")  # TODO: Remove!
-                print(f'run =\n{run}\nexecution =\n{execution}')  # TODO: Remove!
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = run.logs(True, self._get_db())

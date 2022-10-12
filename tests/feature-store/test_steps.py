@@ -96,11 +96,13 @@ def test_pandas_step_onehot(rundb_mock):
     data_set_pandas.save = unittest.mock.Mock()
     data_set_pandas.purge_targets = unittest.mock.Mock()
     # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory(suffix=".parquet")
+    output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
+        data_set_pandas,
+        data,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
 
     data_ref = pd.DataFrame(
@@ -147,7 +149,9 @@ def test_pandas_step_onehot(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fs.ingest(data_set, data, targets=[ParquetTarget(path=output_path.name)])
+    df = fs.ingest(
+        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+    )
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -176,11 +180,13 @@ def test_pandas_step_imputer(rundb_mock):
     data_set_pandas.save = unittest.mock.Mock()
     data_set_pandas.purge_targets = unittest.mock.Mock()
     # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory(suffix=".parquet")
+    output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
+        data_set_pandas,
+        data,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -209,7 +215,9 @@ def test_pandas_step_imputer(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fs.ingest(data_set, data, targets=[ParquetTarget(path=output_path.name)])
+    df = fs.ingest(
+        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+    )
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -247,11 +255,13 @@ def test_pandas_step_mapval(rundb_mock, with_original):
     data_set_pandas.save = unittest.mock.Mock()
     data_set_pandas.purge_targets = unittest.mock.Mock()
     # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory(suffix=".parquet")
+    output_path = tempfile.TemporaryDirectory()
 
     # Ingest our  dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
+        data_set_pandas,
+        data,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
 
     if with_original:
@@ -299,7 +309,9 @@ def test_pandas_step_mapval(rundb_mock, with_original):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fs.ingest(data_set, data, targets=[ParquetTarget(path=output_path.name)])
+    df = fs.ingest(
+        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+    )
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -333,11 +345,13 @@ def test_pandas_step_data_extractor(rundb_mock):
     data_set_pandas.save = unittest.mock.Mock()
     data_set_pandas.purge_targets = unittest.mock.Mock()
     # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory(suffix=".parquet")
+    output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
+        data_set_pandas,
+        data,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     data_ref = data.copy()
     data_ref = data_ref.set_index("id", drop=True)
@@ -373,7 +387,9 @@ def test_pandas_step_data_extractor(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fs.ingest(data_set, data, targets=[ParquetTarget(path=output_path.name)])
+    df = fs.ingest(
+        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+    )
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -406,11 +422,13 @@ def test_pandas_step_data_validator(rundb_mock):
     data_set_pandas.save = unittest.mock.Mock()
     data_set_pandas.purge_targets = unittest.mock.Mock()
     # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory(suffix=".parquet")
+    output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
+        data_set_pandas,
+        data,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     data_ref = data.copy()
     data_ref = data_ref.set_index("id", drop=True)
@@ -443,7 +461,9 @@ def test_pandas_step_data_validator(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fs.ingest(data_set, data, targets=[ParquetTarget(path=output_path.name)])
+    df = fs.ingest(
+        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+    )
     pd.testing.assert_frame_equal(
         df,
         df_pandas,
@@ -472,11 +492,13 @@ def test_pandas_step_drop_feature(rundb_mock):
     data_set_pandas.save = unittest.mock.Mock()
     data_set_pandas.purge_targets = unittest.mock.Mock()
     # Create a temp directory:
-    output_path = tempfile.TemporaryDirectory(suffix=".parquet")
+    output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
-        data_set_pandas, data, targets=[ParquetTarget(path=output_path.name)]
+        data_set_pandas,
+        data,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     data_ref = data.copy()
     data_ref = data_ref.set_index("id", drop=True)
@@ -506,7 +528,9 @@ def test_pandas_step_drop_feature(rundb_mock):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fs.ingest(data_set, data, targets=[ParquetTarget(path=output_path.name)])
+    df = fs.ingest(
+        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+    )
     pd.testing.assert_frame_equal(
         df,
         df_pandas,

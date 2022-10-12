@@ -229,7 +229,7 @@ jobs:
     steps:
       - uses: slackapi/slack-github-action@v1.22.0
         with:
-          channel-id: '${{ secrets.SLACK_MLRUN_DEV_CHANNEL_ID }}'
+          channel-id: 'G01E9GEQ18B'
           slack-message: "I made it! :tada:, check the results here:"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

@@ -56,14 +56,6 @@ jobs:
     - name: Lint
       run: make lint
 
-  verify-no-conflicts:
-    name: Verify no conflicts
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Run make install-requirements
-      run: make install-requirements
-
   tests:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest
@@ -230,3 +222,11 @@ jobs:
           # See the License for the specific language governing permissions and
           # limitations under the License.
           "
+
+  verify-no-conflicts:
+    name: Verify no conflicts
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run make install-requirements
+      run: make install-requirements

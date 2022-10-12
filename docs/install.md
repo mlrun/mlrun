@@ -86,5 +86,6 @@ See also [Images and their usage in MLRun](https://docs.mlrun.org/en/latest/runt
 
 install/local-docker
 install/kubernetes
+install/aws-install
 install/remote
 ```

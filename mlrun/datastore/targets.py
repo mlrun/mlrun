@@ -1270,7 +1270,7 @@ class KafkaTarget(BaseStoreTarget):
             columns=column_list,
             topic=topic,
             bootstrap_servers=bootstrap_servers,
-            producer_options=self.attributes.get("producer_options"),
+            **self.attributes,
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

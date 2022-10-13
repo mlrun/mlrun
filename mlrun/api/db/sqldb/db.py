@@ -227,7 +227,6 @@ class SQLDB(DBInterface):
     def read_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
-        session.commit()
         if not run:
             raise mlrun.errors.MLRunNotFoundError(f"Run {uid}:{project} not found")
         return run.struct

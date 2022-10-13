@@ -60,6 +60,7 @@ def _init_engine(dsn=None):
         kwargs = {
             "pool_size": pool_size,
             "max_overflow": max_overflow,
+            "isolation_level": "READ COMMITTED",
         }
     engine = create_engine(dsn, **kwargs)
     _init_session_maker()

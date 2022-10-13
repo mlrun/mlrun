@@ -13,8 +13,12 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.projects.pipelines
+from mlrun.api.api.utils import (
+    apply_enrichment_and_validation_on_function,
+    get_run_db_instance,
+    log_and_raise,
+)
 from mlrun.utils.helpers import logger
-from mlrun.api.api.utils import log_and_raise, get_run_db_instance, apply_enrichment_and_validation_on_function
 
 router = fastapi.APIRouter()
 
@@ -29,7 +33,7 @@ def print_debug(key, val):
     prefix = " <DEBUG YONI>     "
     suffix = "     <END DEBUG YONI> "
     msg = f"{key}: {val}\n type: {type(val)}"
-    print(10 * '*' + prefix + msg + suffix + 10 * '*')
+    print(10 * "*" + prefix + msg + suffix + 10 * "*")
 
 
 @router.post(
@@ -139,7 +143,7 @@ def submit_workflow(
         )
         load_and_run_fn.save()
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
-        print_debug('workflow spec', workflow_spec)  # TODO: Remove!
+        print_debug("workflow spec", workflow_spec)  # TODO: Remove!
         run = mlrun.projects.pipelines._RemoteRunner.run(
             project=project,
             workflow_spec=workflow_spec,

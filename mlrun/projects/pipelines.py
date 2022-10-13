@@ -766,12 +766,23 @@ class _RemoteRunner(_PipelineRunner):
 
             db = None if not via_api else load_and_run_fn._get_db()
             print(f'<DEBUG YONI> db: {db}')
-            run.refresh(db=db)
+            print(f'<DEBUG YONI> run: {run}')
+            print(f'<DEBUG YONI> run.status: {run.status}')
+            print(f'<DEBUG YONI> run.status.results: {run.status.results}')
+            print(f'<DEBUG YONI> run.status.results["workflow_id"]: {run.status.results.get("workflow_id", None)}')
 
             # Fetching workflow id:
+            once = True
             while not run_id:
                 run.refresh(db=db)
                 run_id = run.status.results.get("workflow_id", None)
+                if once:
+                    print(f'<DEBUG YONI> db: {db}')
+                    print(f'<DEBUG YONI> run: {run}')
+                    print(f'<DEBUG YONI> run.status: {run.status}')
+                    print(f'<DEBUG YONI> run.status.results: {run.status.results}')
+                    print(f'<DEBUG YONI> run.status.results["workflow_id"]: {run.status.results.get("workflow_id", None)}')
+                    once = False
                 time.sleep(1)
             # After fetching the workflow_id the workflow executed successfully
             state = mlrun.run.RunStatuses.succeeded

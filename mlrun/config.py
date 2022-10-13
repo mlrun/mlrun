@@ -240,7 +240,7 @@ default_config = {
             "connections_pool_max_overflow": None,
             # for more options head to
             # https://docs-sqlalchemy.readthedocs.io/ko/latest/dialects/mysql.html#transaction-isolation-level
-            "isolation_level": "READ_COMMITTED",
+            "isolation_level": "READ COMMITTED",
         },
         "jobs": {
             # whether to allow to run local runtimes in the API - configurable to allow the scheduler testing to work

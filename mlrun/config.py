@@ -346,6 +346,7 @@ default_config = {
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
+        # See mlrun.api.schemas.ModelEndpointStoreType for available options
         "store_type": "kv",
     },
     "secret_stores": {
@@ -852,6 +853,10 @@ class Config:
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return True if mlrun.mlconf.nuclio_version else False
+
+    def get_v3io_access_key(self):
+        # Get v3io access key from the environment
+        return os.environ.get("V3IO_ACCESS_KEY")
 
 
 # Global configuration

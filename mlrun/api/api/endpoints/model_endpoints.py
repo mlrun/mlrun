@@ -325,7 +325,6 @@ def get_model_endpoint(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-    raise_for_status=None,
 ) -> mlrun.api.schemas.ModelEndpoint:
     """Get a single model endpoint object. You can apply different time series metrics that will be added to the
        result.
@@ -345,7 +344,6 @@ def get_model_endpoint(
     :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
                              the output of the resulting object.
     :param auth_info:        The auth info of the request.
-    :param raise_for_status: Raise a specific error based on the given response status code.
 
     :return: A ModelEndpoint object.
     """
@@ -365,5 +363,4 @@ def get_model_endpoint(
         start=start,
         end=end,
         feature_analysis=feature_analysis,
-        raise_for_status=raise_for_status,
     )

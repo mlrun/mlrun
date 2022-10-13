@@ -482,7 +482,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_model_endpoint_record(
+    def delete_model_endpoint(
         self,
         project: str,
         endpoint_id: str,

@@ -61,3 +61,7 @@ class EventKeyMetrics:
     BASE_METRICS = "base_metrics"
     CUSTOM_METRICS = "custom_metrics"
     ENDPOINT_FEATURES = "endpoint_features"
+
+
+class TimeSeriesTarget:
+    TSDB = "tsdb"

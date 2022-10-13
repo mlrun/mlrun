@@ -2535,7 +2535,7 @@ class HTTPRunDB(RunDBInterface):
             body=model_endpoint.json(),
         )
 
-    def delete_model_endpoint_record(
+    def delete_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
@@ -2583,9 +2583,14 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
             (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics
-        :param end: The end time of the metrics
-        :param access_key: V3IO access key, when None, will be look for in environ
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
+                                 days), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
+                                 days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
         """
@@ -2622,8 +2627,12 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics
-        :param end: The end time of the metrics
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
+                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
+                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
             the output of the resulting object
         """
@@ -2664,7 +2673,7 @@ class HTTPRunDB(RunDBInterface):
                                             'hellinger_sum': 3.6,
                                             'hellinger_mean': 0.9,
                                             'kld_sum': 24.2,
-                                             kld_mean': 6.0,
+                                            'kld_mean': 6.0,
                                             'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
                                             'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
 
@@ -2674,7 +2683,6 @@ class HTTPRunDB(RunDBInterface):
                                 "drift_status": "DRIFT_DETECTED",
                            }
 
-        :param access_key: V3IO access key, when None, will be look for in environ.
         """
 
         attributes = {"attributes": _as_json(attributes)}

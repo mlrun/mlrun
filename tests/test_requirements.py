@@ -123,11 +123,12 @@ def test_requirement_specifiers_convention():
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=1,<7"},
+        "pyarrow": {">=3,<7"},
         "nbclassic": {">=0.2.8"},
-        "protobuf": {">=3.20.1, !=3.20.2, <4"},
+        "protobuf": {">=3.20.2, <4"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
+        "nuclio-jupyter": {"==0.9.2"},
     }
 
     for (

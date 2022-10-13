@@ -139,21 +139,21 @@ def submit_workflow(
         )
         load_and_run_fn.save()
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
+        print_debug('workflow spec', workflow_spec)  # TODO: Remove!
+        run = mlrun.projects.pipelines._RemoteRunner.run(
+            project=project,
+            workflow_spec=workflow_spec,
+            name=name,
+            workflow_handler=workflow_spec.handler,
+            artifact_path=artifact_path,
+            namespace=namespace,
+            api_function=load_and_run_fn,
+        )
+
+        print_debug("run result", run)  # TODO: Remove!
+        if run:
+            return run.run_id
+
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
-
-    print_debug('workflow spec', workflow_spec)  # TODO: Remove!
-    run = mlrun.projects.pipelines._RemoteRunner.run(
-        project=project,
-        workflow_spec=workflow_spec,
-        name=name,
-        workflow_handler=workflow_spec.handler,
-        artifact_path=artifact_path,
-        namespace=namespace,
-        api_function=load_and_run_fn,
-    )
-
-    print_debug("run result", run)  # TODO: Remove!
-    if run:
-        return run.run_id

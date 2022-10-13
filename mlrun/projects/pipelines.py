@@ -765,7 +765,7 @@ class _RemoteRunner(_PipelineRunner):
                 return
             # Fetching workflow id:
             while not run_id:
-                run.refresh()
+                run.refresh(db=load_and_run_fn._get_db())
                 run_id = run.status.results.get("workflow_id", None)
                 time.sleep(1)
             # After fetching the workflow_id the workflow executed successfully

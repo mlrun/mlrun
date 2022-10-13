@@ -88,7 +88,6 @@ extras_require = {
         "azure-core~=1.23",
         "azure-storage-blob~=12.13",
         "adlfs~=2021.8.1",
-        "importlib-metadata==2.0.0",
     ],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
     "bokeh": [

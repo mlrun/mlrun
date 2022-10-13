@@ -122,9 +122,9 @@ class Member(
                 # for further read: https://docs-sqlalchemy.readthedocs.io/ko/latest/faq/sessions.html
                 # https://docs-sqlalchemy.readthedocs.io/ko/latest/dialects/mysql.html#transaction-isolation-level
                 # https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html
-                # TODO: there are multiple isolation level we can choose, READ COMMITTED seems to solve our issue
-                #  but will require deeper investigation and more test coverage
-                if commit_before_get:
+                # TODO: remove this commit in (1.4.0), if we feel we're stable with the
+                #  new isolation level(READ COMMITTED)
+                if commit_before_get and mlrun.mlconf.db.isolation_level != "READ COMMITTED":
                     db_session.commit()
 
                 created_project = self.get_project(

@@ -124,7 +124,10 @@ class Member(
                 # https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html
                 # TODO: remove this commit in (1.4.0), if we feel we're stable with the
                 #  new isolation level(READ COMMITTED)
-                if commit_before_get and mlrun.mlconf.db.isolation_level != "READ COMMITTED":
+                if (
+                    commit_before_get
+                    and mlrun.mlconf.db.isolation_level != "READ COMMITTED"
+                ):
                     db_session.commit()
 
                 created_project = self.get_project(

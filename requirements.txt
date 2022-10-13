@@ -26,10 +26,6 @@ nest-asyncio~=1.0
 ipython~=7.0
 # 0.9.3 resulted a breakage with other requirements, pinning to 0.9.2
 nuclio-jupyter==0.9.2
-# nuclio-jupyter 0.9.3 requires nbconvert 6.4.5 which requires importlib_metadata>=3.6
-# when installing mlrun with old version of pip on a venv that already had a lower version of importlib_metadata it didn't upgrade it
-# therefore adding it explicitly
-importlib_metadata>=3.6
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
 # limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us

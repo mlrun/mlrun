@@ -14,10 +14,12 @@
 #
 import json
 import os
+import warnings
 from http import HTTPStatus
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
@@ -27,6 +29,59 @@ import mlrun.api.utils.auth.verifier
 from mlrun.errors import MLRunConflictError
 
 router = APIRouter()
+
+
+@router.put(
+    "/projects/{project}/model-endpoints/{endpoint_id}",
+    response_model=mlrun.api.schemas.ModelEndpoint,
+)
+def create_or_patch(
+    project: str,
+    endpoint_id: str,
+    model_endpoint: mlrun.api.schemas.ModelEndpoint,
+    auth_info: mlrun.api.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+) -> mlrun.api.schemas.ModelEndpoint:
+    """
+    Either create or updates the record of a given ModelEndpoint object.
+    Leaving here for backwards compatibility.
+    """
+
+    warnings.warn(
+        "This PUT call is deprecated, please use POST for create or PATCH for update"
+        "This will be removed in 1.5.0",
+        # TODO: Remove this API in 1.5.0
+        PendingDeprecationWarning,
+    )
+
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
+        project,
+        endpoint_id,
+        mlrun.api.schemas.AuthorizationAction.store,
+        auth_info,
+    )
+    # get_access_key will validate the needed auth (which is used later) exists in the request
+    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+    if project != model_endpoint.metadata.project:
+        raise MLRunConflictError(
+            f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
+        )
+    if endpoint_id != model_endpoint.metadata.uid:
+        raise MLRunConflictError(
+            f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
+            f"\nMake sure the supplied function_uri, and model are configured as intended"
+        )
+    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
+    # V3IO_ACCESS_KEY here
+    return mlrun.api.crud.ModelEndpoints().create_or_patch(
+        db_session=db_session,
+        access_key=os.environ.get("V3IO_ACCESS_KEY"),
+        model_endpoint=model_endpoint,
+        auth_info=auth_info,
+    )
 
 
 @router.post(
@@ -73,15 +128,9 @@ def create_model_endpoint(
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
 
-    mlrun.api.crud.ModelEndpoints().create_model_endpoint(
+    return mlrun.api.crud.ModelEndpoints().create_model_endpoint(
         db_session=db_session,
-        access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
-    )
-    return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
-        auth_info=auth_info,
-        project=project,
-        endpoint_id=endpoint_id,
     )
 
 
@@ -89,7 +138,7 @@ def create_model_endpoint(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     response_model=mlrun.api.schemas.ModelEndpoint,
 )
-def patch_model_endpoint(
+async def patch_model_endpoint(
     project: str,
     endpoint_id: str,
     attributes: str = None,
@@ -105,11 +154,18 @@ def patch_model_endpoint(
     :param attributes:    Attributes that will be updated. The input is provided in a json structure that will be
                           converted into a dictionary before applying the patch process. Note that the keys of
                           dictionary should exist in the DB target.
+
+                          example::
+
+                          attributes = {"drift_status": "POSSIBLE_DRIFT", "state": "new_state"}
+
     :param auth_info:     The auth info of the request.
 
     :return: A Model endpoint object.
     """
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+
+    await run_in_threadpool(
+        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -117,16 +173,15 @@ def patch_model_endpoint(
         auth_info=auth_info,
     )
 
-    mlrun.api.crud.ModelEndpoints().patch_model_endpoint(
+    if not attributes:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"No attributes provided for patching the model endpoint {endpoint_id}",
+        )
+    return await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().patch_model_endpoint,
         project=project,
         endpoint_id=endpoint_id,
-        access_key=os.environ.get("V3IO_ACCESS_KEY"),
         attributes=json.loads(attributes),
-    )
-    return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
-        auth_info=auth_info,
-        project=project,
-        endpoint_id=endpoint_id,
     )
 
 
@@ -134,13 +189,13 @@ def patch_model_endpoint(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-def delete_endpoint_record(
+def delete_model_endpoint(
     project: str,
     endpoint_id: str,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-) -> Response:
+):
     """
     Clears endpoint record from the DB based on endpoint_id.
 
@@ -148,7 +203,6 @@ def delete_endpoint_record(
     :param endpoint_id:   The unique id of the model endpoint.
     :param auth_info:     The auth info of the request.
 
-    :return: Starlette response object.
     """
 
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -162,9 +216,7 @@ def delete_endpoint_record(
     mlrun.api.crud.ModelEndpoints().delete_model_endpoint(
         project=project,
         endpoint_id=endpoint_id,
-        access_key=os.environ.get("V3IO_ACCESS_KEY"),
     )
-    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get(
@@ -214,8 +266,12 @@ def list_model_endpoints(
                       such as predictions_per_second and latency_avg_5m but also custom metrics defined by the user.
                       Please note that these metrics are stored in the time series DB and the results will be appeared
                       under model_endpoint.spec.metrics of each endpoint.
-    :param start:     The start time of the metrics.
-    :param end:       The end time of the metrics.
+    :param start:     The start time of the metrics. Can be represented by a string containing an RFC 3339
+                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                      `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+    :param end:       The end time of the metrics. Can be represented by a string containing an RFC 3339
+                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
+                      `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
     :param top_level: If True will return only routers and endpoint that are NOT children of any router.
     :param uids:      Will return ModelEndpointList of endpoints with uid in uids.
 
@@ -276,8 +332,12 @@ def get_model_endpoint(
 
     :param project:          The name of the project.
     :param endpoint_id:      The unique id of the model endpoint.
-    :param start:            The start time of the metrics.
-    :param end:              The end time of the metrics.
+    :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
+                             time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                             where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+    :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
+                             time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                             where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
     :param metrics:          A list of metrics to return for the model endpoint. There are pre-defined metrics for model
                              endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
                              defined by the user. Please note that these metrics are stored in the time series DB and
@@ -296,6 +356,7 @@ def get_model_endpoint(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
+
     return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info,
         project=project,

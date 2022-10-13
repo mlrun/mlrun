@@ -230,6 +230,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run make install-requirements
       run: make install-requirements
+    - name: check if there are conflicts (mainly for sanity)
+      run: python -m pip check
 
   verify-compatible-requirements-complete:
     name: Verify compatible requirements (complete)
@@ -238,4 +240,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run make install-complete-requirements
       run: make install-complete-requirements
+    - name: check if there are conflicts (mainly for sanity)
+      run: python -m pip check
 

@@ -33,9 +33,8 @@ def _update_dict(d, e):
     """
     updating a dict d favoring values from e (None)
     """
-    for key, val in d.items():
-        if key in e:
-            d[val] = e[val] or d[val]
+    for key, val in e.items():
+        d[val] = e[val] or d.get(val, None)
     return d
 
 

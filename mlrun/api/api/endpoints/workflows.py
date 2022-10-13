@@ -24,9 +24,9 @@ router = fastapi.APIRouter()
 
 
 def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
-    for wf in project.spec.workflows:
-        if wf["name"] == workflow:
-            return wf
+    for project_workflow in project.spec.workflows:
+        if project_workflow["name"] == workflow:
+            return project_workflow
 
 
 def print_debug(key, val):
@@ -90,6 +90,8 @@ def submit_workflow(
             # Update with favor to the workflow's spec from the input.:
             workflow = _get_workflow_by_name(project, spec.name)
             workflow_spec = copy.deepcopy(workflow)
+            print_debug("workflow_spec", workflow_spec)
+            print_debug("spec", spec)
             workflow_spec.update(spec.dict())
         else:
             workflow_spec = spec.dict()
@@ -130,20 +132,25 @@ def submit_workflow(
         project=project.metadata.name,
         kind="job",
         image=mlrun.mlconf.default_base_image,
-        # kfp=('kfp' in workflow_spec.engine),
     )
 
     try:
+        # Setting a connection between the function and the DB:
         run_db = get_run_db_instance(db_session)
         load_and_run_fn.set_db_connection(run_db)
+        # Generating an access key:
         load_and_run_fn.metadata.credentials.access_key = "$generate"
+
         apply_enrichment_and_validation_on_function(
             function=load_and_run_fn,
             auth_info=auth_info,
         )
         load_and_run_fn.save()
+
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
+
         print_debug("workflow spec", workflow_spec)  # TODO: Remove!
+        # Running workflow from the remote engine:
         run = mlrun.projects.pipelines._RemoteRunner.run(
             project=project,
             workflow_spec=workflow_spec,
@@ -155,8 +162,10 @@ def submit_workflow(
         )
 
         print_debug("run result", run)  # TODO: Remove!
+        # run is None for scheduled workflows:
         if run:
-            return run.run_id
+            return {"workflow_id": run.run_id}
+        return {"result": "The workflow was scheduled successfully"}
 
     except Exception as err:
         logger.error(traceback.format_exc())

@@ -28,6 +28,14 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
         if project_workflow["name"] == workflow:
             return project_workflow
 
+def _update_dict(d, e):
+    """
+    updating a dict d favoring values from e (None)
+    """
+    for key, val in d.items():
+        if key in e:
+            d[val] = e[val] or d[val]
+    return d
 
 def print_debug(key, val):
     prefix = " <DEBUG YONI>     "
@@ -90,9 +98,7 @@ def submit_workflow(
             # Update with favor to the workflow's spec from the input.:
             workflow = _get_workflow_by_name(project, spec.name)
             workflow_spec = copy.deepcopy(workflow)
-            print_debug("workflow_spec", workflow_spec)
-            print_debug("spec", spec)
-            workflow_spec.update(spec.dict())
+            _update_dict(workflow_spec, spec.dict())
         else:
             workflow_spec = spec.dict()
     else:

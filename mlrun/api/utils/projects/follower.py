@@ -122,7 +122,7 @@ class Member(
                 # for further read: https://docs-sqlalchemy.readthedocs.io/ko/latest/faq/sessions.html
                 # https://docs-sqlalchemy.readthedocs.io/ko/latest/dialects/mysql.html#transaction-isolation-level
                 # https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html
-                # TODO: remove this commit in (1.4.0), if we feel we're stable with the
+                # TODO: remove this condition in (1.4.0), if we feel we're stable with the
                 #  new isolation level(READ COMMITTED)
                 if (
                     commit_before_get

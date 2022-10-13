@@ -26,10 +26,10 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
 
 
 def print_debug(key, val):
-    prefix = "<DEBUG YONI>\n"
-    suffix = "\n<END DEBUG YONI>"
+    prefix = " <DEBUG YONI>     "
+    suffix = "     <END DEBUG YONI> "
     msg = f"{key}: {val}\n type: {type(val)}"
-    print(prefix + msg + suffix)
+    print(10 * '*' + prefix + msg + suffix + 10 * '*')
 
 
 @router.post(

@@ -763,9 +763,14 @@ class _RemoteRunner(_PipelineRunner):
             )
             if workflow_spec.schedule:
                 return
+
+            db = None if not via_api else load_and_run_fn._get_db()
+            print(f'<DEBUG YONI> db: {db}')
+            run.refresh(db=db)
+
             # Fetching workflow id:
             while not run_id:
-                run.refresh(db=load_and_run_fn._get_db())
+                run.refresh(db=db)
                 run_id = run.status.results.get("workflow_id", None)
                 time.sleep(1)
             # After fetching the workflow_id the workflow executed successfully

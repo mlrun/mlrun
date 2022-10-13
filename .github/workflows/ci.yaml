@@ -223,10 +223,19 @@ jobs:
           # limitations under the License.
           "
 
-  verify-no-conflicts:
-    name: Verify no conflicts
+  verify-compatible-requirements:
+    name: Verify compatible requirements
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Run make install-requirements
       run: make install-requirements
+
+  verify-compatible-requirements-complete:
+    name: Verify compatible requirements (complete)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run make install-complete-requirements
+      run: make install-complete-requirements
+

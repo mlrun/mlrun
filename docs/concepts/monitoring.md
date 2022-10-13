@@ -23,4 +23,4 @@ Model performance monitoring is a basic operational task that is implemented aft
    features and labels running as part of the model development phase, making it easier for data science teams to 
    collaborate and maintain consistency between AI projects.
 
-See full details and examples in [Model monitoring](../model_monitoring/index.html).
+See full details and examples in [Model monitoring](../monitoring/index.html).

@@ -95,7 +95,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.1.9"},
+        "storey": {"~=1.2.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
@@ -122,13 +122,12 @@ def test_requirement_specifiers_convention():
         "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
-        "azure-core": {"~=1.23"},
-        "azure-storage-blob": {"~=12.13"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=1,<7"},
         "nbclassic": {">=0.2.8"},
         "protobuf": {">=3.20.1, !=3.20.2, <4"},
         "pandas": {"~=1.2, <1.5.0"},
+        "importlib_metadata": {">=3.6"},
     }
 
     for (

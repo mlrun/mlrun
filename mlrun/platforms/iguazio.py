@@ -367,6 +367,7 @@ class OutputStream:
         endpoint=None,
         access_key=None,
         mock=False,
+        **kwargs,  # to avoid failing on extra parameters
     ):
         v3io_client_kwargs = {}
         if endpoint:

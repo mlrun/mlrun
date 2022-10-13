@@ -126,7 +126,7 @@ class Member(
                 #  new isolation level(READ COMMITTED)
                 if (
                     commit_before_get
-                    and mlrun.mlconf.db.isolation_level != "READ COMMITTED"
+                    and mlrun.mlconf.httpdb.db.isolation_level != "READ COMMITTED"
                 ):
                     db_session.commit()
 

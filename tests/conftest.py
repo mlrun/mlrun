@@ -27,6 +27,8 @@ from urllib.request import URLError, urlopen
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from mlrun.config import config
+
 tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
 is_ci = "CI" in environ
@@ -127,7 +129,8 @@ def freeze(f, **kwargs):
 
 
 def init_sqldb(dsn):
-    engine = create_engine(dsn)
+    kwargs = {"isolation_level": config.httpdb.db.isolation_level}
+    engine = create_engine(dsn, **kwargs)
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)
 

@@ -775,7 +775,7 @@ class _RemoteRunner(_PipelineRunner):
 
             # Fetching workflow id:
             while not run_id:
-                run.refresh(db=db, commit=True)
+                run.refresh(db=db)
                 run_id = run.status.results.get("workflow_id", None)
                 print(f"<DEBUG YONI> db: {db}")
                 print(f"<DEBUG YONI> run: {run}")

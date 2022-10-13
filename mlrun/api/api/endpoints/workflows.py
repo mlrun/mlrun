@@ -28,6 +28,7 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
         if project_workflow["name"] == workflow:
             return project_workflow
 
+
 def _update_dict(d, e):
     """
     updating a dict d favoring values from e (None)
@@ -36,6 +37,7 @@ def _update_dict(d, e):
         if key in e:
             d[val] = e[val] or d[val]
     return d
+
 
 def print_debug(key, val):
     prefix = " <DEBUG YONI>     "

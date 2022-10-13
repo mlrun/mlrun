@@ -253,7 +253,7 @@ class BaseMerger(abc.ABC):
         """This method parse all feature set relations to a format such as self._relations if self._relations is None,
         and when check if each relation as entity included"""
         if self._relation == {}:
-            for name, columns in feature_set_fields.items():
+            for name, _ in feature_set_fields.items():
                 feature_set = feature_set_objects[name]
                 fs_relations = feature_set.spec.relations
                 for other_fs, relation in fs_relations.items():
@@ -278,9 +278,13 @@ class BaseMerger(abc.ABC):
                         f"{second_fs} is not valid"
                     )
 
+    def create_linked_relation_list(self, feature_set_objects, feature_set_fields):
+        relation_linked_list = LinkedList()
+
 
 class Node:
-    def __init__(self, data):
+    def __init__(self, name: str, data: Dict[str, Any] = None):
+        self.name = name
         self.data = data
         self.next = None
 
@@ -296,7 +300,7 @@ class LinkedList:
         node = self.head
         nodes = []
         while node is not None:
-            nodes.append(node.data)
+            nodes.append(node.name)
             node = node.next
         nodes.append("None")
         return " -> ".join(nodes)

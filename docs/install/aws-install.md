@@ -38,17 +38,18 @@ It's recommended to go through the quick start and the other tutorials as shown 
 ## AWS services to be aware of
 
 When installing the MLRun Community Edition via Cloud Formation, several storage resources are created, some of which persist even after uninstalling the stack:
-* PVs via AWS storage provider: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted once the stack is uninstalled.
-* S3 Bucket: A bucket named `mlrun` is created in the AWS account that installs the stack. The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
-* Container Images in ECR: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
+- PVs via AWS storage provider: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted once the stack is uninstalled.
+- S3 Bucket: A bucket named `mlrun` is created in the AWS account that installs the stack. The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
+- Container Images in ECR: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
 
 ## How to configure the online feature store
 
 The feature store can store data on a fast key value database table for quick serving. This online feature store capability requires an external key value database.
 
-Currently the MLrun feature store supports Iguazio's key value database. The Iguazio roadmap includes support for the Redis database very soon, as well as other key value databases down the road. For more information on the feature store, see {ref}`feature store<feature-store>`.
+Currently the MLRun feature store supports Iguazio's key value database. The Iguazio roadmap includes support for the Redis database very soon, as well as other key value databases down the road. For more information on the feature store, see {ref}`feature store<feature-store>`.
 
-## Integrate MLRun with Kafka for online serving   
+## Integrate MLRun with Kafka for online serving
+
 Online serving use cases often require working with the MLRun graph and use a streaming engine for managing queues between steps and functions. 
 MLRun supports Kafka streams as well as Iguazio V3IO streams. 
 See the examples on how to configure the MLRun serving graph with {ref}`kafka<serving-kafka-stream-example>` and {ref}`V3IO<serving-v3io-stream-example>`.
@@ -56,5 +57,6 @@ See the examples on how to configure the MLRun serving graph with {ref}`kafka<se
 ## Cleanup
 
 To free up the resources used by MLRun
+
 - Delete the stack. See [instructions for deleting a stack on the AWS CloudFormation console](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html) for more details.
 - Delete the `mlrun` s3 bucket.

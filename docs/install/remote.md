@@ -23,9 +23,8 @@ You can write your code on a local machine while running your functions on a rem
 Before you begin, ensure that the following prerequisites are met:
 
 1. Applications:
-   - Supports pip and conda 
+   - Python 3.7   
    - Recommended pip 22.x+
-   - Python 3.8   
 
 2. Install MLRun locally.
 
@@ -71,7 +70,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     MLRUN_DBPATH=<URL endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
 
-3. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well:
+2. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well:
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
@@ -80,8 +79,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
 
     You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of 
     any page, and select **Access Keys** from the menu. In the **Access Keys** window, either copy an existing access key or create a new 
-    key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
-    shell or Jupyter Notebook service.
+    key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-shell or Jupyter Notebook service.
 
 
 You can also set the environment using MLRun SDK, for example:
@@ -95,7 +93,7 @@ mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 
 ### Load the configuration and credential environmental variables from file
 
-You can load the env via config file when working from remote (e.g. via Pycharm).
+You can load the env via config file when working from remote (e.g. via PyCharm).
    
 Example env file:
 
@@ -155,9 +153,11 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
     ![Edit configuration screen](../_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
 
-3. Add the environment variables and values of `MLRUN_DBPATH`, `MLRUN_ARTIFACT_PATH`, `V3IO_USERNAME`, `V3IO_API`, and `V3IO_ACCESS_KEY`.
+3. Add the environment variable and value of `MLRUN_DBPATH`.
 
     ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
+
+   > If the remote service is on an instance of the Iguazio MLOps Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
 ### Remote environment from VSCode
 
@@ -168,11 +168,8 @@ Create an environment file called `mlrun.env` in your workspace folder. Copy-pas
 ``` ini
 # Remote URL to mlrun service
 MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
-# Root artifact path on the remote server
-MLRUN_ARTIFACT_PATH=<remote path; e.g., "/User/artifacts/{{run.project}}">
 # Iguazio platform username
 V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-# V3IO data access API URL (copy from the services screen)
 # Iguazio V3IO data layer credentials (copy from your user settings)
 V3IO_ACCESS_KEY=<platform access key>
 ```

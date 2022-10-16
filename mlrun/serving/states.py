@@ -1309,6 +1309,8 @@ def _init_async_objects(context, steps):
                     endpoint = None
                     options = {}
                     options.update(step.options)
+                    # set full_event=True in QueueStep by default
+                    full_event = options.pop("full_event", True)
                     kafka_bootstrap_servers = options.pop(
                         "kafka_bootstrap_servers", None
                     )
@@ -1326,6 +1328,7 @@ def _init_async_objects(context, steps):
                             bootstrap_servers=bootstrap_servers,
                             producer_options=kafka_producer_options,
                             context=context,
+                            full_event=full_event,
                             **options,
                         )
                     else:
@@ -1336,6 +1339,7 @@ def _init_async_objects(context, steps):
                             storey.V3ioDriver(endpoint),
                             stream_path,
                             context=context,
+                            full_event=full_event,
                             **options,
                         )
                 else:

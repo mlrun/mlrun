@@ -35,7 +35,6 @@ def _update_dict(d, e):
     """
     for key, val in e.items():
         d[key] = val or d.get(key, None)
-    return d
 
 
 def print_debug(key, val):

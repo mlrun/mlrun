@@ -97,8 +97,8 @@ def test_runtimes_inheritance():
 
 def test_resource_enrichment_in_resource_spec_initialization():
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "ephemeral_storage": None},
-        "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": None},
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
     }
     expected_resources = {
         "requests": {"cpu": "25m", "memory": "1M"},
@@ -118,8 +118,8 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
     # setting partial requests
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "ephemeral_storage": None},
-        "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": None},
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
     }
     expected_resources = {
         "requests": {"cpu": "1", "memory": "1M"},
@@ -138,8 +138,8 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
     # setting partial requests and limits
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "ephemeral_storage": None},
-        "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": None},
+        "requests": {"cpu": "25m", "memory": "1M"},
+        "limits": {"cpu": "2", "memory": "1G"},
     }
     expected_resources = {
         "requests": {"cpu": "1", "memory": "500M"},
@@ -169,7 +169,7 @@ def test_resource_enrichment_in_resource_spec_initialization():
 
     # setting partial requests and limits with equal gpus
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "ephemeral_storage": None},
+        "requests": {"cpu": "25m", "memory": "1M"},
         "limits": {"cpu": "2", "memory": "1G"},
     }
     expected_resources = {

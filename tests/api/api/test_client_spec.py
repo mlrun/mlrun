@@ -78,9 +78,8 @@ def test_client_spec(
             "cpu": "25m",
             "memory": "1M",
             "gpu": "",
-            "ephemeral_storage":""
         },
-        "limits": {"cpu": "2", "memory": "1G", "gpu": "","ephemeral_storage":""},
+        "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
     }
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value

@@ -120,7 +120,7 @@ class LGBMModelHandler(MLModelHandler):
                                          model.
         :param context:                  MLRun context to work with for logging the model.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'LGBMModelHandler.ModelFormats'. Default: 
+                                         member of the class 'LGBMModelHandler.ModelFormats'. Default:
                                          'LGBMModelHandler.ModelFormats.PKL'.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters are invalid.

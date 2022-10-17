@@ -24,7 +24,7 @@ class Callback(ABC):
 
     There are two configurable class properties:
 
-    * order: int = 10 - The priority of the callback to be called first. Lower value means higher priority. Default: 
+    * order: int = 10 - The priority of the callback to be called first. Lower value means higher priority. Default:
       10.
     * before_iteration: bool = False - Whether to call this callback before each iteration or after. Default: after
       (False).

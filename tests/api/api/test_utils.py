@@ -111,8 +111,15 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                     },
                 ],
                 "resources": {
-                    "limits": {"cpu": "250m", "memory": "64Mi", "nvidia.com/gpu": "2"},
-                    "requests": {"cpu": "200m", "memory": "32Mi"},
+                    "limits": {
+                        "cpu": "250m",
+                        "memory": "64Mi",
+                        "nvidia.com/gpu": "2",
+                    },
+                    "requests": {
+                        "cpu": "200m",
+                        "memory": "32Mi",
+                    },
                 },
                 "image_pull_policy": "Always",
                 "replicas": "3",
@@ -1340,8 +1347,12 @@ def _generate_original_function(
                 },
             ],
             "resources": {
-                "limits": {"cpu": "40m", "memory": "128Mi", "nvidia.com/gpu": "7", 'ephemeral_storage': None},
-                "requests": {"cpu": "15m", "memory": "86Mi",'ephemeral_storage': None},
+                "limits": {
+                    "cpu": "40m",
+                    "memory": "128Mi",
+                    "nvidia.com/gpu": "7",
+                },
+                "requests": {"cpu": "15m", "memory": "86Mi",},
             },
             "env": [
                 {"name": "OLD_ENV_VAR_KEY", "value": "old-env-var-value"},

@@ -417,12 +417,7 @@ default_config = {
             "gpu": None,
             "ephemeral_storage": None,
         },
-        "limits": {
-            "cpu": None, 
-            "memory": None, 
-            "gpu": None, 
-            "ephemeral_storage": None
-        },
+        "limits": {"cpu": None, "memory": None, "gpu": None, "ephemeral_storage": None},
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {

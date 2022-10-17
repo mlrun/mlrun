@@ -74,8 +74,13 @@ def test_client_spec(
 
     # check default_function_pod_resources when values set
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
-        "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
+        "requests": {
+            "cpu": "25m",
+            "memory": "1M",
+            "gpu": "",
+            "ephemeral_storage":""
+        },
+        "limits": {"cpu": "2", "memory": "1G", "gpu": "","ephemeral_storage":""},
     }
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value

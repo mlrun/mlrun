@@ -402,27 +402,34 @@ class KubeResourceSpec(FunctionSpec):
         if resources:
             for resource_requirement in resource_requirements:
                 for resource_type in resources_types:
-                    if (resources.setdefault(resource_requirement, {}).setdefault(resource_type) is None):
-                        resources[resource_requirement][resource_type] = default_resources[resource_requirement][resource_type]
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None and resource_type in default_resources[resource_requirement].keys()
+                    ):
+                        resources[resource_requirement][
+                            resource_type
+                        ] = default_resources[resource_requirement][resource_type]
         # This enables the user to define that no defaults would be applied on the resources
         elif resources == {}:
             return resources
         else:
             resources = default_resources
-        
+
         resources["requests"] = verify_requests(
             resources_field_name,
             mem=resources["requests"]["memory"],
             cpu=resources["requests"]["cpu"],
-            ephemeral_storage=resources["requests"].get("ephemeral_storage",None),
+            ephemeral_storage=resources["requests"].get("ephemeral_storage", None),
         )
         gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
-        
+
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
-            ephemeral_storage=resources["limits"].get("ephemeral_storage",None),
+            ephemeral_storage=resources["limits"].get("ephemeral_storage", None),
             gpus=gpu_value,
             gpu_type=gpu_type,
         )

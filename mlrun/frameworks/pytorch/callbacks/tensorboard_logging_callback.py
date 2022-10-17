@@ -281,7 +281,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                                         epoch, the weights names should be passed here. Note that each name given will
                                         be searched as 'if <NAME> in <WEIGHT_NAME>' so a simple module name will be
                                         enough to catch his weights. A boolean value can be passed to track all weights.
-                                        Defaulted to False.
+                                        Default: False.
         :param statistics_functions:    A list of statistics functions to calculate at the end of each epoch on the
                                         tracked weights. Only relevant if weights are being tracked. The functions in
                                         the list must accept one Parameter (or Tensor) and return a float (or float

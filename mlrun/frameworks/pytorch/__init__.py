@@ -70,7 +70,7 @@ def train(
     :param scheduler_step_frequency:    The frequency in which to step the given scheduler. Can be equal to one of the
                                         strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                         every batch), or an integer that specify per how many iterations to step or a
-                                        float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                        float percentage (0.0 < x < 1.0) for per x / iterations to step. Default: 
                                         'epoch'.
     :param epochs:                      Amount of epochs to perform. Default: a single epoch.
     :param training_iterations:         Amount of iterations (batches) to perform on each epoch's training. If 'None'
@@ -78,12 +78,12 @@ def train(
     :param validation_iterations:       Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                         the entire validation set will be used.
     :param callbacks_list:              The callbacks to use on this run.
-    :param use_cuda:                    Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+    :param use_cuda:                    Whether or not to use cuda. Only relevant if cuda is available. Default: 
                                         True.
-    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Default: 
                                         False.
-    :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Defaulted
-                                        to True. IF True, the custom objects are not optional.
+    :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Default:
+                                        True. IF True, the custom objects are not optional.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
                                         class name will be used.
     :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
@@ -234,7 +234,7 @@ def evaluate(
                                      dataset will be used.
     :param callbacks_list:           The callbacks to use on this run.
     :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default: True.
-    :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:              Whether or not to use horovod - a distributed training framework. Default: 
                                      False.
     :param auto_log:                 Whether or not to apply auto-logging to MLRun. Default: True.
     :param model_name:               The model name to use for storing the model artifact. If not given, the model's

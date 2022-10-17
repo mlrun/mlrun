@@ -1919,7 +1919,7 @@ def handler(
                     values:
 
                     * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
-                            indicate the key and the artifact type will be defaulted according to the returned value
+                            indicate the key and the artifact type will be according to the returned value
                             type.
                     * tuple - A tuple of:
 
@@ -1952,7 +1952,7 @@ def handler(
                    * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse the
                                        `mlrun.DataItem` to.
 
-                   Defaulted to True.
+                   Default: True.
 
     Example::
 

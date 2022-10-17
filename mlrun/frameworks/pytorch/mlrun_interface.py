@@ -132,7 +132,7 @@ class PyTorchMLRunInterface:
         :param scheduler_step_frequency: The frequency in which to step the given scheduler. Can be equal to one of the
                                          strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                          every batch), or an integer that specify per how many iterations to step or a
-                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Default: 
                                          'epoch'.
         :param epochs:                   Amount of epochs to perform. Default: a single epoch.
         :param training_iterations:      Amount of iterations (batches) to perform on each epoch's training. If 'None'
@@ -425,7 +425,7 @@ class PyTorchMLRunInterface:
         :param scheduler_step_frequency: The frequecny in which to step the given scheduler. Can be equal to one of the
                                          strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                          every batch), or an integer that specify per how many iterations to step or a
-                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Default: 
                                          'epoch'.
         :param epochs:                   Amount of epochs to perform. Default: a single epoch.
         :param training_iterations:      Amount of iterations (batches) to perform on each epoch's training. If 'None'
@@ -433,9 +433,9 @@ class PyTorchMLRunInterface:
         :param validation_iterations:    Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                          the entire validation set will be used.
         :param callbacks:                The callbacks to use on this run.
-        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default: 
                                          True.
-        :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
+        :param use_horovod:              Whether or not to use horovod - a distributed training framework. Default: 
                                          None, meaning it will be read from context if available and if not - False.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters is invalid.

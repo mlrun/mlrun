@@ -53,7 +53,7 @@ class MLPlan(Plan, ABC):
         Initialize a new ML plan.
 
         :param need_probabilities: Whether this plan will need the predictions return from 'model.predict()' or
-                                   'model.predict_proba()'. True means predict_proba and False predict. Defaulted to
+                                   'model.predict_proba()'. True means predict_proba and False predict. Default: 
                                    False.
         """
         self._need_probabilities = need_probabilities

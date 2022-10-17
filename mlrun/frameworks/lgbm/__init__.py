@@ -275,7 +275,7 @@ def apply_mlrun(
     :param parameters:               Parameters to log with the model.
     :param extra_data:               Extra data to log with the model.
     :param auto_log:                 Whether to apply MLRun's auto logging on the model. Auto logging will add the
-                                     default artifacts and metrics to the lists of artifacts and metrics. Defaulted to
+                                     default artifacts and metrics to the lists of artifacts and metrics. Default: 
                                      True.
     :param mlrun_logging_callback_kwargs: Key word arguments for the MLRun callback. For further information see the
                                      documentation of the class 'MLRunLoggingCallback'. Note that 'context' is already

@@ -100,7 +100,7 @@ class PyTorchModelServer(V2ModelServer):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default: 
                                          True.
         :param to_list:                  Whether to return a list instead of a torch.Tensor. Default: False.
         :param protocol:                 -

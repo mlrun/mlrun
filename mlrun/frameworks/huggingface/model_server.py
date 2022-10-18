@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from importlib import import_module
-from typing import List
 import json
+from importlib import import_module
+from typing import Any, Dict, List
+
 from transformers import pipeline
-from typing import Any, Dict
 
 import mlrun
 from mlrun.serving.v2_serving import V2ModelServer
@@ -124,6 +124,7 @@ class HuggingFaceModelServer(V2ModelServer):
 
         :param request: The request to the model. The input to the model will be read from the "inputs" key.
 
+        :return: The model's prediction on the given input.
         """
         if self.pipe is None:
             raise ValueError("Please use `.load()`")
@@ -156,4 +157,11 @@ class HuggingFaceModelServer(V2ModelServer):
         return result
 
     def explain(self, request: Dict) -> str:
+        """
+        Return a string explaining what model is being served in this serving function and the function name.
+
+        :param request: A given request.
+
+        :return: Explanation string.
+        """
         return f"The '{self.model_name}' model serving function named '{self.name}"

@@ -123,20 +123,19 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
-        # full_event defaults to True in QueueStep
         graph.to(
             ">>",
             "q1",
             path=f"v3io:///{self.stream_container}{self.stream_path}",
             sharding_func=1,
             shards=3,
+            full_event=True,
         ).to(name="child", class_name="Identity", function="child").to(
             ">>",
             "out",
             path=f"/{self.stream_container}{self.stream_path_out}",
             sharding_func=2,
             shards=3,
-            full_event=False,
         )
 
         graph.add_step(
@@ -145,26 +144,16 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
 
         graph["out"].after_step("otherchild")
 
-        c1 = function.add_child_function(
+        function.add_child_function(
             "child",
             child_code_path,
             image="mlrun/mlrun",
         )
-        c2 = function.add_child_function(
+        function.add_child_function(
             "otherchild",
             child_code_path,
             image="mlrun/mlrun",
         )
-
-        build_commands = [
-            "pip uninstall  --yes mlrun storey",
-            "pip install git+https://github.com/gtopper/mlrun.git@ML-2672",
-            "pip install git+https://github.com/gtopper/storey.git@ML-2672",
-        ]
-
-        function.spec.build.commands = build_commands
-        c1.spec.build.commands = build_commands
-        c2.spec.build.commands = build_commands
 
         self._logger.debug("Deploying nuclio function")
         url = function.deploy()
@@ -283,19 +272,18 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
-        # full_event defaults to True in QueueStep
         graph.to(
             ">>",
             "q1",
             path=f"kafka://{self.brokers}/{self.topic}",
             sharding_func=1,
+            full_event=True,
         ).to(name="child", class_name="Identity", function="child").to(
             ">>",
             "out",
             path=self.topic_out,
             kafka_bootstrap_servers=self.brokers,
             sharding_func=2,
-            full_event=False,
         )
 
         graph.add_step(
@@ -304,26 +292,16 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph["out"].after_step("other-child")
 
-        c1 = function.add_child_function(
+        function.add_child_function(
             "child",
             child_code_path,
             image="mlrun/mlrun",
         )
-        c2 = function.add_child_function(
+        function.add_child_function(
             "other-child",
             child_code_path,
             image="mlrun/mlrun",
         )
-
-        build_commands = [
-            "pip uninstall --yes mlrun storey",
-            "pip install git+https://github.com/gtopper/mlrun.git@ML-2672",
-            "pip install git+https://github.com/gtopper/storey.git@ML-2672",
-        ]
-
-        function.spec.build.commands = build_commands
-        c1.spec.build.commands = build_commands
-        c2.spec.build.commands = build_commands
 
         self._logger.debug("Deploying nuclio function")
         url = function.deploy()

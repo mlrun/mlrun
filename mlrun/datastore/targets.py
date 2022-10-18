@@ -1701,7 +1701,7 @@ class SqlDBTarget(BaseStoreTarget):
             except Exception:
                 pass
             df.set_index(primary_key, inplace=True)
-            df.to_sql(table_name, connection, if_exists="replace")
+            df.to_sql(table_name, connection, if_exists=if_exists)
 
     def _parse_url(self):
         path = self.path[len("mlrunSql:///") :]

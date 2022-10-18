@@ -18,4 +18,4 @@ scikit-learn~=1.0
 # needed for frameworks tests
 lightgbm~=3.0
 xgboost~=1.1
-transformers~=4.21
+transformers~=3.0

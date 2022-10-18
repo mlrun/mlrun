@@ -2,4 +2,3 @@ gnureadline~=8.0
 transformers~=3.0
 xgboost~=1.1
 tensorboard~=2.5
-transformers~=4.21

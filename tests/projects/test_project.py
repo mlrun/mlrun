@@ -498,12 +498,12 @@ def test_project_ops():
     proj2 = mlrun.new_project("proj2", save=False)
     proj2.set_function(func_path, "f2", image="mlrun/mlrun", handler="myhandler")
 
-    run = proj1.run_function("f1", params={"x": 1})
+    run = proj1.run_function("f1", params={"x": 1}, local=True)
     print(run.to_yaml())
     assert run.spec.function.startswith("proj1/f1")
     assert run.output("y") == 2  # = x * 2
 
-    run = proj2.run_function("f2", params={"x": 2})
+    run = proj2.run_function("f2", params={"x": 2}, local=True)
     print(run.to_yaml())
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2

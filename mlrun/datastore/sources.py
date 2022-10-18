@@ -16,7 +16,7 @@ import os
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 import v3io

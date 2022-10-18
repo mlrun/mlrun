@@ -11,7 +11,7 @@ For AWS users, the easiest way to install MLRun is to use a native AWS deploymen
   For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/).
 
 
-> **Note**: The MLRun software is free of charge, however, there is a cost for the AWS hardware and the EKS service.
+> **Note**: The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR.
 
 
 **Click on the AWS icon to deploy MLRun**

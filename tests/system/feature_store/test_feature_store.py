@@ -1978,6 +1978,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         verify_purge(fset, targets_to_purge)
 
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
     def test_purge_redis(self):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")

@@ -19,15 +19,26 @@ import pytest
 import mlrun.datastore
 from tests.system.base import TestMLRunSystem
 
+redis_endpoints = ["redis://", "redis://localhost:6379"]
 
+
+@pytest.fixture(params=redis_endpoints)
+def redis_endpoint(request):
+    return request.param
+
+
+@pytest.mark.skipif(
+    not mlrun.mlconf.redis.url,
+    reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+)
 class TestRedisDataStore(TestMLRunSystem):
     @staticmethod
     def _skip_set_environment():
         return True
 
-    def test_redis_put_get_object(self):
+    def test_redis_put_get_object(self, redis_endpoint):
 
-        redis_path = "redis:///redis_object"
+        redis_path = redis_endpoint + "/redis_object"
         data_item = mlrun.datastore.store_manager.object(redis_path)
 
         data_item.delete()
@@ -95,6 +106,14 @@ class TestRedisDataStore(TestMLRunSystem):
                 expected.append(obj_path[len(redis_path) :])
 
         dir_item = mlrun.datastore.store_manager.object(list_dir)
+        actual = dir_item.listdir()
+        assert set(expected) == set(
+            actual
+        ), f"expected != actual,\n actual:{actual}\nexpected:{expected}"
+
+        # clean test objects
+        dir_item.store.rm("/dir-0/", recursive=True)
+        expected = []
         actual = dir_item.listdir()
         assert set(expected) == set(
             actual

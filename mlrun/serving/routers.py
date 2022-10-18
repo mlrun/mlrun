@@ -755,7 +755,7 @@ def _init_endpoint_record(
         mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=endpoint_uid)
 
     except mlrun.errors.MLRunNotFoundError:
-        logger.info("Create a new model endpoint record", endpoint_id=endpoint_uid)
+        logger.info("Creating a new model endpoint record", endpoint_id=endpoint_uid)
 
         # Get the children model endpoints ids
         children_uids = []

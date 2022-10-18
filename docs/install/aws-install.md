@@ -46,7 +46,7 @@ When installing the MLRun Community Edition via Cloud Formation, several storage
 
 The feature store can store data on a fast key value database table for quick serving. This online feature store capability requires an external key value database.
 
-Currently the MLRun feature store supports Iguazio's key value database. The Iguazio roadmap includes support for the Redis database very soon, as well as other key value databases down the road. For more information on the feature store, see {ref}`feature store<feature-store>`.
+Currently the MLRun feature store supports Redis and the Iguazio's key value database. To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack.
 
 ## Integrate MLRun with Kafka for online serving
 

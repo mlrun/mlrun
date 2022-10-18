@@ -104,7 +104,7 @@ The simplest option is to specify a list of strings. Each string containers the 
 
 If you decide to use only the name without the type, the following mapping will be used:
 
-| python type              | Artifact type |
+| Python type              | Artifact type |
 |--------------------------|---------------|
 | pandas.DataFrame         | Dataset       |
 | pandas.Series            | Dataset       |

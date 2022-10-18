@@ -22,15 +22,15 @@ After clicking the icon, the browser opens your AWS login page and directs you t
 
 The key components deployed on your EKS cluster are:
 
-* EKS 
-* MLRun server (including the feature store and the MLRun graph)
-* MLRun UI
-* Kubeflow pipeline
-* Real time serverless framework  (Nuclio)
-* Spark operator
-* Jupyter lab
+- MLRun server (including the feature store and the MLRun graph)
+- MLRun UI
+- Kubeflow pipeline
+- Real time serverless framework (Nuclio)
+- Spark operator
+- Jupyter lab
+- Grafana
 
-## Get started
+## Getting started
 Go to the output tab for the stack you created. There are links for the MLRun UI, Jupyter and the Kubeconfig command.
 
 It's recommended to go through the quick start and the other tutorials as shown in the documentation. These tutorials and demos comes built-in with Jupyter under the root folder of Jupyter.
@@ -38,9 +38,10 @@ It's recommended to go through the quick start and the other tutorials as shown 
 ## AWS services to be aware of
 
 When installing the MLRun Community Edition via Cloud Formation, several storage resources are created, some of which persist even after uninstalling the stack:
-- PVs via AWS storage provider: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted once the stack is uninstalled.
-- S3 Bucket: A bucket named `mlrun` is created in the AWS account that installs the stack. The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
-- Container Images in ECR: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
+
+- **PVs via AWS storage provider**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted once the stack is uninstalled.
+- **S3 Bucket**: A bucket named `mlrun` is created in the AWS account that installs the stack. The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
+- **Container Images in ECR**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
 
 ## How to configure the online feature store
 
@@ -64,3 +65,6 @@ To free up the resources used by MLRun
 
 - Delete the stack. See [instructions for deleting a stack on the AWS CloudFormation console](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html) for more details.
 - Delete the `mlrun` s3 bucket.
+- Delete any remaining images in ECR.
+
+You may also need to check any external storage that you used.

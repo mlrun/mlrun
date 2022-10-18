@@ -14,6 +14,8 @@
 
 import uuid
 
+import pandas as pd
+
 import mlrun
 from mlrun.datastore.sources import get_source_from_dict, get_source_step
 from mlrun.datastore.targets import (
@@ -63,6 +65,9 @@ def init_featureset_graph(
         )
         server.init_object(namespace)
         return graph.wait_for_completion()
+    else:
+        # for initialize all the validators of the feature set
+        cache.cache_resource(featureset.uri, featureset, True)
 
     server.init_object(namespace)
 
@@ -88,8 +93,14 @@ def init_featureset_graph(
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
+        # set the entity to be the index of the df
+        if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
+            event.body = event.body.set_index(featureset.spec.entities[0].name)
         data = server.run(event, get_body=True)
         if data is not None:
+            if featureset.spec.entities[0] in data:
+                # drop the entity from the columns because it is the index now
+                data.set_index(drop=True)
             for i, target in enumerate(targets):
                 size = target.write_dataframe(
                     data,

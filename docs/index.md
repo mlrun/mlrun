@@ -2,14 +2,15 @@
 # Using MLRun 
 
 ```{div} full-width
-MLRun is an open MLOps platform for quickly building and managing continuous ML applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications, significantly reducing engineering efforts, time to production, and computation resources. 
-MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
+MLRun is an open MLOps platform for quickly building and managing continuous ML applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications, significantly reducing engineering efforts, time to production, and computation resources.
+With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with MLRun [**Tutorials and Examples**](./tutorial/index.html), [**Installation and setup guide**](./install.html)
-, or read about [**MLRun Architecture**](./architecture.html)
-```
+Get started with MLRun [**Tutorials and Examples**](./tutorial/index.html), [**Installation and setup guide**](./install.html), or read about [**MLRun Architecture**](./architecture.html)
 
 This page explains how MLRun addressed the [**MLOps Tasks**](#mlops-tasks) and the [**MLRun core components**](#core-components)
+
+```
+
 
 <a id="mlops-tasks"></a>
 ## MLOps Tasks
@@ -69,7 +70,7 @@ Project access can be restricted to a set of users and roles.
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](./concepts/data-feature-store.html), supports batch or realtime data processing at scale, data lineage and versioning, and more. 
+MLRun provides abstract interfaces to various offline and online [**data sources**](./concepts/data-feature-store.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 In addition, the MLRun [**Feature Store**](./feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
 {bdg-link-primary-line}`more... <./data-prep/index.html>`
 
@@ -82,7 +83,7 @@ In addition, the MLRun [**Feature Store**](./feature-store/feature-store.html) a
 
 ### Develop and train models
 
-MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, tracks each experiments, register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services or can work with 3rd party training/auto-ML services.
+MLRun allows you to easily build ML pipelines that take data from various sources or the Feature Store and process it, train models at scale with multiple parameters, test models, tracks each experiments, register, version and deploy models, etc. MLRun provides scalable built-in or custom model training services, integrate with any framework and can work with 3rd party training/auto-ML services. You can also bring your own pre-trained model and use it in the pipeline.
 {bdg-link-primary-line}`more... <./development/index.html>`
 
 {octicon}`mortar-board` **Docs:**

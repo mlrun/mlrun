@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import ast
 import datetime
 import os
 import random
@@ -1599,15 +1600,17 @@ class SqlDBTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
-        from storey import Table
-
-        from mlrun.datastore.storey_driver import SqlDBDriver
+        from storey import SqlDBDriver, Table
 
         # TODO use options/cred
         (db_path, table_name, _, _, primary_key, _) = self._parse_url()
+        try:
+            primary_key = ast.literal_eval(primary_key)
+        except Exception:
+            pass
         return Table(
             f"{db_path}/{table_name}",
-            SqlDBDriver(db_path=db_path, primary_key=primary_key.split("/")[0]),
+            SqlDBDriver(db_path=db_path, primary_key=primary_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
@@ -1681,16 +1684,24 @@ class SqlDBTarget(BaseStoreTarget):
                 table_name,
                 create_according_to_data,
                 if_exists,
-                _,
+                primary_key,
                 _,
             ) = self._parse_url()
             create_according_to_data = bool(create_according_to_data)
-            engine = db.create_engine(db_path, echo=True)
-            sqlite_connection = engine.connect()
+            engine = db.create_engine(
+                db_path,
+                echo=True,
+            )
+            connection = engine.connect()
             if create_according_to_data:
                 # todo : create according to fist row.
                 pass
-            df.to_sql(table_name, sqlite_connection, if_exists=if_exists)
+            try:
+                primary_key = ast.literal_eval(primary_key)
+            except Exception:
+                pass
+            df.set_index(primary_key, inplace=True)
+            df.to_sql(table_name, connection, if_exists="replace")
 
     def _parse_url(self):
         path = self.path[len("mlrunSql:///") :]
@@ -1707,9 +1718,13 @@ class SqlDBTarget(BaseStoreTarget):
             table_name,
             create_according_to_data,
             if_exists,
-            primary_key_column,
+            primary_key,
             create_table,
         ) = self._parse_url()
+        try:
+            primary_key = ast.literal_eval(primary_key)
+        except Exception:
+            primary_key = [primary_key]
         engine = db.create_engine(db_path)
         with engine.connect() as conn:
             metadata = db.MetaData()
@@ -1733,9 +1748,7 @@ class SqlDBTarget(BaseStoreTarget):
                     if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
-                        db.Column(
-                            col, col_type, primary_key=(col == primary_key_column)
-                        )
+                        db.Column(col, col_type, primary_key=(col in primary_key))
                     )
 
                 db.Table(table_name, metadata, *columns)
@@ -1743,9 +1756,50 @@ class SqlDBTarget(BaseStoreTarget):
                 if_exists = "append"
                 self.path = (
                     f"mlrunSql://@{db_path}//@{table_name}"
-                    f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}//@{create_table}"
+                    f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key}//@{create_table}"
                 )
                 conn.close()
+
+    def update_by_key(self, key, attributes):
+        import sqlalchemy as db
+
+        (db_path, table_name, _, _, primary_key, _) = self._parse_url()
+        try:
+            primary_key = ast.literal_eval(primary_key)
+        except Exception:
+            pass
+        engine = db.create_engine(db_path)
+
+        with engine.connect() as conn:
+            metadata = db.MetaData()
+            table = db.Table(
+                self.attributes["table_name"],
+                metadata,
+                autoload=True,
+                autoload_with=engine,
+            )
+            update_act = db.update(table)
+            update_act = update_act.values(attributes)
+            for i in range(len(key)):
+                if isinstance(primary_key, str):
+                    update_act = update_act.where(table.c[primary_key] == key)
+                    break
+                update_act = update_act.where(table.c[primary_key[i]] == key[i])
+            engine.execute(update_act)
+            conn.close()
+
+    def _get_where_statement(self, key, primary_key):
+        where_statement = ""
+        if isinstance(key, str) and "." in key:
+            key = key.split(".")
+        if isinstance(key, List):
+            for i in range(len(primary_key)):
+                if i != 0:
+                    where_statement += " and "
+                where_statement += f'{primary_key[i]}="{key[i]}"'
+        else:
+            where_statement += f'{primary_key}="{key}"'
+        return where_statement
 
 
 kind_to_driver = {

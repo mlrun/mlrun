@@ -319,8 +319,38 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         origin_df.reset_index(drop=True, inplace=True)
         assert ingest_df.equals(origin_df)
 
+    @pytest.mark.parametrize(
+        "target_name, key", [("stocks", "ticker"), ("stocks", ["ticker", "exchange"])]
+    )
+    def test_sql_target_update(self, target_name: str, key: str):
+        origin_df = self.get_data(target_name)
+        schema = self.get_schema(target_name)
+
+        target = SqlDBTarget(
+            table_name=target_name,
+            db_path=self.db,
+            create_table=True,
+            schema=schema,
+            primary_key_column=key,
+        )
+        target.write_dataframe(origin_df, key)
+        if isinstance(key, str):
+            target.update_by_key("MSFT", {"name": "a"})
+        else:
+            target.update_by_key(["MSFT", "NASDAQ"], {"name": "a"})
+        df = target.as_df()
+
+        expected = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["a", "Alphabet Inc", "Apple Inc"],
+                "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
+            }
+        )
+        expected.set_index(key, inplace=True)
+        assert df.equals(expected)
+
     def prepare_data(self):
-        import pandas as pd
 
         self.quotes = pd.DataFrame(
             {

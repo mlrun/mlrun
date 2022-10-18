@@ -16,7 +16,7 @@ import os
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import v3io
@@ -945,13 +945,13 @@ class SqlDBSource(BaseSourceDriver):
             )
 
     def to_step(self, key_field=None, time_field=None, context=None):
-        from mlrun.datastore.storey_source import SqlDBSourceStorey
+        import storey
 
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
 
-        return SqlDBSourceStorey(
+        return storey.SqlDBSource(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             # storage_options=self._get_store().get_storage_options(),

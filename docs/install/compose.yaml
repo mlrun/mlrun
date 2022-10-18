@@ -1,6 +1,6 @@
 services:
   mlrun-api:
-    image: "mlrun/mlrun-api:${TAG:-1.0.6}"
+    image: "mlrun/mlrun-api:${TAG:-1.1.1}"
     ports:
       - "8080:8080"
     environment:
@@ -20,7 +20,7 @@ services:
       - mlrun
 
   mlrun-ui:
-    image: "mlrun/mlrun-ui:${TAG:-1.0.6}"
+    image: "mlrun/mlrun-ui:${TAG:-1.1.1}"
     ports:
       - "8060:8090"
     environment:

@@ -65,7 +65,7 @@ Project access can be restricted to a set of users and roles.
 {bdg-link-primary}`quick start <./tutorial/01-mlrun-basics.html>`
 {bdg-link-primary}`Automated ML pipeline <./tutorial/04-pipeline.html>`
 , {octicon}`video` **Videos:**
-{bdg-link-warning}`quick start <https://youtu.be/xI8KVGLlj7Q>`
+{bdg-link-warning}`Quick start <https://youtu.be/xI8KVGLlj7Q>`
 
 
 ### Ingest and process data
@@ -92,6 +92,9 @@ MLRun allows you to easily build ML pipelines that take data from various source
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Train & eval models <./tutorial/02-model-training.html>`
 {bdg-link-primary}`Automated ML pipeline <./tutorial/04-pipeline.html>`
+, {octicon}`video` **Videos:**
+{bdg-link-warning}`Train & compare models <https://youtu.be/bZgBsmLMdQo>`
+
 
 ### Deploy models and applications
 
@@ -105,6 +108,8 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 {bdg-link-primary}`Realtime serving <./tutorial/03-model-serving.html>`
 {bdg-link-primary}`Batch inference <./tutorial/07-batch-infer.html>`
 {bdg-link-primary}`Advanced pipeline <./tutorial/07-batch-infer.html>`
+, {octicon}`video` **Videos:**
+{bdg-link-warning}`Serve pre-trained models <https://youtu.be/OUjOus4dZfw>`
 
 ### Monitor and alert
 

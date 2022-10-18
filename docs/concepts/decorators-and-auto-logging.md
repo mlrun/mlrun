@@ -87,7 +87,7 @@ def train_and_predict(train_data: pd.DataFrame,
 ...
 ```
 
-> **Note:** If the inputs does not have a type input, the decorator would assume the parameter type in {py:class}`mlrun.datastore.DataItem`. Similarly, if you specify `inputs=False`, all the run inputs are assumed to be of type `mlrun.datastore.DataItem`.
+> **Note:** If the inputs does not have a type input, the decorator would assume the parameter type in {py:class}`mlrun.datastore.DataItem`. If you specify `inputs=False`, all the run inputs are assumed to be of type `mlrun.datastore.DataItem`. You also have the option to specify a dictionary where each key is the name of the input and the value is the type.
 
 ## Logging return values as artifacts
 
@@ -102,5 +102,25 @@ The simplest option is to specify a list of strings. Each string containers the 
 - plot
 - result
 
-Another option is to specify a tuple in the form of `(name, artifact_type, arguments)`. Refer to the {py:func}`mlrun.handler` for more details.
+If you decide to use only the name without the type, the following mapping will be used:
+
+| python type              | Artifact type |
+|--------------------------|---------------|
+| pandas.DataFrame         | Dataset       |
+| pandas.Series            | Dataset       |
+| numpy.ndarray            | Dataset       |
+| dict                     | Result        |
+| list                     | Result        |
+| tuple                    | Result        |
+| str                      | Result        |
+| int                      | Result        |
+| float                    | Result        |
+| bytes                    | Object        |
+| bytearray                | Object        |
+| matplotlib.pyplot.Figure | Plot          |
+| plotly.graph_objs.Figure | Plot          |
+| bokeh.plotting.Figure    | Plot          |
+
+
+Another option is to specify a tuple in the form of `(name, artifact_type)` or `(name, artifact_type, arguments)`. Refer to the {py:func}`mlrun.handler` for more details.
 

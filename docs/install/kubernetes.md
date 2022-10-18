@@ -7,6 +7,7 @@
 - [Installing on Docker Desktop](#installing-on-docker-desktop)
 - [Installing the Lite Version](#installing-the-lite-version)
 - [Installing the Full Version](#installing-the-full-version)
+- [Configuring Online Feature Store](#configuring-online-feature-store)
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
 - [Advanced chart configuration](#advanced-chart-configuration)
@@ -158,6 +159,16 @@ helm --namespace mlrun \
     --set global.registry.secretName=registry-credentials \
     --set global.externalHostAddress=<host-machine-address> \
     mlrun-ce/mlrun-ce
+```
+
+## Configuring Online Feature Store
+MLRun Community Edition now supports online feature store. To enable it, you need to first deploy a REDIS service which should be accessible to your MLRun CE cluster.
+To deploy a REDIS service please refer to the following [link](https://redis.io/docs/getting-started/).
+
+Once you have a REDIS service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
+
+```bash
+--set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
 ```
 
 ## Usage

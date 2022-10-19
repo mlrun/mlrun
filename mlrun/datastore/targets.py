@@ -1749,7 +1749,9 @@ class SQLTarget(BaseStoreTarget):
                     if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
-                        db.Column(col, col_type, primary_key=(col in primary_key_for_check))
+                        db.Column(
+                            col, col_type, primary_key=(col in primary_key_for_check)
+                        )
                     )
 
                 db.Table(table_name, metadata, *columns)

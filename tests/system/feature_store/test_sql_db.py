@@ -289,9 +289,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             origin_df.to_sql(f"{name}-source", conn, if_exists="replace")
             conn.close()
 
-        source = SQLSource(
-            table_name=f"{name}-source", db_path=self.db, key_field=key
-        )
+        source = SQLSource(table_name=f"{name}-source", db_path=self.db, key_field=key)
 
         target = SQLTarget(
             table_name=f"{name}-tatget",

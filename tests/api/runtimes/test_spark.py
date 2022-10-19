@@ -163,6 +163,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def _assert_requests(actual: dict, expected: dict):
         assert actual.get("coreRequest", None) == expected.get("cpu", None)
         assert actual.get("memory", None) == expected.get("mem", None)
+        assert actual.get("serviceAccount", None) == expected.get(
+            "serviceAccount", "sparkapp"
+        )
 
     @staticmethod
     def _assert_limits(actual: dict, expected: dict):
@@ -246,7 +249,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
         expected_executor_resources = {
-            "requests": {"cpu": "1", "mem": "1G"},
+            "requests": {"cpu": "1", "mem": "1G", "serviceAccount": "executorsa"},
             "limits": {"cpu": "2", "gpu_type": "nvidia.com/gpu", "gpus": 1},
         }
         expected_driver_resources = {
@@ -254,6 +257,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             "limits": {"cpu": "3", "gpu_type": "nvidia.com/gpu", "gpus": 1},
         }
 
+        runtime.spec.service_account = "executorsa"
         runtime.with_executor_requests(cpu="1", mem="1G")
         runtime.with_executor_limits(cpu="2", gpus=1)
 

@@ -33,7 +33,7 @@ router = APIRouter()
 
 @router.put(
     "/projects/{project}/model-endpoints/{endpoint_id}",
-    response_model=mlrun.api.schemas.ModelEndpoint,
+    status_code=HTTPStatus.NO_CONTENT.value,
 )
 def create_or_patch(
     project: str,
@@ -43,7 +43,7 @@ def create_or_patch(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-) -> mlrun.api.schemas.ModelEndpoint:
+):
     """
     Either create or updates the record of a given ModelEndpoint object.
     Leaving here for backwards compatibility.
@@ -76,7 +76,7 @@ def create_or_patch(
         )
     # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
     # V3IO_ACCESS_KEY here
-    return mlrun.api.crud.ModelEndpoints().create_or_patch(
+    mlrun.api.crud.ModelEndpoints().create_or_patch(
         db_session=db_session,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,

@@ -162,11 +162,10 @@ helm --namespace mlrun \
 ```
 
 ## Configuring Online Feature Store
-MLRun Community Edition now supports online feature store. To enable it, you need to first deploy a REDIS service which should be accessible to your MLRun CE cluster.
-To deploy a REDIS service please refer to the following [link](https://redis.io/docs/getting-started/).
+The MLRun Community Edition now supportsthe  online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
+To deploy a REDIS service, refer to the following [link](https://redis.io/docs/getting-started/).
 
-Once you have a REDIS service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
-
+When you have a REDIS service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
 ```bash
 --set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
 ```
@@ -196,8 +195,7 @@ a minute for all services to start.
 
 
 ## Start Working
-
-Open Jupyter Notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in 
+Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
 [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 
 ```{admonition} Important

@@ -1788,19 +1788,6 @@ class SqlDBTarget(BaseStoreTarget):
             engine.execute(update_act)
             conn.close()
 
-    def _get_where_statement(self, key, primary_key):
-        where_statement = ""
-        if isinstance(key, str) and "." in key:
-            key = key.split(".")
-        if isinstance(key, List):
-            for i in range(len(primary_key)):
-                if i != 0:
-                    where_statement += " and "
-                where_statement += f'{primary_key[i]}="{key[i]}"'
-        else:
-            where_statement += f'{primary_key}="{key}"'
-        return where_statement
-
 
 kind_to_driver = {
     TargetTypes.parquet: ParquetTarget,

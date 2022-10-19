@@ -29,7 +29,7 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 The MLRun Community Edition resources are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
-## Community Edition Flavors
+## Community Edition flavors
 
 The MLRun CE (Community Edition) chart arrives in 2 flavors - lite and full.
 The lite version is the default installation and includes the following components:
@@ -42,7 +42,7 @@ The lite version is the default installation and includes the following componen
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * Minio - https://github.com/minio/minio/tree/master/helm/minio
 
-Full Version also includes:
+The Full Version also includes:
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
 * Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
@@ -140,10 +140,10 @@ helm --namespace mlrun \
 ```
 
 Where:
- - `<registry-url>` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
+ - `<registry-url>` is the registry URL that can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
  - `<host-machine-address>` is the IP address of the host machine (or `$(minikube ip)` if using minikube).
 
-Once the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
+When the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
 
 ## Installing the Full Version
 

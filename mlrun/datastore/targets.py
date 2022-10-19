@@ -1481,7 +1481,7 @@ class DFTarget(BaseStoreTarget):
         return self._df
 
 
-class SqlTarget(BaseStoreTarget):
+class SQLTarget(BaseStoreTarget):
     kind = TargetTypes.sql
     is_online = True
     support_spark = False
@@ -1800,7 +1800,7 @@ kind_to_driver = {
     TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
-    TargetTypes.sql: SqlTarget,
+    TargetTypes.sql: SQLTarget,
 }
 
 

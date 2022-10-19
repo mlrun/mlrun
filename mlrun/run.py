@@ -1720,10 +1720,9 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key in kwargs.keys():
-            if (
-                isinstance(kwargs[key], mlrun.DataItem)
-                and expected_arguments_types[key] != inspect._empty
-            ):
+            if isinstance(kwargs[key], mlrun.DataItem) and expected_arguments_types[
+                key
+            ] not in [inspect._empty, mlrun.DataItem]:
                 kwargs[key] = self._parse_input(
                     data_item=kwargs[key], expected_type=expected_arguments_types[key]
                 )

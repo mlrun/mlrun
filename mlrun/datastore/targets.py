@@ -1481,7 +1481,7 @@ class DFTarget(BaseStoreTarget):
         return self._df
 
 
-class SqlDBTarget(BaseStoreTarget):
+class SqlTarget(BaseStoreTarget):
     kind = TargetTypes.sql
     is_online = True
     support_spark = False
@@ -1723,8 +1723,9 @@ class SqlDBTarget(BaseStoreTarget):
         ) = self._parse_url()
         try:
             primary_key = ast.literal_eval(primary_key)
+            primary_key_for_check = primary_key
         except Exception:
-            primary_key = [primary_key]
+            primary_key_for_check = [primary_key]
         engine = db.create_engine(db_path)
         with engine.connect() as conn:
             metadata = db.MetaData()
@@ -1748,7 +1749,7 @@ class SqlDBTarget(BaseStoreTarget):
                     if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
-                        db.Column(col, col_type, primary_key=(col in primary_key))
+                        db.Column(col, col_type, primary_key=(col in primary_key_for_check))
                     )
 
                 db.Table(table_name, metadata, *columns)
@@ -1799,7 +1800,7 @@ kind_to_driver = {
     TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
-    TargetTypes.sql: SqlDBTarget,
+    TargetTypes.sql: SqlTarget,
 }
 
 

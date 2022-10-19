@@ -850,7 +850,7 @@ class KafkaSource(OnlineSource):
         return func
 
 
-class SqlDBSource(BaseSourceDriver):
+class SqlSource(BaseSourceDriver):
 
     kind = "sqldb"
     support_storey = True
@@ -977,5 +977,5 @@ source_kind_to_driver = {
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
     SnowflakeSource.kind: SnowflakeSource,
-    SqlDBSource.kind: SqlDBSource,
+    SqlSource.kind: SqlSource,
 }

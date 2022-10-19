@@ -19,8 +19,8 @@ import pytest
 import sqlalchemy as db
 
 import mlrun.feature_store as fs
-from mlrun.datastore.sources import SqlDBSource
-from mlrun.datastore.targets import SqlDBTarget
+from mlrun.datastore.sources import SqlSource
+from mlrun.datastore.targets import SqlTarget
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
 
@@ -107,7 +107,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             origin_df = self.get_data(source_name)
             origin_df.to_sql(source_name, conn, if_exists="replace")
             conn.close()
-        source = SqlDBSource(table_name=source_name, db_path=self.db, key_field=key)
+        source = SqlSource(table_name=source_name, db_path=self.db, key_field=key)
 
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         df = fs.ingest(feature_set, source=source)
@@ -131,7 +131,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             conn.close()
 
         # test source
-        source = SqlDBSource(table_name=source_name, db_path=self.db, key_field=key)
+        source = SqlSource(table_name=source_name, db_path=self.db, key_field=key)
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         one_hot_encoder_mapping = {
             encoder_col: list(origin_df[encoder_col].unique()),
@@ -162,7 +162,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             conn.close()
 
         # test source
-        source = SqlDBSource(table_name=source_name, db_path=self.db, key_field=key)
+        source = SqlSource(table_name=source_name, db_path=self.db, key_field=key)
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"
@@ -187,7 +187,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
-        target = SqlDBTarget(
+        target = SqlTarget(
             table_name=target_name,
             db_path=self.db,
             create_table=True,
@@ -217,7 +217,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             self._create(schema, target_name, metadata, engine, key)
             conn.close()
 
-        target = SqlDBTarget(
+        target = SqlTarget(
             table_name=target_name,
             db_path=self.db,
             create_table=False,
@@ -239,7 +239,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
-        target = SqlDBTarget(
+        target = SqlTarget(
             table_name=target_name,
             db_path=self.db,
             create_table=True,
@@ -289,11 +289,11 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             origin_df.to_sql(f"{name}-source", conn, if_exists="replace")
             conn.close()
 
-        source = SqlDBSource(
+        source = SqlSource(
             table_name=f"{name}-source", db_path=self.db, key_field=key
         )
 
-        target = SqlDBTarget(
+        target = SqlTarget(
             table_name=f"{name}-tatget",
             db_path=self.db,
             create_table=True,
@@ -326,7 +326,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
-        target = SqlDBTarget(
+        target = SqlTarget(
             table_name=target_name,
             db_path=self.db,
             create_table=True,

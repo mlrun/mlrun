@@ -553,11 +553,14 @@ def test_log_from_function_and_wrapper_with_mlrun():
 def parse_inputs_from_type_hints(
     my_data: list,
     my_encoder: Pipeline,
-    another_data,
+    data_2,
+    data_3: mlrun.DataItem,
     add,
     mul: int = 2,
 ):
-    assert another_data is None or isinstance(another_data, mlrun.DataItem)
+    assert data_2 is None or isinstance(data_2, mlrun.DataItem)
+    assert data_3 is None or isinstance(data_3, mlrun.DataItem)
+
     return (my_encoder.transform(my_data) + add * mul).tolist()
 
 
@@ -568,7 +571,7 @@ def test_parse_inputs_from_type_hints_without_mlrun():
     _, _, _, my_data = log_dataset()
     my_encoder = log_object()
     result = parse_inputs_from_type_hints(
-        my_data, my_encoder=my_encoder, another_data=None, add=1
+        my_data, my_encoder=my_encoder, data_2=None, data_3=None, add=1
     )
     assert isinstance(result, list)
     assert result == [[2], [3], [4]]
@@ -599,7 +602,8 @@ def test_parse_inputs_from_type_hints_with_mlrun():
         inputs={
             "my_data": log_dataset_run.outputs["my_list"],
             "my_encoder": log_object_run.outputs["my_object"],
-            "another_data": log_dataset_run.outputs["my_array"],
+            "data_2": log_dataset_run.outputs["my_array"],
+            "data_3": log_dataset_run.outputs["my_dict"],
         },
         params={"add": 1},
         artifact_path=artifact_path.name,

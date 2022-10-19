@@ -162,7 +162,7 @@ helm --namespace mlrun \
 ```
 
 ## Configuring Online Feature Store
-The MLRun Community Edition now supportsthe  online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
+The MLRun Community Edition now supports the online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
 To deploy a REDIS service, refer to the following [link](https://redis.io/docs/getting-started/).
 
 When you have a REDIS service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:

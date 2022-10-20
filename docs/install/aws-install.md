@@ -59,7 +59,7 @@ After clicking the icon, the browser opens your AWS login page and directs you t
 
 **Amazon EC2 configuration**
 
-10. **SSH key name** (m)&mdash;select from the stored keys in the dropdown. The list is based on the SSH keys that are in your account. For more information about SSH Keys see [AmazonEC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
+10. **SSH key name** (m)&mdash;select from the stored keys in the dropdown. The list is based on the SSH keys that are in your account. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
 11. **Provision bastion host** (m)&mdash;create a bastion host for SSH access to the Kubernetes nodes. The default is disabled.
 
 

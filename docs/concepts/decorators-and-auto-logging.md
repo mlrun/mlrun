@@ -24,7 +24,7 @@ def train_and_predict(train_data,
     return list(clf.predict(predict_input))
 ```
 
-With the `mlrun.handler` the python function itself would not change, and logging of the inputs and outputs would be automatic. The resultant code would be as follows:
+With the `mlrun.handler` the python function itself would not change, and logging of the inputs and outputs would be automatic. The resultant code is as follows:
 
 ``` python
 import pandas as pd
@@ -64,7 +64,7 @@ trainer_run = project.run_function(
 )
 ```
 
-The outcome will be a run with:
+The outcome is a run with:
 1. A label with key "framework" and value "scikit-learn".
 2. Two inputs "train_data" and "predict_input" created from Pandas DataFrame.
 3. An artifact called "prediction" of type "dataset". The contents of the dataset will be the return value (in this case the prediction result).
@@ -75,7 +75,7 @@ The decorator gives you the option to set labels for the run. The `labels` param
 
 ## Input type parsing
 
-The `mlrun.handler` decorator can also parse the input types, if they are specified, an equivalent definition is as follows:
+The `mlrun.handler` decorator can also parse the input types, if they are specified. An equivalent definition is as follows:
 
 ``` python
 @mlrun.handler(labels={'framework':'scikit-learn'},
@@ -87,13 +87,13 @@ def train_and_predict(train_data: pd.DataFrame,
 ...
 ```
 
-> **Note:** If the inputs does not have a type input, the decorator would assume the parameter type in {py:class}`mlrun.datastore.DataItem`. If you specify `inputs=False`, all the run inputs are assumed to be of type `mlrun.datastore.DataItem`. You also have the option to specify a dictionary where each key is the name of the input and the value is the type.
+> **Note:** If the inputs does not have a type input, the decorator assumes the parameter type in {py:class}`mlrun.datastore.DataItem`. If you specify `inputs=False`, all the run inputs are assumed to be of type `mlrun.datastore.DataItem`. You also have the option to specify a dictionary where each key is the name of the input and the value is the type.
 
 ## Logging return values as artifacts
 
-If you specify the `outputs` parameter, the return values will be logged as the run artifacts. `outputs` expects a list, the length of the list must match the number of returned values.
+If you specify the `outputs` parameter, the return values will be logged as the run artifacts. `outputs` expects a list; the length of the list must match the number of returned values.
 
-The simplest option is to specify a list of strings. Each string containers the name of the artifact. You can also specify the artifact type by adding a colon after the artifact name followed by the type (`'name:artifact_type'`). The following are valid artifact types:
+The simplest option is to specify a list of strings. Each string contains the name of the artifact. You can also specify the artifact type by adding a colon after the artifact name followed by the type (`'name:artifact_type'`). The following are valid artifact types:
 
 - dataset
 - directory
@@ -102,7 +102,7 @@ The simplest option is to specify a list of strings. Each string containers the 
 - plot
 - result
 
-If you decide to use only the name without the type, the following mapping will be used:
+If you use only the name without the type, the following mapping is used:
 
 | python type              | Artifact type |
 |--------------------------|---------------|

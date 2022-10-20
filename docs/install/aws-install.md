@@ -36,13 +36,13 @@ The key components deployed on your EKS cluster are:
 
 After clicking the icon, the browser opens your AWS login page and directs you to the CloudFormation stack page.
 
-> **Note:** Fields marked as mandatory (m) must be filled in for the configuration to complete. Fields marked as optional (o) can be left blank.
+> **Note**: You must fill-in fields marked as mandatory (m) for the configuration to complete. Fields marked as optional (o) can be left blank.
 
 1. **Stack name** (m)&mdash;the name of the stack. You cannot continue if left blank. This field becomes the logical id of the stack. Stack name can include letters (A-Z and a-z), numbers (0-9), and dashes (-).
 
 **Parameters**
 
-2. **EKS cluster name** (m)&mdash;the name of EKS cluster created. The EKS cluster is used to run the Iguazio services. For example, `https://jupyter.<eks_cluster_name>.<route53_domain_name>`
+2. **EKS cluster name** (m)&mdash;the name of EKS cluster created. The EKS cluster is used to run the MLRun services. For example, `https://jupyter.<eks_cluster_name>.<route53_domain_name>`
 
 **VPC network Configuration**
 
@@ -82,13 +82,13 @@ The stack creates a VPC with an EKS cluster and deploys all the services on top 
 ## Getting started
 When the stack is complete, go to the **output** tab for the stack you created. There are links for the MLRun UI, Jupyter and the Kubeconfig command.
 
-It's recommended to go through the quick-start and the other tutorials as shown in the documentation. These tutorials and demos comes built-in with Jupyter under the root folder of Jupyter.
+It's recommended to go through the quick-start and the other tutorials as shown in the documentation. These tutorials and demos come built-in with Jupyter under the root folder of Jupyter.
 
 ## AWS services to be aware of
 
 When installing the MLRun Community Edition via Cloud Formation, several storage resources are created, some of which persist even after uninstalling the stack:
 
-- **PVs via AWS storage provider**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted once the stack is uninstalled.
+- **PVs via AWS storage provider**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted when the stack is uninstalled.
 - **S3 Bucket**: A bucket named `mlrun` is created in the AWS account that installs the stack. The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
 - **Container Images in ECR**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
 

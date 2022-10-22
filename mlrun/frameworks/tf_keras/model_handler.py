@@ -217,7 +217,7 @@ class TFKerasModelHandler(DLModelHandler):
         logged and returned as artifacts.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted artifacts location.
+                            stored will be used to save the model in the default artifacts location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
@@ -331,7 +331,7 @@ class TFKerasModelHandler(DLModelHandler):
         :param model_name:      The name to give to the converted ONNX model. If not given the default name will be the
                                 stored model name with the suffix '_onnx'.
         :param optimize:        Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
-                                Defaulted to True.
+                                Default: True.
         :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
                                 type). If the model has multiple inputs, a list is expected in the order of the input
                                 ports. If not provided, the method will try to extract the input signature of the model.

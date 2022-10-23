@@ -1600,7 +1600,7 @@ class SQLTarget(BaseStoreTarget):
         self.add_writer_step(graph, after, features, key_columns, timestamp_key)
 
     def get_table_object(self):
-        from storey import SqlDBDriver, Table
+        from storey import SQLDriver, Table
 
         # TODO use options/cred
         (db_path, table_name, _, _, primary_key, _) = self._parse_url()
@@ -1610,7 +1610,7 @@ class SQLTarget(BaseStoreTarget):
             pass
         return Table(
             f"{db_path}/{table_name}",
-            SqlDBDriver(db_path=db_path, primary_key=primary_key),
+            SQLDriver(db_path=db_path, primary_key=primary_key),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 

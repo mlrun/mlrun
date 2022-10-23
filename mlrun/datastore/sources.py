@@ -951,7 +951,7 @@ class SQLSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
 
-        return storey.SqlDBSource(
+        return storey.SQLSource(
             key_field=self.key_field or key_field,
             time_field=self.time_field or time_field,
             # storage_options=self._get_store().get_storage_options(),

@@ -30,17 +30,17 @@ MLRun can be used to automate and orchestrate all the different tasks or just sp
 In MLRun the assets, metadata, and services (data, functions, jobs, artifacts, models, secrets, etc.) are organized into projects.
 Projects can be imported/exported as a whole, mapped to git repositories or IDE projects (in PyCharm, VSCode, etc.), which enables versioning, collaboration, and CI/CD. 
 Project access can be restricted to a set of users and roles.
-{bdg-link-primary-line}`more... <https://docs.mlrun.org/en/latest/projects/project.html>`
 
+For more information, see:
 
-{octicon}`mortar-board` **Docs:**
-{bdg-link-info}`Projects and Automation <https://docs.mlrun.org/en/latest/projects/project.html>`
-{bdg-link-info}`CI/CD Integration <https://docs.mlrun.org/en/latest/projects/ci-integration.html>`
-, {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`quick start <https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html>`
-{bdg-link-primary}`Automated ML Pipeline <https://docs.mlrun.org/en/latest/tutorial/04-pipeline.html>`
-, {octicon}`video` **Videos:**
-{bdg-link-warning}`quick start <https://youtu.be/xI8KVGLlj7Q>`
+- **Docs:**
+   - [Projects and Automation](https://docs.mlrun.org/en/latest/projects/project.html)
+   - [CI/CD Integration](https://docs.mlrun.org/en/latest/projects/ci-integration.html)
+- **Tutorials:**
+   - [quick start](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html)
+   - [Automated ML Pipeline](https://docs.mlrun.org/en/latest/tutorial/04-pipeline.html)
+- **Video:**
+   - [quick start](https://youtu.be/xI8KVGLlj7Q)
 
 ### Ingest and process data
 

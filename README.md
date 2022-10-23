@@ -15,12 +15,12 @@
 MLRun is an open MLOps platform for quickly building and managing continuous ML applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications, significantly reducing engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/latest/tutorial/index.html), [**Installation and setup guide**](https://docs.mlrun.org/en/latest/install.html), or read about [**MLRun Architecture**](https://docs.mlrun.org/en/latest/architecture.html)
+Get started with MLRun [**Tutorials and Examples**](https://docs.mlrun.org/en/latest/tutorial/index.html), [**Installation and setup guide**](https://docs.mlrun.org/en/latest/install.html), or read about [**MLRun Architecture**](https://docs.mlrun.org/en/latest/architecture.html).
 
-This page explains how MLRun addresses the [**MLOps Tasks**](#mlops-tasks) and the [**MLRun core components**](#core-components)
+This page explains how MLRun addresses the [**MLOps Tasks**](#mlops-tasks) and the [**MLRun core components**](#core-components).
 
 <a id="mlops-tasks"></a>
-## MLOps Tasks
+## MLOps tasks
 
 The [**MLOps development workflow**](https://docs.mlrun.org/en/latest/mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -102,7 +102,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 
 <a id="core-components"></a>
-## MLRun Core components
+## MLRun core components
 
 MLRun includes the following major components
 

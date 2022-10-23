@@ -37,7 +37,7 @@ For more information, see:
    - [Projects and Automation](https://docs.mlrun.org/en/latest/projects/project.html)
    - [CI/CD Integration](https://docs.mlrun.org/en/latest/projects/ci-integration.html)
 - **Tutorials:**
-   - [quick start](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html)
+   - [Quick start](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html)
    - [Automated ML Pipeline](https://docs.mlrun.org/en/latest/tutorial/04-pipeline.html)
 - **Video:**
    - [quick start](https://youtu.be/xI8KVGLlj7Q)
@@ -54,7 +54,7 @@ For more information, see:
    - [Feature Store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html)
    - [Data & Artifacts](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html)
 - **Tutorials:**
-   - [quick start](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html)
+   - [Quick start](https://docs.mlrun.org/en/latest/tutorial/01-mlrun-basics.html)
    - [Feature Store](https://docs.mlrun.org/en/latest/feature-store/basic-demo.html)
 
 ### Develop and train models

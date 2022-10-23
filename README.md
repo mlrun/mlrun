@@ -57,11 +57,11 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 
 <p align="center"><img src="docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
 
-MLRun includes the following major components
+MLRun includes the following major components:
 
 [**Project Management:**](https://docs.mlrun.org/en/latest/projects/project.html) A service (API, SDK, DB, UI) that manages the different project assets (data, functions, jobs, workflows, secrets, etc.) and provides central control and metadata layer.  
 
-[**Serverless Functions:**](https://docs.mlrun.org/en/latest/runtimes/functions.html) automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.)
+[**Serverless Functions:**](https://docs.mlrun.org/en/latest/runtimes/functions.html) automatically deployed software package with one or more methods and runtime-specific attributes (such as image, libraries, command, arguments, resources, etc.).
 
 [**Data & Artifacts:**](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html) Glueless connectivity to various data sources, metadata management, catalog, and versioning for structures/unstructured artifacts.
 

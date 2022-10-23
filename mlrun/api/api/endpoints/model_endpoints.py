@@ -153,7 +153,8 @@ async def patch_model_endpoint(
     :param endpoint_id:   The unique id of the model endpoint.
     :param attributes:    Attributes that will be updated. The input is provided in a json structure that will be
                           converted into a dictionary before applying the patch process. Note that the keys of
-                          dictionary should exist in the DB target.
+                          dictionary should exist in the DB target. More details about the model endpoint available
+                          attributes can be found under :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
                           example::
 

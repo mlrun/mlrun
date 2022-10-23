@@ -117,6 +117,7 @@ class _ModelEndpointStore(ABC):
         """
         pass
 
+    @abstractmethod
     def list_model_endpoints(
         self, model: str, function: str, labels: typing.List, top_level: bool
     ):
@@ -160,8 +161,11 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         :param endpoint: ModelEndpoint object that will be written into the DB.
         """
 
-        # Retrieving the relevant attributes from the model endpoint object
-        attributes = self.get_params(endpoint)
+        # Flatten the model endpoint structure in order to write it into the DB table.
+        # More details about the model endpoint available attributes can be found under
+        # :py:class:`~mlrun.api.schemas.ModelEndpoint`.`
+        attributes = self.flatten_model_endpoint_attributes(endpoint)
+
         # Create or update the model endpoint record
         self.client.kv.put(
             container=self.container,
@@ -176,7 +180,9 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
 
         :param endpoint_id: The unique id of the model endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. Note that the keys
-                           of the attributes dictionary should exist in the KV table.
+                           of the attributes dictionary should exist in the KV table. More details about the model
+                           endpoint available attributes can be found under
+                           :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
         """
 
@@ -478,7 +484,7 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         # Delete time series DB resources
         try:
             frames.delete(
-                backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
+                backend=model_monitoring_constants.StoreTarget.TSDB,
                 table=events_path,
                 if_missing=v3io_frames.frames_pb2.IGNORE,
             )
@@ -549,9 +555,11 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
         return " AND ".join(filter_expression)
 
     @staticmethod
-    def get_params(endpoint: mlrun.api.schemas.ModelEndpoint) -> typing.Dict:
+    def flatten_model_endpoint_attributes(
+        endpoint: mlrun.api.schemas.ModelEndpoint,
+    ) -> typing.Dict:
         """
-        Retrieving the relevant attributes from the model endpoint object.
+        Retrieving flatten structure of the model endpoint object.
 
         :param endpoint: ModelEndpoint object that will be used for getting the attributes.
 
@@ -696,7 +704,7 @@ class _ModelEndpointKVStore(_ModelEndpointStore):
 
         try:
             data = frames_client.read(
-                backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
+                backend=model_monitoring_constants.StoreTarget.TSDB,
                 table=events_path,
                 columns=["endpoint_id", *metrics],
                 filter=f"endpoint_id=='{endpoint_id}'",

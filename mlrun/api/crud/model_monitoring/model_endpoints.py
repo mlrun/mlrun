@@ -325,7 +325,9 @@ class ModelEndpoints:
         :param project: The name of the project.
         :param endpoint_id: The unique id of the model endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. Note that the keys
-                           of the attributes dictionary should exist in the KV table.
+                           of the attributes dictionary should exist in the KV table. More details about the model
+                           endpoint available attributes can be found under
+                           :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
         :return: A patched ModelEndpoint object.
         """

@@ -2663,7 +2663,9 @@ class HTTPRunDB(RunDBInterface):
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
                            of this dictionary should exist in the target table. Note that the values should be
-                           from type string or from a valid numerical type such as int or float.
+                           from type string or from a valid numerical type such as int or float. More details
+                           about the model endpoint available attributes can be found under
+                           :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
                            example::
 

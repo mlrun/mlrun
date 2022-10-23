@@ -63,5 +63,5 @@ class EventKeyMetrics:
     ENDPOINT_FEATURES = "endpoint_features"
 
 
-class TimeSeriesTarget:
+class StoreTarget:
     TSDB = "tsdb"

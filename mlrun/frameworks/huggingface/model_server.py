@@ -12,24 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-from importlib import import_module
+import numpy as np
 from typing import Any, Dict, List
 
-from transformers import pipeline
+import transformers
 
 import mlrun
 from mlrun.serving.v2_serving import V2ModelServer
-
-PACKAGE_MODULE = "transformers"
-
-
-def json_serializable(obj):
-    try:
-        json.dumps(obj=obj)
-        return True
-    except (TypeError, OverflowError):
-        return False
 
 
 class HuggingFaceModelServer(V2ModelServer):
@@ -100,18 +89,18 @@ class HuggingFaceModelServer(V2ModelServer):
 
         # Loading the pretrained model:
         if self.model_class:
-            model_object = getattr(import_module(PACKAGE_MODULE), self.model_class)
+            model_object = getattr(transformers, self.model_class)
             self.model = model_object.from_pretrained(self.model_name)
 
         # Loading the pretrained tokenizer:
         if self.tokenizer_class:
             tokenizer_object = getattr(
-                import_module(PACKAGE_MODULE), self.tokenizer_class
+                transformers, self.tokenizer_class
             )
             self.tokenizer = tokenizer_object.from_pretrained(self.tokenizer_name)
 
         # Initializing the pipeline:
-        self.pipe = pipeline(
+        self.pipe = transformers.pipeline(
             task=self.task,
             model=self.model or self.model_name,
             tokenizer=self.tokenizer,
@@ -129,31 +118,25 @@ class HuggingFaceModelServer(V2ModelServer):
         if self.pipe is None:
             raise ValueError("Please use `.load()`")
 
-        try:
-            # Predicting:
-            if isinstance(request["inputs"][0], dict):
-                result = [self.pipe(**_input) for _input in request["inputs"]]
-            else:
-                result = self.pipe(request["inputs"])
+        # Predicting:
+        if isinstance(request["inputs"][0], dict):
+            result = [self.pipe(**_input) for _input in request["inputs"]]
+        else:
+            result = self.pipe(request["inputs"])
 
-            # replace list of lists of dicts into a list of dicts:
-            # The result may vary from one model to another.
-            if all(isinstance(res, list) for res in result):
-                result = [res[0] for res in result]
+        # replace list of lists of dicts into a list of dicts:
+        # The result may vary from one model to another.
+        if all(isinstance(res, list) for res in result):
+            result = [res[0] for res in result]
 
-            # Converting JSON non-serializable objects into strings:
-            non_serializable_types = []
-            for res in result:
-                for key, val in res.items():
-                    if not json_serializable(val):
-                        non_serializable_types.append(str(type(val)))
-                        res[key] = str(val)
-            if non_serializable_types:
-                self.context.logger.info(
-                    f"Non-serializable types: {non_serializable_types} were casted to strings"
-                )
-        except Exception as e:
-            raise Exception("Failed to predict %s" % e)
+        # Converting JSON non-serializable objects to native types:
+        for res in result:
+            for key, val in res.items():
+                if isinstance(val, np.generic):
+                    res[key] = val.item()
+                elif isinstance(val, np.ndarray):
+                    res[key] = val.tolist()
+
         return result
 
     def explain(self, request: Dict) -> str:

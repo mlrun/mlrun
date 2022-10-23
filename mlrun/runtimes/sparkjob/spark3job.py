@@ -345,9 +345,7 @@ class Spark3Runtime(AbstractSparkRuntime):
                     "spec.dynamicAllocation.maxExecutors",
                     self.spec.dynamic_allocation["maxExecutors"],
                 )
-        update_in(
-            job, "spec.driver.serviceAccount", self.spec.service_account or "sparkapp"
-        )
+        update_in(job, "spec.driver.serviceAccount", "sparkapp")
         update_in(
             job, "spec.executor.serviceAccount", self.spec.service_account or "sparkapp"
         )

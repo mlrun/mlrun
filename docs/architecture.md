@@ -1,6 +1,6 @@
-
+(architecture)=
 <a id="architecture"></a>
-## MLRun Architecture
+# MLRun architecture
 
 MLRun started as a community effort to map the different components in the ML project lifecycle, provide a common metadata layer, and automate the operationalization process (a.k.a MLOps).
  
@@ -19,7 +19,7 @@ production pipelines with minimal engineering efforts.
 <p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
 
 
-### MLRun Deployment
+## MLRun deployment
 
 MLRun has two main components, the service and the client (SDK):
 
@@ -29,7 +29,7 @@ MLRun has two main components, the service and the client (SDK):
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
 
 
-### MLRun: An Integrated and Open Approach
+## MLRun: an integrated and open approach
 
 Data preparation, model development, model and application delivery, and end to end monitoring are tightly connected: 
 they cannot be managed in silos. This is where MLRun MLOps orchestration comes in. ML, data, and DevOps/MLOps teams 

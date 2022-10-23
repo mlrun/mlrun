@@ -351,9 +351,9 @@ class VirtualDrift:
         :param metrics_results_dictionary: Dictionary of statistical metrics results per feature and the total means of
                                            all features.
         :param possible_drift_threshold:   Threshold for the calculated result to be in a possible drift status.
-                                           Defaulted to 0.5.
+                                           Default: 0.5.
         :param drift_detected_threshold:   Threshold for the calculated result to be in a drift detected status.
-                                           Defaulted to 0.7.
+                                           Default: 0.7.
 
         :returns: A dictionary of all the features and their drift status and results tuples, tuple of:
                   [0] = Drift status enum based on the thresholds given.
@@ -396,9 +396,9 @@ class VirtualDrift:
         :param metrics_results_dictionary: Dictionary of statistical metrics results per feature and the total means of
                                            all features.
         :param possible_drift_threshold:   Threshold for the calculated result to be in a possible drift status.
-                                           Defaulted to 0.5.
+                                           Default: 0.5.
         :param drift_detected_threshold:   Threshold for the calculated result to be in a drift detected status.
-                                           Defaulted to 0.7.
+                                           Default: 0.7.
 
         :returns: A tuple of:
                   [0] = Drift status enum based on the thresholds given.

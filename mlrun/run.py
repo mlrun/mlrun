@@ -1877,7 +1877,7 @@ class ContextHandler:
     ):
         """
         Log the given object to MLRun as the given artifact type with the provided key. The key can be part of a
-        logging keyword arguments to pas to the relevant context logging function.
+        logging keyword arguments to pass to the relevant context logging function.
 
         :param obj:           The object to log.
         :param artifact_type: The artifact type to log the object as.
@@ -1918,7 +1918,7 @@ def handler(
                     values:
 
                     * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
-                            indicate the key and the artifact type will be defaulted according to the returned value
+                            indicate the key and the artifact type will be according to the returned value
                             type.
                     * tuple - A tuple of:
 
@@ -1939,7 +1939,7 @@ def handler(
 
                     * None - Do not log the output.
 
-                    The list length must be equal to the total amount of returned values from the function. Default to
+                    The list length must be equal to the total amount of returned values from the function. Default is
                     None - meaning no outputs will be logged.
 
     :param inputs: Parsing configurations for the arguments passed as inputs via the `run` method of an MLRun function.
@@ -1951,7 +1951,7 @@ def handler(
                    * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse the
                                        `mlrun.DataItem` to.
 
-                   Defaulted to True.
+                   Default: True.
 
     Example::
 

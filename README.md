@@ -22,7 +22,7 @@ This page explains how MLRun addresses the [**MLOps Tasks**](#mlops-tasks) and t
 <a id="mlops-tasks"></a>
 ## MLOps tasks
 
-<p align="center"><img src="docs/_static/images/mlops-task.png" alt="mlrun-tasks" width="600"/></p><br>
+<p align="center"><img src="docs/_static/images/mlops-task.png" alt="mlrun-tasks" width="800"/></p><br>
 
 The [**MLOps development workflow**](https://docs.mlrun.org/en/latest/mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -55,7 +55,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 <a id="core-components"></a>
 ## MLRun core components
 
-<p align="center"><img src="docs/_static/images/mlops-core.png" alt="mlrun-core" width="600"/></p><br>
+<p align="center"><img src="docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
 
 MLRun includes the following major components
 

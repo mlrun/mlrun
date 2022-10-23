@@ -240,5 +240,5 @@ jobs:
               ~/cleanup.py \
               http://localhost:8009 \
               igz0.docker_registry.0 \
-              "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
+              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"
 

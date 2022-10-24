@@ -63,6 +63,7 @@ def verify_api_state(request: Request):
             "client-spec",
             "migrations",
             "clusterization-spec",
+            "memory-reports",
         ]
         if not any(enabled_endpoint in path for enabled_endpoint in enabled_endpoints):
             message = (

@@ -531,6 +531,18 @@ def test_run_function_passes_project_artifact_path():
     run3 = proj1.run_function("f1", local=True)
     assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 
+    # without using project's run_function
+    run4 = mlrun.run_function(proj1.get_function("f1"))
+    assert run4.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    # without using project's run_function, but passing project object instead
+    run5 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
+    assert run5.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    mlrun.pipeline_context.workflow_artifact_path = None
+    run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
+    assert run6.spec.output_path == proj1.spec.artifact_path
+
 
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)

@@ -474,21 +474,20 @@ def _init_endpoint_record(
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
         )
-
-        # Generating version model value based on the model name and model version
-        if model.version:
-            versioned_model_name = f"{model.name}:{model.version}"
-        else:
-            versioned_model_name = f"{model.name}:latest"
-
-        # Generating model endpoint ID based on function uri and model version
-        uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
-            function_uri=graph_server.function_uri, versioned_model=versioned_model_name
-        ).uid
-
     except Exception as e:
-        logger.error("Failed to generate required values for model endpoint", exc=e)
+        logger.error("Failed to parse function URI", exc=e)
         return None
+
+    # Generating version model value based on the model name and model version
+    if model.version:
+        versioned_model_name = f"{model.name}:{model.version}"
+    else:
+        versioned_model_name = f"{model.name}:latest"
+
+    # Generating model endpoint ID based on function uri and model version
+    uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+    ).uid
 
     # If model endpoint object was found in DB, skip the creation process.
     try:
@@ -497,34 +496,35 @@ def _init_endpoint_record(
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Creating a new model endpoint record", endpoint_id=uid)
 
-        model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(
-                project=project, labels=model.labels, uid=uid
-            ),
-            spec=ModelEndpointSpec(
-                function_uri=graph_server.function_uri,
-                model=versioned_model_name,
-                model_class=model.__class__.__name__,
-                model_uri=model.model_path,
-                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                    project=project, kind="stream"
+        try:
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(
+                    project=project, labels=model.labels, uid=uid
                 ),
-                active=True,
-                monitoring_mode=ModelMonitoringMode.enabled
-                if model.context.server.track_models
-                else ModelMonitoringMode.disabled,
-            ),
-            status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
-        )
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=model.__class__.__name__,
+                    model_uri=model.model_path,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
+                    ),
+                    active=True,
+                    monitoring_mode=ModelMonitoringMode.enabled
+                    if model.context.server.track_models
+                    else ModelMonitoringMode.disabled,
+                ),
+                status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
+            )
 
-        db = mlrun.get_run_db()
-        db.create_or_patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint,
-        )
+            db = mlrun.get_run_db()
+            db.create_or_patch_model_endpoint(
+                project=project,
+                endpoint_id=model_endpoint.metadata.uid,
+                model_endpoint=model_endpoint,
+            )
 
-    except Exception as e:
-        logger.error("Failed to create endpoint record", exc=e)
+        except Exception as e:
+            logger.error("Failed to create endpoint record", exc=e)
 
     return uid

@@ -734,21 +734,20 @@ def _init_endpoint_record(
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
         )
-
-        # Generating version model value based on the model name and model version
-        if voting_ensemble.version:
-            versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
-        else:
-            versioned_model_name = f"{voting_ensemble.name}:latest"
-
-        # Generating model endpoint ID based on function uri and model version
-        endpoint_uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
-            function_uri=graph_server.function_uri, versioned_model=versioned_model_name
-        ).uid
-
     except Exception as e:
-        logger.error("Failed to generate required values for model endpoint", exc=e)
+        logger.error("Failed to parse function URI", exc=e)
         return None
+
+    # Generating version model value based on the model name and model version
+    if voting_ensemble.version:
+        versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
+    else:
+        versioned_model_name = f"{voting_ensemble.name}:latest"
+
+    # Generating model endpoint ID based on function uri and model version
+    endpoint_uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+    ).uid
 
     # If model endpoint object was found in DB, skip the creation process.
     try:
@@ -757,58 +756,59 @@ def _init_endpoint_record(
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Creating a new model endpoint record", endpoint_id=endpoint_uid)
 
-        # Get the children model endpoints ids
-        children_uids = []
-        for _, c in voting_ensemble.routes.items():
-            if hasattr(c, "endpoint_uid"):
-                children_uids.append(c.endpoint_uid)
+        try:
+            # Get the children model endpoints ids
+            children_uids = []
+            for _, c in voting_ensemble.routes.items():
+                if hasattr(c, "endpoint_uid"):
+                    children_uids.append(c.endpoint_uid)
 
-        model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
-            spec=ModelEndpointSpec(
-                function_uri=graph_server.function_uri,
-                model=versioned_model_name,
-                model_class=voting_ensemble.__class__.__name__,
-                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                    project=project, kind="stream"
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=voting_ensemble.__class__.__name__,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
+                    ),
+                    active=True,
+                    monitoring_mode=ModelMonitoringMode.enabled
+                    if voting_ensemble.context.server.track_models
+                    else ModelMonitoringMode.disabled,
                 ),
-                active=True,
-                monitoring_mode=ModelMonitoringMode.enabled
-                if voting_ensemble.context.server.track_models
-                else ModelMonitoringMode.disabled,
-            ),
-            status=ModelEndpointStatus(
-                children=list(voting_ensemble.routes.keys()),
-                endpoint_type=EndpointType.ROUTER,
-                children_uids=children_uids,
-            ),
-        )
-
-        db = mlrun.get_run_db()
-        db.create_or_patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint,
-        )
-
-        # Update model endpoint children type
-        for model_endpoint in children_uids:
-            current_endpoint = db.get_model_endpoint(
-                project=project, endpoint_id=model_endpoint
+                status=ModelEndpointStatus(
+                    children=list(voting_ensemble.routes.keys()),
+                    endpoint_type=EndpointType.ROUTER,
+                    children_uids=children_uids,
+                ),
             )
-            current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
+
+            db = mlrun.get_run_db()
             db.create_or_patch_model_endpoint(
                 project=project,
-                endpoint_id=model_endpoint,
-                model_endpoint=current_endpoint,
+                endpoint_id=model_endpoint.metadata.uid,
+                model_endpoint=model_endpoint,
             )
 
-    except Exception as exc:
-        logger.warning(
-            "Failed creating model endpoint record",
-            exc=exc,
-            traceback=traceback.format_exc(),
-        )
+            # Update model endpoint children type
+            for model_endpoint in children_uids:
+                current_endpoint = db.get_model_endpoint(
+                    project=project, endpoint_id=model_endpoint
+                )
+                current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
+                db.create_or_patch_model_endpoint(
+                    project=project,
+                    endpoint_id=model_endpoint,
+                    model_endpoint=current_endpoint,
+                )
+
+        except Exception as exc:
+            logger.warning(
+                "Failed creating model endpoint record",
+                exc=exc,
+                traceback=traceback.format_exc(),
+            )
     return endpoint_uid
 
 

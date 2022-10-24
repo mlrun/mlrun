@@ -55,7 +55,7 @@ class SKLearnModelHandler(MLModelHandler):
         logged and returned as artifacts.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted artifacts location.
+                            stored will be used to save the model in the default artifacts location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
@@ -93,7 +93,7 @@ class SKLearnModelHandler(MLModelHandler):
         :param model_name:          The name to give to the converted ONNX model. If not given the default name will be
                                     the stored model name with the suffix '_onnx'.
         :param optimize:            Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
-                                    Defaulted to True.
+                                    Default: True.
         :param input_sample:        An inputs sample with the names and data types of the inputs of the model.
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
                                     handler has a MLRun context set. Default: None.

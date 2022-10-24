@@ -55,12 +55,7 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         fset.metadata.labels = {}
         db.store_feature_set(fset.to_dict(), project=self.project_name)
-        feature_sets = db.list_feature_sets(project=self.project_name)
-        for feature_set in feature_sets:
-            if feature_set.metadata.tag == "latest":
-                assert (
-                    feature_set.metadata.labels is None
-                ), "labels were not removed correctly"
-                break
-        else:
-            assert False, "latest feature set not found"
+        feature_sets = db.list_feature_sets(project=self.project_name, tag="latest")
+        assert (
+            feature_sets[0].metadata.labels is None
+        ), "labels were not removed correctly"

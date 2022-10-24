@@ -97,7 +97,7 @@ def test_update_feature_set(db: DBInterface, db_session: Session):
     old_feature_set_dict["metadata"]["labels"] = {}
     updated_feature_set_dict = updated_feature_set.dict()
 
-    # uid and updated change due to rehashing and the store operation
+    # uid and update time change due to rehashing and the store operation
     assert (
         old_feature_set_dict["metadata"]["uid"]
         != updated_feature_set_dict["metadata"]["uid"]

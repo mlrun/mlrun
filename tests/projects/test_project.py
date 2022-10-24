@@ -518,10 +518,14 @@ def test_run_function_passes_project_artifact_path():
 
     proj1 = mlrun.new_project("proj1", save=False)
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    run1 = proj1.run_function("f1", local=True)
+    assert run1.spec.output_path == mlrun.mlconf.artifact_path
+
     proj1.artifact_path = "/var"
 
-    run = proj1.run_function("f1", local=True)
-    assert run.spec.output_path == "/var"
+    run2 = proj1.run_function("f1", local=True)
+    assert run2.spec.output_path == proj1.artifact_path
 
 
 def test_project_ops():

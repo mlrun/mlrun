@@ -1701,7 +1701,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet],
+        feature_set: Union[dict, schemas.FeatureSet, FeatureSet],
         name=None,
         project="",
         tag=None,
@@ -1727,6 +1727,8 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
+        elif isinstance(feature_set, FeatureSet):
+            feature_set = feature_set.to_dict()
 
         name = name or feature_set["metadata"]["name"]
         project = (
@@ -1812,6 +1814,8 @@ class HTTPRunDB(RunDBInterface):
         """
         if isinstance(feature_vector, schemas.FeatureVector):
             feature_vector = feature_vector.dict()
+        elif isinstance(feature_vector, FeatureVector):
+            feature_vector = feature_vector.to_dict()
 
         project = (
             project

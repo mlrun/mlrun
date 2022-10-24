@@ -809,6 +809,10 @@ def _init_endpoint_record(
                 exc=exc,
                 traceback=traceback.format_exc(),
             )
+
+    except Exception as e:
+        logger.error("Failed to retrieve model endpoint object", exc=e)
+
     return endpoint_uid
 
 

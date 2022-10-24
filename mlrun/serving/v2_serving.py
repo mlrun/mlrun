@@ -527,4 +527,7 @@ def _init_endpoint_record(
         except Exception as e:
             logger.error("Failed to create endpoint record", exc=e)
 
+    except Exception as e:
+        logger.error("Failed to retrieve model endpoint object", exc=e)
+
     return uid

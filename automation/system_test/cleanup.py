@@ -38,10 +38,7 @@ def docker_images(registry_url: str, registry_container_name: str, images: str):
     images = images.split(",")
     loop = asyncio.get_event_loop()
     tags = loop.run_until_complete(_collect_image_tags(registry_url, images))
-    for image, image_tags in tags.items():
-        click.echo(f"Deleting {image} tags")
-        for tag in image_tags:
-            loop.run_until_complete(_delete_image_tag(registry_url, image, tag))
+    loop.run_until_complete(_delete_image_tags(registry_url, tags))
 
     click.echo("Removed all tags. Running garbage collection...")
     _run_registry_garbage_collection(registry_container_name)
@@ -67,6 +64,15 @@ async def _collect_image_tags(
                 if data.get("tags"):
                     tags[image] = data["tags"]
     return tags
+
+
+async def _delete_image_tags(
+    registry: str, tags: typing.Dict[str, typing.List[str]]
+) -> None:
+    for image, image_tags in tags.items():
+        click.echo(f"Deleting {image} tags")
+        for tag in image_tags:
+            await _delete_image_tag(registry, image, tag)
 
 
 async def _delete_image_tag(registry: str, image: str, tag: str) -> None:

@@ -489,6 +489,41 @@ def test_export_to_zip():
     assert mlrun.get_dataitem("memory://x.zip").stat().size
 
 
+def test_function_receives_project_artifact_path():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+
+    func1 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    run1 = func1.run(local=True)
+    assert run1.spec.output_path == mlrun.mlconf.artifact_path
+
+    proj1.spec.artifact_path = "/var"
+
+    func2 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    run2 = func2.run(local=True)
+    assert run2.spec.output_path == proj1.spec.artifact_path
+
+    run3 = func2.run(local=True, artifact_path="/not/tmp")
+    assert run3.spec.output_path == "/not/tmp"
+
+
+def test_run_function_passes_project_artifact_path():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+    proj1.artifact_path = "/var"
+
+    run = proj1.run_function("f1", local=True)
+    assert run.spec.output_path == "/var"
+
+
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")

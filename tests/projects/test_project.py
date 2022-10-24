@@ -522,10 +522,14 @@ def test_run_function_passes_project_artifact_path():
     run1 = proj1.run_function("f1", local=True)
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
 
-    proj1.artifact_path = "/var"
+    proj1.spec.artifact_path = "/var"
 
     run2 = proj1.run_function("f1", local=True)
-    assert run2.spec.output_path == proj1.artifact_path
+    assert run2.spec.output_path == proj1.spec.artifact_path
+
+    mlrun.pipeline_context.workflow_artifact_path = "/data"
+    run3 = proj1.run_function("f1", local=True)
+    assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 
 
 def test_project_ops():

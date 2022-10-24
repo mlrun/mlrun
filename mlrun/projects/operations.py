@@ -167,7 +167,8 @@ def run_function(
             local=local,
             # workflow artifact_path has precedence over the project artifact_path equivalent to
             # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
-            artifact_path=pipeline_context.workflow_artifact_path or project.artifact_path,
+            artifact_path=pipeline_context.workflow_artifact_path
+            or project.artifact_path,
             auto_build=auto_build,
             schedule=schedule,
         )

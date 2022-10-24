@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
@@ -65,3 +66,49 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
 
     features_res = db.list_features(db_session, project, "time")
     assert len(features_res.features) == 1
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_update_feature_set(db: DBInterface, db_session: Session):
+    name = "dummy"
+    feature_set = _create_feature_set(name)
+
+    project = "proj-test"
+
+    feature_set = schemas.FeatureSet(**feature_set)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
+    assert feature_set.metadata.labels != {}
+
+    feature_set = db.get_feature_set(db_session, project, name)
+    old_feature_set_dict = feature_set.dict()
+
+    # remove labels from feature set and store it
+    feature_set.metadata.labels = {}
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
+    updated_feature_set = db.get_feature_set(db_session, project, name)
+    assert updated_feature_set.metadata.labels == {}
+
+    old_feature_set_dict["metadata"]["labels"] = {}
+    updated_feature_set_dict = updated_feature_set.dict()
+
+    # uid and updated change due to rehashing and the store operation
+    assert (
+        old_feature_set_dict["metadata"]["uid"]
+        != updated_feature_set_dict["metadata"]["uid"]
+    )
+    assert (
+        old_feature_set_dict["metadata"]["updated"]
+        != updated_feature_set_dict["metadata"]["updated"]
+    )
+    old_feature_set_dict["metadata"].pop("uid")
+    old_feature_set_dict["metadata"].pop("updated")
+    updated_feature_set_dict["metadata"].pop("uid")
+    updated_feature_set_dict["metadata"].pop("updated")
+
+    assert deepdiff.DeepDiff(old_feature_set_dict, updated_feature_set_dict) == {}

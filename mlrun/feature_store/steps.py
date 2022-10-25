@@ -209,7 +209,7 @@ class MapValues(StepToDict, MLRunStep):
                 df[self._get_feature_name(feature)] = event[feature].map(
                     lambda x: feature_map[x]
                 )
-
+        # df.set_index(event.index, drop=True, inplace=True)
         if self.with_original_features:
             df = pd.concat([event, df], axis=1)
         return df

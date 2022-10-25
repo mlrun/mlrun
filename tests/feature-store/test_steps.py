@@ -75,8 +75,7 @@ def test_set_event_random_id():
     assert resp["id"] != "XYZ", "id was not overwritten"
 
 
-@pytest.mark.parametrize("with_set_index", [True, False])
-def test_pandas_step_onehot(rundb_mock, with_set_index):
+def test_pandas_step_onehot(rundb_mock):
     data, _ = get_data()
     # One Hot Encode the newly defined mappings
     one_hot_encoder_mapping = {
@@ -89,10 +88,6 @@ def test_pandas_step_onehot(rundb_mock, with_set_index):
         description="feature set",
         engine="pandas",
     )
-
-    if with_set_index:
-        data.set_index("id", inplace=True)
-
     # Pre-processing grpah steps
     data_set_pandas.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
     data_set_pandas._run_db = rundb_mock
@@ -125,7 +120,7 @@ def test_pandas_step_onehot(rundb_mock, with_set_index):
                 time.time(),
             ],
         },
-        index=data["id"].values,
+        index=[0, 1, 2, 3, 5],
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -170,7 +165,7 @@ def test_pandas_step_onehot(rundb_mock, with_set_index):
 
 def test_pandas_step_imputer(rundb_mock):
     data, data_ref = get_data(True)
-    data_ref.set_index("id", inplace=True)
+    data_ref.set_index('id', inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -279,7 +274,7 @@ def test_pandas_step_mapval(rundb_mock, with_original):
         age = ["adult", "child", "adult", "adult", "child"]
         department = [1, 3, 3, 2, 1]
         data_ref = pd.DataFrame(
-            {"age": age, "department": department}, index=data["id"].values
+            {"age": age, "department": department}, index=[0, 1, 2, 3, 5]
         )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -561,17 +556,11 @@ def get_data(with_none=False):
                 "age": ages,
                 "department": department,
                 "timestamp": timestamp,
-                "id": ["a", "v", "h", "g", "j"],
+                'id': [0, 1, 2, 3, 5]
             },
         )
         department = [None, "RD", "RD", "Marketing", "IT"]
     data = pd.DataFrame(
-        {
-            "name": names,
-            "age": ages,
-            "department": department,
-            "timestamp": timestamp,
-            "id": ["a", "v", "h", "g", "j"],
-        },
+        {"name": names, "age": ages, "department": department, "timestamp": timestamp, 'id': [0, 1, 2, 3, 5]},
     )
     return data, data_ref

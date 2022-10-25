@@ -489,16 +489,19 @@ def test_export_to_zip():
     assert mlrun.get_dataitem("memory://x.zip").stat().size
 
 
-def test_function_receives_project_artifact_path():
+def test_function_receives_project_artifact_path(rundb_mock):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
     proj1 = mlrun.new_project("proj1", save=False)
 
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
     func1 = mlrun.code_to_function(
         "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
     )
     run1 = func1.run(local=True)
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
+    rundb_mock.reset()
 
     proj1.spec.artifact_path = "/var"
 
@@ -511,16 +514,24 @@ def test_function_receives_project_artifact_path():
     run3 = func2.run(local=True, artifact_path="/not/tmp")
     assert run3.spec.output_path == "/not/tmp"
 
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+    run4 = func2.run(local=True, project="proj1")
+    assert run4.spec.output_path == proj1.spec.artifact_path
 
-def test_run_function_passes_project_artifact_path():
+
+def test_run_function_passes_project_artifact_path(rundb_mock):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"
 
     proj1 = mlrun.new_project("proj1", save=False)
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
+    # expected to call `get_project` because there is no proj1.artifact_path
+    mlrun.get_run_db().store_project("proj1", proj1)
     run1 = proj1.run_function("f1", local=True)
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
+    rundb_mock.reset()
 
     proj1.spec.artifact_path = "/var"
 
@@ -539,7 +550,9 @@ def test_run_function_passes_project_artifact_path():
     run5 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
     assert run5.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 
-    mlrun.pipeline_context.workflow_artifact_path = None
+    mlrun.pipeline_context.clear()
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
     run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
     assert run6.spec.output_path == proj1.spec.artifact_path
 

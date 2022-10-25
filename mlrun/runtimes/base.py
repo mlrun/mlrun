@@ -638,7 +638,6 @@ class BaseRuntime(ModelObj):
             else:
                 scrape_metrics = runspec.spec.scrape_metrics
         runspec.spec.scrape_metrics = scrape_metrics
-        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir
         )
@@ -653,13 +652,27 @@ class BaseRuntime(ModelObj):
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
 
+        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+
         if not runspec.spec.output_path:
-            if (
-                mlrun.pipeline_context.project
-                and mlrun.pipeline_context.project.artifact_path
-            ):
-                runspec.spec.output_path = mlrun.pipeline_context.project.artifact_path
-            else:
+            if runspec.metadata.project:
+                if (
+                    mlrun.pipeline_context.project
+                    and runspec.metadata.project
+                    == mlrun.pipeline_context.project.metadata.name
+                ):
+                    runspec.spec.output_path = (
+                        mlrun.pipeline_context.project.spec.artifact_path
+                    )
+
+                if not runspec.spec.output_path:
+                    runspec.spec.output_path = (
+                        mlrun.get_run_db()
+                        .get_project(runspec.metadata.project)
+                        .spec.artifact_path
+                    )
+
+            if not runspec.spec.output_path:
                 runspec.spec.output_path = config.artifact_path
 
         if runspec.spec.output_path:

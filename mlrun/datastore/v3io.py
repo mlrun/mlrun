@@ -139,17 +139,29 @@ class V3ioStore(DataStore):
             return
         append_header = deepcopy(self.headers)
         append_header["Range"] = "-1"
-        buffer_offset = 0
-        buffer = memoryview(data)
-        while buffer_offset < buffer_size:
-            chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
-            http_put(
-                self.url + self._join(key),
-                buffer[buffer_offset : buffer_offset + chunk_size],
-                append_header if buffer_offset else self.headers,
-                None,
-            )
-            buffer_offset += chunk_size
+        if isinstance(data, str):
+            buffer_offset = 0
+            while buffer_offset < buffer_size:
+                chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+                http_put(
+                    self.url + self._join(key),
+                    data[buffer_offset : buffer_offset + chunk_size],
+                    append_header if buffer_offset else self.headers,
+                    None,
+                )
+                buffer_offset += chunk_size
+        else:
+            buffer_offset = 0
+            buffer = memoryview(data)
+            while buffer_offset < buffer_size:
+                chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+                http_put(
+                    self.url + self._join(key),
+                    buffer[buffer_offset : buffer_offset + chunk_size],
+                    append_header if buffer_offset else self.headers,
+                    None,
+                )
+                buffer_offset += chunk_size
 
     def put(self, key, data, append=False):
         return self._put(key, data)

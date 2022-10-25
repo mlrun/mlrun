@@ -114,7 +114,7 @@ default_config = {
     "v3io_api": "http://v3io-webapi:8081",
     "redis": {
         "url": "",
-        "type": "standalone",  # can be "standalone" or "cluster"
+        "type": "standalone",  # deprecated.
     },
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},

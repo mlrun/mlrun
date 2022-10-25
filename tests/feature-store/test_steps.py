@@ -170,7 +170,7 @@ def test_pandas_step_onehot(rundb_mock, with_set_index):
 
 def test_pandas_step_imputer(rundb_mock):
     data, data_ref = get_data(True)
-    data_ref.set_index('id', inplace=True)
+    data_ref.set_index("id", inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
@@ -561,11 +561,17 @@ def get_data(with_none=False):
                 "age": ages,
                 "department": department,
                 "timestamp": timestamp,
-                'id': [0, 1, 2, 3, 5]
+                "id": [0, 1, 2, 3, 5],
             },
         )
         department = [None, "RD", "RD", "Marketing", "IT"]
     data = pd.DataFrame(
-        {"name": names, "age": ages, "department": department, "timestamp": timestamp, 'id': [0, 1, 2, 3, 5]},
+        {
+            "name": names,
+            "age": ages,
+            "department": department,
+            "timestamp": timestamp,
+            "id": [0, 1, 2, 3, 5],
+        },
     )
     return data, data_ref

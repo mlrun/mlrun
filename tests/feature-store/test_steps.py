@@ -125,7 +125,7 @@ def test_pandas_step_onehot(rundb_mock, with_set_index):
                 time.time(),
             ],
         },
-        index=[0, 1, 2, 3, 5],
+        index=data["id"].values,
     )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -279,7 +279,7 @@ def test_pandas_step_mapval(rundb_mock, with_original):
         age = ["adult", "child", "adult", "adult", "child"]
         department = [1, 3, 3, 2, 1]
         data_ref = pd.DataFrame(
-            {"age": age, "department": department}, index=[0, 1, 2, 3, 5]
+            {"age": age, "department": department}, index=data["id"].values
         )
 
     assert isinstance(df_pandas, pd.DataFrame)
@@ -561,7 +561,7 @@ def get_data(with_none=False):
                 "age": ages,
                 "department": department,
                 "timestamp": timestamp,
-                "id": [0, 1, 2, 3, 5],
+                "id": ['a', 'v', 'h', 'g', 'j'],
             },
         )
         department = [None, "RD", "RD", "Marketing", "IT"]
@@ -571,7 +571,7 @@ def get_data(with_none=False):
             "age": ages,
             "department": department,
             "timestamp": timestamp,
-            "id": [0, 1, 2, 3, 5],
+            "id": ['a', 'v', 'h', 'g', 'j'],
         },
     )
     return data, data_ref

@@ -105,7 +105,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
             if validator:
                 violations = 0
                 all_args = []
-                for i in range(body[column].shape[0]):
+                for i in body.index:
                     # check each body entry if there is validator for it
                     ok, args = validator.check(body.at[i, column])
                     if not ok:
@@ -185,7 +185,7 @@ class MapValues(StepToDict, MLRunStep):
         return mapped_values
 
     def _do_pandas(self, event):
-        df = pd.DataFrame()
+        df = pd.DataFrame(index=event.index)
         for feature in event.columns:
             feature_map = self.mapping.get(feature, {})
             if "ranges" in feature_map:
@@ -209,10 +209,9 @@ class MapValues(StepToDict, MLRunStep):
                 df[self._get_feature_name(feature)] = event[feature].map(
                     lambda x: feature_map[x]
                 )
-
+        # df.set_index(event.index, drop=True, inplace=True)
         if self.with_original_features:
             df = pd.concat([event, df], axis=1)
-        df.index = event.index
         return df
 
 

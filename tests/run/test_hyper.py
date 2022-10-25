@@ -134,7 +134,7 @@ def test_hyper_parallel_with_stop():
         strategy="list",
         stop_condition="r1>=70",
     )
-    run = new_function().run(run_spec, handler=hyper_func)
+    run = new_function().run(run_spec, handler=hyper_func, artifact_path="/tmp")
 
     verify_state(run)
     # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run
@@ -199,6 +199,7 @@ def test_hyper_get_artifact():
         handler=hyper_func2,
         hyperparams={"p1": [1, 2, 3]},
         selector="max.accuracy",
+        artifact_path="/tmp",
     )
     assert run.artifact("df1").meta, "df1 (with db_key) not returned"
     assert run.artifact("df2").meta, "df2 (without db_key) not returned"

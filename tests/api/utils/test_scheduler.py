@@ -148,30 +148,34 @@ async def test_invoke_schedule(
 ):
     cron_trigger = schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
-    project = config.default_project
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    runs = get_db().list_runs(db, project=project)
+    project_name = config.default_project
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.artifact_path = "/tmp"
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         scheduled_object,
         cron_trigger,
     )
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     response_1 = await scheduler.invoke_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
     )
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
     response_2 = await scheduler.invoke_schedule(
-        db, mlrun.api.schemas.AuthInfo(), project, schedule_name
+        db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
     )
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 2
     for run in runs:
         assert run["status"]["state"] == RunStates.completed
@@ -188,10 +192,12 @@ async def test_invoke_schedule(
         == {}
     )
 
-    schedule = scheduler.get_schedule(db, project, schedule_name, include_last_run=True)
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
     assert schedule.last_run is not None
     assert schedule.last_run["metadata"]["uid"] == response_uids[-1]
-    assert schedule.last_run["metadata"]["project"] == project
+    assert schedule.last_run["metadata"]["project"] == project_name
 
 
 @pytest.mark.asyncio
@@ -210,14 +216,19 @@ async def test_create_schedule_mlrun_function(
         second="*/1", start_date=start_date, end_date=end_date
     )
     schedule_name = "schedule-name"
-    project = config.default_project
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    runs = get_db().list_runs(db, project=project)
+    project_name = config.default_project
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.artifact_path = "/tmp"
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         scheduled_object,
@@ -228,16 +239,16 @@ async def test_create_schedule_mlrun_function(
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
 
     assert len(runs) == expected_call_counter
 
     assert runs[0]["status"]["state"] == RunStates.completed
 
     # the default of list_runs returns the list descending by date.
-    expected_last_run_uri = f"{project}@{runs[0]['metadata']['uid']}#0"
+    expected_last_run_uri = f"{project_name}@{runs[0]['metadata']['uid']}#0"
 
-    schedule = get_db().get_schedule(db, project, schedule_name)
+    schedule = get_db().get_schedule(db, project_name, schedule_name)
     assert schedule.last_run_uri == expected_last_run_uri
 
 
@@ -275,8 +286,13 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
     name = "schedule-name"
-    project = config.default_project
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    project_name = config.default_project
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.artifact_path = "/tmp"
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
 
     expected_call_counter = 3
     start_date, end_date = _get_start_and_end_time_for_scheduled_trigger(
@@ -289,7 +305,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     scheduler.create_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         name,
         schemas.ScheduleKinds.job,
         scheduled_object,
@@ -318,7 +334,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 3
     assert (
         mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
@@ -895,14 +911,19 @@ async def test_update_schedule(
     }
     inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
-    project = config.default_project
-    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
-    runs = get_db().list_runs(db, project=project)
+    project_name = config.default_project
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.artifact_path = "/tmp"
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         scheduled_object,
@@ -910,11 +931,11 @@ async def test_update_schedule(
         labels=labels_1,
     )
 
-    schedule = scheduler.get_schedule(db, project, schedule_name)
+    schedule = scheduler.get_schedule(db, project_name, schedule_name)
 
     _assert_schedule(
         schedule,
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         inactive_cron_trigger,
@@ -926,15 +947,15 @@ async def test_update_schedule(
     scheduler.update_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         labels=labels_2,
     )
-    schedule = scheduler.get_schedule(db, project, schedule_name)
+    schedule = scheduler.get_schedule(db, project_name, schedule_name)
 
     _assert_schedule(
         schedule,
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         inactive_cron_trigger,
@@ -946,14 +967,14 @@ async def test_update_schedule(
     scheduler.update_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
     )
-    schedule = scheduler.get_schedule(db, project, schedule_name)
+    schedule = scheduler.get_schedule(db, project_name, schedule_name)
 
     _assert_schedule(
         schedule,
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         inactive_cron_trigger,
@@ -965,15 +986,15 @@ async def test_update_schedule(
     scheduler.update_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         labels={},
     )
-    schedule = scheduler.get_schedule(db, project, schedule_name)
+    schedule = scheduler.get_schedule(db, project_name, schedule_name)
 
     _assert_schedule(
         schedule,
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         inactive_cron_trigger,
@@ -995,11 +1016,11 @@ async def test_update_schedule(
     scheduler.update_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         cron_trigger=cron_trigger,
     )
-    schedule = scheduler.get_schedule(db, project, schedule_name)
+    schedule = scheduler.get_schedule(db, project_name, schedule_name)
 
     next_run_time = datetime(
         year=end_date.year,
@@ -1013,7 +1034,7 @@ async def test_update_schedule(
 
     _assert_schedule(
         schedule,
-        project,
+        project_name,
         schedule_name,
         schemas.ScheduleKinds.job,
         cron_trigger,
@@ -1025,7 +1046,7 @@ async def test_update_schedule(
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
 
@@ -1071,22 +1092,25 @@ async def test_schedule_job_concurrency_limit(
         second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )
     schedule_name = "schedule-name"
-    project = config.default_project
+    project_name = config.default_project
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.artifact_path = "/tmp"
+
     scheduled_object = (
         _create_mlrun_function_and_matching_scheduled_object(
-            db, project, handler="sleep_two_seconds"
+            db, project_name, handler="sleep_two_seconds"
         )
         if schedule_kind == schemas.ScheduleKinds.job
         else bump_counter_and_wait
     )
 
-    runs = get_db().list_runs(db, project=project)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
 
     scheduler.create_schedule(
         db,
         mlrun.api.schemas.AuthInfo(),
-        project,
+        project_name,
         schedule_name,
         schedule_kind,
         scheduled_object,
@@ -1097,7 +1121,7 @@ async def test_schedule_job_concurrency_limit(
     # wait so all runs will complete
     await asyncio.sleep(7)
     if schedule_kind == schemas.ScheduleKinds.job:
-        runs = get_db().list_runs(db, project=project)
+        runs = get_db().list_runs(db, project=project_name)
         assert len(runs) == run_amount
     else:
         assert call_counter == run_amount

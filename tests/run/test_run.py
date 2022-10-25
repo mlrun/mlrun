@@ -44,7 +44,9 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 def test_noparams():
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
-        params={"input_name": str(input_file_path)}, handler=my_func
+        params={"input_name": str(input_file_path)},
+        handler=my_func,
+        artifact_path="/tmp",
     )
 
     assert result.output("accuracy") == 2, "failed to run"
@@ -64,14 +66,14 @@ def test_failed_schedule_not_creating_run():
     function.set_db_connection(db)
     db.submit_job.side_effect = RuntimeError("Explode!")
     function.store_run = Mock()
-    function.run(handler=my_func, schedule="* * * * *")
+    function.run(handler=my_func, schedule="* * * * *", artifact_path="/tmp")
     assert 0 == function.store_run.call_count
 
 
 def test_schedule_with_local_exploding():
     function = new_function()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
-        function.run(local=True, schedule="* * * * *")
+        function.run(local=True, schedule="* * * * *", artifact_path="/tmp")
     assert "local and schedule cannot be used together" in str(excinfo.value)
 
 
@@ -188,7 +190,9 @@ def test_run_class_code():
     ]
     fn = mlrun.code_to_function("mytst", filename=function_path, kind="local")
     for params, results in cases:
-        run = mlrun.run_function(fn, handler="mycls::mtd", params=params)
+        run = mlrun.run_function(
+            fn, handler="mycls::mtd", params=params, artifact_path="/tmp"
+        )
         assert run.status.results == results
 
 
@@ -199,13 +203,20 @@ def test_run_class_file():
     ]
     fn = mlrun.new_function("mytst", command=function_path, kind="job")
     for params, results in cases:
-        run = fn.run(handler="mycls::mtd", params=params, local=True)
+        run = fn.run(
+            handler="mycls::mtd", params=params, local=True, artifact_path="/tmp"
+        )
         assert run.status.results == results
 
 
 def test_run_from_module():
     fn = mlrun.new_function("mytst", kind="job")
-    run = fn.run(handler="json.dumps", params={"obj": {"x": 99}}, local=True)
+    run = fn.run(
+        handler="json.dumps",
+        params={"obj": {"x": 99}},
+        local=True,
+        artifact_path="/tmp",
+    )
     assert run.output("return") == '{"x": 99}'
 
 

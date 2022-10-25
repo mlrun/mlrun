@@ -55,7 +55,7 @@ def test_job_file():
     assert fn.spec.build.functionSourceCode, "code not embedded"
     assert fn.spec.build.origin_filename == filename, "did not record filename"
     assert type(fn.metadata.labels) == dict, "metadata labels were not set"
-    run = fn.run(workdir=str(examples_path), local=True)
+    run = fn.run(workdir=str(examples_path), local=True, artifact_path="/tmp")
 
     project, uri, tag, hash_key = parse_versioned_object_uri(run.spec.function)
     local_fn = get_run_db().get_function(uri, project, tag=tag, hash_key=hash_key)
@@ -81,7 +81,7 @@ def test_local_file_noembed():
     assert not fn.spec.build.functionSourceCode, fn.spec.build.functionSourceCode
     assert fn.spec.command == name, "filename not set in command"
 
-    fn.run(workdir=str(examples_path))
+    fn.run(workdir=str(examples_path), artifact_path="/tmp")
 
 
 def test_job_file_codeout():
@@ -105,7 +105,7 @@ def test_local_file_codeout():
     assert fn.spec.command == out, "filename not set to out in command"
     assert path.isfile(out), "output not generated"
 
-    fn.run(handler="training", params={"p1": 5})
+    fn.run(handler="training", params={"p1": 5}, artifact_path="/tmp")
 
 
 def test_nuclio_py():

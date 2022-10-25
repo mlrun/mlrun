@@ -452,7 +452,7 @@ def test_function_run_cli():
     )
     project.export()
 
-    args = "-f my-func --local --dump -p x=3".split()
+    args = "-f my-func --local --dump -p x=3 --out-path '/tmp".split()
     out = tests.conftest.exec_mlrun(args, str(project_dir_path))
     assert out.find("state: completed") != -1, out
     assert out.find("y: 6") != -1, out  # = x * 2
@@ -561,9 +561,11 @@ def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1", save=False)
+    proj1.spec.artifact_path = "/tmp"
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
     proj2 = mlrun.new_project("proj2", save=False)
+    proj2.spec.artifact_path = "/tmp"
     proj2.set_function(func_path, "f2", image="mlrun/mlrun", handler="myhandler")
 
     run = proj1.run_function("f1", params={"x": 1}, local=True)

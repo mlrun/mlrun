@@ -238,3 +238,23 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run make install-complete-requirements
       run: make install-complete-requirements
+
+  verify-compatible-requirements-all:
+    name: Verify compatible requirements (all)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run make install-all-requirements
+      run: make install-all-requirements
+
+  verify-compatible-requirements-one-after-one:
+    name: Verify compatible requirements (one after one)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run make install-requirements
+      run: make install-requirements
+    - name: Run make install-complete-requirements
+      run: make install-complete-requirements
+    - name: Run make install-all-requirements
+      run: make install-all-requirements

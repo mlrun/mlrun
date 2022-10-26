@@ -15,6 +15,7 @@
 from fastapi import APIRouter, Depends
 
 import mlrun.api.api.deps
+import mlrun.config
 from mlrun.api.api.endpoints import (
     artifacts,
     auth,
@@ -29,7 +30,6 @@ from mlrun.api.api.endpoints import (
     healthz,
     logs,
     marketplace,
-    memory_reports,
     model_endpoints,
     operations,
     pipelines,
@@ -40,6 +40,7 @@ from mlrun.api.api.endpoints import (
     secrets,
     submit,
     tags,
+    internal,
 )
 
 api_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
@@ -129,11 +130,6 @@ api_router.include_router(
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
 api_router.include_router(
-    memory_reports.router,
-    tags=["memory-reports"],
-    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
-)
-api_router.include_router(
     operations.router,
     tags=["operations"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
@@ -143,3 +139,10 @@ api_router.include_router(
     tags=["tags"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
+
+if mlrun.config.config.expose_internal_api_endpoints:
+    api_router.include_router(
+        internal.internal_router,
+        tags=["internal"],
+        dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+    )

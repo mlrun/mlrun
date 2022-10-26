@@ -28,6 +28,7 @@ from mlrun.api.api.endpoints import (
     functions,
     grafana_proxy,
     healthz,
+    internal,
     logs,
     marketplace,
     model_endpoints,
@@ -40,7 +41,6 @@ from mlrun.api.api.endpoints import (
     secrets,
     submit,
     tags,
-    internal,
 )
 
 api_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])

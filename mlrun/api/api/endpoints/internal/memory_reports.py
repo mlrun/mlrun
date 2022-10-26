@@ -12,12 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import http
+
 import fastapi
 
 import mlrun.api.schemas
 import mlrun.api.utils.memory_reports
 
 router = fastapi.APIRouter()
+
+
+@router.post(
+    "/memory-reports/periodic/start",
+    responses={http.HTTPStatus.ACCEPTED.value: {}},
+)
+def start_periodic_memory_reports():
+    mlrun.api.utils.memory_reports.start_periodic_memory_reports()
+
+
+@router.post(
+    "/memory-reports/periodic/stop",
+    responses={http.HTTPStatus.ACCEPTED.value: {}},
+)
+def stop_periodic_memory_reports():
+    mlrun.api.utils.memory_reports.stop_periodic_memory_reports()
 
 
 @router.get(

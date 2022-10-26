@@ -19,7 +19,34 @@ import typing
 
 import objgraph
 
+import mlrun.config
+from mlrun.api.utils.periodic import cancel_periodic_function, run_function_periodically
 from mlrun.utils import logger
+
+PERIODIC_REPORT_FUNCTION_NAME = "periodic_memory_reports"
+
+
+def start_periodic_memory_reports():
+    def _log_report():
+        logger.debug(
+            "Memory Report",
+            most_common_objects=create_most_common_objects_report(),
+        )
+
+    interval = int(mlrun.config.config.memory_report_interval)
+    if interval > 0:
+        logger.info("Starting periodic memory reports loop", interval=interval)
+        run_function_periodically(
+            interval,
+            PERIODIC_REPORT_FUNCTION_NAME,
+            False,
+            _log_report,
+        )
+
+
+def stop_periodic_memory_reports():
+    logger.info("Stopping periodic memory reports loop")
+    cancel_periodic_function(PERIODIC_REPORT_FUNCTION_NAME)
 
 
 def create_most_common_objects_report() -> typing.List[typing.Tuple[str, int]]:

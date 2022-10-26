@@ -2104,7 +2104,7 @@ class SQLDB(DBInterface):
         if uid == existing_feature_set.uid or always_overwrite:
             db_feature_set = existing_feature_set
         else:
-            db_feature_set = FeatureSet(project=project, full_object=feature_set_dict)
+            db_feature_set = FeatureSet(project=project)
 
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 

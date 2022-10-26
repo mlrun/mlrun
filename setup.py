@@ -85,7 +85,7 @@ extras_require = {
     ],
     "azure-blob-storage": [
         "msrest~=0.6.21",
-        "azure-core~=1.23",
+        "azure-core~=1.24",
         "azure-storage-blob~=12.13",
         "adlfs~=2021.8.1",
     ],

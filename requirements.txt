@@ -20,7 +20,9 @@ typing-extensions>=3.10.0,<5
 protobuf>=3.20.2, <4
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
-kfp~=1.8.0
+# 1.8.14 introduced new features related to ParallelFor, while our actual kfp server is 1.8.1, which isn't compatible
+# with the new features, therefore limiting to 1.8.13
+kfp~=1.8.0, <1.8.14
 nest-asyncio~=1.0
 ipython~=7.0
 nuclio-jupyter~=0.9.1

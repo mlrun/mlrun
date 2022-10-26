@@ -140,12 +140,15 @@ class V3ioStore(DataStore):
         append_header = deepcopy(self.headers)
         append_header["Range"] = "-1"
         buffer_offset = 0
-        buffer = memoryview(data)
+        try:
+            data = memoryview(data)
+        except TypeError:
+            pass
         while buffer_offset < buffer_size:
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
             http_put(
                 self.url + self._join(key),
-                buffer[buffer_offset : buffer_offset + chunk_size],
+                data[buffer_offset : buffer_offset + chunk_size],
                 append_header if buffer_offset else self.headers,
                 None,
             )

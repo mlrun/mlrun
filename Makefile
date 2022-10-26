@@ -109,7 +109,7 @@ install-complete-requirements: ## Install all requirements needed for developmen
 	python -m pip install .[complete]
 
 .PHONY: install-all-requirements
-install-complete-requirements: ## Install all requirements needed for development and testing
+install-all-requirements: ## Install all requirements needed for development and testing
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	python -m pip install .[complete]
 

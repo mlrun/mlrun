@@ -95,6 +95,11 @@ extras_require = {
         "bokeh~=2.4, >=2.4.2",
     ],
     "plotly": ["plotly~=5.4"],
+    "google-cloud": [
+        "google-cloud-storage",
+        "google-cloud-bigquery[pandas]",
+        "google-cloud",
+    ],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
     "google-cloud-bigquery": ["google-cloud-bigquery~=3.0"],
     "kafka": ["kafka-python~=2.0"],
@@ -105,7 +110,14 @@ extras_require["complete"] = sorted(
         requirement
         for extra_key, requirement_list in extras_require.items()
         for requirement in requirement_list
-        if extra_key != "bokeh"
+        if extra_key not in ["bokeh"]
+    }
+)
+extras_require["all"] = sorted(
+    {
+        requirement
+        for extra_key, requirement_list in extras_require.items()
+        for requirement in requirement_list
     }
 )
 extras_require["api"] = api_deps

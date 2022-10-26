@@ -360,7 +360,7 @@ class LegacyBokehArtifact(LegacyArtifact):
 
     def __init__(
         self,
-        figure,
+        figure=None,
         key: str = None,
         target_path: str = None,
     ):
@@ -409,7 +409,7 @@ class LegacyPlotlyArtifact(LegacyArtifact):
 
     def __init__(
         self,
-        figure,
+        figure=None,
         key: str = None,
         target_path: str = None,
     ):

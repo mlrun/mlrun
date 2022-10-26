@@ -138,6 +138,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         assert measurements.status.targets[0].run_id is not None
 
+        stats = measurements.get_stats_table()
+        assert "id" not in stats['unique']
+
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"
         name = "measurements"

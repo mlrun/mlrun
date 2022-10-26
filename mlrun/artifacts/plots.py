@@ -141,7 +141,7 @@ class BokehArtifact(Artifact):
 
     def __init__(
         self,
-        figure,
+        figure=None,
         key: str = None,
         target_path: str = None,
     ):
@@ -152,8 +152,6 @@ class BokehArtifact(Artifact):
         :param key:         Key for the artifact to be stored in the database.
         :param target_path: Path to save the artifact.
         """
-        super().__init__(key=key, target_path=target_path, viewer="bokeh")
-
         # Validate input:
         try:
             from bokeh.plotting import Figure
@@ -161,11 +159,14 @@ class BokehArtifact(Artifact):
             raise Error(
                 "Using 'BokehArtifact' requires bokeh package. Use pip install mlrun[bokeh] to install it."
             )
-        if not isinstance(figure, Figure):
+        if figure is not None and not isinstance(figure, Figure):
             raise ValueError(
                 "BokehArtifact requires the figure parameter to be a "
                 "'bokeh.plotting.Figure' but received '{}'".format(type(figure))
             )
+
+        # Call the artifact initializer:
+        super().__init__(key=key, target_path=target_path, viewer="bokeh")
 
         # Continue initializing the bokeh artifact:
         self._figure = figure
@@ -192,7 +193,7 @@ class PlotlyArtifact(Artifact):
 
     def __init__(
         self,
-        figure,
+        figure=None,
         key: str = None,
         target_path: str = None,
     ):
@@ -222,7 +223,7 @@ class PlotlyArtifact(Artifact):
         super().__init__(key=key, target_path=target_path, viewer="plotly")
 
         # Validate input:
-        if not isinstance(figure, Figure):
+        if figure is not None and not isinstance(figure, Figure):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"PlotlyArtifact requires the figure parameter to be a "
                 f"`plotly.graph_objs.Figure` but received '{type(figure)}'"

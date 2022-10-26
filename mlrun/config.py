@@ -431,7 +431,6 @@ default_config = {
         # ce mode can be one of: "", lite, full
         "mode": "",
     },
-    "memory_report_interval": 10,
 }
 
 

@@ -2104,9 +2104,7 @@ class SQLDB(DBInterface):
         if uid == existing_feature_set.uid or always_overwrite:
             db_feature_set = existing_feature_set
         else:
-            db_feature_set = FeatureSet(
-                project=project, created=feature_set_dict["metadata"].get("created")
-            )
+            db_feature_set = FeatureSet(project=project)
 
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
 
@@ -2416,9 +2414,7 @@ class SQLDB(DBInterface):
         if uid == existing_feature_vector.uid or always_overwrite:
             db_feature_vector = existing_feature_vector
         else:
-            db_feature_vector = FeatureVector(
-                project=project, created=feature_vector_dict["metadata"].get("created")
-            )
+            db_feature_vector = FeatureVector(project=project)
 
         self._update_db_record_from_object_dict(
             db_feature_vector, feature_vector_dict, uid

@@ -113,7 +113,8 @@ extras_require["complete"] = sorted(
         requirement
         for extra_key, requirement_list in extras_require.items()
         for requirement in requirement_list
-        if extra_key not in ["bokeh"]
+        # google-cloud is mainly used for QA, that is why we are not including it in complete
+        if extra_key not in ["bokeh", "google-cloud"]
     }
 )
 extras_require["all"] = sorted(

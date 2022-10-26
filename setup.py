@@ -96,12 +96,12 @@ extras_require = {
     ],
     "plotly": ["plotly~=5.4"],
     "google-cloud": [
-        "google-cloud-storage",
-        "google-cloud-bigquery[pandas]",
-        "google-cloud",
+        "google-cloud-storage~=2.5",
+        "google-cloud-bigquery[pandas]~=3.3",
+        "google-cloud~=0.34",
     ],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
-    "google-cloud-bigquery": ["google-cloud-bigquery~=3.0"],
+    "google-cloud-bigquery": ["google-cloud-bigquery~=3.3"],
     "kafka": ["kafka-python~=2.0"],
     "redis": ["redis~=4.3"],
 }

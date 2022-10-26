@@ -111,7 +111,7 @@ install-complete-requirements: ## Install all requirements needed for developmen
 .PHONY: install-all-requirements
 install-all-requirements: ## Install all requirements needed for development and testing
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install .[complete]
+	python -m pip install .[all]
 
 .PHONY: create-migration-sqlite
 create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"

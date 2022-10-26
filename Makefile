@@ -37,7 +37,7 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.13
-MLRUN_PIP_VERSION ?= 22.2.0
+MLRUN_PIP_VERSION ?= 22.3.0
 # MLRUN_GPU_PIP_VERSION is used because pip declaration in the dockerfile of gpu image is almost at the start of the file
 # which will cause the cache to be mostly invalidated if we change the pip version, because we are unable to rebuild
 # the image until we will move to newer python version, we will use the old one which is 22.0.0

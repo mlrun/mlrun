@@ -102,7 +102,7 @@ extras_require = {
         "google-cloud~=0.34",
     ],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
-    "google-cloud-bigquery": ["google-cloud-bigquery~=3.3"],
+    "google-cloud-bigquery": ["google-cloud-bigquery[pandas]~=3.3"],
     "kafka": ["kafka-python~=2.0"],
     "redis": ["redis~=4.3"],
 }

@@ -96,7 +96,8 @@ extras_require = {
     ],
     "plotly": ["plotly~=5.4"],
     "google-cloud": [
-        "google-cloud-storage~=2.5",
+        # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
+        "google-cloud-storage~=1.20",
         "google-cloud-bigquery[pandas]~=3.3",
         "google-cloud~=0.34",
     ],

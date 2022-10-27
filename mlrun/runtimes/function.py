@@ -286,8 +286,8 @@ class RemoteRuntime(KubeResource):
         return self
 
     def set_annotation(self, key, val):
+        """set a key/value annotation for function"""
         self.spec.base_spec["metadata"]["annotations"][key] = str(val)
-        print(self.spec.base_spec)
         return self
 
     def add_volume(self, local, remote, name="fs", access_key="", user=""):

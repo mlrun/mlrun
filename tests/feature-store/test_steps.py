@@ -75,7 +75,6 @@ def test_set_event_random_id():
     assert resp["id"] != "XYZ", "id was not overwritten"
 
 
-
 def test_pandas_step_onehot(rundb_mock):
     data, _ = get_data()
     # One Hot Encode the newly defined mappings
@@ -558,7 +557,6 @@ def get_data(with_none=False):
                 "age": ages,
                 "department": department,
                 "timestamp": timestamp,
-
                 "id": ["a", "v", "h", "g", "j"],
             },
         )

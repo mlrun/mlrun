@@ -561,7 +561,7 @@ def get_data(with_none=False):
                 "age": ages,
                 "department": department,
                 "timestamp": timestamp,
-                "id": ['a', 'v', 'h', 'g', 'j'],
+                "id": ["a", "v", "h", "g", "j"],
             },
         )
         department = [None, "RD", "RD", "Marketing", "IT"]
@@ -571,7 +571,7 @@ def get_data(with_none=False):
             "age": ages,
             "department": department,
             "timestamp": timestamp,
-            "id": ['a', 'v', 'h', 'g', 'j'],
+            "id": ["a", "v", "h", "g", "j"],
         },
     )
     return data, data_ref

@@ -22,6 +22,6 @@ azure-keyvault-secrets~=4.2
 bokeh~=2.4, >=2.4.2
 gcsfs~=2021.8.1
 plotly~=5.4
-google-cloud-bigquery~=3.2
+google-cloud-bigquery[pandas]~=3.2
 kafka-python~=2.0
 redis~=4.3

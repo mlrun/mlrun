@@ -93,10 +93,22 @@ def init_featureset_graph(
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
-        # set the entity to be the index of the df
+        # set the entities to be the indexes of the df
         if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
-            if event.body.index.name != featureset.spec.entities[0].name:
-                event.body = event.body.set_index(featureset.spec.entities[0].name)
+            entities_names = [ent.name for ent in featureset.spec.entities]
+            add_to_index = []
+            for ent_name in entities_names:
+                if ent_name not in event.body.index.names:
+                    add_to_index.append(ent_name)
+            start = 0
+            if len(add_to_index) == len(entities_names):
+                # need to reset all indexes
+                event.body = event.body.set_index(add_to_index[0])
+                start = 1
+            for name in add_to_index[start:]:
+                if name in event.body.columns:
+                    event.body = event.body.set_index(name, append=True)
+
         data = server.run(event, get_body=True)
         if data is not None:
             if featureset.spec.entities[0] in data:

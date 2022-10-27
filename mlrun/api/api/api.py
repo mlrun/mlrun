@@ -143,8 +143,5 @@ api_router.include_router(
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],
-    dependencies=[
-        Depends(mlrun.api.api.deps.authenticate_request),
-        Depends(mlrun.api.api.deps.expose_internal_endpoints),
-    ],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

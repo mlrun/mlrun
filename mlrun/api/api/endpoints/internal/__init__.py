@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends
 
 import mlrun.api.api.deps
 
-from . import memory_reports
+from . import config, memory_reports
 
 internal_router = APIRouter(
     prefix="/_internal",
@@ -26,7 +26,16 @@ internal_router = APIRouter(
 )
 
 internal_router.include_router(
+    config.router,
+    tags=["config"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+
+internal_router.include_router(
     memory_reports.router,
     tags=["memory-reports"],
-    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+    dependencies=[
+        Depends(mlrun.api.api.deps.authenticate_request),
+        Depends(mlrun.api.api.deps.expose_internal_endpoints),
+    ],
 )

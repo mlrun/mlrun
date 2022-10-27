@@ -100,8 +100,8 @@ install-requirements: ## Install all requirements needed for development
 		-r requirements.txt \
 		-r extras-requirements.txt \
 		-r dev-requirements.txt \
-		-r dockerfiles/mlrun-api/requirements.txt \
-		-r docs/requirements.txt
+		-r dockerfiles/mlrun-api/requirements.txt
+#		-r docs/requirements.txt
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing

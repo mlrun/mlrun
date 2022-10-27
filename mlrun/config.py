@@ -430,6 +430,9 @@ default_config = {
         # ce mode can be one of: "", lite, full
         "mode": "",
     },
+    "debug": {
+        "expose_internal_api_endpoints": False,
+    },
 }
 
 

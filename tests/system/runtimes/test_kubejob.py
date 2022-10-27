@@ -35,6 +35,23 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying kubejob function")
         function.deploy()
 
+    def test_deploy_function_without_image_with_requirements(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+
+        function = mlrun.code_to_function(
+            name="simple-function",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            requirements=["pandas"],
+        )
+        assert function.spec.image == ""
+        assert function.spec.build.base_image == "mlrun/mlrun"
+        function.deploy()
+        assert function.spec.image == ".mlrun/func-kubejob-system-test-simple-function:latest"
+        function.run()
+
+
     def test_function_with_param(self):
         code_path = str(self.assets_path / "function_with_params.py")
 

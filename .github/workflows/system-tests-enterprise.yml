@@ -227,7 +227,7 @@ jobs:
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           automation/system_test/cleanup.py \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:~/cleanup.py
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
         
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
@@ -237,7 +237,7 @@ jobs:
           -o ServerAliveCountMax=3 \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
             /bin/python3 \
-              ~/cleanup.py \
+              /home/iguazio/cleanup.py \
               http://localhost:8009 \
               igz0.docker_registry.0 \
               "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"

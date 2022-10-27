@@ -92,10 +92,10 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "kfp": {"~=1.8.0"},
+        "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.1.9"},
+        "storey": {"~=1.2.2"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
@@ -123,9 +123,9 @@ def test_requirement_specifiers_convention():
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=1,<7"},
+        "pyarrow": {">=3,<7"},
         "nbclassic": {">=0.2.8"},
-        "protobuf": {">=3.20.1, !=3.20.2, <4"},
+        "protobuf": {">=3.20.2, <4"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
     }

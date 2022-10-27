@@ -131,8 +131,31 @@ class V3ioStore(DataStore):
             headers["Range"] = get_range(size, offset)
         return http_get(self.url + self._join(key), headers)
 
+    def _put(self, key, data, max_chunk_size: int = ONE_GB):
+        """helper function for put method, allows for controlling max_chunk_size in testing"""
+        buffer_size = len(data)  # in bytes
+        if buffer_size <= ONE_MB:
+            http_put(self.url + self._join(key), data, self.headers, None)
+            return
+        append_header = deepcopy(self.headers)
+        append_header["Range"] = "-1"
+        buffer_offset = 0
+        try:
+            data = memoryview(data)
+        except TypeError:
+            pass
+        while buffer_offset < buffer_size:
+            chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+            http_put(
+                self.url + self._join(key),
+                data[buffer_offset : buffer_offset + chunk_size],
+                append_header if buffer_offset else self.headers,
+                None,
+            )
+            buffer_offset += chunk_size
+
     def put(self, key, data, append=False):
-        http_put(self.url + self._join(key), data, self.headers, None)
+        return self._put(key, data)
 
     def stat(self, key):
         head = http_head(self.url + self._join(key), self.headers)

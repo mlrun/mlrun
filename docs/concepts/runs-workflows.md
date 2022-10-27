@@ -7,8 +7,9 @@
 ```{toctree}
 :maxdepth: 1
 
-../concepts/mlrun-execution-context
-../concepts/submitting-tasks-jobs-to-functions
-../concepts/workflow-overview
-../concepts/scheduled-jobs
+mlrun-execution-context
+decorators-and-auto-logging
+submitting-tasks-jobs-to-functions
+workflow-overview
+scheduled-jobs
 ```

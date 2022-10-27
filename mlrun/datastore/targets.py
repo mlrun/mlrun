@@ -1153,22 +1153,14 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
     def get_table_object(self):
         from storey import Table
-        from storey.redis_driver import RedisDriver, RedisType
+        from storey.redis_driver import RedisDriver
 
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        if mlrun.mlconf.redis.type == "standalone":
-            redis_type = RedisType.STANDALONE
-        elif mlrun.mlconf.redis.type == "cluster":
-            redis_type = RedisType.CLUSTER
-        else:
-            raise NotImplementedError(
-                f"invalid redis type {mlrun.mlconf.redis.type} - should be one of {'cluster', 'standalone'})"
-            )
 
         return Table(
             uri,
-            RedisDriver(redis_type=redis_type, redis_url=endpoint, key_prefix="/"),
+            RedisDriver(redis_url=endpoint, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
@@ -1270,7 +1262,7 @@ class KafkaTarget(BaseStoreTarget):
             columns=column_list,
             topic=topic,
             bootstrap_servers=bootstrap_servers,
-            producer_options=self.attributes.get("producer_options"),
+            **self.attributes,
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

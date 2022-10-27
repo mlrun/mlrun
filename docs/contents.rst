@@ -39,3 +39,17 @@ Table of Contents
    api/index
    cli
    glossary
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Software specifications
+   
+   sw-specs
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Change log
+   
+   change-log/index
+
+

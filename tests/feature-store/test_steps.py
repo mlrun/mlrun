@@ -75,8 +75,7 @@ def test_set_event_random_id():
     assert resp["id"] != "XYZ", "id was not overwritten"
 
 
-@pytest.mark.parametrize("with_set_index", [True, False])
-def test_pandas_step_onehot(rundb_mock, with_set_index):
+def test_pandas_step_onehot(rundb_mock):
     data, _ = get_data()
     # One Hot Encode the newly defined mappings
     one_hot_encoder_mapping = {
@@ -89,9 +88,6 @@ def test_pandas_step_onehot(rundb_mock, with_set_index):
         description="feature set",
         engine="pandas",
     )
-
-    if with_set_index:
-        data.set_index("id", inplace=True)
 
     # Pre-processing grpah steps
     data_set_pandas.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))

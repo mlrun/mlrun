@@ -36,7 +36,7 @@ def _get_engine_and_function(function, project=None):
                     "function name (str) can only be used in a project context, you must create, "
                     "load or get a project first or provide function object instead of its name"
                 )
-            function = pipeline_context.functions[function]
+            function = project.get_function(function, sync=False, enrich=True)
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())

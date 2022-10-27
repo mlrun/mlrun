@@ -475,6 +475,31 @@ def test_feature_sets(create_server):
     assert len(entities) == count
 
 
+def test_remove_labels_from_feature_set(create_server):
+    server: Server = create_server()
+    db: HTTPRunDB = server.conn
+
+    project = "newproj"
+    proj_obj = mlrun.new_project(project, save=False)
+    db.create_project(proj_obj)
+
+    feature_set = _create_feature_set("feature-set-test")
+    db.create_feature_set(feature_set, project=project, versioned=True)
+
+    feature_sets = db.list_feature_sets(project=project)
+    assert len(feature_sets) == 1, "bad number of feature sets"
+    assert len(feature_sets[0].metadata.labels) == 2, "bad number of labels"
+    assert (
+        feature_sets[0].metadata.labels == feature_set["metadata"]["labels"]
+    ), "labels were not set correctly"
+
+    feature_set = feature_sets[0]
+    feature_set.metadata.labels = {}
+    db.store_feature_set(feature_set.to_dict(), project=project)
+    feature_sets = db.list_feature_sets(project=project, tag="latest")
+    assert feature_sets[0].metadata.labels is None, "labels were not removed correctly"
+
+
 def _create_feature_vector(name):
     return {
         "kind": "FeatureVector",

@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
+import time
 import uuid
 
 import pytest
@@ -90,7 +92,11 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
 class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
     project_name = "stream-project"
     stream_container = "bigdata"
-    stream_path = "/test_nuclio/test_serving_with_child_function/"
+    path_uuid_part = uuid.uuid4()
+    stream_path = f"/test_nuclio/test_serving_with_child_function-{path_uuid_part}/"
+    stream_path_out = (
+        f"/test_nuclio/test_serving_with_child_function_out-{path_uuid_part}/"
+    )
 
     def custom_teardown(self):
         v3io_client = v3io.dataplane.Client(
@@ -118,13 +124,93 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         graph = function.set_topology("flow", engine="async")
 
         graph.to(
-            ">>", "q1", path=f"v3io:///{self.stream_container}{self.stream_path}"
-        ).to(name="child", class_name="Identity", function="child")
+            ">>",
+            "q1",
+            path=f"v3io:///{self.stream_container}{self.stream_path}",
+            sharding_func=1,
+            shards=3,
+            full_event=True,
+        ).to(name="child", class_name="Identity", function="child").to(
+            ">>",
+            "out",
+            path=f"/{self.stream_container}{self.stream_path_out}",
+            sharding_func=2,
+            shards=3,
+        )
 
-        function.add_child_function("child", child_code_path, "mlrun/mlrun")
+        graph.add_step(
+            name="otherchild", class_name="Augment", after="q1", function="otherchild"
+        )
+
+        graph["out"].after_step("otherchild")
+
+        function.add_child_function(
+            "child",
+            child_code_path,
+            image="mlrun/mlrun",
+        )
+        function.add_child_function(
+            "otherchild",
+            child_code_path,
+            image="mlrun/mlrun",
+        )
 
         self._logger.debug("Deploying nuclio function")
-        function.deploy()
+        url = function.deploy()
+
+        self._logger.debug("Triggering nuclio function")
+        resp = requests.post(url, json={"hello": "world"})
+        assert resp.status_code == 200
+
+        time.sleep(10)
+
+        client = v3io.dataplane.Client()
+
+        resp = client.stream.seek(
+            self.stream_container, self.stream_path_out, 2, "EARLIEST"
+        )
+        self._logger.debug(f"Out stream Seek response: {resp.status_code}: {resp.body}")
+        location = json.loads(resp.body.decode("utf8"))["Location"]
+        resp = client.stream.get_records(
+            self.stream_container, self.stream_path_out, shard_id=2, location=location
+        )
+        self._logger.debug(
+            f"Out stream GetRecords response: {resp.status_code}: {resp.body}"
+        )
+        assert resp.status_code == 200
+
+        assert len(resp.output.records) == 2
+        record1, record2 = resp.output.records
+
+        expected_record = b'{"hello": "world"}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+
+        assert (
+            record1.data == expected_record and record2.data == expected_other_record
+        ) or (record2.data == expected_record and record1.data == expected_other_record)
+
+        resp = client.stream.seek(
+            self.stream_container, self.stream_path, 1, "EARLIEST"
+        )
+        self._logger.debug(
+            f"Intermediate stream Seek response: {resp.status_code}: {resp.body}"
+        )
+        location = json.loads(resp.body.decode("utf8"))["Location"]
+        resp = client.stream.get_records(
+            self.stream_container, self.stream_path, shard_id=1, location=location
+        )
+        self._logger.debug(
+            f"Intermediate stream GetRecords response: {resp.status_code}: {resp.body}"
+        )
+        assert resp.status_code == 200
+        assert len(resp.output.records) == 1
+        record = resp.output.records[0]
+        record = json.loads(record.data.decode("utf8"))
+        self._logger.debug(f"Intermediate record: {record}")
+        assert record["full_event_wrapper"] is True
+        assert record["body"] == {"hello": "world"}
+        assert "time" in record.keys()
+        assert "id" in record.keys()
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -144,8 +230,12 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_admin_client = kafka.KafkaAdminClient(bootstrap_servers=self.brokers)
         kafka_admin_client.create_topics(
             [
-                kafka.admin.NewTopic(self.topic, 1, 1),
-                kafka.admin.NewTopic(self.topic_out, 1, 1),
+                kafka.admin.NewTopic(
+                    self.topic, num_partitions=3, replication_factor=1
+                ),
+                kafka.admin.NewTopic(
+                    self.topic_out, num_partitions=3, replication_factor=1
+                ),
             ]
         )
 
@@ -153,6 +243,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             self.topic_out,
             bootstrap_servers=self.brokers,
             auto_offset_reset="earliest",
+            consumer_timeout_ms=10 * 60 * 1000,
         )
 
         # Test runs
@@ -181,9 +272,19 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         graph = function.set_topology("flow", engine="async")
 
-        graph.to(">>", "q1", path=f"kafka://{self.brokers}/{self.topic}").to(
-            name="child", class_name="Identity", function="child"
-        ).to(">>", "out", path=self.topic_out, kafka_bootstrap_servers=self.brokers)
+        graph.to(
+            ">>",
+            "q1",
+            path=f"kafka://{self.brokers}/{self.topic}",
+            sharding_func=1,
+            full_event=True,
+        ).to(name="child", class_name="Identity", function="child").to(
+            ">>",
+            "out",
+            path=self.topic_out,
+            kafka_bootstrap_servers=self.brokers,
+            sharding_func=2,
+        )
 
         graph.add_step(
             name="other-child", class_name="Augment", after="q1", function="other-child"
@@ -209,19 +310,32 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         resp = requests.post(url, json={"hello": "world"})
         assert resp.status_code == 200
 
+        expected_record = b'{"hello": "world"}'
+        expected_other_record = b'{"hello": "world", "more_stuff": 5}'
+
         self._logger.debug("Waiting for data to arrive in output topic")
         kafka_consumer.subscribe([self.topic_out])
         record1 = next(kafka_consumer)
-        assert (
-            record1.value == b'{"hello": "world"}'
-            or record1.value == b'{"hello": "world", "more_stuff": 5}'
-        )
         record2 = next(kafka_consumer)
         assert (
-            record2.value == b'{"hello": "world"}'
-            or record2.value == b'{"hello": "world", "more_stuff": 5}'
+            record1.value == expected_record and record2.value == expected_other_record
+        ) or (
+            record2.value == expected_record or record1.value == expected_other_record
         )
-        assert record1 != record2
+        assert record1.partition == 2
+        assert record2.partition == 2
+        kafka_consumer.unsubscribe()
+
+        # Intermediate record should have been written as a full event
+        kafka_consumer.subscribe([self.topic])
+        record = next(kafka_consumer)
+        payload = json.loads(record.value.decode("utf8"))
+        self._logger.debug(f"Intermediate record: {payload}")
+        assert payload["full_event_wrapper"] is True
+        assert payload["body"] == {"hello": "world"}
+        assert "time" in payload.keys()
+        assert "id" in payload.keys()
+        assert record.partition == 1
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

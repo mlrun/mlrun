@@ -487,3 +487,21 @@ def test_export_to_zip():
     # check upload to (remote) DataItem
     project.export("memory://x.zip")
     assert mlrun.get_dataitem("memory://x.zip").stat().size
+
+
+def test_project_ops():
+    # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    proj2 = mlrun.new_project("proj2", save=False)
+    proj2.set_function(func_path, "f2", image="mlrun/mlrun", handler="myhandler")
+
+    run = proj1.run_function("f1", params={"x": 1}, local=True)
+    assert run.spec.function.startswith("proj1/f1")
+    assert run.output("y") == 2  # = x * 2
+
+    run = proj2.run_function("f2", params={"x": 2}, local=True)
+    assert run.spec.function.startswith("proj2/f2")
+    assert run.output("y") == 4  # = x * 2

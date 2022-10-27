@@ -39,6 +39,7 @@ from ..model import (
     DataTarget,
     DataTargetBase,
     ModelObj,
+    ObjectDict,
     ObjectList,
     VersionedObjMetadata,
 )
@@ -90,11 +91,12 @@ class FeatureSetSpec(ModelObj):
         self._source = None
         self._engine = None
         self._function: FunctionReference = None
-        self._relations = relations
+        self._relations: ObjectDict = None
 
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
+        self.relations: Dict[str, Entity] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
@@ -191,7 +193,7 @@ class FeatureSetSpec(ModelObj):
 
     @relations.setter
     def relations(self, relations: Dict[str, Entity]):
-        self._relations = relations
+        self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
         return len(self._graph.steps) > 0

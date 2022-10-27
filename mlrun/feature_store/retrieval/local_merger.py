@@ -37,53 +37,28 @@ class LocalFeatureMerger(BaseMerger):
 
         feature_sets = []
         dfs = []
-        feature_sets_names = []
         keys = []
         all_columns = list()
-        self._parse_relations(
-            feature_set_objects=feature_set_objects,
-            feature_set_fields=feature_set_fields,
+
+        fs_link_list = self.create_linked_relation_list(
+            feature_set_objects, feature_set_fields
         )
 
-        # extract all dfs from the feature sets.
-        for name, columns in feature_set_fields.items():
+        for node in fs_link_list:
+            name = node.name
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
+            columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
-            feature_sets_names.append(name)
+            right_keys = node.data["right_keys"]
+            left_keys = node.data["left_keys"]
+            saved_col = node.data["save_cols"]
+            saved_index = node.data["save_index"]
 
-            # updating the columns list that needed for tho join.
-            # Build left and right keys for the join apply
-            right_keys = []
-            left_keys = []
-            temp_key = []
-            for key, dict_relation in self._relation.items():
-                if re.findall(f":{name}$", key):
-                    for left, right in dict_relation.items():
-                        if (
-                            right not in column_names
-                            and right not in feature_set.spec.entities.keys()
-                        ):
-                            column_names.append(right)
-                            if self._drop_indexes:
-                                self._append_drop_column(right)
-                        if key.split(":")[0] in feature_sets_names:
-                            right_keys.append(right)
-                            left_keys.append(left)
-                        temp_key.append(right)
-                elif re.findall(f"^{name}:", key):
-                    for left, right in dict_relation.items():
-                        if (
-                            left not in column_names
-                            and left not in feature_set.spec.entities.keys()
-                        ):
-                            column_names.append(left)
-                            if self._drop_indexes:
-                                self._append_drop_column(left)
-                        if key.split(":")[1] in feature_sets_names:
-                            right_keys.append(left)
-                            left_keys.append(right)
-                        temp_key.append(left)
+            for col in saved_col:
+                if col not in column_names:
+                    self._append_drop_column(col)
+            column_names += saved_col
 
             # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
             # column is from a specific feature set (can't be entity timestamp)
@@ -102,9 +77,12 @@ class LocalFeatureMerger(BaseMerger):
                     columns=column_names,
                     time_column=entity_timestamp_column,
                 )
+            df.reset_index(inplace=True)
+            column_names += saved_index
+            saved_col += saved_index
             # rename columns to be unique for each feature set
             rename_col_dict = {
-                col: f"{col}_{name}" for col in column_names if col not in temp_key
+                col: f"{col}_{name}" for col in column_names if col not in saved_col
             }
             df.rename(
                 columns=rename_col_dict,
@@ -222,17 +200,16 @@ class LocalFeatureMerger(BaseMerger):
         right_keys: list,
         columns: list,
     ):
-        indexes = None
-        if not right_keys:
-            indexes = list(featureset.spec.entities.keys())
         fs_name = featureset.metadata.name
         merged_df = pd.merge(
             entity_df,
             featureset_df,
-            on=indexes,
             how=self._join_type,
             left_on=left_keys,
             right_on=right_keys,
-            suffixes=("", f"_{fs_name}"),
+            suffixes=("", f"_{fs_name}_"),
         )
+        for col in merged_df.columns:
+            if re.findall(f"_{fs_name}_$", col):
+                self._append_drop_column(col)
         return merged_df

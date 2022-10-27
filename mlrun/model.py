@@ -162,7 +162,12 @@ class ObjectDict:
 
         new_obj = cls(classes_map, default_kind)
         for name, child in children.items():
-            child_obj = new_obj._get_child_object(child, name)
+            obj_name = name
+            if hasattr(child, "name"):
+                obj_name = child.name
+            elif isinstance(child, dict) and child["name"]:
+                obj_name = child["name"]
+            child_obj = new_obj._get_child_object(child, obj_name)
             new_obj._children[name] = child_obj
 
         return new_obj

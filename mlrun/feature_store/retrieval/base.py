@@ -59,18 +59,18 @@ class BaseMerger(abc.ABC):
             self._alias[key] = val
 
     def start(
-            self,
-            entity_rows=None,
-            entity_timestamp_column=None,
-            target=None,
-            drop_columns=None,
-            start_time=None,
-            end_time=None,
-            with_indexes=None,
-            update_stats=None,
-            query=None,
-            join_type="inner",
-            relations=None,
+        self,
+        entity_rows=None,
+        entity_timestamp_column=None,
+        target=None,
+        drop_columns=None,
+        start_time=None,
+        end_time=None,
+        with_indexes=None,
+        update_stats=None,
+        query=None,
+        join_type="inner",
+        relations=None,
     ):
         self._target = target
         self._join_type = join_type
@@ -146,25 +146,25 @@ class BaseMerger(abc.ABC):
 
     @abc.abstractmethod
     def _generate_vector(
-            self,
-            entity_rows,
-            entity_timestamp_column,
-            feature_set_objects,
-            feature_set_fields,
-            start_time=None,
-            end_time=None,
-            query=None,
+        self,
+        entity_rows,
+        entity_timestamp_column,
+        feature_set_objects,
+        feature_set_fields,
+        start_time=None,
+        end_time=None,
+        query=None,
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 
     def merge(
-            self,
-            entity_df,
-            entity_timestamp_column: str,
-            featuresets: list,
-            featureset_dfs: list,
-            keys: list = None,
-            all_columns: list = None,
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featuresets: list,
+        featureset_dfs: list,
+        keys: list = None,
+        all_columns: list = None,
     ):
         """join the entities and feature set features into a result dataframe"""
         merged_df = entity_df
@@ -180,11 +180,11 @@ class BaseMerger(abc.ABC):
             else:
                 all_columns = [[]] * len(featureset_dfs)
             entity_timestamp_column = (
-                    entity_timestamp_column or featureset.spec.timestamp_key
+                entity_timestamp_column or featureset.spec.timestamp_key
             )
 
         for featureset, featureset_df, lr_key, columns in zip(
-                featuresets, featureset_dfs, keys, all_columns
+            featuresets, featureset_dfs, keys, all_columns
         ):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
@@ -205,27 +205,27 @@ class BaseMerger(abc.ABC):
 
     @abc.abstractmethod
     def _asof_join(
-            self,
-            entity_df,
-            entity_timestamp_column: str,
-            featureset,
-            featureset_df,
-            left_keys: list,
-            right_keys: list,
-            columns: list,
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
     @abc.abstractmethod
     def _join(
-            self,
-            entity_df,
-            entity_timestamp_column: str,
-            featureset,
-            featureset_df,
-            left_keys: list,
-            right_keys: list,
-            columns: list,
+        self,
+        entity_df,
+        entity_timestamp_column: str,
+        featureset,
+        featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
         raise NotImplementedError("_join() operation not implemented in class")
 
@@ -258,8 +258,8 @@ class BaseMerger(abc.ABC):
                 fs_relations = feature_set.spec.relations
                 for other_fs, relation in fs_relations.items():
                     if (
-                            f"{name}:{other_fs}" not in self._relation
-                            or f"{other_fs}:{name}" not in self._relation
+                        f"{name}:{other_fs}" not in self._relation
+                        or f"{other_fs}:{name}" not in self._relation
                     ):
                         self._relation[f"{name}:{other_fs}"] = relation
 
@@ -279,22 +279,91 @@ class BaseMerger(abc.ABC):
                     )
 
     def create_linked_relation_list(self, feature_set_objects, feature_set_fields):
-        relation_linked_list = LinkedList()
+        relation_linked_lists = []
+        for name, _ in feature_set_fields.items():
+            feature_set = feature_set_objects[name]
+            fs_relations = feature_set.spec.relations
+            fs_entity = feature_set.spec.entities
+            relations = LinkedList()
+            main_node = Node(
+                name,
+                data={
+                    "left_keys": [],
+                    "right_keys": [],
+                    "save_cols": [],
+                    "save_index": [],
+                },
+            )
+            relations.add_first(main_node)
+            for name_in, _ in feature_set_fields.items():
+                if name_in == name:
+                    continue
+                entity_list = feature_set_objects[name_in].spec.entities
+                entity_relation_list = [*fs_relations.values()]
+                col_relation_list = [*fs_relations.keys()]
+                curr_col_relation_list = []
+                relation_wise = True
+                for ent in entity_list:
+                    if ent not in entity_relation_list:
+                        relation_wise = False
+                        break
+                    curr_col_relation_list.append(
+                        col_relation_list[entity_relation_list.index(ent)]
+                    )
+                if relation_wise:
+                    relations.add_last(
+                        Node(
+                            name_in,
+                            data={
+                                "left_keys": curr_col_relation_list,
+                                "right_keys": [ent.name for ent in entity_list],
+                                "save_cols": [],
+                                "save_index": [],
+                            },
+                        )
+                    )
+                    main_node.data["save_cols"].append(*curr_col_relation_list)
+                elif sorted([*entity_list.keys()]) == sorted(fs_entity.keys()):
+                    keys = [ent.name for ent in entity_list]
+                    relations.add_last(
+                        Node(
+                            name_in,
+                            data={
+                                "left_keys": keys,
+                                "right_keys": keys,
+                                "save_cols": [],
+                                "save_index": keys,
+                            },
+                        )
+                    )
+                    main_node.data["save_index"] = keys
+
+            relation_linked_lists.append(relations)
+        link_list_iter = relation_linked_lists.__iter__()
+        real_1 = link_list_iter.__next__()
+        for real_2 in link_list_iter:
+            real_1.concat(real_2, ["save_cols"])
+
+        return real_1
 
 
 class Node:
-    def __init__(self, name: str, data: Dict[str, Any] = None):
+    def __init__(self, name: str, data=None):
         self.name = name
         self.data = data
         self.next = None
 
     def __repr__(self):
-        return self.data
+        return self.name
+
+    def __eq__(self, other):
+        return self.name == other.name
 
 
 class LinkedList:
     def __init__(self):
         self.head = None
+        self.len = 0
 
     def __repr__(self):
         node = self.head
@@ -311,34 +380,52 @@ class LinkedList:
             yield node
             node = node.next
 
-    def add_first(self, node):
+    def add_first(self, node: Node):
         node.next = self.head
         self.head = node
+        self.len += 1
+        if self.head is None:
+            self.head = node
 
-    def add_last(self, node):
+    def add_last(self, node: Node):
         if self.head is None:
             self.head = node
             return
         for current_node in self:
             pass
         current_node.next = node
+        self.len += 1
 
-    def add_after(self, target_node_data, new_node):
+    def add_after(self, target_node_name: str, new_node: Node):
         if self.head is None:
             raise Exception("List is empty")
 
         for node in self:
-            if node.data == target_node_data:
+            if node.name == target_node_name:
                 new_node.next = node.next
                 node.next = new_node
+                self.len += 1
                 return
 
-        raise Exception("Node with data '%s' not found" % target_node_data)
+        raise Exception("Node with data '%s' not found" % target_node_name)
 
-    def find_node(self, target_node_data):
+    def find_node(self, target_node_name: str):
         if self.head is None:
-            return Node
+            return None
 
         for node in self:
-            if node.data == target_node_data:
+            if node.name == target_node_name:
                 return node
+
+    def concat(self, other, data_attributes: List[str]):
+        other_iter = other.__iter__()
+        other_head = other_iter.__next__()
+        node = self.find_node(other_head.name)
+        for atr in data_attributes:
+            node.data[atr] = other_head.data[atr]
+        if node is None:
+            raise mlrun.errors.MLRunRuntimeError("Can't join those feature sets")
+        for other_node in other_iter:
+            if self.find_node(other_node.name) is None:
+                self.add_after(node.name, other_node)
+                node = other_node

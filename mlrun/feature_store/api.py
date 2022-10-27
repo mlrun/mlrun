@@ -20,6 +20,7 @@ import pandas as pd
 
 import mlrun
 import mlrun.errors
+import mlrun.feature_store as fs
 
 from ..data_types import InferOptions, get_infer_interface
 from ..datastore.sources import BaseSourceDriver, StreamSource
@@ -47,7 +48,6 @@ from .common import (
     verify_feature_vector_permissions,
 )
 from .feature_set import FeatureSet
-import mlrun.feature_store as fs
 from .feature_vector import (
     FeatureVector,
     FixedWindowType,

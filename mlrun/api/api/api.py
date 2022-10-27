@@ -140,9 +140,11 @@ api_router.include_router(
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
 
-if mlrun.config.config.expose_internal_api_endpoints:
-    api_router.include_router(
-        internal.internal_router,
-        tags=["internal"],
-        dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
-    )
+api_router.include_router(
+    internal.internal_router,
+    tags=["internal"],
+    dependencies=[
+        Depends(mlrun.api.api.deps.authenticate_request),
+        Depends(mlrun.api.api.deps.expose_internal_endpoints),
+    ],
+)

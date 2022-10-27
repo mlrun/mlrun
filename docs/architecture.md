@@ -6,7 +6,6 @@ MLRun started as a community effort to map the different components in the ML pr
  
 Instead of a siloed, complex, and manual process, MLRun enables production pipeline design using a modular strategy, 
 where the different parts contribute to a continuous, automated, and far simpler path from research and development to scalable 
-
 production pipelines without refactoring code, adding glue logic, or spending significant efforts on data and ML engineering.
 
 MLRun uses **Serverless Function** technology: write the code once, using your preferred development environment and 
@@ -23,8 +22,8 @@ production pipelines with minimal engineering efforts.
 
 MLRun has two main components, the service and the client (SDK):
 
-- MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
-- MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
+- The MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
+- The MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
 <p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
 

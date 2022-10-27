@@ -1023,16 +1023,17 @@ class BaseRuntime(ModelObj):
         )
         image = self.spec.image
         # we allow users to not set an image, in that case we'll use the default
-        if not image and self.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict():
-            image = (
-                mlrun.mlconf.function_defaults.image_by_kind.to_dict()[self.kind]
-            )
+        if (
+            not image
+            and self.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[self.kind]
 
         if (
-                self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
-                and require_build
-                and image
-                and not self.spec.build.base_image
+            self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            and require_build
+            and image
+            and not self.spec.build.base_image
         ):
             # when the function require build use the image as the base_image for the build
             self.spec.build.base_image = image

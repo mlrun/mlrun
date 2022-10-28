@@ -53,7 +53,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert function.spec.image == expected_spec_image
         function.run()
 
-    def test_deploy_function_with_requirements(self):
+    def test_deploy_function_with_source_archive(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
         expected_base_image = "mlrun/mlrun"

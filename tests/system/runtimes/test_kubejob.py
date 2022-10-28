@@ -37,6 +37,8 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_deploy_function_without_image_with_requirements(self):
         code_path = str(self.assets_path / "kubejob_function.py")
+        expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
+        expected_base_image = "mlrun/mlrun"
 
         function = mlrun.code_to_function(
             name="simple-function",
@@ -46,13 +48,51 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             requirements=["pandas"],
         )
         assert function.spec.image == ""
-        assert function.spec.build.base_image == "mlrun/mlrun"
+        assert function.spec.build.base_image == expected_base_image
         function.deploy()
-        assert (
-            function.spec.image
-            == ".mlrun/func-kubejob-system-test-simple-function:latest"
-        )
+        assert function.spec.image == expected_spec_image
         function.run()
+
+    def test_deploy_function_with_requirements(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
+        expected_base_image = "mlrun/mlrun"
+
+        function = mlrun.code_to_function(
+            "simple-function", kind="job", image="mlrun/mlrun", filename=code_path
+        )
+        function.with_source_archive("v3io:///users/shapira/Varonish/archive")
+        assert function.spec.build.base_image == expected_base_image
+        assert function.spec.image == ""
+
+        function.deploy()
+        assert function.spec.image == expected_spec_image
+        assert function.spec.build.base_image == expected_base_image
+
+        function.run()
+        assert function.spec.image == expected_spec_image
+
+    def test_deploy_function_after_deploy(self):
+        code_path = str(self.assets_path / "kubejob_function.py")
+        expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
+        expected_base_image = "mlrun/mlrun"
+        function = mlrun.code_to_function(
+            "simple-function",
+            kind="job",
+            image="mlrun/mlrun",
+            filename=code_path,
+            requirements=["pandas"],
+        )
+        assert function.spec.build.base_image == expected_base_image
+        assert function.spec.image == ""
+
+        function.deploy()
+        assert function.spec.image == expected_spec_image
+        assert function.spec.build.base_image == expected_base_image
+
+        function.deploy()
+        assert function.spec.image == expected_spec_image
+        assert function.spec.build.base_image == expected_base_image
 
     def test_function_with_param(self):
         code_path = str(self.assets_path / "function_with_params.py")

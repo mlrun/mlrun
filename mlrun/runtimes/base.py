@@ -1031,9 +1031,14 @@ class BaseRuntime(ModelObj):
 
         if (
             self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            # TODO: need a better way to decide whether a function requires a build
             and require_build
             and image
             and not self.spec.build.base_image
+            # when submitting a run we are loading the function from the db, and using new_function for it,
+            # this results reaching here, but we are already after deploy of the image, meaning we don't need to prepare
+            # the base image for deployment
+            and self._is_remote_api()
         ):
             # when the function require build use the image as the base_image for the build
             self.spec.build.base_image = image

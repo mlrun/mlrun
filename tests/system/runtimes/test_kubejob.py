@@ -54,23 +54,28 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function.run()
 
     def test_deploy_function_with_source_archive(self):
+        # this test is to verify that the image that is being defined as the image of the function isn't being
+        # overwritten by the default image in configuration at the API level
         code_path = str(self.assets_path / "kubejob_function.py")
         expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
-        expected_base_image = "mlrun/mlrun"
+        expected_base_image = "mlrun/mlrun-api"
 
         function = mlrun.code_to_function(
-            "simple-function", kind="job", image="mlrun/mlrun", filename=code_path
+            "simple-function", kind="job", image="mlrun/mlrun-api", filename=code_path
         )
         function.with_source_archive("v3io:///users/shapira/Varonish/archive")
-        assert function.spec.build.base_image == expected_base_image
-        assert function.spec.image == ""
+        assert function.spec.build.base_image is None
+        assert function.spec.image == expected_base_image
 
         function.deploy()
         assert function.spec.image == expected_spec_image
-        assert function.spec.build.base_image == expected_base_image
+        # the image prefix is being enriched at the API level ( depends on the server version )
+        assert function.spec.build.base_image.startswith(expected_base_image)
 
         function.run()
+        function.deploy()
         assert function.spec.image == expected_spec_image
+        assert function.spec.build.base_image.startswith(expected_base_image)
 
     def test_deploy_function_after_deploy(self):
         code_path = str(self.assets_path / "kubejob_function.py")

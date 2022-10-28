@@ -489,13 +489,14 @@ def build_runtime(
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
     base_image = enrich_image_url(
-        build.base_image or config.default_base_image, client_version
+        build.base_image or runtime.spec.image or config.default_base_image,
+        client_version,
     )
 
     status = build_image(
         auth_info,
         project,
-        build.image,
+        image_target=build.image,
         base_image=base_image,
         commands=build.commands,
         namespace=namespace,
@@ -521,6 +522,7 @@ def build_runtime(
     if status.startswith("build:"):
         runtime.status.state = mlrun.api.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
+        runtime.spec.build.base_image = base_image
         return False
 
     logger.info(f"build completed with {status}")

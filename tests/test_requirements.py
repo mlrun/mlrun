@@ -98,6 +98,8 @@ def test_requirement_specifiers_convention():
         "storey": {"~=1.2.2"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
+        "sphinx": {"~=4.3.0"},
+        "google-cloud": {"~=0.34"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -266,6 +268,8 @@ def _import_extras_requirements():
         "api",
         "complete",
         "complete-api",
+        "all",
+        "google-cloud"
     ]
 
     extras_requirements = []

@@ -95,6 +95,7 @@ extras_require = {
         "bokeh~=2.4, >=2.4.2",
     ],
     "plotly": ["plotly~=5.4"],
+    # google-cloud is mainly used for QA, that is why we are not including it in complete
     "google-cloud": [
         # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
         "google-cloud-storage~=1.20",
@@ -113,7 +114,7 @@ extras_require["complete"] = sorted(
         requirement
         for extra_key, requirement_list in extras_require.items()
         for requirement in requirement_list
-        # google-cloud is mainly used for QA, that is why we are not including it in complete
+        # see above why we are excluding google-cloud
         if extra_key not in ["bokeh", "google-cloud"]
     }
 )

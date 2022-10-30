@@ -199,7 +199,6 @@ def test_hyper_get_artifact():
         handler=hyper_func2,
         hyperparams={"p1": [1, 2, 3]},
         selector="max.accuracy",
-        artifact_path="/tmp",
     )
     assert run.artifact("df1").meta, "df1 (with db_key) not returned"
     assert run.artifact("df2").meta, "df2 (without db_key) not returned"

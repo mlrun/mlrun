@@ -234,7 +234,6 @@ def test_run_from_module():
         "json.dumps",
         "-p",
         "obj=[6,7]",
-        "/tmp",
     ]
     out = exec_main("run", args)
     assert out.find("state: completed") != -1, out

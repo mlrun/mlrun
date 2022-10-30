@@ -248,7 +248,7 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     assert len(artifacts) == 2
 
     # verify that the artifacts returned contains different tags
-    assert artifacts[0]["tag"] != artifacts[1]["tag"]
+    assert artifacts[0]["metadata"]["tag"] != artifacts[1]["metadata"]["tag"]
 
     for artifact in artifacts:
-        assert artifact["tag"] in [tag, new_tag]
+        assert artifact["metadata"]["tag"] in [tag, new_tag]

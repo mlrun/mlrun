@@ -89,7 +89,6 @@ def test_default_models(pipeline: Dict):
         name="serving",
         image="mlrun/ml-models",
         kind="serving",
-        # requirements=['transformers'],
     )
     serving_function.add_model(
         pipeline["task"],
@@ -116,7 +115,6 @@ def test_local_model_serving():
         name="serving",
         image="mlrun/ml-models",
         kind="serving",
-        # requirements=['transformers'],
     )
 
     # Adding model:

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 from typing import Any, Dict, List
 
+import numpy as np
 import transformers
 
 import mlrun
@@ -94,9 +94,7 @@ class HuggingFaceModelServer(V2ModelServer):
 
         # Loading the pretrained tokenizer:
         if self.tokenizer_class:
-            tokenizer_object = getattr(
-                transformers, self.tokenizer_class
-            )
+            tokenizer_object = getattr(transformers, self.tokenizer_class)
             self.tokenizer = tokenizer_object.from_pretrained(self.tokenizer_name)
 
         # Initializing the pipeline:
@@ -115,21 +113,22 @@ class HuggingFaceModelServer(V2ModelServer):
 
         :return: The model's prediction on the given input.
         """
-        if self.pipe is None:
-            raise ValueError("Please use `.load()`")
+        # Get the inputs:
+        inputs = request["inputs"]
 
-        # Predicting:
-        if isinstance(request["inputs"][0], dict):
-            result = [self.pipe(**_input) for _input in request["inputs"]]
-        else:
-            result = self.pipe(request["inputs"])
+        # Applying prediction according the inputs shape:
+        result = (
+            [self.pipe(**_input) for _input in inputs]
+            if isinstance(inputs[0], dict)
+            else self.pipe(inputs)
+        )
 
-        # replace list of lists of dicts into a list of dicts:
-        # The result may vary from one model to another.
+        # Arranging the result into a List[Dict]
+        # (This is necessary because the result may vary from one model to another)
         if all(isinstance(res, list) for res in result):
             result = [res[0] for res in result]
 
-        # Converting JSON non-serializable objects to native types:
+        # Converting JSON non-serializable numpy objects to native types:
         for res in result:
             for key, val in res.items():
                 if isinstance(val, np.generic):

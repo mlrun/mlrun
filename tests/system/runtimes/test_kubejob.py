@@ -71,13 +71,12 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         function.deploy()
         assert function.spec.image == expected_spec_image
-        # the image prefix is being enriched at the API level ( depends on the server version )
-        assert function.spec.build.base_image.startswith(expected_base_image)
+        assert function.spec.build.base_image == expected_base_image
 
         function.run()
         function.deploy()
         assert function.spec.image == expected_spec_image
-        assert function.spec.build.base_image.startswith(expected_base_image)
+        assert function.spec.build.base_image == expected_base_image
 
     def test_deploy_function_after_deploy(self):
         # ML-2701

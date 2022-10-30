@@ -226,15 +226,7 @@ def test_main_run_class():
 
 
 def test_run_from_module():
-    args = [
-        "--name",
-        "test1",
-        "--dump",
-        "--handler",
-        "json.dumps",
-        "-p",
-        "obj=[6,7]",
-    ]
+    args = ["--name", "test1", "--dump", "--handler", "json.dumps", "-p", "obj=[6,7]"]
     out = exec_main("run", args)
     assert out.find("state: completed") != -1, out
     assert out.find("return: '[6, 7]'") != -1, out

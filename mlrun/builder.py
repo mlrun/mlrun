@@ -518,10 +518,9 @@ def build_runtime(
     )
     runtime.status.build_pod = None
     if status == "skipped":
-        # using the base_image, and not the enriched one so we won't have the client version in the image, useful for
-        # exports and other cases where we don't want to have the client version in the image, but rather enriched on
-        # API level
-        runtime.spec.image = base_image
+        # using enriched base image for the runtime spec image, because this will be the image that the function will
+        # run with
+        runtime.spec.image = enriched_base_image
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 

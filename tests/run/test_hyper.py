@@ -134,7 +134,7 @@ def test_hyper_parallel_with_stop():
         strategy="list",
         stop_condition="r1>=70",
     )
-    run = new_function().run(run_spec, handler=hyper_func, artifact_path="/tmp")
+    run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
     # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run

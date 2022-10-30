@@ -46,8 +46,6 @@ def test_example(db, fname):
         "mlrun",
         "run",
         path,
-        "--out-path",
-        "/tmp",
     ]
     out = run(cmd, env=env, cwd=examples_path)
     assert out.returncode == 0, "bad run"

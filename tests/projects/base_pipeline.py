@@ -38,5 +38,4 @@ class TestPipeline:
         )
         self.project.set_artifact("data", target_path=self.data_url)
         self.project.spec.params = {"label_column": "label"}
-        self.project.spec.artifact_path = "/tmp"
         return self.project

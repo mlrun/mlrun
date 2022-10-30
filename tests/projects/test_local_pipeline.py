@@ -85,9 +85,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             handler="func1",
             kind="job",
         )
-        run_result = mlrun.run_function(
-            function, params={"p1": 5}, local=True, artifact_path="/tmp"
-        )
+        run_result = mlrun.run_function(function, params={"p1": 5}, local=True)
         print(run_result.to_yaml())
         assert run_result.state() == "completed", "run didnt complete"
         # expect y = param1 * 2 = 10

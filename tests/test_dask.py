@@ -47,5 +47,5 @@ def test_dask_local():
     spec = tag_test(new_task(params={"p1": 3, "p2": "vv"}), "test_dask_local")
     function = new_function(kind="dask")
     function.spec.remote = False
-    run = function.run(spec, handler=my_func, artifact_path="/tmp")
+    run = function.run(spec, handler=my_func)
     verify_state(run)

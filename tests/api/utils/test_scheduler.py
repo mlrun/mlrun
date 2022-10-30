@@ -149,8 +149,7 @@ async def test_invoke_schedule(
     cron_trigger = schemas.ScheduleCronTrigger(year=1999)
     schedule_name = "schedule-name"
     project_name = config.default_project
-    project = mlrun.new_project(project_name, save=False)
-    project.spec.artifact_path = "/tmp"
+    mlrun.new_project(project_name, save=False)
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
@@ -217,8 +216,7 @@ async def test_create_schedule_mlrun_function(
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
-    project = mlrun.new_project(project_name, save=False)
-    project.spec.artifact_path = "/tmp"
+    mlrun.new_project(project_name, save=False)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -287,8 +285,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
 ):
     name = "schedule-name"
     project_name = config.default_project
-    project = mlrun.new_project(project_name, save=False)
-    project.spec.artifact_path = "/tmp"
+    mlrun.new_project(project_name, save=False)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -912,8 +909,7 @@ async def test_update_schedule(
     inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")
     schedule_name = "schedule-name"
     project_name = config.default_project
-    project = mlrun.new_project(project_name, save=False)
-    project.spec.artifact_path = "/tmp"
+    mlrun.new_project(project_name, save=False)
 
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
@@ -1093,8 +1089,7 @@ async def test_schedule_job_concurrency_limit(
     )
     schedule_name = "schedule-name"
     project_name = config.default_project
-    project = mlrun.new_project(project_name, save=False)
-    project.spec.artifact_path = "/tmp"
+    mlrun.new_project(project_name, save=False)
 
     scheduled_object = (
         _create_mlrun_function_and_matching_scheduled_object(

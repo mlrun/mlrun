@@ -39,7 +39,7 @@ def exec_main(op, args, cwd=examples_path):
 
 
 def exec_run(cmd, args, test):
-    args = args + ["--name", test, "--dump", cmd, "--out-path", "/tmp"]
+    args = args + ["--name", test, "--dump", cmd]
     return exec_main("run", args)
 
 
@@ -195,7 +195,7 @@ def test_main_run_archive_subdir():
 
 def test_main_local_project():
     project_path = str(pathlib.Path(__file__).parent / "assets")
-    args = "-f simple -p x=2 --dump --out-path '/tmp'"
+    args = "-f simple -p x=2 --dump"
     out = exec_main("run", args.split(), cwd=project_path)
     assert out.find("state: completed") != -1, out
     assert out.find("y: 4") != -1, out  # y = x * 2
@@ -234,7 +234,6 @@ def test_run_from_module():
         "json.dumps",
         "-p",
         "obj=[6,7]",
-        "--out-path",
         "/tmp",
     ]
     out = exec_main("run", args)

@@ -44,9 +44,7 @@ s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
 def test_noparams():
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
-        params={"input_name": str(input_file_path)},
-        handler=my_func,
-        artifact_path="/tmp",
+        params={"input_name": str(input_file_path)}, handler=my_func
     )
 
     assert result.output("accuracy") == 2, "failed to run"
@@ -66,14 +64,14 @@ def test_failed_schedule_not_creating_run():
     function.set_db_connection(db)
     db.submit_job.side_effect = RuntimeError("Explode!")
     function.store_run = Mock()
-    function.run(handler=my_func, schedule="* * * * *", artifact_path="/tmp")
+    function.run(handler=my_func, schedule="* * * * *")
     assert 0 == function.store_run.call_count
 
 
 def test_schedule_with_local_exploding():
     function = new_function()
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as excinfo:
-        function.run(local=True, schedule="* * * * *", artifact_path="/tmp")
+        function.run(local=True, schedule="* * * * *")
     assert "local and schedule cannot be used together" in str(excinfo.value)
 
 
@@ -211,12 +209,7 @@ def test_run_class_file():
 
 def test_run_from_module():
     fn = mlrun.new_function("mytst", kind="job")
-    run = fn.run(
-        handler="json.dumps",
-        params={"obj": {"x": 99}},
-        local=True,
-        artifact_path="/tmp",
-    )
+    run = fn.run(handler="json.dumps", params={"obj": {"x": 99}}, local=True)
     assert run.output("return") == '{"x": 99}'
 
 

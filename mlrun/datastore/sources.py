@@ -803,7 +803,7 @@ class KafkaSource(OnlineSource):
         }
         if sasl_user and sasl_pass:
             attrs["sasl_user"] = sasl_user
-            attrs["sasl_user"] = sasl_user
+            attrs["sasl_pass"] = sasl_pass
         super().__init__(attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):

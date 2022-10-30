@@ -473,7 +473,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         Save the handled model at the given output path.
 
         :param output_path:  The full path to the directory to save the handled model at. If not given, the context
-                             stored will be used to save the model in the defaulted artifacts location.
+                             stored will be used to save the model in the default artifacts location.
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
 
@@ -517,8 +517,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         :param model_name: The name to give to the converted ONNX model. If not given the default name will be the
                            stored model name with the suffix '_onnx'.
-        :param optimize:   Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model. Defaulted
-                           to True.
+        :param optimize:   Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model. Default:
+                           True.
 
         :return: The converted ONNX model (onnx.ModelProto).
         """

@@ -15,6 +15,7 @@
 from fastapi import APIRouter, Depends
 
 import mlrun.api.api.deps
+import mlrun.config
 from mlrun.api.api.endpoints import (
     artifacts,
     auth,
@@ -27,6 +28,7 @@ from mlrun.api.api.endpoints import (
     functions,
     grafana_proxy,
     healthz,
+    internal,
     logs,
     marketplace,
     model_endpoints,
@@ -136,6 +138,11 @@ api_router.include_router(
 api_router.include_router(
     tags.router,
     tags=["tags"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    internal.internal_router,
+    tags=["internal"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
 api_router.include_router(

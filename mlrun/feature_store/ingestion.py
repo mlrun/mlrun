@@ -289,24 +289,26 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     return run
 
 
-def entities_to_index(featureset: FeatureSet, data: pd.DataFrame):
+def entities_to_index(featureset: FeatureSet, data: pd.DataFrame) -> pd.DataFrame:
     entities_names = [
         ent.name for ent in featureset.spec.entities if ent.name in data.columns
     ]
 
     if len(entities_names) > 0:
+        drop_columns = []
+        add_indexes = []
+        for ent_name in entities_names:
+            if ent_name in data.index.names:
+                drop_columns.append(ent_name)
+            else:
+                add_indexes.append(ent_name)
+
         # drop duplicate columns and indexes
-        drop_columns = [
-            ent_name for ent_name in entities_names if ent_name in data.index.names
-        ]
         data = data.drop(drop_columns)
 
         # append or reset index (append if index is not default)
         append = data.index.names[0] is not None
-        indexes = [
-            ent_name for ent_name in entities_names if ent_name not in data.index.names
-        ]
-        data = data.set_index(indexes, append=append)
+        data = data.set_index(add_indexes, append=append)
 
     return data
 

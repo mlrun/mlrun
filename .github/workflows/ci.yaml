@@ -51,7 +51,7 @@ jobs:
           ${{ runner.os }}-pip-
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=22.2.0
+        python -m pip install --upgrade pip~=22.3.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
@@ -223,18 +223,18 @@ jobs:
           # limitations under the License.
           "
 
-  verify-compatible-requirements:
-    name: Verify compatible requirements
+  verify-compatible-requirements-one-after-one:
+    name: Verify compatible requirements (one after one)
     runs-on: ubuntu-latest
     steps:
+    - name: Set up python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
     - uses: actions/checkout@v2
     - name: Run make install-requirements
       run: make install-requirements
-
-  verify-compatible-requirements-complete:
-    name: Verify compatible requirements (complete)
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
     - name: Run make install-complete-requirements
       run: make install-complete-requirements
+    - name: Run make install-all-requirements
+      run: make install-all-requirements

@@ -14,7 +14,7 @@ aiobotocore~=1.4.0
 s3fs~=2021.8.1
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
-azure-core~=1.23
+azure-core~=1.24
 azure-storage-blob~=12.13
 adlfs~=2021.8.1
 azure-identity~=1.5
@@ -22,6 +22,6 @@ azure-keyvault-secrets~=4.2
 bokeh~=2.4, >=2.4.2
 gcsfs~=2021.8.1
 plotly~=5.4
-google-cloud-bigquery~=3.0
+google-cloud-bigquery[pandas]~=3.2
 kafka-python~=2.0
 redis~=4.3

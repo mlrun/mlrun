@@ -665,7 +665,7 @@ class BaseRuntime(ModelObj):
                         mlrun.pipeline_context.project.spec.artifact_path
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
-                #  and runspec.kind == "local" or not self._is_remote_api()
+
                 if not runspec.spec.output_path:
                     runspec.spec.output_path = (
                         mlrun.get_run_db()

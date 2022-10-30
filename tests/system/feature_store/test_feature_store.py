@@ -1983,7 +1983,8 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    def test_purge_redis(self):
+    @pytest.mark.parametrize("target_redis, ", ["", "localhost:6379"])
+    def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -1996,7 +1997,9 @@ class TestFeatureStore(TestMLRunSystem):
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-            RedisNoSqlTarget(),
+            RedisNoSqlTarget()
+            if target_redis == ""
+            else RedisNoSqlTarget(target_redis),
         ]
         fset.set_targets(
             targets=targets,
@@ -3027,6 +3030,9 @@ class TestFeatureStore(TestMLRunSystem):
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
     orig_status_targets = list(fset.status.targets.keys())
+    from copy import deepcopy
+
+    orig_status_tar = deepcopy(fset.status.targets)
     target_names = [t.name for t in targets]
 
     for target in fset.status.targets:
@@ -3035,14 +3041,21 @@ def verify_purge(fset, targets):
             filesystem = driver._get_store().get_filesystem(False)
             if filesystem is not None:
                 assert filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
 
-    for target in fset.status.targets:
+    for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert not filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert not filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) == 0
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

@@ -105,11 +105,26 @@ class RedisStore(DataStore):
     def stat(self, key):
         raise NotImplementedError()
 
+    def build_redis_key(self, key):
+        if key.startswith("redis://"):
+            start = len("redis://")
+        elif key.startswith("rediss://"):
+            start = key[len("redis://") :]
+        else:
+            start = 0
+        # skip over user/pass, host, port
+        start = key.find("/", start)
+        # insert the prefix '{' hashtag to the key as stored in redis
+        key = "{" + key[start:]
+
+        return key
+
     def listdir(self, key):
         """
         list all keys with prefix key
         """
         response = []
+        key = self.build_redis_key(key)
         key += "*" if key.endswith("/") else "/*"
         for key in self.redis.scan_iter(key):
             response.append(key)
@@ -122,16 +137,7 @@ class RedisStore(DataStore):
         if maxdepth is not None:
             raise NotImplementedError("maxdepth is not supported")
 
-        if key.startswith("redis://"):
-            start = len("redis://")
-        elif key.startswith("rediss://"):
-            start = key[len("redis://") :]
-        else:
-            start = 0
-        # skip over user/pass, host, port
-        start = key.find("/", start)
-        # insert the prefix '{' hashtag to the key as stored in redis
-        key = "{" + key[start:]
+        key = self.build_redis_key(key)
 
         if recursive:
             key += "*" if key.endswith("/") else "/*"

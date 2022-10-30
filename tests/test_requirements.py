@@ -264,13 +264,7 @@ def _import_extras_requirements():
     setuptools.setup = original_setup
     builtins.open = original_open
 
-    ignored_extras = [
-        "api",
-        "complete",
-        "complete-api",
-        "all",
-        "google-cloud"
-    ]
+    ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
     for extra_name, extra_requirements in setup.extras_require.items():

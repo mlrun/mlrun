@@ -491,7 +491,7 @@ def build_runtime(
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
-    base_image_enriched = enrich_image_url(
+    enriched_base_image = enrich_image_url(
         base_image,
         client_version,
     )
@@ -500,7 +500,7 @@ def build_runtime(
         auth_info,
         project,
         image_target=build.image,
-        base_image=base_image_enriched,
+        base_image=enriched_base_image,
         commands=build.commands,
         namespace=namespace,
         # inline_code=inline,

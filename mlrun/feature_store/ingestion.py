@@ -31,6 +31,7 @@ from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import MockEvent, create_graph_server
 from ..utils import logger, normalize_name
+from .feature_set import FeatureSet
 
 
 def init_featureset_graph(
@@ -93,28 +94,9 @@ def init_featureset_graph(
     targets = [get_target_driver(target, featureset) for target in targets]
     for chunk in chunks:
         event = MockEvent(body=chunk)
-        # set the entities to be the indexes of the df
         if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
-            entities_names = [
-                ent.name
-                for ent in featureset.spec.entities
-                if ent.name in event.body.columns
-            ]
-            append, indexes = False, []
-            if event.body.index.names[0] is None and len(entities_names) > 0:
-                # need to reset all indexes
-                indexes = entities_names
-                append = False
-            elif len(entities_names) > 0:
-                # appends teh entities to the index
-                indexes = [
-                    ent_name
-                    for ent_name in entities_names
-                    if ent_name not in event.body.index.names
-                ]
-                append = True
-            if len(indexes) > 0:
-                event.body = event.body.set_index(indexes, append=append)
+            # set the entities to be the indexes of the df
+            event.body = entities_to_index(featureset, event.body)
 
         data = server.run(event, get_body=True)
         if data is not None:
@@ -305,6 +287,28 @@ def run_ingestion_job(name, featureset, run_config, schedule=None, spark_service
     if run_config.watch:
         featureset.reload()
     return run
+
+
+def entities_to_index(featureset: FeatureSet, data: pd.DataFrame):
+    entities_names = [
+        ent.name for ent in featureset.spec.entities if ent.name in data.columns
+    ]
+
+    if len(entities_names) > 0:
+        # drop duplicate columns and indexes
+        drop_columns = [
+            ent_name for ent_name in entities_names if ent_name in data.index.names
+        ]
+        data = data.drop(drop_columns)
+
+        # append or reset index (append if index is not default)
+        append = data.index.names[0] is not None
+        indexes = [
+            ent_name for ent_name in entities_names if ent_name not in data.index.names
+        ]
+        data = data.set_index(indexes, append=append)
+
+    return data
 
 
 _default_job_handler = """

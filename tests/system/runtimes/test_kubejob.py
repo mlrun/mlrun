@@ -36,6 +36,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function.deploy()
 
     def test_deploy_function_without_image_with_requirements(self):
+        # ML-2669
         code_path = str(self.assets_path / "kubejob_function.py")
         expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
         expected_base_image = "mlrun/mlrun"
@@ -54,6 +55,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function.run()
 
     def test_deploy_function_with_source_archive(self):
+        # ML-2669
         # this test is to verify that the image that is being defined as the image of the function isn't being
         # overwritten by the default image in configuration at the API level
         code_path = str(self.assets_path / "kubejob_function.py")
@@ -78,6 +80,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert function.spec.build.base_image.startswith(expected_base_image)
 
     def test_deploy_function_after_deploy(self):
+        # ML-2701
         code_path = str(self.assets_path / "kubejob_function.py")
         expected_spec_image = ".mlrun/func-kubejob-system-test-simple-function:latest"
         expected_base_image = "mlrun/mlrun"

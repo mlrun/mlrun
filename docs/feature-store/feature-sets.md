@@ -27,13 +27,16 @@ The feature set object contains the following information:
 
 Create a new {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
 
-* **name**&mdash;The feature set name is a unique name within a project. 
-* **entities**&mdash;Each feature set must be associated with one or more index column. When joining feature sets, the entity is used as the key column.
-* **timestamp_key**&mdash;(optional) Used for specifying the time field when joining by time.
-* **engine**&mdash;The processing engine type:
+* **name** &mdash; The feature set name is a unique name within a project. 
+* **entities** &mdash; Each feature set must be associated with one or more index column. When joining feature sets, the entity is used as the key column.
+* **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
+* **engine** &mdash; The processing engine type:
    - Spark
    - pandas
-   - storey (some advanced functionalities are in the Beta state)
+   - storey. Default. (Some advanced functionalities are in the Beta state.)
+* **label_column** &mdash; Name of the label column (the one holding the target (y) values).
+* **relations** &mdash; (optional) Dictionary that indicates all of the relations this feature set has with other feature sets. The format of 
+the dictionary is <br>`{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
    
 Example:
 ```python

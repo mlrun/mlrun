@@ -69,20 +69,30 @@ Due to the async nature of this action, the response object contains an `fv_resp
 
 `get_offline_features` expects to receive:
 
-- **feature_vector** &mdash;  a feature vector store reference or object.
-- **entity_rows** &mdash;  an optional dataframe that the features will be joined to.  
+- **feature_vector** &mdash; A feature vector store reference or object.
+- **entity_rows** &mdash; (optional) A dataframe that the features will be joined to. 
 Defaults to the first feature set defined in the features vector's features list, and acts as the base for the vector's joins.
-- **entity_timestamp_column** &mdash;  an optional specific timestamp column (from the defined features) to act as the base timestamp column.  
+- **entity_timestamp_column** &mdash; (optional) A specific timestamp column (from the defined features) to act as the base timestamp column. 
 Defaults to the base feature set's timestamp entity.
-- **target** &mdash;  a Feature Store target to write the results to.  
+- **target** &mdash; A Feature Store target to write the results to.  
 Defaults to return as a return value to the caller.
-- **run_config** &mdash;  an optional function or a {py:class}`~mlrun.feature_store.RunConfig` to run the feature vector creation process in a remote function.
-- **drop_columns** &mdash;  a list of columns to drop from the resulting feature vector.
-Optional.
-- **start_time** &mdash;  datetime, low limit of time needed to be filtered. Optional.
-- **end_time** &mdash;  datetime, high limit of time needed to be filtered. Optional.
+- **run_config** &mdash; (optional) A function or a {py:class}`~mlrun.feature_store.RunConfig` to run the feature vector creation process in a remote function.
+- **drop_columns** &mdash; (optional) A list of columns to drop from the resulting feature vector.
+- **start_time** &mdash; (optional) Datetime, low limit of time needed to be filtered. 
+- **end_time** &mdash; (optional) Datetime, high limit of time needed to be filtered. 
+- **relations** &mdash; (optional) Dictionary that indicates all of the relations between different feature sets. It looks like: `{"feature_set_name_1:feature_set_name_2":{"column_of_1":"column_of_2",...}...}`. If the relation is None, and the `feature_set` 
+relations is also None, the join is done on the entity. Relevant only for Dask and storey(local) engines.<br>
+You can define relations of a feature set with the relations argument, like this:
+`{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
+- **join_type** &mdash; (optional) Indicates the join type such as `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey(local) engines. 
 
 You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as relevant.
+
+You can create a feature vector that comprises different feature sets, while joining the data based on specific fields and not the entity. For example:
+- Feature set A is a transaction feature set and one of the fields is email.
+- Feature set B is feature set with the fields email and count distinct.
+You can build a feature vector that comprises fields in feature set A and get the count distinct for the email from feature set B. 
+The join in this case is based on the email column.
 
 Here's an example of a new dataset from a parquet target:
 

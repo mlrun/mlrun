@@ -488,8 +488,11 @@ def build_runtime(
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(
-        build.base_image or runtime.spec.image or config.default_base_image,
+    base_image: str = (
+        build.base_image or runtime.spec.image or config.default_base_image
+    )
+    base_image_enriched = enrich_image_url(
+        base_image,
         client_version,
     )
 
@@ -497,7 +500,7 @@ def build_runtime(
         auth_info,
         project,
         image_target=build.image,
-        base_image=base_image,
+        base_image=base_image_enriched,
         commands=build.commands,
         namespace=namespace,
         # inline_code=inline,
@@ -515,6 +518,9 @@ def build_runtime(
     )
     runtime.status.build_pod = None
     if status == "skipped":
+        # using the base_image, and not the enriched one so we won't have the client version in the image, useful for
+        # exports and other cases where we don't want to have the client version in the image, but rather enriched on
+        # API level
         runtime.spec.image = base_image
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
@@ -522,6 +528,9 @@ def build_runtime(
     if status.startswith("build:"):
         runtime.status.state = mlrun.api.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
+        # using the base_image, and not the enriched one so we won't have the client version in the image, useful for
+        # exports and other cases where we don't want to have the client version in the image, but rather enriched on
+        # API level
         runtime.spec.build.base_image = base_image
         return False
 

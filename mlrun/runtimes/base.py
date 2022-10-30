@@ -677,6 +677,8 @@ class BaseRuntime(ModelObj):
                             f"project {project_name} is not saved in DB yet, "
                             f"enriching output path with default artifact path: {config.artifact_path}"
                         )
+                    # TODO: remove this when we have a way to mock get_project in tests,
+                    #  without passing artifact_path in all tests that are submitting runs
                     # this is mainly for tests, so we won't need to mock get_project for so many tests
                     except NotImplementedError:
                         pass

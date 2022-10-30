@@ -14,7 +14,6 @@
 
 import redis
 import redis.cluster
-from storey.redis_driver import RedisType
 
 import mlrun
 
@@ -54,26 +53,18 @@ class RedisStore(DataStore):
 
         self._redis = None
 
-        if mlrun.mlconf.redis.type == "standalone":
-            self._redis_type = RedisType.STANDALONE
-        elif mlrun.mlconf.redis.type == "cluster":
-            self._redis_type = RedisType.CLUSTER
-        else:
-            raise NotImplementedError(
-                f"invalid redis type {mlrun.mlconf.redis.type} - should be one of {'cluster', 'standalone'})"
-            )
-
     @property
     def redis(self):
         if self._redis is None:
-            if self._redis_type is RedisType.STANDALONE:
+            try:
+                self._redis = redis.cluster.RedisCluster.from_url(
+                    self._redis_url, decode_responses=True
+                )
+            except redis.cluster.RedisClusterException:
                 self._redis = redis.Redis.from_url(
                     self._redis_url, decode_responses=True
                 )
-            else:
-                self._redis = redis.cluster.RedisCluster.from_url(
-                    self._redis_url, decode_response=True
-                )
+
         return self._redis
 
     def get_filesystem(self, silent):
@@ -132,9 +123,11 @@ class RedisStore(DataStore):
             raise NotImplementedError("maxdepth is not supported")
 
         if key.startswith("redis://"):
-            key = key[len("redis://") :]
+            key = "{" + key[len("redis://") :]
         elif key.startswith("rediss://"):
-            key = key[len("redis://") :]
+            key = "{" + key[len("redis://") :]
+        else:
+            key = "{" + key
 
         if recursive:
             key += "*" if key.endswith("/") else "/*"

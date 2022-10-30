@@ -95,7 +95,8 @@ def init_featureset_graph(
         event = MockEvent(body=chunk)
         # set the entity to be the index of the df
         if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
-            event.body = event.body.set_index(featureset.spec.entities[0].name)
+            if event.body.index.name != featureset.spec.entities[0].name:
+                event.body = event.body.set_index(featureset.spec.entities[0].name)
         data = server.run(event, get_body=True)
         if data is not None:
             if featureset.spec.entities[0] in data:

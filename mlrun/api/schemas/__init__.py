@@ -89,6 +89,7 @@ from .marketplace import (
     MarketplaceSourceSpec,
     last_source_index,
 )
+from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_endpoints import (
     Features,
     FeatureValues,

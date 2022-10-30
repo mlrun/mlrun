@@ -589,7 +589,7 @@ class BaseRuntime(ModelObj):
         self,
         runspec,
         handler,
-        project,
+        project_name,
         name,
         params,
         inputs,
@@ -620,7 +620,7 @@ class BaseRuntime(ModelObj):
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )
         runspec.metadata.project = (
-            project
+            project_name
             or runspec.metadata.project
             or self.metadata.project
             or config.default_project
@@ -667,11 +667,16 @@ class BaseRuntime(ModelObj):
                     )
 
                 if not runspec.spec.output_path:
-                    runspec.spec.output_path = (
-                        mlrun.get_run_db()
-                        .get_project(runspec.metadata.project)
-                        .spec.artifact_path
-                    )
+                    try:
+                        project = mlrun.get_run_db().get_project(
+                            runspec.metadata.project
+                        )
+                        runspec.spec.output_path = project.spec.artifact_path
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.warning(
+                            f"project {project_name} is not saved in DB yet, "
+                            f"enriching output path with default artifact path: {config.artifact_path}"
+                        )
 
             if not runspec.spec.output_path:
                 runspec.spec.output_path = config.artifact_path

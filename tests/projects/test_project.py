@@ -500,6 +500,7 @@ def test_function_receives_project_artifact_path(rundb_mock):
         "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
     )
     run1 = func1.run(local=True)
+    # because there is not artifact path in the project, then the default artifact path is used
     assert run1.spec.output_path == mlrun.mlconf.artifact_path
     rundb_mock.reset()
 
@@ -516,8 +517,19 @@ def test_function_receives_project_artifact_path(rundb_mock):
 
     # expected to call `get_project`
     mlrun.get_run_db().store_project("proj1", proj1)
+
     run4 = func2.run(local=True, project="proj1")
     assert run4.spec.output_path == proj1.spec.artifact_path
+
+    rundb_mock.reset()
+    mlrun.pipeline_context.clear(with_project=True)
+
+    func3 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
+    run5 = func3.run(local=True, project="proj1")
+    assert run5.spec.output_path == mlrun.mlconf.artifact_path
 
 
 def test_run_function_passes_project_artifact_path(rundb_mock):
@@ -550,7 +562,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     run5 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
     assert run5.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 
-    mlrun.pipeline_context.clear()
+    mlrun.pipeline_context.clear(with_project=True)
     # expected to call `get_project`
     mlrun.get_run_db().store_project("proj1", proj1)
     run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)

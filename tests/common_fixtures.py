@@ -170,6 +170,8 @@ class RunDBMock:
     def reset(self):
         self._function = None
         self._pipeline = None
+        self._project_name = None
+        self._project = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -216,8 +218,10 @@ class RunDBMock:
         self._project = project
 
     def get_project(self, name):
-        if name == self._project_name:
+        if self._project_name and name == self._project_name:
             return self._project
+        else:
+            raise mlrun.errors.MLRunNotFoundError("Project not found")
 
     def remote_builder(
         self,

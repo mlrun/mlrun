@@ -123,11 +123,15 @@ class RedisStore(DataStore):
             raise NotImplementedError("maxdepth is not supported")
 
         if key.startswith("redis://"):
-            key = "{" + key[len("redis://") :]
+            start = len("redis://")
         elif key.startswith("rediss://"):
-            key = "{" + key[len("redis://") :]
+            start = key[len("redis://") :]
         else:
-            key = "{" + key
+            start = 0
+        # skip over user/pass, host, port
+        start = key.find("/", start)
+        # insert the prefix '{' hashtag to the key as stored in redis
+        key = "{" + key[start:]
 
         if recursive:
             key += "*" if key.endswith("/") else "/*"

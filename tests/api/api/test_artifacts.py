@@ -33,6 +33,7 @@ LEGACY_API_GET_ARTIFACT_PATH = "projects/{project}/artifact/{key}?tag={tag}"
 API_ARTIFACTS_PATH = "projects/{project}/artifacts"
 STORE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{uid}/{key}?tag={tag}"
 GET_API_ARTIFACT_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
+LIST_API_ARTIFACTS_PATH_WITH_TAG = API_ARTIFACTS_PATH + "?tag={tag}"
 
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
@@ -215,3 +216,39 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
 
         artifact = resp.json()
         assert not is_legacy_artifact(artifact["data"])
+
+
+def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
+    _create_project(client)
+
+    tag = "tag1"
+    new_tag = "tag2"
+
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=tag),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # tag the artifact with a new tag
+    client.put(
+        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=new_tag),
+        json={
+            "kind": "artifact",
+            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
+        },
+    )
+    # list all artifacts
+    resp = client.get(LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"))
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # expected to return two artifacts with the same key but different tags
+    artifacts = resp.json()["artifacts"]
+    assert len(artifacts) == 2
+
+    # verify that the artifacts returned contains different tags
+    assert artifacts[0]["metadata"]["tag"] != artifacts[1]["metadata"]["tag"]
+
+    for artifact in artifacts:
+        assert artifact["metadata"]["tag"] in [tag, new_tag]

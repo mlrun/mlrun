@@ -2078,7 +2078,6 @@ class HTTPRunDB(RunDBInterface):
         :param replace: If True, replace existing tags, otherwise append to existing tags.
         """
         tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
-        print(tag_objects)
         self.tag_objects(project, tag_name, objects=tag_objects, replace=replace)
 
     def delete_artifacts_tags(
@@ -2095,7 +2094,6 @@ class HTTPRunDB(RunDBInterface):
         :param tag_name: The tag to set on the artifacts.
         """
         tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
-
         self.delete_objects_tag(project, tag_name, tag_objects)
 
     def list_projects(

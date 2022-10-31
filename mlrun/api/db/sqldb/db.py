@@ -2078,7 +2078,7 @@ class SQLDB(DBInterface):
     ) -> str:
         original_uid = uid
 
-        # record with the same tag and uid if given
+        # record with the given tag/uid
         _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
@@ -2095,9 +2095,9 @@ class SQLDB(DBInterface):
                 db_feature_set = existing_feature_set
             else:
 
-                # It is possible that there is an object with the given tag (or 'latest' which is the default)
-                # and name, but different uid.
-                # If object with the same computed uid but different tag already exists, re-tag it.
+                # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
+                # was found - Check If an object with the same computed uid but different tag already exists
+                # and re-tag it.
                 if self._re_tag_existing_object(
                     session, FeatureSet, project, name, tag, uid
                 ):
@@ -2111,7 +2111,8 @@ class SQLDB(DBInterface):
 
             self._update_feature_set_spec(db_feature_set, feature_set_dict)
             self._upsert(session, [db_feature_set])
-            self.tag_objects_v2(session, [db_feature_set], project, tag)
+            if tag:
+                self.tag_objects_v2(session, [db_feature_set], project, tag)
             return uid
 
         # Object with the given tag/uid doesn't exist
@@ -2404,7 +2405,7 @@ class SQLDB(DBInterface):
     ) -> str:
         original_uid = uid
 
-        # record with the same tag and uid if given
+        # record with the given tag/uid
         _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
@@ -2421,9 +2422,9 @@ class SQLDB(DBInterface):
                 db_feature_vector = existing_feature_vector
             else:
 
-                # It is possible that there is an object with the given tag (or 'latest' which is the default)
-                # and name, but different uid.
-                # If object with the same computed uid but different tag already exists, re-tag it.
+                # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
+                # was found - Check If an object with the same computed uid but different tag already exists
+                # and re-tag it.
                 if self._re_tag_existing_object(
                     session, FeatureVector, project, name, tag, uid
                 ):
@@ -2436,7 +2437,8 @@ class SQLDB(DBInterface):
             )
 
             self._upsert(session, [db_feature_vector])
-            self.tag_objects_v2(session, [db_feature_vector], project, tag)
+            if tag:
+                self.tag_objects_v2(session, [db_feature_vector], project, tag)
 
             return uid
 

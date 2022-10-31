@@ -30,6 +30,7 @@ import mlrun.projects.pipelines
 from mlrun.api.api.utils import (
     apply_enrichment_and_validation_on_function,
     get_run_db_instance,
+    get_scheduler,
     log_and_raise,
 )
 from mlrun.utils.helpers import logger
@@ -170,6 +171,23 @@ def submit_workflow(
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
 
         print_debug("workflow spec", workflow_spec)  # TODO: Remove!
+
+        # if workflow_spec.schedule:
+        #     # getting labels:
+        #
+        #     # Creating schedule:
+        #     get_scheduler().create_schedule(
+        #         db_session=db_session,
+        #         auth_info=auth_info,
+        #         project=project.metadata.name,
+        #         name=load_and_run_fn.metadata.name,
+        #         kind=mlrun.api.schemas.ScheduleKinds.job,
+        #         scheduled_object=,
+        #         cron_trigger=workflow_spec.schedule,
+        #         labels=,
+        #     )
+        #
+        # else:
         # Running workflow from the remote engine:
         run = mlrun.projects.pipelines._RemoteRunner.run(
             project=project,

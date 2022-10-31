@@ -272,7 +272,8 @@ class FileDB(DBInterface):
     def get_project(
         self, session, name: str = None, project_id: int = None
     ) -> schemas.Project:
-        raise NotImplementedError()
+        # returns None if project not found, mainly for tests, until we remove fileDB
+        return None
 
     def delete_project(
         self,

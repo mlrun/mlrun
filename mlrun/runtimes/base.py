@@ -671,17 +671,15 @@ class BaseRuntime(ModelObj):
                         project = mlrun.get_run_db().get_project(
                             runspec.metadata.project
                         )
-                        runspec.spec.output_path = project.spec.artifact_path
+                        # this is mainly for tests, so we won't need to mock get_project for so many tests
+                        # in normal use cases if no project is found we will get an error
+                        if project:
+                            runspec.spec.output_path = project.spec.artifact_path
                     except mlrun.errors.MLRunNotFoundError:
                         logger.warning(
                             f"project {project_name} is not saved in DB yet, "
                             f"enriching output path with default artifact path: {config.artifact_path}"
                         )
-                    # TODO: remove this when we have a way to mock get_project in tests,
-                    #  without passing artifact_path in all tests that are submitting runs
-                    # this is mainly for tests, so we won't need to mock get_project for so many tests
-                    except NotImplementedError:
-                        pass
 
             if not runspec.spec.output_path:
                 runspec.spec.output_path = config.artifact_path

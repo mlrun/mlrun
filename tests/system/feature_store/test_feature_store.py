@@ -3027,15 +3027,8 @@ class TestFeatureStore(TestMLRunSystem):
             }
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    @pytest.mark.parametrize(
-        ("engine", "join_type"),
-        [
-            ("local", "inner"),
-            ("dask", "inner"),
-            ("local", "outer"),
-            ("dask", "outer"),
-        ],
-    )
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    @pytest.mark.parametrize("join_type", ["inner", "outer"])
     def test_relation_join(self, engine, join_type, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
@@ -3169,16 +3162,42 @@ class TestFeatureStore(TestMLRunSystem):
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
         )
+
+        col_1 = ["name_employees", "name_departments"]
+        col_2 = ["name_employees", "name_departments", "name"]
+        col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
+
         if with_indexes:
-            result.set_index(["id", "d_id"], inplace=True)
-            result_2.set_index(["id", "d_id", "m_id"], inplace=True)
             result_3.set_index(["id"], inplace=True)
-            result_4.set_index(["id", "d_id", "c_id"], inplace=True)
-        result = result[["name_employees", "name_departments"]].rename(
+            if engine == "local":
+                result.set_index(["id", "d_id"], inplace=True)
+                result_2.set_index(["id", "d_id", "m_id"], inplace=True)
+                result_4.set_index(["id", "d_id", "c_id"], inplace=True)
+            else:
+                col_1 = ["id", "name_employees", "d_id", "name_departments"]
+                col_2 = [
+                    "id",
+                    "name_employees",
+                    "d_id",
+                    "name_departments",
+                    "m_id",
+                    "name",
+                ]
+                col_4 = [
+                    "id",
+                    "name_employees",
+                    "d_id",
+                    "name_departments",
+                    "name_e_mini",
+                    "c_id",
+                    "name_cls",
+                ]
+
+        result = result[col_1].rename(
             columns={"name_departments": "n2", "name_employees": "n"},
         )
 
-        result_2 = result_2[["name_employees", "name_departments", "name"]].rename(
+        result_2 = result_2[col_2].rename(
             columns={
                 "name_departments": "n2",
                 "name_employees": "n",
@@ -3190,9 +3209,7 @@ class TestFeatureStore(TestMLRunSystem):
             columns={"name_employees": "n", "name_e_mini": "mini_name"},
         )
 
-        result_4 = result_4[
-            ["name_employees", "name_departments", "name_e_mini", "name_cls"]
-        ].rename(
+        result_4 = result_4[col_4].rename(
             columns={
                 "name_employees": "n",
                 "name_departments": "n2",
@@ -3271,6 +3288,7 @@ class TestFeatureStore(TestMLRunSystem):
             join_type=join_type,
             engine_args=engine_args,
             with_indexes=with_indexes,
+            engine=engine,
         )
         assert_frame_equal(result, resp_1.to_dataframe())
 
@@ -3290,6 +3308,7 @@ class TestFeatureStore(TestMLRunSystem):
             join_type=join_type,
             engine_args=engine_args,
             with_indexes=with_indexes,
+            engine=engine,
         )
         assert_frame_equal(result_2, resp_2.to_dataframe())
 
@@ -3305,6 +3324,7 @@ class TestFeatureStore(TestMLRunSystem):
             join_type=join_type,
             engine_args=engine_args,
             with_indexes=with_indexes,
+            engine=engine,
         )
         assert_frame_equal(result_3, resp_3.to_dataframe())
 
@@ -3325,6 +3345,7 @@ class TestFeatureStore(TestMLRunSystem):
             join_type=join_type,
             engine_args=engine_args,
             with_indexes=with_indexes,
+            engine=engine,
         )
         assert_frame_equal(result_4, resp_4.to_dataframe())
 

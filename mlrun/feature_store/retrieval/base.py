@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import abc
-from typing import Dict, List
+from typing import List
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
@@ -23,6 +23,8 @@ from ...utils import logger
 
 class BaseMerger(abc.ABC):
     """abstract feature merger class"""
+
+    engine = None
 
     def __init__(self, vector, **engine_args):
         self._relation = dict()
@@ -134,7 +136,15 @@ class BaseMerger(abc.ABC):
                     if index not in df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    return df.set_index(self._index_columns)
+                    if self.engine == "local" or self.engine == "spark":
+                        return df.set_index(self._index_columns)
+                    elif self.engine == "dask" and len(self._index_columns) == 1:
+                        return df.set_index(self._index_columns[0])
+                    else:
+                        logger.info(
+                            "The entities will stay as columns because "
+                            "Dask dataframe does not yet support multi-indexes"
+                        )
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "

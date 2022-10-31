@@ -16,7 +16,6 @@ import re
 
 import dask.dataframe as dd
 import dask.dataframe.multi as dask_df_multi
-import numpy as np
 from dask.distributed import Client
 
 import mlrun
@@ -26,6 +25,8 @@ from .base import BaseMerger
 
 
 class DaskFeatureMerger(BaseMerger):
+    engine = "dask"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
         self.client = engine_args.get("dask_client")
@@ -41,6 +42,9 @@ class DaskFeatureMerger(BaseMerger):
         end_time=None,
         query=None,
     ):
+        if "index" not in self._index_columns:
+            self._append_drop_column("index")
+
         # init the dask client if needed
         if not self.client:
             if self._dask_cluster_uri:
@@ -86,7 +90,9 @@ class DaskFeatureMerger(BaseMerger):
             df = df.persist()
             # rename columns to be unique for each feature set
             rename_col_dict = {
-                col: f"{col}_{name}" for col in column_names if col not in saved_col
+                col: f"{col}_{name}"
+                for col in column_names
+                if col not in node.data["save_cols"]
             }
             df = df.rename(
                 columns=rename_col_dict,

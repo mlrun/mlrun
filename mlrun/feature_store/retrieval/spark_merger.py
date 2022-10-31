@@ -20,6 +20,8 @@ from .base import BaseMerger
 
 
 class SparkFeatureMerger(BaseMerger):
+    engine = "spark"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
         self.spark = engine_args.get("spark", None)

@@ -21,6 +21,8 @@ from .base import BaseMerger
 
 
 class LocalFeatureMerger(BaseMerger):
+    engine = "local"
+
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
 

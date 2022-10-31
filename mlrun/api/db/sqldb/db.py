@@ -544,7 +544,7 @@ class SQLDB(DBInterface):
             if not tag_results:
                 return [artifact_struct]
             for tag_object in tag_results:
-                artifact_with_tag = artifact_struct.copy()
+                artifact_with_tag = deepcopy(artifact_struct)
                 self._set_tag_in_artifact_struct(artifact_with_tag, tag_object.name)
                 artifacts.append(artifact_with_tag)
         return artifacts

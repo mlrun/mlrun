@@ -2994,6 +2994,7 @@ class TestFeatureStore(TestMLRunSystem):
         finally:
             service.close()
 
+    @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize(
         ("engine", "join_type"),
         [
@@ -3003,7 +3004,7 @@ class TestFeatureStore(TestMLRunSystem):
             ("dask", "outer"),
         ],
     )
-    def test_relation_join(self, engine, join_type):
+    def test_relation_join(self, engine, join_type, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
@@ -3136,7 +3137,11 @@ class TestFeatureStore(TestMLRunSystem):
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
         )
-
+        if with_indexes:
+            result.set_index(["id", "d_id"], inplace=True)
+            result_2.set_index(["id", "d_id", "m_id"], inplace=True)
+            result_3.set_index(["id"], inplace=True)
+            result_4.set_index(["id", "d_id", "c_id"], inplace=True)
         result = result[["name_employees", "name_departments"]].rename(
             columns={"name_departments": "n2", "name_employees": "n"},
         )
@@ -3233,6 +3238,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector,
             join_type=join_type,
             engine_args=engine_args,
+            with_indexes=with_indexes,
         )
         assert_frame_equal(result, resp_1.to_dataframe())
 
@@ -3251,6 +3257,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector_2,
             join_type=join_type,
             engine_args=engine_args,
+            with_indexes=with_indexes,
         )
         assert_frame_equal(result_2, resp_2.to_dataframe())
 
@@ -3265,6 +3272,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector_3,
             join_type=join_type,
             engine_args=engine_args,
+            with_indexes=with_indexes,
         )
         assert_frame_equal(result_3, resp_3.to_dataframe())
 
@@ -3284,6 +3292,7 @@ class TestFeatureStore(TestMLRunSystem):
             vector_4,
             join_type=join_type,
             engine_args=engine_args,
+            with_indexes=with_indexes,
         )
         assert_frame_equal(result_4, resp_4.to_dataframe())
 

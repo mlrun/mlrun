@@ -282,8 +282,6 @@ class BaseMerger(abc.ABC):
         relation_linked_lists = []
         for name, _ in feature_set_fields.items():
             feature_set = feature_set_objects[name]
-            fs_relations = feature_set.spec.relations
-            fs_entity = feature_set.spec.entities
             relations = LinkedList()
             main_node = Node(
                 name,
@@ -295,15 +293,19 @@ class BaseMerger(abc.ABC):
                 },
             )
             relations.add_first(main_node)
+
+            # build list of relation and index match for each feature set
             for name_in, _ in feature_set_fields.items():
                 if name_in == name:
                     continue
-                entity_list = feature_set_objects[name_in].spec.entities
-                entity_relation_list = [*fs_relations.values()]
-                col_relation_list = [*fs_relations.keys()]
+                feature_set_in_entity_list = feature_set_objects[name_in].spec.entities
+                feature_set_in_entity_list_names = [*feature_set_in_entity_list.keys()]
+                entity_relation_list = [*feature_set.spec.relations.values()]
+                col_relation_list = [*feature_set.spec.relations.keys()]
                 curr_col_relation_list = []
                 relation_wise = True
-                for ent in entity_list:
+                for ent in feature_set_in_entity_list:
+                    # checking if feature_set have relation with feature_set_in
                     if ent not in entity_relation_list:
                         relation_wise = False
                         break
@@ -311,20 +313,24 @@ class BaseMerger(abc.ABC):
                         col_relation_list[entity_relation_list.index(ent)]
                     )
                 if relation_wise:
+                    # add to the link list feature set according to the defined relation
                     relations.add_last(
                         Node(
                             name_in,
                             data={
                                 "left_keys": curr_col_relation_list,
-                                "right_keys": [ent.name for ent in entity_list],
+                                "right_keys": feature_set_in_entity_list_names,
                                 "save_cols": [],
                                 "save_index": [],
                             },
                         )
                     )
                     main_node.data["save_cols"].append(*curr_col_relation_list)
-                elif sorted([*entity_list.keys()]) == sorted(fs_entity.keys()):
-                    keys = [ent.name for ent in entity_list]
+                elif sorted(feature_set_in_entity_list_names) == sorted(
+                    feature_set.spec.entities.keys()
+                ):
+                    # add to the link list feature set according to indexes match
+                    keys = feature_set_in_entity_list_names
                     relations.add_last(
                         Node(
                             name_in,
@@ -339,12 +345,16 @@ class BaseMerger(abc.ABC):
                     main_node.data["save_index"] = keys
 
             relation_linked_lists.append(relations)
-        link_list_iter = relation_linked_lists.__iter__()
-        real_1 = link_list_iter.__next__()
-        for real_2 in link_list_iter:
-            real_1.concat(real_2, ["save_cols"])
 
-        return real_1
+        # concat all the link lists to one, for the merging process
+        link_list_iter = relation_linked_lists.__iter__()
+        return_relation = link_list_iter.__next__()
+        for relation_list in link_list_iter:
+            return_relation.concat(relation_list, ["save_cols"])
+        if return_relation.len != len(feature_set_objects):
+            raise mlrun.errors.MLRunRuntimeError("Failed to merge")
+
+        return return_relation
 
 
 class Node:
@@ -424,7 +434,9 @@ class LinkedList:
         for atr in data_attributes:
             node.data[atr] = other_head.data[atr]
         if node is None:
-            raise mlrun.errors.MLRunRuntimeError("Can't join those feature sets")
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Can't join those {other_head.name} and {self.head.name} feature sets"
+            )
         for other_node in other_iter:
             if self.find_node(other_node.name) is None:
                 self.add_after(node.name, other_node)

@@ -50,15 +50,11 @@ class LocalFeatureMerger(BaseMerger):
             feature_sets.append(feature_set)
             columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
-            right_keys = node.data["right_keys"]
-            left_keys = node.data["left_keys"]
-            saved_col = node.data["save_cols"]
-            saved_index = node.data["save_index"]
 
-            for col in saved_col:
+            for col in node.data["save_cols"]:
                 if col not in column_names:
                     self._append_drop_column(col)
-            column_names += saved_col
+            column_names += node.data["save_cols"]
 
             # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
             # column is from a specific feature set (can't be entity timestamp)
@@ -78,11 +74,13 @@ class LocalFeatureMerger(BaseMerger):
                     time_column=entity_timestamp_column,
                 )
             df.reset_index(inplace=True)
-            column_names += saved_index
-            saved_col += saved_index
+            column_names += node.data["save_index"]
+            node.data["save_cols"] += node.data["save_index"]
             # rename columns to be unique for each feature set
             rename_col_dict = {
-                col: f"{col}_{name}" for col in column_names if col not in saved_col
+                col: f"{col}_{name}"
+                for col in column_names
+                if col not in node.data["save_cols"]
             }
             df.rename(
                 columns=rename_col_dict,
@@ -90,7 +88,7 @@ class LocalFeatureMerger(BaseMerger):
             )
 
             dfs.append(df)
-            keys.append([left_keys, right_keys])
+            keys.append([node.data["left_keys"], node.data["right_keys"]])
 
             # update alias according to the unique column name
             new_columns = []

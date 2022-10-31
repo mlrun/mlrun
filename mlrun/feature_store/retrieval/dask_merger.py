@@ -65,15 +65,11 @@ class DaskFeatureMerger(BaseMerger):
             feature_sets.append(feature_set)
             columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
-            right_keys = node.data["right_keys"]
-            left_keys = node.data["left_keys"]
-            saved_col = node.data["save_cols"]
-            saved_index = node.data["save_index"]
 
-            for col in saved_col:
+            for col in node.data["save_cols"]:
                 if col not in column_names:
                     self._append_drop_column(col)
-            column_names += saved_col
+            column_names += node.data["save_cols"]
 
             df = feature_set.to_dataframe(
                 columns=column_names,
@@ -84,8 +80,8 @@ class DaskFeatureMerger(BaseMerger):
                 index=False,
             )
             df = df.reset_index()
-            column_names += saved_index
-            saved_col += saved_index
+            column_names += node.data["save_index"]
+            node.data["save_cols"] += node.data["save_index"]
 
             df = df.persist()
             # rename columns to be unique for each feature set
@@ -97,7 +93,7 @@ class DaskFeatureMerger(BaseMerger):
             )
 
             dfs.append(df)
-            keys.append([left_keys, right_keys])
+            keys.append([node.data["left_keys"], node.data["right_keys"]])
 
             # update alias according to the unique column name
             new_columns = []

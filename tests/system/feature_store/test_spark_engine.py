@@ -138,7 +138,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         assert measurements.status.targets[0].run_id is not None
 
-        stats = measurements.get_stats_table()
+        stats_df = measurements.get_stats_table()
         expexted_result = {
             "count": {
                 "bad": 190.0,
@@ -225,8 +225,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "turn_count": 3.0,
             },
         }
-        equal_Df = pd.DataFrame(expexted_result)
-        assert stats.drop("hist", axis=1).equals(equal_Df)
+        expected_df = pd.DataFrame(expexted_result)
+        assert stats_df.drop("hist", axis=1).equals(expected_df)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"

@@ -198,7 +198,10 @@ class NuclioSpec(KubeResourceSpec):
             security_context=security_context,
         )
 
-        self.base_spec = base_spec or {"spec": {"env": []}, "metadata": {"annotations": {}}}
+        self.base_spec = base_spec or {
+            "spec": {"env": []},
+            "metadata": {"annotations": {}},
+        }
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}

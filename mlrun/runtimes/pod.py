@@ -940,6 +940,12 @@ class KubeResource(BaseRuntime):
             return self._set_env(name, value=str(value))
         return self._set_env(name, value_from=value_from)
 
+    def with_annotations(self, annotations):
+        """set a key/value annotations in the metadata of the pod"""
+        for key, value in annotations.items():
+            self.metadata.annotations[key] = str(value)
+        return self
+
     def get_env(self, name, default=None):
         """Get the pod environment variable for the given name, if not found return the default
         If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)"""
@@ -1124,7 +1130,11 @@ class KubeResource(BaseRuntime):
         namespace = self._get_k8s().resolve_namespace()
 
         labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
-        new_meta = k8s_client.V1ObjectMeta(namespace=namespace, labels=labels)
+        new_meta = k8s_client.V1ObjectMeta(
+            namespace=namespace,
+            annotations=self.metadata.annotations or runobj.metadata.annotations,
+            labels=labels,
+        )
 
         name = runobj.metadata.name or "mlrun"
         norm_name = f"{normalize_name(name)}-"

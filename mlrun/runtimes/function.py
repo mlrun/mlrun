@@ -198,7 +198,7 @@ class NuclioSpec(KubeResourceSpec):
             security_context=security_context,
         )
 
-        self.base_spec = base_spec or {}
+        self.base_spec = base_spec or {"spec": {"env": []}, "metadata": {}}
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}
@@ -288,6 +288,14 @@ class RemoteRuntime(KubeResource):
 
     def set_config(self, key, value):
         self.spec.config[key] = value
+        return self
+
+    def with_annotations(self, annotations):
+        """set a key/value annotations for function"""
+        self.spec.base_spec["metadata"].setdefault("annotations", {})
+        for key, value in annotations.items():
+            self.spec.base_spec["metadata"]["annotations"][key] = str(value)
+
         return self
 
     def add_volume(self, local, remote, name="fs", access_key="", user=""):

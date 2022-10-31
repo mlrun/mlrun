@@ -236,7 +236,8 @@ jobs:
           -o ServerAliveInterval=180 \
           -o ServerAliveCountMax=3 \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-            /bin/python3 \
+            LC_ALL=en_US.utf8 LANG=en_US.utf8 /bin/python3 \
+              docker-images \
               /home/iguazio/cleanup.py \
               http://localhost:8009 \
               igz0.docker_registry.0 \

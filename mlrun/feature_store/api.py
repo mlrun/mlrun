@@ -599,8 +599,7 @@ def preview(
     """
     # preview reads the source to pandas df. some of saprk opreratios are not valid.
     if featureset.spec.engine == "spark":
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "No preview with spark engine")
+        raise mlrun.errors.MLRunInvalidArgumentError("No preview with spark engine")
 
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:

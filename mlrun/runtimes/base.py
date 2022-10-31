@@ -439,6 +439,7 @@ class BaseRuntime(ModelObj):
         else:
             # single run
             try:
+                print(f"DEBUG runtime: {self.__class__.__name__}")
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = run.logs(True, self._get_db())

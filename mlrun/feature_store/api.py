@@ -597,7 +597,7 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
-    #preview reads the source to pandas df. some of saprk opreratios are not valid.
+    # preview reads the source to pandas df. some of saprk opreratios are not valid.
     if featureset.spec.engine == "spark":
         raise mlrun.errors.MLRunInvalidArgumentError(
             "No preview with spark engine")

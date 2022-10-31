@@ -22,7 +22,7 @@ from mlrun.utils import logger
 
 
 class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
-    def __init(self):
+    def __init__(self):
         # Import objgraph only when needed
         import objgraph
 

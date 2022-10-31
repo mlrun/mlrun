@@ -123,6 +123,9 @@ class SparkFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         """Perform an as of join between entity and featureset.
@@ -194,6 +197,9 @@ class SparkFeatureMerger(BaseMerger):
         entity_timestamp_column: str,
         featureset,
         featureset_df,
+        left_keys: list,
+        right_keys: list,
+        columns: list,
     ):
 
         """

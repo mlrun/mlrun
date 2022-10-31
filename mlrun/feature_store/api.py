@@ -100,13 +100,12 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
+    join_type: str = "inner",
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
-
     specify a feature vector object/uri and retrieve the desired features, their metadata
     and statistics. returns :py:class:`~mlrun.feature_store.OfflineVectorResponse`,
     results can be returned as a dataframe or written to a target
-
     The start_time and end_time attributes allow filtering the data to a given time range, they accept
     string values or pandas `Timestamp` objects, string values can also be relative, for example:
     "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
@@ -114,7 +113,6 @@ def get_offline_features(
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
     Another option to filter the data is by the `query` argument - can be seen in the example.
     example::
-
         features = [
             "stock-quotes.bid",
             "stock-quotes.asks_sum_5h",
@@ -123,29 +121,36 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100",
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
-
-    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
-                            permissions
-    :param entity_rows:    dataframe with entity rows to join with
-    :param target:         where to write the results to
-    :param drop_columns:   list of columns to drop from the final result
+    :param feature_vector:          feature vector uri or FeatureVector object. passing feature vector obj requires
+                                    update permissions
+    :param entity_rows:             dataframe with entity rows to join with
+    :param target:                  where to write the results to
+    :param drop_columns:            list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
-    :param run_config:     function and/or run configuration
-                           see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
-        entity_timestamp_column must be passed when using time filtering.
-    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
-        entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
-    :param engine:          processing engine kind ("local", "dask", or "spark")
-    :param engine_args:     kwargs for the processing engine
-    :param query:          The query string used to filter rows
+    :param run_config:              function and/or run configuration
+                                    see :py:class:`~mlrun.feature_store.RunConfig`
+    :param start_time:              datetime, low limit of time needed to be filtered. Optional.
+                                    entity_timestamp_column must be passed when using time filtering.
+    :param end_time:                datetime, high limit of time needed to be filtered. Optional.
+                                    entity_timestamp_column must be passed when using time filtering.
+    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
+                                    (default False)
+    :param update_stats:            update features statistics from the requested feature sets on the vector.
+                                    Default is False.
+    :param engine:                  processing engine kind ("local", "dask", or "spark")
+    :param engine_args:             kwargs for the processing engine
+    :param query:                   The query string used to filter rows
+    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'outer'
+                                    indicate join type such as :
+                                    * left: use only keys from left frame (SQL: left outer join)
+                                    * right: use only keys from right frame (SQL: right outer join)
+                                    * outer: use union of keys from both frames (SQL: full outer join)
+                                    * inner: use intersection of keys from both frames (SQL: inner join).
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -168,6 +173,7 @@ def get_offline_features(
             drop_columns=drop_columns,
             with_indexes=with_indexes,
             query=query,
+            join_type=join_type,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -191,6 +197,7 @@ def get_offline_features(
         with_indexes=with_indexes,
         update_stats=update_stats,
         query=query,
+        join_type=join_type,
     )
 
 

@@ -170,11 +170,22 @@ class RunDBMock:
     def reset(self):
         self._function = None
         self._pipeline = None
+        self._project_name = None
+        self._project = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
         self._function = function
         return "1234-1234-1234-1234"
+
+    def store_run(self, struct, uid, project="", iter=0):
+        self._run = {
+            uid: {
+                "struct": struct,
+                "projct": project,
+                "iter": iter,
+            }
+        }
 
     def get_function(self, function, project, tag):
         return {
@@ -205,6 +216,12 @@ class RunDBMock:
     def store_project(self, name, project):
         self._project_name = name
         self._project = project
+
+    def get_project(self, name):
+        if self._project_name and name == self._project_name:
+            return self._project
+        else:
+            raise mlrun.errors.MLRunNotFoundError("Project not found")
 
     def remote_builder(
         self,
@@ -361,7 +378,6 @@ def rundb_mock() -> RunDBMock:
 
     orig_use_remote_api = BaseRuntime._use_remote_api
     orig_get_db = BaseRuntime._get_db
-    BaseRuntime._use_remote_api = unittest.mock.Mock(return_value=True)
     BaseRuntime._get_db = unittest.mock.Mock(return_value=mock_object)
 
     orig_db_path = config.dbpath

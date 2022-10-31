@@ -163,8 +163,9 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
-    mlrun.mlconf.default_project = project.metadata.name
-    pipeline_context.set(project)
+
+    _set_as_current_default_project(project)
+
     if save and mlrun.mlconf.dbpath:
         if overwrite:
             logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
@@ -274,8 +275,9 @@ def load_project(
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
-    mlrun.mlconf.default_project = project.metadata.name
-    pipeline_context.set(project)
+
+    _set_as_current_default_project(project)
+
     return project
 
 
@@ -2479,6 +2481,11 @@ class MlrunProject(ModelObj):
             last_update_time_to=last_update_time_to,
             **kwargs,
         )
+
+
+def _set_as_current_default_project(project: MlrunProject):
+    mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
 
 
 class MlrunProjectLegacy(ModelObj):

@@ -395,7 +395,7 @@ class BaseRuntime(ModelObj):
                 self.deploy(skip_deployed=True, show_on_failure=True)
             else:
                 raise RunError(
-                    "function image is not built/ready, use .deploy() method first"
+                    "function image is not built/ready, set auto_build=True or use .deploy() method first"
                 )
 
         if self.verbose:
@@ -589,7 +589,7 @@ class BaseRuntime(ModelObj):
         self,
         runspec,
         handler,
-        project,
+        project_name,
         name,
         params,
         inputs,
@@ -620,7 +620,7 @@ class BaseRuntime(ModelObj):
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )
         runspec.metadata.project = (
-            project
+            project_name
             or runspec.metadata.project
             or self.metadata.project
             or config.default_project
@@ -638,7 +638,6 @@ class BaseRuntime(ModelObj):
             else:
                 scrape_metrics = runspec.spec.scrape_metrics
         runspec.spec.scrape_metrics = scrape_metrics
-        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir
         )
@@ -652,7 +651,39 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
-        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
+
+        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+
+        if not runspec.spec.output_path:
+            if runspec.metadata.project:
+                if (
+                    mlrun.pipeline_context.project
+                    and runspec.metadata.project
+                    == mlrun.pipeline_context.project.metadata.name
+                ):
+                    runspec.spec.output_path = (
+                        mlrun.pipeline_context.project.spec.artifact_path
+                        or mlrun.pipeline_context.workflow_artifact_path
+                    )
+
+                if not runspec.spec.output_path:
+                    try:
+                        project = mlrun.get_run_db().get_project(
+                            runspec.metadata.project
+                        )
+                        # this is mainly for tests, so we won't need to mock get_project for so many tests
+                        # in normal use cases if no project is found we will get an error
+                        if project:
+                            runspec.spec.output_path = project.spec.artifact_path
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.warning(
+                            f"project {project_name} is not saved in DB yet, "
+                            f"enriching output path with default artifact path: {config.artifact_path}"
+                        )
+
+            if not runspec.spec.output_path:
+                runspec.spec.output_path = config.artifact_path
+
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.uid}}", meta.uid

@@ -507,7 +507,8 @@ class FileRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def get_project(self, name: str) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        # returns None if project not found, mainly for tests, until we remove fileDB
+        return None
 
     def delete_project(
         self,

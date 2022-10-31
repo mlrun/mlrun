@@ -599,7 +599,9 @@ def preview(
     """
     # preview reads the source as a pandas df, which is not fully compatible with spark
     if featureset.spec.engine == "spark":
-        raise mlrun.errors.MLRunInvalidArgumentError("preview with spark engine is not supported")
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "preview with spark engine is not supported"
+        )
 
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:

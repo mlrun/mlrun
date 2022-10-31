@@ -112,3 +112,17 @@ def test_update_feature_set(db: DBInterface, db_session: Session):
     updated_feature_set_dict["metadata"].pop("updated")
 
     assert deepdiff.DeepDiff(old_feature_set_dict, updated_feature_set_dict) == {}
+
+    # return the labels to the feature set and store it
+    # should update the 1st feature set since they have the same uid
+    feature_set = db.get_feature_set(db_session, project, name)
+    feature_set.metadata.labels = {"owner": "saarc", "group": "dev"}
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
+
+    feature_sets = db.list_feature_sets(db_session, project)
+    assert len(feature_sets.feature_sets) == 2
+
+    updated_feature_set = db.get_feature_set(db_session, project, name)
+    assert updated_feature_set.metadata.labels == feature_set.metadata.labels

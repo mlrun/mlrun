@@ -8,13 +8,13 @@ A feature set can be viewed as a database table with multiple material implement
 along with the data pipeline definitions used to produce the features.
  
 The feature set object contains the following information:
-- **Metadata**&mdash;General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
-- **Key attributes**&mdash;Entity (the join key), timestamp key (optional), label column.
-- **Features**&mdash;The list of features along with their schema, metadata, validation policies and statistics.
-- **Source**&mdash;The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.).
-- **Transformation**&mdash;The data transformation pipeline (e.g. aggregation, enrichment etc.).
-- **Target stores**&mdash;The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. 
-- **Function**&mdash;The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
+- **Metadata** &mdash; General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
+- **Key attributes** &mdash; Entity (the join key), timestamp key (optional), label column.
+- **Features** &mdash; The list of features along with their schema, metadata, validation policies and statistics.
+- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.).
+- **Transformation** &mdash; The data transformation pipeline (e.g. aggregation, enrichment etc.).
+- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. 
+- **Function** &mdash; The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
 **In this section**
 - [Create a Feature Set](#create-a-feature-set)
@@ -66,7 +66,7 @@ can handle complex workflows and real-time sources.
 
 The results from the transformation pipeline are stored in one or more material targets.  Data for offline 
 access, such as training, is usually stored in Parquet files. Data for online access such as serving is stored 
-in a NoSQL DB. You can use the default targets or add/replace with additional custom targets.
+in a NoSQL DB. You can use the default targets or add/replace with additional custom targets. See  Target stores(#target-stores)
 
 Graph example (storey engine):
 ```python
@@ -171,8 +171,20 @@ When defining a source, it maps to nuclio event triggers. <br>
 Note that you can also create a custom `source` to access various databases or data sources.
 
 ### Target stores
-By default the feature sets are stored as both parquet file for training and as a key value table (in the Iguazio MLOps platform) for online serving. <br>
-The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. <br>
+By default, the feature sets are stored as both parquet file for training and as a key value table (in the Iguazio MLOps platform or a Redis DB) for online serving. <br>
+The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
+
+The Redis online target is called, in MLRun, `RedisNoSqlTarget`. RedisNoSqlTarget and NoSqlTarget have identical functionality 
+except for:
+- The `RedisNoSqlTarget` does not support the spark engine, only the storey engine.
+- The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`
+for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
+   - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)
+   - The server is password protected (password="abcde")
+   - The server location is localhost port 6379.
+- A default path can be configured in redis.url config (mlrun client has priority over mlrun server), and can be overwritten by `MLRUN_REDIS__URL` env var.
+- Two types of Redis servers are supported: "StandAlone" and "Cluster" (no need to specify the server type in the config).
+- RedisNoSqlTarget and NoSqlTarget cannot be used at the same time (as two targets of the same feature set).
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: <project name>/fs/.. folder. 

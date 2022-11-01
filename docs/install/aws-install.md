@@ -92,7 +92,7 @@ It's recommended to go through the quick-start and the other tutorials as shown 
 When installing the MLRun Community Edition via Cloud Formation, several storage resources are created, some of which persist even after uninstalling the stack:
 
 - **PVs via AWS storage provider**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted when the stack is uninstalled.
-- **S3 Bucket**: A bucket named `mlrun-<EKS cluster name>` is created in the AWS account that installs the stack (where `<EKS cluster name>` is the name of the EKS cluster you chose). The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
+- **S3 Bucket**: A bucket named `<EKS cluster name>-<Random string>` is created in the AWS account that installs the stack (where `<EKS cluster name>` is the name of the EKS cluster you chose and `<Random string>` is part of the CloudFormation stack ID). The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
 - **Container Images in ECR**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
 
 <a id="configure-online-feature-store"/>
@@ -118,7 +118,7 @@ See the examples on how to configure the MLRun serving graph with {ref}`kafka<se
 To free up the resources used by MLRun:
 
 - Delete the stack. See [instructions for deleting a stack on the AWS CloudFormation console](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html) for more details.
-- Delete the `mlrun-<EKS cluster name>` S3 bucket.
+- Delete the S3 that begins with the same name as your EKS cluster`.
 - Delete any remaining images in ECR.
 
 You may also need to check any external storage that you used.

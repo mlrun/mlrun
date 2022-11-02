@@ -3166,7 +3166,6 @@ class TestFeatureStore(TestMLRunSystem):
         col_1 = ["name_employees", "name_departments"]
         col_2 = ["name_employees", "name_departments", "name"]
         col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
-
         if with_indexes:
             result_3.set_index(["id"], inplace=True)
             if engine == "local":

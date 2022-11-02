@@ -1265,7 +1265,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or tag or "latest",
         )
         item = am.log_artifact(
             producer,

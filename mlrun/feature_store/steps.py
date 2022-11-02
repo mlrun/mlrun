@@ -269,12 +269,13 @@ class OneHotEncoder(StepToDict, MLRunStep):
         """
         super().__init__(**kwargs)
         self.mapping = mapping
-        for values in mapping.values():
+        for key, values in mapping.items():
             for val in values:
                 if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
+            mapping[key] = list(set(values))
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])

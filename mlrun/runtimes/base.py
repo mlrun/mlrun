@@ -336,8 +336,6 @@ class BaseRuntime(ModelObj):
 
         :return: run context object (RunObject) with run metadata, results and status
         """
-        print("RUN arguments!!!")
-        print(locals())
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
 
         if self.spec.mode and self.spec.mode not in run_modes:
@@ -360,7 +358,8 @@ class BaseRuntime(ModelObj):
             )
 
         run = self._create_run_object(runspec)
-
+        print("BEFORE:")
+        print(run.to_dict())
         run = self._enrich_run(
             run,
             handler,
@@ -376,7 +375,8 @@ class BaseRuntime(ModelObj):
             artifact_path,
             workdir,
         )
-
+        print("AFTER:")
+        print(run.to_dict())
         if is_local(run.spec.output_path):
             logger.warning(
                 "artifact path is not defined or is local,"

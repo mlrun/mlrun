@@ -598,7 +598,9 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
 
 
-def _assert_forbidden_responses_in_delete_endpoints(client: fastapi.testclient.TestClient):
+def _assert_forbidden_responses_in_delete_endpoints(
+    client: fastapi.testclient.TestClient,
+):
     response = client.delete(
         "projects/*/runtime-resources",
     )

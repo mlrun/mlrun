@@ -324,7 +324,7 @@ def test_delete_runtime_resources_nothing_allowed(
     mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.Mock(
         return_value=[]
     )
-    _assert_empty_responses_in_delete_endpoints(client)
+    _assert_forbidden_responses_in_delete_endpoints(client)
 
 
 def test_delete_runtime_resources_no_resources(
@@ -596,6 +596,29 @@ def _assert_empty_responses_in_delete_endpoints(client: fastapi.testclient.TestC
         f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
     )
     assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+
+def _assert_forbidden_responses_in_delete_endpoints(client: fastapi.testclient.TestClient):
+    response = client.delete(
+        "projects/*/runtime-resources",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    # legacy endpoints
+    response = client.delete(
+        "runtimes",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    response = client.delete(
+        f"runtimes/{mlrun.runtimes.RuntimeKinds.job}/some-id",
+    )
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
 def _generate_grouped_by_project_runtime_resources_with_legacy_builder_output():

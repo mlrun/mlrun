@@ -213,6 +213,7 @@ def _delete_runtime_resources(
         allowed_projects,
         grouped_by_project_runtime_resources_output,
         is_non_project_runtime_resource_exists,
+        not_allowed_projects_exist,
     ) = _get_runtime_resources_allowed_projects(
         project,
         auth_info,
@@ -250,6 +251,11 @@ def _delete_runtime_resources(
             force,
             grace_period,
         )
+    if not_allowed_projects_exist and not allowed_projects and not is_non_project_runtime_resource_exists:
+        # no resource are allowed, return 403
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "Cannot delete the requested runtime resources, insufficient permissions"
+        )
     if return_body:
         filtered_projects = copy.deepcopy(allowed_projects)
         if is_non_project_runtime_resource_exists:
@@ -281,6 +287,7 @@ def _list_runtime_resources(
         allowed_projects,
         grouped_by_project_runtime_resources_output,
         _,
+        _,
     ) = _get_runtime_resources_allowed_projects(
         project, auth_info, label_selector, kind_filter, object_id
     )
@@ -299,7 +306,7 @@ def _get_runtime_resources_allowed_projects(
     object_id: typing.Optional[str] = None,
     action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
 ) -> typing.Tuple[
-    typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, bool
+    typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, bool, bool
 ]:
     if project != "*":
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -337,10 +344,12 @@ def _get_runtime_resources_allowed_projects(
         auth_info,
         action=action,
     )
+    not_allowed_projects_exist = len(projects) != len(allowed_projects)
     return (
         allowed_projects,
         grouped_by_project_runtime_resources_output,
         is_non_project_runtime_resource_exists,
+        not_allowed_projects_exist,
     )
 
 

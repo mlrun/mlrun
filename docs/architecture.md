@@ -15,7 +15,7 @@ data movement, scaling, versioning, parameterization, output tracking, CI/CD int
 Those easily developed data or ML "functions" can then be published or loaded from a marketplace and used later to form offline or real-time 
 production pipelines with minimal engineering efforts.
 
-<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="600"/></p><br>
+<p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="800"/></p><br>
 
 
 ## MLRun deployment
@@ -25,7 +25,7 @@ MLRun has two main components, the service and the client (SDK):
 - The MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes). It can orchestrate and integrate with other open source open source frameworks, as shown in the following diagram. 
 - The MLRun client SDK is installed in your development environment and interacts with the service using REST API calls. 
 
-<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="600"/></p><br>
+<p align="center"><img src="_static/images/mlrun-cluster.png" alt="mlrun-flow" width="700"/></p><br>
 
 
 ## MLRun: an integrated and open approach

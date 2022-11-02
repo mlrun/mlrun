@@ -237,8 +237,8 @@ jobs:
           -o ServerAliveCountMax=3 \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
             LC_ALL=en_US.utf8 LANG=en_US.utf8 /bin/python3 \
-              docker-images \
               /home/iguazio/cleanup.py \
+              docker-images \
               http://localhost:8009 \
               igz0.docker_registry.0 \
               "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"

@@ -66,7 +66,7 @@ can handle complex workflows and real-time sources.
 
 The results from the transformation pipeline are stored in one or more material targets.  Data for offline 
 access, such as training, is usually stored in Parquet files. Data for online access such as serving is stored 
-in a NoSQL DB. You can use the default targets or add/replace with additional custom targets. See  Target stores(#target-stores)
+in the Iguazio NoSQL DB (` NoSqlTarget`). You can use the default targets or add/replace with additional custom targets. See Target stores(#target-stores).
 
 Graph example (storey engine):
 ```python
@@ -184,7 +184,7 @@ for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The server location is localhost port 6379.
 - A default path can be configured in redis.url config (mlrun client has priority over mlrun server), and can be overwritten by `MLRUN_REDIS__URL` env var.
 - Two types of Redis servers are supported: "StandAlone" and "Cluster" (no need to specify the server type in the config).
-- RedisNoSqlTarget and NoSqlTarget cannot be used at the same time (as two targets of the same feature set).
+- A feature set supports one online target only. Therefore RedisNoSqlTarget and NoSqlTarget cannot be used (as two targets of the same feature set).
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: <project name>/fs/.. folder. 

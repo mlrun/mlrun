@@ -173,7 +173,31 @@ def submit_workflow(
         print_debug("workflow spec", workflow_spec)  # TODO: Remove!
 
         # if workflow_spec.schedule:
+        #     # creating runspec for scheduling:
+        #     runspec = {
+        #         "spec": {
+        #             "parameters": {
+        #                 "url": project.spec.source,
+        #                 "project_name": project.metadata.name,
+        #                 "workflow_name": workflow_spec.name,
+        #                 "workflow_path": workflow_spec.path,
+        #                 "workflow_arguments": workflow_spec.args,
+        #                 "artifact_path": artifact_path,
+        #                 "workflow_handler": workflow_spec.handler
+        #                                     or workflow_spec.handler,
+        #                 "namespace": namespace,
+        #                 "ttl": workflow_spec.ttl,
+        #                 "engine": workflow_spec.engine,
+        #                 "local": workflow_spec.run_local,
+        #             },
+        #             "handler": "mlrun.projects.load_and_run",
+        #         },
+        #         "metadata": {"name": workflow_spec.name},
+        #         "schedule": workflow_spec.schedule,
+        #     }
+        #
         #     # getting labels:
+        #     load_and_run_fn.set_label("job-type", "workflow-runner").set_label("workflow", workflow_spec.name)
         #
         #     # Creating schedule:
         #     get_scheduler().create_schedule(
@@ -182,11 +206,10 @@ def submit_workflow(
         #         project=project.metadata.name,
         #         name=load_and_run_fn.metadata.name,
         #         kind=mlrun.api.schemas.ScheduleKinds.job,
-        #         scheduled_object=,
+        #         scheduled_object=load_and_run_fn.to_dict(),
         #         cron_trigger=workflow_spec.schedule,
-        #         labels=,
+        #         labels=load_and_run_fn.metadata.labels,
         #     )
-        #
         # else:
         # Running workflow from the remote engine:
         run = mlrun.projects.pipelines._RemoteRunner.run(

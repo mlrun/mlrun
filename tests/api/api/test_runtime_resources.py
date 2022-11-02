@@ -369,26 +369,15 @@ def test_delete_runtime_resources_opa_filtering(
     response = client.delete(
         "projects/*/runtime-resources",
     )
-    body = response.json()
-    expected_body = (
-        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-            allowed_projects, grouped_by_project_runtime_resources_output
-        )
-    )
-    assert (
-        deepdiff.DeepDiff(
-            body,
-            expected_body,
-            ignore_order=True,
-        )
-        == {}
-    )
+
+    # if at least one project isn't allowed, the response should be forbidden
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
     # legacy endpoint
     response = client.delete(
         "runtimes",
     )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
 def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
@@ -417,26 +406,15 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
     response = client.delete(
         "projects/*/runtime-resources",
     )
-    body = response.json()
-    expected_body = (
-        _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
-            [""], grouped_by_project_runtime_resources_output
-        )
-    )
-    assert (
-        deepdiff.DeepDiff(
-            body,
-            expected_body,
-            ignore_order=True,
-        )
-        == {}
-    )
+
+    # if at least one project isn't allowed, the response should be forbidden
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
     # legacy endpoint
     response = client.delete(
         "runtimes",
     )
-    assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+    assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
 
 def test_delete_runtime_resources_with_kind(

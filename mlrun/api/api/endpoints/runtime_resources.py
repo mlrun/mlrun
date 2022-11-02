@@ -222,6 +222,13 @@ def _delete_runtime_resources(
         object_id,
         mlrun.api.schemas.AuthorizationAction.delete,
     )
+
+    if not_allowed_projects_exist:
+        # some resources are not allowed, return 403
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "Access denied to one or more runtime resources"
+        )
+
     # if nothing allowed, simply return empty response
     if allowed_projects:
         permissions_label_selector = _generate_label_selector_for_allowed_projects(
@@ -250,15 +257,6 @@ def _delete_runtime_resources(
             label_selector,
             force,
             grace_period,
-        )
-    if (
-        not_allowed_projects_exist
-        and not allowed_projects
-        and not is_non_project_runtime_resource_exists
-    ):
-        # no resource are allowed, return 403
-        raise mlrun.errors.MLRunAccessDeniedError(
-            "Cannot delete the requested runtime resources, insufficient permissions"
         )
     if return_body:
         filtered_projects = copy.deepcopy(allowed_projects)

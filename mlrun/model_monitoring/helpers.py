@@ -22,6 +22,7 @@ import mlrun.api.crud.secrets
 import mlrun.api.utils.singletons.db
 import mlrun.config
 import mlrun.feature_store as fs
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
 import mlrun.utils.helpers
@@ -34,7 +35,10 @@ _MONIOTINRG_BATCH_FUNCTION_PATH = (
 
 
 def initial_model_monitoring_stream_processing_function(
-    project: str, model_monitoring_access_key: str, db_session: sqlalchemy.orm.Session
+    project: str,
+    model_monitoring_access_key: str,
+    db_session: sqlalchemy.orm.Session,
+    tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
 ):
     """
     Initialize model monitoring stream processing function.
@@ -42,6 +46,7 @@ def initial_model_monitoring_stream_processing_function(
     :param project:                     project name.
     :param model_monitoring_access_key: access key to apply the model monitoring process.
     :param db_session:                  A session that manages the current dialog with the database.
+    :param tracking_policy:             Model monitoring configurations.
 
     :return:                            A function object from a mlrun runtime class
 
@@ -62,7 +67,7 @@ def initial_model_monitoring_stream_processing_function(
         project=project,
         filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
         kind="serving",
-        image="mlrun/mlrun",
+        image=tracking_policy[model_monitoring_constants.EventFieldType.STREAM_IMAGE],
     )
 
     # Create monitoring serving graph
@@ -104,6 +109,7 @@ def get_model_monitoring_batch_function(
     model_monitoring_access_key: str,
     db_session: sqlalchemy.orm.Session,
     auth_info: mlrun.api.schemas.AuthInfo,
+    tracking_policy: mlrun.utils.model_monitoring.TrackingPolicy,
 ):
     """
     Initialize model monitoring batch function.
@@ -111,6 +117,7 @@ def get_model_monitoring_batch_function(
     :param project:                     project name.
     :param model_monitoring_access_key: access key to apply the model monitoring process.
     :param db_session:                  A session that manages the current dialog with the database.
+    :param tracking_policy:             Model monitoring configurations.
 
     :return:                            A function object from a mlrun runtime class
 
@@ -122,7 +129,9 @@ def get_model_monitoring_batch_function(
         project=project,
         filename=str(_MONIOTINRG_BATCH_FUNCTION_PATH),
         kind="job",
-        image="mlrun/mlrun",
+        image=tracking_policy[
+            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_IMAGE
+        ],
         handler="handler",
     )
     function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))

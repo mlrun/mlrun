@@ -386,6 +386,68 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
+def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
+    project = "artifact_project"
+    artifact_1_key = "artifact_key_1"
+    artifact_2_key = "artifact_key_2"
+    artifact_1_uid = "artifact_uid_1"
+    artifact_2_uid = "artifact_uid_2"
+    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
+    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
+    artifact_1_tag = "artifact_tag_one"
+    artifact_2_tag = "artifact_tag_two"
+    artifact_2_tag_2 = "artifact_tag_two_again"
+
+    db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_1_body,
+        artifact_1_uid,
+        tag=artifact_1_tag,
+        project=project,
+    )
+    db.store_artifact(
+        db_session,
+        artifact_2_key,
+        artifact_2_body,
+        artifact_2_uid,
+        tag=artifact_2_tag,
+        project=project,
+    )
+    db.store_artifact(
+        db_session,
+        artifact_2_key,
+        artifact_2_body,
+        artifact_2_uid,
+        tag=artifact_2_tag_2,
+        project=project,
+    )
+
+    artifacts = db.list_artifacts(db_session, project=project, name=artifact_1_key)
+    assert len(artifacts) == 1
+    artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag)
+    assert len(artifacts) == 1
+    artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag_2)
+    assert len(artifacts) == 1
+
+    db.del_artifact(db_session, artifact_1_key, project=project, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, name=artifact_1_key)
+    assert len(artifacts) == 0
+
+    # Negative test - wrong tag, no deletions
+    db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
+    assert len(artifacts) == 1
+
+    db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_2_tag_2)
+    artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
+    assert len(artifacts) == 0
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
 def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
     artifact_1_key = "pre_artifact_key_suffix"
     artifact_2_key = "pre-artifact-key-suffix"

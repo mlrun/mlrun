@@ -82,6 +82,8 @@ Optional.
 - **start_time** &mdash;  datetime, low limit of time needed to be filtered. Optional.
 - **end_time** &mdash;  datetime, high limit of time needed to be filtered. Optional.
 
+You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as relevant.
+
 Here's an example of a new dataset from a parquet target:
 
 ```python

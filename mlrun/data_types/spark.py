@@ -124,9 +124,6 @@ MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
-    if InferOptions.get_common_options(options, InferOptions.Index):
-        df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
-
     # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
 
     # if a column named "summary" already exists, we have to rename it to something else and back

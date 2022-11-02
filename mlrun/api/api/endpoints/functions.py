@@ -547,6 +547,7 @@ def _build_function(
                             model_monitoring_access_key=model_monitoring_access_key,
                             db_session=db_session,
                             auth_info=auth_info,
+                            tracking_policy=fn.spec.tracking_policy,
                         )
                 except Exception as exc:
                     logger.warning(

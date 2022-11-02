@@ -53,7 +53,7 @@ class MLRunLoggingCallback(LoggingCallback):
                                         the `params` dictionary.
         :param logging_frequency:       Per how many iterations to write the logs to MLRun (create the plots and log
                                         them and the results to MLRun). Two low frequency may slow the training time.
-                                        Defaulted to 100.
+                                        Default: 100.
         """
         super(MLRunLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,

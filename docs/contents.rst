@@ -1,72 +1,36 @@
+Table of Contents
+-----------------
+
 .. toctree::
    :maxdepth: 1
    :caption: MLRun basics
    
    index
    mlops-dev-flow
-   install
    tutorial/index
-   
+   install   
 
 .. toctree::
    :maxdepth: 1
-   :caption: Concepts
+   :caption: Core components
       
    projects/project
-   concepts/data-feature-store
    runtimes/functions
-   runtimes/load-from-marketplace
-   concepts/jobs
+   concepts/data
    feature-store/feature-store
-   concepts/model-training
+   concepts/runs-workflows
    serving/serving-graph
-   concepts/model-serving
-   concepts/multi-stage-workflows
-   concepts/deployment-monitoring
-   concepts/ci-cd-automation
-  
-.. toctree::
-   :maxdepth: 1
-   :caption: Data collection and preparation
-   
-   store/datastore
-   data-collect-prep/ingesting_data
-   data-collect-prep/logging_datasets
-   feature-store/feature-store-data-ingestion
-   
+   concepts/monitoring
     
 .. toctree::
    :maxdepth: 1
-   :caption: Training
+   :caption: MLOps tasks
    
-   training/create-a-basic-training-job
-   training/working-with-data-and-model-artifacts
-   concepts/auto-logging-mlops
-   training/built-in-training-function
-   feature-store/training-fs   
-   hyper-params
-  
-.. toctree::
-   :maxdepth: 1
-   :caption: Model serving
-
-   serving/custom-model-serving-class
-   serving/test-deploy-model-server
-   serving/built-in-model-serving
-   serving/model-serving-get-started
-   feature-store/training-serving
-   serving/canary
-   serving/model-api
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Continuous Monitoring and Retraining
-   
-   model_monitoring/index
-   projects/workflows
-   projects/ci-integration
-   
-   
+   data-prep/index
+   development/index
+   deployment/index
+   monitoring/index
+     
 .. toctree::
    :maxdepth: 1
    :caption: References
@@ -75,11 +39,3 @@
    api/index
    cli
    glossary
-
-
-
-
-
-
-
-

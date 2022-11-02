@@ -1,4 +1,4 @@
-# Using the Spark execution engine
+# Ingest features with Spark
 
 The feature store supports using Spark for ingesting, transforming, and writing results to data targets. When 
 using Spark, the internal execution graph is executed synchronously by utilizing a Spark session to perform read and
@@ -273,6 +273,9 @@ fstore.ingest(feature_set, source, targets=[target], run_config=run_config, spar
 ## Spark ingestion from Snowflake example
 
 Spark ingestion from Snowflake can be executed both remotely and locally. 
+
+When running aggregations, they actually run on Spark and require Spark compute resources.<br>
+The queries from the database are "regular" snowflake queries and they use Snowflake compute resources.
 
 ```{admonition} Note
 `Entity` is case sensitive.

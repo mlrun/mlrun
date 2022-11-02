@@ -91,8 +91,22 @@ def make_kaniko_pod(
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
+        if attribute == "service_account":
+            from mlrun.api.api.utils import resolve_project_default_service_account
+
+            (
+                allowed_service_accounts,
+                default_service_account,
+            ) = resolve_project_default_service_account(project)
+            if attr_value:
+                runtime_spec.validate_service_account(allowed_service_accounts)
+            else:
+                attr_value = default_service_account
+
+        if not attr_value:
+            continue
+
+        extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -390,6 +404,7 @@ def get_kaniko_spec_attributes_from_runtime():
         "affinity",
         "tolerations",
         "priority_class_name",
+        "service_account",
     ]
 
 
@@ -473,15 +488,19 @@ def build_runtime(
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(
-        build.base_image or config.default_base_image, client_version
+    base_image: str = (
+        build.base_image or runtime.spec.image or config.default_base_image
+    )
+    enriched_base_image = enrich_image_url(
+        base_image,
+        client_version,
     )
 
     status = build_image(
         auth_info,
         project,
-        build.image,
-        base_image=base_image,
+        image_target=build.image,
+        base_image=enriched_base_image,
         commands=build.commands,
         namespace=namespace,
         # inline_code=inline,
@@ -499,13 +518,19 @@ def build_runtime(
     )
     runtime.status.build_pod = None
     if status == "skipped":
-        runtime.spec.image = base_image
+        # using enriched base image for the runtime spec image, because this will be the image that the function will
+        # run with
+        runtime.spec.image = enriched_base_image
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
     if status.startswith("build:"):
         runtime.status.state = mlrun.api.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
+        # using the base_image, and not the enriched one so we won't have the client version in the image, useful for
+        # exports and other cases where we don't want to have the client version in the image, but rather enriched on
+        # API level
+        runtime.spec.build.base_image = base_image
         return False
 
     logger.info(f"build completed with {status}")

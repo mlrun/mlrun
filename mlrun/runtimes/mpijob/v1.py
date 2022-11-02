@@ -245,6 +245,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
                     "spec.priorityClassName",
                     self.spec.priority_class_name,
                 )
+            if self.spec.service_account:
+                update_in(
+                    pod_template, "spec.serviceAccountName", self.spec.service_account
+                )
 
         # configuration for workers only
         # update resources only for workers because the launcher

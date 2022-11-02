@@ -14,7 +14,7 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories, ArtifactsFormat
+from .artifact import ArtifactCategories, ArtifactIdentifier, ArtifactsFormat
 from .auth import (
     AuthInfo,
     AuthorizationAction,
@@ -89,6 +89,7 @@ from .marketplace import (
     MarketplaceSourceSpec,
     last_source_index,
 )
+from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_endpoints import (
     Features,
     FeatureValues,
@@ -148,3 +149,4 @@ from .secret import (
     SecretsData,
     UserSecretCreationRequest,
 )
+from .tag import Tag, TagObjects

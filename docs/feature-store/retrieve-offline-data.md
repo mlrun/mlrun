@@ -1,5 +1,5 @@
 (retrieve-offline-data)=
-# Retrieve offline data
+# Training with the feature store
 
 **In this section**
 - [Creating an offline dataset](#creating-an-offline-dataset)
@@ -10,6 +10,8 @@
 An offline dataset is a specific instance of the {ref}`feature vector definition <create-use-feature-vectors>`. To create this instance, use the feature store's 
 `get_offline_features(<feature_vector>, <target>)` function on the feature vector using the `store://<project_name>/<feature_vector>` 
 reference and an offline target (as in Parquet, CSV, etc.).
+
+You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as you like. See {py:meth}`~mlrun.feature_store.get_offline_features`.
 
 <br><img src="../_static/images/mlrun-feature-vector-ui.png" alt="feature-store-vector-ui" width="800"/><br>
 

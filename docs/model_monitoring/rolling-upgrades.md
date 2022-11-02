@@ -1,2 +1,0 @@
-(rolling-upgrades)=
-# Rolling upgrades

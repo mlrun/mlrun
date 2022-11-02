@@ -39,7 +39,12 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}'),)
-MLRUN_PIP_VERSION ?= 22.0.0
+MLRUN_PIP_VERSION ?= 22.2.0
+# MLRUN_GPU_PIP_VERSION is used because pip declaration in the dockerfile of gpu image is almost at the start of the file
+# which will cause the cache to be mostly invalidated if we change the pip version, because we are unable to rebuild
+# the image until we will move to newer python version, we will use the old one which is 22.0.0
+# TODO: remove this variable when we will move to newer python version
+MLRUN_GPU_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -99,6 +104,16 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
+
+.PHONY: install-complete-requirements
+install-complete-requirements: ## Install all requirements needed for development and testing
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	python -m pip install .[complete]
+
+.PHONY: install-all-requirements
+install-all-requirements: ## Install all requirements needed for development and testing
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	python -m pip install .[all]
 
 .PHONY: create-migration-sqlite
 create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
@@ -295,7 +310,7 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_GPU_PIP_VERSION) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \

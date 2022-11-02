@@ -21,6 +21,19 @@ router = fastapi.APIRouter()
 
 
 @router.get(
+    "/memory-reports/summary",
+    response_model=mlrun.api.schemas.MemorySummaryReport,
+)
+async def get_memory_summary_report(sample_size: int = 10):
+    report = (
+        mlrun.api.utils.memory_reports.MemoryUsageReport().create_memory_summary_report(
+            sample_size=sample_size
+        )
+    )
+    return mlrun.api.schemas.MemorySummaryReport(report=report)
+
+
+@router.get(
     "/memory-reports/common-types",
     response_model=mlrun.api.schemas.MostCommonObjectTypesReport,
 )

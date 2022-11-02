@@ -15,6 +15,7 @@
 
 import gc
 import io
+import operator
 import typing
 
 import mlrun.utils.singleton
@@ -25,8 +26,27 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
     def __init__(self):
         # Import objgraph only when needed
         import objgraph
+        from pympler import tracker
 
         self._objgraph = objgraph
+        self._summary_tracker = tracker.SummaryTracker()
+
+    def create_memory_summary_report(
+        self, sample_size: int = 10
+    ) -> typing.Dict[str, typing.Dict[str, int]]:
+        gc.collect()
+        memory_summary_list = sorted(
+            self._summary_tracker.create_summary(),
+            reverse=True,
+            key=operator.itemgetter(2),
+        )[:sample_size]
+        return {
+            obj_type: {
+                "count": count,
+                "size": size,
+            }
+            for obj_type, count, size in memory_summary_list
+        }
 
     def create_most_common_objects_report(self) -> typing.List[typing.Tuple[str, int]]:
         gc.collect()

@@ -18,6 +18,10 @@ import typing
 import pydantic
 
 
+class MemorySummaryReport(pydantic.BaseModel):
+    report: typing.Dict[str, typing.Dict[str, int]]
+
+
 class MostCommonObjectTypesReport(pydantic.BaseModel):
     object_types: typing.List[typing.Tuple[str, int]]
 

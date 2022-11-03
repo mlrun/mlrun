@@ -19,6 +19,7 @@ from typing import Dict, Optional
 
 import fastapi
 from sqlalchemy.orm import Session
+import uuid
 
 import mlrun
 import mlrun.api.api.deps
@@ -26,6 +27,7 @@ import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
+from mlrun.config import config
 import mlrun.projects.pipelines
 from mlrun.api.api.utils import (
     apply_enrichment_and_validation_on_function,
@@ -172,61 +174,73 @@ def submit_workflow(
 
         print_debug("workflow spec", workflow_spec)  # TODO: Remove!
 
-        # if workflow_spec.schedule:
-        #     # creating runspec for scheduling:
-        #     runspec = {
-        #         "spec": {
-        #             "parameters": {
-        #                 "url": project.spec.source,
-        #                 "project_name": project.metadata.name,
-        #                 "workflow_name": workflow_spec.name,
-        #                 "workflow_path": workflow_spec.path,
-        #                 "workflow_arguments": workflow_spec.args,
-        #                 "artifact_path": artifact_path,
-        #                 "workflow_handler": workflow_spec.handler
-        #                                     or workflow_spec.handler,
-        #                 "namespace": namespace,
-        #                 "ttl": workflow_spec.ttl,
-        #                 "engine": workflow_spec.engine,
-        #                 "local": workflow_spec.run_local,
-        #             },
-        #             "handler": "mlrun.projects.load_and_run",
-        #         },
-        #         "metadata": {"name": workflow_spec.name},
-        #         "schedule": workflow_spec.schedule,
-        #     }
-        #
-        #     # getting labels:
-        #     load_and_run_fn.set_label("job-type", "workflow-runner").set_label("workflow", workflow_spec.name)
-        #
-        #     # Creating schedule:
-        #     get_scheduler().create_schedule(
-        #         db_session=db_session,
-        #         auth_info=auth_info,
-        #         project=project.metadata.name,
-        #         name=load_and_run_fn.metadata.name,
-        #         kind=mlrun.api.schemas.ScheduleKinds.job,
-        #         scheduled_object=load_and_run_fn.to_dict(),
-        #         cron_trigger=workflow_spec.schedule,
-        #         labels=load_and_run_fn.metadata.labels,
-        #     )
-        # else:
-        # Running workflow from the remote engine:
-        run = mlrun.projects.pipelines._RemoteRunner.run(
-            project=project,
-            workflow_spec=workflow_spec,
-            name=name,
-            workflow_handler=workflow_spec.handler,
-            artifact_path=artifact_path,
-            namespace=namespace,
-            api_function=load_and_run_fn,
-        )
+        if workflow_spec.schedule:
+            meta_uid = uuid.uuid4().hex
+            # creating runspec for scheduling:
+            runspec = {
+                "spec": {
+                    "parameters": {
+                        "url": project.spec.source,
+                        "project_name": project.metadata.name,
+                        "workflow_name": workflow_spec.name,
+                        "workflow_path": workflow_spec.path,
+                        "workflow_arguments": workflow_spec.args,
+                        "artifact_path": artifact_path,
+                        "workflow_handler": workflow_spec.handler or workflow_spec.handler,
+                        "namespace": namespace,
+                        "ttl": workflow_spec.ttl,
+                        "engine": workflow_spec.engine,
+                        "local": workflow_spec.run_local,
+                    },
+                    "handler": "mlrun.projects.load_and_run",
+                    "scrape_metrics": config.scrape_metrics,
+                    "output_path": (artifact_path or config.artifact_path).replace("{{run.uid}}", meta_uid),
+                },
+                "metadata": {
+                    "name": workflow_spec.name,
+                    "uid": meta_uid,
+                    "project": project.metadata.name
+                },
+                "schedule": workflow_spec.schedule,
+            }
 
-        print_debug("run result", run)  # TODO: Remove!
-        # run is None for scheduled workflows:
-        if run:
+            # getting labels:
+            load_and_run_fn.set_label("job-type", "workflow-runner").set_label("workflow", workflow_spec.name)
+
+            # Creating schedule:
+            get_scheduler().create_schedule(
+                db_session=db_session,
+                auth_info=auth_info,
+                project=project.metadata.name,
+                name=load_and_run_fn.metadata.name,
+                kind=mlrun.api.schemas.ScheduleKinds.job,
+                scheduled_object=runspec,
+                cron_trigger=workflow_spec.schedule,
+                labels=load_and_run_fn.metadata.labels,
+            )
+            response = {
+                "schedule": workflow_spec.schedule,
+                "project": project.metadata.name,
+                "name": load_and_run_fn.metadata.name,
+            }
+
+            return {"result": f"The workflow was scheduled successfully, response: {response}"}
+        else:
+            # Running workflow from the remote engine:
+            run = mlrun.projects.pipelines._RemoteRunner.run(
+                project=project,
+                workflow_spec=workflow_spec,
+                name=name,
+                workflow_handler=workflow_spec.handler,
+                artifact_path=artifact_path,
+                namespace=namespace,
+                api_function=load_and_run_fn,
+            )
+
+            print_debug("run result", run)  # TODO: Remove!
+            # run is None for scheduled workflows:
             return {"workflow_id": run.run_id}
-        return {"result": "The workflow was scheduled successfully"}
+
 
     except Exception as err:
         logger.error(traceback.format_exc())

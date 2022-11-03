@@ -2078,41 +2078,60 @@ class SQLDB(DBInterface):
     ) -> str:
         original_uid = uid
 
+        # record with the given tag/uid
         _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
             session, FeatureSet, project, name, tag, uid
         )
 
         feature_set_dict = feature_set.dict(exclude_none=True)
 
-        if not existing_feature_set:
-            # Check if this is a re-tag of existing object - search by uid only
-            uid = fill_object_hash(feature_set_dict, "uid", tag)
-            _, _, existing_feature_set = self._get_record_by_name_tag_and_uid(
-                session, FeatureSet, project, name, None, uid
-            )
-            if existing_feature_set:
-                self.tag_objects_v2(session, [existing_feature_set], project, tag)
-                return uid
-
-            feature_set.metadata.tag = tag
-            return self.create_feature_set(session, project, feature_set, versioned)
-
+        # get the computed uid
         uid = self._common_object_validate_and_perform_uid_change(
             feature_set_dict, tag, versioned, original_uid
         )
 
-        if uid == existing_feature_set.uid or always_overwrite:
-            db_feature_set = existing_feature_set
-        else:
-            db_feature_set = FeatureSet(project=project)
+        if existing_feature_set:
+            if uid == existing_feature_set.uid or always_overwrite:
+                db_feature_set = existing_feature_set
+            else:
 
-        self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
+                # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
+                # was found - Check If an object with the same computed uid but different tag already exists
+                # and re-tag it.
+                if self._re_tag_existing_object(
+                    session, FeatureSet, project, name, tag, uid
+                ):
+                    return uid
 
-        self._update_feature_set_spec(db_feature_set, feature_set_dict)
-        self._upsert(session, [db_feature_set])
-        self.tag_objects_v2(session, [db_feature_set], project, tag)
+                db_feature_set = FeatureSet(project=project)
 
-        return uid
+            self._update_db_record_from_object_dict(
+                db_feature_set, feature_set_dict, uid
+            )
+
+            self._update_feature_set_spec(db_feature_set, feature_set_dict)
+            self._upsert(session, [db_feature_set])
+            if tag:
+                self.tag_objects_v2(session, [db_feature_set], project, tag)
+            return uid
+
+        # Object with the given tag/uid doesn't exist
+        # Check if this is a re-tag of existing object - search by uid only
+        if self._re_tag_existing_object(session, FeatureSet, project, name, tag, uid):
+            return uid
+
+        feature_set.metadata.tag = tag
+        return self.create_feature_set(session, project, feature_set, versioned)
+
+    def _re_tag_existing_object(self, session, cls, project, name, tag, uid):
+        _, _, existing_object = self._get_record_by_name_tag_and_uid(
+            session, cls, project, name, None, uid
+        )
+        if existing_object:
+            self.tag_objects_v2(session, [existing_object], project, tag)
+            return existing_object
+
+        return None
 
     def _validate_and_enrich_record_for_creation(
         self,
@@ -2386,44 +2405,52 @@ class SQLDB(DBInterface):
     ) -> str:
         original_uid = uid
 
+        # record with the given tag/uid
         _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
             session, FeatureVector, project, name, tag, uid
         )
 
         feature_vector_dict = feature_vector.dict(exclude_none=True)
 
-        if not existing_feature_vector:
-            # Check if this is a re-tag of existing object - search by uid only
-            uid = fill_object_hash(feature_vector_dict, "uid", tag)
-            _, _, existing_feature_vector = self._get_record_by_name_tag_and_uid(
-                session, FeatureVector, project, name, None, uid
-            )
-            if existing_feature_vector:
-                self.tag_objects_v2(session, [existing_feature_vector], project, tag)
-                return uid
-
-            feature_vector.metadata.tag = tag
-            return self.create_feature_vector(
-                session, project, feature_vector, versioned
-            )
-
+        # get the computed uid
         uid = self._common_object_validate_and_perform_uid_change(
             feature_vector_dict, tag, versioned, original_uid
         )
 
-        if uid == existing_feature_vector.uid or always_overwrite:
-            db_feature_vector = existing_feature_vector
-        else:
-            db_feature_vector = FeatureVector(project=project)
+        if existing_feature_vector:
+            if uid == existing_feature_vector.uid or always_overwrite:
+                db_feature_vector = existing_feature_vector
+            else:
 
-        self._update_db_record_from_object_dict(
-            db_feature_vector, feature_vector_dict, uid
-        )
+                # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
+                # was found - Check If an object with the same computed uid but different tag already exists
+                # and re-tag it.
+                if self._re_tag_existing_object(
+                    session, FeatureVector, project, name, tag, uid
+                ):
+                    return uid
 
-        self._upsert(session, [db_feature_vector])
-        self.tag_objects_v2(session, [db_feature_vector], project, tag)
+                db_feature_vector = FeatureVector(project=project)
 
-        return uid
+            self._update_db_record_from_object_dict(
+                db_feature_vector, feature_vector_dict, uid
+            )
+
+            self._upsert(session, [db_feature_vector])
+            if tag:
+                self.tag_objects_v2(session, [db_feature_vector], project, tag)
+
+            return uid
+
+        # Object with the given tag/uid doesn't exist
+        # Check if this is a re-tag of existing object - search by uid only
+        if self._re_tag_existing_object(
+            session, FeatureVector, project, name, tag, uid
+        ):
+            return uid
+
+        feature_vector.metadata.tag = tag
+        return self.create_feature_vector(session, project, feature_vector, versioned)
 
     def patch_feature_vector(
         self,

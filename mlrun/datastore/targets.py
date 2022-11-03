@@ -1115,6 +1115,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
+            # To prevent modification of the original dataframe
             df = df.copy(deep=False)
             access_key = self._secrets.get(
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")

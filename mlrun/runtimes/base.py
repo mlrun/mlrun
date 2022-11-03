@@ -714,8 +714,13 @@ class BaseRuntime(ModelObj):
             txt = get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+        # watch is None only in scenario where we run a pipeline step, in this case we don't want to watch the run logs
+        # but rather just pull the state of the run from the DB, and print the logs once the task is done
+        if watch is None and self.kfp:
+            runspec.wait_for_completion(show_logs=True)
+            resp = self._get_db_run(runspec)
 
-        if watch or self.kfp:
+        elif watch or self.kfp:
             runspec.logs(True, self._get_db())
             resp = self._get_db_run(runspec)
 

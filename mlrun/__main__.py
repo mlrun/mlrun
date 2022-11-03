@@ -373,6 +373,10 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         fn.is_child = from_env and not kfp
+        # if pod is running inside kfp pod, we don't really need the run logs to be printed actively, we can just
+        # pull the run state, and print it at the end
+        # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
+        watch = watch or None if kfp else False
         resp = fn.run(
             runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
         )

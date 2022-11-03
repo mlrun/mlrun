@@ -845,7 +845,9 @@ class RunObject(RunTemplate):
             print(f"final state: {state}")
         return state
 
-    def wait_for_completion(self, sleep=3, timeout=0, raise_on_failure=True):
+    def wait_for_completion(
+        self, sleep=3, timeout=0, raise_on_failure=True, show_logs=False
+    ):
         """wait for async run to complete"""
         total_time = 0
         while True:
@@ -858,11 +860,17 @@ class RunObject(RunTemplate):
                 raise mlrun.errors.MLRunTimeoutError(
                     "Run did not reach terminal state on time"
                 )
+
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+
             self.logs(watch=False)
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"
             )
+
+        if show_logs:
+            self.logs(watch=False)
+
         return state
 
     @staticmethod

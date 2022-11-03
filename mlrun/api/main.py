@@ -14,6 +14,7 @@
 #
 import asyncio
 import concurrent.futures
+import datetime
 import traceback
 import uuid
 
@@ -122,6 +123,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
         request.scope
     )
+    start_time = datetime.datetime.now()
     if not any(
         silent_logging_path in path_with_query_string
         for silent_logging_path in silent_logging_paths
@@ -151,6 +153,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         )
         raise
     else:
+        elapsed_time_in_seconds = (datetime.datetime.now() - start_time).total_seconds()
         if not any(
             silent_logging_path in path_with_query_string
             for silent_logging_path in silent_logging_paths
@@ -159,6 +162,7 @@ async def log_request_response(request: fastapi.Request, call_next):
                 "Sending response",
                 status_code=response.status_code,
                 request_id=request_id,
+                elapsed_time=elapsed_time_in_seconds,
                 uri=path_with_query_string,
                 method=request.method,
             )

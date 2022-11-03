@@ -110,8 +110,10 @@ def submit_workflow(
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
+        print('1' * 1000)
         # Scheduling a workflow must be performed only via the chief:
         chief_client = mlrun.api.utils.clients.chief.Client()
+        print('2' * 1000)
         params_to_pass = {
             "spec": spec and spec.dict(),
             "arguments": arguments,
@@ -120,6 +122,7 @@ def submit_workflow(
             "run_name": run_name,
             "namespace": namespace,
         }
+        print('3' * 1000)
         return chief_client.submit_workflow(
             project=project.metadata.name, name=name, json=params_to_pass
         )

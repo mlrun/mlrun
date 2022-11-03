@@ -91,6 +91,7 @@ class Client(
         request: fastapi.Request = None,
         json: dict = None,
     ) -> fastapi.Response:
+        print('4' * 1000)
         return self._proxy_request_to_chief(
             "POST", f"/projects/{project}/workflows/{name}/submit", request, json
         )
@@ -144,15 +145,17 @@ class Client(
         json: dict = None,
         raise_on_failure: bool = False,
     ) -> fastapi.Response:
+        print('5' * 1000)
         request_kwargs = self._resolve_request_kwargs_from_request(request, json)
-
+        print('6' * 1000)
+        print(request_kwargs)
         chief_response = self._send_request_to_api(
             method=method,
             path=path,
             raise_on_failure=raise_on_failure,
             **request_kwargs,
         )
-
+        print('7' * 1000)
         return self._convert_requests_response_to_fastapi_response(chief_response)
 
     @staticmethod

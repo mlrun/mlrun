@@ -14,20 +14,20 @@
 #
 import copy
 import traceback
+import uuid
 from http import HTTPStatus
 from typing import Dict, Optional
 
 import fastapi
 from sqlalchemy.orm import Session
-import uuid
 
 import mlrun
 import mlrun.api.api.deps
 import mlrun.api.api.utils
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
-from mlrun.config import config
 import mlrun.projects.pipelines
 from mlrun.api.api.utils import (
     apply_enrichment_and_validation_on_function,
@@ -35,6 +35,7 @@ from mlrun.api.api.utils import (
     get_scheduler,
     log_and_raise,
 )
+from mlrun.config import config
 from mlrun.utils.helpers import logger
 
 router = fastapi.APIRouter()
@@ -104,6 +105,24 @@ def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
+
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        # Scheduling a workflow must be performed only via the chief:
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        params_to_pass = {
+            "spec": spec and spec.dict(),
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
+        }
+        return chief_client.submit_workflow(
+            project=project.metadata.name, name=name, json=params_to_pass
+        )
 
     existing_workflows = [workflow["name"] for workflow in project.spec.workflows]
 
@@ -186,7 +205,8 @@ def submit_workflow(
                         "workflow_path": workflow_spec.path,
                         "workflow_arguments": workflow_spec.args,
                         "artifact_path": artifact_path,
-                        "workflow_handler": workflow_spec.handler or workflow_spec.handler,
+                        "workflow_handler": workflow_spec.handler
+                        or workflow_spec.handler,
                         "namespace": namespace,
                         "ttl": workflow_spec.ttl,
                         "engine": workflow_spec.engine,
@@ -194,18 +214,22 @@ def submit_workflow(
                     },
                     "handler": "mlrun.projects.load_and_run",
                     "scrape_metrics": config.scrape_metrics,
-                    "output_path": (artifact_path or config.artifact_path).replace("{{run.uid}}", meta_uid),
+                    "output_path": (artifact_path or config.artifact_path).replace(
+                        "{{run.uid}}", meta_uid
+                    ),
                 },
                 "metadata": {
                     "name": workflow_spec.name,
                     "uid": meta_uid,
-                    "project": project.metadata.name
+                    "project": project.metadata.name,
                 },
                 "schedule": workflow_spec.schedule,
             }
 
             # getting labels:
-            load_and_run_fn.set_label("job-type", "workflow-runner").set_label("workflow", workflow_spec.name)
+            load_and_run_fn.set_label("job-type", "workflow-runner").set_label(
+                "workflow", workflow_spec.name
+            )
 
             # Creating schedule:
             get_scheduler().create_schedule(
@@ -224,7 +248,9 @@ def submit_workflow(
                 "name": load_and_run_fn.metadata.name,
             }
 
-            return {"result": f"The workflow was scheduled successfully, response: {response}"}
+            return {
+                "result": f"The workflow was scheduled successfully, response: {response}"
+            }
         else:
             # Running workflow from the remote engine:
             run = mlrun.projects.pipelines._RemoteRunner.run(
@@ -240,7 +266,6 @@ def submit_workflow(
             print_debug("run result", run)  # TODO: Remove!
             # run is None for scheduled workflows:
             return {"workflow_id": run.run_id}
-
 
     except Exception as err:
         logger.error(traceback.format_exc())

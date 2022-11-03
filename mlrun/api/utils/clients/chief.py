@@ -84,6 +84,17 @@ class Client(
             "DELETE", f"projects/{project}/schedules/{name}", request
         )
 
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        request: fastapi.Request = None,
+        json: dict = None,
+    ) -> fastapi.Response:
+        return self._proxy_request_to_chief(
+            "POST", f"/projects/{project}/workflows/{name}/submit", request, json
+        )
+
     def delete_schedules(
         self, project: str, request: fastapi.Request
     ) -> fastapi.Response:
@@ -99,7 +110,6 @@ class Client(
         )
 
     def submit_job(self, request: fastapi.Request, json: dict) -> fastapi.Response:
-        print("<DEBUG YONI>: submit_job from chief")
         return self._proxy_request_to_chief("POST", "submit_job", request, json)
 
     def build_function(self, request: fastapi.Request, json: dict) -> fastapi.Response:

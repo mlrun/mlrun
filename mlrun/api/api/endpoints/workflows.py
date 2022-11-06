@@ -198,9 +198,17 @@ def submit_workflow(
 
         if workflow_spec.schedule:
             meta_uid = uuid.uuid4().hex
+
+            # getting labels:
+            load_and_run_fn.set_label("job-type", "workflow-runner").set_label(
+                "workflow", workflow_spec.name
+            )
+            load_and_run_fn.save()
+
             # creating runspec for scheduling:
             runspec = {
                 "spec": {
+                    "function": load_and_run_fn.uri,
                     "parameters": {
                         "url": project.spec.source,
                         "project_name": project.metadata.name,
@@ -226,22 +234,19 @@ def submit_workflow(
                     "uid": meta_uid,
                     "project": project.metadata.name,
                 },
-                "schedule": workflow_spec.schedule,
             }
-
-            # getting labels:
-            load_and_run_fn.set_label("job-type", "workflow-runner").set_label(
-                "workflow", workflow_spec.name
-            )
+            # Creating scheduled object:
+            scheduled_object = {"task": runspec, "schedule": workflow_spec.schedule}
 
             # Creating schedule:
-            get_scheduler().create_schedule(
+            scheduler = get_scheduler()
+            scheduler.create_schedule(
                 db_session=db_session,
                 auth_info=auth_info,
                 project=project.metadata.name,
                 name=load_and_run_fn.metadata.name,
                 kind=mlrun.api.schemas.ScheduleKinds.job,
-                scheduled_object=runspec,
+                scheduled_object=scheduled_object,
                 cron_trigger=workflow_spec.schedule,
                 labels=load_and_run_fn.metadata.labels,
             )
@@ -255,6 +260,14 @@ def submit_workflow(
                 "result": f"The workflow was scheduled successfully, response: {response}"
             }
         else:
+            # Creating the load and run function in the server-side way:
+            load_and_run_fn = mlrun.new_function(
+                name=f"workflow-runner-{workflow_spec.name}",
+                project=project.metadata.name,
+                kind="job",
+                image=mlrun.mlconf.default_base_image,
+            )
+
             # Running workflow from the remote engine:
             run = mlrun.projects.pipelines._RemoteRunner.run(
                 project=project,

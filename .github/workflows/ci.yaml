@@ -37,9 +37,9 @@ jobs:
       matrix:
         python-version: [3.7, 3.8, 3.9]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - uses: actions/cache@v2
@@ -60,7 +60,7 @@ jobs:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     # TODO: re-use the next 2 actions instead of duplicating
     - name: Extract git branch
       id: git_info
@@ -79,7 +79,7 @@ jobs:
     name: Run Dockerized Integration Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     # TODO: re-use the next 2 actions instead of duplicating
     - name: Extract git branch
       id: git_info
@@ -98,7 +98,7 @@ jobs:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -120,9 +120,9 @@ jobs:
       matrix:
         python-version: [3.7, 3.8]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - uses: actions/cache@v2
@@ -141,7 +141,7 @@ jobs:
     name: Build Project Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       # TODO: re-use the next 2 actions instead of duplicating
       - name: Extract git branch
         id: git_info
@@ -176,12 +176,12 @@ jobs:
         run: |
             echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
       - name: Checkout PR Base (target) Branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ steps.resolve_base_branch.outputs.branch }}
           path: base/mlrun
       - name: Checkout Merge Commit (requested branch merged with the target branch)
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: head/mlrun
       - name: Resolve docker cache tag
@@ -199,7 +199,7 @@ jobs:
     name: Check Copyright Existence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Check License Lines
         uses: kt3k/license_checker@v1.0.6
       - name: Instructions For Adding Copyright
@@ -228,10 +228,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Set up python 3.7
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Run make install-requirements
       run: make install-requirements
     - name: Run make install-complete-requirements

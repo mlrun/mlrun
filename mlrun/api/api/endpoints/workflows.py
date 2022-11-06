@@ -90,7 +90,10 @@ def submit_workflow(
     )
 
     # Scheduling must be performed only by chief:
-    if mlrun.mlconf.httpdb.clusterization.role != mlrun.api.schemas.ClusterizationRole.chief:
+    if (
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
         chief_client = mlrun.api.utils.clients.chief.Client()
         submit_workflow_params = {
             "spec": spec and spec.dict(),
@@ -114,7 +117,9 @@ def submit_workflow(
             # Update with favor to the workflow's spec from the input:
             workflow = _get_workflow_by_name(project, spec.name)
             workflow_spec = copy.deepcopy(workflow)
-            workflow_spec = {key: val or workflow_spec.get(key) for key, val in spec.dict().items()}
+            workflow_spec = {
+                key: val or workflow_spec.get(key) for key, val in spec.dict().items()
+            }
         else:
             workflow_spec = spec.dict()
     else:
@@ -200,7 +205,10 @@ def submit_workflow(
                 "workflow", workflow_spec.name
             )
             # Creating scheduled object:
-            scheduled_object = {"task": runspec.to_dict(), "schedule": workflow_spec.schedule}
+            scheduled_object = {
+                "task": runspec.to_dict(),
+                "schedule": workflow_spec.schedule,
+            }
 
             # Creating schedule:
             get_scheduler().create_schedule(

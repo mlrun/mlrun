@@ -65,13 +65,13 @@ jobs:
     - name: Extract git branch
       id: git_info
       run: |
-        echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+        echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-        echo "::set-output name=tag::$(echo $unstable_tag)"
+        echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
 
@@ -84,13 +84,13 @@ jobs:
     - name: Extract git branch
       id: git_info
       run: |
-        echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+        echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-        echo "::set-output name=tag::$(echo $unstable_tag)"
+        echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
 
@@ -103,13 +103,13 @@ jobs:
       - name: Extract git branch
         id: git_info
         run: |
-          echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+          echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Resolve docker cache tag
         id: docker_cache
         run: |
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "::set-output name=tag::$(echo $unstable_tag)"
+          echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
@@ -146,13 +146,13 @@ jobs:
       - name: Extract git branch
         id: git_info
         run: |
-          echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+          echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Resolve docker cache tag
         id: docker_cache
         run: |
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "::set-output name=tag::$(echo $unstable_tag)"
+          echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
@@ -174,7 +174,7 @@ jobs:
     steps:
       - id: resolve_base_branch
         run: |
-            echo "::set-output name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})"
+            echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
         uses: actions/checkout@v3
         with:
@@ -189,7 +189,7 @@ jobs:
         run: |
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "::set-output name=tag::$(echo $unstable_tag)"
+          echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Backward Compatibility Tests
         run: |
           cd head/mlrun

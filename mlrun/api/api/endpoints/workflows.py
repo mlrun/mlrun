@@ -16,7 +16,7 @@ import copy
 import traceback
 import uuid
 from http import HTTPStatus
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import fastapi
 from sqlalchemy.orm import Session
@@ -64,7 +64,28 @@ def submit_workflow(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
-):
+) -> Union[Dict[str, Any], fastapi.Response]:
+    """
+    Submitting a workflow of existing project.
+
+    :param project:         name of the project
+    :param name:            name of the workflow
+    :param spec:            workflow's spec. Can include only `mlrun.api.schemas.WorkflowSpec` fields.
+    :param arguments:       arguments for the workflow. Overrides the arguments given in spec.
+    :param artifact_path:   Target path/url for workflow artifacts, the string
+                            '{{workflow.uid}}' will be replaced by workflow id
+    :param source:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                            git://github.com/mlrun/demo-xgb-project.git
+                            http://mysite/archived-project.zip
+                            <project-name>
+                            the git project should include the project yaml file.
+                            if the project yaml file is in a subdirectory, must specify the sub-directory.
+    :param run_name:        name of the run object. Default to "workflow-runner-{workflow_spec.name}"
+    :param namespace:       kubernetes namespace if other than default
+    :param auth_info:       auth info of the request
+    :param db_session:      session that manages the current dialog with the database
+    :return:
+    """
     # Getting project:
     project = (
         mlrun.api.utils.singletons.project_member.get_project_member().get_project(
@@ -144,7 +165,7 @@ def submit_workflow(
 
     # Creating the load and run function in the server-side way:
     load_and_run_fn = mlrun.new_function(
-        name=f"workflow-runner-{workflow_spec.name}",
+        name=run_name or f"workflow-runner-{workflow_spec.name}",
         project=project.metadata.name,
         kind="job",
         image=mlrun.mlconf.default_base_image,
@@ -154,9 +175,11 @@ def submit_workflow(
         # Setting a connection between the function and the DB:
         run_db = get_run_db_instance(db_session)
         load_and_run_fn.set_db_connection(run_db)
-        # Generating an access key:
+
+        # Setting "generate" for the function's access key:
         load_and_run_fn.metadata.credentials.access_key = "$generate"
 
+        # Enrichment + validation to function:
         apply_enrichment_and_validation_on_function(
             function=load_and_run_fn,
             auth_info=auth_info,
@@ -169,41 +192,24 @@ def submit_workflow(
             meta_uid = uuid.uuid4().hex
 
             # creating runspec for scheduling:
-            runspec = mlrun.RunObject.from_dict(
-                {
-                    "spec": {
-                        "function": load_and_run_fn.uri,
-                        "parameters": {
-                            "url": project.spec.source,
-                            "project_name": project.metadata.name,
-                            "workflow_name": workflow_spec.name,
-                            "workflow_path": workflow_spec.path,
-                            "workflow_arguments": workflow_spec.args,
-                            "artifact_path": artifact_path,
-                            "workflow_handler": workflow_spec.handler
-                            or workflow_spec.handler,
-                            "namespace": namespace,
-                            "ttl": workflow_spec.ttl,
-                            "engine": workflow_spec.engine,
-                            "local": workflow_spec.run_local,
-                        },
-                        "handler": "mlrun.projects.load_and_run",
-                        "scrape_metrics": config.scrape_metrics,
-                        "output_path": (artifact_path or config.artifact_path).replace(
-                            "{{run.uid}}", meta_uid
-                        ),
-                    },
-                    "metadata": {
-                        "name": workflow_spec.name,
-                        "uid": meta_uid,
-                        "project": project.metadata.name,
-                    },
-                }
+            run_object_kwargs = {
+                "spec": {
+                    "scrape_metrics": config.scrape_metrics,
+                    "output_path": (artifact_path or config.artifact_path).replace(
+                        "{{run.uid}}", meta_uid
+                    ),
+                },
+                "metadata": {"uid": meta_uid, "project": project.metadata.name},
+            }
+
+            runspec = mlrun.projects.pipelines._create_run_object_for_workflow_runner(
+                project=project,
+                workflow_spec=workflow_spec,
+                artifact_path=artifact_path,
+                namespace=namespace,
+                **run_object_kwargs,
             )
 
-            runspec.set_label("job-type", "workflow-runner").set_label(
-                "workflow", workflow_spec.name
-            )
             # Creating scheduled object:
             scheduled_object = {
                 "task": runspec.to_dict(),
@@ -230,13 +236,6 @@ def submit_workflow(
                 "result": f"The workflow was scheduled successfully, response: {response}"
             }
         else:
-            # Creating the load and run function in the server-side way:
-            load_and_run_fn = mlrun.new_function(
-                name=f"workflow-runner-{workflow_spec.name}",
-                project=project.metadata.name,
-                kind="job",
-                image=mlrun.mlconf.default_base_image,
-            )
             # Running workflow from the remote engine:
             run = mlrun.projects.pipelines._RemoteRunner.run(
                 project=project,
@@ -247,7 +246,6 @@ def submit_workflow(
                 namespace=namespace,
                 api_function=load_and_run_fn,
             )
-            # run is None for scheduled workflows:
             return {"workflow_id": run.run_id}
 
     except Exception as err:

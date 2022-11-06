@@ -30,7 +30,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _skip_set_environment():
         return True
 
-    def test_v3io_large_object(self):
+    def test_v3io_large_object_upload(self):
 
         dir = tempfile.TemporaryDirectory()
         tempfile_1_path = os.path.join(dir.name, "tempfile_1")
@@ -45,7 +45,7 @@ class TestV3ioDataStore(TestMLRunSystem):
                 offset = r.randint(0, file_size - 1)
                 f.seek(offset)
                 f.write(bytearray([i]))
-        object_path = "/bigdata/test_v3io_large_object"
+        object_path = "/bigdata/test_v3io_large_object_upload"
         v3io_object_url = "v3io://" + object_path
 
         data_item = mlrun.datastore.store_manager.object(v3io_object_url)
@@ -77,4 +77,25 @@ class TestV3ioDataStore(TestMLRunSystem):
 
         finally:
             # cleanup (local files are cleaned by the TempDir destructor)
+            data_item.delete()
+
+    def test_v3io_large_object_put(self):
+        file_size = 20 * 1024 * 1024  # 20MB
+        generated_buffer = bytearray(os.urandom(file_size))
+        object_path = "/bigdata/test_v3io_large_object_put"
+        v3io_object_url = "v3io://" + object_path
+        data_item = mlrun.datastore.store_manager.object(v3io_object_url)
+        try:
+            # Exercise the DataItem put flow
+            data_item.put(generated_buffer)
+            returned_buffer = data_item.get()
+            assert returned_buffer == generated_buffer
+
+            data_item.store._put(
+                object_path, generated_buffer, max_chunk_size=100 * 1024
+            )
+            returned_buffer = data_item.get()
+            assert returned_buffer == generated_buffer
+
+        finally:
             data_item.delete()

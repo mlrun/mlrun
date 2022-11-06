@@ -72,7 +72,7 @@ class ONNXModelServer(V2ModelServer):
                                         ),
                                         'CPUExecutionProvider'
                                     ]
-                                    Defaulted to None - will prefer CUDA Execution Provider over CPU Execution Provider.
+                                    Default: None - will prefer CUDA Execution Provider over CPU Execution Provider.
         :param protocol:            -
         :param class_args:          -
         """

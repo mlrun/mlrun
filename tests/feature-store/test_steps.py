@@ -75,19 +75,27 @@ def test_set_event_random_id():
     assert resp["id"] != "XYZ", "id was not overwritten"
 
 
-def test_pandas_step_onehot(rundb_mock):
+@pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
+@pytest.mark.parametrize("set_index_before", [True, False, 0])
+def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     data, _ = get_data()
-    # One Hot Encode the newly defined mappings
+    data_to_ingest = data.copy()
+    if set_index_before or len(entities) == 1:
+        data_to_ingest.set_index(entities, inplace=True)
+    elif isinstance(set_index_before, int) and len(entities) > 1:
+        data_to_ingest.set_index(entities[set_index_before], inplace=True)
+    # One Hot Encode the newly defined mappings (mapping values not unique for testing)
     one_hot_encoder_mapping = {
-        "department": list(data["department"].unique()),
+        "department": data["department"].tolist(),
     }
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
+
     # Pre-processing grpah steps
     data_set_pandas.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
     data_set_pandas._run_db = rundb_mock
@@ -101,27 +109,44 @@ def test_pandas_step_onehot(rundb_mock):
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
         data_set_pandas,
-        data,
+        data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
-
-    data_ref = pd.DataFrame(
-        {
-            "name": data["name"],
-            "age": data["age"],
-            "department_IT": [1, 0, 0, 0, 1],
-            "department_RD": [0, 1, 1, 0, 0],
-            "department_Marketing": [0, 0, 0, 1, 0],
-            "timestamp": [
-                time.time(),
-                time.time(),
-                time.time(),
-                time.time(),
-                time.time(),
-            ],
-        },
-        index=[0, 1, 2, 3, 4],
-    )
+    if len(entities) == 1:
+        data_ref = pd.DataFrame(
+            {
+                "name": data["name"].values,
+                "age": data["age"].values,
+                "department_IT": [1, 0, 0, 0, 1],
+                "department_RD": [0, 1, 1, 0, 0],
+                "department_Marketing": [0, 0, 0, 1, 0],
+                "timestamp": [
+                    time.time(),
+                    time.time(),
+                    time.time(),
+                    time.time(),
+                    time.time(),
+                ],
+            },
+            index=data["id"].values,
+        )
+    else:
+        data_ref = pd.DataFrame(
+            {
+                "age": data["age"].values,
+                "department_IT": [1, 0, 0, 0, 1],
+                "department_RD": [0, 1, 1, 0, 0],
+                "department_Marketing": [0, 0, 0, 1, 0],
+                "timestamp": [
+                    time.time(),
+                    time.time(),
+                    time.time(),
+                    time.time(),
+                    time.time(),
+                ],
+            },
+            index=[data["id"].values, data["name"].values],
+        )
 
     assert isinstance(df_pandas, pd.DataFrame)
     pd.testing.assert_frame_equal(
@@ -137,7 +162,7 @@ def test_pandas_step_onehot(rundb_mock):
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
@@ -150,7 +175,9 @@ def test_pandas_step_onehot(rundb_mock):
 
     # Ingest our dataset through our defined pipeline
     df = fs.ingest(
-        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+        data_set,
+        data_to_ingest,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     pd.testing.assert_frame_equal(
         df,
@@ -163,12 +190,20 @@ def test_pandas_step_onehot(rundb_mock):
     )
 
 
-def test_pandas_step_imputer(rundb_mock):
+@pytest.mark.parametrize("set_index_before", [True, False, 0])
+@pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
+def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     data, data_ref = get_data(True)
+    data_ref.set_index(entities, inplace=True)
+    data_to_ingest = data.copy()
+    if set_index_before or len(entities) == 1:
+        data_to_ingest.set_index(entities, inplace=True)
+    elif isinstance(set_index_before, int) and len(entities) > 1:
+        data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
@@ -185,7 +220,7 @@ def test_pandas_step_imputer(rundb_mock):
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
         data_set_pandas,
-        data,
+        data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
 
@@ -203,7 +238,7 @@ def test_pandas_step_imputer(rundb_mock):
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
@@ -216,7 +251,9 @@ def test_pandas_step_imputer(rundb_mock):
 
     # Ingest our dataset through our defined pipeline
     df = fs.ingest(
-        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+        data_set,
+        data_to_ingest,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     pd.testing.assert_frame_equal(
         df,
@@ -229,13 +266,20 @@ def test_pandas_step_imputer(rundb_mock):
     )
 
 
+@pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
 @pytest.mark.parametrize("with_original", [True, False])
-def test_pandas_step_mapval(rundb_mock, with_original):
+@pytest.mark.parametrize("set_index_before", [True, False, 0])
+def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_before):
     data, _ = get_data()
+    data_to_ingest = data.copy()
+    if set_index_before or len(entities) == 1:
+        data_to_ingest.set_index(entities, inplace=True)
+    elif isinstance(set_index_before, int) and len(entities) > 1:
+        data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
@@ -260,21 +304,22 @@ def test_pandas_step_mapval(rundb_mock, with_original):
     # Ingest our  dataset through our defined pipeline
     df_pandas = fs.ingest(
         data_set_pandas,
-        data,
+        data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
 
     if with_original:
         data_ref = data.copy()
-        data_ref = data_ref.set_index("id", drop=True)
+        data_ref = data_ref.set_index(entities, drop=True)
         data_ref["age_mapped"] = ["adult", "child", "adult", "adult", "child"]
         data_ref["department_mapped"] = [1, 3, 3, 2, 1]
     else:
         age = ["adult", "child", "adult", "adult", "child"]
         department = [1, 3, 3, 2, 1]
-        data_ref = pd.DataFrame(
-            {"age": age, "department": department}, index=[0, 1, 2, 3, 4]
-        )
+        index = data["id"].values
+        if len(entities) > 1:
+            index = [data[ent].values for ent in entities]
+        data_ref = pd.DataFrame({"age": age, "department": department}, index=index)
 
     assert isinstance(df_pandas, pd.DataFrame)
     pd.testing.assert_frame_equal(
@@ -289,7 +334,7 @@ def test_pandas_step_mapval(rundb_mock, with_original):
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
@@ -310,7 +355,9 @@ def test_pandas_step_mapval(rundb_mock, with_original):
 
     # Ingest our dataset through our defined pipeline
     df = fs.ingest(
-        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+        data_set,
+        data_to_ingest,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     pd.testing.assert_frame_equal(
         df,
@@ -323,12 +370,19 @@ def test_pandas_step_mapval(rundb_mock, with_original):
     )
 
 
-def test_pandas_step_data_extractor(rundb_mock):
+@pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
+@pytest.mark.parametrize("set_index_before", [True, False, 0])
+def test_pandas_step_data_extractor(rundb_mock, entities, set_index_before):
     data, _ = get_data()
+    data_to_ingest = data.copy()
+    if set_index_before or len(entities) == 1:
+        data_to_ingest.set_index(entities, inplace=True)
+    elif isinstance(set_index_before, int) and len(entities) > 1:
+        data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
@@ -350,11 +404,11 @@ def test_pandas_step_data_extractor(rundb_mock):
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
         data_set_pandas,
-        data,
+        data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     data_ref = data.copy()
-    data_ref = data_ref.set_index("id", drop=True)
+    data_ref = data_ref.set_index(entities, drop=True)
     data_ref["timestamp_day_of_week"] = [3, 3, 3, 3, 3]
     data_ref["timestamp_hour"] = [0, 0, 0, 0, 0]
     assert isinstance(df_pandas, pd.DataFrame)
@@ -370,7 +424,7 @@ def test_pandas_step_data_extractor(rundb_mock):
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
@@ -388,7 +442,9 @@ def test_pandas_step_data_extractor(rundb_mock):
 
     # Ingest our dataset through our defined pipeline
     df = fs.ingest(
-        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+        data_set,
+        data_to_ingest,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     pd.testing.assert_frame_equal(
         df,
@@ -401,12 +457,19 @@ def test_pandas_step_data_extractor(rundb_mock):
     )
 
 
-def test_pandas_step_data_validator(rundb_mock):
+@pytest.mark.parametrize("set_index_before", [True, False, 0])
+@pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
+def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
     data, _ = get_data()
+    data_to_ingest = data.copy()
+    if set_index_before or len(entities) == 1:
+        data_to_ingest.set_index(entities, inplace=True)
+    elif isinstance(set_index_before, int) and len(entities) > 1:
+        data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
@@ -427,11 +490,11 @@ def test_pandas_step_data_validator(rundb_mock):
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
         data_set_pandas,
-        data,
+        data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     data_ref = data.copy()
-    data_ref = data_ref.set_index("id", drop=True)
+    data_ref = data_ref.set_index(entities, drop=True)
     assert isinstance(df_pandas, pd.DataFrame)
     pd.testing.assert_frame_equal(
         df_pandas,
@@ -445,7 +508,7 @@ def test_pandas_step_data_validator(rundb_mock):
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
@@ -462,7 +525,9 @@ def test_pandas_step_data_validator(rundb_mock):
 
     # Ingest our dataset through our defined pipeline
     df = fs.ingest(
-        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+        data_set,
+        data_to_ingest,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     pd.testing.assert_frame_equal(
         df,
@@ -475,12 +540,19 @@ def test_pandas_step_data_validator(rundb_mock):
     )
 
 
-def test_pandas_step_drop_feature(rundb_mock):
+@pytest.mark.parametrize("set_index_before", [True, False, 0])
+@pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
+def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     data, _ = get_data()
+    data_to_ingest = data.copy()
+    if set_index_before or len(entities) == 1:
+        data_to_ingest.set_index(entities, inplace=True)
+    elif isinstance(set_index_before, int) and len(entities) > 1:
+        data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
@@ -497,11 +569,11 @@ def test_pandas_step_drop_feature(rundb_mock):
     # Ingest our dataset through our defined pipeline
     df_pandas = fs.ingest(
         data_set_pandas,
-        data,
+        data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     data_ref = data.copy()
-    data_ref = data_ref.set_index("id", drop=True)
+    data_ref = data_ref.set_index(entities, drop=True)
     data_ref.drop(columns=["age"], inplace=True)
     assert isinstance(df_pandas, pd.DataFrame)
     pd.testing.assert_frame_equal(
@@ -516,7 +588,7 @@ def test_pandas_step_drop_feature(rundb_mock):
     # Define the corresponding FeatureSet
     data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fs.Entity("id")],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
@@ -529,7 +601,9 @@ def test_pandas_step_drop_feature(rundb_mock):
 
     # Ingest our dataset through our defined pipeline
     df = fs.ingest(
-        data_set, data, targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")]
+        data_set,
+        data_to_ingest,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
     pd.testing.assert_frame_equal(
         df,
@@ -555,13 +629,17 @@ def get_data(with_none=False):
                 "age": ages,
                 "department": department,
                 "timestamp": timestamp,
+                "id": ["a", "v", "h", "g", "j"],
             },
-            index=[0, 1, 2, 3, 4],
         )
         department = [None, "RD", "RD", "Marketing", "IT"]
     data = pd.DataFrame(
-        {"name": names, "age": ages, "department": department, "timestamp": timestamp},
-        index=[0, 1, 2, 3, 4],
+        {
+            "name": names,
+            "age": ages,
+            "department": department,
+            "timestamp": timestamp,
+            "id": ["a", "v", "h", "g", "j"],
+        },
     )
-    data["id"] = data.index
     return data, data_ref

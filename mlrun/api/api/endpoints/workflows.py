@@ -47,21 +47,6 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
             return project_workflow
 
 
-def _update_dict(d, e):
-    """
-    updating a dict d favoring values from e (None)
-    """
-    for key, val in e.items():
-        d[key] = val or d.get(key, None)
-
-
-def print_debug(key, val):
-    prefix = " <DEBUG YONI>     "
-    suffix = "     <END DEBUG YONI> "
-    msg = f"{key}: {val}\n type: {type(val)}"
-    print(10 * "*" + prefix + msg + suffix + 10 * "*")
-
-
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
     status_code=HTTPStatus.ACCEPTED.value,
@@ -80,16 +65,14 @@ def submit_workflow(
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    print_debug("input workflow_name", name)  # TODO: Remove!
     # Getting project:
     project = (
         mlrun.api.utils.singletons.project_member.get_project_member().get_project(
             db_session=db_session, name=project, leader_session=auth_info.session
         )
     )
-    # Debugging:
-    print_debug("project_name", project.metadata.name)  # TODO: Remove!
-    # Checking CREATE run permission
+    # Permission checks:
+    # 1. CREATE run
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.run,
         project_name=project.metadata.name,
@@ -97,7 +80,7 @@ def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
-    # Checking READ workflow permission
+    # 2. READ workflow
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
@@ -106,15 +89,10 @@ def submit_workflow(
         auth_info=auth_info,
     )
 
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
-    ):
-        print("1" * 1000)
-        # Scheduling a workflow must be performed only via the chief:
+    # Scheduling must be performed only by chief:
+    if mlrun.mlconf.httpdb.clusterization.role != mlrun.api.schemas.ClusterizationRole.chief:
         chief_client = mlrun.api.utils.clients.chief.Client()
-        print("2" * 1000)
-        params_to_pass = {
+        submit_workflow_params = {
             "spec": spec and spec.dict(),
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -122,39 +100,35 @@ def submit_workflow(
             "run_name": run_name,
             "namespace": namespace,
         }
-        print("3" * 1000)
         return chief_client.submit_workflow(
-            project=project.metadata.name, name=name, json=params_to_pass
+            project=project.metadata.name, name=name, json=submit_workflow_params
         )
 
-    existing_workflows = [workflow["name"] for workflow in project.spec.workflows]
+    project_workflow_names = [workflow["name"] for workflow in project.spec.workflows]
 
     # Taking from spec input or looking inside the project's workflows:
     if spec:
         workflow_name = spec.name or name
         spec.name = workflow_name
-        if workflow_name in existing_workflows:
-            # Update with favor to the workflow's spec from the input.:
+        if workflow_name in project_workflow_names:
+            # Update with favor to the workflow's spec from the input:
             workflow = _get_workflow_by_name(project, spec.name)
             workflow_spec = copy.deepcopy(workflow)
-            _update_dict(workflow_spec, spec.dict())
+            workflow_spec = {key: val or workflow_spec.get(key) for key, val in spec.dict().items()}
         else:
             workflow_spec = spec.dict()
     else:
         workflow_spec = _get_workflow_by_name(project, name)
 
-    print_debug("project's workflows", project.spec.workflows)  # TODO: Remove!
-    print_debug("main workflow", project.spec.workflows[0])  # TODO: Remove!
     # Verifying that project has a workflow name:
-
     if not workflow_spec:
         log_and_raise(
             reason=f"{name} workflow not found in project",
         )
+
     workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec)
 
-    print_debug("workflow_spec", workflow_spec)  # TODO: Remove!
-    # Preparing inputs for _RemoteRunner.run():
+    # Preparing inputs for load_and_run function:
     if source:
         project.spec.source = source
 
@@ -162,14 +136,6 @@ def submit_workflow(
         if not workflow_spec.args:
             workflow_spec.args = {}
         workflow_spec.args.update(arguments)
-
-    # workflow_spec.run_local = True  # Running remotely local workflows
-    print_debug("final workflow spec", workflow_spec)  # TODO: Remove!
-    # Printing input for debug:  # TODO: Remove!
-    print_debug("project", project)  # TODO: Remove!
-    print_debug("handler", workflow_spec.handler)  # TODO: Remove!
-    print_debug("artifact_path", artifact_path)  # TODO: Remove!
-    print_debug("namespace", namespace)  # TODO: Remove!
 
     # Creating the load and run function in the server-side way:
     load_and_run_fn = mlrun.new_function(
@@ -194,53 +160,50 @@ def submit_workflow(
 
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
 
-        print_debug("workflow spec", workflow_spec)  # TODO: Remove!
-
         if workflow_spec.schedule:
             meta_uid = uuid.uuid4().hex
 
-            # getting labels:
-            load_and_run_fn.set_label("job-type", "workflow-runner").set_label(
+            # creating runspec for scheduling:
+            runspec = mlrun.RunObject.from_dict(
+                {
+                    "spec": {
+                        "function": load_and_run_fn.uri,
+                        "parameters": {
+                            "url": project.spec.source,
+                            "project_name": project.metadata.name,
+                            "workflow_name": workflow_spec.name,
+                            "workflow_path": workflow_spec.path,
+                            "workflow_arguments": workflow_spec.args,
+                            "artifact_path": artifact_path,
+                            "workflow_handler": workflow_spec.handler
+                            or workflow_spec.handler,
+                            "namespace": namespace,
+                            "ttl": workflow_spec.ttl,
+                            "engine": workflow_spec.engine,
+                            "local": workflow_spec.run_local,
+                        },
+                        "handler": "mlrun.projects.load_and_run",
+                        "scrape_metrics": config.scrape_metrics,
+                        "output_path": (artifact_path or config.artifact_path).replace(
+                            "{{run.uid}}", meta_uid
+                        ),
+                    },
+                    "metadata": {
+                        "name": workflow_spec.name,
+                        "uid": meta_uid,
+                        "project": project.metadata.name,
+                    },
+                }
+            )
+
+            runspec.set_label("job-type", "workflow-runner").set_label(
                 "workflow", workflow_spec.name
             )
-            load_and_run_fn.save()
-
-            # creating runspec for scheduling:
-            runspec = {
-                "spec": {
-                    "function": load_and_run_fn.uri,
-                    "parameters": {
-                        "url": project.spec.source,
-                        "project_name": project.metadata.name,
-                        "workflow_name": workflow_spec.name,
-                        "workflow_path": workflow_spec.path,
-                        "workflow_arguments": workflow_spec.args,
-                        "artifact_path": artifact_path,
-                        "workflow_handler": workflow_spec.handler
-                        or workflow_spec.handler,
-                        "namespace": namespace,
-                        "ttl": workflow_spec.ttl,
-                        "engine": workflow_spec.engine,
-                        "local": workflow_spec.run_local,
-                    },
-                    "handler": "mlrun.projects.load_and_run",
-                    "scrape_metrics": config.scrape_metrics,
-                    "output_path": (artifact_path or config.artifact_path).replace(
-                        "{{run.uid}}", meta_uid
-                    ),
-                },
-                "metadata": {
-                    "name": workflow_spec.name,
-                    "uid": meta_uid,
-                    "project": project.metadata.name,
-                },
-            }
             # Creating scheduled object:
-            scheduled_object = {"task": runspec, "schedule": workflow_spec.schedule}
+            scheduled_object = {"task": runspec.to_dict(), "schedule": workflow_spec.schedule}
 
             # Creating schedule:
-            scheduler = get_scheduler()
-            scheduler.create_schedule(
+            get_scheduler().create_schedule(
                 db_session=db_session,
                 auth_info=auth_info,
                 project=project.metadata.name,
@@ -255,7 +218,6 @@ def submit_workflow(
                 "project": project.metadata.name,
                 "name": load_and_run_fn.metadata.name,
             }
-
             return {
                 "result": f"The workflow was scheduled successfully, response: {response}"
             }
@@ -267,7 +229,6 @@ def submit_workflow(
                 kind="job",
                 image=mlrun.mlconf.default_base_image,
             )
-
             # Running workflow from the remote engine:
             run = mlrun.projects.pipelines._RemoteRunner.run(
                 project=project,
@@ -278,8 +239,6 @@ def submit_workflow(
                 namespace=namespace,
                 api_function=load_and_run_fn,
             )
-
-            print_debug("run result", run)  # TODO: Remove!
             # run is None for scheduled workflows:
             return {"workflow_id": run.run_id}
 

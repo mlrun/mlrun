@@ -358,6 +358,7 @@ class BaseRuntime(ModelObj):
             )
 
         run = self._create_run_object(runspec)
+
         run = self._enrich_run(
             run,
             handler,
@@ -373,6 +374,7 @@ class BaseRuntime(ModelObj):
             artifact_path,
             workdir,
         )
+
         if is_local(run.spec.output_path):
             logger.warning(
                 "artifact path is not defined or is local,"
@@ -437,7 +439,6 @@ class BaseRuntime(ModelObj):
         else:
             # single run
             try:
-                print(f"DEBUG runtime: {self.__class__.__name__}")
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = run.logs(True, self._get_db())

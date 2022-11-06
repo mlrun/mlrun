@@ -154,9 +154,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         raise
     else:
         # convert from nano seconds to milliseconds
-        elapsed_time_in_ms = (
-            (time.perf_counter_ns() - start_time) / 1000 / 1000
-        )
+        elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
         if not any(
             silent_logging_path in path_with_query_string
             for silent_logging_path in silent_logging_paths

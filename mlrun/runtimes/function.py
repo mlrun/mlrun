@@ -198,10 +198,7 @@ class NuclioSpec(KubeResourceSpec):
             security_context=security_context,
         )
 
-        self.base_spec = base_spec or {
-            "spec": {"env": []},
-            "metadata": {"annotations": {}},
-        }
+        self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
         self.config = config or {}
@@ -295,6 +292,8 @@ class RemoteRuntime(KubeResource):
 
     def with_annotations(self, annotations):
         """set a key/value annotations for function"""
+
+        self.spec.base_spec.setdefault("metadata", {})
         self.spec.base_spec["metadata"].setdefault("annotations", {})
         for key, value in annotations.items():
             self.spec.base_spec["metadata"]["annotations"][key] = str(value)

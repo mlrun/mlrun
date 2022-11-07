@@ -103,7 +103,9 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
         df = df.sample(sample_size)
 
     num_bins = num_bins or default_num_bins
-    if InferOptions.get_common_options(options, InferOptions.Index) and df.index.name:
+    if InferOptions.get_common_options(options, InferOptions.Index) and (
+        df.index.name or df.index.names
+    ):
         df = df.reset_index()
     for col, values in df.describe(
         include="all", percentiles=[], datetime_is_numeric=True

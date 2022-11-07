@@ -3,7 +3,7 @@
 
 <!-- taken from feature-store/feature-sets -->
 
-Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
+Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](../feature-store/feature-sets.html#ingest-data-using-an-mlrun-job), [real-time ingestion](../feature-store/feature-sets.html#real-time-ingestion), or [incremental ingestion](../feature-store/feature-sets.html#incremental-ingestion)).
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
 can be done locally (i.e. running as a python process in the Jupyter pod) or as an MLRun job.

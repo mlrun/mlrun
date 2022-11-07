@@ -808,9 +808,9 @@ class RunObject(RunTemplate):
         self.refresh()
         return self.status.state or "unknown"
 
-    def refresh(self, db=None):
+    def refresh(self):
         """refresh run state from the db"""
-        db = db or mlrun.get_run_db()
+        db = mlrun.get_run_db()
         run = db.read_run(
             uid=self.metadata.uid,
             project=self.metadata.project,

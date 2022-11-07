@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.deps
 import mlrun.api.api.utils
+import mlrun.api.utils.singletons.db
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
@@ -110,24 +111,6 @@ def submit_workflow(
         auth_info=auth_info,
     )
 
-    # Scheduling must be performed only by chief:
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
-    ):
-        chief_client = mlrun.api.utils.clients.chief.Client()
-        submit_workflow_params = {
-            "spec": spec and spec.dict(),
-            "arguments": arguments,
-            "artifact_path": artifact_path,
-            "source": source,
-            "run_name": run_name,
-            "namespace": namespace,
-        }
-        return chief_client.submit_workflow(
-            project=project.metadata.name, name=name, json=submit_workflow_params
-        )
-
     project_workflow_names = [workflow["name"] for workflow in project.spec.workflows]
 
     # Taking from spec input or looking inside the project's workflows:
@@ -154,6 +137,24 @@ def submit_workflow(
 
     workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec)
 
+    # Scheduling must be performed only by chief:
+    if (
+        workflow_spec.schedule and
+        mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        submit_workflow_params = {
+            "spec": spec and spec.dict(),
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
+        }
+        return chief_client.submit_workflow(
+            project=project.metadata.name, name=name, json=submit_workflow_params
+        )
     # Preparing inputs for load_and_run function:
     if source:
         project.spec.source = source
@@ -171,9 +172,10 @@ def submit_workflow(
         image=mlrun.mlconf.default_base_image,
     )
 
+    run_db = get_run_db_instance(db_session)
+
     try:
         # Setting a connection between the function and the DB:
-        run_db = get_run_db_instance(db_session)
         load_and_run_fn.set_db_connection(run_db)
 
         # Setting "generate" for the function's access key:
@@ -189,6 +191,7 @@ def submit_workflow(
         logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
 
         if workflow_spec.schedule:
+
             meta_uid = uuid.uuid4().hex
 
             # creating runspec for scheduling:
@@ -227,17 +230,17 @@ def submit_workflow(
                 cron_trigger=workflow_spec.schedule,
                 labels=load_and_run_fn.metadata.labels,
             )
-            response = {
-                "schedule": workflow_spec.schedule,
-                "project": project.metadata.name,
-                "name": load_and_run_fn.metadata.name,
-            }
+
             return {
-                "result": f"The workflow was scheduled successfully, response: {response}"
+                "project": project.metadata.name,
+                "name": workflow_spec.name,
+                "status": "created",
+                "schedule": workflow_spec.schedule,
             }
+
         else:
             # Running workflow from the remote engine:
-            run = mlrun.projects.pipelines._RemoteRunner.run(
+            run_status = mlrun.projects.pipelines._RemoteRunner.run(
                 project=project,
                 workflow_spec=workflow_spec,
                 name=name,
@@ -246,8 +249,50 @@ def submit_workflow(
                 namespace=namespace,
                 api_function=load_and_run_fn,
             )
-            return {"workflow_id": run.run_id}
+            # if run_status:
+            #     run: mlrun.RunObject = run_status.run_object
+            #     workflow_id = _get_workflow_id(run, run_db)
+
+            return {
+                "project": project.metadata.name,
+                "name": workflow_spec.name,
+                "status": run_status.state,
+                "run_id": run_status.run_id,
+            }
 
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+
+
+@router.get(
+    "/projects/{project}/{uid}"
+)
+def get_workflow_id(
+    project: str,
+    uid: str,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(mlrun.api.api.deps.authenticate_request),
+    db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
+):
+    # Check permission READ run:
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    # Reading run:
+    run_db = get_run_db_instance(db_session)
+    run = run_db.read_run(uid=uid, project=project)
+    # To get the workflow id, we need to use session.commit() for getting the updated results.
+    # db_session.commit()
+    run_object = mlrun.RunObject.from_dict(run)
+    workflow_id = run_object.status.results.get("workflow_id", None)
+    state = run_object.state()
+    return {
+        "response": {
+            "workflow_id": workflow_id,
+            "state": state
+            }
+    }

@@ -746,21 +746,25 @@ class _RemoteRunner(_PipelineRunner):
                 schedule=workflow_spec.schedule,
                 artifact_path=artifact_path,
             )
+
             if workflow_spec.schedule:
                 return
 
-            db = None if not via_api else load_and_run_fn._get_db()
-
-            # Fetching workflow id:
-            while not run_id:
-                run.refresh(db=db)
-                run_id = run.status.results.get("workflow_id", None)
-                if via_api:
-                    # To get the workflow id, we need to use session.commit() for getting the updated results.
-                    db.session.commit()
-                time.sleep(1)
-            # After fetching the workflow_id the workflow executed successfully
-            state = mlrun.run.RunStatuses.succeeded
+            if via_api:
+                # for shortening the flow of the submit_workflow api endpoint
+                # we return here the run id of the load_and_run job instead of the workflow id
+                run_id = run.uid()
+                state = mlrun.run.RunStatuses.running
+            else:
+                # Fetching workflow id:
+                seconds = .1
+                while not run_id:
+                    run.refresh()
+                    run_id = run.status.results.get("workflow_id", None)
+                    time.sleep(seconds)
+                    seconds = 1
+                # After fetching the workflow_id the workflow executed successfully
+                state = mlrun.run.RunStatuses.succeeded
 
         except Exception as e:
             trace = traceback.format_exc()
@@ -806,7 +810,7 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def get_run_status(
         project,
-        run,
+        run: _PipelineRunStatus,
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,

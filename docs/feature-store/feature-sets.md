@@ -179,9 +179,9 @@ When working with the Iguazio MLOps platform the default feature set storage loc
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
 ```
 #### Redis target store
-To use the Redis online target store, you need to change the default to be parquet and Redis. The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` id identical to the `NoSqlTarget`.
-except for:
-- The `RedisNoSqlTarget` does not support the spark engine, only the storey engine.
+To use the Redis online target store, you need to change the default to be parquet and Redis. The Redis online target is called, in MLRun, 
+`RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` id identical to the `NoSqlTarget` except for:
+- The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).
 - The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`
 for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)

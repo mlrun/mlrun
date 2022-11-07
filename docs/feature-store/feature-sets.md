@@ -179,8 +179,8 @@ When working with the Iguazio MLOps platform the default feature set storage loc
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
 ```
 #### Redis target store
-To use the Redis online target store, you need to change the default to be parquet and Redis. The Redis online target is called, in MLRun, 
-`RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` id identical to the `NoSqlTarget` except for:
+The Redis online target is called, in MLRun, 
+`RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).
 - The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`
 for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
@@ -188,7 +188,13 @@ for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The server is password protected (password="abcde")
    - The server location is localhost port 6379.
 - A default path can be configured in redis.url config (mlrun client has priority over mlrun server), and can be overwritten by `MLRUN_REDIS__URL` env var.
-- Two types of Redis servers are supported: "StandAlone" and "Cluster" (no need to specify the server type in the config).
+- Two types of Redis servers are supported: StandAlone and Cluster (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore RedisNoSqlTarget and NoSqlTarget cannot be used as two targets of the same feature set.
+
+To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 
+explicitly each time with the path parameter, for example:</br>
+`RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
+
+
 
 

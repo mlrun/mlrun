@@ -171,15 +171,15 @@ When defining a source, it maps to nuclio event triggers. <br>
 Note that you can also create a custom `source` to access various databases or data sources.
 
 ### Target stores
-By default, the feature sets are stored as both parquet file for training and as a key value table (in the Iguazio MLOps platform or a Redis DB) for online serving. <br>
+By default, the feature sets are saved in parquet and the Iguazio NoSQL DB (`NoSqlTarget`). <br>
 The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
 
 ```{admonition} Note
-When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: <project name>/fs/.. folder. 
+When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
 ```
 #### Redis target store
-The Redis online target is called, in MLRun, `RedisNoSqlTarget`. RedisNoSqlTarget and NoSqlTarget have identical functionality 
+To use the Redis online target store, you need to change the default to be parquet and Redis. The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` id identical to the `NoSqlTarget`.
 except for:
 - The `RedisNoSqlTarget` does not support the spark engine, only the storey engine.
 - The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`
@@ -189,6 +189,6 @@ for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The server location is localhost port 6379.
 - A default path can be configured in redis.url config (mlrun client has priority over mlrun server), and can be overwritten by `MLRUN_REDIS__URL` env var.
 - Two types of Redis servers are supported: "StandAlone" and "Cluster" (no need to specify the server type in the config).
-- A feature set supports one online target only. Therefore RedisNoSqlTarget and NoSqlTarget cannot be used (as two targets of the same feature set).
+- A feature set supports one online target only. Therefore RedisNoSqlTarget and NoSqlTarget cannot be used as two targets of the same feature set.
 
 

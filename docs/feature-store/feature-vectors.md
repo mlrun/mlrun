@@ -84,7 +84,11 @@ Defaults to return as a return value to the caller.
 relations is also None, the join is done on the entity. Relevant only for Dask and storey(local) engines.<br>
 You can define relations of a feature set with the relations argument, like this:
 `{"feature_set_name": {"my_column":"other_feature_set_column", ...}...}`
-- **join_type** &mdash; (optional) Indicates the join type such as `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey(local) engines. 
+- **join_type** &mdash; (optional) Indicates the join type: `{'left', 'right', 'outer', 'inner'}, default 'outer'`. Relevant only for Dask and storey(local) engines. 
+   - left: use only keys from left frame (SQL: left outer join)
+   - right: use only keys from right frame (SQL: right outer join)
+   - outer: use union of keys from both frames (SQL: full outer join)
+   - inner: use intersection of keys from both frames (SQL: inner join).
 
 You can add a time-based filter condition when running `get_offline_feature` with a given vector. You can also filter with the query argument on all the other features as relevant.
 

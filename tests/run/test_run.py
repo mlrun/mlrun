@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 
 import pytest
 
@@ -60,7 +60,7 @@ def test_failed_schedule_not_creating_run():
     # mock we're with remote api (only there schedule is relevant)
     function._use_remote_api = Mock(return_value=True)
     # mock failure in submit job (failed schedule)
-    db = Mock()
+    db = MagicMock()
     function.set_db_connection(db)
     db.submit_job.side_effect = RuntimeError("Explode!")
     function.store_run = Mock()

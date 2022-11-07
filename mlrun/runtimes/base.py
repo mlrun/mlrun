@@ -362,6 +362,7 @@ class BaseRuntime(ModelObj):
         db = self._get_db()
 
         run = self._enrich_run(
+            db,
             run,
             handler,
             project,

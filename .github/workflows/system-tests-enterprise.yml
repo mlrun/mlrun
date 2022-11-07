@@ -63,9 +63,9 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up python 3.7
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
     - name: Install automation scripts dependencies and add mlrun to dev packages
@@ -184,9 +184,9 @@ jobs:
         test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
     steps:
     # checking out to the commit hash that the preparation step executed on
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up python 3.7
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
     - name: Install automation scripts dependencies and add mlrun to dev packages
@@ -210,35 +210,36 @@ jobs:
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
           make test-system-dockerized
-    - name: System Test Cleanup
-      # SSH to datanode and delete all docker images created by the system
-      # tests by restarting the docker-registry deployment
-      run: |  
-        sshpass \
-          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          ssh \
-          -o StrictHostKeyChecking=no \
-          -o ServerAliveInterval=180 \
-          -o ServerAliveCountMax=3 \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-          kubectl -n default-tenant rollout restart deployment docker-registry
-        
-        sshpass \
-          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          scp \
-          automation/system_test/cleanup.py \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:~/cleanup.py
-        
-        sshpass \
-          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
-          ssh \
-          -o StrictHostKeyChecking=no \
-          -o ServerAliveInterval=180 \
-          -o ServerAliveCountMax=3 \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
-            /bin/python3 \
-              ~/cleanup.py \
-              http://localhost:8009 \
-              igz0.docker_registry.0 \
-              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"
-
+#    - name: System Test Cleanup
+#      # SSH to datanode and delete all docker images created by the system
+#      # tests by restarting the docker-registry deployment
+#      run: |
+#        sshpass \
+#          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+#          ssh \
+#          -o StrictHostKeyChecking=no \
+#          -o ServerAliveInterval=180 \
+#          -o ServerAliveCountMax=3 \
+#          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+#          kubectl -n default-tenant rollout restart deployment docker-registry
+#
+#        sshpass \
+#          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+#          scp \
+#          automation/system_test/cleanup.py \
+#          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
+#
+#        sshpass \
+#          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+#          ssh \
+#          -o StrictHostKeyChecking=no \
+#          -o ServerAliveInterval=180 \
+#          -o ServerAliveCountMax=3 \
+#          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+#            LC_ALL=en_US.utf8 LANG=en_US.utf8 /bin/python3 \
+#              /home/iguazio/cleanup.py \
+#              docker-images \
+#              http://localhost:8009 \
+#              igz0.docker_registry.0 \
+#              "ghcr.io/mlrun/mlrun-api,ghcr.io/mlrun/mlrun-ui,ghcr.io/mlrun/mlrun,ghcr.io/mlrun/ml-models,ghcr.io/mlrun/ml-base"
+#

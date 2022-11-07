@@ -30,8 +30,8 @@ import mlrun.errors
 PROJECT = "project-name"
 
 
-def create_project(client: TestClient, project_name: str = PROJECT):
-    project = _get_project_obj(project_name)
+def create_project(client: TestClient, project_name: str = PROJECT, artifact_path=None):
+    project = _create_project_obj(project_name, artifact_path)
     resp = client.post("projects", json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
@@ -54,10 +54,13 @@ async def create_project_async(
     return resp
 
 
-def _get_project_obj(project_name) -> mlrun.api.schemas.Project:
+def _create_project_obj(project_name, artifact_path) -> mlrun.api.schemas.Project:
     return mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.api.schemas.ProjectSpec(
-            description="banana", source="source", goals="some goals"
+            description="banana",
+            source="source",
+            goals="some goals",
+            artifact_path=artifact_path,
         ),
     )

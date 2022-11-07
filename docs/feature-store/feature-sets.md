@@ -174,6 +174,11 @@ Note that you can also create a custom `source` to access various databases or d
 By default, the feature sets are stored as both parquet file for training and as a key value table (in the Iguazio MLOps platform or a Redis DB) for online serving. <br>
 The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
 
+```{admonition} Note
+When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: <project name>/fs/.. folder. 
+The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
+```
+#### Redis target store
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. RedisNoSqlTarget and NoSqlTarget have identical functionality 
 except for:
 - The `RedisNoSqlTarget` does not support the spark engine, only the storey engine.
@@ -186,6 +191,4 @@ for example: `rediss://:abcde@localhost:6379` creates a redis target, where:
 - Two types of Redis servers are supported: "StandAlone" and "Cluster" (no need to specify the server type in the config).
 - A feature set supports one online target only. Therefore RedisNoSqlTarget and NoSqlTarget cannot be used (as two targets of the same feature set).
 
-```{admonition} Note
-When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: <project name>/fs/.. folder. 
-The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage and on Iguazio DB/FS.
+

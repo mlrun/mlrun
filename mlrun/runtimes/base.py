@@ -671,9 +671,7 @@ class BaseRuntime(ModelObj):
 
                 if not runspec.spec.output_path:
                     try:
-                        project = db.get_project(
-                            runspec.metadata.project
-                        )
+                        project = db.get_project(runspec.metadata.project)
                         # this is mainly for tests, so we won't need to mock get_project for so many tests
                         # in normal use cases if no project is found we will get an error
                         if project:

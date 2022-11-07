@@ -290,7 +290,7 @@ class RemoteRuntime(KubeResource):
         self.spec.config[key] = value
         return self
 
-    def with_annotations(self, annotations):
+    def with_annotations(self, annotations: dict):
         """set a key/value annotations for function"""
 
         self.spec.base_spec.setdefault("metadata", {})

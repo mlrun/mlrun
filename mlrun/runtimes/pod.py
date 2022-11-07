@@ -940,7 +940,7 @@ class KubeResource(BaseRuntime):
             return self._set_env(name, value=str(value))
         return self._set_env(name, value_from=value_from)
 
-    def with_annotations(self, annotations):
+    def with_annotations(self, annotations: dict):
         """set a key/value annotations in the metadata of the pod"""
         for key, value in annotations.items():
             self.metadata.annotations[key] = str(value)

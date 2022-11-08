@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.deps
 import mlrun.api.api.utils
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
@@ -301,9 +302,12 @@ def get_workflow_id(
         auth_info,
     )
     engine = run_object.status.results.get("engine", None)
-    # Getting state without project:
-    try_state = mlrun.projects.pipelines._RemoteRunner.get_state(run_id=workflow_id, engine=engine)
-    logger.info(f"***DEBUG*** {try_state}")
-    # Getting state:
-    state = mlrun.projects.pipelines._RemoteRunner.get_state(run_id=workflow_id, project=project, engine=engine)
+    state = ""
+    if engine == "kfp":
+        # Getting workflow state via SDK not possible - requires httpdb:
+        pipeline = mlrun.api.crud.Pipelines().get_pipeline(db_session, workflow_id, project)
+        state = pipeline["run"].get("status", "")
+    # state = mlrun.projects.pipelines._RemoteRunner.get_state(
+    #     run_id=workflow_id, project=project, engine=engine
+    # )
     return {"workflow_id": workflow_id, "state": state}

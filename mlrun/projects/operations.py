@@ -36,7 +36,7 @@ def _get_engine_and_function(function, project=None):
                     "function name (str) can only be used in a project context, you must create, "
                     "load or get a project first or provide function object instead of its name"
                 )
-            function = pipeline_context.functions[function]
+            function = project.get_function(function, sync=False, enrich=True)
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())
@@ -67,6 +67,7 @@ def run_function(
     project_object=None,
     auto_build: bool = None,
     schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    artifact_path: str = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -128,7 +129,7 @@ def run_function(
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
-
+    :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -165,7 +166,11 @@ def run_function(
             verbose=verbose,
             watch=watch,
             local=local,
-            artifact_path=pipeline_context.workflow_artifact_path,
+            # workflow artifact_path has precedence over the project artifact_path equivalent to
+            # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
+            artifact_path=pipeline_context.workflow_artifact_path
+            or (project.artifact_path if project else None)
+            or artifact_path,
             auto_build=auto_build,
             schedule=schedule,
         )

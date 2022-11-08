@@ -487,3 +487,101 @@ def test_export_to_zip():
     # check upload to (remote) DataItem
     project.export("memory://x.zip")
     assert mlrun.get_dataitem("memory://x.zip").stat().size
+
+
+def test_function_receives_project_artifact_path(rundb_mock):
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+    func1 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    run1 = func1.run(local=True)
+    # because there is not artifact path in the project, then the default artifact path is used
+    assert run1.spec.output_path == mlrun.mlconf.artifact_path
+    rundb_mock.reset()
+
+    proj1.spec.artifact_path = "/var"
+
+    func2 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    run2 = func2.run(local=True)
+    assert run2.spec.output_path == proj1.spec.artifact_path
+
+    run3 = func2.run(local=True, artifact_path="/not/tmp")
+    assert run3.spec.output_path == "/not/tmp"
+
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+
+    run4 = func2.run(local=True, project="proj1")
+    assert run4.spec.output_path == proj1.spec.artifact_path
+
+    rundb_mock.reset()
+    mlrun.pipeline_context.clear(with_project=True)
+
+    func3 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
+    run5 = func3.run(local=True, project="proj1")
+    assert run5.spec.output_path == mlrun.mlconf.artifact_path
+
+
+def test_run_function_passes_project_artifact_path(rundb_mock):
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    # expected to call `get_project` because there is no proj1.artifact_path
+    mlrun.get_run_db().store_project("proj1", proj1)
+    run1 = proj1.run_function("f1", local=True)
+    assert run1.spec.output_path == mlrun.mlconf.artifact_path
+    rundb_mock.reset()
+
+    proj1.spec.artifact_path = "/var"
+
+    run2 = proj1.run_function("f1", local=True)
+    assert run2.spec.output_path == proj1.spec.artifact_path
+
+    mlrun.pipeline_context.workflow_artifact_path = "/data"
+    run3 = proj1.run_function("f1", local=True)
+    assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    # without using project's run_function
+    run4 = mlrun.run_function(proj1.get_function("f1"))
+    assert run4.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    # without using project's run_function, but passing project object instead
+    run5 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
+    assert run5.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    mlrun.pipeline_context.clear(with_project=True)
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+    run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
+    assert run6.spec.output_path == proj1.spec.artifact_path
+
+
+def test_project_ops():
+    # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    proj2 = mlrun.new_project("proj2", save=False)
+    proj2.set_function(func_path, "f2", image="mlrun/mlrun", handler="myhandler")
+
+    run = proj1.run_function("f1", params={"x": 1}, local=True)
+    assert run.spec.function.startswith("proj1/f1")
+    assert run.output("y") == 2  # = x * 2
+
+    run = proj2.run_function("f2", params={"x": 2}, local=True)
+    assert run.spec.function.startswith("proj2/f2")
+    assert run.output("y") == 4  # = x * 2

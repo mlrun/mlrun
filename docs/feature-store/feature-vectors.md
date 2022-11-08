@@ -137,6 +137,9 @@ You can create a join for:
 - Feature sets that do not have a common entity
 
 **Feature sets that have a common entity**
+
+In this case, the join is performed on the common entity.
+
 ```
 employees_set_entity = fs.Entity("id")
         employees_set = fs.FeatureSet(

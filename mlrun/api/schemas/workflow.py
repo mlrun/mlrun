@@ -42,4 +42,4 @@ class SubmitWorkflowResponse(pydantic.BaseModel):
 
 class GetWorkflowResponse(pydantic.BaseModel):
     workflow_id: str = None
-    state: str = None
+    status: str = None

@@ -314,6 +314,6 @@ def get_workflow_id(
         pipeline = mlrun.api.crud.Pipelines().get_pipeline(
             db_session=db_session, run_id=workflow_id, project=project
         )
-        state = pipeline["run"].get("status", "")
+        status = pipeline["run"].get("status", "")
 
-    return {"workflow_id": workflow_id, "state": state}
+    return {"workflow_id": workflow_id, "status": status}

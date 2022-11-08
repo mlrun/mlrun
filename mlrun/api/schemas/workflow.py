@@ -38,3 +38,8 @@ class SubmitWorkflowResponse(pydantic.BaseModel):
     status: str = None
     run_id: typing.Optional[str] = None
     schedule: typing.Union[str, ScheduleCronTrigger] = None
+
+
+class GetWorkflowResponse(pydantic.BaseModel):
+    workflow_id: str = None
+    state: str = None

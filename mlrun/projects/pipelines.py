@@ -571,10 +571,7 @@ class _KFPRunner(_PipelineRunner):
 
     @staticmethod
     def get_state(run_id, project=None):
-        if isinstance(project, str):
-            project_name = project
-        else:
-            project_name = project.metadata.name if project else ""
+        project_name = project.metadata.name if project else ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
             return resp["run"].get("status", "")
@@ -829,20 +826,6 @@ class _RemoteRunner(_PipelineRunner):
         run._engine = _RemoteRunner
         # Watching load_and_run function:
         run.wait_for_completion(timeout=timeout)
-
-    @staticmethod
-    def get_state(run_id, project=None, engine=None):
-        """
-                project_name = project.metadata.name if project else ""
-        resp = mlrun.run.get_pipeline(run_id, project=project_name)
-        if resp:
-            return resp["run"].get("status", "")
-        return ""
-        """
-        if engine:
-            engine = get_workflow_engine(engine)
-            return engine.get_state(run_id, project)
-        return ""
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

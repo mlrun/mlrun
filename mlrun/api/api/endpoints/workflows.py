@@ -251,9 +251,6 @@ def submit_workflow(
                 namespace=namespace,
                 api_function=load_and_run_fn,
             )
-            # if run_status:
-            #     run: mlrun.RunObject = run_status.run_object
-            #     workflow_id = _get_workflow_id(run, run_db)
 
             return {
                 "project": project.metadata.name,
@@ -267,7 +264,9 @@ def submit_workflow(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
 
 
-@router.get("/projects/{project}/{uid}")
+@router.get(
+    "/projects/{project}/{uid}", response_model=mlrun.api.schemas.GetWorkflowResponse
+)
 def get_workflow_id(
     project: str,
     uid: str,
@@ -276,6 +275,15 @@ def get_workflow_id(
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
+    """
+    Retrieve workflow id by the uid of the runner.
+    Supporting workflows that executed by the remote engine **only**.
+    :param project:     name of the project
+    :param uid:         the id of the running job that runs the workflow
+    :param auth_info:   auth info of the request
+    :param db_session:  session that manages the current dialog with the database
+    :return:
+    """
     # Check permission READ run:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
@@ -287,9 +295,7 @@ def get_workflow_id(
     # Reading run:
     run_db = get_run_db_instance(db_session)
     run = run_db.read_run(uid=uid, project=project)
-    logger.info(run)  # for debug TODO: Remove!
-    # To get the workflow id, we need to use session.commit() for getting the updated results.
-    # db_session.commit()
+
     run_object = mlrun.RunObject.from_dict(run)
     workflow_id = run_object.status.results.get("workflow_id", None)
 
@@ -304,10 +310,10 @@ def get_workflow_id(
     engine = run_object.status.results.get("engine", None)
     state = ""
     if engine == "kfp":
-        # Getting workflow state via SDK not possible - requires httpdb:
-        pipeline = mlrun.api.crud.Pipelines().get_pipeline(db_session, workflow_id, project)
+        # Getting workflow state for kfp:
+        pipeline = mlrun.api.crud.Pipelines().get_pipeline(
+            db_session=db_session, run_id=workflow_id, project=project
+        )
         state = pipeline["run"].get("status", "")
-    # state = mlrun.projects.pipelines._RemoteRunner.get_state(
-    #     run_id=workflow_id, project=project, engine=engine
-    # )
+
     return {"workflow_id": workflow_id, "state": state}

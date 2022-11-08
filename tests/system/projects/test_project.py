@@ -503,11 +503,8 @@ class TestProject(TestMLRunSystem):
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
 
     def test_submit_workflow_endpoint(self):
-        def _assert_keys(expected, provided):
-            expected, provided = set(expected), set(provided)
-            assert (
-                provided == expected
-            ), f"extra keys = {provided - expected}, missing keys ={expected - provided}"
+        def _assert_keys(expected, actual):
+            assert set(actual) == set(expected)
 
         project_name = "submit-workflow-system-test"
         project_dir = f"{projects_dir}/{project_name}"
@@ -518,15 +515,20 @@ class TestProject(TestMLRunSystem):
         project = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git", name=project_name
         )
+        # Submitting workflow:
         resp = self._run_db.api_call(
             "POST", f"projects/{project_name}/workflows/main/submit"
         )
         result = resp.json()
-        _assert_keys(["project", "name", "status", "run_id"], result.keys())
+        _assert_keys(["project", "name", "status", "run_id", "schedule"], result.keys())
 
-        sleep(30)
+        # waiting for the workflow to end:
+        # took 42 seconds, setting one minute
+        sleep(60)
         runner_id = result["run_id"]
-        resp = self._run_db.api_call("GET", f"/projects/{project}/{runner_id}")
+
+        # Getting workflow_id from runner_id:
+        resp = self._run_db.api_call("GET", f"projects/{project_name}/{runner_id}")
         result = resp.json()
         _assert_keys(["workflow_id", "status"], result.keys())
         assert result["status"] == "Succeeded"

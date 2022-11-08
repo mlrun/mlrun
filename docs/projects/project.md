@@ -17,9 +17,7 @@ Projects simplify how you process data, [submit jobs](../concepts/submitting-tas
 :maxdepth: 1
 
 create-project
-create-load-import-project
-use-git-manage-projects
-use-project
+load-project
 run-build-deploy
 build-run-workflows-pipelines
 ci-integration

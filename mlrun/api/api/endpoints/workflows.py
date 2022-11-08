@@ -51,6 +51,7 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
     status_code=HTTPStatus.ACCEPTED.value,
+    response_model=mlrun.api.schemas.SubmitWorkflowResponse,
 )
 def submit_workflow(
     project: str,
@@ -256,7 +257,7 @@ def submit_workflow(
             return {
                 "project": project.metadata.name,
                 "name": workflow_spec.name,
-                "status": run_status.state,
+                "status": run_status._state,
                 "run_id": run_status.run_id,
             }
 
@@ -285,9 +286,11 @@ def get_workflow_id(
     # Reading run:
     run_db = get_run_db_instance(db_session)
     run = run_db.read_run(uid=uid, project=project)
+    logger.info(run)  # for debug TODO: Remove!
     # To get the workflow id, we need to use session.commit() for getting the updated results.
     # db_session.commit()
     run_object = mlrun.RunObject.from_dict(run)
     workflow_id = run_object.status.results.get("workflow_id", None)
     state = run_object.state()
+    run_object.status.state
     return {"response": {"workflow_id": workflow_id, "state": state}}

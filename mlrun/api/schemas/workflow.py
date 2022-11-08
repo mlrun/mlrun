@@ -33,5 +33,8 @@ class WorkflowSpec(pydantic.BaseModel):
 
 
 class SubmitWorkflowResponse(pydantic.BaseModel):
-    # TODO: implement!
-    pass
+    project: str = None
+    name: str = None
+    status: str = None
+    run_id: typing.Optional[str] = None
+    schedule: typing.Union[str, ScheduleCronTrigger] = None

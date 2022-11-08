@@ -24,10 +24,10 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.deps
 import mlrun.api.api.utils
-import mlrun.api.utils.singletons.db
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.projects.pipelines
 from mlrun.api.api.utils import (
@@ -139,8 +139,8 @@ def submit_workflow(
 
     # Scheduling must be performed only by chief:
     if (
-        workflow_spec.schedule and
-        mlrun.mlconf.httpdb.clusterization.role
+        workflow_spec.schedule
+        and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
         chief_client = mlrun.api.utils.clients.chief.Client()
@@ -265,13 +265,13 @@ def submit_workflow(
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
 
 
-@router.get(
-    "/projects/{project}/{uid}"
-)
+@router.get("/projects/{project}/{uid}")
 def get_workflow_id(
     project: str,
     uid: str,
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(mlrun.api.api.deps.authenticate_request),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
     # Check permission READ run:
@@ -290,9 +290,4 @@ def get_workflow_id(
     run_object = mlrun.RunObject.from_dict(run)
     workflow_id = run_object.status.results.get("workflow_id", None)
     state = run_object.state()
-    return {
-        "response": {
-            "workflow_id": workflow_id,
-            "state": state
-            }
-    }
+    return {"response": {"workflow_id": workflow_id, "state": state}}

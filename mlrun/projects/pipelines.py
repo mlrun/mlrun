@@ -757,7 +757,7 @@ class _RemoteRunner(_PipelineRunner):
                 state = mlrun.run.RunStatuses.running
             else:
                 # Fetching workflow id:
-                seconds = .1
+                seconds = 0.1
                 while not run_id:
                     run.refresh()
                     run_id = run.status.results.get("workflow_id", None)

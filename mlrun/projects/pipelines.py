@@ -810,7 +810,7 @@ class _RemoteRunner(_PipelineRunner):
     @staticmethod
     def get_run_status(
         project,
-        run: _PipelineRunStatus,
+        run,
         timeout=None,
         expected_statuses=None,
         notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,

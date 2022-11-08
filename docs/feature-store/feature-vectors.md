@@ -130,6 +130,91 @@ run = fn.run(task)
 
 You can see a full example of using the offline feature vector to create an ML model in [part 2 of the end-to-end demo](./end-to-end-demo/02-create-training-model.html).
 
+#### Using joins in an offline feature vector
+
+You can create a join for:
+- Feature sets that have a common entity
+- Feature sets that do not have a common entity
+
+**Feature sets that have a common entity**
+```
+employees_set_entity = fs.Entity("id")
+        employees_set = fs.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fs.ingest(employees_set, employees)
+
+        mini_employees_set = fs.FeatureSet(
+            "mini-employees",
+            entities=[employees_set_entity],
+            relations={
+                "department_id": departments_set_entity,
+                "class_id": classes_set_entity,
+            },
+        )
+        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fs.ingest(mini_employees_set, employees_mini)
+
+        features = ["employees.name as n", "mini-employees.name as mini_name"]
+
+        vector_3 = fs.FeatureVector(
+            "mini-emp-vec", features, description="Employees feature vector"
+        )
+        vector_3.save()
+
+        resp_3 = fs.get_offline_features(
+            vector_3,
+            join_type=join_type,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+```
+
+**Feature sets that do not have a common entity**
+
+In this case, you define the relations between the features set with the argument: ` relations={column_name(str): Entity}`</br>
+and you include this dictionary when initializing the feature set. 
+
+```
+departments_set_entity = fs.Entity("d_id")
+        departments_set = fs.FeatureSet(
+            "departments",
+            entities=[departments_set_entity],
+            relations={"manager_id": managers_set_entity},
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fs.ingest(departments_set, departments)
+
+        employees_set_entity = fs.Entity("id")
+        employees_set = fs.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fs.ingest(employees_set, employees)
+
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fs.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        resp_1 = fs.get_offline_features(
+            vector,
+            join_type=join_type,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+```
+
+
 ### Creating an online feature vector
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.

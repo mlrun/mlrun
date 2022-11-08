@@ -275,13 +275,6 @@ def get_workflow_id(
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
-    # Getting project:
-    project = (
-        mlrun.api.utils.singletons.project_member.get_project_member().get_project(
-            db_session=db_session, name=project, leader_session=auth_info.session
-        )
-    )
-
     # Check permission READ run:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
@@ -308,6 +301,9 @@ def get_workflow_id(
         auth_info,
     )
     engine = run_object.status.results.get("engine", None)
+    # Getting state without project:
+    try_state = mlrun.projects.pipelines._RemoteRunner.get_state(run_id=workflow_id, engine=engine)
+    logger.info(f"***DEBUG*** {try_state}")
     # Getting state:
     state = mlrun.projects.pipelines._RemoteRunner.get_state(run_id=workflow_id, project=project, engine=engine)
     return {"workflow_id": workflow_id, "state": state}

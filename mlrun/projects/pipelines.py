@@ -571,7 +571,10 @@ class _KFPRunner(_PipelineRunner):
 
     @staticmethod
     def get_state(run_id, project=None):
-        project_name = project.metadata.name if project else ""
+        if isinstance(project, str):
+            project_name = project
+        else:
+            project_name = project.metadata.name if project else ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
             return resp["run"].get("status", "")

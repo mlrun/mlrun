@@ -921,7 +921,7 @@ def load_and_run(
 
 
 def _create_run_object_for_workflow_runner(
-    project: typing.Union[mlrun.projects.MlrunProject, mlrun.api.schemas.Project],
+    project,
     workflow_spec: WorkflowSpec,
     artifact_path: typing.Optional[str] = None,
     namespace: typing.Optional[str] = None,

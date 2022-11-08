@@ -291,6 +291,17 @@ def get_workflow_id(
     # db_session.commit()
     run_object = mlrun.RunObject.from_dict(run)
     workflow_id = run_object.status.results.get("workflow_id", None)
-    state = run_object.state()
-    run_object.status.state
+
+    # Check permission READ run:
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        project,
+        workflow_id,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+    workflow_run = run_db.read_run(uid=workflow_id, project=project)
+    workflow_run_object = mlrun.RunObject.from_dict(workflow_run)
+    state = workflow_run_object.state()
     return {"response": {"workflow_id": workflow_id, "state": state}}

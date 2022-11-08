@@ -512,7 +512,7 @@ class TestProject(TestMLRunSystem):
         self.custom_project_names_to_delete.append(project_name)
         shutil.rmtree(project_dir, ignore_errors=True)
 
-        project = mlrun.load_project(
+        mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git", name=project_name
         )
         # Submitting workflow:
@@ -532,6 +532,10 @@ class TestProject(TestMLRunSystem):
         result = resp.json()
         _assert_keys(["workflow_id", "status"], result.keys())
         assert result["status"] == "Succeeded"
+
+    def test_submit_workflow_endpoint_with_scheduling(self):
+        # TODO: implement
+        pass
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

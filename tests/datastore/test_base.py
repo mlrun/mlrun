@@ -56,7 +56,7 @@ def test_load_object_into_dask_dataframe_using_wasbs_url():
     assert isinstance(ddf, dd.DataFrame)
 
 
-def test_kafka_source():
+def test_kafka_source_with_attributes():
     source = KafkaSource(
         brokers="broker_host:9092",
         topics="mytopic",
@@ -80,4 +80,25 @@ def test_kafka_source():
         "user": "myuser",
         "password": "mypassword",
         "handshake": True,
+    }
+
+
+def test_kafka_source_without_attributes():
+    source = KafkaSource(
+        brokers="broker_host:9092",
+        topics="mytopic",
+        group="mygroup",
+        sasl_user="myuser",
+        sasl_pass="mypassword",
+    )
+    function = new_function(kind="remote")
+    source.add_nuclio_trigger(function)
+    attributes = function.spec.config["spec.triggers.kafka"]["attributes"]
+    assert attributes["brokers"] == ["broker_host:9092"]
+    assert attributes["topics"] == ["mytopic"]
+    assert attributes["consumerGroup"] == "mygroup"
+    assert attributes["sasl"] == {
+        "enabled": True,
+        "user": "myuser",
+        "password": "mypassword",
     }

@@ -505,7 +505,9 @@ class TestProject(TestMLRunSystem):
     def test_submit_workflow_endpoint(self):
         def _assert_keys(expected, provided):
             expected, provided = set(expected), set(provided)
-            assert provided == expected, f"extra keys = {provided - expected}, missing keys ={expected - provided}"
+            assert (
+                provided == expected
+            ), f"extra keys = {provided - expected}, missing keys ={expected - provided}"
 
         project_name = "submit-workflow-system-test"
         project_dir = f"{projects_dir}/{project_name}"
@@ -516,7 +518,9 @@ class TestProject(TestMLRunSystem):
         project = mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git", name=project_name
         )
-        resp = self._run_db.api_call("POST", f"projects/{project_name}/workflows/main/submit")
+        resp = self._run_db.api_call(
+            "POST", f"projects/{project_name}/workflows/main/submit"
+        )
         result = resp.json()
         _assert_keys(["project", "name", "status", "run_id"], result.keys())
 
@@ -525,7 +529,6 @@ class TestProject(TestMLRunSystem):
         resp = self._run_db.api_call("GET", f"/projects/{project}/{runner_id}")
         result = resp.json()
         _assert_keys(["workflow_id", "status"], result.keys())
-        expected_keys = {"workflow_id", "status"}
         assert result["status"] == "Succeeded"
 
     def test_build_and_run(self):

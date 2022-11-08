@@ -300,8 +300,7 @@ def get_workflow_id(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-
-    workflow_run = run_db.read_run(uid=workflow_id, project=project)
-    workflow_run_object = mlrun.RunObject.from_dict(workflow_run)
-    state = workflow_run_object.state()
-    return {"response": {"workflow_id": workflow_id, "state": state}}
+    engine = run_object.status.results.get("engine", None)
+    # Getting state:
+    state = mlrun.projects.pipelines._RemoteRunner.get_state(run_id=workflow_id, project=project, engine=engine)
+    return {"workflow_id": workflow_id, "state": state}

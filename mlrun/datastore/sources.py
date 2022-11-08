@@ -796,7 +796,7 @@ class KafkaSource(OnlineSource):
             topics = [topics]
         if isinstance(brokers, str):
             brokers = [brokers]
-        attributes = copy(attributes)
+        attributes = {} if attributes is None else copy(attributes)
         attributes["brokers"] = brokers
         attributes["topics"] = topics
         attributes["group"] = group

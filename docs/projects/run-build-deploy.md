@@ -11,13 +11,13 @@
 ## Overview
 
 There is a set of methods used to deploy and run project functions. They can be used interactively or inside a pipeline (e.g. Kubeflow). 
-When used inside a pipeline, the methods are automatically mapped to the relevant pipeline engine command.
+When used inside a pipeline, each method is automatically mapped to the relevant pipeline engine command.
 
-* {py:meth}`~mlrun.projects.run_function`  - Run a local or remote task as part of local or remote batch/scheduled task
-* {py:meth}`~mlrun.projects.build_function`  - deploy an ML function, build a container with its dependencies for use in runs
-* {py:meth}`~mlrun.projects.deploy_function`  - deploy real-time/online (nuclio or serving based) functions
+* {py:meth}`~mlrun.projects.run_function` &mdash; Run a local or remote task as part of local or remote batch/scheduled task
+* {py:meth}`~mlrun.projects.build_function` &mdash; deploy an ML function, build a container with its dependencies for use in runs
+* {py:meth}`~mlrun.projects.deploy_function` &mdash; deploy real-time/online (nuclio or serving based) functions
 
-You can use those methods as `project` methods, or as global (`mlrun.`) methods. The current project is assumed for the later case.
+You can use those methods as `project` methods, or as global (`mlrun.`) methods. For example:
 
     # run the "train" function in myproject
     run = myproject.run_function("train", inputs={"data": data_url})  
@@ -25,8 +25,8 @@ You can use those methods as `project` methods, or as global (`mlrun.`) methods.
     # run the "train" function in the current/active project (or in a pipeline)
     run = mlrun.run_function("train", inputs={"data": data_url})  
     
-The first parameter in those three methods is the function name (in the project), or it can be a function object if you want to 
-use functions that you imported/created ad hoc, or modify a function spec, for example:
+The first parameter in all three methods is either the function name (in the project), or a function object, used if you want to 
+specify functions that you imported/created ad hoc, or to modify a function spec. For example:
 
     # import a serving function from the marketplace and deploy a trained model over it
     serving = import_function("hub://v2_model_server", new_name="serving")
@@ -36,7 +36,7 @@ use functions that you imported/created ad hoc, or modify a function spec, for e
         models=[{"key": "mymodel", "model_path": train.outputs["model"]}],
     )
     
-The {py:meth}`~mlrun.projects.MlrunProject.get_function` method can be used to get the function object and manipulate it, for example:
+You can use the {py:meth}`~mlrun.projects.MlrunProject.get_function` method to get the function object and manipulate it, for example:
 
     trainer = project.get_function("train")
     trainer.with_limits(mem="2G", cpu=2, gpus=1)
@@ -46,23 +46,23 @@ The {py:meth}`~mlrun.projects.MlrunProject.get_function` method can be used to g
 <a id="run"></a>
 ## run_function
 
-The {py:meth}`~mlrun.projects.run_function` method is used to run a local or remote batch/scheduled task.
+Use the {py:meth}`~mlrun.projects.run_function` method to run a local or remote batch/scheduled task.
 The `run_function` method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
 Alternatively, you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
-parameters plus the advanced options. 
+parameters and the advanced options. 
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You need to specify which handler you intend to call in the run command. 
 You can pass `parameters` (arguments) or data `inputs` (such as datasets, feature-vectors, models, or files) to the functions through the `run_function` method.
  
 The {py:meth}`~mlrun.projects.run_function` command returns an MLRun {py:class}`~mlrun.model.RunObject` object that you can use to track the job and its results. 
-If you pass the parameter `watch=True` (default) the command blocks until the job completes.
+If you pass the parameter `watch=True` (default), the command blocks until the job completes.
 
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
 See {ref}`hyper-params` for details and examples.
 
 Read further details on [**running tasks and getting their results**](../concepts/submitting-tasks-jobs-to-functions.html).
 
-usage example:
+Usage examples:
 
     # create a project with two functions (local and from marketplace)
     project = mlrun.new_project(project_name, "./proj")
@@ -83,17 +83,17 @@ parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch fu
 <a id="build"></a>
 ## build_function
 
-The {py:meth}`~mlrun.projects.build_function` method is used to deploy an ML function, build a container with its dependencies for use in runs.
+The {py:meth}`~mlrun.projects.build_function` method is used to deploy an ML function and build a container with its dependencies for use in runs.
 
-Usage example:
+Example:
 
-    # build the "trainer" function image (based on the specified requierments and code repo)
+    # build the "trainer" function image (based on the specified requirements and code repo)
     project.build_function("trainer")
 
-The {py:meth}`~mlrun.projects.build_function` method accepts different parameters which can add to or override the function build spec.
-You can specify the target or base `image` extra docker `commands`, builder environment and source credentials (`builder_env`), etc. 
+The {py:meth}`~mlrun.projects.build_function` method accepts different parameters that can add to, or override, the function build spec.
+You can specify the target or base `image` extra docker `commands`, builder environment, and source credentials (`builder_env`), etc. 
 
-See further details and examples under the [**Build function image**](../runtimes/image-build.html) section. 
+See further details and examples in [**Build function image**](../runtimes/image-build.html). 
 
 
 <a id="deploy"></a>
@@ -102,7 +102,7 @@ See further details and examples under the [**Build function image**](../runtime
 The {py:meth}`~mlrun.projects.deploy_function` method is used to deploy real-time/online (nuclio or serving) functions and pipelines.
 Read more about [**Real-time serving pipelines**](../serving/serving-graph.html).
 
-Basic usage example:
+Basic example:
 
     # Deploy a real-time nuclio function ("myapi")
     deployment = project.deploy_function("myapi")
@@ -110,10 +110,10 @@ Basic usage example:
     # invoke the deployed function (using HTTP request) 
     resp = deployment.function.invoke("/do")
 
-You can provide the `env` dict with extra environment variables, `models` list to specify specific models and their attributes 
-(in the case of serving functions), builder environment and source credentials (`builder_env`).
+You can provide the `env` dict with: extra environment variables; `models` list to specify specific models and their attributes 
+(in the case of serving functions); builder environment; and source credentials (`builder_env`).
 
-Using inside a pipeline, after the `train` step generated a model:
+Example of using `deploy_function` inside a pipeline, after the `train` step, to generate a model:
 
     # Deploy the trained model (from the "train" step) as a serverless serving function
     serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
@@ -130,5 +130,5 @@ Using inside a pipeline, after the `train` step generated a model:
 
 
 ```{admonition} Note
-If the `mock` flag is set to `True`, MLRun will create a simulated (mock) function instead of a real Kubernetes service.
+If the `mock` flag is set to `True`, MLRun creates a simulated (mock) function instead of a real Kubernetes service.
 ```

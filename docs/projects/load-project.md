@@ -1,12 +1,12 @@
 (load-project)=
 # Load and run projects
 
-Project code, metadata, and configuration are stored and versioned in source control systems like GIT or archives (zip, tar) 
+Project code, metadata, and configuration are stored and versioned in source control systems like Git or archives (zip, tar) 
 and can be loaded into your work environment or CI system with a single SDK or CLI command.
 
 <p align="center"><img src="../_static/images/project-lifecycle.png" alt="project-lifecycle" width="700"/></p><br>
 
-The project root (context) directory contains the `project.yaml` file with required metadata and links to various project files/objects, and is read during the `load` process.
+The project root (context) directory contains the `project.yaml` file with the required metadata and links to various project files/objects, and is read during the `load` process.
 
 **In this section**
 - [Load projects using the SDK](#load-sdk)
@@ -17,13 +17,13 @@ See also details on loading and using projects [**with CI/CD frameworks**](./ci-
 <a id='load-sdk'></a>
 ## Load projects using the SDK
 
-When a project is already created and stored in a local dir, git. or archive you can quickly load and use it with the 
+When a project is already created and stored in a local dir, git, or archive, you can quickly load and use it with the 
 {py:meth}`~mlrun.projects.load_project` method. `load_project` uses a local context directory (with initialized `git`) 
 or clones a remote repo into the local dir and returns a project object.
 
 You need to provide the path to the `context` dir and the git/zip/tar archive `url`. The `name` can be specified or taken 
-from the project object, they can also specify `secrets` (dict with repo credentials), `init_git` flag (to initialize git in the context dir), 
-`clone` flag (indicating we must clone and ignore/remove local copy), and `user_project` flag (indicate the project name is unique to the user).
+from the project object. The project can also specify `secrets` (dict with repo credentials), `init_git` flag (initializes Git in the context dir), 
+`clone` flag (project is cloned into the context dir, and the local copy is ignored/deleted), and `user_project` flag (indicates the project name is unique to the user).
 
 Example of loading a project from git and running the `main` workflow:
 
@@ -35,15 +35,14 @@ project.run("main", arguments={'data': data_url})
 
 ```{admonition} Note
 If the `url` parameter is not specified it searches for Git repo inside the context dir and uses its metadata, 
-or uses the init_git=True flag to initialize a Git repo in the target context directory.
+or if the flag init_git=True, it initializes a Git repo in the target context directory.
 ```
 
-Onc
-e the project object is loaded use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows, see details on [**building and running workflows**](./build-run-workflows-pipelines.html)), 
+After the project object is loaded use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows. See details on [**building and running workflows**](./build-run-workflows-pipelines.html)), 
 and how to [**run, build, or deploy**](./run-build-deploy.html) individual functions. 
 
-You can edit or add project elements like functions, workflows, artifacts, etc. (see:  [**create and use projects**](./create-project.html)).
-Once you make changes use GIT or MLRun commands to push those changes to the archive (see: [**save into git or an archive**](./create-project.html#push)).
+You can edit or add project elements like functions, workflows, artifacts, etc. (See  [**create and use projects**](./create-project.html).)
+Once you make changes use GIT or MLRun commands to push those changes to the archive (See [**save into git or an archive**](./create-project.html#push).)
 
 <a id='load-cli'></a>
 ## Load projects using the CLI
@@ -60,7 +59,7 @@ Running a specific workflow (`main`) from the project stored in `.` (current dir
 mlrun project -r main -w .
 ```
 
-**CLI usage details:**
+**CLI usage details**
 
 ```
 Usage: mlrun project [OPTIONS] [CONTEXT]
@@ -83,4 +82,3 @@ Options:
   -w, --watch               wait for pipeline completion (with -r flag)
   -d, --dirty               allow run with uncommitted git changes
 ```
-

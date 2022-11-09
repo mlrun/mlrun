@@ -17,13 +17,13 @@ Functions can host multiple methods (handlers). You can set the default handler 
  need to specify which handler you intend to call in the run command. 
 
 You can pass `parameters` (arguments) or data `inputs` (such as datasets, feature-vectors, models, or files) to the functions through the `run` method.
-- Inside the function you can access the parameters/inputs by simply adding them as parameters to the function or you can get them from the context object (using `get_param()` and ` get_input()`).
+- Inside the function you can access the parameters/inputs by simply adding them as parameters to the function, or you can get them from the context object (using `get_param()` and ` get_input()`).
 - Various data objects (files, tables, models, etc.) are passed to the function as data item objects. You can pass data objects using the 
 inputs dictionary argument, where the dictionary keys match the function's handler argument names and the MLRun data urls are provided 
 as the values. The data is passed into the function as a {py:class}`~mlrun.datastore.DataItem` object that handles data movement, 
-tracking and security in an optimal way. Read more about data objects in [Data stores](../store/datastore.html).
+tracking, and security in an optimal way. Read more about data objects in [Data stores](../store/datastore.html).
 
-You can use `run_function` as a `project` methods, or as global (`mlrun.`) methods. The current project is assumed for the later case.
+You can use `run_function` as a `project` methods, or as global (`mlrun.`) methods. For example:
 
     # run the "train" function in myproject
     run_results = myproject.run_function("train", inputs={"data": data_url})  

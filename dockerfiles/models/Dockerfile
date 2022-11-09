@@ -34,12 +34,11 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # pytorch caused cuda download, this guarantees cpu version:
-RUN python -m pip install torch==1.7.0+cpu torchvision==0.8.1+cpu \
+RUN python -m pip install torch==1.7.1+cpu torchvision==0.8.2+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-ARG TENSORFLOW_VERSION=2.4.1
-# Not using intel-tensorflow cause they have only 2.4.0 and we need 2.4.1
-RUN python -m pip install -U tensorflow~=${TENSORFLOW_VERSION} mxnet
+ARG TENSORFLOW_VERSION=2.7.0
+RUN python -m pip install -U intel-tensorflow~=${TENSORFLOW_VERSION} mxnet
 
 ARG HOROVOD_VERSION=0.22.1
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
@@ -52,4 +51,9 @@ RUN ln -sf /opt/conda/bin/python3 /usr/local/bin/python3
 
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 
-RUN python -m pip install -r models-image-requirements.txt
+#ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
+# install rust since it's a dependency of tokenizers
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env && \
+    rustc --version && \
+    python -m pip install -r models-image-requirements.txt

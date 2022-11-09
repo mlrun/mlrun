@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.2
+ARG CUDA_VER=11.8.0
 
-FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
+#FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu18.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -25,10 +26,6 @@ ENV PATH /opt/conda/bin:$PATH
 
 # Set default shell to /bin/bash
 SHELL ["/bin/bash", "-cu"]
-
-RUN apt-key del 7fa2af80 && \
-    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
-    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
 
 RUN apt-get update && \
     apt-mark hold libcublas-dev libcublas10 && \
@@ -49,24 +46,26 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
 
-ARG MLRUN_PIP_VERSION=22.0.0
+ARG MLRUN_PIP_VERSION=22.3.0
+ARG MLRUN_PYTHON_VERSION=3.9.13
+
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
-        python=3.7 \
+        python=${MLRUN_PYTHON_VERSION} \
         pip~=${MLRUN_PIP_VERSION} \
     && conda clean -aqy
 
 RUN conda install -n base cmake cython \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=21.06 python=3.7 cudatoolkit=${CUDA_VER} \
+RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=22.10 cudatoolkit=11.7.0 \
     && conda clean -aqy
 
-RUN conda install -n base pytorch::pytorch==1.7.0 pytorch::torchvision==0.8.0 \
+RUN conda install -n base pytorch::pytorch==1.12.1 pytorch::torchvision==0.14.0 \
     && conda clean -aqy
 
-ARG TENSORFLOW_VERSION=2.4.1
+ARG TENSORFLOW_VERSION=2.7.0
 RUN python -m pip install tensorflow~=${TENSORFLOW_VERSION}
 
 ARG OMPI=4.1.0

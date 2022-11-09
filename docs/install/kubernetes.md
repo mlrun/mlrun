@@ -228,8 +228,9 @@ kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
 
 #### Reclaim dangling persistency resources:
 
-| WARNING: This will result in data loss! |
-| --- |
+```{admonition} WARNING 
+**This will result in data loss!**
+```
 
 ```bash
 # To list PVCs

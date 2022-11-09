@@ -50,13 +50,13 @@ Once you make changes use GIT or MLRun commands to push those changes to the arc
 Loading a project from `git` into `./` :
 
 ```
-mlrun project -n myproj -u "git://github.com/mlrun/project-demo.git" .
+mlrun project -n myproj --url "git://github.com/mlrun/project-demo.git" .
 ```
 
 Running a specific workflow (`main`) from the project stored in `.` (current dir):
 
 ```
-mlrun project -r main -w .
+mlrun project --run main --watch .
 ```
 
 **CLI usage details**
@@ -68,17 +68,26 @@ Options:
   -n, --name TEXT           project name
   -u, --url TEXT            remote git or archive url
   -r, --run TEXT            run workflow name of .py file
-  -a, --arguments TEXT      pipeline arguments name and value tuples (with -r flag),
-                            e.g. -a x=6
-
-  -p, --artifact-path TEXT  output artifacts path if not default
+  -a, --arguments TEXT      Kubeflow pipeline arguments name and value tuples
+                            (with -r flag), e.g. -a x=6
+  -p, --artifact-path TEXT  output artifacts path
   -x, --param TEXT          mlrun project parameter name and value tuples,
                             e.g. -p x=37 -p y='text'
-
   -s, --secrets TEXT        secrets file=<filename> or env=ENV_KEY1,..
+  --db TEXT                 api and db service path/url
   --init-git                for new projects init git context
   -c, --clone               force override/clone into the context dir
   --sync                    sync functions into db
   -w, --watch               wait for pipeline completion (with -r flag)
   -d, --dirty               allow run with uncommitted git changes
-```
+  --handler TEXT            workflow function handler name
+  --engine TEXT             workflow engine (kfp/local/remote)
+  --local                   try to run workflow functions locally
+  --timeout INTEGER         timeout in seconds to wait for pipeline completion
+                            (used when watch=True)
+  --env-file TEXT           path to .env file to load config/variables from
+  --ensure-project          ensure the project exists, if not, create project
+  --schedule TEXT           To create a schedule define a standard crontab
+                            expression string. For using the
+                            pre-defined workflow's schedule, set --schedule 'true'
+ ```

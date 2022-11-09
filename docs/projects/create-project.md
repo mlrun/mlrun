@@ -9,7 +9,7 @@ A project is a container for all the assets, configuration, and code of a partic
 - [Creating a new project](#create)
 - [Adding functions, artifacts, workflow, and config](#add-elements)
 - [Pushing the project content into git or an archive](#push)
-- [Get a project from DB or create it](#get-or-ceate)
+- [Get a project from DB or create it](#get-or-create)
 
 <a id="create"></a>
 ## Creating a new project
@@ -127,7 +127,16 @@ project.spec.params = {"x": 5}
 
 ```{admonition} Note
 Secrets are not loaded automatically (not part of the `project.yaml`); you need to apply `set_secrets()` methods manually or use the UI.
+
 ```
+
+Project parameters, secrets and configuration can also be set in the UI, in the relevant project, click the 
+<img src="../_static/images/proj-settings-btn.png" alt="config-btn"/> button at the left bottom corner.
+
+Example, secrets configuration screen:
+
+<p align="center"><img src="../_static/images/secrets-ui.png" alt="project-secrets" width="400"/></p>
+
 **Save the project:**
 
 Use the {py:meth}`~mlrun.projects.MlrunProject.save` method to store all the definitions (functions, artifacts, workflows, parameters, etc.) 

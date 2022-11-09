@@ -759,7 +759,7 @@ class FlowStep(BaseStep):
         step = self._steps.update(key, step)
         step.set_parent(self)
 
-        if after == "$prev" and (len(self._steps) == 1 or before):
+        if after == "$prev" and len(self._steps) == 1:
             after = None
 
         previous = ""

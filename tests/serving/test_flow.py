@@ -374,24 +374,31 @@ def test_add_aggregate_as_insert():
     graph = fn.set_topology("flow", engine="sync")
     graph.add_step(name="s1", class_name="Chain")
 
-    # add_aggregate insert with after="$prev"
+    before = "s1"
+    after = None
+    if before is None and after is None:
+        after = "$prev"
     graph.insert_step(
         key="Aggregates",
         step=TaskStep(name="Aggregates", class_name="storey.Aggregates"),
-        before="s1",
-        after="$prev",
+        before=before,
+        after=after,
     )
 
     assert graph["s1"].after == ["Aggregates"]
 
     graph_2 = fn.set_topology("flow", exist_ok=True, engine="sync")
     graph_2.add_step(name="s1", class_name="Chain").to(name="s2", class_name="Chain")
-    # add_aggregate insert with after="$prev"
+
+    before = "s2"
+    after = None
+    if before is None and after is None:
+        after = "$prev"
     graph_2.insert_step(
         key="Aggregates",
         step=TaskStep(name="Aggregates", class_name="storey.Aggregates"),
-        before="s2",
-        after="$prev",
+        before=before,
+        after=after,
     )
 
     assert graph_2["s2"].after == ["Aggregates"]

@@ -18,10 +18,10 @@ import pytest
 
 import mlrun
 from mlrun.serving import GraphContext, V2ModelServer
+from mlrun.serving.states import TaskStep
 from mlrun.utils import logger
 
 from .demo_states import *  # noqa
-from mlrun.serving.states import TaskStep
 
 try:
     import storey

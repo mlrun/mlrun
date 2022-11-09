@@ -1,14 +1,17 @@
 (change-log)=
 # Change log
-- [v1.2](#v1-2)
-- [v1.1](#v1-1)
+- [v1.2.0](#v1-2-0)
+- [v1.1.0](#v1-1-0)
 - [Closed issues](#closed-issues)
 - [Open issues](#open-issues)
 
 
-## v1.2
+## v1.2.0
 
 **Release highlights**
+
+- Artifact management improvements
+- Support Redis as online feature set
 
 **New features**
 
@@ -24,16 +27,25 @@
 (per component)
 
 **Additional changes**
-(also per component, but this is where the minor ones would go)
+- Feature store: Ingestion using pandas now takes the dataframe and creates an index out of the entity column (and removes it from 
+being a column in this df). This might cause breakage for existing custom steps when using a pandas engine.
+
+
+
+
 
 [Full Change log](https://github.com/mlrun/mlrun/releases/tag/v1.1.1) and [UI change log](https://github.com/mlrun/ui/releases/tag/v1.1.1)
 
 
 
-## v1.1
+## v1.1.0
 
 **Release highlights**
-
+scalable mlrun-api
+Support various targets when using spark as an engine for the feature store
+Add filter to the get_offline_features
+Scheduling Pipelines
+Security Bug Fixes : ML-2175, ML-2164
 
 
 **New features**

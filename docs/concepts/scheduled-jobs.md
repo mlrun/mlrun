@@ -38,16 +38,8 @@ This runs the job every hour. An excellent resource for generating Cron schedule
 
 ## Scheduling a workflow
 
-Before saving the project (`project.save`), add the schedule to the workflow. This example runs the workflow every hour:
-
-```
-main_workflow = project.spec.workflows[0]
-main_workflow["schedule"] = '0 * * * *'
-project.spec.set_workflow("main", main_workflow)
-```
-
 After loading the project (`load_project`), run the project with the scheduled workflow:
 
 ```
-project.run("main", schedule=True)
+project.run("main", schedule='0 * * * *')
 ```

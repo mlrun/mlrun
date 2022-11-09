@@ -21,6 +21,7 @@ from mlrun.serving import GraphContext, V2ModelServer
 from mlrun.utils import logger
 
 from .demo_states import *  # noqa
+from mlrun.serving.states import TaskStep
 
 try:
     import storey
@@ -366,3 +367,32 @@ def test_missing_functions():
         mlrun.errors.MLRunInvalidArgumentError, match=r"function child_func*"
     ):
         function.deploy()
+
+
+def test_add_aggregate_as_insert():
+    fn = mlrun.new_function("tests", kind="serving", project="x")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.add_step(name="s1", class_name="Chain")
+
+    # add_aggregate insert with after="$prev"
+    graph.insert_step(
+        key="Aggregates",
+        step=TaskStep(name="Aggregates", class_name="storey.Aggregates"),
+        before="s1",
+        after="$prev",
+    )
+
+    assert graph["s1"].after == ["Aggregates"]
+
+    graph_2 = fn.set_topology("flow", exist_ok=True, engine="sync")
+    graph_2.add_step(name="s1", class_name="Chain").to(name="s2", class_name="Chain")
+    # add_aggregate insert with after="$prev"
+    graph_2.insert_step(
+        key="Aggregates",
+        step=TaskStep(name="Aggregates", class_name="storey.Aggregates"),
+        before="s2",
+        after="$prev",
+    )
+
+    assert graph_2["s2"].after == ["Aggregates"]
+    assert graph_2["Aggregates"].after == ["s1"]

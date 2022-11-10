@@ -408,7 +408,7 @@ class _PipelineRunStatus:
     @property
     def state(self):
         if self._state not in mlrun.run.RunStatuses.stable_statuses():
-            self._state = self._engine.get_state(self.run_id, self.project)
+            self._state = self._engine.get_state(self.run_id, self.project.name)
         return self._state
 
     def wait_for_completion(self, timeout=None, expected_statuses=None):
@@ -571,7 +571,7 @@ class _KFPRunner(_PipelineRunner):
 
     @staticmethod
     def get_state(run_id, project=None):
-        project_name = project.metadata.name if project else ""
+        project_name = project if project else ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
             return resp["run"].get("status", "")

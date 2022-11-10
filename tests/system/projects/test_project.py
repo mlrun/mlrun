@@ -521,7 +521,7 @@ class TestProject(TestMLRunSystem):
             resp = self._run_db.api_call(
                 "POST",
                 f"projects/{project_name}/workflows/{workflow_name}/submit",
-                json={"spec": {"engine": f"remote:{engine}"}},
+                json={"spec": {"engine": engine}},
             )
             result = resp.json()
             assert set(result.keys()) == {
@@ -545,11 +545,12 @@ class TestProject(TestMLRunSystem):
                     once = False
                     assert set(result.keys()) == {"workflow_id", "status"}
                 if result["status"] == expected_status:
-                    return
+                    break
                 time.sleep(10)
                 num_tries -= 1
 
             assert result["status"] == expected_status
+            print("success")
 
     def test_submit_workflow_endpoint_with_scheduling(self):
         project_name = "submit-workflow-schedule-system-test"

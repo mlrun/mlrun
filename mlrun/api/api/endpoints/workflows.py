@@ -341,10 +341,10 @@ def get_workflow_id(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    engine = run_object.status.results.get("engine", None)
+    engine = run_object.status.results["engine"]
     engine = mlrun.projects.pipelines.get_workflow_engine(engine)
     status = engine.get_state(workflow_id, project)
-    status = ""
+    # status = ""
     # if engine == "kfp":
     #     # Getting workflow state for kfp:
     #     pipeline = mlrun.api.crud.Pipelines().get_pipeline(

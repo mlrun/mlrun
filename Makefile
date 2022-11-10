@@ -53,7 +53,7 @@ MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.7.0
-MLRUN_HOROVOD_VERSION = 0.23.0
+MLRUN_HOROVOD_VERSION = 0.26.1
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -315,7 +315,7 @@ push-models-gpu: models-gpu ## Push models gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
 
 .PHONY: models-gpu-py39
-models-gpu: update-version-file ## Build models-gpu docker image
+models-gpu-py39: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
@@ -327,6 +327,11 @@ models-gpu: update-version-file ## Build models-gpu docker image
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
+
+.PHONY: push-models-gpu-py39
+push-models-gpu-py39: models-gpu-py39 ## Push models gpu docker image
+	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
+	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
 
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter$(MLRUN_PYTHON_VERSION_SUFFIX):$(MLRUN_DOCKER_TAG)

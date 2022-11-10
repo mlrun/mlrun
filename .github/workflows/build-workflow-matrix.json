@@ -1,23 +1,5 @@
 [
   {
     "image-name":"mlrun"
-  },
-  {
-    "image-name":"api"
-  },
-  {
-    "image-name":"base"
-  },
-  {
-    "image-name":"models"
-  },
-  {
-    "image-name":"models-gpu"
-  },
-  {
-    "image-name":"jupyter"
-  },
-  {
-    "image-name":"test"
   }
 ]

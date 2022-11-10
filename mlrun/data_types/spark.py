@@ -182,8 +182,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
 
         if (
             InferOptions.get_common_options(options, InferOptions.Histogram)
-            and get_dtype(df, col)
-            in ["double", "bigint", "int", "boolean", "timestamp"]
+            and get_dtype(df_after_type_casts, col) in ["double", "bigint", "int"]
             # in some situations (empty DF may cause this) we won't have stats for columns with suitable types, in this
             # case we won't calculate histogram for the column.
             and "min" in results_dict[col]
@@ -198,6 +197,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         _create_hist_data(df_after_type_casts, calculation_cols, results_dict, num_bins)
         hist_columns = hist_columns[max_columns_per_query:]
 
+    # convert values back to timestamp and boolean where appropriate
     original_type_stats = {"min", "max", "25%", "50%", "75%"}
     for col, stats in results_dict.items():
         if col in timestamp_columns:
@@ -208,6 +208,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
                     values = stats[stat][1]
                     for i in range(len(values)):
                         values[i] = datetime.fromtimestamp(values[i]).isoformat()
+        # for boolean values, keep mean and histogram values numeric (0 to 1 representation)
         if col in boolean_columns:
             for stat, val in stats.items():
                 if stat in original_type_stats:

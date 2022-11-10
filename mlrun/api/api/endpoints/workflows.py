@@ -353,54 +353,54 @@ def get_workflow_id(
     return {"workflow_id": workflow_id, "status": status}
 
 
-def load_and_run(
-    context,
-    url: str = None,
-    project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
-    clone: bool = False,
-    workflow_name: str = None,
-    workflow_path: str = None,
-    workflow_arguments: Dict[str, Any] = None,
-    artifact_path: str = None,
-    workflow_handler: Union[str, Callable] = None,
-    namespace: str = None,
-    sync: bool = False,
-    dirty: bool = False,
-    ttl: int = None,
-    engine: str = None,
-    local: bool = None,
-):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
-
-    workflow_log_message = workflow_name or workflow_path
-    context.logger.info(f"Running workflow {workflow_log_message} from remote")
-    run = project.run(
-        name=workflow_name,
-        workflow_path=workflow_path,
-        arguments=workflow_arguments,
-        artifact_path=artifact_path,
-        workflow_handler=workflow_handler,
-        namespace=namespace,
-        sync=sync,
-        watch=False,  # Required for fetching the workflow_id
-        dirty=dirty,
-        ttl=ttl,
-        engine=engine,
-        local=local,
-    )
-    context.log_result(key="workflow_id", value=run.run_id)
-
-    context.log_result(key="engine", value=run._engine.engine, commit=True)
+# def load_and_run(
+#     context,
+#     url: str = None,
+#     project_name: str = "",
+#     init_git: bool = None,
+#     subpath: str = None,
+#     clone: bool = False,
+#     workflow_name: str = None,
+#     workflow_path: str = None,
+#     workflow_arguments: Dict[str, Any] = None,
+#     artifact_path: str = None,
+#     workflow_handler: Union[str, Callable] = None,
+#     namespace: str = None,
+#     sync: bool = False,
+#     dirty: bool = False,
+#     ttl: int = None,
+#     engine: str = None,
+#     local: bool = None,
+# ):
+#     project = mlrun.load_project(
+#         context=f"./{project_name}",
+#         url=url,
+#         name=project_name,
+#         init_git=init_git,
+#         subpath=subpath,
+#         clone=clone,
+#     )
+#     context.logger.info(f"Loaded project {project.name} from remote successfully")
+#
+#     workflow_log_message = workflow_name or workflow_path
+#     context.logger.info(f"Running workflow {workflow_log_message} from remote")
+#     run = project.run(
+#         name=workflow_name,
+#         workflow_path=workflow_path,
+#         arguments=workflow_arguments,
+#         artifact_path=artifact_path,
+#         workflow_handler=workflow_handler,
+#         namespace=namespace,
+#         sync=sync,
+#         watch=False,  # Required for fetching the workflow_id
+#         dirty=dirty,
+#         ttl=ttl,
+#         engine=engine,
+#         local=local,
+#     )
+#     context.log_result(key="workflow_id", value=run.run_id)
+#
+#     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
 
 def _create_run_object_for_workflow_runner(
@@ -442,7 +442,7 @@ def _create_run_object_for_workflow_runner(
             "engine": workflow_spec.engine,
             "local": workflow_spec.run_local,
         },
-        "handler": "mlrun.api.api.endpoints.load_and_run",
+        "handler": "mlrun.projects.load_and_run",
     }
     metadata = {"name": workflow_name}
     spec.update(spec_kwargs)

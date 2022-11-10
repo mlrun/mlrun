@@ -206,6 +206,10 @@ def ann_type(ann):
 
 
 def iter_elems(ann):
+    if hasattr(ann, "elts"):
+        return ann.elts
+    if hasattr(ann, "id"):
+        return [ann.id]
     if hasattr(ann.value, "elts"):
         return ann.value.elts
     if not hasattr(ann, "slice"):

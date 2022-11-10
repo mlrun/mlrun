@@ -40,7 +40,7 @@ RUN python -m pip install torch==1.7.1+cpu torchvision==0.8.2+cpu \
 ARG TENSORFLOW_VERSION=2.7.0
 RUN python -m pip install -U intel-tensorflow~=${TENSORFLOW_VERSION} mxnet
 
-ARG HOROVOD_VERSION=0.22.1
+ARG HOROVOD_VERSION=0.26.1
 RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
     python -m pip install horovod~=${HOROVOD_VERSION}
 

@@ -2,5 +2,53 @@
   {
     "image-name":"mlrun",
     "python-version":"3.9.13"
+  },
+    {
+    "image-name":"mlrun",
+    "python-version":"3.7.13"
+  },
+  {
+    "image-name":"api",
+    "python-version":"3.9.13"
+  },
+  {
+    "image-name":"api",
+    "python-version":"3.7.13"
+  },
+  {
+    "image-name":"base",
+    "python-version":"3.9.13"
+  },
+  {
+    "image-name":"base",
+    "python-version":"3.7.13"
+  },
+  {
+    "image-name":"models",
+    "python-version":"3.9.13"
+  },
+  {
+    "image-name":"models",
+    "python-version":"3.7.13"
+  },
+  {
+    "image-name":"models-gpu",
+    "python-version":"3.7.13"
+  },
+  {
+    "image-name":"jupyter",
+    "python-version":"3.9.13"
+  },
+  {
+    "image-name":"jupyter",
+    "python-version":"3.7.13"
+  },
+  {
+    "image-name": "test",
+    "python-version": "3.9.13"
+  },
+  {
+    "image-name": "test",
+    "python-version": "3.7.13"
   }
 ]

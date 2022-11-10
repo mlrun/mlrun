@@ -169,8 +169,7 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	jupyter \
 	base \
 	models \
-	models-gpu \
-	models-gpu-py39
+	models-gpu
 
 .PHONY: docker-images
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
@@ -302,9 +301,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_PYTHON_VERSION=3.7.13 \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
-		# TODO: unpin when move to py39 is complete
-		# --build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		# --build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
@@ -313,26 +309,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 push-models-gpu: models-gpu ## Push models gpu docker image
 	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
-
-.PHONY: models-gpu-py39
-models-gpu-py39: update-version-file ## Build models-gpu docker image
-	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
-	docker build \
-		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_PYTHON_VERSION=3.9.13 \
-		--build-arg CUDA_VER=11.8.0 \
-		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
-
-.PHONY: push-models-gpu-py39
-push-models-gpu-py39: models-gpu-py39 ## Push models gpu docker image
-	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
-
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter$(MLRUN_PYTHON_VERSION_SUFFIX):$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)

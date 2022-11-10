@@ -430,6 +430,15 @@ class DateExtractor(StepToDict, MLRunStep):
             )
         return event
 
+    def _do_spark(self, event):
+        timestamp = self._extract_timestamp(event)
+        # Extract specified parts
+        for part in self.parts:
+            # Extract part and add it to event
+            event[self._get_key_name(part, self.timestamp_col)] = timestamp.map(
+                lambda x: getattr(pd.Timestamp(x), part)
+            )
+        return event
 
 class SetEventMetadata(MapClass):
     """Set the event metadata (id, key, timestamp) from the event body"""

@@ -442,7 +442,7 @@ def _create_run_object_for_workflow_runner(
             "engine": workflow_spec.engine,
             "local": workflow_spec.run_local,
         },
-        "handler": "mlrun.api.api.endpoints.workflows.load_and_run",
+        "handler": "mlrun.api.api.endpoints.load_and_run",
     }
     metadata = {"name": workflow_name}
     spec.update(spec_kwargs)

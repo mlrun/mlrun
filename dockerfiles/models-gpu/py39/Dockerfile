@@ -14,7 +14,7 @@
 ARG CUDA_VER=11.8.0
 
 #FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -28,9 +28,8 @@ ENV PATH /opt/conda/bin:$PATH
 SHELL ["/bin/bash", "-cu"]
 
 RUN apt-get update && \
-    apt-mark hold libcublas-dev libcublas10 && \
     apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
         curl \
@@ -56,13 +55,13 @@ RUN conda config --add channels conda-forge && \
         pip~=${MLRUN_PIP_VERSION} \
     && conda clean -aqy
 
-RUN conda install -n base cmake cython \
-    && conda clean -aqy
-
-RUN conda install -n base -c rapidsai -c nvidia -c conda-forge rapids=22.10 cudatoolkit=11.7.0 \
-    && conda clean -aqy
-
-RUN conda install -n base pytorch::pytorch==1.12.1 pytorch::torchvision==0.14.0 \
+RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
+    cmake  \
+    cython \
+    rapids=22.10 \
+    cudatoolkit=11.7.0 \
+    pytorch \
+    torchvision \
     && conda clean -aqy
 
 ARG TENSORFLOW_VERSION=2.7.0
@@ -85,17 +84,17 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-ARG HOROVOD_VERSION=0.22.1
+ARG HOROVOD_VERSION=0.23.0
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
-RUN ldconfig /usr/local/cuda-11.0/targets/x86_64-linux/lib/stubs && \
+RUN ldconfig /usr/local/cuda-11.8/targets/x86_64-linux/lib/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
         python -m pip install horovod~=${HOROVOD_VERSION} && \
     ldconfig
 
 WORKDIR /mlrun
 
-COPY ./requirements.txt ./
+COPY ../requirements.txt ./
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 
@@ -118,7 +117,7 @@ COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.t
 RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
-COPY . .
+COPY .. .
 
 # non-recursive chmod for the run to be able to create the handler file with any security context
 # at the end of the Dockerfile for docker caching

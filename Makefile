@@ -51,7 +51,7 @@ MLRUN_PUSH_DOCKER_CACHE_IMAGE ?=
 MLRUN_GIT_ORG ?= mlrun
 MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
-MLRUN_CUDA_VERSION = 11.8.0
+MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.7.0
 MLRUN_HOROVOD_VERSION = 0.23.0
 
@@ -169,7 +169,8 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	jupyter \
 	base \
 	models \
-	models-gpu
+	models-gpu \
+	models-gpu-py39
 
 .PHONY: docker-images
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
@@ -299,10 +300,11 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_PYTHON_VERSION=3.7.13 \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
-		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
+		# TODO: unpin when move to py39 is complete
+		# --build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
+		# --build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
@@ -311,6 +313,20 @@ models-gpu: update-version-file ## Build models-gpu docker image
 push-models-gpu: models-gpu ## Push models gpu docker image
 	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: models-gpu-py39
+models-gpu: update-version-file ## Build models-gpu docker image
+	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
+	docker build \
+		--file dockerfiles/models-gpu/Dockerfile \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_PYTHON_VERSION=3.9.13 \
+		--build-arg CUDA_VER=11.8.0 \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
+		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
 
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter$(MLRUN_PYTHON_VERSION_SUFFIX):$(MLRUN_DOCKER_TAG)

@@ -51,7 +51,6 @@ RUN ln -sf /opt/conda/bin/python3 /usr/local/bin/python3
 
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 
-#ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 # install rust since it's a dependency of tokenizers
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     . $HOME/.cargo/env && \

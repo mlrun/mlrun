@@ -513,7 +513,10 @@ class TestProject(TestMLRunSystem):
             project_dir, "git://github.com/mlrun/project-demo.git", name=project_name
         )
 
-        for engine, workflow_name in [("local", "newflow"), ("kfp", "main")]:
+        for engine, workflow_name, expected_status in [
+            ("local", "newflow", ""),
+            ("kfp", "main", "Succeeded"),
+        ]:
             # Submitting workflow:
             resp = self._run_db.api_call(
                 "POST",
@@ -530,15 +533,23 @@ class TestProject(TestMLRunSystem):
             }
 
             # waiting for the workflow to end:
-            # took 42 seconds, setting one minute
-            time.sleep(120)
             runner_id = result["run_id"]
+            once = True
+            num_tries = 20
+            while num_tries:
+                resp = self._run_db.api_call(
+                    "GET", f"projects/{project_name}/{runner_id}"
+                )
+                result = resp.json()
+                if once:
+                    once = False
+                    assert set(result.keys()) == {"workflow_id", "status"}
+                if result["status"] == expected_status:
+                    return
+                time.sleep(10)
+                num_tries -= 1
 
-            # Getting workflow_id from runner_id:
-            resp = self._run_db.api_call("GET", f"projects/{project_name}/{runner_id}")
-            result = resp.json()
-            assert set(result.keys()) == {"workflow_id", "status"}
-            assert result["status"] == "Succeeded"
+            assert result["status"] == expected_status
 
     def test_submit_workflow_endpoint_with_scheduling(self):
         project_name = "submit-workflow-schedule-system-test"
@@ -571,7 +582,7 @@ class TestProject(TestMLRunSystem):
                 "run_id",
                 "schedule",
             }
-            assert result["status"] == "created"
+            assert result["status"] == "scheduled"
             resp = self._run_db.api_call("GET", f"projects/{project_name}/schedules")
             schedules = resp.json()["schedules"]
             assert schedules and len(schedules) == 1

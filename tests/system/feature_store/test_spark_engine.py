@@ -141,6 +141,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         stats_df = measurements.get_stats_table()
         expected_stats_df = pd.DataFrame(expected_stats)
+        print(f"stats_df: {stats_df.to_json()}")
+        print(f"expected_stats_df: {expected_stats_df.to_json()}")
         assert stats_df.equals(expected_stats_df)
 
     def test_basic_remote_spark_ingest_csv(self):

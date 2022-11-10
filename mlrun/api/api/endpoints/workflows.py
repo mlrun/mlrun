@@ -149,14 +149,12 @@ def submit_workflow(
     ):
         chief_client = mlrun.api.utils.clients.chief.Client()
         submit_workflow_params = {
-            "request": {
-                "spec": spec,
-                "arguments": arguments,
-                "artifact_path": artifact_path,
-                "source": source,
-                "run_name": run_name,
-                "namespace": namespace,
-            }
+            "spec": spec,
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
         }
         return chief_client.submit_workflow(
             project=project.metadata.name, name=name, json=submit_workflow_params

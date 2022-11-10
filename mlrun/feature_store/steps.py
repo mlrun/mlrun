@@ -31,6 +31,9 @@ def get_engine(first_event):
         first_event = first_event.body
     if isinstance(first_event, pd.DataFrame):
         return "pandas"
+    if hasattr(first_event, "rdd"):
+        print('I am Spark!!')
+        return 'spark'
     return "storey"
 
 
@@ -47,14 +50,20 @@ class MLRunStep(MapClass):
         engine = get_engine(event)
         if engine == "pandas":
             self.do = self._do_pandas
+        elif engine == 'spark':
+            self.do = self._do_spark
         else:
             self.do = self._do_storey
+
         return self.do(event)
 
     def _do_pandas(self, event):
         raise NotImplementedError
 
     def _do_storey(self, event):
+        raise NotImplementedError
+
+    def _do_spark(self, event):
         raise NotImplementedError
 
 
@@ -529,3 +538,7 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_pandas(self, event):
         return event.drop(columns=self.features)
+
+    def _do_spark(self, event):
+        print('I am IN _do_spark!!')
+        return event

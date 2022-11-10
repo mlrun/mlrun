@@ -343,17 +343,18 @@ def get_workflow_id(
     )
     engine = run_object.status.results.get("engine")
     if engine:
-        engine = mlrun.projects.pipelines.get_workflow_engine(engine)
-        status = engine.get_state(workflow_id, project)
+        if engine == "kfp":
+            # special case for kfp because _KFPRemoteRunner.get_state() uses get pipeline
+            # which require access to remote api-service
+            pipeline = mlrun.api.crud.Pipelines().get_pipeline(
+                db_session=db_session, run_id=workflow_id, project=project
+            )
+            status = pipeline["run"].get("status", "")
+        else:
+            engine = mlrun.projects.pipelines.get_workflow_engine(engine)
+            status = engine.get_state(workflow_id, project)
     else:
         status = ""
-    # status = ""
-    # if engine == "kfp":
-    #     # Getting workflow state for kfp:
-    #     pipeline = mlrun.api.crud.Pipelines().get_pipeline(
-    #         db_session=db_session, run_id=workflow_id, project=project
-    #     )
-    #     status = pipeline["run"].get("status", "")
 
     return {"workflow_id": workflow_id, "status": status}
 

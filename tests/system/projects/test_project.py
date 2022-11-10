@@ -544,12 +544,12 @@ class TestProject(TestMLRunSystem):
                 if once:
                     once = False
                     assert set(result.keys()) == {"workflow_id", "status"}
-                if result["status"] == expected_status:
+                if result["status"] == expected_status and result["workflow_id"]:
                     break
                 time.sleep(10)
                 num_tries -= 1
 
-            assert result["status"] == expected_status and result["workflow_id"]
+            assert result["status"] == expected_status
             print("success")
 
     def test_submit_workflow_endpoint_with_scheduling(self):

@@ -740,7 +740,7 @@ class FeatureSet(ModelObj):
                     key_columns=key_columns,
                     time_column=self.spec.timestamp_key,
                     aggregates=[aggregation],
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
                     **class_args,

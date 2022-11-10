@@ -32,7 +32,6 @@ def get_engine(first_event):
     if isinstance(first_event, pd.DataFrame):
         return "pandas"
     if hasattr(first_event, "rdd"):
-        print('I am Spark!!')
         return 'spark'
     return "storey"
 
@@ -540,5 +539,4 @@ class DropFeatures(StepToDict, MLRunStep):
         return event.drop(columns=self.features)
 
     def _do_spark(self, event):
-        print('I am IN _do_spark!!')
-        return event
+        return event.drop(*self.features)

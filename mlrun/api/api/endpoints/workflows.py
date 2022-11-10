@@ -95,6 +95,7 @@ def submit_workflow(
         run_name,
         namespace,
     ) = request.dict().values()
+    spec = spec or mlrun.api.schemas.WorkflowSpec()
     spec = mlrun.api.schemas.WorkflowSpec.parse_obj(spec)
 
     # Permission checks:
@@ -177,7 +178,7 @@ def submit_workflow(
         name=run_name or f"workflow-runner-{workflow_spec.name}",
         project=project.metadata.name,
         kind="job",
-        # image=mlrun.mlconf.default_base_image,
+        image=mlrun.mlconf.default_base_image,  # To prevent deploy
     )
 
     run_db = get_run_db_instance(db_session)
@@ -256,7 +257,7 @@ def submit_workflow(
             }
 
         else:
-            print('1' * 100)
+            print("1" * 100)
             runspec = _create_run_object_for_workflow_runner(
                 project=project,
                 workflow_spec=workflow_spec,
@@ -265,14 +266,14 @@ def submit_workflow(
                 workflow_name=workflow_spec.name,
                 workflow_handler=workflow_spec.handler,
             )
-            print('2' * 100)
+            print("2" * 100)
             run = load_and_run_fn.run(
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
                 artifact_path=artifact_path,
             )
-            print('3' * 100)
+            print("3" * 100)
             state = mlrun.run.RunStatuses.running
             # Running workflow from the remote engine:
             # run_status = mlrun.projects.pipelines._RemoteRunner.run(

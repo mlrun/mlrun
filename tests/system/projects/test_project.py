@@ -549,7 +549,7 @@ class TestProject(TestMLRunSystem):
                 time.sleep(10)
                 num_tries -= 1
 
-            assert result["status"] == expected_status
+            assert result["status"] == expected_status and result["workflow_id"]
             print("success")
 
     def test_submit_workflow_endpoint_with_scheduling(self):

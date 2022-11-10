@@ -86,6 +86,7 @@ def submit_workflow(
         )
     )
 
+    request = request or mlrun.api.schemas.SubmitWorkflowRequest()
     (
         spec,
         arguments,

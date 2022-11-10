@@ -95,8 +95,7 @@ def submit_workflow(
         run_name,
         namespace,
     ) = request.dict().values()
-    spec = spec or mlrun.api.schemas.WorkflowSpec()
-    spec = mlrun.api.schemas.WorkflowSpec.parse_obj(spec)
+    spec = mlrun.api.schemas.WorkflowSpec.parse_obj(spec) if spec else mlrun.api.schemas.WorkflowSpec()
 
     # Permission checks:
     # 1. CREATE run
@@ -150,12 +149,14 @@ def submit_workflow(
     ):
         chief_client = mlrun.api.utils.clients.chief.Client()
         submit_workflow_params = {
-            "spec": spec and spec.dict(),
-            "arguments": arguments,
-            "artifact_path": artifact_path,
-            "source": source,
-            "run_name": run_name,
-            "namespace": namespace,
+            "request": {
+                "spec": spec,
+                "arguments": arguments,
+                "artifact_path": artifact_path,
+                "source": source,
+                "run_name": run_name,
+                "namespace": namespace,
+            }
         }
         return chief_client.submit_workflow(
             project=project.metadata.name, name=name, json=submit_workflow_params

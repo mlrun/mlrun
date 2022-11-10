@@ -503,7 +503,7 @@ class TestProject(TestMLRunSystem):
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
 
     def test_submit_workflow_endpoint(self):
-        project_name = "submit-workflow-system-test"
+        project_name = "submit-wf"
         project_dir = f"{projects_dir}/{project_name}"
 
         self.custom_project_names_to_delete.append(project_name)
@@ -553,7 +553,7 @@ class TestProject(TestMLRunSystem):
             print("success")
 
     def test_submit_workflow_endpoint_with_scheduling(self):
-        project_name = "submit-workflow-schedule-system-test"
+        project_name = "submit-wf-schedule"
         project_dir = f"{projects_dir}/{project_name}"
         workflow_name = "main"
 

@@ -119,7 +119,7 @@ COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.t
 RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
-COPY py37 .
+COPY . .
 
 # non-recursive chmod for the run to be able to create the handler file with any security context
 # at the end of the Dockerfile for docker caching

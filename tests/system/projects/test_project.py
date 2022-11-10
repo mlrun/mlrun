@@ -17,8 +17,8 @@ import pathlib
 import re
 import shutil
 import sys
+import time
 from sys import executable
-from time import sleep
 
 import pytest
 from kfp import dsl
@@ -503,9 +503,6 @@ class TestProject(TestMLRunSystem):
         assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
 
     def test_submit_workflow_endpoint(self):
-        def _assert_keys(expected, actual):
-            assert set(actual) == set(expected)
-
         project_name = "submit-workflow-system-test"
         project_dir = f"{projects_dir}/{project_name}"
 
@@ -515,27 +512,80 @@ class TestProject(TestMLRunSystem):
         mlrun.load_project(
             project_dir, "git://github.com/mlrun/project-demo.git", name=project_name
         )
-        # Submitting workflow:
-        resp = self._run_db.api_call(
-            "POST", f"projects/{project_name}/workflows/main/submit"
-        )
-        result = resp.json()
-        _assert_keys(["project", "name", "status", "run_id", "schedule"], result.keys())
 
-        # waiting for the workflow to end:
-        # took 42 seconds, setting one minute
-        sleep(60)
-        runner_id = result["run_id"]
+        for engine, workflow_name in [("local", "newflow"), ("kfp", "main")]:
+            # Submitting workflow:
+            resp = self._run_db.api_call(
+                "POST",
+                f"projects/{project_name}/workflows/{workflow_name}/submit",
+                json={"spec": {"engine": f"remote:{engine}"}},
+            )
+            result = resp.json()
+            assert set(result.keys()) == {
+                "project",
+                "name",
+                "status",
+                "run_id",
+                "schedule",
+            }
 
-        # Getting workflow_id from runner_id:
-        resp = self._run_db.api_call("GET", f"projects/{project_name}/{runner_id}")
-        result = resp.json()
-        _assert_keys(["workflow_id", "status"], result.keys())
-        assert result["status"] == "Succeeded"
+            # waiting for the workflow to end:
+            # took 42 seconds, setting one minute
+            time.sleep(120)
+            runner_id = result["run_id"]
+
+            # Getting workflow_id from runner_id:
+            resp = self._run_db.api_call("GET", f"projects/{project_name}/{runner_id}")
+            result = resp.json()
+            assert set(result.keys()) == {"workflow_id", "status"}
+            assert result["status"] == "Succeeded"
 
     def test_submit_workflow_endpoint_with_scheduling(self):
-        # TODO: implement
-        pass
+        project_name = "submit-workflow-schedule-system-test"
+        project_dir = f"{projects_dir}/{project_name}"
+        workflow_name = "main"
+
+        try:
+            self.custom_project_names_to_delete.append(project_name)
+            shutil.rmtree(project_dir, ignore_errors=True)
+            # Loading a project with workflows:
+            mlrun.load_project(
+                project_dir,
+                "git://github.com/mlrun/project-demo.git",
+                name=project_name,
+            )
+            # Submitting workflow:
+            data = {"spec": {"schedule": "*/10 * * * *"}}
+            resp = self._run_db.api_call(
+                "POST",
+                f"projects/{project_name}/workflows/{workflow_name}/submit",
+                json=data,
+            )
+
+            # Checking scheduled workflow submitted as expected:
+            result = resp.json()
+            assert set(result.keys()) == {
+                "project",
+                "name",
+                "status",
+                "run_id",
+                "schedule",
+            }
+            assert result["status"] == "created"
+            resp = self._run_db.api_call("GET", f"projects/{project_name}/schedules")
+            schedules = resp.json()["schedules"]
+            assert schedules and len(schedules) == 1
+            schedule = schedules[0]
+            print(schedule)
+            assert schedule["name"] == f"workflow-runner-{workflow_name}"
+            assert schedule["scheduled_object"]["task"]["status"]["state"] == "created"
+
+        finally:
+            # Deleting schedule:
+            self._run_db.api_call(
+                "DELETE",
+                f"projects/{project_name}/schedules",
+            )
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

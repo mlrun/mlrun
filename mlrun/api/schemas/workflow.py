@@ -32,6 +32,15 @@ class WorkflowSpec(pydantic.BaseModel):
     run_local: typing.Optional[bool] = None
 
 
+class SubmitWorkflowRequest(pydantic.BaseModel):
+    spec: typing.Optional[WorkflowSpec] = None
+    arguments: typing.Optional[typing.Dict] = None
+    artifact_path: typing.Optional[str] = None
+    source: typing.Optional[str] = None
+    run_name: typing.Optional[str] = None
+    namespace: typing.Optional[str] = None
+
+
 class SubmitWorkflowResponse(pydantic.BaseModel):
     project: str = None
     name: str = None

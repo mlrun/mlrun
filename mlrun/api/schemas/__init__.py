@@ -150,4 +150,9 @@ from .secret import (
     UserSecretCreationRequest,
 )
 from .tag import Tag, TagObjects
-from .workflow import GetWorkflowResponse, SubmitWorkflowResponse, WorkflowSpec
+from .workflow import (
+    GetWorkflowResponse,
+    SubmitWorkflowRequest,
+    SubmitWorkflowResponse,
+    WorkflowSpec,
+)

@@ -16,7 +16,7 @@ import copy
 import traceback
 import uuid
 from http import HTTPStatus
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import fastapi
 from sqlalchemy.orm import Session
@@ -57,12 +57,7 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
 def submit_workflow(
     project: str,
     name: str,
-    spec: Optional[mlrun.api.schemas.WorkflowSpec] = None,
-    arguments: Optional[Dict] = None,
-    artifact_path: Optional[str] = None,
-    source: Optional[str] = None,
-    run_name: Optional[str] = None,
-    namespace: Optional[str] = None,
+    request: Optional[mlrun.api.schemas.SubmitWorkflowRequest] = None,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -70,21 +65,16 @@ def submit_workflow(
 ) -> Union[Dict[str, Any], fastapi.Response]:
     """
     Submitting a workflow of existing project.
-
+    todo: add full flow description
     :param project:         name of the project
     :param name:            name of the workflow
-    :param spec:            workflow's spec. Can include only `mlrun.api.schemas.WorkflowSpec` fields.
-    :param arguments:       arguments for the workflow. Overrides the arguments given in spec.
-    :param artifact_path:   Target path/url for workflow artifacts, the string
-                            '{{workflow.uid}}' will be replaced by workflow id
-    :param source:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
-                            git://github.com/mlrun/demo-xgb-project.git
-                            http://mysite/archived-project.zip
-                            <project-name>
-                            the git project should include the project yaml file.
-                            if the project yaml file is in a subdirectory, must specify the sub-directory.
-    :param run_name:        name of the run object. Default to "workflow-runner-{workflow_spec.name}"
-    :param namespace:       kubernetes namespace if other than default
+    :param request:         the request includes:
+                                - workflow spec
+                                - arguments for the workflow
+                                - artifact path as the artifact target path of the workflow
+                                - source url of the project for overriding the existing one
+                                - run name to override the default: 'workflow-runner-<workflow name>'
+                                - kubernetes namespace if other than default
     :param auth_info:       auth info of the request
     :param db_session:      session that manages the current dialog with the database
     :return:
@@ -95,6 +85,15 @@ def submit_workflow(
             db_session=db_session, name=project, leader_session=auth_info.session
         )
     )
+
+    (
+        spec,
+        arguments,
+        artifact_path,
+        source,
+        run_name,
+        namespace,
+    ) = request.dict().values()
     # Permission checks:
     # 1. CREATE run
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -127,7 +126,7 @@ def submit_workflow(
                 key: val or workflow_spec.get(key) for key, val in spec.dict().items()
             }
         else:
-            workflow_spec = spec.dict()
+            workflow_spec = None
     else:
         workflow_spec = _get_workflow_by_name(project, name)
 
@@ -157,21 +156,25 @@ def submit_workflow(
         return chief_client.submit_workflow(
             project=project.metadata.name, name=name, json=submit_workflow_params
         )
-    # Preparing inputs for load_and_run function:
+    # Preparing inputs for load_and_run function
+    # 1. To override the source of the project.
+    # This is mainly for supporting loading project from a certain commits (GitHub)
     if source:
         project.spec.source = source
 
+    # 2. Overriding arguments of the existing workflow:
     if arguments:
         if not workflow_spec.args:
             workflow_spec.args = {}
         workflow_spec.args.update(arguments)
 
-    # Creating the load and run function in the server-side way:
+    # This function is for loading the project and running workflow remotely.
+    # In this way we support scheduling workflows (by scheduling a job that runs the workflow
     load_and_run_fn = mlrun.new_function(
         name=run_name or f"workflow-runner-{workflow_spec.name}",
         project=project.metadata.name,
         kind="job",
-        image=mlrun.mlconf.default_base_image,
+        # image=mlrun.mlconf.default_base_image,
     )
 
     run_db = get_run_db_instance(db_session)
@@ -180,20 +183,29 @@ def submit_workflow(
         # Setting a connection between the function and the DB:
         load_and_run_fn.set_db_connection(run_db)
 
-        # Setting "generate" for the function's access key:
+        # Enrichment and validation requires an access key.
+        # By using `$generate` the enriching process will generate an access key for this function.
         load_and_run_fn.metadata.credentials.access_key = "$generate"
-
-        # Enrichment + validation to function:
         apply_enrichment_and_validation_on_function(
             function=load_and_run_fn,
             auth_info=auth_info,
         )
         load_and_run_fn.save()
-
-        logger.info(f"Fn:\n{load_and_run_fn.to_yaml()}")
+        logger.debug(
+            "saved function for running workflow",
+            project_name=load_and_run_fn.metadata.project,
+            function_name=load_and_run_fn.metadata.name,
+            workflow_name=workflow_spec.name,
+            arguments=workflow_spec.args,
+            source=project.spec.source,
+            kind=load_and_run_fn.kind,
+        )
 
         if workflow_spec.schedule:
 
+            # Why do we need here to create uid?
+            # update run metadata (uid, labels) and store in DB
+            # This logic follows the one is performed in `BaseRuntime._enrich_run()`
             meta_uid = uuid.uuid4().hex
 
             # creating runspec for scheduling:
@@ -207,7 +219,7 @@ def submit_workflow(
                 "metadata": {"uid": meta_uid, "project": project.metadata.name},
             }
 
-            runspec = mlrun.projects.pipelines._create_run_object_for_workflow_runner(
+            runspec = _create_run_object_for_workflow_runner(
                 project=project,
                 workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
@@ -236,27 +248,44 @@ def submit_workflow(
             return {
                 "project": project.metadata.name,
                 "name": workflow_spec.name,
-                "status": "created",
+                "status": "scheduled",
                 "schedule": workflow_spec.schedule,
             }
 
         else:
-            # Running workflow from the remote engine:
-            run_status = mlrun.projects.pipelines._RemoteRunner.run(
+            runspec = _create_run_object_for_workflow_runner(
                 project=project,
                 workflow_spec=workflow_spec,
-                name=name,
-                workflow_handler=workflow_spec.handler,
                 artifact_path=artifact_path,
                 namespace=namespace,
-                api_function=load_and_run_fn,
+                workflow_name=workflow_spec.name,
+                workflow_handler=workflow_spec.handler,
             )
+
+            run = load_and_run_fn.run(
+                runspec=runspec,
+                local=False,
+                schedule=workflow_spec.schedule,
+                artifact_path=artifact_path,
+            )
+
+            state = mlrun.run.RunStatuses.running
+            # Running workflow from the remote engine:
+            # run_status = mlrun.projects.pipelines._RemoteRunner.run(
+            #     project=project,
+            #     workflow_spec=workflow_spec,
+            #     name=name,
+            #     workflow_handler=workflow_spec.handler,
+            #     artifact_path=artifact_path,
+            #     namespace=namespace,
+            #     api_function=load_and_run_fn,
+            # )
 
             return {
                 "project": project.metadata.name,
                 "name": workflow_spec.name,
-                "status": run_status._state,
-                "run_id": run_status.run_id,
+                "status": state,
+                "run_id": run.uid(),
             }
 
     except Exception as err:
@@ -317,3 +346,107 @@ def get_workflow_id(
         status = pipeline["run"].get("status", "")
 
     return {"workflow_id": workflow_id, "status": status}
+
+
+def load_and_run(
+    context,
+    url: str = None,
+    project_name: str = "",
+    init_git: bool = None,
+    subpath: str = None,
+    clone: bool = False,
+    workflow_name: str = None,
+    workflow_path: str = None,
+    workflow_arguments: Dict[str, Any] = None,
+    artifact_path: str = None,
+    workflow_handler: Union[str, Callable] = None,
+    namespace: str = None,
+    sync: bool = False,
+    dirty: bool = False,
+    ttl: int = None,
+    engine: str = None,
+    local: bool = None,
+):
+    project = mlrun.load_project(
+        context=f"./{project_name}",
+        url=url,
+        name=project_name,
+        init_git=init_git,
+        subpath=subpath,
+        clone=clone,
+    )
+    context.logger.info(f"Loaded project {project.name} from remote successfully")
+
+    workflow_log_message = workflow_name or workflow_path
+    context.logger.info(f"Running workflow {workflow_log_message} from remote")
+    run = project.run(
+        name=workflow_name,
+        workflow_path=workflow_path,
+        arguments=workflow_arguments,
+        artifact_path=artifact_path,
+        workflow_handler=workflow_handler,
+        namespace=namespace,
+        sync=sync,
+        watch=False,  # Required for fetching the workflow_id
+        dirty=dirty,
+        ttl=ttl,
+        engine=engine,
+        local=local,
+    )
+    context.log_result(key="workflow_id", value=run.run_id)
+
+    context.log_result(key="engine", value=run._engine.engine, commit=True)
+
+
+def _create_run_object_for_workflow_runner(
+    project,
+    workflow_spec,
+    artifact_path: Optional[str] = None,
+    namespace: Optional[str] = None,
+    workflow_name: Optional[str] = None,
+    workflow_handler: Union[str, Callable] = None,
+    **kwargs,
+) -> mlrun.RunObject:
+    """
+    Creating run object for the load_and_run function.
+    :param project:             project object that matches the workflow
+    :param workflow_spec:       spec of the workflow to run
+    :param artifact_path:       artifact path target for the run
+    :param namespace:           kubernetes namespace if other than default
+    :param workflow_name:       name of the workflow to override the one in the workflow spec.
+    :param workflow_handler:    handler of the workflow to override the one in the workflow spec.
+    :param kwargs:              dictionary with "spec" and "metadata" keys with dictionaries as values that are
+                                corresponding to the keys.
+    :return:    a RunObject with the desired spec and metadata with labels.
+    """
+    spec_kwargs, metadata_kwargs = (
+        kwargs.get("spec"),
+        kwargs.get("metadata"),
+    ) if kwargs else {}, {}
+    spec = {
+        "parameters": {
+            "url": project.spec.source,
+            "project_name": project.metadata.name,
+            "workflow_name": workflow_name or workflow_spec.name,
+            "workflow_path": workflow_spec.path,
+            "workflow_arguments": workflow_spec.args,
+            "artifact_path": artifact_path,
+            "workflow_handler": workflow_handler or workflow_spec.handler,
+            "namespace": namespace,
+            "ttl": workflow_spec.ttl,
+            "engine": workflow_spec.engine,
+            "local": workflow_spec.run_local,
+        },
+        "handler": "mlrun.api.api.endpoints.workflows.load_and_run",
+    }
+    metadata = {"name": workflow_name}
+    spec.update(spec_kwargs)
+    metadata.update(metadata_kwargs)
+
+    # Creating object:
+    run_object = mlrun.RunObject.from_dict({"spec": spec, "metadata": metadata})
+
+    # Setting labels:
+    return run_object.set_label("job-type", "workflow-runner").set_label(
+        "workflow", workflow_name or workflow_spec.name
+    )

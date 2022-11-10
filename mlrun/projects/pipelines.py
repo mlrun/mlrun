@@ -706,74 +706,121 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        api_function=None,
+        # api_function=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = (
             name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         )
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
-        via_api = api_function is not None
+        # via_api = api_function is not None
 
         try:
-            # Creating the load project and workflow running function:
-            load_and_run_fn = api_function or mlrun.new_function(
-                name=runner_name,
-                project=project.metadata.name,
-                kind="job",
-                image=mlrun.mlconf.default_base_image,
-            )
-
+            run_db = mlrun.get_run_db()
             msg = "executing workflow "
             if workflow_spec.schedule:
                 msg += "scheduling "
             logger.info(
                 f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
             )
+            # preparing data to send for submitting workflow
+            data = {
+                "spec": workflow_spec.to_dict(),
+                "artifact_path": artifact_path,
+                "source": project.spec.source,
+                "run_name": runner_name,
+                "namespace": namespace,
+            }
+            resp = run_db.api_call(
+                "POST", "projects/{project}/workflows/{name}/submit", json=data
+            )
+            submit_workflow_result = resp.json()
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
+            )
+            # Getting run object of the runner:
+            resp = run_db.api_call(
+                "GET", f"run/{project.name}/{submit_workflow_result.get('run_id')}"
+            )
+            run = resp.json()
+            run = mlrun.RunObject.from_dict(run)
 
-            runspec = _create_run_object_for_workflow_runner(
+            # Getting workflow id from run:
+            seconds = 0.1
+            while not run_id:
+                run.refresh()
+                run_id = run.status.results.get("workflow_id", None)
+                time.sleep(seconds)
+                seconds = 1
+            # After fetching the workflow_id the workflow executed successfully
+            state = mlrun.run.RunStatuses.succeeded
+            pipeline_context.clear()
+
+            return _PipelineRunStatus(
+                run_id,
+                cls,
                 project=project,
-                workflow_spec=workflow_spec,
-                artifact_path=artifact_path,
-                namespace=namespace,
-                workflow_name=workflow_name,
-                workflow_handler=workflow_handler,
+                workflow=workflow_spec,
+                state=state,
+                run_object=run,
             )
+            # Creating the load project and workflow running function:
+            # load_and_run_fn = api_function or mlrun.new_function(
+            #     name=runner_name,
+            #     project=project.metadata.name,
+            #     kind="job",
+            #     image=mlrun.mlconf.default_base_image,
+            # )
+            #
+            # msg = "executing workflow "
+            # if workflow_spec.schedule:
+            #     msg += "scheduling "
+            # logger.info(
+            #     f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
+            # )
+            #
+            # runspec = _create_run_object_for_workflow_runner(
+            #     project=project,
+            #     workflow_spec=workflow_spec,
+            #     artifact_path=artifact_path,
+            #     namespace=namespace,
+            #     workflow_name=workflow_name,
+            #     workflow_handler=workflow_handler,
+            # )
+            #
+            # run = load_and_run_fn.run(
+            #     runspec=runspec,
+            #     local=False,
+            #     schedule=workflow_spec.schedule,
+            #     artifact_path=artifact_path,
+            # )
 
-            run = load_and_run_fn.run(
-                runspec=runspec,
-                local=False,
-                schedule=workflow_spec.schedule,
-                artifact_path=artifact_path,
-            )
-
-            if workflow_spec.schedule:
-                return
-
-            if via_api:
-                # for shortening the flow of the submit_workflow api endpoint
-                # we return here the run id of the load_and_run job instead of the workflow id
-                run_id = run.uid()
-                state = mlrun.run.RunStatuses.running
-            else:
-                # Fetching workflow id:
-                seconds = 0.1
-                while not run_id:
-                    run.refresh()
-                    run_id = run.status.results.get("workflow_id", None)
-                    time.sleep(seconds)
-                    seconds = 1
-                # After fetching the workflow_id the workflow executed successfully
-                state = mlrun.run.RunStatuses.succeeded
+            # if workflow_spec.schedule:
+            #     return
+            #
+            # if via_api:
+            #     # for shortening the flow of the submit_workflow api endpoint
+            #     # we return here the run id of the load_and_run job instead of the workflow id
+            #     run_id = run.uid()
+            #     state = mlrun.run.RunStatuses.running
+            # else:
+            #     # Fetching workflow id:
+            #     seconds = 0.1
+            #     while not run_id:
+            #         run.refresh()
+            #         run_id = run.status.results.get("workflow_id", None)
+            #         time.sleep(seconds)
+            #         seconds = 1
+            #     # After fetching the workflow_id the workflow executed successfully
+            #     state = mlrun.run.RunStatuses.succeeded
 
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)
-            if not via_api:
-                project.notifiers.push(
-                    f"Workflow {workflow_name} run failed!, error: {e}\n{trace}",
-                    "error",
-                )
+            project.notifiers.push(
+                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}",
+                "error",
+            )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
                 run_id,
@@ -782,20 +829,6 @@ class _RemoteRunner(_PipelineRunner):
                 workflow=workflow_spec,
                 state=state,
             )
-
-        if not via_api:
-            project.notifiers.push_pipeline_start_message(
-                project.metadata.name,
-            )
-        pipeline_context.clear()
-        return _PipelineRunStatus(
-            run_id,
-            cls,
-            project=project,
-            workflow=workflow_spec,
-            state=state,
-            run_object=run,
-        )
 
     @staticmethod
     def wait_for_completion(
@@ -870,105 +903,105 @@ def github_webhook(request):
     return {"msg": "pushed"}
 
 
-def load_and_run(
-    context,
-    url: str = None,
-    project_name: str = "",
-    init_git: bool = None,
-    subpath: str = None,
-    clone: bool = False,
-    workflow_name: str = None,
-    workflow_path: str = None,
-    workflow_arguments: typing.Dict[str, typing.Any] = None,
-    artifact_path: str = None,
-    workflow_handler: typing.Union[str, typing.Callable] = None,
-    namespace: str = None,
-    sync: bool = False,
-    dirty: bool = False,
-    ttl: int = None,
-    engine: str = None,
-    local: bool = None,
-):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
-
-    workflow_log_message = workflow_name or workflow_path
-    context.logger.info(f"Running workflow {workflow_log_message} from remote")
-    run = project.run(
-        name=workflow_name,
-        workflow_path=workflow_path,
-        arguments=workflow_arguments,
-        artifact_path=artifact_path,
-        workflow_handler=workflow_handler,
-        namespace=namespace,
-        sync=sync,
-        watch=False,  # Required for fetching the workflow_id
-        dirty=dirty,
-        ttl=ttl,
-        engine=engine,
-        local=local,
-    )
-    context.log_result(key="workflow_id", value=run.run_id)
-
-    context.log_result(key="engine", value=run._engine.engine, commit=True)
-
-
-def _create_run_object_for_workflow_runner(
-    project,
-    workflow_spec: WorkflowSpec,
-    artifact_path: typing.Optional[str] = None,
-    namespace: typing.Optional[str] = None,
-    workflow_name: typing.Optional[str] = None,
-    workflow_handler: typing.Union[str, typing.Callable] = None,
-    **kwargs,
-) -> mlrun.RunObject:
-    """
-    Creating run object for the load_and_run function.
-    :param project:             project object that matches the workflow
-    :param workflow_spec:       spec of the workflow to run
-    :param artifact_path:       artifact path target for the run
-    :param namespace:           kubernetes namespace if other than default
-    :param workflow_name:       name of the workflow to override the one in the workflow spec.
-    :param workflow_handler:    handler of the workflow to override the one in the workflow spec.
-    :param kwargs:              dictionary with "spec" and "metadata" keys with dictionaries as values that are
-                                corresponding to the keys.
-    :return:    a RunObject with the desired spec and metadata with labels.
-    """
-    spec_kwargs, metadata_kwargs = (
-        kwargs.get("spec"),
-        kwargs.get("metadata"),
-    ) if kwargs else {}, {}
-    spec = {
-        "parameters": {
-            "url": project.spec.source,
-            "project_name": project.metadata.name,
-            "workflow_name": workflow_name or workflow_spec.name,
-            "workflow_path": workflow_spec.path,
-            "workflow_arguments": workflow_spec.args,
-            "artifact_path": artifact_path,
-            "workflow_handler": workflow_handler or workflow_spec.handler,
-            "namespace": namespace,
-            "ttl": workflow_spec.ttl,
-            "engine": workflow_spec.engine,
-            "local": workflow_spec.run_local,
-        },
-        "handler": "mlrun.projects.load_and_run",
-    }
-    metadata = {"name": workflow_name}
-    spec.update(spec_kwargs)
-    metadata.update(metadata_kwargs)
-
-    # Creating object:
-    run_object = mlrun.RunObject.from_dict({"spec": spec, "metadata": metadata})
-
-    # Setting labels:
-    return run_object.set_label("job-type", "workflow-runner").set_label(
-        "workflow", workflow_name or workflow_spec.name
-    )
+# def load_and_run(
+#     context,
+#     url: str = None,
+#     project_name: str = "",
+#     init_git: bool = None,
+#     subpath: str = None,
+#     clone: bool = False,
+#     workflow_name: str = None,
+#     workflow_path: str = None,
+#     workflow_arguments: typing.Dict[str, typing.Any] = None,
+#     artifact_path: str = None,
+#     workflow_handler: typing.Union[str, typing.Callable] = None,
+#     namespace: str = None,
+#     sync: bool = False,
+#     dirty: bool = False,
+#     ttl: int = None,
+#     engine: str = None,
+#     local: bool = None,
+# ):
+#     project = mlrun.load_project(
+#         context=f"./{project_name}",
+#         url=url,
+#         name=project_name,
+#         init_git=init_git,
+#         subpath=subpath,
+#         clone=clone,
+#     )
+#     context.logger.info(f"Loaded project {project.name} from remote successfully")
+#
+#     workflow_log_message = workflow_name or workflow_path
+#     context.logger.info(f"Running workflow {workflow_log_message} from remote")
+#     run = project.run(
+#         name=workflow_name,
+#         workflow_path=workflow_path,
+#         arguments=workflow_arguments,
+#         artifact_path=artifact_path,
+#         workflow_handler=workflow_handler,
+#         namespace=namespace,
+#         sync=sync,
+#         watch=False,  # Required for fetching the workflow_id
+#         dirty=dirty,
+#         ttl=ttl,
+#         engine=engine,
+#         local=local,
+#     )
+#     context.log_result(key="workflow_id", value=run.run_id)
+#
+#     context.log_result(key="engine", value=run._engine.engine, commit=True)
+#
+#
+# def _create_run_object_for_workflow_runner(
+#     project,
+#     workflow_spec: WorkflowSpec,
+#     artifact_path: typing.Optional[str] = None,
+#     namespace: typing.Optional[str] = None,
+#     workflow_name: typing.Optional[str] = None,
+#     workflow_handler: typing.Union[str, typing.Callable] = None,
+#     **kwargs,
+# ) -> mlrun.RunObject:
+#     """
+#     Creating run object for the load_and_run function.
+#     :param project:             project object that matches the workflow
+#     :param workflow_spec:       spec of the workflow to run
+#     :param artifact_path:       artifact path target for the run
+#     :param namespace:           kubernetes namespace if other than default
+#     :param workflow_name:       name of the workflow to override the one in the workflow spec.
+#     :param workflow_handler:    handler of the workflow to override the one in the workflow spec.
+#     :param kwargs:              dictionary with "spec" and "metadata" keys with dictionaries as values that are
+#                                 corresponding to the keys.
+#     :return:    a RunObject with the desired spec and metadata with labels.
+#     """
+#     spec_kwargs, metadata_kwargs = (
+#         kwargs.get("spec"),
+#         kwargs.get("metadata"),
+#     ) if kwargs else {}, {}
+#     spec = {
+#         "parameters": {
+#             "url": project.spec.source,
+#             "project_name": project.metadata.name,
+#             "workflow_name": workflow_name or workflow_spec.name,
+#             "workflow_path": workflow_spec.path,
+#             "workflow_arguments": workflow_spec.args,
+#             "artifact_path": artifact_path,
+#             "workflow_handler": workflow_handler or workflow_spec.handler,
+#             "namespace": namespace,
+#             "ttl": workflow_spec.ttl,
+#             "engine": workflow_spec.engine,
+#             "local": workflow_spec.run_local,
+#         },
+#         "handler": "mlrun.projects.load_and_run",
+#     }
+#     metadata = {"name": workflow_name}
+#     spec.update(spec_kwargs)
+#     metadata.update(metadata_kwargs)
+#
+#     # Creating object:
+#     run_object = mlrun.RunObject.from_dict({"spec": spec, "metadata": metadata})
+#
+#     # Setting labels:
+#     return run_object.set_label("job-type", "workflow-runner").set_label(
+#         "workflow", workflow_name or workflow_spec.name
+#     )

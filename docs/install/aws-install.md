@@ -1,3 +1,4 @@
+(install-on-aws)=
 # Install MLRun on AWS
 
 For AWS users, the easiest way to install MLRun is to use a native AWS deployment. This option deploys MLRun on an AWS EKS service using a cloud formation stack.
@@ -107,9 +108,9 @@ Currently the MLRun feature store supports the following options:
   
 To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack. Refer to the [Redis getting-started page](https://redis.io/docs/getting-started/) for information about Redis installation.
 
-## Integrate MLRun with Kafka for online serving
+## Streaming support
 
-Online serving use cases often require working with the MLRun graph and use a streaming engine for managing queues between steps and functions. 
+For online serving, it is often convenient to use MLRun graph with a streaming engine. This allows managing queues between steps and functions. 
 MLRun supports Kafka streams as well as Iguazio V3IO streams. 
 See the examples on how to configure the MLRun serving graph with {ref}`kafka<serving-kafka-stream-example>` and {ref}`V3IO<serving-v3io-stream-example>`.
 

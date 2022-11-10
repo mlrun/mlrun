@@ -57,7 +57,7 @@ jobs:
           matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
           echo ::set-output name=matrix::{\"include\":$(echo $matrix)}
   build-images:
-    name: Build and push image - ${{ matrix.image.image-name }} (Python ${{ matrix.python-version }})
+    name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     needs: matrix_prep
 
@@ -66,9 +66,7 @@ jobs:
 
     strategy:
       fail-fast: false
-      matrix:
-        image: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
-        python-version: [3.7.13, 3.9.13]
+      matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
     steps:
     - uses: actions/checkout@v3
     - name: Install curl and jq
@@ -113,7 +111,7 @@ jobs:
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
       # to use it and run much faster
-      if: ${{ matrix.image.image-name != 'test' }}
+      if: ${{ matrix.image-name != 'test' }}
       run: |
         for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
           do \
@@ -126,14 +124,14 @@ jobs:
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            make push-${{ matrix.image.image-name }}; \
+            make push-${{ matrix.image-name }}; \
           done;
 
     - name: Build and push unstable tag
 
       # we don't need to have unstable tag for the test image
       # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \
@@ -144,11 +142,11 @@ jobs:
             MLRUN_VERSION=unstable \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            make push-${{ matrix.image.image-name }}; \
+            make push-${{ matrix.image-name }}; \
           done;
     - name: Pull cache, build and push test image
       # When version is given we're probably in a release process, we don't need the test image in that case
-      if: matrix.image.image-name == 'test' && github.event.inputs.version == ''
+      if: matrix.image-name == 'test' && github.event.inputs.version == ''
       run: |
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \
@@ -158,4 +156,4 @@ jobs:
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        make push-${{ matrix.image.image-name }}
+        make push-${{ matrix.image-name }}

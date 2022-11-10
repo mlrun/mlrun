@@ -1,5 +1,6 @@
 [
   {
-    "image-name":"mlrun"
+    "image-name":"mlrun",
+    "python-version":"3.9.13"
   }
 ]

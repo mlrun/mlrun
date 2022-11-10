@@ -268,6 +268,17 @@ default_config = {
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
         },
+        "pipelines": {
+            "logs": {
+                "pull_state": {
+                    "mode": "disabled",
+                    # those params are used when mode is enabled
+                    "pull_logs_interval": 30,  # seconds
+                    "pull_state_interval": 5,  # seconds
+                },
+                "pull_logs_default_interval": 3,  # seconds
+            },
+        },
         "authorization": {
             "mode": "none",  # one of none, opa
             "opa": {

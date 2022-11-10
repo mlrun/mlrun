@@ -453,8 +453,10 @@ class HTTPRunDB(RunDBInterface):
                     print(text.decode(), end="")
                 else:
                     nil_resp += 1
+        else:
+            offset += len(text)
 
-        return state
+        return state, offset
 
     def store_run(self, struct, uid, project="", iter=0):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows

@@ -826,7 +826,7 @@ class RunObject(RunTemplate):
         db = mlrun.get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
-    def logs(self, watch=True, db=None):
+    def logs(self, watch=True, db=None, offset=0):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
@@ -834,25 +834,46 @@ class RunObject(RunTemplate):
             print("DB is not configured, cannot show logs")
             return None
 
+        new_offset = 0
         if db.kind == "http":
-            state = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch)
+            state, new_offset = db.watch_log(
+                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+            )
         else:
-            state, text = db.get_log(self.metadata.uid, self.metadata.project)
+            state, text = db.get_log(
+                self.metadata.uid, self.metadata.project, offset=offset
+            )
             if text:
                 print(text.decode())
 
         if state:
             print(f"final state: {state}")
-        return state
+        return state, new_offset
 
     def wait_for_completion(
-        self, sleep=3, timeout=0, raise_on_failure=True, show_logs=False
+        self,
+        sleep=3,
+        timeout=0,
+        raise_on_failure=True,
+        show_logs=False,
+        logs_interval=None,
     ):
         """wait for async run to complete"""
         total_time = 0
+        offset = 0
+        last_pull_log_time = None
         while True:
+            if logs_interval and (
+                last_pull_log_time is None
+                or datetime.now() - last_pull_log_time > logs_interval
+            ):
+                last_pull_log_time = datetime.now()
+                offset = self.logs(watch=False, offset=offset)
+
             state = self.state()
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                if logs_interval:
+                    self.logs(watch=False, offset=offset)
                 break
             time.sleep(sleep)
             total_time += sleep
@@ -862,13 +883,13 @@ class RunObject(RunTemplate):
                 )
 
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
-
-            self.logs(watch=False)
+            if not offset:
+                self.logs(watch=False)
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"
             )
 
-        if show_logs:
+        if show_logs and not offset:
             self.logs(watch=False)
 
         return state

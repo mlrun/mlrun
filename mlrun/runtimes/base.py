@@ -716,8 +716,17 @@ class BaseRuntime(ModelObj):
                 logger.info(txt)
         # watch is None only in scenario where we run a pipeline step, in this case we don't want to watch the run logs
         # but rather just pull the state of the run from the DB, and print the logs once the task is done
-        if watch is None and self.kfp:
-            runspec.wait_for_completion(show_logs=True)
+        if (
+            watch is None
+            and self.kfp
+            and config.httpdb.pipelines.logs.pull_state.mode == "enabled"
+        ):
+            state_interval = config.httpdb.pipelines.logs.pull_state.pull_state_interval
+            logs_interval = config.httpdb.pipelines.logs.pull_state.pull_logs_interval
+
+            runspec.wait_for_completion(
+                show_logs=True, sleep=state_interval, logs_interval=logs_interval
+            )
             resp = self._get_db_run(runspec)
 
         elif watch or self.kfp:

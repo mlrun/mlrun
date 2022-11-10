@@ -826,7 +826,7 @@ def logs(uid, project, offset, db, watch):
     """Get or watch task logs"""
     mldb = get_run_db(db or mlconf.dbpath)
     if mldb.kind == "http":
-        state = mldb.watch_log(uid, project, watch=watch, offset=offset)
+        state, _ = mldb.watch_log(uid, project, watch=watch, offset=offset)
     else:
         state, text = mldb.get_log(uid, project, offset=offset)
         if text:

@@ -87,8 +87,9 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ARG HOROVOD_VERSION=0.23.0
 # TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
     #   possible (should be safe to remove if it works ~5 times without it)
-RUN ldconfig /usr/local/cuda-11.8/targets/x86_64-linux/lib/stubs && \
+RUN ldconfig /usr/local/cuda/lib64/stubs && \
     MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+        python -m pip install --upgrade setuptools && \
         python -m pip install horovod~=${HOROVOD_VERSION} && \
     ldconfig
 

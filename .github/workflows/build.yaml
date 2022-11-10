@@ -105,14 +105,9 @@ jobs:
     - name: Docker login
       # all suffixed with "| true" to allow failures if secrets are not defined (fork)
       run: |
-#        echo ${{ secrets.GHCR_DOCKER_REGISTRY_PASSWORD }} | \
-#          docker login ghcr.io -u ${{ secrets.GHCR_DOCKER_REGISTRY_USERNAME }} --password-stdin | true
         echo ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }} | \
           docker login registry.hub.docker.com -u ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }} \
           --password-stdin | true
-#        echo ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }} | \
-#          docker login quay.io -u ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }} \
-#          --password-stdin | true
 
     - name: Pull cache, build and push image
 

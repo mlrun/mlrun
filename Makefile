@@ -308,7 +308,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_GPU_PIP_VERSION) \
-		--build-arg MLRUN_PYTHON_VERSION=3.7.13 \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_GPU_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_GPU_HOROVOD_VERSION) \

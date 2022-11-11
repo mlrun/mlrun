@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-ARG MLRUN_PYTHON_VERSION=3.8.8
+ARG MLRUN_PYTHON_VERSION=3.9.13
 
 FROM jupyter/scipy-notebook:python-${MLRUN_PYTHON_VERSION}
 

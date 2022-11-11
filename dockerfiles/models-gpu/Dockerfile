@@ -42,7 +42,7 @@ RUN apt-get update && \
         wget && \
     rm -rf /var/lib/apt/lists/*
 
-RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-py37_4.12.0-Linux-x86_64.sh  -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \

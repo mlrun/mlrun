@@ -40,6 +40,11 @@ MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}'),)
 MLRUN_PIP_VERSION ?= 22.3.0
+# MLRUN_GPU_PIP_VERSION is used because pip declaration in the dockerfile of gpu image is almost at the start of the file
+# which will cause the cache to be mostly invalidated if we change the pip version, because we are unable to rebuild
+# the image until we will move to newer python version, we will use the old one which is 22.0.0
+# TODO: remove this variable when we will move to newer python version
+MLRUN_GPU_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -53,7 +58,11 @@ MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.7.0
+# TODO: remove this variable when we will move to newer python version
+MLRUN_GPU_TENSORFLOW_VERSION = 2.4.1
 MLRUN_HOROVOD_VERSION = 0.26.1
+# TODO: remove this variable when we will move to newer python version
+MLRUN_GPU_HOROVOD_VERSION = 0.22.1
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -298,9 +307,11 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_GPU_PIP_VERSION) \
 		--build-arg MLRUN_PYTHON_VERSION=3.7.13 \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_GPU_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_GPU_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .

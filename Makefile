@@ -58,10 +58,10 @@ MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.7.0
-# TODO: remove this variable when we will move to newer python version
+# TODO: remove this variable when we will move models-gpu to python 3.9
 MLRUN_GPU_TENSORFLOW_VERSION = 2.4.1
 MLRUN_HOROVOD_VERSION = 0.26.1
-# TODO: remove this variable when we will move to newer python version
+# TODO: remove this variable when we will move models-gpu to python 3.9
 MLRUN_GPU_HOROVOD_VERSION = 0.22.1
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES

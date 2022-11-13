@@ -187,8 +187,9 @@ def submit_workflow(
 
     # This function is for loading the project and running workflow remotely.
     # In this way we support scheduling workflows (by scheduling a job that runs the workflow
+    run_name = run_name or f"workflow-runner-{workflow_spec.name}"
     load_and_run_fn = mlrun.new_function(
-        name=run_name or f"workflow-runner-{workflow_spec.name}",
+        name=run_name,
         project=project.metadata.name,
         kind="job",
         image=mlrun.mlconf.default_base_image,  # To prevent deploy
@@ -272,7 +273,7 @@ def submit_workflow(
                 workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
                 namespace=namespace,
-                workflow_name=workflow_spec.name,
+                workflow_name=run_name,
                 workflow_handler=workflow_spec.handler,
             )
 

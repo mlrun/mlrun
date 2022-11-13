@@ -547,9 +547,7 @@ class TestProject(TestMLRunSystem):
                 if not num_tries:
                     break
                 num_tries -= 1
-            print(f"num tries: {num_tries}")
             assert result["status"] == expected_status
-            print("success")
 
     def test_submit_workflow_endpoint_with_scheduling(self):
         project_name = "submit-wf-schedule"

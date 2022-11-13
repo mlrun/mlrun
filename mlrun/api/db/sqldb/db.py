@@ -513,10 +513,12 @@ class SQLDB(DBInterface):
             updated, key, labels = self._process_artifact_dict_to_store(
                 artifact, key, iter
             )
-
+        existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
+            existed = False
+
         update_labels(art, labels)
 
         art.struct = artifact
@@ -524,6 +526,12 @@ class SQLDB(DBInterface):
         if tag_artifact:
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
+            # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
+            # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
+            # changes to be reflected in the "latest" tag, as this in not actual the "latest" version of the artifact
+            # which was produced by the user
+            if not existed and tag != "latest":
+                self.tag_artifacts(session, [art], project, "latest")
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):

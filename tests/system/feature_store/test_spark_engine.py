@@ -34,6 +34,7 @@ from mlrun.feature_store import FeatureSet
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
+from tests.system.feature_store.expected_stats import expected_stats
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -139,94 +140,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert measurements.status.targets[0].run_id is not None
 
         stats_df = measurements.get_stats_table()
-        expexted_result = {
-            "count": {
-                "bad": 190.0,
-                "department": 190.0,
-                "hr": 190.0,
-                "is_in_bed": 190.0,
-                "movements": 190.0,
-                "patient_id": 190.0,
-                "room": 190.0,
-                "rr": 190.0,
-                "spo2": 190.0,
-                "turn_count": 190.0,
-            },
-            "mean": {
-                "bad": 49.10526315789474,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 3.6203568596815643,
-                "patient_id": float("nan"),
-                "room": 1.4947368421052631,
-                "rr": 24.68421052631579,
-                "spo2": 98.77894736842106,
-                "turn_count": 1.3398340922970073,
-            },
-            "std": {
-                "bad": 30.111424007351214,
-                "department": float("nan"),
-                "hr": 0.0,
-                "is_in_bed": 0.0,
-                "movements": 3.2840955409124373,
-                "patient_id": float("nan"),
-                "room": 0.5012932314788251,
-                "rr": 2.499791135803136,
-                "spo2": 1.749853795062193,
-                "turn_count": 1.2704837468566184,
-            },
-            "min": {
-                "bad": 4.0,
-                "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 0.0,
-                "patient_id": "025-79-2727",
-                "room": 1.0,
-                "rr": 5.0,
-                "spo2": 85.0,
-                "turn_count": 0.0,
-            },
-            "25%": {
-                "bad": 17.0,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 0.18989211159466102,
-                "patient_id": float("nan"),
-                "room": 1.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 0.0,
-            },
-            "75%": {
-                "bad": 76.0,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 6.010198369762724,
-                "patient_id": float("nan"),
-                "room": 2.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 2.951729964062169,
-            },
-            "max": {
-                "bad": 95.0,
-                "department": "4685f09b-51cc-48c9-b8e5-32e3175d4759",
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 10.0,
-                "patient_id": "838-21-8151",
-                "room": 2.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 3.0,
-            },
-        }
-        expected_df = pd.DataFrame(expexted_result)
-        assert stats_df.drop("hist", axis=1).equals(expected_df)
+        expected_stats_df = pd.DataFrame(expected_stats)
+        print(f"stats_df: {stats_df.to_json()}")
+        print(f"expected_stats_df: {expected_stats_df.to_json()}")
+        assert stats_df.equals(expected_stats_df)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"

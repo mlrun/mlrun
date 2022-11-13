@@ -783,6 +783,7 @@ class FlowStep(BaseStep):
                 raise GraphError(
                     f"graph loop, step {before} is specified in before and/or after {key}"
                 )
+            self[step.name].after_step(*self[before].after, append=False)
             self[before].after_step(step.name, append=False)
         self._last_added = step
         return step

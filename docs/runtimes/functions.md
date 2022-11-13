@@ -23,8 +23,8 @@ and gets a new hash code upon changes.
 
 functions-architecture
 ../concepts/functions-overview
+create-and-use-functions
 mlrun_code_annotations
-code-archive
 function-storage
 images
 image-build

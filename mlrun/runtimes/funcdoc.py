@@ -206,19 +206,24 @@ def ann_type(ann):
 
 
 def iter_elems(ann):
+    """
+    Gets the elements of an ast.Subscript.slice, e.g. Union[int, str] -> [int, str]
+    """
     if hasattr(ann, "elts"):
         return ann.elts
     if hasattr(ann, "id"):
-        return [ann.id]
+        return [ann]
     if hasattr(ann.value, "elts"):
         return ann.value.elts
     if not hasattr(ann, "slice"):
         return [ann.value]
+
+    # From python 3.9, slice is an expr and we should evaluate it recursively. Left this for backward compatibility.
     elif hasattr(ann.slice, "elts"):
         return ann.slice.elts
     elif hasattr(ann.slice, "value"):
         return [ann.slice.value]
-    return []
+    return [ann]
 
 
 class ASTVisitor(ast.NodeVisitor):

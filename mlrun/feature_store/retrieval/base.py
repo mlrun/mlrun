@@ -138,6 +138,9 @@ class BaseMerger(abc.ABC):
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 
+    def unpersist_df(self, df):
+        pass
+
     def merge(
         self,
         entity_df,
@@ -154,7 +157,9 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
 
-        for featureset, featureset_df in zip(featuresets, featureset_dfs):
+        for i in range(len(featuresets)):
+            featureset = featuresets[i]
+            featureset_df = featureset_dfs[i]
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
             else:
@@ -166,6 +171,12 @@ class BaseMerger(abc.ABC):
                 featureset,
                 featureset_df,
             )
+
+            # unpersist as required by the implementation (e.g. spark) and delete references
+            # to dataframe to allow for GC to free up the memory (local, dask)
+            self.unpersist_df(featureset_df)
+            featureset_dfs[i] = None
+            del featureset_df
 
         self._result_df = merged_df
 

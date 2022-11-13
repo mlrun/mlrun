@@ -67,6 +67,7 @@ class DaskFeatureMerger(BaseMerger):
 
             df = df.persist()
             dfs.append(df)
+            del df
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 

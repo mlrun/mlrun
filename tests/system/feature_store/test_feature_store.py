@@ -74,6 +74,14 @@ class MyMap(MapClass):
         return event
 
 
+class IdentityMap(MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, x):
+        return x
+
+
 def my_func(df):
     return df
 
@@ -1983,7 +1991,8 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    def test_purge_redis(self):
+    @pytest.mark.parametrize("target_redis, ", ["", "localhost:6379"])
+    def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -1996,7 +2005,9 @@ class TestFeatureStore(TestMLRunSystem):
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-            RedisNoSqlTarget(),
+            RedisNoSqlTarget()
+            if target_redis == ""
+            else RedisNoSqlTarget(target_redis),
         ]
         fset.set_targets(
             targets=targets,
@@ -3023,10 +3034,97 @@ class TestFeatureStore(TestMLRunSystem):
                 "number": {0: 11, 1: 22},
             }
 
+    # regression test for #2557
+    @pytest.mark.parametrize(
+        ["index_columns"],
+        [[["mystr1"]], [["mystr1", "mystr2"]], [["mystr1", "mystr2", "myfloat1"]]],
+    )
+    def test_pandas_stats_include_index(self, index_columns):
+        fset = fstore.FeatureSet(
+            "myset",
+            entities=[Entity(index_column) for index_column in index_columns],
+            engine="pandas",
+        )
+
+        fset.graph.to("IdentityMap")
+
+        assert not fset.get_stats_table()
+
+        source_df = pd.DataFrame(
+            {
+                "mystr1": {0: "ozqqyhvprlghypgn", 1: "etkpkrbuhprigrtk"},
+                "mystr2": {0: "kllnbgkcskdiqrqy", 1: "luqsritvfwnfgziw"},
+                "myfloat1": {0: 7173728554904657, 1: -8019470409809931},
+                "myfloat2": {0: 0.03638798909492902, 1: 0.13661189704381071},
+            }
+        )
+        fstore.preview(fset, source_df)
+        actual_stat = fset.get_stats_table().drop("hist", axis=1)
+        actual_stat = actual_stat.sort_index().sort_index(axis=1)
+
+        expected_stat = pd.DataFrame(
+            {
+                "count": {
+                    "myfloat1": 2.0,
+                    "myfloat2": 2.0,
+                    "mystr1": 2.0,
+                    "mystr2": 2.0,
+                },
+                "freq": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": 1.0,
+                    "mystr2": 1.0,
+                },
+                "max": {
+                    "myfloat1": 7173728554904657.0,
+                    "myfloat2": 0.13661189704381071,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "mean": {
+                    "myfloat1": -422870927452637.0,
+                    "myfloat2": 0.08649994306936987,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "min": {
+                    "myfloat1": -8019470409809931.0,
+                    "myfloat2": 0.03638798909492902,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "std": {
+                    "myfloat1": 1.0743214015866118e16,
+                    "myfloat2": 0.07086900494767057,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "top": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": "ozqqyhvprlghypgn",
+                    "mystr2": "kllnbgkcskdiqrqy",
+                },
+                "unique": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": 2.0,
+                    "mystr2": 2.0,
+                },
+            },
+            index=["myfloat1", "myfloat2", "mystr1", "mystr2"],
+        )
+
+        assert_frame_equal(expected_stat, actual_stat)
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
     orig_status_targets = list(fset.status.targets.keys())
+    from copy import deepcopy
+
+    orig_status_tar = deepcopy(fset.status.targets)
     target_names = [t.name for t in targets]
 
     for target in fset.status.targets:
@@ -3035,14 +3133,21 @@ def verify_purge(fset, targets):
             filesystem = driver._get_store().get_filesystem(False)
             if filesystem is not None:
                 assert filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
 
-    for target in fset.status.targets:
+    for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert not filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert not filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) == 0
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

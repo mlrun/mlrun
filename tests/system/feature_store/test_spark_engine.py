@@ -34,6 +34,7 @@ from mlrun.feature_store import FeatureSet
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
+from tests.system.feature_store.expected_stats import expected_stats
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -137,6 +138,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
+
+        stats_df = measurements.get_stats_table()
+        expected_stats_df = pd.DataFrame(expected_stats)
+        print(f"stats_df: {stats_df.to_json()}")
+        print(f"expected_stats_df: {expected_stats_df.to_json()}")
+        assert stats_df.equals(expected_stats_df)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"

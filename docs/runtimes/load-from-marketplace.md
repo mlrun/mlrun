@@ -1,20 +1,20 @@
 (load-from-marketplace)=
-# Functions Marketplace  <!-- omit in toc -->
+# Functions Hub <!-- omit in toc -->
 
-This section demonstrates how to import a function from the marketplace into your project, and provides some basic instructions on how to run the function and view the results.
+This section demonstrates how to import a function from the Hub into your project, and provides some basic instructions on how to run the function and view the results.
 
 **In this section**
 - [Overview](#overview)
-- [Functions Marketplace](#functions-marketplace)
+- [Functions Hub](#functions-hub)
 - [Searching for functions](#searching-for-functions)
 - [Setting the project configuration](#setting-the-project-configuration)
-- [Loading functions from the marketplace](#loading-functions-from-the-marketplace)
+- [Loading functions from the hub](#loading-functions-from-the-hub)
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
 
-## Functions Marketplace
+## Functions Hub
 
-MLRun marketplace has a wide range of functions that can be used for a variety of use cases.
+The MLRun Functions Hub has a wide range of functions that can be used for a variety of use cases.
 There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
 Each function has a docstring that explains how to use it. In addition, the functions are associated with categories to make it easier for you to find the relevant one.
 
@@ -22,10 +22,10 @@ Functions can be easily imported into your project and therefore help you to spe
 
 ## Searching for functions
 
-The Marketplace is located [here](https://www.mlrun.org/marketplace/). <br>
+The Hub is located [here](https://www.mlrun.org/marketplace/). <br>
 You can search and filter the categories and kinds to find a function that meets your needs.
 
-![Marketplace](../_static/images/marketplace-ui.png)
+![Hub](../_static/images/marketplace-ui.png)
 
 ## Setting the project configuration
 
@@ -57,7 +57,7 @@ mlconf.dbpath = mlconf.dbpath or 'http://mlrun-api:8080'
 print(f'Artifacts path: {artifact_path}\nMLRun DB path: {mlconf.dbpath}')
 ```
 
-## Loading functions from the Marketplace
+## Loading functions from the Hub
 
 Run `project.set_function` to load a functions.<br>
 `set_function` updates or adds a function object to the project.

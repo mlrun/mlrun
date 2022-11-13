@@ -749,13 +749,19 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/artifacts"
         self.api_call("DELETE", endpoint_path, error, params=params)
 
-    def list_artifact_tags(self, project=None) -> List[str]:
+    def list_artifact_tags(
+        self,
+        project=None,
+        category: Union[str, schemas.ArtifactCategories] = None,
+    ) -> List[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
+        params = {"category": category} if category else {}
+
         response = self.api_call(
-            "GET", f"projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message, params=params
         )
         return response.json()["tags"]
 

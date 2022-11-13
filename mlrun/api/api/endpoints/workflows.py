@@ -62,7 +62,7 @@ def submit_workflow(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
-) -> Union[Dict[str, Any], fastapi.Response]:
+):
     """
     Submitting a workflow of existing project.
 
@@ -87,7 +87,8 @@ def submit_workflow(
                                 - kubernetes namespace if other than default
     :param auth_info:       auth info of the request
     :param db_session:      session that manages the current dialog with the database
-    :return:
+
+    :return: A response that contains the project name, workflow name, name of the workflow, status, run id (in case of a single run) and schedule (in case of scheduling)
     """
     # Getting project:
     project = (
@@ -312,11 +313,13 @@ def get_workflow_id(
     """
     Retrieve workflow id by the uid of the runner.
     Supporting workflows that executed by the remote engine **only**.
+
     :param project:     name of the project
     :param uid:         the id of the running job that runs the workflow
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
-    :return:
+
+    :return: The id and status of the workflow.
     """
     # Check permission READ run:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -374,6 +377,7 @@ def _create_run_object_for_workflow_runner(
 ) -> mlrun.RunObject:
     """
     Creating run object for the load_and_run function.
+
     :param project:             project object that matches the workflow
     :param workflow_spec:       spec of the workflow to run
     :param artifact_path:       artifact path target for the run
@@ -382,6 +386,7 @@ def _create_run_object_for_workflow_runner(
     :param workflow_handler:    handler of the workflow to override the one in the workflow spec.
     :param kwargs:              dictionary with "spec" and "metadata" keys with dictionaries as values that are
                                 corresponding to the keys.
+
     :return:    a RunObject with the desired spec and metadata with labels.
     """
     spec_kwargs, metadata_kwargs = (

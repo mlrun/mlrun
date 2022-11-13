@@ -1958,7 +1958,6 @@ class MlrunProject(ModelObj):
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
         """
-
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
         if self.spec.repo and self.spec.repo.is_dirty():
@@ -2013,7 +2012,6 @@ class MlrunProject(ModelObj):
         if not inner_engine and engine == "remote":
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
-
         run = workflow_engine.run(
             self,
             workflow_spec,
@@ -2031,10 +2029,7 @@ class MlrunProject(ModelObj):
         logger.info(run_msg)
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
-            if inner_engine:
-                get_workflow_engine(inner_engine).get_run_status(project=self, run=run, timeout=timeout)
-            else:
-                workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
+            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

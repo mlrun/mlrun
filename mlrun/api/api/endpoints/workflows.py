@@ -330,6 +330,12 @@ def get_workflow_id(
     run = run_db.read_run(uid=uid, project=project)
 
     run_object = mlrun.RunObject.from_dict(run)
+
+    status = ""
+    # Does not have results yet:
+    if not isinstance(run_object.status.results, dict):
+        return {"workflow_id": None, "status": status}
+
     workflow_id = run_object.status.results.get("workflow_id", None)
 
     # Check permission READ run:
@@ -352,8 +358,6 @@ def get_workflow_id(
         else:
             engine = mlrun.projects.pipelines.get_workflow_engine(engine)
             status = engine.get_state(workflow_id, project)
-    else:
-        status = ""
 
     return {"workflow_id": workflow_id, "status": status}
 

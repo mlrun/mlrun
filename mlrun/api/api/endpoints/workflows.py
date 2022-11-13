@@ -16,7 +16,7 @@ import copy
 import traceback
 import uuid
 from http import HTTPStatus
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Union
 
 import fastapi
 from sqlalchemy.orm import Session
@@ -88,7 +88,8 @@ def submit_workflow(
     :param auth_info:       auth info of the request
     :param db_session:      session that manages the current dialog with the database
 
-    :return: A response that contains the project name, workflow name, name of the workflow, status, run id (in case of a single run) and schedule (in case of scheduling)
+    :return: A response that contains the project name, workflow name, name of the workflow,
+             status, run id (in case of a single run) and schedule (in case of scheduling)
     """
     # Getting project:
     project = (

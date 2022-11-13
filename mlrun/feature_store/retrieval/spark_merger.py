@@ -118,7 +118,7 @@ class SparkFeatureMerger(BaseMerger):
         self._write_to_target()
         return OfflineVectorResponse(self)
 
-    def unpersist_df(self, df):
+    def _unpersist_df(self, df):
         df.unpersist()
 
     def _asof_join(

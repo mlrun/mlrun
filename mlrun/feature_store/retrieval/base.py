@@ -138,7 +138,7 @@ class BaseMerger(abc.ABC):
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 
-    def unpersist_df(self, df):
+    def _unpersist_df(self, df):
         pass
 
     def merge(
@@ -174,7 +174,7 @@ class BaseMerger(abc.ABC):
 
             # unpersist as required by the implementation (e.g. spark) and delete references
             # to dataframe to allow for GC to free up the memory (local, dask)
-            self.unpersist_df(featureset_df)
+            self._unpersist_df(featureset_df)
             featureset_dfs[i] = None
             del featureset_df
 

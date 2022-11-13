@@ -1863,10 +1863,19 @@ class ContextHandler:
         :param expected_type: THe expected type to parse to.
 
         :returns: The parsed data item.
+
+        :raises MLRunRuntimeError: If an error was raised during the parsing function.
         """
-        return self._INPUTS_PARSING_MAP.get(
-            expected_type, self._INPUTS_PARSING_MAP[object]
-        )(data_item=data_item)
+        try:
+            return self._INPUTS_PARSING_MAP.get(
+                expected_type, self._INPUTS_PARSING_MAP[object]
+            )(data_item=data_item)
+        except Exception as exception:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"MLRun tried to parse a `DataItem` of type '{expected_type}' but failed. Be sure the item was "
+                f"logged correctly - as the type you are trying to parse it back to. In general, python objects should "
+                f"be logged as pickles."
+            ) from exception
 
     def _log_output(
         self,
@@ -1884,6 +1893,7 @@ class ContextHandler:
         :param key:           The key (name) of the artifact or a logging kwargs to use when logging the artifact.
 
         :raises MLRunInvalidArgumentError: If a key was provided in the logging kwargs.
+        :raises MLRunRuntimeError:         If an error was raised during the logging function.
         """
         # Get the artifact type (will also verify the artifact type is valid):
         artifact_type = self._ARTIFACT_TYPE_CLASS(artifact_type)
@@ -1896,12 +1906,18 @@ class ContextHandler:
             )
 
         # Use the logging map to log the object:
-        self._OUTPUTS_LOGGING_MAP[artifact_type](
-            ctx=self._context,
-            obj=obj,
-            key=key,
-            logging_kwargs=logging_kwargs,
-        )
+        try:
+            self._OUTPUTS_LOGGING_MAP[artifact_type](
+                ctx=self._context,
+                obj=obj,
+                key=key,
+                logging_kwargs=logging_kwargs,
+            )
+        except Exception as exception:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"MLRun tried to log '{key}' as '{artifact_type.value}' but failed. If you didn't provide the artifact "
+                f"type and the default one does not fit, try to select the correct type from the enum `ArtifactType`."
+            ) from exception
 
 
 def handler(

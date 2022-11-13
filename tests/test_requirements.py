@@ -95,9 +95,11 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.2.2"},
+        "storey": {"~=1.2.3"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
+        "sphinx": {"~=4.3.0"},
+        "google-cloud": {"~=0.34"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -262,11 +264,7 @@ def _import_extras_requirements():
     setuptools.setup = original_setup
     builtins.open = original_open
 
-    ignored_extras = [
-        "api",
-        "complete",
-        "complete-api",
-    ]
+    ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
     for extra_name, extra_requirements in setup.extras_require.items():

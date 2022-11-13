@@ -66,9 +66,9 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up python 3.7
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
     - name: Install automation scripts dependencies and add mlrun to dev packages
@@ -148,11 +148,11 @@ jobs:
           input_system_tests_clean_resources=${{ github.event.inputs.clean_resources_in_teardown }} && \
           echo ${input_system_tests_clean_resources:-true})"
 
-    - uses: azure/setup-helm@v1
+    - uses: azure/setup-helm@v3
       with:
         version: "v3.9.1"
 
-    - uses: manusa/actions-setup-minikube@v2.4.2
+    - uses: manusa/actions-setup-minikube@v2.7.1
       with:
         minikube version: "v1.26.0"
         kubernetes version: "v1.23.9"

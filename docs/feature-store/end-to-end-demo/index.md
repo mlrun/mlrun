@@ -3,10 +3,10 @@
 
 This demo shows the usage of MLRun and the feature store:
 
-- [**Data ingestion & preparation**](./01-ingest-datasources.ipynb)
-- [**Model training & testing**](./02-create-training-model.ipynb)
-- [**Model serving**](./03-deploy-serving-model.ipynb)
-- [**Building an automated ML pipeline**](./04-pipeline.ipynb)
+- [**Data ingestion & preparation**](01-ingest-datasources.html)
+- [**Model training & testing**](02-create-training-model.html)
+- [**Model serving**](03-deploy-serving-model.html)
+- [**Building an automated ML pipeline**](04-pipeline.html)
 
 Fraud prevention, specifically, is a challenge since it requires processing raw transactions and events in real-time and being able to
 quickly respond and block transactions before they occur. Consider, for example, a case where you would like to evaluate the

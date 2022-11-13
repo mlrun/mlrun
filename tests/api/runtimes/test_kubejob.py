@@ -245,6 +245,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
 
+    def test_set_annotation(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.with_annotations({"annotation-key": "annotation-value"})
+        self.execute_function(runtime)
+
+        pod = self._get_pod_creation_args()
+        assert pod.metadata.annotations.get("annotation-key") == "annotation-value"
+
     def test_run_with_security_context(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 

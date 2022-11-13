@@ -105,7 +105,11 @@ def submit_workflow(
         run_name,
         namespace,
     ) = request.dict().values()
-    spec = mlrun.api.schemas.WorkflowSpec.parse_obj(spec) if spec else mlrun.api.schemas.WorkflowSpec()
+    spec = (
+        mlrun.api.schemas.WorkflowSpec.parse_obj(spec)
+        if spec
+        else mlrun.api.schemas.WorkflowSpec()
+    )
 
     # Permission checks:
     # 1. CREATE run

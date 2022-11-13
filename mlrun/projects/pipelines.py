@@ -395,9 +395,7 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(
-        self, run_id, engine, project, workflow=None, state=""
-    ):
+    def __init__(self, run_id, engine, project, workflow=None, state=""):
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
@@ -416,7 +414,6 @@ class _PipelineRunStatus:
             project=self.project,
             timeout=timeout,
             expected_statuses=expected_statuses,
-            # run_object=self.run_object,
         )
         return self._state
 
@@ -456,7 +453,10 @@ class _PipelineRunner(abc.ABC):
     @staticmethod
     @abc.abstractmethod
     def wait_for_completion(
-        run_id, project=None, timeout=None, expected_statuses=None,
+        run_id,
+        project=None,
+        timeout=None,
+        expected_statuses=None,
     ):
         return ""
 
@@ -551,9 +551,7 @@ class _KFPRunner(_PipelineRunner):
         return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
-    def wait_for_completion(
-        run_id, project=None, timeout=None, expected_statuses=None
-    ):
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         if timeout is None:
             timeout = 60 * 60
         project_name = project.metadata.name if project else ""
@@ -674,9 +672,7 @@ class _LocalRunner(_PipelineRunner):
         return ""
 
     @staticmethod
-    def wait_for_completion(
-        run_id, project=None, timeout=None, expected_statuses=None
-    ):
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         pass
 
     @staticmethod
@@ -711,7 +707,7 @@ class _RemoteRunner(_PipelineRunner):
         )
         runner_name = f"workflow-runner-{workflow_name}"
         workflow_id = None
-        state = ''
+        state = ""
 
         try:
             run_db = mlrun.get_run_db()
@@ -731,28 +727,28 @@ class _RemoteRunner(_PipelineRunner):
             }
 
             resp = run_db.api_call(
-                "POST", f"projects/{project.name}/workflows/{workflow_name}/submit", json=data
+                "POST",
+                f"projects/{project.name}/workflows/{workflow_name}/submit",
+                json=data,
             )
             submit_workflow_result = resp.json()
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,
             )
-            run_id = submit_workflow_result.get('run_id')
+            run_id = submit_workflow_result.get("run_id")
 
             # Getting workflow id from run:
             seconds = 0.1
             while not workflow_id:
 
-                resp = run_db.api_call(
-                    "GET", f"projects/{project.name}/{run_id}"
-                )
+                resp = run_db.api_call("GET", f"projects/{project.name}/{run_id}")
                 result = resp.json()
                 workflow_id = result.get("workflow_id")
                 state = result.get("status")
                 time.sleep(seconds)
                 seconds = 1
             # After fetching the workflow_id the workflow executed successfully
-            if state == '':
+            if state == "":
                 # local pipelines does not return status
                 state = mlrun.run.RunStatuses.succeeded
             pipeline_context.clear()
@@ -781,9 +777,7 @@ class _RemoteRunner(_PipelineRunner):
             )
 
     @staticmethod
-    def wait_for_completion(
-        run_id, project=None, timeout=None, expected_statuses=None
-    ):
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
         # The returned engine for this run is the engine of the workflow.
         # So the right function will be invoked (another runner).
         pass

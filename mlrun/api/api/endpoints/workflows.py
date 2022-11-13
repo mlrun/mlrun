@@ -65,7 +65,17 @@ def submit_workflow(
 ) -> Union[Dict[str, Any], fastapi.Response]:
     """
     Submitting a workflow of existing project.
-    todo: add full flow description
+
+    To support workflow scheduling, we use here an auxiliary function called 'load_and_run'.
+    This function runs remotely (in a distinct pod), loads a project and then runs the workflow.
+    In this way we can run the workflow remotely with the workflow's engine or
+    schedule this function which in every time loads the project and runs the workflow.
+
+    Notice:
+
+    in case of simply running a workflow, the returned run_id value is the id of the run of the auxiliary function.
+    For getting the id and status of the workflow, use the `get_workflow_id` endpoint with the returned run id.
+
     :param project:         name of the project
     :param name:            name of the workflow
     :param request:         the request includes:
@@ -148,7 +158,7 @@ def submit_workflow(
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
         chief_client = mlrun.api.utils.clients.chief.Client()
-        submit_workflow_params = {
+        data = {
             "spec": spec,
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -157,7 +167,7 @@ def submit_workflow(
             "namespace": namespace,
         }
         return chief_client.submit_workflow(
-            project=project.metadata.name, name=name, json=submit_workflow_params
+            project=project.metadata.name, name=name, json=data
         )
     # Preparing inputs for load_and_run function
     # 1. To override the source of the project.
@@ -205,9 +215,6 @@ def submit_workflow(
         )
 
         if workflow_spec.schedule:
-
-            # Why do we need here to create uid?
-            # update run metadata (uid, labels) and store in DB
             # This logic follows the one is performed in `BaseRuntime._enrich_run()`
             meta_uid = uuid.uuid4().hex
 
@@ -256,7 +263,6 @@ def submit_workflow(
             }
 
         else:
-            print("1" * 100)
             runspec = _create_run_object_for_workflow_runner(
                 project=project,
                 workflow_spec=workflow_spec,
@@ -265,25 +271,15 @@ def submit_workflow(
                 workflow_name=workflow_spec.name,
                 workflow_handler=workflow_spec.handler,
             )
-            print("2" * 100)
+
             run = load_and_run_fn.run(
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
                 artifact_path=artifact_path,
             )
-            print("3" * 100)
+
             state = mlrun.run.RunStatuses.running
-            # Running workflow from the remote engine:
-            # run_status = mlrun.projects.pipelines._RemoteRunner.run(
-            #     project=project,
-            #     workflow_spec=workflow_spec,
-            #     name=name,
-            #     workflow_handler=workflow_spec.handler,
-            #     artifact_path=artifact_path,
-            #     namespace=namespace,
-            #     api_function=load_and_run_fn,
-            # )
 
             return {
                 "project": project.metadata.name,
@@ -356,56 +352,6 @@ def get_workflow_id(
         status = ""
 
     return {"workflow_id": workflow_id, "status": status}
-
-
-# def load_and_run(
-#     context,
-#     url: str = None,
-#     project_name: str = "",
-#     init_git: bool = None,
-#     subpath: str = None,
-#     clone: bool = False,
-#     workflow_name: str = None,
-#     workflow_path: str = None,
-#     workflow_arguments: Dict[str, Any] = None,
-#     artifact_path: str = None,
-#     workflow_handler: Union[str, Callable] = None,
-#     namespace: str = None,
-#     sync: bool = False,
-#     dirty: bool = False,
-#     ttl: int = None,
-#     engine: str = None,
-#     local: bool = None,
-# ):
-#     project = mlrun.load_project(
-#         context=f"./{project_name}",
-#         url=url,
-#         name=project_name,
-#         init_git=init_git,
-#         subpath=subpath,
-#         clone=clone,
-#     )
-#     context.logger.info(f"Loaded project {project.name} from remote successfully")
-#
-#     workflow_log_message = workflow_name or workflow_path
-#     context.logger.info(f"Running workflow {workflow_log_message} from remote")
-#     run = project.run(
-#         name=workflow_name,
-#         workflow_path=workflow_path,
-#         arguments=workflow_arguments,
-#         artifact_path=artifact_path,
-#         workflow_handler=workflow_handler,
-#         namespace=namespace,
-#         sync=sync,
-#         watch=False,  # Required for fetching the workflow_id
-#         dirty=dirty,
-#         ttl=ttl,
-#         engine=engine,
-#         local=local,
-#     )
-#     context.log_result(key="workflow_id", value=run.run_id)
-#
-#     context.log_result(key="engine", value=run._engine.engine, commit=True)
 
 
 def _create_run_object_for_workflow_runner(

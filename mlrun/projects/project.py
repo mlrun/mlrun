@@ -2023,7 +2023,10 @@ class MlrunProject(ModelObj):
         logger.info(run_msg)
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
-            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
+            if inner_engine:
+                get_workflow_engine(inner_engine).get_run_status(project=self, run=run, timeout=timeout)
+            else:
+                workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

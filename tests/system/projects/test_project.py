@@ -534,21 +534,20 @@ class TestProject(TestMLRunSystem):
 
             # waiting for the workflow to end:
             runner_id = result["run_id"]
-            once = True
-            num_tries = 20
-            while num_tries:
+            workflow_status, workflow_id = None, None
+            num_tries = 100
+            while workflow_status != expected_status or not workflow_id:
                 resp = self._run_db.api_call(
                     "GET", f"projects/{project_name}/{runner_id}"
                 )
                 result = resp.json()
-                if once:
-                    once = False
-                    assert set(result.keys()) == {"workflow_id", "status"}
-                if result["status"] == expected_status and result["workflow_id"]:
+                assert set(result.keys()) == {"workflow_id", "status"}
+                workflow_status, workflow_id = result["status"], result["workflow_id"]
+                time.sleep(3)
+                if not num_tries:
                     break
-                time.sleep(10)
                 num_tries -= 1
-
+            print(f"num tries: {num_tries}")
             assert result["status"] == expected_status
             print("success")
 
@@ -561,17 +560,18 @@ class TestProject(TestMLRunSystem):
             self.custom_project_names_to_delete.append(project_name)
             shutil.rmtree(project_dir, ignore_errors=True)
             # Loading a project with workflows:
-            mlrun.load_project(
+            project = mlrun.load_project(
                 project_dir,
                 "git://github.com/mlrun/project-demo.git",
                 name=project_name,
             )
+            project.save()
+
             # Submitting workflow:
-            data = {"spec": {"schedule": "*/10 * * * *"}}
             resp = self._run_db.api_call(
                 "POST",
                 f"projects/{project_name}/workflows/{workflow_name}/submit",
-                json=data,
+                json={"spec": {"schedule": "*/10 * * * *"}},
             )
 
             # Checking scheduled workflow submitted as expected:
@@ -593,7 +593,7 @@ class TestProject(TestMLRunSystem):
             assert schedule["scheduled_object"]["task"]["status"]["state"] == "created"
 
         finally:
-            # Deleting schedule:
+            # Deleting submitted schedule:
             self._run_db.api_call(
                 "DELETE",
                 f"projects/{project_name}/schedules",

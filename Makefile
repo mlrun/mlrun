@@ -422,6 +422,56 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
+.PHONY: test-dockerized-light
+test-dockerized: build-test ## Run mlrun tests in docker container
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-light
+
+
+.PHONY: test-dockerized-serving
+test-dockerized-serving: build-test ## Run mlrun serving tests in docker container
+	docker run \
+		-t \
+		--rm \
+		--network='host' \
+		-v /tmp:/tmp \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-serving
+
+.PHONY: test-light
+test: clean ## Run mlrun tests
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		--durations=100 \
+		--ignore=tests/integration \
+		--ignore=tests/system \
+		--ignore=tests/test_notebooks.py \
+		--ignore=tests/rundb/test_httpdb.py \
+		--ignore=tests/serving
+		-rf \
+		tests
+
+
+.PHONY: test-serving
+test: clean ## Run mlrun tests
+	python -m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		--durations=100 \
+		--ignore=tests/integration \
+		--ignore=tests/system \
+		--ignore=tests/test_notebooks.py \
+		--ignore=tests/rundb/test_httpdb.py \
+		-rf \
+		tests\serving
+
+
 .PHONY: test
 test: clean ## Run mlrun tests
 	python -m pytest -v \

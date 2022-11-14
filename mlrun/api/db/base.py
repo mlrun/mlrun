@@ -506,7 +506,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(self, session, project):
+    def list_artifact_tags(self, session, project, category):
         return []
 
     def create_marketplace_source(

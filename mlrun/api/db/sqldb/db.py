@@ -942,18 +942,31 @@ class SQLDB(DBInterface):
         return [row[0] for row in query]
 
     def list_artifact_tags(
-        self, session, project
+        self, session, project, category: schemas.ArtifactCategories = None
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, artifact.key, tag)
         """
-        query = (
-            session.query(Artifact.key, Artifact.Tag.name)
-            .filter(Artifact.Tag.project == project)
-            .join(Artifact)
-            .distinct()
+        # TODO - refactor once we have the artifact kind as a field in the DB, the filtering on category can be done
+        # as a simple SQL query, and don't need to use the extra processing of listing tags etc.
+
+        artifacts = self.list_artifacts(
+            session, project=project, tag="*", category=category
         )
-        return [(project, row[0], row[1]) for row in query]
+        results = []
+        for artifact in artifacts:
+            if is_legacy_artifact(artifact):
+                results.append((project, artifact.get("db_key"), artifact.get("tag")))
+            else:
+                results.append(
+                    (
+                        project,
+                        artifact["spec"].get("db_key"),
+                        artifact["metadata"].get("tag"),
+                    )
+                )
+
+        return results
 
     def create_schedule(
         self,

@@ -61,6 +61,7 @@ class LocalFeatureMerger(BaseMerger):
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
+            del df
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 

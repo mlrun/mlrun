@@ -49,18 +49,24 @@ def test_list_artifact_tags(db: SQLDB, db_session: Session):
     )
 
     tags = db.list_artifact_tags(db_session, "p1")
-    assert [("p1", "k1", "t1"), ("p1", "k1", "t2"), ("p1", "k2", "t3")] == tags
+    assert [
+        ("p1", "k1", "t1"),
+        ("p1", "k1", "latest"),
+        ("p1", "k1", "t2"),
+        ("p1", "k2", "t3"),
+        ("p1", "k2", "latest"),
+    ] == tags
 
     # filter by category
     model_tags = db.list_artifact_tags(
         db_session, "p1", mlrun.api.schemas.ArtifactCategories.model
     )
-    assert [("p1", "k2", "t3")] == model_tags
+    assert [("p1", "k2", "t3"), ("p1", "k2", "latest")] == model_tags
 
     model_tags = db.list_artifact_tags(
         db_session, "p2", mlrun.api.schemas.ArtifactCategories.dataset
     )
-    assert [("p2", "k3", "t4")] == model_tags
+    assert [("p2", "k3", "t4"), ("p2", "k3", "latest")] == model_tags
 
 
 def test_list_artifact_date(db: SQLDB, db_session: Session):

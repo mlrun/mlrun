@@ -422,44 +422,46 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
-.PHONY: test-dockerized-light
-test-dockerized: build-test ## Run mlrun tests in docker container
+.PHONY: test-dockerized-part-1
+test-dockerized-part-1: build-test ## Run mlrun tests in docker container
 	docker run \
 		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-light
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-part-1
 
 
-.PHONY: test-dockerized-serving
-test-dockerized-serving: build-test ## Run mlrun serving tests in docker container
+.PHONY: test-dockerized-part-2
+test-dockerized-part-2: build-test ## Run mlrun serving tests in docker container
 	docker run \
 		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-serving
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-part-2
 
-.PHONY: test-light
+.PHONY: test-part-1
 test: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
+		# below are tests which are not unit tests that we wish to skip
 		--ignore=tests/integration \
 		--ignore=tests/system \
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
+		# below are tests which are unit tests but because of specific constraints we moved them to part-2
 		--ignore=tests/serving
 		-rf \
 		tests
 
 
-.PHONY: test-serving
-test: clean ## Run mlrun tests
+.PHONY: test-part-2
+test: clean ## Run mlrun tests ( currently only serving as it really spams tests logs )
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \

@@ -80,7 +80,7 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert (
             deepdiff.DeepDiff(
                 model_tags,
-                [model_tag, model_tag_2],
+                [model_tag, model_tag_2, "latest"],
                 ignore_order=True,
             )
             == {}

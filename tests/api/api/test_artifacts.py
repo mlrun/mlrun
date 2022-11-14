@@ -243,12 +243,12 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     resp = client.get(LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"))
     assert resp.status_code == HTTPStatus.OK.value
 
-    # expected to return two artifacts with the same key but different tags
+    # expected to return three artifacts with the same key but different tags (latest, tag1, tag2)
     artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == 2
+    assert len(artifacts) == 3
 
     # verify that the artifacts returned contains different tags
     assert artifacts[0]["metadata"]["tag"] != artifacts[1]["metadata"]["tag"]
 
     for artifact in artifacts:
-        assert artifact["metadata"]["tag"] in [tag, new_tag]
+        assert artifact["metadata"]["tag"] in [tag, new_tag, "latest"]

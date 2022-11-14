@@ -269,7 +269,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         tag=artifact_2_tag,
     )
     artifacts = db.list_artifacts(db_session, artifact_key, tag="*")
-    assert len(artifacts) == 2
+    assert len(artifacts) == 3  # also latest is returned
     expected_uids = [artifact_1_uid, artifact_2_uid]
     uids = [artifact["metadata"]["uid"] for artifact in artifacts]
     assert (
@@ -280,7 +280,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         )
         == {}
     )
-    expected_tags = [artifact_1_tag, artifact_2_tag]
+    expected_tags = [artifact_1_tag, artifact_2_tag, "latest"]
     tags = [artifact["metadata"]["tag"] for artifact in artifacts]
     assert (
         deepdiff.DeepDiff(

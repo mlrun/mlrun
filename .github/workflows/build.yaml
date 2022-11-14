@@ -137,7 +137,7 @@ jobs:
 
       # we don't need to have unstable tag for the test image
       # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && (github.ref_name == 'development' || github.ref_name == 'py39-development')
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \

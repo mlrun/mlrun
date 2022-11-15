@@ -1,21 +1,33 @@
 (install-on-aws)=
 # Install MLRun on AWS
 
-For AWS users, the easiest way to install MLRun is to use a native AWS deployment. This option deploys MLRun on an AWS EKS service using a cloud formation stack.
+For AWS users, the easiest way to install MLRun is to use a native AWS deployment. This option deploys MLRun on an AWS EKS service using a CloudFormation stack.
 
 ## Prerequisites
 
-AWS account with Permission to run a CloudFormation stack, create an EKS cluster, Create EC2 instances, define VPC, create S3 buckets and deploy and pull images from ECR.
+AWS account with permissions that include: 
 
-  For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/).
+- Run a CloudFormation stack
+- Create an EKS cluster
+- Create EC2 instances
+- Create VPC
+- Create S3 buckets
+- Deploy and pull images from ECR.
 
-- To access instance management, you will need to have at least one key pair for SSH keys. For more information see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
-- You need to have a route53 domain configured. External domain registration is currently not supported. For more information see [What is Amazon Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
+For the full set of required permissions, **{Download}`download the IAM policy<./aws_policy.json>`** or expand & copy the IAM policy below: 
 
+````{dropdown} show the IAM policy
+   ```{literalinclude} ./aws_policy.json
+   :language: json
+   ```
+````
 
-> **Note**:
-> - The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example,  reserved instance configuration, saving plan, and AWS credits you have associated with your account.
-> - It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor and set-up alerts.
+  For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) and [policies and permissions in IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html).
+
+> **Notes**:
+> - To access the instances, you will need to have at least one key pair for SSH keys. For more information see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
+> - You need to have a Route53 domain configured. External domain registration is currently not supported. For more information see [What is Amazon Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
+> - The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example, reserved instance configuration, saving plan, and AWS credits you have associated with your account. It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor and set-up alerts.
 
 ## Post deployment expectations
 
@@ -62,7 +74,7 @@ After clicking the icon, the browser directs you to the CloudFormation stack pag
 **Amazon EC2 configuration**
 
 9. **SSH key name** (m)&mdash;select from the stored keys in the dropdown. The list is based on the SSH keys that are in your account. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
-10. **Provision bastion host** (m)&mdash;create a bastion host for SSH access to the Kubernetes nodes. The default is disabled.
+10. **Provision bastion host** (m)&mdash;create a bastion host for SSH access to the Kubernetes nodes. The default is enabled.
 
 
 **Iguazio MLRun configuration**
@@ -81,19 +93,19 @@ After clicking the icon, the browser directs you to the CloudFormation stack pag
 Press **Create Stack** to continue the deployment.
 The stack creates a VPC with an EKS cluster and deploys all the services on top of it.
 
-> **note**: It could take up to 2 hours for your stack to be created.
+> **Note**: It could take up to 2 hours for your stack to be created.
 
 ## Getting started
 When the stack is complete, go to the **output** tab for the stack you created. There are links for the MLRun UI, Jupyter and the Kubeconfig command.
 
 It's recommended to go through the quick-start and the other tutorials as shown in the documentation. These tutorials and demos come built-in with Jupyter under the root folder of Jupyter.
 
-## AWS services to be aware of
+## Storage resources
 
-When installing the MLRun Community Edition via Cloud Formation, several storage resources are created, some of which persist even after uninstalling the stack:
+When installing the MLRun Community Edition via Cloud Formation, several storage resources are created:
 
 - **PVs via AWS storage provider**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun. These are deleted when the stack is uninstalled.
-- **S3 Bucket**: A bucket named `<EKS cluster name>-<Random string>` is created in the AWS account that installs the stack (where `<EKS cluster name>` is the name of the EKS cluster you chose and `<Random string>` is part of the CloudFormation stack ID). The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
+- **S3 Bucket**: A bucket named `<EKS cluster name>-<Random string>` is created in the AWS account that installs the stack (where `<EKS cluster name>` is the name of the EKS cluster you chose and `<Random string>` is part of the CloudFormation stack ID). You can see the bucket name in the output tab of the stack. The bucket is used for MLRun’s artifact storage, and is not deleted when uninstalling the stack. The user must empty the bucket and delete it.
 - **Container Images in ECR**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in an ECR belonging to the AWS account that installs the stack. These images persist in the account’s ECR and are not deleted either.
 
 <a id="configure-online-feature-store"/>
@@ -119,7 +131,7 @@ See the examples on how to configure the MLRun serving graph with {ref}`kafka<se
 To free up the resources used by MLRun:
 
 - Delete the stack. See [instructions for deleting a stack on the AWS CloudFormation console](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html) for more details.
-- Delete the S3 that begins with the same name as your EKS cluster`.
+- Delete the S3 bucket that begins with the same name as your EKS cluster. The S3 bucket name is available in the CloudFormation stack output tab.
 - Delete any remaining images in ECR.
 
 You may also need to check any external storage that you used.

@@ -167,6 +167,15 @@ class KubejobRuntime(KubeResource):
         if build.source:
             build.load_source_on_run = False
 
+            if not os.path.isabs(build.source):
+
+                # At this point we can't determine the absolute path of the source code
+                # on old mlrun versions we do not resolve the absolute path
+                # TODO: write better comment
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Source path must be absolute", build.source
+                )
+
         if with_mlrun is None:
             if build.with_mlrun is not None:
                 with_mlrun = build.with_mlrun

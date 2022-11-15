@@ -153,6 +153,7 @@ class ArtifactManager:
             target_path = target_path or item.target_path
 
         src_path = os.path.abspath(local_path) or item.src_path  # TODO: remove src_path
+        logger.info("ALON", src_path=src_path, local_path=local_path)
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
         item.format = format or item.format

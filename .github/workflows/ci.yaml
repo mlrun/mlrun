@@ -57,7 +57,7 @@ jobs:
       run: make lint
 
   tests-part-1:
-    name: Run Dockerized Tests (Part 1)
+    name: Run Dockerized Tests (General)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -73,11 +73,11 @@ jobs:
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized-part-1
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized-general
 
 
-  tests-part-2:
-    name: Run Dockerized Tests (Part 2)
+  tests-serving:
+    name: Run Dockerized Tests (Runtimes)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -93,7 +93,7 @@ jobs:
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized-part-2
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized-runtimes
 
 
   integration-tests:

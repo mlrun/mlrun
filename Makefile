@@ -422,29 +422,29 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
 
-.PHONY: test-dockerized-part-1
-test-dockerized-part-1: build-test ## Run mlrun tests in docker container
+.PHONY: test-dockerized-general
+test-dockerized-general: build-test ## Run mlrun tests in docker container
 	docker run \
 		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-part-1
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-general
 
 
-.PHONY: test-dockerized-part-2
-test-dockerized-part-2: build-test ## Run mlrun serving tests in docker container
+.PHONY: test-dockerized-runtimes
+test-dockerized-runtimes: build-test ## Run mlrun serving tests in docker container
 	docker run \
 		-t \
 		--rm \
 		--network='host' \
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-part-2
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-runtimes
 
-.PHONY: test-part-1
-test-part-1: clean ## Run mlrun tests
+.PHONY: test-general
+test-general: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
@@ -454,14 +454,15 @@ test-part-1: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
-		# below are tests which are unit tests but because of specific constraints we moved them to part-2
+		# below are tests which are unit tests but because of specific constraints we moved them to test-serving
 		--ignore=tests/serving
+        --ignore=tests/runtimes
 		-rf \
 		tests
 
 
-.PHONY: test-part-2
-test-part-2: clean ## Run mlrun tests ( currently only serving as it really spams tests logs )
+.PHONY: test-runtimes
+test-runtimes: clean ## Run mlrun tests ( currently only serving as it really spams tests logs )
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
@@ -471,7 +472,7 @@ test-part-2: clean ## Run mlrun tests ( currently only serving as it really spam
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests/serving
+		tests/serving tests/runtimes
 
 
 .PHONY: test

@@ -5,7 +5,7 @@ For AWS users, the easiest way to install MLRun is to use a native AWS deploymen
 
 ## Prerequisites
 
-AWS account with permissions that include: 
+AWS account with permissions that include the ability to: 
 
 - Run a CloudFormation stack
 - Create an EKS cluster

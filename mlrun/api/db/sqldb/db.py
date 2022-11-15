@@ -361,20 +361,10 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
-                # because of backwards compatible that list_artifacts is keeping, we want to pass the function
-                # indication that the tag which is passed is uid
-                use_tag_as_uid=True,
+                project_name=project,
+                identifier=identifier,
             )
         # TODO remove duplicates artifacts entries
         # delete related tags from artifacts identifiers
@@ -394,28 +384,10 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
-                # because of backwards compatible that list_artifacts is keeping, we want to pass the function
-                # indication that the tag which is passed is uid
-                use_tag_as_uid=True,
-            )
-            logger.info(
-                "here are the artifacts I found",
-                artifacts=artifacts,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                tag=identifier.uid,
+                project_name=project,
+                identifier=identifier,
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
 
@@ -429,22 +401,37 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
-                # because of backwards compatible that list_artifacts is keeping, we want to pass the function
-                # indication that the tag which is passed is uid
-                use_tag_as_uid=True,
+                project_name=project,
+                identifier=identifier,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    def _list_artifacts_for_tagging(
+        self,
+        session: Session,
+        project_name: str,
+        identifier: mlrun.api.schemas.ArtifactIdentifier,
+    ):
+        return self.list_artifacts(
+            session,
+            project=project_name,
+            name=identifier.key,
+            kind=identifier.kind,
+            iter=identifier.iter,
+            # 1. will be changed to uid, after refactoring the code, currently to list artifacts by uid
+            # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+            # list_artifacts method (_resolve_tag)
+            # 2. if the identifier.uid is None, we want to list all artifacts, so we pass "*"
+            tag=identifier.uid or "*",
+            as_records=True,
+            # 1. because of backwards compatible that list_artifacts is keeping, we want to pass the function
+            # indication that the tag which is passed is uid
+            # 2. if uid wasn't passed as part of the identifiers then
+            # we will ask for tag "*" and in that case we don't want to use the tag as uid
+            use_tag_as_uid=True if identifier.uid else False,
+        )
 
     @retry_on_conflict
     def store_artifact(
@@ -627,7 +614,7 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "best-iteration cannot be used when iter is specified"
             )
-
+        print("tag", tag)
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
@@ -647,9 +634,10 @@ class SQLDB(DBInterface):
         # use_tag_as_uid == None is keeping the old behavior
         # use_tag_as_uid == False also keeps the old behavior for now, but left that option to be able to change later
         # use_tag_as_uid == True saying to the list artifacts that the tag is actually the uid
-        if use_tag_as_uid:
+        if use_tag_as_uid and tag:
+            print("here")
             ids = tag
-
+        print(ids)
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
             session,
@@ -2788,6 +2776,7 @@ class SQLDB(DBInterface):
             raise ValueError(message)
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
+        print("ids", ids)
         if ids != "*":
             if ids == "latest" and not use_tag_as_uid:
                 query = self._latest_uid_filter(session, query)

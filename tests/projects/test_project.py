@@ -84,11 +84,17 @@ def test_create_project_from_file_with_legacy_structure():
         "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
         "o-Customer-Churn.csv",
         "db_key": "raw-data",
+        "src_path": "./relative_path",
     }
     legacy_project.artifacts = [artifact_dict]
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
     project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
+
+    # This is usually called as part of load_project. However, since we're using save=False, this doesn't get
+    # called. So, calling manually to verify it works.
+    project.register_artifacts()
+
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description

@@ -374,7 +374,7 @@ class SQLDB(DBInterface):
                 as_records=True,
                 # because of backwards compatible that list_artifacts is keeping, we want to pass the function
                 # indication that the tag which is passed is uid
-                tag_to_uid=True,
+                use_tag_as_uid=True,
             )
         # TODO remove duplicates artifacts entries
         # delete related tags from artifacts identifiers
@@ -407,7 +407,7 @@ class SQLDB(DBInterface):
                 as_records=True,
                 # because of backwards compatible that list_artifacts is keeping, we want to pass the function
                 # indication that the tag which is passed is uid
-                tag_to_uid=True,
+                use_tag_as_uid=True,
             )
             logger.info(
                 "here are the artifacts I found",
@@ -442,7 +442,7 @@ class SQLDB(DBInterface):
                 as_records=True,
                 # because of backwards compatible that list_artifacts is keeping, we want to pass the function
                 # indication that the tag which is passed is uid
-                tag_to_uid=True,
+                use_tag_as_uid=True,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
 
@@ -619,7 +619,7 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        tag_to_uid: bool = None,
+        use_tag_as_uid: bool = None,
     ):
         project = project or config.default_project
 
@@ -632,7 +632,7 @@ class SQLDB(DBInterface):
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
         ids = "latest"
-        if tag and not tag_to_uid:
+        if tag and not use_tag_as_uid:
             # allow to ask for all versions of an artifact
             if tag == "*":
                 ids = tag
@@ -644,15 +644,25 @@ class SQLDB(DBInterface):
         # setting the artifact uid to be the same as the producer tag which at the time was "latest", this becomes a
         # problem with uid = "latest" because there are also "latest" tags in the system, which means we will get ids
         # response from the `_resolve_tag` above and then we will iterate over the wrong artifact
-        # tag_to_uid == None is keeping the old behavior
-        # tag_to_uid == False also keeps the old behavior for now, but left that option to be able to change it in the
-        # tag_to_uid == True saying to the list artifacts that the tag is actually the uid
-        if tag_to_uid:
+        # use_tag_as_uid == None is keeping the old behavior
+        # use_tag_as_uid == False also keeps the old behavior for now, but left that option to be able to change later
+        # use_tag_as_uid == True saying to the list artifacts that the tag is actually the uid
+        if use_tag_as_uid:
             ids = tag
 
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
-            session, project, ids, labels, since, until, name, kind, category, iter
+            session,
+            project,
+            ids,
+            labels,
+            since,
+            until,
+            name,
+            kind,
+            category,
+            iter,
+            use_tag_as_uid=use_tag_as_uid,
         )
         if as_records:
             if best_iteration:
@@ -2759,16 +2769,16 @@ class SQLDB(DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter=None,
-        tag_to_uid: bool = None,
+        use_tag_as_uid: bool = None,
     ):
         """
         TODO: refactor this method
         basically ids should be list of strings (representing ids), but we also handle 3 special cases (mainly for
         BC until we refactor the whole artifacts API):
         1. ids == "*" - in which we don't care about ids we just don't add any filter for this column
-        2. ids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
-        if tag_to_uid==(None or False) we find the relevant uid by finding the latest artifact using the updated column
-        if tag_to_uid==True we are treating the ids as uid (for backwards compatibility where we have artifacts which
+        2. ids == "latest":
+        use_tag_as_uid==(None or False) we find the relevant uid by finding the latest artifact using the updated column
+        use_tag_as_uid==True we are treating the ids as uid (for backwards compatibility where we have artifacts which
         were created with uid==latest when created using the project.log_artifact() method)
         3. ids is a string (different than "latest") - in which the meaning is actually a uid, so we add this filter
         """
@@ -2779,7 +2789,7 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
         if ids != "*":
-            if ids == "latest" and not tag_to_uid:
+            if ids == "latest" and not use_tag_as_uid:
                 query = self._latest_uid_filter(session, query)
             elif isinstance(ids, str):
                 query = query.filter(Artifact.uid == ids)

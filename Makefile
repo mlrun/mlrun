@@ -444,7 +444,7 @@ test-dockerized-part-2: build-test ## Run mlrun serving tests in docker containe
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-part-2
 
 .PHONY: test-part-1
-test: clean ## Run mlrun tests
+test-part-1: clean ## Run mlrun tests
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
@@ -461,7 +461,7 @@ test: clean ## Run mlrun tests
 
 
 .PHONY: test-part-2
-test: clean ## Run mlrun tests ( currently only serving as it really spams tests logs )
+test-part-2: clean ## Run mlrun tests ( currently only serving as it really spams tests logs )
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \

@@ -73,7 +73,7 @@ jobs:
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized-part-1
 
 
   tests-part-2:
@@ -93,7 +93,7 @@ jobs:
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
         echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
-      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
+      run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized-part-2
 
 
   integration-tests:

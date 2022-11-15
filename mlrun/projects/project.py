@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
@@ -1271,7 +1272,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         item = am.log_artifact(
             producer,

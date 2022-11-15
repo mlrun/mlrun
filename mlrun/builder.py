@@ -383,7 +383,7 @@ def build_image(
 
     if to_mount:
         kpod.mount_v3io(
-            remote=source,  # TODO: check I didnt break this
+            remote=src_dir,
             mount_path="/context",
             access_key=access_key,
             user=username,

@@ -471,7 +471,7 @@ test-part-2: clean ## Run mlrun tests ( currently only serving as it really spam
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests\serving
+		tests/serving
 
 
 .PHONY: test

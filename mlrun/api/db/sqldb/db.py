@@ -372,6 +372,9 @@ class SQLDB(DBInterface):
                 # list_artifacts method (_resolve_tag)
                 tag=identifier.uid,
                 as_records=True,
+                # because of backwards compatible that list_artifacts is keeping, we want to pass the function
+                # indication that the tag which is passed is uid
+                tag_to_uid=True,
             )
         # TODO remove duplicates artifacts entries
         # delete related tags from artifacts identifiers
@@ -402,6 +405,17 @@ class SQLDB(DBInterface):
                 # list_artifacts method (_resolve_tag)
                 tag=identifier.uid,
                 as_records=True,
+                # because of backwards compatible that list_artifacts is keeping, we want to pass the function
+                # indication that the tag which is passed is uid
+                tag_to_uid=True,
+            )
+            logger.info(
+                "here are the artifacts I found",
+                artifacts=artifacts,
+                name=identifier.key,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                tag=identifier.uid,
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
 
@@ -426,6 +440,9 @@ class SQLDB(DBInterface):
                 # list_artifacts method (_resolve_tag)
                 tag=identifier.uid,
                 as_records=True,
+                # because of backwards compatible that list_artifacts is keeping, we want to pass the function
+                # indication that the tag which is passed is uid
+                tag_to_uid=True,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
 
@@ -602,6 +619,7 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        tag_to_uid: bool = None,
     ):
         project = project or config.default_project
 
@@ -614,12 +632,23 @@ class SQLDB(DBInterface):
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
         ids = "latest"
-        if tag:
+        if tag and not tag_to_uid:
             # allow to ask for all versions of an artifact
             if tag == "*":
                 ids = tag
             else:
                 ids = self._resolve_tag(session, Artifact, project, tag)
+
+        # tag_to_uid is used to catch old artifacts which were created when logging artifacts using the project
+        # producer and not by context, this because when were logging artifacts using the project producer we were
+        # setting the artifact uid to be the same as the producer tag which at the time was "latest", this becomes a
+        # problem with uid = "latest" because there are also "latest" tags in the system, which means we will get ids
+        # response from the `_resolve_tag` above and then we will iterate over the wrong artifact
+        # tag_to_uid == None is keeping the old behavior
+        # tag_to_uid == False also keeps the old behavior for now, but left that option to be able to change it in the
+        # tag_to_uid == True saying to the list artifacts that the tag is actually the uid
+        if tag_to_uid:
+            ids = tag
 
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(

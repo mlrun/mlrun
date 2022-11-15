@@ -153,6 +153,7 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        tag_to_uid: bool = None,
     ):
         pass
 

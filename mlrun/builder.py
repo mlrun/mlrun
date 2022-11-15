@@ -62,7 +62,7 @@ def make_dockerfile(
         dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
         dock += extra
-    logger.info(f"Dockerfile\n{dock}")
+    logger.info(f"Dockerfile:\n{dock}")
     return dock
 
 

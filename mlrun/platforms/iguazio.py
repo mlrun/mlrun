@@ -329,6 +329,10 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
     remote = str(remote)
 
+    # TODO: rewrite this better
+    if remote.startswith(environ.get("HOME")):
+        remote.replace(environ.get("HOME"), "~/", 1)
+
     if remote.startswith("~/"):
         user = user or environ.get("V3IO_USERNAME")
         if not user:

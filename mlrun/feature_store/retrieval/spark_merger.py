@@ -95,6 +95,7 @@ class SparkFeatureMerger(BaseMerger):
             # select requested columns and rename with alias where needed
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             dfs.append(df)
+            del df
 
         # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
@@ -116,6 +117,9 @@ class SparkFeatureMerger(BaseMerger):
 
         self._write_to_target()
         return OfflineVectorResponse(self)
+
+    def _unpersist_df(self, df):
+        df.unpersist()
 
     def _asof_join(
         self,

@@ -681,3 +681,73 @@ def test_parse_inputs_from_wrapper_with_mlrun():
 
     # Clean the test outputs:
     artifact_path.cleanup()
+
+
+@mlrun.handler(outputs=[("error_numpy", mlrun.ArtifactType.DATASET)])
+def raise_error_while_logging():
+    return np.ones(shape=(7, 7, 7))
+
+
+def test_raise_error_while_logging_with_mlrun():
+    """
+    Run the `log_from_function_and_wrapper` function with MLRun to see the wrapper is logging the returned values
+    among the other values logged via the context manually inside the function.
+    """
+    # Create the function:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+
+    # Run and expect an error:
+    try:
+        mlrun_function.run(
+            handler="raise_error_while_logging",
+            artifact_path=artifact_path.name,
+            local=True,
+        )
+        assert False
+    except Exception as e:
+        mlrun.utils.logger.info(e)
+        assert "MLRun tried to log 'error_numpy' as " in str(e)
+
+    # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+def test_raise_error_while_parsing_with_mlrun():
+    """
+    Run the `parse_inputs_from_wrapper` function with MLRun and send it wrong types to see the wrapper is raising the
+    relevant exception.
+    """
+    # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+    log_dataset_run = mlrun_function.run(
+        handler="log_dataset",
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+    log_object_run = mlrun_function.run(
+        handler="log_object",
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Run the function that will parse the data items and expect an error:
+    try:
+        mlrun_function.run(
+            handler="parse_inputs_from_wrapper",
+            inputs={
+                "my_data": log_object_run.outputs["my_object"],
+                "my_encoder": log_dataset_run.outputs["my_list"],
+            },
+            params={"add": 1},
+            artifact_path=artifact_path.name,
+            local=True,
+        )
+        assert False
+    except Exception as e:
+        mlrun.utils.logger.info(e)
+        assert "MLRun tried to parse a `DataItem` of type " in str(e)
+
+    # Clean the test outputs:
+    artifact_path.cleanup()

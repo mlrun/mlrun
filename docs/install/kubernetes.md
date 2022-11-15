@@ -1,11 +1,13 @@
 (install-on-kubernetes)=
-# Install MLRun on a Kubernetes Cluster
+# Install MLRun on Kubernetes
 
 **In this section**
 - [Prerequisites](#prerequisites)
+- [Community Edition Flavors](#community-edition-flavors)
 - [Installing on Docker Desktop](#installing-on-docker-desktop)
-- [Installing the chart](#installing-the-chart)
-- [Installing Kubeflow](#install-kubeflow)
+- [Installing the Lite Version](#installing-the-lite-version)
+- [Installing the Full Version](#installing-the-full-version)
+- [Configuring Online Feature Store](#configuring-online-feature-store)
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
 - [Advanced chart configuration](#advanced-chart-configuration)
@@ -21,16 +23,32 @@ instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more 
 - Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
 - Storage: 7Gi
+- RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 
 ``` {admonition} Note
-The MLRun kit resources (MLRun-API, MLRun-UI, Jupyter, and Nuclio) are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
+The MLRun Community Edition resources are configured initially with the default cluster/namespace resources limits. You can modify the resources from outside if needed.
 ```
 
-**Watch the installation:**
+## Community Edition flavors
 
-<iframe width="187" height="105" src="https://www.youtube.com/embed/Z6mTw7_n8iE" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+The MLRun CE (Community Edition) chart arrives in 2 flavors - lite and full.
+The lite version is the default installation and includes the following components:
+* MLRun - https://github.com/mlrun/mlrun
+  - MLRun API
+  - MLRun UI
+  - MLRun DB (MySQL)
+* Nuclio - https://github.com/nuclio/nuclio
+* Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
+* MPI Operator - https://github.com/kubeflow/mpi-operator
+* Minio - https://github.com/minio/minio/tree/master/helm/minio
 
-<a id="docker-desktop-installation"></a>
+The Full Version also includes:
+* Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
+* Pipelines - https://github.com/kubeflow/pipelines
+* Prometheus stack - https://github.com/prometheus-community/helm-charts
+  - Prometheus
+  - Grafana
+
 ## Installing on Docker Desktop
 
 Docker Desktop is available for Mac and Windows. For download information, system requirements, and installation instructions, see:
@@ -60,7 +78,7 @@ To learn about the various UI options and their usage, see:
 
 
 <a id="installing-the-chart"></a>
-## Installing the chart
+## Installing the Lite Version
 
 ```{admonition} Note
 These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
@@ -72,10 +90,10 @@ Create a namespace for the deployed components:
 kubectl create namespace mlrun
 ```
 
-Add the `v3io-stable` helm chart repo:
+Add the Community Edition helm chart repo:
 
 ```bash
-helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
+helm repo add mlrun-ce https://mlrun.github.io/ce
 ```
 
 Update the repo to make sure you're getting the latest chart:
@@ -107,55 +125,63 @@ are being pulled locally for the first time (it will take an average of 10-15 mi
 your internet speed).
 ```
 
-To install the chart with the release name `mlrun-kit` use the following command.
+To install the chart with the release name `mlrun-ce` use the following command.
 Note the reference to the pre-created `registry-credentials` secret in `global.registry.secretName`:
 
 ```bash
 helm --namespace mlrun \
-    install mlrun-kit \
+    install mlrun-ce \
     --wait \
     --timeout 960s \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
-    v3io-stable/mlrun-kit
+    --set global.externalHostAddress=<host-machine-address> \
+    mlrun-ce/mlrun-ce
 ```
 
-Where `<registry-url>` is the registry URL which can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
+Where:
+ - `<registry-url>` is the registry URL that can be authenticated by the `registry-credentials` secret (e.g., `index.docker.io/<your-username>` for Docker Hub).
+ - `<host-machine-address>` is the IP address of the host machine (or `$(minikube ip)` if using minikube).
 
-```{admonition} Installing on Minikube/VM**
-The Open source MLRun kit uses node ports for simplicity. If your Kubernetes cluster is running inside a VM, 
-as is usually the case when using minikube, the Kubernetes services exposed over node ports are not available on 
-your local host interface, but instead, on the virtual machine's interface.
-To accommodate for this, use the `global.externalHostAddress` value on the chart. For example, if you're using 
-the kit inside a minikube cluster (with some non-empty `vm-driver`), pass the VM address in the chart installation 
-command as follows:
+When the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
+
+## Installing the Full Version
+
+To install the full version of the chart, use the following command:
 
 ```bash
 helm --namespace mlrun \
-    install my-mlrun \
+    install mlrun-ce \
     --wait \
     --timeout 960s \
-    --set global.registry.url=<registry URL e.g. index.docker.io/iguazio > \
+    -f override-full.yaml \
+    --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
-    --set global.externalHostAddress=$(minikube ip) \
-    v3io-stable/mlrun-kit
+    --set global.externalHostAddress=<host-machine-address> \
+    mlrun-ce/mlrun-ce
 ```
-Where `$(minikube ip)` shell command resolving the external node address of the k8s node VM.
 
-## Installing Kubeflow
+## Configuring Online Feature Store
+The MLRun Community Edition now supports the online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
+To deploy a REDIS service, refer to the following [link](https://redis.io/docs/getting-started/).
 
-You can run your functions while saving outputs and artifacts in a way that is visible to Kubeflow Pipelines.
-To use this capability you need to install Kubeflow on your cluster.
-Refer to the [Kubeflow documentation](https://www.kubeflow.org/docs/started/getting-started/) for more information.
+When you have a REDIS service deployed, you can configure MLRun CE to use it by adding the following helm value configuration to your helm install command:
+```bash
+--set mlrun.api.extraEnvKeyValue.MLRUN_REDIS__URL=<redis-address>
+```
 
 ## Usage
 
 Your applications are now available in your local browser:
+- jupyter-notebook - http://<host-machine-address>:30040
+- nuclio - http://<host-machine-address>:30050
+- mlrun UI - http://<host-machine-address>:30060
+- mlrun API (external) - http://<host-machine-address>:30070
+- minio API - http://<host-machine-address>:30080
+- minio UI - http://<host-machine-address>:30090
+- pipeline UI - http://<host-machine-address>:30100
+- grafana UI - http://<host-machine-address>:30110
 
-- Jupyter-notebook - http://localhost:30040
-- Nuclio - http://localhost:30050
-- MLRun UI - http://localhost:30060
-- MLRun API (external) - http://localhost:30070 (health check via http://localhost:30070/api/healthz)
 
 ```{admonition} Check state
 You can check current state of installation via command `kubectl -n mlrun get pods`, where the main information
@@ -163,16 +189,14 @@ is in columns `Ready` and `State`. If all images have already been pulled locall
 a minute for all services to start.
 ```
 
-```{admonition} Note
-The above links assume your Kubernetes cluster is exposed on localhost.
-If that's not the case, the different components are available on the provided `externalHostAddress`
-- You can change the ports by providing values to the helm install command.
-- You can add and configure a k8s ingress-controller for better security and control over external access.
-```
+> **Note:**
+> - You can change the ports by providing values to the helm install command.
+> - You can add and configure a k8s ingress-controller for better security and control over external access.
 
-## Start working
 
-Open Jupyter Lab on [**jupyter-lab UI**](http://localhost:30040) and run the code in [**quick-start.ipynb**](https://github.com/mlrun/mlrun/blob/master/docs/quick-start/quick-start.ipynb) notebook.
+## Start Working
+Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
+[**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 
 ```{admonition} Important
 Make sure to save your changes in the `data` folder within the Jupyter Lab. The root folder and any other folder do not retain the changes when you restart the Jupyter Lab.
@@ -180,83 +204,29 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster.
-
-### Prerequisites
-
-Before you begin, ensure that the following prerequisites are met:
-
-- The MLRun version installed with the MLRun Kit is the same as the MLRun version on your remote cluster. If needed, upgrade MLRun 
-either in your local installation or on the remote cluster so that they match.
-- You have remote access to your MLRun service (i.e. to the service URL on the remote Kubernetes cluster).
-
-### Setting environment variables
-
-Define your MLRun configuration. 
-
-- As a minimum requirement: Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service; replace the `<...>` placeholders to identify your remote target:
-
-    ```ini
-    MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
-    ```
-
-- To store the artifacts on the remote server, you need to set the `MLRUN_ARTIFACT_PATH` to the desired root folder of your 
-artifact. You can use template values in the artifact path. The supported values are:
-   - `{{project}}` to include the project name in the path.
-   - `{{run.uid}}` to include the specific run uid in the artifact path. 
-
-   For example:
-
-    ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}
-    ```
-    
-   or:
-
-    ```ini
-    MLRUN_ARTIFACT_PATH=/User/artifacts/{{project}}/{{run.uid}}
-    ```
-    
-- If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well. Replace the `<...>` placeholders with the details for your specific platform cluster:
-
-    ```ini
-    V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-    V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">
-    V3IO_ACCESS_KEY=<platform access key>
-    ```
-
-    You can get the platform access key from the platform dashboard: select the user-profile picture or icon from the top right corner of 
-    any page, and select **Access Keys** from the menu. In the **Access Keys** dialog, either copy an existing access key or create a new 
-    key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-
-    shell or Jupyter Notebook service.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your client environment](remote.md) for more information.
 
 ## Advanced chart configuration
 
 Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
 
-## Uninstalling the chart
-
+## Uninstalling the Chart
 ```bash
-helm --namespace mlrun uninstall mlrun-kit
+helm --namespace mlrun uninstall mlrun-ce
 ```
 
-```{admonition} Terminating pods and hanging resources
-This chart generates several persistent volume claims and also provisions an NFS
-provisioning server, giving persistency (via PVC) out of the box.
-Because of the persistency of PV/PVC resources, after installing this chart, PVs and PVCs are created.
-Upon uninstallation, any hanging / terminating pods hold the PVs and PVCs respectively, since those
-prevent their safe removal.
+#### Note on terminating pods and hanging resources
+This chart generates several persistent volume claims that provide persistency (via PVC) out of the box. 
+Upon uninstallation, any hanging / terminating pods will hold the PVCs and PVs respectively, as those prevent their safe removal.
 Since pods that are stuck in terminating state seem to be a never-ending plague in k8s, note this,
 and remember to clean the remaining PVs and PVCs.
-```
 
-Handing stuck-at-terminating pods:
-
+#### Handing stuck-at-terminating pods:
 ```bash
 kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
 ```
 
-Reclaim dangling persistency resources:
+#### Reclaim dangling persistency resources:
 
 ```{admonition} WARNING 
 **This will result in data loss!**
@@ -264,23 +234,19 @@ Reclaim dangling persistency resources:
 
 ```bash
 # To list PVCs
-kubectl --namespace mlrun get pvc
+$ kubectl --namespace mlrun get pvc
 ...
 
 # To remove a PVC
-kubectl --namespace mlrun delete pvc <pvc-name>
+$ kubectl --namespace mlrun delete pvc <pvc-name>
 ...
 
 # To list PVs
-kubectl --namespace mlrun get pv
+$ kubectl --namespace mlrun get pv
 ...
 
-# To remove a PV
-kubectl --namespace mlrun delete pv <pv-name>
-
-# Remove hostpath(s) used for mlrun (and possibly nfs). Those will be created by default under /tmp, and will contain
-# your release name, e.g.:
-rm -rf /tmp/mlrun-kit-mlrun-kit-mlrun
+# To remove a PVC
+$ kubectl --namespace mlrun delete pvc <pv-name>
 ...
 ```
 
@@ -295,5 +261,5 @@ helm repo update
 Then upgrade the chart:
 
 ```bash
-helm upgrade --install --reuse-values mlrun-kit v3io-stable/mlrun-kit
+helm upgrade --install --reuse-values mlrun-ce mlrun-ce/mlrun-ce
 ```

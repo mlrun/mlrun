@@ -211,7 +211,7 @@ def build_function(
     mlrun_version_specifier=None,
     builder_env: dict = None,
     project_object=None,
-):
+) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
     :param function:        name of the function (in the project) or function object
@@ -292,7 +292,7 @@ def deploy_function(
     builder_env: dict = None,
     project_object=None,
     mock: bool = None,
-):
+) -> Union[DeployStatus, kfp.dsl.ContainerOp]:
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object

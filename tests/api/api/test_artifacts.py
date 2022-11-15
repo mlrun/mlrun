@@ -14,6 +14,7 @@
 #
 from http import HTTPStatus
 
+import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -250,5 +251,9 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     # verify that the artifacts returned contains different tags
     assert artifacts[0]["metadata"]["tag"] != artifacts[1]["metadata"]["tag"]
 
+    tags = []
     for artifact in artifacts:
         assert artifact["metadata"]["tag"] in [tag, new_tag, "latest"]
+        tags.append(artifact["metadata"]["tag"])
+
+    assert (deepdiff.DeepDiff(tags, [tag, new_tag, "latest"], ignore_order=True)) == {}

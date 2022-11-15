@@ -167,6 +167,7 @@ class KubejobRuntime(KubeResource):
         if build.source:
             build.load_source_on_run = False
 
+            # we need to validate this o the server side - not here
             if not os.path.isabs(build.source):
 
                 # At this point we can't determine the absolute path of the source code

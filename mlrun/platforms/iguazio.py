@@ -340,9 +340,9 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
                 'user name/env must be specified when using "~" in path'
             )
         if remote == "~/":
-            remote = "users/" + user
+            remote = "v3io://users/" + user
         else:
-            remote = "users/" + user + remote[1:]
+            remote = "v3io://users/" + user + remote[1:]
     if remote:
         container, subpath = split_path(remote)
         opts["container"] = container

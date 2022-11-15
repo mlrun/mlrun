@@ -139,7 +139,7 @@ jobs:
       # And we don't need to run this when triggered manually (workflow dispatch)
       if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
       run: |
-        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
+        for registry in "ghcr.io/" "registry.hub.docker.com/"; \
           do \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \

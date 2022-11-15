@@ -614,7 +614,6 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "best-iteration cannot be used when iter is specified"
             )
-        print("tag", tag)
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
@@ -634,10 +633,10 @@ class SQLDB(DBInterface):
         # use_tag_as_uid == None is keeping the old behavior
         # use_tag_as_uid == False also keeps the old behavior for now, but left that option to be able to change later
         # use_tag_as_uid == True saying to the list artifacts that the tag is actually the uid
+        # only if tag we will use the tag as uid
         if use_tag_as_uid and tag:
-            print("here")
             ids = tag
-        print(ids)
+
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
             session,

@@ -182,6 +182,7 @@ class StoreManager:
         if store_key in self._stores.keys():
             return self._stores[store_key], subpath
 
-        store = schema_to_store(schema)(self, schema, store_key, endpoint)
+        # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
+        store = schema_to_store(schema)(self, schema, store_key, parsed_url.netloc)
         self._stores[store_key] = store
         return store, subpath

@@ -62,7 +62,7 @@ def make_dockerfile(
         dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
         dock += extra
-    print(dock)
+    logger.info(f"Dockerfile\n{dock}")
     return dock
 
 
@@ -353,7 +353,7 @@ def build_image(
             or source.endswith(".tgz")
             or source.endswith(".zip")
         ):
-            source, src_dir = path.split(source)
+            src_dir, source = path.split(source)
     else:
         src_dir = None
 
@@ -383,7 +383,7 @@ def build_image(
 
     if to_mount:
         kpod.mount_v3io(
-            remote=source,
+            remote=source,  # TODO: check I didnt break this
             mount_path="/context",
             access_key=access_key,
             user=username,

@@ -348,7 +348,11 @@ def build_image(
         if v3io:
             source = parsed_url.path
             to_mount = True
-        if source.endswith(".tar.gz"):
+        if (
+            source.endswith(".tar.gz")
+            or source.endswith(".tgz")
+            or source.endswith(".zip")
+        ):
             source, src_dir = path.split(source)
     else:
         src_dir = None

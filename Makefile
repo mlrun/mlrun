@@ -412,7 +412,6 @@ clean: ## Clean python package build artifacts
 	rm -rf mlrun.egg-info
 	find . -name '*.pyc' -exec rm {} \;
 
-
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
 	docker run \
@@ -422,7 +421,6 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /tmp:/tmp \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test
-
 
 .PHONY: test
 test: clean ## Run mlrun tests

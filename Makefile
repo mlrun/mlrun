@@ -455,8 +455,8 @@ test-general: clean ## Run mlrun tests
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		# below are tests which are unit tests but because of specific constraints we moved them to test-serving
-		--ignore=tests/serving
-        --ignore=tests/runtimes
+		--ignore=tests/serving \
+        --ignore=tests/runtimes \
 		-rf \
 		tests
 

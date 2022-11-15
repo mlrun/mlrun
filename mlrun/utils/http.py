@@ -29,13 +29,14 @@ class HTTPSessionWithRetry(requests.Session):
 
     # make sure to only add exceptions that are raised early in the request. For example, ConnectionError can be raised
     # during the handling of a request, and therefore should not be retried, as the request might not be idempotent.
-    HTTP_RETRYABLE_EXCEPTIONS = {
-        # ConnectionResetError is raised when the server closes the connection prematurely during TCP handshake.
-        ConnectionResetError: ["Connection reset by peer", "Connection aborted"],
+
+    HTTP_RETRYABLE_EXCEPTION_STRINGS = [
+        # "Connection reset by peer" is raised when the server closes the connection prematurely during TCP handshake.
+        "Connection reset by peer",
         # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
-        ConnectionError: ["Connection aborted", "Connection refused"],
-        ConnectionRefusedError: ["Connection refused"],
-    }
+        "Connection aborted",
+        "Connection refused",
+    ]
 
     def __init__(
         self,
@@ -85,7 +86,7 @@ class HTTPSessionWithRetry(requests.Session):
             try:
                 response = super().request(method, url, **kwargs)
                 return response
-            except tuple(self.HTTP_RETRYABLE_EXCEPTIONS.keys()) as exc:
+            except Exception as exc:
                 if not self.retry_on_exception:
                     self._log_exception(
                         "warning",
@@ -106,10 +107,7 @@ class HTTPSessionWithRetry(requests.Session):
 
                 # only retry on exceptions with the right message
                 exception_is_retryable = any(
-                    [
-                        msg in str(exc)
-                        for msg in self.HTTP_RETRYABLE_EXCEPTIONS[type(exc)]
-                    ]
+                    [msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS]
                 )
 
                 if not exception_is_retryable:

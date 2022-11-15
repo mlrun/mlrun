@@ -618,24 +618,19 @@ class SQLDB(DBInterface):
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
         ids = "latest"
-        if tag and not use_tag_as_uid:
-            # allow to ask for all versions of an artifact
-            if tag == "*":
+        if tag:
+            # use_tag_as_uid is used to catch old artifacts which were created when logging artifacts using the project
+            # producer and not by context, this because when were logging artifacts using the project producer we were
+            # setting the artifact uid to be the same as the producer tag which at the time was "latest", this becomes a
+            # problem with uid="latest" because there are also "latest" tags in the system, which means we will get ids
+            # response from the `_resolve_tag` above and then we will iterate over the wrong artifact
+            # use_tag_as_uid==None is keeping the old behavior
+            # use_tag_as_uid==False also keeps the old behavior for now, but left that option to be able to change later
+            # use_tag_as_uid==True saying to the list artifacts that the tag is actually the uid
+            if tag == "*" or use_tag_as_uid:
                 ids = tag
             else:
                 ids = self._resolve_tag(session, Artifact, project, tag)
-
-        # tag_to_uid is used to catch old artifacts which were created when logging artifacts using the project
-        # producer and not by context, this because when were logging artifacts using the project producer we were
-        # setting the artifact uid to be the same as the producer tag which at the time was "latest", this becomes a
-        # problem with uid = "latest" because there are also "latest" tags in the system, which means we will get ids
-        # response from the `_resolve_tag` above and then we will iterate over the wrong artifact
-        # use_tag_as_uid == None is keeping the old behavior
-        # use_tag_as_uid == False also keeps the old behavior for now, but left that option to be able to change later
-        # use_tag_as_uid == True saying to the list artifacts that the tag is actually the uid
-        # only if tag we will use the tag as uid
-        if use_tag_as_uid and tag:
-            ids = tag
 
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
@@ -2775,7 +2770,6 @@ class SQLDB(DBInterface):
             raise ValueError(message)
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
-        print("ids", ids)
         if ids != "*":
             if ids == "latest" and not use_tag_as_uid:
                 query = self._latest_uid_filter(session, query)

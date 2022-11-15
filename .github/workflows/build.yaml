@@ -108,9 +108,6 @@ jobs:
         echo ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }} | \
           docker login registry.hub.docker.com -u ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }} \
           --password-stdin | true
-        echo ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login quay.io -u ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }} \
-          --password-stdin | true
 
     - name: Pull cache, build and push image
 
@@ -139,7 +136,7 @@ jobs:
       # And we don't need to run this when triggered manually (workflow dispatch)
       if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && (github.ref_name == 'development' || github.ref_name == 'py39-development')
       run: |
-        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
+        for registry in "ghcr.io/" "registry.hub.docker.com/"; \
           do \
             MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
             MLRUN_DOCKER_REGISTRY=$registry \

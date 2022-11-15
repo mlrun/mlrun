@@ -2759,6 +2759,7 @@ class SQLDB(DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter=None,
+        tag_to_uid: bool = None,
     ):
         """
         TODO: refactor this method
@@ -2766,6 +2767,9 @@ class SQLDB(DBInterface):
         BC until we refactor the whole artifacts API):
         1. ids == "*" - in which we don't care about ids we just don't add any filter for this column
         2. ids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
+        if tag_to_uid==(None or False) we find the relevant uid by finding the latest artifact using the updated column
+        if tag_to_uid==True we are treating the ids as uid (for backwards compatibility where we have artifacts which
+        were created with uid==latest when created using the project.log_artifact() method)
         3. ids is a string (different than "latest") - in which the meaning is actually a uid, so we add this filter
         """
         if category and kind:
@@ -2775,13 +2779,12 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
         if ids != "*":
-            if ids == "latest":
+            if ids == "latest" and not tag_to_uid:
                 query = self._latest_uid_filter(session, query)
             elif isinstance(ids, str):
                 query = query.filter(Artifact.uid == ids)
             else:
                 query = query.filter(Artifact.id.in_(ids))
-
         query = self._add_labels_filter(session, query, Artifact, labels)
 
         if since or until:

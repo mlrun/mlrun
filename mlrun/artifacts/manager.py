@@ -193,10 +193,7 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
-            if is_legacy_artifact(item):
-                item.upload()
-            else:
-                item.upload(artifact_path=artifact_path)
+            item.upload()
 
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)

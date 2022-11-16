@@ -1142,6 +1142,11 @@ class SQLDB(DBInterface):
         ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
+        # found a bug in here, which is being exposed for when have multi-param execution, this because each
+        # artifact key is being concatenated with the key and the iteration, this because problemtic in this query
+        # because we are filtering by the key+iteration and not just the key ( which would require some regex )
+        # this would be fixed as part of the refactoring of the new artifact table structure where we would have
+        # column for iteration as well.
         for artifact in artifacts:
             query = (
                 self._query(

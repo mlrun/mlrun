@@ -51,7 +51,7 @@ from tests.system.base import TestMLRunSystem
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestModelMonitoringAPI(TestMLRunSystem):
-    project_name = "model-monitor-sys-test9"
+    project_name = "voting-test-1"
 
     def test_clear_endpoint(self):
         endpoint = self._mock_random_endpoint()
@@ -283,6 +283,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         # enable model monitoring
         serving_fn.set_tracking()
+
+        tracking_policy = {'default_batch_intervals':"0 */2 * * *", 'stream_image':'quay.io/eyaligu/mlrun-api:monitoring-feature-set-2', 'default_batch_image':"quay.io/eyaligu/mlrun-api:monitoring-feature-set-2"}
+        serving_fn.set_tracking(tracking_policy=tracking_policy)
+
+        serving_fn.spec.build.image = "quay.io/eyaligu/mlrun-api:monitoring-feature-set-2"
+        serving_fn.spec.image = "quay.io/eyaligu/mlrun-api:monitoring-feature-set-2"
 
         # define different models
         model_names = {

@@ -103,7 +103,7 @@ def new_project(
 
     example::
 
-        # create a project with local and marketplace functions, a workflow, and an artifact
+        # create a project with local and Functions Hub (formerly Marketplace) functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
         project.set_function('hub://sklearn_classifier', 'train')
@@ -2174,7 +2174,7 @@ class MlrunProject(ModelObj):
 
         example (use with project)::
 
-            # create a project with two functions (local and from marketplace)
+            # create a project with two functions (local and from Functions Hub (formerly Marketplace))
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
             project.set_function("hub://sklearn_classifier", "train")

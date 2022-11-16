@@ -176,8 +176,7 @@ class TestBasicModelMonitoringAPI(TestMLRunSystem):
     def test_basic_model_monitoring(self):
         simulation_time = 90  # 90 seconds
         # Deploy Model Servers
-        # project = mlrun.get_run_db().get_project(self.project_name)
-        project = mlrun.get_or_create_project("basic-model-monitoring", context="./")
+        project = mlrun.get_run_db().get_project(self.project_name)
 
         iris = load_iris()
         train_set = pd.DataFrame(

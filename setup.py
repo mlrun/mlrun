@@ -146,6 +146,7 @@ setup(
         "mlrun.api",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",
+        "mlrun.api.api.endpoints.internal",
         "mlrun.api.crud",
         "mlrun.api.db",
         "mlrun.api.db.filedb",

@@ -225,7 +225,8 @@ class SparkFeatureMerger(BaseMerger):
     def get_df(self, to_pandas=True):
         if to_pandas:
             if self._pandas_df is None:
-                self._pandas_df = self._set_indexes(self._result_df.toPandas())
+                self._pandas_df = self._result_df.toPandas()
+                self._set_indexes(self._pandas_df)
             return self._pandas_df
 
         return self._result_df

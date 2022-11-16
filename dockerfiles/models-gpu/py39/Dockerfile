@@ -95,6 +95,9 @@ RUN ldconfig /usr/local/cuda/lib64/stubs && \
 
 WORKDIR /mlrun
 
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
+
 COPY ../requirements.txt ./
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
@@ -113,9 +116,5 @@ RUN python -m pip install \
     -r models-gpu-image-requirements.txt
 
 COPY .. .
-
-# non-recursive chmod for the run to be able to create the handler file with any security context
-# at the end of the Dockerfile for docker caching
-RUN chmod 777 /mlrun
 
 RUN python -m pip install .[complete]

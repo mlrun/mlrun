@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         g++ \
         git-core \
         gnupg2 \
-        graphviz=0.20.0 \
+        graphviz \
         make \
         software-properties-common \
     && rm -rf /var/lib/apt/lists/*

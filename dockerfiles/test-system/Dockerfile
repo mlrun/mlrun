@@ -20,7 +20,7 @@ ENV PIP_NO_CACHE_DIR=1
 RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
   git-core \
-  graphviz=0.20.0 \
+  graphviz \
   make \
  && rm -rf /var/lib/apt/lists/*
 

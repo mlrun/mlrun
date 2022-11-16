@@ -1991,7 +1991,7 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    @pytest.mark.parametrize("target_redis, ", ["", "localhost:6379"])
+    @pytest.mark.parametrize("target_redis, ", ["", "redis://:aaa@localhost:6379"])
     def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
@@ -2007,7 +2007,7 @@ class TestFeatureStore(TestMLRunSystem):
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
             RedisNoSqlTarget()
             if target_redis == ""
-            else RedisNoSqlTarget(target_redis),
+            else RedisNoSqlTarget(path=target_redis),
         ]
         fset.set_targets(
             targets=targets,

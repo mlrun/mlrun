@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.5.0
+ARG CUDA_VER=11.4.3
 
 #FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
-FROM nvidia/cuda:11.5.0-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -30,11 +30,11 @@ SHELL ["/bin/bash", "-cu"]
 RUN apt-get update && \
     apt-get upgrade -y && \
     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
-        build-essential \
+        gcc \
         cmake \
         curl \
         git-core \
-        graphviz \
+        graphviz~=0.20.0 \
         wget && \
     rm -rf /var/lib/apt/lists/*
 
@@ -48,6 +48,8 @@ RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86
 ARG MLRUN_PIP_VERSION=22.3.0
 ARG MLRUN_PYTHON_VERSION=3.9.13
 
+ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
+
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
@@ -59,9 +61,8 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
     cmake  \
     cython \
     rapids=22.10 \
-    cudatoolkit=11.5.0 \
     pytorch \
-    torchvision \
+    torchvision==0.12.0+cu113 \
     && conda clean -aqy
 
 ARG TENSORFLOW_VERSION=2.7.0
@@ -103,18 +104,12 @@ RUN python -m pip install \
     -r extras-requirements.txt \
     -r mlrun-image-requirements.txt
 
-# if we give all the requirements together pip resolver go nuts so separating between the package and the image
-# requirements
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
-RUN python -m pip install \
-    -r base-image-requirements.txt
-
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
-RUN python -m pip install \
-    -r models-image-requirements.txt
-
 COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
 RUN python -m pip install \
+    -r base-image-requirements.txt \
+    -r models-image-requirements.txt \
     -r models-gpu-image-requirements.txt
 
 COPY .. .

@@ -23,7 +23,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
-  graphviz \
+  graphviz~=0.20.0 \
  && rm -rf /var/lib/apt/lists/*
 USER $NB_UID
 

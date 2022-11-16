@@ -32,7 +32,7 @@ RUN apt update -qqq \
     curl \
     gcc \
     git-core \
-    graphviz \
+    graphviz~=0.20.0 \
     wget \
     && rm -rf /var/lib/apt/lists/*
 

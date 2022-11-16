@@ -690,13 +690,11 @@ class SQLDB(DBInterface):
                 continue
 
             artifact_struct = artifact.struct
-            if ids != "latest":
-                artifacts_with_tag = self._add_tags_to_artifact_struct(
-                    session, artifact_struct, artifact.id, tag
-                )
-                artifacts.extend(artifacts_with_tag)
-            else:
-                artifacts.append(artifact_struct)
+
+            artifacts_with_tag = self._add_tags_to_artifact_struct(
+                session, artifact_struct, artifact.id, tag
+            )
+            artifacts.extend(artifacts_with_tag)
 
         return artifacts
 

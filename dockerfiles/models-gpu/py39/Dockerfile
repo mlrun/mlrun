@@ -62,7 +62,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
     cython \
     rapids=22.10 \
     pytorch \
-    torchvision==0.12.0+cu113 \
+    torchvision \
     && conda clean -aqy
 
 ARG TENSORFLOW_VERSION=2.7.0

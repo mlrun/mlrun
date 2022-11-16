@@ -513,10 +513,12 @@ class SQLDB(DBInterface):
             updated, key, labels = self._process_artifact_dict_to_store(
                 artifact, key, iter
             )
-
+        existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
+            existed = False
+
         update_labels(art, labels)
 
         art.struct = artifact
@@ -524,6 +526,12 @@ class SQLDB(DBInterface):
         if tag_artifact:
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
+            # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
+            # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
+            # changes to be reflected in the "latest" tag, as this in not actual the "latest" version of the artifact
+            # which was produced by the user
+            if not existed and tag != "latest":
+                self.tag_artifacts(session, [art], project, "latest")
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
@@ -1134,6 +1142,11 @@ class SQLDB(DBInterface):
         ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
+        # found a bug in here, which is being exposed for when have multi-param execution, this because each
+        # artifact key is being concatenated with the key and the iteration, this because problemtic in this query
+        # because we are filtering by the key+iteration and not just the key ( which would require some regex )
+        # this would be fixed as part of the refactoring of the new artifact table structure where we would have
+        # column for iteration as well.
         for artifact in artifacts:
             query = (
                 self._query(

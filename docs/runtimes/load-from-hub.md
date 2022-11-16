@@ -22,7 +22,7 @@ Functions can be easily imported into your project and therefore help you to spe
 
 ## Searching for functions
 
-The Hub is located [here](https://www.mlrun.org/marketplace/). <br>
+The Function Hub is located [here](https://www.mlrun.org/marketplace/). <br>
 You can search and filter the categories and kinds to find a function that meets your needs.
 
 ![Hub](../_static/images/marketplace-ui.png)

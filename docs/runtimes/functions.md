@@ -30,5 +30,5 @@ images
 image-build
 ../concepts/node-affinity
 configuring-job-resources
-load-from-marketplace
+load-from-hub
 ```

@@ -60,7 +60,12 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_togglebutton",
     "sphinx_design",
+    "sphinx_reredirects",
 ]
+
+redirects = {
+    "runtimes/load-from-marketplace": "load-from-hub.html"
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [
@@ -123,6 +128,10 @@ html_theme_options = {
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
+
+
+
+
 
 myst_enable_extensions = [
     "colon_fence",

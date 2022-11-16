@@ -50,6 +50,6 @@ Table of Contents
    :maxdepth: 1
    :caption: Change log
    
-   change-log/index
+   change-log/_index
 
 

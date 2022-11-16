@@ -311,9 +311,9 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # define different models
         model_names = {
-            "sklearn_RandomForestClassifier_V2": "sklearn.ensemble.RandomForestClassifier",
-            "sklearn_LogisticRegression_V2": "sklearn.linear_model.LogisticRegression",
-            "sklearn_AdaBoostClassifier_V2": "sklearn.ensemble.AdaBoostClassifier",
+            "sklearn_RandomForestClassifier": "sklearn.ensemble.RandomForestClassifier",
+            "sklearn_LogisticRegression": "sklearn.linear_model.LogisticRegression",
+            "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
         # import the training function from the marketplace (hub://)

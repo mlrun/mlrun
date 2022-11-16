@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os.path
 import pathlib
 from os.path import isdir
 
@@ -152,8 +151,7 @@ class ArtifactManager:
             key = item.key
             target_path = target_path or item.target_path
 
-        src_path = os.path.abspath(local_path) or item.src_path  # TODO: remove src_path
-        logger.info("ALON", src_path=src_path, local_path=local_path)
+        src_path = local_path or item.src_path  # TODO: remove src_path
         if format == "html" or (src_path and pathlib.Path(src_path).suffix == "html"):
             viewer = "web-app"
         item.format = format or item.format

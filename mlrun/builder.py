@@ -28,7 +28,13 @@ import mlrun.runtimes.utils
 from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name, is_compressed_path
+from .utils import (
+    enrich_image_url,
+    get_parsed_docker_registry,
+    is_compressed_path,
+    logger,
+    normalize_name,
+)
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 

@@ -329,10 +329,6 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
     remote = str(remote)
 
-    # TODO: rewrite this better
-    if remote.startswith(environ.get("HOME")):
-        remote.replace(environ.get("HOME"), "~", 1)
-
     if remote.startswith("~/"):
         user = user or environ.get("V3IO_USERNAME")
         if not user:
@@ -340,9 +336,9 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
                 'user name/env must be specified when using "~" in path'
             )
         if remote == "~/":
-            remote = "v3io://users/" + user
+            remote = "users/" + user
         else:
-            remote = "v3io://users/" + user + remote[1:]
+            remote = "users/" + user + remote[1:]
     if remote:
         container, subpath = split_path(remote)
         opts["container"] = container

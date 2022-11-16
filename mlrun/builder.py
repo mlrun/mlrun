@@ -343,7 +343,12 @@ def build_image(
     parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
-    elif source and "://" in source and not v3io:
+    elif (
+        source
+        and "://" in source
+        and not v3io
+        and not runtime_spec.build.load_source_on_run
+    ):
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
@@ -359,6 +364,7 @@ def build_image(
     else:
         src_dir = None
 
+    # TODO: support loading local source on build time
     dock = make_dockerfile(
         base_image,
         commands,
@@ -383,7 +389,7 @@ def build_image(
         registry=registry,
     )
 
-    if to_mount:
+    if to_mount and not runtime_spec.build.load_source_on_run:
         kpod.mount_v3io(
             remote=src_dir,
             mount_path="/context",

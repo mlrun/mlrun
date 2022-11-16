@@ -163,11 +163,6 @@ class KubejobRuntime(KubeResource):
 
         build = self.spec.build
 
-        # TODO: this is the main problem, check if it's needed
-        # make sure we disable load_on_run mode if the source code is in the image
-        # if build.source:
-        #     build.load_source_on_run = False
-
         if with_mlrun is None:
             if build.with_mlrun is not None:
                 with_mlrun = build.with_mlrun

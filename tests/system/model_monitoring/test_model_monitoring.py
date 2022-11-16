@@ -191,7 +191,7 @@ class TestBasicModelMonitoringAPI(TestMLRunSystem):
 
         # Import the serving function from the function hub
         serving_fn = mlrun.import_function(
-            "hub://v2_model_server", project=project.metadata.name
+            "hub://v2_model_server", project=self.project_name
         ).apply(mlrun.auto_mount())
         # enable model monitoring
         serving_fn.set_tracking()
@@ -327,7 +327,6 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                 inputs={"dataset": path},
                 params={"model_pkg_class": pkg, "label_column": label_column},
                 artifact_path=f"v3io:///projects/{name}/artifacts",
-                local=True,
             )
 
             # Add the model to the serving function's routing spec

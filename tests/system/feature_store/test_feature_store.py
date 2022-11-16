@@ -2835,7 +2835,9 @@ class TestFeatureStore(TestMLRunSystem):
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
-    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(
@@ -2866,7 +2868,6 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2885,8 +2886,11 @@ class TestFeatureStore(TestMLRunSystem):
             bootstrap_servers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
-        with pytest.raises(ValueError):
+        try:
             fs.ingest(stocks_set, stocks, [target])
+            pytest.fail("Expected a ValueError to be raised")
+        except ValueError as ex:
+            assert str(ex) == "Not supported codec: invalid value"
 
     def test_alias_change(self):
         quotes = pd.DataFrame(

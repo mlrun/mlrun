@@ -2886,8 +2886,11 @@ class TestFeatureStore(TestMLRunSystem):
             bootstrap_servers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
-        with pytest.raises(ValueError):
+        try:
             fs.ingest(stocks_set, stocks, [target])
+            pytest.fail("Expected a ValueError to be raised")
+        except ValueError as ex:
+            assert str(ex) == "Not supported codec: invalid value"
 
     def test_alias_change(self):
         quotes = pd.DataFrame(

@@ -1256,7 +1256,7 @@ class KafkaTarget(BaseStoreTarget):
         )
 
         attributes = copy(self.attributes)
-        bootstrap_servers = self.attributes.pop("bootstrap_servers", None)
+        bootstrap_servers = attributes.pop("bootstrap_servers", None)
         topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(

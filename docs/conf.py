@@ -62,6 +62,8 @@ extensions = [
     "sphinx_design",
     "sphinx_reredirects",
 ]
+
+# redirect paths due to filename changes
 redirects = {
     "runtimes/load-from-marketplace": "load-from-hub.html"
 }
@@ -127,10 +129,6 @@ html_theme_options = {
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"
-
-
-
-
 
 myst_enable_extensions = [
     "colon_fence",

@@ -2692,12 +2692,12 @@ class HTTPRunDB(RunDBInterface):
         """
         Add a new marketplace source.
 
-        MLRun maintains an ordered list of Hub (formerly Marketplace) sources ("sources"). Each source has 
-        its details registered and its order within the list. When creating a new source, the special order ``-1`` 
-        can be used to mark this source as last in the list. However, once the source is in the MLRun list, 
+        MLRun maintains an ordered list of Hub (formerly Marketplace) sources ("sources"). Each source has
+        its details registered and its order within the list. When creating a new source, the special order ``-1``
+        can be used to mark this source as last in the list. However, once the source is in the MLRun list,
         its order will always be ``>0``.
 
-        The global Hub (formerly Marketplace) source always exists in the list, and is always the last source 
+        The global Hub (formerly Marketplace) source always exists in the list, and is always the last source
         (``order = -1``). It cannot be modified nor can it be moved to another order in the list.
 
         The source object may contain credentials which are needed to access the datastore where the source is stored.
@@ -2812,8 +2812,8 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
-        :param force_refresh: Make the server fetch the catalog from the actual Hub (formerly Marketplace) source, 
-            rather than rely on cached information which may exist from previous get requests. For example, 
+        :param force_refresh: Make the server fetch the catalog from the actual Hub (formerly Marketplace) source,
+            rather than rely on cached information which may exist from previous get requests. For example,
             if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
@@ -2846,7 +2846,7 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-        :param force_refresh: Make the server fetch the information from the actual Hub (formerly Marketplace) 
+        :param force_refresh: Make the server fetch the information from the actual Hub (formerly Marketplace)
             source, rather than
             rely on cached information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.

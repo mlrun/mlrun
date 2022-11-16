@@ -1100,3 +1100,7 @@ def is_relative_path(path):
     if not path:
         return False
     return not (path.startswith("/") or ":\\" in path or "://" in path)
+
+
+def is_compressed_path(path):
+    return path.endswith(".gz") or path.endswith(".zip")

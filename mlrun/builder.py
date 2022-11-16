@@ -28,7 +28,7 @@ import mlrun.runtimes.utils
 from .config import config
 from .datastore import store_manager
 from .k8s_utils import BasePod, get_k8s_helper
-from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name
+from .utils import enrich_image_url, get_parsed_docker_registry, logger, normalize_name, is_compressed_path
 
 IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 
@@ -348,11 +348,7 @@ def build_image(
         if v3io:
             source = parsed_url.path
             to_mount = True
-        if (
-            source.endswith(".tar.gz")
-            or source.endswith(".tgz")
-            or source.endswith(".zip")
-        ):
+        if is_compressed_path(source):
             src_dir, source = path.split(source)
     else:
         src_dir = None

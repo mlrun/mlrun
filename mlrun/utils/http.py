@@ -107,7 +107,7 @@ class HTTPSessionWithRetry(requests.Session):
 
                 # only retry on exceptions with the right message
                 exception_is_retryable = any(
-                    [msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS]
+                    msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS
                 )
 
                 if not exception_is_retryable:

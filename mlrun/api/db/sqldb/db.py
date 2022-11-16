@@ -361,17 +361,10 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
+                project_name=project,
+                identifier=identifier,
             )
         # TODO remove duplicates artifacts entries
         # delete related tags from artifacts identifiers
@@ -391,17 +384,10 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
+                project_name=project,
+                identifier=identifier,
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
 
@@ -415,19 +401,37 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
+                project_name=project,
+                identifier=identifier,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    def _list_artifacts_for_tagging(
+        self,
+        session: Session,
+        project_name: str,
+        identifier: mlrun.api.schemas.ArtifactIdentifier,
+    ):
+        return self.list_artifacts(
+            session,
+            project=project_name,
+            name=identifier.key,
+            kind=identifier.kind,
+            iter=identifier.iter,
+            # 1. will be changed to uid, after refactoring the code, currently to list artifacts by uid
+            # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+            # list_artifacts method (_resolve_tag)
+            # 2. if the identifier.uid is None, we want to list all artifacts, so we pass "*"
+            tag=identifier.uid or "*",
+            as_records=True,
+            # 1. because of backwards compatible that list_artifacts is keeping, we want to pass the function
+            # indication that the tag which is passed is uid
+            # 2. if uid wasn't passed as part of the identifiers then
+            # we will ask for tag "*" and in that case we don't want to use the tag as uid
+            use_tag_as_uid=True if identifier.uid else False,
+        )
 
     @retry_on_conflict
     def store_artifact(
@@ -610,6 +614,7 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         project = project or config.default_project
 
@@ -617,21 +622,37 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "best-iteration cannot be used when iter is specified"
             )
-
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
         ids = "latest"
         if tag:
-            # allow to ask for all versions of an artifact
-            if tag == "*":
+            # use_tag_as_uid is used to catch old artifacts which were created when logging artifacts using the project
+            # producer and not by context, this because when were logging artifacts using the project producer we were
+            # setting the artifact uid to be the same as the producer tag which at the time was "latest", this becomes a
+            # problem with uid="latest" because there are also "latest" tags in the system, which means we will get ids
+            # response from the `_resolve_tag` above and then we will iterate over the wrong artifact
+            # use_tag_as_uid==None is keeping the old behavior
+            # use_tag_as_uid==False also keeps the old behavior for now, but left that option to be able to change later
+            # use_tag_as_uid==True saying to the list artifacts that the tag is actually the uid
+            if tag == "*" or use_tag_as_uid:
                 ids = tag
             else:
                 ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
-            session, project, ids, labels, since, until, name, kind, category, iter
+            session,
+            project,
+            ids,
+            labels,
+            since,
+            until,
+            name,
+            kind,
+            category,
+            iter,
+            use_tag_as_uid=use_tag_as_uid,
         )
         if as_records:
             if best_iteration:
@@ -2743,13 +2764,17 @@ class SQLDB(DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter=None,
+        use_tag_as_uid: bool = None,
     ):
         """
         TODO: refactor this method
         basically ids should be list of strings (representing ids), but we also handle 3 special cases (mainly for
         BC until we refactor the whole artifacts API):
         1. ids == "*" - in which we don't care about ids we just don't add any filter for this column
-        2. ids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
+        2. ids == "latest":
+        use_tag_as_uid==(None or False) we find the relevant uid by finding the latest artifact using the updated column
+        use_tag_as_uid==True we are treating the ids as uid (for backwards compatibility where we have artifacts which
+        were created with uid==latest when created using the project.log_artifact() method)
         3. ids is a string (different than "latest") - in which the meaning is actually a uid, so we add this filter
         """
         if category and kind:
@@ -2759,13 +2784,12 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
         if ids != "*":
-            if ids == "latest":
+            if ids == "latest" and not use_tag_as_uid:
                 query = self._latest_uid_filter(session, query)
             elif isinstance(ids, str):
                 query = query.filter(Artifact.uid == ids)
             else:
                 query = query.filter(Artifact.id.in_(ids))
-
         query = self._add_labels_filter(session, query, Artifact, labels)
 
         if since or until:

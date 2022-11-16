@@ -62,7 +62,6 @@ extensions = [
     "sphinx_design",
     "sphinx_reredirects",
 ]
-
 redirects = {
     "runtimes/load-from-marketplace": "load-from-hub.html"
 }

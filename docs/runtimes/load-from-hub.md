@@ -1,20 +1,20 @@
 (load-from-marketplace)=
-# Functions Hub <!-- omit in toc -->
+# Function Hub <!-- omit in toc -->
 
 This section demonstrates how to import a function from the Hub into your project, and provides some basic instructions on how to run the function and view the results.
 
 **In this section**
 - [Overview](#overview)
-- [Functions Hub](#functions-hub)
+- [Function Hub](#function-hub)
 - [Searching for functions](#searching-for-functions)
 - [Setting the project configuration](#setting-the-project-configuration)
 - [Loading functions from the hub](#loading-functions-from-the-hub)
 - [View the function params](#view-the-function-params)
 - [Running the function](#running-the-function)
 
-## Functions Hub
+## Function Hub
 
-The MLRun Functions Hub has a wide range of functions that can be used for a variety of use cases.
+The MLRun Function Hub has a wide range of functions that can be used for a variety of use cases.
 There are functions for ETL, data preparation, training (ML & Deep learning), serving, alerts and notifications and more.
 Each function has a docstring that explains how to use it. In addition, the functions are associated with categories to make it easier for you to find the relevant one.
 

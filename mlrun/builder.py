@@ -46,6 +46,8 @@ def make_dockerfile(
     requirements=None,
     workdir="/mlrun",
     extra="",
+    user_unix_id=None,
+    enriched_group_id=None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -60,16 +62,21 @@ def make_dockerfile(
     if source:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        dock += f"ADD {source} {workdir}\n"
         # ADD command automatically extracts compressed tar.gz files but not zip files
         if source.endswith(".zip"):
+            # TODO: not sure that multistage is helping here
             stage1 = f"FROM {base_image} AS extractor\n"
             stage1 += "RUN apt-get update && apt-get -y upgrade && apt install unzip\n"
-            stage1 += f"COPY {source} /source/ \n"
-            stage1 += f"RUN cd /source/ && unzip {source} && rm {source}\n"
+            stage1 += "RUN mkdir -p /source\n"
+            stage1 += f"COPY {source} /source\n"
+            stage1 += f"RUN cd /source && unzip {source} && rm {source}\n"
 
             dock += f"COPY --from=extractor /source/ {workdir}\n"
             dock = stage1 + "\n" + dock
+        else:
+            dock += f"ADD {source} {workdir}\n"
+
+        dock += f"RUN chown {user_unix_id}:{enriched_group_id} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -379,6 +386,10 @@ def build_image(
         source=source if not runtime_spec.build.load_source_on_run else None,
         requirements=requirements_path,
         extra=extra,
+        user_unix_id=auth_info.user_unix_id,
+        enriched_group_id=mlrun.mlconf.get_security_context_enrichment_group_id(
+            auth_info.user_unix_id
+        ),
     )
 
     kpod = make_kaniko_pod(

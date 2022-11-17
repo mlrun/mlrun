@@ -394,9 +394,10 @@ def ingest(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
-        return run_ingestion_job(
-            name, featureset, run_config, source.schedule, spark_context
-        )
+        schedule = source.schedule
+        if schedule == "mock":
+            schedule = None
+        return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context

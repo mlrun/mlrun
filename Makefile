@@ -60,7 +60,7 @@ MLRUN_CUDA_VERSION = 11.0
 MLRUN_TENSORFLOW_VERSION = 2.8.0
 # TODO: remove this variable when we will move models-gpu to python 3.9
 MLRUN_GPU_TENSORFLOW_VERSION = 2.4.1
-MLRUN_HOROVOD_VERSION = 0.26.1
+MLRUN_HOROVOD_VERSION = 0.25.0
 # TODO: remove this variable when we will move models-gpu to python 3.9
 MLRUN_GPU_HOROVOD_VERSION = 0.22.1
 

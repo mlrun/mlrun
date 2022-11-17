@@ -690,7 +690,9 @@ class SQLDB(DBInterface):
                 continue
 
             artifact_struct = artifact.struct
-            if ids != "latest":
+            # ids = "latest" and not tag means that it was not given by the user, so we will not set the tag in the
+            # artifact struct
+            if ids != "latest" or tag:
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
                     session, artifact_struct, artifact.id, tag
                 )

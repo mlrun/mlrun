@@ -15,7 +15,6 @@
 import os
 import pathlib
 import sys
-import time
 import uuid
 from datetime import datetime
 
@@ -47,7 +46,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
     test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
@@ -295,6 +294,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         if partitioned:
             targets = [
                 NoSqlTarget(),
+                ParquetTarget(
+                    name="tar1",
+                    path="v3io:///bigdata/fs1/",
+                    partitioned=True,
+                    partition_cols=["time"],
+                ),
             ]
         else:
             targets = [
@@ -311,11 +316,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-
-        # to enable filtering by time
-        first_ingest_completion_time = time.time()
-        for target in targets:
-            target.last_written = first_ingest_completion_time
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)

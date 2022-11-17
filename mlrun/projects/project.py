@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
@@ -48,7 +49,13 @@ from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, up
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
-from .operations import build_function, deploy_function, run_function
+from .operations import (
+    BuildStatus,
+    DeployStatus,
+    build_function,
+    deploy_function,
+    run_function,
+)
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
@@ -241,6 +248,7 @@ def load_project(
         url = str(url)  # to support path objects
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
+            project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
@@ -1191,8 +1199,8 @@ class MlrunProject(ModelObj):
                 artifact = dict_to_artifact(artifact_dict)
                 if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
-                    artifact.spec.src_path = path.join(
-                        self.spec.get_code_path(), artifact.spec.src_path
+                    artifact.src_path = path.join(
+                        self.spec.get_code_path(), artifact.src_path
                     )
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
@@ -1265,7 +1273,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         item = am.log_artifact(
             producer,
@@ -2162,6 +2170,7 @@ class MlrunProject(ModelObj):
         selector: str = None,
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        artifact_path: str = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2198,6 +2207,7 @@ class MlrunProject(ModelObj):
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2220,6 +2230,7 @@ class MlrunProject(ModelObj):
             project_object=self,
             auto_build=auto_build,
             schedule=schedule,
+            artifact_path=artifact_path,
         )
 
     def build_function(
@@ -2231,9 +2242,10 @@ class MlrunProject(ModelObj):
         base_image=None,
         commands: list = None,
         secret_name="",
+        requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,
-    ):
+    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
         :param function:        name of the function (in the project) or function object
@@ -2243,6 +2255,7 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements:    list of python packages or pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2255,6 +2268,7 @@ class MlrunProject(ModelObj):
             base_image=base_image,
             commands=commands,
             secret_name=secret_name,
+            requirements=requirements,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
@@ -2270,7 +2284,7 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         builder_env: dict = None,
         mock: bool = None,
-    ):
+    ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
         """deploy real-time (nuclio based) functions
 
         :param function:    name of the function (in the project) or function object

@@ -7,7 +7,7 @@ MLRun supports:
 - Iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyperparams). See [Hyperparam and iterative jobs](../hyper-params.html).
 - Horizontal scaling of functions across multiple containers. See [Distributed and Parallel Jobs](./distributed.html).
 
-MLRun has an open [public marketplace](https://www.mlrun.org/marketplace/functions/) that stores many pre-developed functions for
+MLRun has an open [public Function Hub](https://www.mlrun.org/marketplace/functions/) that stores many pre-developed functions for
 use in your projects. 
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="600"/><br>

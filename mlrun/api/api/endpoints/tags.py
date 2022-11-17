@@ -143,3 +143,4 @@ async def delete_tag_from_objects(
         tag,
         tag_objects,
     )
+    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)

@@ -385,6 +385,7 @@ class BaseRuntime(ModelObj):
                     "absolute artifact_path must be specified"
                     " when running remote tasks"
                 )
+
         db = self._get_db()
 
         if not self.is_deployed():
@@ -666,11 +667,11 @@ class BaseRuntime(ModelObj):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
-                if not runspec.spec.output_path:
+                if not runspec.spec.output_path and self._get_db():
                     try:
-                        project = mlrun.get_run_db().get_project(
-                            runspec.metadata.project
-                        )
+                        # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
+                        # spec first as get_db() depends on it
+                        project = self._get_db().get_project(runspec.metadata.project)
                         # this is mainly for tests, so we won't need to mock get_project for so many tests
                         # in normal use cases if no project is found we will get an error
                         if project:

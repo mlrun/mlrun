@@ -717,10 +717,12 @@ class FeatureSet(ModelObj):
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
+            if before is None and after is None:
+                after = previous_step
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
                     name=step_name,
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
                     aggregates=[aggregation],
@@ -738,7 +740,7 @@ class FeatureSet(ModelObj):
                     key_columns=key_columns,
                     time_column=self.spec.timestamp_key,
                     aggregates=[aggregation],
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
                     **class_args,

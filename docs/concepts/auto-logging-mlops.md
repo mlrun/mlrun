@@ -1,7 +1,7 @@
 (auto-logging-mlops)=
 # Automated experiment tracking
 
-You can write custom training functions or use built-in marketplace functions for training models using 
+You can write custom training functions or use built-in hub functions for training models using 
 common open-source frameworks and/or cloud services (such as AzureML, Sagemaker, etc.). 
 
 Inside the ML function you can use the `apply_mlrun()` method, which automates the tracking and MLOps

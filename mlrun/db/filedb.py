@@ -757,7 +757,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(self, project=None, category=None):
         raise NotImplementedError()
 
     def create_or_patch_model_endpoint(

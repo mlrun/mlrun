@@ -19,9 +19,9 @@ MLRun supports automatic logging for major ML frameworks such as sklearn, PyTorc
 
 See {ref}`working-with-data-and-model-artifacts` for an example.
 
-## Function Marketplace
+## Function Hub
 
-In addition to running your own Python code, you can also utilize work that others have done by importing from the [MLRun Function Marketplace](https://www.mlrun.org/marketplace/). There are many reusable functions for data preparation, data analysis, model training, model deployment, and more.
+In addition to running your own Python code, you can also utilize work that others have done by importing from the [MLRun Function Hub](https://www.mlrun.org/marketplace/). There are many reusable functions for data preparation, data analysis, model training, model deployment, and more.
 
 For example, you can leverage the power of AutoML by using the {ref}`built-in training function<using-built-in-training-function>` or perform automated Exploratory Data Analysis (EDA) by using the [Describe](https://www.mlrun.org/marketplace/functions/master/describe/latest/example/) function.
 

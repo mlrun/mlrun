@@ -44,49 +44,49 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 ````{grid} 3
 :gutter: 2
 
-```{grid-item-card} Train, Compare, and Register Models
+```{grid-item-card} Train, compare, and register Models
 :link: ./02-model-training.html
 Demo of training ML models, hyper-parameters, track and compare experiments, register and use the models.
 ```
 
-```{grid-item-card} Serving Pre-trained ML/DL models
+```{grid-item-card} Serving pre-trained ML/DL models
 :link: ./03-model-serving.html
 How to deploy real-time serving pipelines with MLRun Serving and different types of pre-trained ML/DL models.
 ```
 
-```{grid-item-card} Projects & Automated ML Pipeline
+```{grid-item-card} Projects & automated ML pipeline
 :link: ./04-pipeline.html
 How to work with projects, source control (git), CI/CD, to easily build and deploy multi-stage ML pipelines.
 ```
 
-```{grid-item-card} Real-time Monitoring & Drift Detection
+```{grid-item-card} Real-time monitoring & drift detection
 :link: ./05-model-monitoring.html
-Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift detection  
+Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift detection.
 ```
 
 ```{grid-item-card} Add MLOps to existing code
 :link: ./06-add-mlops-to-code.html
-Turn a Kaggle research notebook to a production ML micro-service from with MLRun and minimal code changes.
+Turn a Kaggle research notebook to a production ML micro-service with minimal code changes using MLRun.
 ```
 
-```{grid-item-card} Basic Feature store example (stocks)
+```{grid-item-card} Basic feature store example (stocks)
 :link: ../feature-store/basic-demo.html
-Understand MLRun feature store with a simple example, build, transform, and serve features in batch and in real-time.
+Understand MLRun feature store with a simple example: build, transform, and serve features in batch and in real-time.
 ```
 
-```{grid-item-card} Batch Inference and Drift Detection
+```{grid-item-card} Batch inference and drift detection
 :link: ./07-batch-infer.html
-Use MLRun batch inference function (from MLRun marketplace), run it as a batch job and generate drift reports.
+Use MLRun batch inference function (from MLRun Function Hub), run it as a batch job, and generate drift reports.
 ```
 
-```{grid-item-card} Advanced Real-Time Pipeline
+```{grid-item-card} Advanced real-time pipeline
 :link: ../serving/graph-example.html
-Demonstrate multi-step online pipeline with data prep, ensemble, model serving, post processing 
+Demonstrates a multi-step online pipeline with data prep, ensemble, model serving, and post processing. 
 ```
 
-```{grid-item-card} Feature Store End-to-End Demo
+```{grid-item-card} Feature store end-to-end demo
 :link: ../feature-store/end-to-end-demo/index.html
-Use the feature store with data ingestion, model training, model serving and automated pipeline.
+Use the feature store with data ingestion, model training, model serving, and automated pipeline.
 ```
 
 ````
@@ -95,7 +95,7 @@ Use the feature store with data ingestion, model training, model serving and aut
 (e2e-demos)=
 ## End to End Demos
 
-You can find different end-to-end demos in MLRun demos repository at [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
+You can find the different end-to-end demos in the MLRun demos repository: [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
 
 ## Running the demos in Open Source MLRun
 

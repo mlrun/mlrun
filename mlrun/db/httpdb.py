@@ -751,13 +751,19 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/artifacts"
         self.api_call("DELETE", endpoint_path, error, params=params)
 
-    def list_artifact_tags(self, project=None) -> List[str]:
+    def list_artifact_tags(
+        self,
+        project=None,
+        category: Union[str, schemas.ArtifactCategories] = None,
+    ) -> List[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
+        params = {"category": category} if category else {}
+
         response = self.api_call(
-            "GET", f"projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message, params=params
         )
         return response.json()["tags"]
 
@@ -2694,12 +2700,13 @@ class HTTPRunDB(RunDBInterface):
         """
         Add a new marketplace source.
 
-        MLRun maintains an ordered list of marketplace sources ("sources"). Each source has its details registered and
-        its order within the list. When creating a new source, the special order ``-1`` can be used to mark this source
-        as last in the list. However, once the source is in the MLRun list, its order will always be ``>0``.
+        MLRun maintains an ordered list of marketplace sources (“sources”) Each source has
+        its details registered and its order within the list. When creating a new source, the special order ``-1``
+        can be used to mark this source as last in the list. However, once the source is in the MLRun list,
+        its order will always be ``>0``.
 
-        The global marketplace source always exists in the list, and is always the last source (``order = -1``).
-        It cannot be modified nor can it be moved to another order in the list.
+        The global marketplace source always exists in the list, and is always the last source
+        (``order = -1``). It cannot be modified nor can it be moved to another order in the list.
 
         The source object may contain credentials which are needed to access the datastore where the source is stored.
         These credentials are not kept in the MLRun DB, but are stored inside a kubernetes secret object maintained by
@@ -2813,8 +2820,9 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
-        :param force_refresh: Make the server fetch the catalog from the actual marketplace source, rather than rely
-            on cached information which may exist from previous get requests. For example, if the source was re-built,
+        :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
+            rather than rely on cached information which may exist from previous get requests. For example,
+            if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
             of :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem` entries.
@@ -2846,7 +2854,8 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-        :param force_refresh: Make the server fetch the information from the actual marketplace source, rather than
+        :param force_refresh: Make the server fetch the information from the actual marketplace
+            source, rather than
             rely on cached information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.
         """

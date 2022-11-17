@@ -1115,6 +1115,8 @@ class NoSqlBaseTarget(BaseStoreTarget):
             df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
+            # To prevent modification of the original dataframe
+            df = df.copy(deep=False)
             access_key = self._secrets.get(
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
@@ -1231,10 +1233,12 @@ class KafkaTarget(BaseStoreTarget):
         producer_options=None,
         **kwargs,
     ):
-        attrs = {
-            "bootstrap_servers": bootstrap_servers,
-            "producer_options": producer_options,
-        }
+        attrs = {}
+        if bootstrap_servers is not None:
+            attrs["bootstrap_servers"] = bootstrap_servers
+        if bootstrap_servers is not None:
+            attrs["producer_options"] = producer_options
+
         super().__init__(*args, attributes=attrs, **kwargs)
 
     def add_writer_step(
@@ -1251,7 +1255,8 @@ class KafkaTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
-        bootstrap_servers = self.attributes.get("bootstrap_servers")
+        attributes = copy(self.attributes)
+        bootstrap_servers = attributes.pop("bootstrap_servers", None)
         topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
@@ -1262,7 +1267,7 @@ class KafkaTarget(BaseStoreTarget):
             columns=column_list,
             topic=topic,
             bootstrap_servers=bootstrap_servers,
-            **self.attributes,
+            **attributes,
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

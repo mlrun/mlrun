@@ -440,7 +440,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
-    :param url: path/url to Function Hub (formerly Marketplace), db or function YAML file
+    :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -723,7 +723,7 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
-    :param categories:   list of categories for mlrun Function Hub (formerly Marketplace), defaults to None
+    :param categories:   list of categories for mlrun Function Hub, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')

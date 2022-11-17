@@ -9,7 +9,7 @@ For more information see {ref}`mlrun-serving-overview`, {ref}`using_built_in_mod
 ## Basic model serving
 
 The most basic model serving capability is deployment of a single model. To do that, you:
-1. Create an MLRun function of type `serving` that implements a serving class with the `load` and `predict` methods. MLRun function marketplace comes with a range of such functions that support the most common frameworks.
+1. Create an MLRun function of type `serving` that implements a serving class with the `load` and `predict` methods. The MLRun Function Hub comes with a range of such functions that support the most common frameworks.
 2. Add the model to the function, using the {py:meth}`~mlrun.runtimes.ServingRuntime.add_model` method.
 3. {ref}`test-deploy-model-server`, using the {py:meth}`~mlrun.runtimes.ServingRuntime.deploy` method.
 

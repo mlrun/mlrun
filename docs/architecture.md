@@ -12,7 +12,7 @@ MLRun uses **Serverless Function** technology: write the code once, using your p
 simple "local" semantics, and then run it as-is on different platforms and at scale. MLRun automates the build process, execution, 
 data movement, scaling, versioning, parameterization, output tracking, CI/CD integration, deployment to production, monitoring, and more. 
 
-Those easily developed data or ML "functions" can then be published or loaded from a marketplace and used later to form offline or real-time 
+Those easily developed data or ML "functions" can then be published or loaded from a hub and used later to form offline or real-time 
 production pipelines with minimal engineering efforts.
 
 <p align="center"><img src="_static/images/mlrun-flow.png" alt="mlrun-flow" width="800"/></p><br>

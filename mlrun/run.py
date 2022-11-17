@@ -615,6 +615,12 @@ def new_function(
     if mode:
         runner.spec.mode = mode
     if source:
+        if not mlrun.utils.helpers.is_compressed_path(source) and not source.endswith(
+            ".git"
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source must be a compressed file or a git repo"
+            )
         runner.spec.build.source = source
     if handler:
         if kind == RuntimeKinds.serving:

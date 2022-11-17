@@ -42,7 +42,7 @@ IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 def make_dockerfile(
     base_image,
     commands=None,
-    src_dir=None,
+    source=None,
     requirements=None,
     workdir="/mlrun",
     extra="",
@@ -57,10 +57,10 @@ def make_dockerfile(
     for build_arg_key, build_arg_value in build_args.items():
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
-    if src_dir:
+    if source:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        dock += f"ADD {src_dir} {workdir}\n"
+        dock += f"ADD {source} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -368,7 +368,7 @@ def build_image(
     dock = make_dockerfile(
         base_image,
         commands,
-        src_dir=src_dir if not runtime_spec.build.load_source_on_run else None,
+        src_dir=source if not runtime_spec.build.load_source_on_run else None,
         requirements=requirements_path,
         extra=extra,
     )

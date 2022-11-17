@@ -2692,12 +2692,12 @@ class HTTPRunDB(RunDBInterface):
         """
         Add a new marketplace source.
 
-        MLRun maintains an ordered list of Hub (formerly Marketplace) sources ("sources"). Each source has
+        MLRun maintains an ordered list of marketplace sources (“sources”) Each source has
         its details registered and its order within the list. When creating a new source, the special order ``-1``
         can be used to mark this source as last in the list. However, once the source is in the MLRun list,
         its order will always be ``>0``.
 
-        The global Hub (formerly Marketplace) source always exists in the list, and is always the last source
+        The global marketplace source always exists in the list, and is always the last source
         (``order = -1``). It cannot be modified nor can it be moved to another order in the list.
 
         The source object may contain credentials which are needed to access the datastore where the source is stored.
@@ -2746,7 +2746,7 @@ class HTTPRunDB(RunDBInterface):
         self, source_name: str, source: Union[dict, schemas.IndexedMarketplaceSource]
     ):
         """
-        Create or replace a Hub (formerly Marketplace) source.
+        Create or replace a marketplace source.
         For an example of the source format and explanation of the source order logic,
         please see :py:func:`~create_marketplace_source`. This method can be used to modify the source itself or its
         order in the list of sources.
@@ -2776,9 +2776,9 @@ class HTTPRunDB(RunDBInterface):
 
     def get_marketplace_source(self, source_name: str):
         """
-        Retrieve a Hub (formerly Marketplace) source from the DB.
+        Retrieve a marketplace source from the DB.
 
-        :param source_name: Name of the Hub (formerly Marketplace) source to retrieve.
+        :param source_name: Name of the marketplace source to retrieve.
         """
         path = f"marketplace/sources/{source_name}"
         response = self.api_call(method="GET", path=path)
@@ -2786,12 +2786,12 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_marketplace_source(self, source_name: str):
         """
-        Delete a Hub (formerly Marketplace) source from the DB.
+        Delete a marketplace source from the DB.
         The source will be deleted from the list, and any following sources will be promoted - for example, if the
         1st source is deleted, the 2nd source will become #1 in the list.
-        The global Hub (formerly Marketplace) source cannot be deleted.
+        The global marketplace source cannot be deleted.
 
-        :param source_name: Name of the Hub (formerly Marketplace) source to delete.
+        :param source_name: Name of the marketplace source to delete.
         """
         path = f"marketplace/sources/{source_name}"
         self.api_call(method="DELETE", path=path)
@@ -2805,14 +2805,14 @@ class HTTPRunDB(RunDBInterface):
         force_refresh: bool = False,
     ):
         """
-        Retrieve the item catalog for a specified Hub (formerly Marketplace) source.
+        Retrieve the item catalog for a specified marketplace source.
         The list of items can be filtered according to various filters, using item's metadata to filter.
 
         :param source_name: Name of the source.
         :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
-        :param force_refresh: Make the server fetch the catalog from the actual Hub (formerly Marketplace) source,
+        :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
             rather than rely on cached information which may exist from previous get requests. For example,
             if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
@@ -2839,14 +2839,14 @@ class HTTPRunDB(RunDBInterface):
         force_refresh: bool = False,
     ):
         """
-        Retrieve a specific Hub (formerly Marketplace) item.
+        Retrieve a specific marketplace item.
 
         :param source_name: Name of source.
         :param item_name: Name of the item to retrieve, as it appears in the catalog.
         :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-        :param force_refresh: Make the server fetch the information from the actual Hub (formerly Marketplace)
+        :param force_refresh: Make the server fetch the information from the actual marketplace
             source, rather than
             rely on cached information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.

@@ -64,9 +64,7 @@ extensions = [
 ]
 
 # redirect paths due to filename changes
-redirects = {
-    "runtimes/load-from-marketplace": "load-from-hub.html"
-}
+redirects = {"runtimes/load-from-marketplace": "load-from-hub.html"}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [

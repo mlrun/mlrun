@@ -3031,12 +3031,10 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = fstore.ingest(prediction_set, df)
 
             read_back_df = pd.read_parquet(outdir)
-
             assert read_back_df.equals(returned_df)
-            assert read_back_df.to_dict() == {
-                "id": {0: "a", 1: "b"},
-                "number": {0: 11, 1: 22},
-            }
+
+            expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            assert read_back_df.equals(expected_df)
 
     # regression test for #2557
     @pytest.mark.parametrize(

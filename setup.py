@@ -180,6 +180,7 @@ setup(
         "mlrun.frameworks._ml_common.loggers",
         "mlrun.frameworks._ml_common.plans",
         "mlrun.frameworks.auto_mlrun",
+        "mlrun.frameworks.huggingface",
         "mlrun.frameworks.lgbm",
         "mlrun.frameworks.lgbm.callbacks",
         "mlrun.frameworks.lgbm.mlrun_interfaces",

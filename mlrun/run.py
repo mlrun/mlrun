@@ -1747,7 +1747,7 @@ class ContextHandler:
             # Parse the instructions:
             artifact_type = self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.get(
                 type(obj), self._ARTIFACT_TYPE_CLASS.DEFAULT
-            )
+            ).value
             key = None
             logging_kwargs = {}
             if isinstance(instructions, str):
@@ -1764,6 +1764,9 @@ class ContextHandler:
                 artifact_type = instructions[1]
                 if len(instructions) > 2:
                     logging_kwargs = instructions[2]
+            # Check if the object to log is None (None values are only logged if the artifact type is Result):
+            if obj is None and artifact_type != ArtifactType.RESULT.value:
+                continue
             # Log:
             self._log_output(
                 obj=obj,

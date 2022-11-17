@@ -173,6 +173,7 @@ class FileDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until

@@ -167,9 +167,7 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(
-            endpoint=self.url, access_key=self.token, transport_kind="requests"
-        )
+        v3io_client = v3io.dataplane.Client(endpoint=self.url, access_key=self.token)
         container, subpath = split_path(self._join(key))
         if not subpath.endswith("/"):
             subpath += "/"
@@ -192,7 +190,11 @@ class V3ioStore(DataStore):
             raise
 
         # todo: full = key, size, last_modified
-        return [obj.key[subpath_length:] for obj in response.output.contents]
+        dir_content = [
+            dir.prefix[subpath_length:] for dir in response.output.common_prefixes
+        ]
+        obj_content = [obj.key[subpath_length:] for obj in response.output.contents]
+        return dir_content + obj_content
 
     def rm(self, path, recursive=False, maxdepth=None):
         """Recursive rm file/folder

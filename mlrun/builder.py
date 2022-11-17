@@ -61,6 +61,9 @@ def make_dockerfile(
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
         dock += f"ADD {source} {workdir}\n"
+        # ADD command automatically extracts compressed tar.gz files but not zip files
+        if source.endswith(".zip"):
+            dock += f"RUN unzip {source} && rm {source}"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -364,7 +367,6 @@ def build_image(
     else:
         src_dir = None
 
-    # TODO: support loading local source on build time
     dock = make_dockerfile(
         base_image,
         commands,

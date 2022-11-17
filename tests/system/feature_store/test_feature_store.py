@@ -1723,28 +1723,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         csv_file = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        original_df = pd.read_csv(csv_file)
-        original_cols = original_df.shape[1]
-        print(original_df.shape)
-        print(original_df.info())
-
-        chunksize = 100
+        chunksize = 20
         source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
+
         if with_graph:
             myset.graph.to(name="s1", handler="my_func")
 
         df = fs.ingest(myset, source)
-        self._logger.info(f"output df:\n{df}")
 
         features = list(myset.spec.features.keys())
         print(len(features), features)
         print(myset.to_yaml())
-        print(df.shape)
-        # original cols - index - timestamp cols
-        assert len(features) == original_cols - 2, "wrong num of features"
-        assert df.shape[1] == original_cols, "num of cols not as expected"
-        # returned DF is only the first chunk (size 100)
-        assert df.shape[0] == chunksize, "dataframe size doesnt match"
+        self._logger.info(f"output df:\n{df}")
+
+        reference_df = pd.read_csv(csv_file)
+        reference_df = reference_df[0:chunksize].set_index("patient_id")
+
+        # patient_id (index) and timestamp (timestamp_key) are not in features list
+        assert features + ["timestamp"] == list(reference_df.columns)
+        assert df.equals(reference_df), "output dataframe is different from expected"
 
     def test_target_list_validation(self):
         targets = [ParquetTarget()]

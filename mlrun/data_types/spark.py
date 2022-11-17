@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from datetime import datetime
 from os import environ
 
 import numpy as np
+from pyspark.sql.types import BooleanType, DoubleType, TimestampType
 
 from .data_types import InferOptions, spark_to_value_type
 
@@ -103,7 +105,7 @@ def _create_hist_data(df, calculation_cols, results_dict, bins=20):
 
     for orig_col in calculation_cols:
         bin_data = [
-            [hist_values.loc[0][f"{orig_col}_hist_bin_{i}"] for i in range(bins)],
+            [int(hist_values.loc[0][f"{orig_col}_hist_bin_{i}"]) for i in range(bins)],
             [round(x, 2) for x in bins_values[orig_col]],
         ]
         results_dict[orig_col]["hist"] = bin_data
@@ -124,17 +126,31 @@ MAX_HISTOGRAM_COLUMNS_IN_QUERY = int(
 
 
 def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
-    if InferOptions.get_common_options(options, InferOptions.Index):
-        df = df.select("*").withColumn("id", funcs.monotonically_increasing_id())
-
     # todo: sample spark DF if sample_size is not None and DF is bigger than sample_size
+
+    df_after_type_casts = df
+    timestamp_columns = set()
+    boolean_columns = set()
+    for field in df_after_type_casts.schema.fields:
+        is_timestamp = isinstance(field.dataType, TimestampType)
+        is_boolean = isinstance(field.dataType, BooleanType)
+        if is_timestamp:
+            timestamp_columns.add(field.name)
+        if is_boolean:
+            boolean_columns.add(field.name)
+        if is_timestamp or is_boolean:
+            df_after_type_casts = df_after_type_casts.withColumn(
+                field.name,
+                df_after_type_casts[field.name].cast(DoubleType()),
+            )
 
     # if a column named "summary" already exists, we have to rename it to something else and back
     summary_renamed = False
-    df_for_summary = df
+    df_for_summary = df_after_type_casts
     if "summary" in df.columns:
         df_for_summary = df.withColumnRenamed("summary", "__summary_internal__")
         summary_renamed = True
+
     summary_df = df_for_summary.summary().toPandas()
     summary_df.set_index(["summary"], drop=True, inplace=True)
     if summary_renamed:
@@ -151,7 +167,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     numerical_spark_types = {"int", "bigint", "float", "double", "bigdecimal"}
     for col, values in summary_df.items():
         original_type = None
-        for col_name, col_type in df.dtypes:
+        for col_name, col_type in df_after_type_casts.dtypes:
             if col_name == col:
                 original_type = col_type
                 break
@@ -166,7 +182,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
 
         if (
             InferOptions.get_common_options(options, InferOptions.Histogram)
-            and get_dtype(df, col) in ["double", "int"]
+            and get_dtype(df_after_type_casts, col) in ["double", "bigint", "int"]
             # in some situations (empty DF may cause this) we won't have stats for columns with suitable types, in this
             # case we won't calculate histogram for the column.
             and "min" in results_dict[col]
@@ -178,8 +194,25 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
     max_columns_per_query = int(MAX_HISTOGRAM_COLUMNS_IN_QUERY // num_bins) or 1
     while len(hist_columns) > 0:
         calculation_cols = hist_columns[:max_columns_per_query]
-        _create_hist_data(df, calculation_cols, results_dict, num_bins)
+        _create_hist_data(df_after_type_casts, calculation_cols, results_dict, num_bins)
         hist_columns = hist_columns[max_columns_per_query:]
+
+    # convert values back to timestamp and boolean where appropriate
+    original_type_stats = {"min", "max", "25%", "50%", "75%"}
+    for col, stats in results_dict.items():
+        if col in timestamp_columns:
+            for stat, val in stats.items():
+                if stat == "mean" or stat in original_type_stats:
+                    stats[stat] = datetime.fromtimestamp(val).isoformat()
+                elif stat == "hist":
+                    values = stats[stat][1]
+                    for i in range(len(values)):
+                        values[i] = datetime.fromtimestamp(values[i]).isoformat()
+        # for boolean values, keep mean and histogram values numeric (0 to 1 representation)
+        if col in boolean_columns:
+            for stat, val in stats.items():
+                if stat in original_type_stats:
+                    stats[stat] = bool(val)
 
     return results_dict
 

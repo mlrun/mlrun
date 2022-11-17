@@ -47,7 +47,7 @@ class CalibrationCurvePlan(MLPlotPlan):
                           proper probability.
         :param n_bins:    Number of bins to discretize the [0, 1] interval.
         :param strategy:  Strategy used to define the widths of the bins. Can be on of {‘uniform’, ‘quantile’}.
-                          Defaulted to "uniform".
+                          Default: "uniform".
         """
         # Store the parameters:
         self._normalize = normalize

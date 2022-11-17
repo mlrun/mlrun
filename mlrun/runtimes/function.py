@@ -290,6 +290,16 @@ class RemoteRuntime(KubeResource):
         self.spec.config[key] = value
         return self
 
+    def with_annotations(self, annotations: dict):
+        """set a key/value annotations for function"""
+
+        self.spec.base_spec.setdefault("metadata", {})
+        self.spec.base_spec["metadata"].setdefault("annotations", {})
+        for key, value in annotations.items():
+            self.spec.base_spec["metadata"]["annotations"][key] = str(value)
+
+        return self
+
     def add_volume(self, local, remote, name="fs", access_key="", user=""):
         raise Exception("deprecated, use .apply(mount_v3io())")
 

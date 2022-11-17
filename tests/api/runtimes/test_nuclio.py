@@ -770,6 +770,21 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         assert deploy_spec["priorityClassName"] == medium_priority_class_name
 
+    def test_set_metadata_annotations(self, db: Session, client: TestClient):
+
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_annotations({"annotation-key": "annotation-value"})
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_metadata = args[0]["metadata"]
+
+        if deploy_metadata.get("annotations"):
+            assert (
+                deploy_metadata["annotations"].get("annotation-key")
+                == "annotation-value"
+            )
+
     def test_deploy_python_decode_string_env_var_enrichment(
         self, db: Session, client: TestClient
     ):

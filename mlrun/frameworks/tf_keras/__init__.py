@@ -114,7 +114,7 @@ def apply_mlrun(
     :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                         the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                         'context' and 'auto_log' parameters are already given here.
-    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Default:
                                         None, meaning it will be read from context if available and if not - False.
 
     :return: The model with MLRun's interface.

@@ -22,6 +22,8 @@ There are several deployment options:
    This option is good for testing the waters or when working in a small scale environment. It's limited in terms of computing resources and scale, but simpler for deployment.
 - {ref}`Kubernetes cluster<install-on-kubernetes>`: Deploy an MLRun server on Kubernetes.
    This option deploys MLRun on a Kubernetes cluster, which supports elastic scaling. Yet, it is more complex to install as it requires you to install Kubernetes on your own.
+- {ref}`Amazon Web Services (AWS)<install-on-AWS>`: Deploy an MLRun server on AWS.
+   This option is the easiest way to install MLRun cluster and use cloud-based services. The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services.
 - [Iguazio's Managed  Service](https://www.iguazio.com): A commercial offering by Iguazio. This is the fastest way to explore the full set of MLRun functionalities.<br>
   Note that Iguazio provides a 14 day free trial.
 
@@ -87,5 +89,6 @@ Some services do not support security context yet:
 
 install/local-docker
 install/kubernetes
+install/aws-install
 install/remote
 ```

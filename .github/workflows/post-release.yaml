@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         # we can't use the default token coming with the action cause GH prevents from create or updating workflows
         # which might be part of the release contents
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install curl and jq
         run: sudo apt-get install curl jq
       - name: Run script file

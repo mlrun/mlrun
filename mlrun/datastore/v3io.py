@@ -140,12 +140,15 @@ class V3ioStore(DataStore):
         append_header = deepcopy(self.headers)
         append_header["Range"] = "-1"
         buffer_offset = 0
-        buffer = memoryview(data)
+        try:
+            data = memoryview(data)
+        except TypeError:
+            pass
         while buffer_offset < buffer_size:
             chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
             http_put(
                 self.url + self._join(key),
-                buffer[buffer_offset : buffer_offset + chunk_size],
+                data[buffer_offset : buffer_offset + chunk_size],
                 append_header if buffer_offset else self.headers,
                 None,
             )
@@ -164,9 +167,7 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(
-            endpoint=self.url, access_key=self.token, transport_kind="requests"
-        )
+        v3io_client = v3io.dataplane.Client(endpoint=self.url, access_key=self.token)
         container, subpath = split_path(self._join(key))
         if not subpath.endswith("/"):
             subpath += "/"
@@ -189,7 +190,11 @@ class V3ioStore(DataStore):
             raise
 
         # todo: full = key, size, last_modified
-        return [obj.key[subpath_length:] for obj in response.output.contents]
+        dir_content = [
+            dir.prefix[subpath_length:] for dir in response.output.common_prefixes
+        ]
+        obj_content = [obj.key[subpath_length:] for obj in response.output.contents]
+        return dir_content + obj_content
 
     def rm(self, path, recursive=False, maxdepth=None):
         """Recursive rm file/folder

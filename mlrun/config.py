@@ -114,7 +114,7 @@ default_config = {
     "v3io_api": "http://v3io-webapi:8081",
     "redis": {
         "url": "",
-        "type": "standalone",  # can be "standalone" or "cluster"
+        "type": "standalone",  # deprecated.
     },
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
@@ -192,7 +192,8 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
-                }
+                },
+                "request_timeout": 45,  # seconds
             },
             # see mlrun.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
@@ -429,6 +430,9 @@ default_config = {
     "ce": {
         # ce mode can be one of: "", lite, full
         "mode": "",
+    },
+    "debug": {
+        "expose_internal_api_endpoints": False,
     },
 }
 

@@ -368,7 +368,7 @@ def build_image(
     dock = make_dockerfile(
         base_image,
         commands,
-        src_dir=source if not runtime_spec.build.load_source_on_run else None,
+        source=source if not runtime_spec.build.load_source_on_run else None,
         requirements=requirements_path,
         extra=extra,
     )

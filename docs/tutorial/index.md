@@ -76,7 +76,7 @@ Understand MLRun feature store with a simple example: build, transform, and serv
 
 ```{grid-item-card} Batch inference and drift detection
 :link: ./07-batch-infer.html
-Use MLRun batch inference function (from MLRun marketplace), run it as a batch job, and generate drift reports.
+Use MLRun batch inference function (from MLRun Function Hub), run it as a batch job, and generate drift reports.
 ```
 
 ```{grid-item-card} Advanced real-time pipeline

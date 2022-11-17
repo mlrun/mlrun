@@ -28,7 +28,7 @@ You can use those methods as `project` methods, or as global (`mlrun.`) methods.
 The first parameter in all three methods is either the function name (in the project), or a function object, used if you want to 
 specify functions that you imported/created ad hoc, or to modify a function spec. For example:
 
-    # import a serving function from the marketplace and deploy a trained model over it
+    # import a serving function from the Function Hub and deploy a trained model over it
     serving = import_function("hub://v2_model_server", new_name="serving")
     serving.spec.replicas = 2
     deploy = deploy_function(
@@ -64,7 +64,7 @@ Read further details on [**running tasks and getting their results**](../concept
 
 Usage examples:
 
-    # create a project with two functions (local and from marketplace)
+    # create a project with two functions (local and from Function Hub)
     project = mlrun.new_project(project_name, "./proj")
     project.set_function("mycode.py", "prep", image="mlrun/mlrun")
     project.set_function("hub://auto_trainer", "train")

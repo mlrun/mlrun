@@ -1,5 +1,5 @@
 (install-on-kubernetes)=
-# Install MLRun on a Kubernetes Cluster
+# Install MLRun on Kubernetes
 
 **In this section**
 - [Prerequisites](#prerequisites)
@@ -228,8 +228,9 @@ kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
 
 #### Reclaim dangling persistency resources:
 
-| WARNING: This will result in data loss! |
-| --- |
+```{admonition} WARNING 
+**This will result in data loss!**
+```
 
 ```bash
 # To list PVCs

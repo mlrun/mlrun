@@ -1991,7 +1991,7 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    @pytest.mark.parametrize("target_redis, ", ["", "localhost:6379"])
+    @pytest.mark.parametrize("target_redis, ", ["", "redis://:aaa@localhost:6379"])
     def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
@@ -2007,7 +2007,7 @@ class TestFeatureStore(TestMLRunSystem):
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
             RedisNoSqlTarget()
             if target_redis == ""
-            else RedisNoSqlTarget(target_redis),
+            else RedisNoSqlTarget(path=target_redis),
         ]
         fset.set_targets(
             targets=targets,
@@ -2835,7 +2835,9 @@ class TestFeatureStore(TestMLRunSystem):
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
-    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(
@@ -2866,7 +2868,6 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2885,8 +2886,11 @@ class TestFeatureStore(TestMLRunSystem):
             bootstrap_servers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
-        with pytest.raises(ValueError):
+        try:
             fs.ingest(stocks_set, stocks, [target])
+            pytest.fail("Expected a ValueError to be raised")
+        except ValueError as ex:
+            assert str(ex) == "Not supported codec: invalid value"
 
     def test_alias_change(self):
         quotes = pd.DataFrame(
@@ -3027,12 +3031,10 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = fstore.ingest(prediction_set, df)
 
             read_back_df = pd.read_parquet(outdir)
-
             assert read_back_df.equals(returned_df)
-            assert read_back_df.to_dict() == {
-                "id": {0: "a", 1: "b"},
-                "number": {0: 11, 1: 22},
-            }
+
+            expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            assert read_back_df.equals(expected_df)
 
     # regression test for #2557
     @pytest.mark.parametrize(

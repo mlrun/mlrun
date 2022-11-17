@@ -3,7 +3,7 @@
 
 Oftentimes you may want to run a `job` on a regular schedule. For example, fetching from a datasource every morning, compiling an analytics report every month, or detecting model drift every hour.
 
-## Create a job
+## Creating a job and scheduling it
 
 MLRun makes it very simple to add a schedule to a given `job`. To showcase this, the following job runs the code below, which resides in a file titled `schedule.py`:
 
@@ -26,7 +26,7 @@ job = mlrun.code_to_function(
 )
 ```
 
-## Add a schedule
+**Running the job using a schedule**
 
 To add a schedule, run the job and specify the `schedule` parameter using Cron syntax like so:
 
@@ -35,3 +35,11 @@ job.run(schedule="0 * * * *")
 ```
 
 This runs the job every hour. An excellent resource for generating Cron schedules is [Crontab.guru](https://crontab.guru/).
+
+## Scheduling a workflow
+
+After loading the project (`load_project`), run the project with the scheduled workflow:
+
+```
+project.run("main", schedule='0 * * * *')
+```

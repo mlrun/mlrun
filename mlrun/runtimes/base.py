@@ -667,7 +667,7 @@ class BaseRuntime(ModelObj):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
-                if not runspec.spec.output_path:
+                if not runspec.spec.output_path and self._get_db():
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
                         # spec first as get_db() depends on it

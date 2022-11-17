@@ -65,8 +65,8 @@ def make_dockerfile(
         if source.endswith(".zip"):
             stage1 = f"FROM {base_image} AS extractor\n"
             stage1 += "RUN apt-get update && apt-get -y upgrade && apt install unzip\n"
-            stage1 += f"COPY {source} /source \n"
-            stage1 += f"RUN cd /source && unzip {source} && rm {source}\n"
+            stage1 += f"COPY {source} /source/ \n"
+            stage1 += f"RUN cd /source/ && unzip {source} && rm {source}\n"
 
             dock += f"COPY --from=extractor /source/ {workdir}\n"
             dock = stage1 + "\n" + dock

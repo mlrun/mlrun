@@ -63,10 +63,12 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
     rapids=22.10 \
     pytorch \
     torchvision \
+    cxx-compiler \
+    # nvcc_linux-64 \
+    cudnn \
+    nccl \
+    mpi4py \
     && conda clean -aqy
-
-ARG TENSORFLOW_VERSION=2.7.0
-RUN python -m pip install tensorflow~=${TENSORFLOW_VERSION}
 
 ARG OMPI=4.1.0
 
@@ -85,20 +87,18 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-ARG HOROVOD_VERSION=0.26.1
-# TODO: MAKEFLAGS="-j1" work around some transient concurrency problem with installing horovod remove it when
-    #   possible (should be safe to remove if it works ~5 times without it)
-RUN ldconfig /usr/local/cuda/lib64/stubs && \
-    MAKEFLAGS="-j1" HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
-        python -m pip install horovod~=${HOROVOD_VERSION} && \
-    ldconfig
+ARG TENSORFLOW_VERSION=2.7.0
+ARG HOROVOD_VERSION=0.25.0
+
+RUN conda install -c deepmodeling -c conda-forge horovod=${HOROVOD_VERSION} tensorflow
+RUN horovodrun --check-build
 
 WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-COPY ../requirements.txt ./
+COPY ./requirements.txt ./
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 
@@ -115,6 +115,6 @@ RUN python -m pip install \
     -r models-image-requirements.txt \
     -r models-gpu-image-requirements.txt
 
-COPY .. .
+COPY . .
 
 RUN python -m pip install .[complete]

@@ -280,6 +280,7 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
 
 
 def upload_tarball(source_dir, target, secrets=None):
+
     # will delete the temp file
     with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:

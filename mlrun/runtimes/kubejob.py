@@ -69,9 +69,9 @@ class KubejobRuntime(KubeResource):
         :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
-        if source.endswith(".zip"):
+        if source.endswith(".zip") and not pull_at_runtime:
             logger.warn(
-                "zip files are not natively extracted by docker, use tar.gz for faster loading"
+                "zip files are not natively extracted by docker, use tar.gz for faster loading during build"
             )
 
         self.spec.build.source = source

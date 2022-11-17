@@ -106,6 +106,7 @@ def make_kaniko_pod(
 ):
     extra_runtime_spec = {}
     if not registry:
+
         # if registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
@@ -358,33 +359,26 @@ def build_image(
     parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
-    elif runtime_spec.build.load_source_on_run:
-        pass
-    elif (
-        source
-        and "://" in source
-        and not v3io
-        and not runtime_spec.build.load_source_on_run
-    ):
+    elif runtime_spec.build.load_source_on_run or not source:
+        source = None
+        src_dir = None
+    elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
         context = source
-    elif source:
+    else:
         if v3io:
             source = parsed_url.path
             to_mount = True
-        if is_compressed_path(source):
-            src_dir, source = path.split(source)
-    else:
-        src_dir = None
+        src_dir, source = path.split(source)
 
     dock = make_dockerfile(
         base_image,
         commands,
-        source=source if not runtime_spec.build.load_source_on_run else None,
+        source=source,
         requirements=requirements_path,
         extra=extra,
         user_unix_id=auth_info.user_unix_id,
@@ -409,7 +403,7 @@ def build_image(
         registry=registry,
     )
 
-    if to_mount and not runtime_spec.build.load_source_on_run:
+    if to_mount:
         kpod.mount_v3io(
             remote=src_dir,
             mount_path="/context",

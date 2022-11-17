@@ -63,7 +63,13 @@ def make_dockerfile(
         dock += f"ADD {source} {workdir}\n"
         # ADD command automatically extracts compressed tar.gz files but not zip files
         if source.endswith(".zip"):
-            dock += f"RUN unzip {source} && rm {source}"
+            stage1 = f"FROM {base_image} AS extractor\n"
+            stage1 += "RUN yum install unzip\n"
+            stage1 += f"COPY {source} /source \n"
+            stage1 += f"RUN cd /source && unzip {source} && rm {source}\n"
+
+            dock += f"COPY --from=extractor /source/ {workdir}\n"
+            dock = stage1 + "\n" + dock
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -93,7 +99,6 @@ def make_kaniko_pod(
 ):
     extra_runtime_spec = {}
     if not registry:
-
         # if registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
@@ -268,7 +273,6 @@ def configure_kaniko_ecr_init_container(kpod, registry, repo):
 
 
 def upload_tarball(source_dir, target, secrets=None):
-
     # will delete the temp file
     with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
@@ -346,6 +350,8 @@ def build_image(
     parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
+    elif runtime_spec.build.load_source_on_run:
+        pass
     elif (
         source
         and "://" in source

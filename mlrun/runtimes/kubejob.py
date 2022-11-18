@@ -101,6 +101,7 @@ class KubejobRuntime(KubeResource):
         auto_build=None,
         requirements=None,
         overwrite=False,
+        verify_base_image=True,
     ):
         """specify builder configuration for the deploy operation
 
@@ -117,13 +118,14 @@ class KubejobRuntime(KubeResource):
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: requirements.txt file to install or list of packages to install
         :param overwrite:   overwrite existing build configuration
+        :param verify_base_image: verify the base image is set
         """
         if image:
             self.spec.build.image = image
         if base_image:
             self.spec.build.base_image = base_image
         # overwriting commands before setting requirements or commands
-        if requirements or commands and overwrite:
+        if (requirements or commands) and overwrite:
             self.spec.build.commands = None
         if requirements:
             self.with_requirements(
@@ -144,7 +146,8 @@ class KubejobRuntime(KubeResource):
         if auto_build:
             self.spec.build.auto_build = auto_build
 
-        self.verify_base_image()
+        if verify_base_image:
+            self.verify_base_image()
 
     def deploy(
         self,

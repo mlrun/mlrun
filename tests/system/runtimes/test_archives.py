@@ -82,14 +82,14 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             command=command,
         )
 
-    @pytest.mark.parametrize("source", ["git", "tar"])
+    @pytest.mark.parametrize("artifact_format", ["git", "tar.gz", "zip"])
     @pytest.mark.parametrize("codepath", codepaths)
-    def test_local_archive(self, source, codepath):
+    def test_local_archive(self, artifact_format, codepath):
         workdir, module = codepath
         source = (
             f"{git_uri}#main"
-            if source == "git"
-            else str(self.assets_path / "source_archive.tar.gz")
+            if artifact_format == "git"
+            else str(self.assets_path / f"source_archive.{artifact_format}")
         )
         fn = self._new_function("local")
         fn.with_source_archive(
@@ -101,6 +101,38 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag")
+
+    # @pytest.mark.parametrize("_format", ["git", "tar.gz", "zip"])
+    # @pytest.mark.parametrize("codepath", codepaths)
+    # @pytest.mark.parametrize("pull_at_runtime", [True, False])
+    # def test_job_archive(self, _format, codepath, pull_at_runtime):
+    #     workdir, module = codepath
+    #     source = (
+    #         f"{git_uri}#main"
+    #         if _format == "git"
+    #         else str(self.assets_path / f"source_archive.{_format}")
+    #     )
+    #     fn = self._new_function("job")
+    #
+    #     target_dir = None
+    #     if not pull_at_runtime:
+    #         zip_artifact = self.project.log_artifact('function_zip', local_path=source, format=_format)
+    #         target_dir = zip_artifact.get_target_path()
+    #
+    #     fn.with_source_archive(
+    #         source,
+    #         workdir=workdir,
+    #         handler=f"{module}.job_handler",
+    #         target_dir=target_dir if target_dir else tempfile.mkdtemp(),
+    #         pull_at_runtime=pull_at_runtime,
+    #     )
+    #
+    #     if not pull_at_runtime:
+    #         fn.deploy()
+    #
+    #     run = mlrun.run_function(fn)
+    #     assert run.state() == "completed"
+    #     assert run.output("tag")
 
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     @pytest.mark.parametrize("case", job_cases.keys())
@@ -189,11 +221,12 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.enterprise
     @pytest.mark.parametrize("load_mode", ["run", "build"])
-    def test_job_tar(self, load_mode):
+    @pytest.mark.parametrize("compression_format", ["zip", "tar.gz"])
+    def test_job_compressed(self, load_mode, compression_format):
         self._upload_code_to_cluster()
-        fn = self._new_function("job", f"{load_mode}-tar")
+        fn = self._new_function("job", f"{load_mode}-compressed")
         fn.with_source_archive(
-            self.remote_code_dir + "source_archive.tar.gz",
+            self.remote_code_dir + f"source_archive.{compression_format}",
             handler="rootfn.job_handler",
             pull_at_runtime=load_mode == "run",
         )

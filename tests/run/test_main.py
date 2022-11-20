@@ -180,9 +180,9 @@ def test_main_run_archive():
 
 def test_main_local_source():
     args = f"--source {examples_path} --handler my_func"
-    out = exec_run("./handler.py", args.split(), "test_main_local_source")
-    print(out)
-    assert out.find("state: completed") != -1, out
+    with pytest.raises(Exception) as e:
+        exec_run("./handler.py", args.split(), "test_main_local_source")
+    assert "source must be a compressed file or a git repo" in str(e.value)
 
 
 def test_main_run_archive_subdir():

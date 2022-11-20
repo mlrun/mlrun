@@ -1275,11 +1275,20 @@ def compile_function_config(
         )
 
     if function.spec.replicas:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
+        if isinstance(function.spec.replicas, str) and not function.spec.replicas.isnumeric():
+            raise ValueError("Replicas must be a number (int/string)")
+
+        nuclio_spec.set_config("spec.minReplicas", int(function.spec.replicas))
+        nuclio_spec.set_config("spec.maxReplicas", int(function.spec.replicas))
     else:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        if isinstance(function.spec.min_replicas, str) and not function.spec.min_replicas.isnumeric():
+            raise ValueError("Min Replicas must be a number (int/string)")
+
+        if isinstance(function.spec.max_replicas, str) and not function.spec.max_replicas.isnumeric():
+            raise ValueError("Max Replicas must be a number (int/string)")
+
+        nuclio_spec.set_config("spec.minReplicas", int(function.spec.min_replicas))
+        nuclio_spec.set_config("spec.maxReplicas", int(function.spec.max_replicas))
 
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)

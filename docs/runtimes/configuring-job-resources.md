@@ -85,7 +85,7 @@ Configure volumes attached to a function by using the `apply` function modifier 
 
 For example, using v3io storage:
 ```
-# import the training function from the marketplace (hub://)
+# import the training function from the Function Hub (hub://)
 train = mlrun.import_function('hub://sklearn_classifier')# Import the function:
 open_archive_function = mlrun.import_function("hub://open_archive")
 

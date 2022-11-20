@@ -70,7 +70,7 @@ class SparkFeatureMerger(BaseMerger):
             ):
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.path,
+                    target.get_target_path(),
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
@@ -78,7 +78,7 @@ class SparkFeatureMerger(BaseMerger):
             else:
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.path,
+                    target.get_target_path(),
                     time_field=entity_timestamp_column,
                 )
 

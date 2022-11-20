@@ -60,7 +60,11 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_togglebutton",
     "sphinx_design",
+    "sphinx_reredirects",
 ]
+
+# redirect paths due to filename changes
+redirects = {"runtimes/load-from-marketplace": "load-from-hub.html"}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = [

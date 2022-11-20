@@ -69,7 +69,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     def _upload_code_to_cluster(self):
         if not self.uploaded_code:
-            for file in ["source_archive.tar.gz", "handler.py"]:
+            for file in ["source_archive.tar.gz", "source_archive.zip", "handler.py"]:
                 source_path = str(self.assets_path / file)
                 mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
         self.uploaded_code = True
@@ -101,38 +101,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         run = mlrun.run_function(fn)
         assert run.state() == "completed"
         assert run.output("tag")
-
-    # @pytest.mark.parametrize("_format", ["git", "tar.gz", "zip"])
-    # @pytest.mark.parametrize("codepath", codepaths)
-    # @pytest.mark.parametrize("pull_at_runtime", [True, False])
-    # def test_job_archive(self, _format, codepath, pull_at_runtime):
-    #     workdir, module = codepath
-    #     source = (
-    #         f"{git_uri}#main"
-    #         if _format == "git"
-    #         else str(self.assets_path / f"source_archive.{_format}")
-    #     )
-    #     fn = self._new_function("job")
-    #
-    #     target_dir = None
-    #     if not pull_at_runtime:
-    #         zip_artifact = self.project.log_artifact('function_zip', local_path=source, format=_format)
-    #         target_dir = zip_artifact.get_target_path()
-    #
-    #     fn.with_source_archive(
-    #         source,
-    #         workdir=workdir,
-    #         handler=f"{module}.job_handler",
-    #         target_dir=target_dir if target_dir else tempfile.mkdtemp(),
-    #         pull_at_runtime=pull_at_runtime,
-    #     )
-    #
-    #     if not pull_at_runtime:
-    #         fn.deploy()
-    #
-    #     run = mlrun.run_function(fn)
-    #     assert run.state() == "completed"
-    #     assert run.output("tag")
 
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     @pytest.mark.parametrize("case", job_cases.keys())

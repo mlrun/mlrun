@@ -56,7 +56,7 @@ def make_dockerfile(
     if source:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        # ADD command automatically extracts compressed tar.gz files but not zip files
+        # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
             stage1 = f"FROM {base_image} AS extractor\n"
             stage1 += "RUN apt-get update && apt-get -y upgrade && apt install unzip\n"
@@ -77,7 +77,7 @@ def make_dockerfile(
         dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
         dock += extra
-    logger.info(f"Dockerfile:\n{dock}")
+    logger.debug(f"Dockerfile:\n{dock}")
     return dock
 
 

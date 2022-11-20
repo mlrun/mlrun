@@ -58,7 +58,6 @@ def make_dockerfile(
         dock += f"WORKDIR {workdir}\n"
         # ADD command automatically extracts compressed tar.gz files but not zip files
         if source.endswith(".zip"):
-            # TODO: not sure that multistage is helping here
             stage1 = f"FROM {base_image} AS extractor\n"
             stage1 += "RUN apt-get update && apt-get -y upgrade && apt install unzip\n"
             stage1 += "RUN mkdir -p /source\n"

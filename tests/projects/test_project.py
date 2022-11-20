@@ -84,11 +84,41 @@ def test_create_project_from_file_with_legacy_structure():
         "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
         "o-Customer-Churn.csv",
         "db_key": "raw-data",
+        "src_path": "./relative_path",
     }
-    legacy_project.artifacts = [artifact_dict]
+    model_dict = {
+        "db_key": "model_best_estimator",
+        "framework": "xgboost",
+        "hash": "934cb89155cfd9225cb6f7271f1f1bb775eeb340",
+        "iter": "0",
+        "key": "model_best_estimator",
+        "kind": "model",
+        "labels": {"framework": "xgboost"},
+        "model_file": "model_best_estimator.pkl",
+        "producer": {
+            "kind": "run",
+            "name": "some_run",
+            "owner": "admin",
+            "uri": "some_run/311a3bb1c85145e7a3daa0aa4189a4f9",
+            "workflow": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
+        },
+        "size": 100,
+        "tag": "0.0.24",
+        "tree": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
+        "src_path": "./relative_path",
+        "target_path": "/some/target/path",
+        "updated": "2022-09-29T19:32:57.718312+00:00",
+    }
+
+    legacy_project.artifacts = [artifact_dict, model_dict]
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
     project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
+
+    # This is usually called as part of load_project. However, since we're using save=False, this doesn't get
+    # called. So, calling manually to verify it works.
+    project.register_artifacts()
+
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description

@@ -183,7 +183,7 @@ def test_main_local_source():
     with pytest.raises(Exception) as e:
         exec_run("./handler.py", args.split(), "test_main_local_source")
     assert (
-        "source must be a compressed (tar.gz / zip) file, a git repo or a file path"
+        "source must be a compressed (tar.gz / zip) file, a git repo, a file path or in the project's context (.)"
         in str(e.value)
     )
 

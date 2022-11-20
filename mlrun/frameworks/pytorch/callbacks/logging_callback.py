@@ -205,20 +205,7 @@ class LoggingCallback(Callback):
         After the run begins, this method will be called to setup the results and hyperparameters dictionaries for
         logging, noting the metrics names and logging the initial hyperparameters values (epoch 0).
         """
-        # Setup the results and summaries dictionaries:
-        # # Loss:
-        self._logger.log_metric(
-            metric_name=self._get_metric_name(
-                metric_function=self._objects[self._ObjectKeys.LOSS_FUNCTION],
-            )
-        )
-        # # Metrics:
-        for metric_function in self._objects[self._ObjectKeys.METRIC_FUNCTIONS]:
-            self._logger.log_metric(
-                metric_name=self._get_metric_name(metric_function=metric_function)
-            )
-
-        # Setup the hyperparameters dictionaries:
+        # Set up the hyperparameters dictionaries:
         if self._auto_log:
             self._add_auto_hyperparameters()
         # # Static hyperparameters:

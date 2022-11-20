@@ -29,6 +29,7 @@ Example dataset artifact screen:
 You can search the artifacts based on time and labels.
 For each artifact, you can view its location, the artifact type, labels, 
 the producer of the artifact, the artifact owner, last update date, and type-specific information.
+You can also tag and remove tags from artifacts using the UI.
 
 Artifacts can also be viewed from the **Jobs > Artifacts** tab.
 For each artifact, you can view its content as well as download the artifact.

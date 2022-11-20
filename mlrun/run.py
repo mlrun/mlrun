@@ -616,12 +616,12 @@ def new_function(
         runner.spec.mode = mode
     if source:
         if not (
-            source.endswith(".gz")
+            source.endswith(".tar.gz")
             or source.endswith(".zip")
             or source.startswith("git://")
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "source must be a compressed file or a git repo"
+                "source must be a compressed (tar.gz / zip) file or a git repo"
             )
         runner.spec.build.source = source
     if handler:

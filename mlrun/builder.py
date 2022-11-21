@@ -341,7 +341,6 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    src_dir = "."
     v3io = (
         source.startswith("v3io://") or source.startswith("v3ios://")
         if source
@@ -355,11 +354,11 @@ def build_image(
     builder_env = _generate_builder_env(project, builder_env)
 
     parsed_url = urlparse(source)
-    if inline_code:
+    source_to_copy = None
+    source_dir_to_mount = None
+    if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
-    elif runtime_spec.build.load_source_on_run or not source:
-        source = None
-        src_dir = None
+
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
@@ -367,14 +366,17 @@ def build_image(
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
 
-        # set remote source as kaniko's build context
+        # set remote source as kaniko's build context and copy it
         context = source
-        source = None
+        source_to_copy = "."
+
     else:
         if v3io:
             source = parsed_url.path
             to_mount = True
-        src_dir, source = path.split(source)
+            source_dir_to_mount, source_to_copy = path.split(source)
+        else:
+            source_to_copy = source
 
     user_unix_id = None
     if (
@@ -388,7 +390,7 @@ def build_image(
     dock = make_dockerfile(
         base_image,
         commands,
-        source=source,
+        source=source_to_copy,
         requirements=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
@@ -412,7 +414,7 @@ def build_image(
 
     if to_mount:
         kpod.mount_v3io(
-            remote=src_dir,
+            remote=source_dir_to_mount,
             mount_path="/context",
             access_key=access_key,
             user=username,

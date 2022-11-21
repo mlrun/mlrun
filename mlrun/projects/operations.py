@@ -229,10 +229,14 @@ def build_function(
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-    :param overwrite_build_params:  overwrite the function build parameters with the provided ones
-
+    :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
+     to existing parameters
     """
     engine, function = _get_engine_and_function(function, project_object)
+    if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "cannot build use deploy_function()"
+        )
     if engine == "kfp":
         if overwrite_build_params:
             function.spec.build.commands = None
@@ -240,11 +244,6 @@ def build_function(
             function.with_requirements(requirements)
         if commands:
             function.with_commands(commands)
-
-        if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot build use deploy_function()"
-            )
         return function.deploy_step(
             image=image,
             base_image=base_image,

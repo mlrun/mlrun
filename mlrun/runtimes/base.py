@@ -1076,11 +1076,9 @@ class BaseRuntime(ModelObj):
             for command in commands:
                 if command not in self.spec.build.commands:
                     self.spec.build.commands.append(command)
-                    # using list(set(x)) won't retain order,
-                    # solution inspired from https://stackoverflow.com/a/17016257/8116661
-                    self.spec.build.commands = list(
-                        dict.fromkeys(self.spec.build.commands)
-                    )
+            # using list(set(x)) won't retain order,
+            # solution inspired from https://stackoverflow.com/a/17016257/8116661
+            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
         if verify_base_image:
             self.verify_base_image()
         return self

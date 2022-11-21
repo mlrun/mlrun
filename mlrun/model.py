@@ -351,7 +351,7 @@ class ImageBuilder(ModelObj):
 
     @source.setter
     def source(self, source):
-        if not (
+        if source and not (
             source.endswith(".tar.gz")
             or source.endswith(".zip")
             or source.startswith("git://")

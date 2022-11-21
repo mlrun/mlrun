@@ -60,7 +60,7 @@ def make_dockerfile(
         if source.endswith(".zip"):
             stage1 = f"""
             FROM {base_image} AS extractor
-            RUN apt-get update && apt-get -y upgrade && apt install unzip
+            RUN apt-get update -qqy && apt install --assume-yes unzip
             RUN mkdir -p /source
             COPY {source} /source
             RUN cd /source && unzip {source} && rm {source}

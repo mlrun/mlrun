@@ -39,7 +39,7 @@ from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
-from ..utils import enrich_image_url, get_in, logger, update_in
+from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
@@ -1275,29 +1275,23 @@ def compile_function_config(
         )
 
     if function.spec.replicas:
-        if (
-            isinstance(function.spec.replicas, str)
-            and not function.spec.replicas.isnumeric()
-        ):
-            raise ValueError("Replicas must be a number (int/string)")
 
-        nuclio_spec.set_config("spec.minReplicas", int(function.spec.replicas))
-        nuclio_spec.set_config("spec.maxReplicas", int(function.spec.replicas))
+        nuclio_spec.set_config(
+            "spec.minReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+
     else:
-        if (
-            isinstance(function.spec.min_replicas, str)
-            and not function.spec.min_replicas.isnumeric()
-        ):
-            raise ValueError("Min Replicas must be a number (int/string)")
-
-        if (
-            isinstance(function.spec.max_replicas, str)
-            and not function.spec.max_replicas.isnumeric()
-        ):
-            raise ValueError("Max Replicas must be a number (int/string)")
-
-        nuclio_spec.set_config("spec.minReplicas", int(function.spec.min_replicas))
-        nuclio_spec.set_config("spec.maxReplicas", int(function.spec.max_replicas))
+        nuclio_spec.set_config(
+            "spec.minReplicas",
+            as_number("spec.minReplicas", function.spec.min_replicas),
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas",
+            as_number("spec.maxReplicas", function.spec.max_replicas),
+        )
 
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)

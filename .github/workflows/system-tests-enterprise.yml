@@ -61,6 +61,7 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
+    - uses: actions/checkout@v3
     - name: cleanup docker images from registries
       # SSH to datanode and delete all docker images created by the system tests by restarting the docker-registry
       # deployment and the datanode docker-registry

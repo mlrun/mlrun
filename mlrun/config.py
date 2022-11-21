@@ -206,6 +206,7 @@ default_config = {
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "retry_api_call_on_exception": "enabled",
+        "http_connection_timeout_keep_alive": 11,
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,

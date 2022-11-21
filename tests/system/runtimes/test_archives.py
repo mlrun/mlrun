@@ -107,15 +107,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     @pytest.mark.parametrize("case", job_cases.keys())
     def test_job_git(self, load_mode, case):
-        default_security_context_dict = {
-            "runAsUser": 1000,
-            "runAsGroup": 1000,
-        }
-
-        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
-            json.dumps(default_security_context_dict).encode("utf-8")
-        )
-
         command, workdir, handler, tag = job_cases[case]
         fn = self._new_function("job", f"{load_mode}-{case}", command)
         fn.with_source_archive(
@@ -267,15 +258,6 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert "tag=" in resp.decode()
 
     def test_project_subdir(self):
-        default_security_context_dict = {
-            "runAsUser": 1000,
-            "runAsGroup": 1000,
-        }
-
-        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
-            json.dumps(default_security_context_dict).encode("utf-8")
-        )
-
         # load project into a tmp dir, look for the project.yaml in the subpath
         project = mlrun.load_project(
             tempfile.mkdtemp(),

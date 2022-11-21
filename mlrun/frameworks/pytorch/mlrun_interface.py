@@ -206,7 +206,7 @@ class PyTorchMLRunInterface:
                 ):
                     break
 
-            # End of a epoch callbacks:
+            # End of an epoch callbacks:
             if not self._callbacks_handler.on_epoch_end(epoch=epoch):
                 break
             print()

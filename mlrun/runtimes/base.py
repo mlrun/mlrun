@@ -715,8 +715,25 @@ class BaseRuntime(ModelObj):
             txt = get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+        # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
+        # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
+        # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
+        # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
+        # in real time
+        if (
+            watch is None
+            and self.kfp
+            and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
+        ):
+            state_interval = config.httpdb.logs.pipelines.pull_state.pull_state_interval
+            logs_interval = config.httpdb.logs.pipelines.pull_state.pull_logs_interval
 
-        if watch or self.kfp:
+            runspec.wait_for_completion(
+                show_logs=True, sleep=state_interval, logs_interval=logs_interval
+            )
+            resp = self._get_db_run(runspec)
+
+        elif watch or self.kfp:
             runspec.logs(True, self._get_db())
             resp = self._get_db_run(runspec)
 

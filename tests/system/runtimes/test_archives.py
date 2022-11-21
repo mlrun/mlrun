@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import base64
-import json
 import os
 import tempfile
 
@@ -65,9 +63,9 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
                 }
             )
 
-    # def custom_teardown(self):
-    #     for name in self.custom_project_names_to_delete:
-    #         self._delete_test_project(name)
+    def custom_teardown(self):
+        for name in self.custom_project_names_to_delete:
+            self._delete_test_project(name)
 
     def _upload_code_to_cluster(self):
         if not self.uploaded_code:

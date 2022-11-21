@@ -18,11 +18,13 @@ import json
 import traceback
 from enum import Enum
 from io import BytesIO
+from typing import Union
 
 import numpy
 from numpy.core.fromnumeric import mean
 
 import mlrun
+import mlrun.utils.model_monitoring
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 from ..api.schemas import (
@@ -34,6 +36,7 @@ from ..api.schemas import (
 )
 from ..config import config
 from ..utils.model_monitoring import EndpointType
+from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
@@ -260,9 +263,10 @@ class VotingEnsemble(BaseModelRouter):
         the different added models.
 
         You can use it by calling:
-        - <prefix>/<model>[/versions/<ver>]/operation
+
+        - `<prefix>/<model>[/versions/<ver>]/operation`
             Sends the event to the specific <model>[/versions/<ver>]
-        - <prefix>/operation
+        - `<prefix>/operation`
             Sends the event to all models and applies `vote(self, event)`
 
         The `VotingEnsemble` applies the following logic:
@@ -274,9 +278,9 @@ class VotingEnsemble(BaseModelRouter):
         once on the router level, with only model-specific adjustments at the
         model level.
 
-        * When enabling model tracking via `set_tracking()` the ensemble logic
-        predictions will appear with model name as the given VotingEnsemble name
-        or "VotingEnsemble" by default.
+            When enabling model tracking via `set_tracking()` the ensemble logic
+            predictions will appear with model name as the given VotingEnsemble name
+            or "VotingEnsemble" by default.
 
         Example::
 
@@ -296,8 +300,8 @@ class VotingEnsemble(BaseModelRouter):
             fn.add_model(<model_name>, <model_path>, <model_class_name>)
             fn.add_model(<model_name>, <model_path>, <model_class_name>)
 
-        How to extend the VotingEnsemble
-        --------------------------------
+        How to extend the VotingEnsemble:
+
         The VotingEnsemble applies its logic using the `logic(predictions)` function.
         The `logic()` function receives an array of (# samples, # predictors) which you
         can then use to apply whatever logic you may need.
@@ -324,13 +328,13 @@ class VotingEnsemble(BaseModelRouter):
                               to event["y"] resulting in {"x": 5, "resp": <result>}
         :param vote_type:     Voting type to be used (from `VotingTypes`).
                               by default will try to self-deduct upon the first event:
-                                - float prediction type: regression
-                                - int prediction type: classification
+                              - float prediction type: regression
+                              - int prediction type: classification
         :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
         :param prediction_col_name: The dict key for the predictions column in the model's responses output.
                               Example: If the model returns
-                                       {id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}
-                                       the prediction_col_name should be `prediction`.
+                              `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`
+                              the prediction_col_name should be `prediction`.
                               by default, `prediction`
         :param kwargs:        extra arguments
         """
@@ -707,75 +711,108 @@ class VotingEnsemble(BaseModelRouter):
         return request
 
 
-def _init_endpoint_record(graph_server, voting_ensemble: VotingEnsemble):
+def _init_endpoint_record(
+    graph_server: GraphServer, voting_ensemble: VotingEnsemble
+) -> Union[str, None]:
+    """
+    Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
+    endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
+    already exist in the DB, we skip the creation process. Otherwise, it writes the new model endpoint record to the DB.
+
+    :param graph_server:    A GraphServer object which will be used for getting the function uri.
+    :param voting_ensemble: Voting ensemble serving class. It contains important details for the model endpoint record
+                            such as model name, model path, model version, and the ids of the children model endpoints.
+
+    :return: Model endpoint unique ID.
+    """
+
     logger.info("Initializing endpoint records")
 
-    endpoint_uid = None
-
+    # Generate required values for the model endpoint record
     try:
+        # Getting project name from the function uri
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
         )
+    except Exception as e:
+        logger.error("Failed to parse function URI", exc=e)
+        return None
 
-        if voting_ensemble.version:
-            versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
-        else:
-            versioned_model_name = f"{voting_ensemble.name}:latest"
+    # Generating version model value based on the model name and model version
+    if voting_ensemble.version:
+        versioned_model_name = f"{voting_ensemble.name}:{voting_ensemble.version}"
+    else:
+        versioned_model_name = f"{voting_ensemble.name}:latest"
 
-        children_uids = []
-        for _, c in voting_ensemble.routes.items():
-            if hasattr(c, "endpoint_uid"):
-                children_uids.append(c.endpoint_uid)
+    # Generating model endpoint ID based on function uri and model version
+    endpoint_uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+    ).uid
 
-        model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(project=project),
-            spec=ModelEndpointSpec(
-                function_uri=graph_server.function_uri,
-                model=versioned_model_name,
-                model_class=voting_ensemble.__class__.__name__,
-                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                    project=project, kind="stream"
+    # If model endpoint object was found in DB, skip the creation process.
+    try:
+        mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=endpoint_uid)
+
+    except mlrun.errors.MLRunNotFoundError:
+        logger.info("Creating a new model endpoint record", endpoint_id=endpoint_uid)
+
+        try:
+            # Get the children model endpoints ids
+            children_uids = []
+            for _, c in voting_ensemble.routes.items():
+                if hasattr(c, "endpoint_uid"):
+                    children_uids.append(c.endpoint_uid)
+
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=voting_ensemble.__class__.__name__,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
+                    ),
+                    active=True,
+                    monitoring_mode=ModelMonitoringMode.enabled
+                    if voting_ensemble.context.server.track_models
+                    else ModelMonitoringMode.disabled,
                 ),
-                active=True,
-                monitoring_mode=ModelMonitoringMode.enabled
-                if voting_ensemble.context.server.track_models
-                else ModelMonitoringMode.disabled,
-            ),
-            status=ModelEndpointStatus(
-                children=list(voting_ensemble.routes.keys()),
-                endpoint_type=EndpointType.ROUTER,
-                children_uids=children_uids,
-            ),
-        )
-        endpoint_uid = model_endpoint.metadata.uid
-
-        db = mlrun.get_run_db()
-
-        db.create_or_patch_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint,
-        )
-
-        for model_endpoint in children_uids:
-            # here to update that it is a node now
-            current_endpoint = db.get_model_endpoint(
-                project=project, endpoint_id=model_endpoint
+                status=ModelEndpointStatus(
+                    children=list(voting_ensemble.routes.keys()),
+                    endpoint_type=EndpointType.ROUTER,
+                    children_uids=children_uids,
+                ),
             )
-            current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
 
+            db = mlrun.get_run_db()
             db.create_or_patch_model_endpoint(
                 project=project,
-                endpoint_id=model_endpoint,
-                model_endpoint=current_endpoint,
+                endpoint_id=model_endpoint.metadata.uid,
+                model_endpoint=model_endpoint,
             )
 
-    except Exception as exc:
-        logger.warning(
-            "Failed creating model endpoint record",
-            exc=exc,
-            traceback=traceback.format_exc(),
-        )
+            # Update model endpoint children type
+            for model_endpoint in children_uids:
+                current_endpoint = db.get_model_endpoint(
+                    project=project, endpoint_id=model_endpoint
+                )
+                current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
+                db.create_or_patch_model_endpoint(
+                    project=project,
+                    endpoint_id=model_endpoint,
+                    model_endpoint=current_endpoint,
+                )
+
+        except Exception as exc:
+            logger.warning(
+                "Failed creating model endpoint record",
+                exc=exc,
+                traceback=traceback.format_exc(),
+            )
+
+    except Exception as e:
+        logger.error("Failed to retrieve model endpoint object", exc=e)
+
     return endpoint_uid
 
 

@@ -1,5 +1,14 @@
 (ci-integration)=
-# CI/CD, rolling upgrades, git
+# CI/CD integration
+
++You can run your ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
+with the CI systems. 
+
+- Build/run complex workflows composed of local/library functions or external cloud services (e.g. AutoML)
+- Support various Pipeline/CI engines (Kubeflow, GitHub, Gitlab, Jenkins)
+- Track & version code, data, params, results with minimal effort
+- Elastic scaling of each step
+- Extensive Function Hub
 
 MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
 and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
@@ -40,9 +49,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python 3.7
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: '3.7'
         architecture: 'x64'

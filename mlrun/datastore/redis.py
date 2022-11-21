@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import redis
 import redis.cluster
-from storey.redis_driver import RedisType
 
 import mlrun
 
@@ -41,7 +38,7 @@ class RedisStore(DataStore):
         super().__init__(parent, name, schema, endpoint)
         self.headers = None
 
-        self.endpoint = self.endpoint or mlrun.mlconf.redis_url
+        self.endpoint = self.endpoint or mlrun.mlconf.redis.url
 
         if self.endpoint.startswith("rediss://"):
             self.endpoint = self.endpoint[len("rediss://") :]
@@ -49,29 +46,25 @@ class RedisStore(DataStore):
         elif self.endpoint.startswith("redis://"):
             self.endpoint = self.endpoint[len("redis://") :]
             self.secure = False
-        else:
+        elif self.endpoint == "":
             raise NotImplementedError(f"invalid endpoint: {endpoint}")
 
         self._redis_url = f"{schema}://{self.endpoint}"
 
         self._redis = None
 
-        if os.environ.get("MLRUN_REDIS_TYPE") == "cluster":
-            self._redis_type = RedisType.CLUSTER
-        else:
-            self._redis_type = RedisType.STANDALONE
-
     @property
     def redis(self):
         if self._redis is None:
-            if self._redis_type is RedisType.STANDALONE:
+            try:
+                self._redis = redis.cluster.RedisCluster.from_url(
+                    self._redis_url, decode_responses=True
+                )
+            except redis.cluster.RedisClusterException:
                 self._redis = redis.Redis.from_url(
                     self._redis_url, decode_responses=True
                 )
-            else:
-                self._redis = redis.cluster.RedisCluster.from_url(
-                    self._redis_url, decode_response=True
-                )
+
         return self._redis
 
     def get_filesystem(self, silent):
@@ -80,7 +73,31 @@ class RedisStore(DataStore):
     def supports_isdir(self):
         return False
 
+    @classmethod
+    def build_redis_key(cls, key, prefix_only=False):
+        if key.startswith("redis://"):
+            start = len("redis://")
+        elif key.startswith("rediss://"):
+            start = key[len("redis://") :]
+        else:
+            start = 0
+        # skip over user/pass, host, port
+        start = key.find("/", start)
+        # insert the prefix '{' hashtag to the key as stored in redis
+        key = "{" + key[start:]
+        if prefix_only is False:
+            key += "}"
+
+        return key
+
+    @classmethod
+    def build_mlrun_key(cls, key):
+        key = key[len("{") : -len("}")]
+
+        return key
+
     def upload(self, key, src_path):
+        key = RedisStore.build_redis_key(key)
         with open(src_path, "rb") as f:
             while True:
                 data = f.read(1000 * 1000)
@@ -89,6 +106,7 @@ class RedisStore(DataStore):
                 self.redis.append(key, data)
 
     def get(self, key, size=None, offset=0):
+        key = RedisStore.build_redis_key(key)
         if offset < 0:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "offset argument should be >= 0"
@@ -104,6 +122,7 @@ class RedisStore(DataStore):
         return self.redis.getrange(key, start_offset, end_offset)
 
     def put(self, key, data, append=False):
+        key = RedisStore.build_redis_key(key)
         if append:
             self.redis.append(key, data)
         else:
@@ -117,9 +136,10 @@ class RedisStore(DataStore):
         list all keys with prefix key
         """
         response = []
+        key = RedisStore.build_redis_key(key, prefix_only=True)
         key += "*" if key.endswith("/") else "/*"
         for key in self.redis.scan_iter(key):
-            response.append(key)
+            response.append(RedisStore.build_mlrun_key(key))
         return response
 
     def rm(self, key, recursive=False, maxdepth=None):
@@ -129,12 +149,10 @@ class RedisStore(DataStore):
         if maxdepth is not None:
             raise NotImplementedError("maxdepth is not supported")
 
-        if key.startswith("redis://"):
-            key = key[len("redis://") :]
-        elif key.startswith("rediss://"):
-            key = key[len("redis://") :]
+        key = RedisStore.build_redis_key(key, prefix_only=True)
 
         if recursive:
+            key += "*" if key.endswith("/") else "/*"
             for key in self.redis.scan_iter(key):
                 self.redis.delete(key)
         else:

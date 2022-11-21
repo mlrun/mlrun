@@ -83,6 +83,24 @@ class FeatureSetSpec(ModelObj):
         engine=None,
         output_path=None,
     ):
+        """Feature set spec object, defines the feature-set's configuration.
+
+        .. warning::
+            This class should not be modified directly. It is managed by the parent feature-set object or using
+            feature-store APIs. Modifying the spec manually may result in unpredictable behaviour.
+
+        :param description:   text description (copied from parent feature-set)
+        :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
+        :param features: list of features - :py:class:`~mlrun.features.FeatureSet.Feature`
+        :param partition_keys: list of fields to partition results by (other than the default timestamp key)
+        :param timestamp_key: timestamp column name
+        :param label_column: name of the label column (the one holding the target (y) values)
+        :param targets: list of data targets
+        :param graph: the processing graph
+        :param function: MLRun runtime to execute the feature-set in
+        :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param output_path: default location where to store results (defaults to MLRun's artifact path)
+        """
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
@@ -198,6 +216,20 @@ class FeatureSetStatus(ModelObj):
         function_uri=None,
         run_uri=None,
     ):
+        """Feature set status object, containing the current feature-set's status.
+
+        .. warning::
+            This class should not be modified directly. It is managed by the parent feature-set object or using
+            feature-store APIs. Modifying the status manually may result in unpredictable behaviour.
+
+        :param state: object's current state
+        :param targets: list of the data targets used in the last ingestion operation
+        :param stats: feature statistics calculated in the last ingestion (if stats calculation was requested)
+        :param preview: preview of the feature-set contents (if preview generation was requested)
+        :param function_uri: function used to execute the feature-set graph
+        :param run_uri: last run used for ingestion
+        """
+
         self.state = state or "created"
         self._targets: ObjectList = None
         self.targets = targets or []
@@ -685,10 +717,12 @@ class FeatureSet(ModelObj):
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
+            if before is None and after is None:
+                after = previous_step
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
                     name=step_name,
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
                     aggregates=[aggregation],
@@ -706,7 +740,7 @@ class FeatureSet(ModelObj):
                     key_columns=key_columns,
                     time_column=self.spec.timestamp_key,
                     aggregates=[aggregation],
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
                     **class_args,

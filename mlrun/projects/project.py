@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
@@ -44,17 +45,17 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import (
-    RunNotifications,
-    is_ipython,
-    is_legacy_artifact,
-    is_relative_path,
-    logger,
-    update_in,
-)
+from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
-from .operations import build_function, deploy_function, run_function
+from ..utils.notifications import CustomNotificationPusher, NotificationTypes
+from .operations import (
+    BuildStatus,
+    DeployStatus,
+    build_function,
+    deploy_function,
+    run_function,
+)
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
@@ -169,8 +170,9 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
-    mlrun.mlconf.default_project = project.metadata.name
-    pipeline_context.set(project)
+
+    _set_as_current_default_project(project)
+
     if save and mlrun.mlconf.dbpath:
         if overwrite:
             logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
@@ -246,6 +248,7 @@ def load_project(
         url = str(url)  # to support path objects
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
+            project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
@@ -280,8 +283,9 @@ def load_project(
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
-    mlrun.mlconf.default_project = project.metadata.name
-    pipeline_context.set(project)
+
+    _set_as_current_default_project(project)
+
     return project
 
 
@@ -791,7 +795,13 @@ class MlrunProject(ModelObj):
         self._initialized = False
         self._secrets = SecretsStore()
         self._artifact_manager = None
-        self._notifiers = RunNotifications(with_slack=True)
+        self._notifiers = CustomNotificationPusher(
+            [
+                NotificationTypes.slack,
+                NotificationTypes.console,
+                NotificationTypes.ipython,
+            ]
+        )
 
     @property
     def metadata(self) -> ProjectMetadata:
@@ -1189,8 +1199,8 @@ class MlrunProject(ModelObj):
                 artifact = dict_to_artifact(artifact_dict)
                 if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
-                    artifact.spec.src_path = path.join(
-                        self.spec.get_code_path(), artifact.spec.src_path
+                    artifact.src_path = path.join(
+                        self.spec.get_code_path(), artifact.src_path
                     )
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
@@ -1263,7 +1273,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         item = am.log_artifact(
             producer,
@@ -1495,7 +1505,7 @@ class MlrunProject(ModelObj):
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
-        return self.log_artifact(artifact, artifact_path=artifact_path)
+        return self.log_artifact(artifact, artifact_path=artifact_path, upload=False)
 
     def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs
@@ -1887,10 +1897,17 @@ class MlrunProject(ModelObj):
 
     def _enrich_artifact_path_with_workflow_uid(self):
         artifact_path = self.spec.artifact_path or mlrun.mlconf.artifact_path
-        if not mlrun.mlconf.enrich_artifact_path_with_workflow_id:
-            return artifact_path
+
         workflow_uid_string = "{{workflow.uid}}"
-        if workflow_uid_string in artifact_path:
+        if (
+            not mlrun.mlconf.enrich_artifact_path_with_workflow_id
+            # no need to add workflow.uid to the artifact path for uniqueness,
+            # this is already being handled by generating
+            # the artifact target path from the artifact content hash ( body / file etc...)
+            or mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
+            # if the artifact path already contains workflow.uid, no need to add it again
+            or workflow_uid_string in artifact_path
+        ):
             return artifact_path
 
         # join paths and replace "\" with "/" (in case of windows clients)
@@ -2042,7 +2059,7 @@ class MlrunProject(ModelObj):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: CustomNotificationPusher = None,
     ):
         warnings.warn(
             "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "
@@ -2152,6 +2169,8 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        artifact_path: str = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2184,6 +2203,11 @@ class MlrunProject(ModelObj):
         :param verbose:         add verbose prints/logs
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
+        :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
+                                (which will be converted to the class using its `from_crontab` constructor),
+                                see this link for help:
+                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2205,6 +2229,8 @@ class MlrunProject(ModelObj):
             selector=selector,
             project_object=self,
             auto_build=auto_build,
+            schedule=schedule,
+            artifact_path=artifact_path,
         )
 
     def build_function(
@@ -2216,9 +2242,10 @@ class MlrunProject(ModelObj):
         base_image=None,
         commands: list = None,
         secret_name="",
+        requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,
-    ):
+    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
         :param function:        name of the function (in the project) or function object
@@ -2228,6 +2255,7 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements:    list of python packages or pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -2240,6 +2268,7 @@ class MlrunProject(ModelObj):
             base_image=base_image,
             commands=commands,
             secret_name=secret_name,
+            requirements=requirements,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
@@ -2254,16 +2283,18 @@ class MlrunProject(ModelObj):
         tag: str = None,
         verbose: bool = None,
         builder_env: dict = None,
-    ):
+        mock: bool = None,
+    ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
         """deploy real-time (nuclio based) functions
 
-        :param function:   name of the function (in the project) or function object
-        :param dashboard:  url of the remote Nuclio dashboard (when not local)
-        :param models:     list of model items
-        :param env:        dict of extra environment variables
-        :param tag:        extra version tag
-        :param verbose     add verbose prints/logs
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param function:    name of the function (in the project) or function object
+        :param dashboard:   url of the remote Nuclio dashboard (when not local)
+        :param models:      list of model items
+        :param env:         dict of extra environment variables
+        :param tag:         extra version tag
+        :param verbose:     add verbose prints/logs
+        :param builder_env: env vars dict for source archive config/credentials e.g. `builder_env={"GIT_TOKEN": token}`
+        :param mock:        deploy mock server vs a real Nuclio function (for local simulations)
         """
         return deploy_function(
             function,
@@ -2274,6 +2305,7 @@ class MlrunProject(ModelObj):
             verbose=verbose,
             builder_env=builder_env,
             project_object=self,
+            mock=mock,
         )
 
     def get_artifact(self, key, tag=None, iter=None):
@@ -2463,6 +2495,11 @@ class MlrunProject(ModelObj):
             last_update_time_to=last_update_time_to,
             **kwargs,
         )
+
+
+def _set_as_current_default_project(project: MlrunProject):
+    mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
 
 
 class MlrunProjectLegacy(ModelObj):

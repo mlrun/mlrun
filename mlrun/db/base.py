@@ -143,6 +143,79 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+        replace: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_objects_tag(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+    ):
+        pass
+
+    @abstractmethod
+    def tag_artifacts(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        pass
+
+    @staticmethod
+    def _resolve_artifacts_to_tag_objects(
+        artifacts,
+    ) -> schemas.TagObjects:
+        """
+        :param artifacts: Can be a list of :py:class:`~mlrun.artifacts.Artifact` objects or
+            dictionaries, or a single object.
+        :return: :py:class:`~mlrun.api.schemas.TagObjects`
+        """
+        # to avoid circular imports we import here
+        import mlrun.artifacts.base
+
+        if not isinstance(artifacts, list):
+            artifacts = [artifacts]
+
+        artifact_identifiers = []
+        for artifact in artifacts:
+            artifact_obj = (
+                artifact.to_dict()
+                if isinstance(artifact, mlrun.artifacts.base.Artifact)
+                else artifact
+            )
+            artifact_identifiers.append(
+                schemas.ArtifactIdentifier(
+                    key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
+                    # we are passing tree as uid when storing an artifact, so if uid is not defined,
+                    # pass the tree as uid
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid")
+                    or mlrun.utils.get_in_artifact(artifact_obj, "tree"),
+                    kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
+                    iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
+                )
+            )
+        return schemas.TagObjects(kind="artifact", identifiers=artifact_identifiers)
+
+    @abstractmethod
     def delete_project(
         self,
         name: str,
@@ -189,7 +262,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(
+        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         pass
 
     @abstractmethod

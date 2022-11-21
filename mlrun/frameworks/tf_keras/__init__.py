@@ -54,7 +54,7 @@ def apply_mlrun(
     :param model_path:                  The model's store object path. Mandatory for evaluation (to know which model to
                                         update). If model is not provided, it will be loaded from this path.
     :param model_format:                The format to use for saving and loading the model. Should be passed as a
-                                        member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+                                        member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
     :param save_traces:                 Whether or not to use functions saving (only available for the 'SavedModel'
                                         format) for loading the model later without the custom objects dictionary. Only
                                         from tensorflow version >= 2.4.0. Using this setting will increase the model
@@ -101,7 +101,7 @@ def apply_mlrun(
                                         objects files will be read from the logged custom object artifact of the model.
     :param context:                     MLRun context to work with. If no context is given it will be retrieved via
                                         'mlrun.get_or_create_ctx(None)'
-    :param auto_log:                    Whether or not to apply MLRun's auto logging on the model. Defaulted to True.
+    :param auto_log:                    Whether or not to apply MLRun's auto logging on the model. Default: True.
     :param tensorboard_directory:       If context is not given, or if wished to set the directory even with context,
                                         this will be the output for the event logs of tensorboard. If not given, the
                                         'tensorboard_dir' parameter will be tried to be taken from the provided context.
@@ -114,7 +114,7 @@ def apply_mlrun(
     :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                         the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                         'context' and 'auto_log' parameters are already given here.
-    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Default:
                                         None, meaning it will be read from context if available and if not - False.
 
     :return: The model with MLRun's interface.

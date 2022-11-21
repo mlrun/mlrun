@@ -47,6 +47,19 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
     return temp_file
 
 
+def get_git_username_password_from_token(token):
+    # Github's access tokens have a known prefix according to their type. See
+    # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+    # We distinguish new fine-grained access tokens (begin with "github_pat_" from classic tokens.
+    if token.startswith("github_pat_"):
+        username = "oauth2"
+        password = token
+    else:
+        username = token
+        password = "x-oauth-basic"
+    return username, password
+
+
 def clone_zip(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".zip", secrets, clone)
     with zipfile.ZipFile(tmpfile, "r") as zf:
@@ -116,13 +129,12 @@ def clone_git(url, context, secrets=None, clone=True):
     )
     token = get_secret("GIT_TOKEN")
     if token:
-        username = token
-        password = "x-oauth-basic"
+        username, password = get_git_username_password_from_token(token)
 
+    clone_path = f"https://{host}{url_obj.path}"
+    enriched_clone_path = ""
     if username:
-        clone_path = f"https://{username}:{password}@{host}{url_obj.path}"
-    else:
-        clone_path = f"https://{host}{url_obj.path}"
+        enriched_clone_path = f"https://{username}:{password}@{host}{url_obj.path}"
 
     branch = None
     tag = None
@@ -136,7 +148,16 @@ def clone_git(url, context, secrets=None, clone=True):
             url = url.replace("#" + refs, f"#refs/heads/{refs}")
             branch = refs
 
-    repo = Repo.clone_from(clone_path, context, single_branch=True, b=branch)
+    # when using the CLI and clone path was not enriched, username/password input will be requested via shell
+    repo = Repo.clone_from(
+        enriched_clone_path or clone_path, context, single_branch=True, b=branch
+    )
+
+    if enriched_clone_path:
+
+        # override enriched clone path for security reasons
+        repo.remotes[0].set_url(clone_path, enriched_clone_path)
+
     if tag:
         repo.git.checkout(tag)
 

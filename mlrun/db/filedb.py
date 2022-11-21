@@ -475,8 +475,40 @@ class FileRunDB(RunDBInterface):
         ]
         return mlrun.api.schemas.ProjectsOutput(projects=project_names)
 
-    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: schemas.TagObjects,
+        replace: bool = False,
+    ):
         raise NotImplementedError()
+
+    def delete_objects_tag(
+        self, project: str, tag_name: str, tag_objects: schemas.TagObjects
+    ):
+        raise NotImplementedError()
+
+    def tag_artifacts(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        raise NotImplementedError()
+
+    def get_project(self, name: str) -> mlrun.api.schemas.Project:
+        # returns None if project not found, mainly for tests, until we remove fileDB
+        return None
 
     def delete_project(
         self,
@@ -725,7 +757,7 @@ class FileRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(self, project=None, category=None):
         raise NotImplementedError()
 
     def create_or_patch_model_endpoint(

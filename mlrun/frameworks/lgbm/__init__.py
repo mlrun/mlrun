@@ -212,7 +212,7 @@ def apply_mlrun(
     MLRun's quality of life features.
 
     :param model:                    The model to wrap. Can be loaded from the model path given as well.
-    :param model_name:               The model name to use for storing the model artifact. Defaulted to "model".
+    :param model_name:               The model name to use for storing the model artifact. Default: "model".
     :param tag:                      The model's tag to log with.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                      update). If model is not provided, it will be loaded from this path.
@@ -275,7 +275,7 @@ def apply_mlrun(
     :param parameters:               Parameters to log with the model.
     :param extra_data:               Extra data to log with the model.
     :param auto_log:                 Whether to apply MLRun's auto logging on the model. Auto logging will add the
-                                     default artifacts and metrics to the lists of artifacts and metrics. Defaulted to
+                                     default artifacts and metrics to the lists of artifacts and metrics. Default:
                                      True.
     :param mlrun_logging_callback_kwargs: Key word arguments for the MLRun callback. For further information see the
                                      documentation of the class 'MLRunLoggingCallback'. Note that 'context' is already

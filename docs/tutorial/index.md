@@ -1,13 +1,15 @@
 (tutorial)=
-# Tutorials and examples
+# Tutorials and Examples
 
 The following tutorials provide a hands-on introduction to using MLRun to implement a data science workflow and automate machine-learning operations (MLOps).
 
-Make sure you start with the [**Quick start tutorial**](./01-mlrun-basics.html) to understand the basics.
+- [**Quick-start Tutorial**](./01-mlrun-basics.html) ({octicon}`video` [**watch video**](https://youtu.be/xI8KVGLlj7Q))
+- [**Targeted Tutorials**](#other-tutorial)
+- [**End to End Demos**](#e2e-demos)
 
-````{card} Quick-start tutorial
-Click to view the tutorial
-^^^
+(quick-start-tutorial)=
+
+````{card} Make sure you start with the Quick start tutorial to understand the basics
 ```{button-link} ./01-mlrun-basics.html
 :color: primary
 :shadow:
@@ -17,8 +19,6 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 ```
 ````
 
-Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
-
 ```{toctree}
 :maxdepth: 1
 :hidden:
@@ -26,61 +26,77 @@ Each of the following tutorials is a dedicated Jupyter notebook. You can downloa
 02-model-training
 03-model-serving
 04-pipeline
-./taxi/apply-mlrun-on-existing-code
+05-model-monitoring
+06-add-mlops-to-code
+07-batch-infer
 ../feature-store/basic-demo
-../feature-store/end-to-end-demo/index
-
+MLRun demos repository <https://github.com/mlrun/demos>
 ```
 
-````{grid} 2
+(other-tutorial)=
+## Targeted Tutorials
+
+Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
+
+
+`````{div} full-width
+
+````{grid} 3
 :gutter: 2
-```{grid-item-card} Train, Compare, and Register Models
+
+```{grid-item-card} Train, compare, and register Models
 :link: ./02-model-training.html
-
-Quick overview of training ML models using MLRun MLOps orchestration framework.
+Demo of training ML models, hyper-parameters, track and compare experiments, register and use the models.
 ```
 
-```{grid-item-card} Serving ML/DL models
+```{grid-item-card} Serving pre-trained ML/DL models
 :link: ./03-model-serving.html
-
-How to serve standard ML/DL models using MLRun Serving.
+How to deploy real-time serving pipelines with MLRun Serving and different types of pre-trained ML/DL models.
 ```
 
-```{grid-item-card} Projects and Automated ML Pipeline
+```{grid-item-card} Projects & automated ML pipeline
 :link: ./04-pipeline.html
-
-How to work with projects, source control (git), and automating the ML pipeline.
+How to work with projects, source control (git), CI/CD, to easily build and deploy multi-stage ML pipelines.
 ```
 
-```{grid-item-card} Apply MLRun on Existing Code
-:link: ./taxi/apply-mlrun-on-existing-code.html
-
-Use MLRun to execute existing code on a remote cluster with experiment tracking.
+```{grid-item-card} Real-time monitoring & drift detection
+:link: ./05-model-monitoring.html
+Demonstrate MLRun Serving pipelines, MLRun model monitoring, and automated drift detection.
 ```
 
-```{grid-item-card} Feature store example (stocks)
+```{grid-item-card} Add MLOps to existing code
+:link: ./06-add-mlops-to-code.html
+Turn a Kaggle research notebook to a production ML micro-service with minimal code changes using MLRun.
+```
+
+```{grid-item-card} Basic feature store example (stocks)
 :link: ../feature-store/basic-demo.html
-
-Build features with complex transformations in batch and serve in real-time.
+Understand MLRun feature store with a simple example: build, transform, and serve features in batch and in real-time.
 ```
 
-```{grid-item-card} Feature Store End-to-End Demo
-:link: ../feature-store/end-to-end-demo/index.html
+```{grid-item-card} Batch inference and drift detection
+:link: ./07-batch-infer.html
+Use MLRun batch inference function (from MLRun Function Hub), run it as a batch job, and generate drift reports.
+```
 
-Use the feature store with data ingestion, model training, model serving and automated pipeline.
+```{grid-item-card} Advanced real-time pipeline
+:link: ../serving/graph-example.html
+Demonstrates a multi-step online pipeline with data prep, ensemble, model serving, and post processing. 
+```
+
+```{grid-item-card} Feature store end-to-end demo
+:link: ../feature-store/end-to-end-demo/index.html
+Use the feature store with data ingestion, model training, model serving, and automated pipeline.
 ```
 
 ````
+`````
 
-You can find different end-to-end demos in MLRun demos repository at [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
-<!-- Alternatively, use the interactive MLRun [**Katacoda Scenarios**](https://www.katacoda.com/mlrun) that teach how to install and use MLRun. -->See also:
+(e2e-demos)=
+## End to End Demos
 
-```{toctree}
-:maxdepth: 1
+You can find the different end-to-end demos in the MLRun demos repository: [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
 
-MLRun demos repository <https://github.com/mlrun/demos>
-
-```
 ## Running the demos in Open Source MLRun
 
 By default, these demos work with the online feature store, which is currently not part of the Open Source MLRun default deployment:

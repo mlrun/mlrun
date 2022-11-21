@@ -77,7 +77,7 @@ class ONNXModelHandler(ModelHandler):
         logged and returned as artifacts.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted artifacts location.
+                            stored will be used to save the model in the default artifacts location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
@@ -110,9 +110,9 @@ class ONNXModelHandler(ModelHandler):
         Use ONNX optimizer to optimize the ONNX model. The optimizations supported can be seen by calling
         'onnxoptimizer.get_available_passes()'
 
-        :param optimizations: List of possible optimizations. If None, all of the optimizations will be used. Defaulted
-                              to None.
-        :param fixed_point:   Optimize the weights using fixed point. Defaulted to False.
+        :param optimizations: List of possible optimizations. If None, all of the optimizations will be used. Default:
+                              None.
+        :param fixed_point:   Optimize the weights using fixed point. Default: False.
         """
         # Set the ONNX optimizations list:
         onnx_optimizations = onnxoptimizer.get_fuse_and_elimination_passes()

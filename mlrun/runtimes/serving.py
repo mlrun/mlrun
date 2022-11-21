@@ -311,11 +311,12 @@ class ServingRuntime(RemoteRuntime):
                                 the image of the model monitoring stream.
 
                                 example::
-                                # initialize a new serving function
-                                serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
-                                # apply model monitoring and set monitoring batch job to run every 3 hours
-                                tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
-                                serving_fn.set_tracking(tracking_policy=tracking_policy)
+
+                                    # initialize a new serving function
+                                    serving_fn = mlrun.import_function("hub://v2_model_server", new_name="serving")
+                                    # apply model monitoring and set monitoring batch job to run every 3 hours
+                                    tracking_policy = {'default_batch_intervals':"0 */3 * * *"}
+                                    serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         """
 
@@ -456,7 +457,7 @@ class ServingRuntime(RemoteRuntime):
             if stream.path:
                 if function_name not in self._spec.function_refs.keys():
                     raise ValueError(f"function reference {function_name} not present")
-                group = stream.options.get("group", "serving")
+                group = stream.options.get("group", f"{function_name}-consumer-group")
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
@@ -472,11 +473,13 @@ class ServingRuntime(RemoteRuntime):
                     trigger = KafkaTrigger(
                         brokers=brokers,
                         topics=[topic],
-                        consumer_group=f"{function_name}-consumer-group",
+                        consumer_group=group,
                         **trigger_args,
                     )
                     child_function.function_object.add_trigger("kafka", trigger)
                 else:
+                    # V3IO doesn't allow hyphens in object names
+                    group = group.replace("-", "_")
                     child_function.function_object.add_v3io_stream_trigger(
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )
@@ -721,3 +724,29 @@ class ServingRuntime(RemoteRuntime):
         :return: graphviz graph object
         """
         return self.spec.graph.plot(filename, format=format, source=source, **kw)
+
+    def _set_as_mock(self, enable):
+        if not enable:
+            if self._mock_server:
+                self.invoke = self._old_invoke
+            self._mock_server = None
+            return
+
+        logger.info(
+            "Deploying serving function MOCK (for simulation)...\n"
+            "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
+        )
+        server = self.to_mock_server()
+        self._mock_server = server
+        self._old_invoke = self.invoke
+
+        def invoke(
+            path: str,
+            body=None,
+            method: str = None,
+            headers: dict = None,
+            **kwargs,
+        ):
+            return self._mock_server.test(path, body, method, headers)
+
+        self.invoke = invoke

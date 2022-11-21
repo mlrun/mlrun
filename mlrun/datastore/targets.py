@@ -499,6 +499,8 @@ class BaseStoreTarget(DataTargetBase):
                 if dir:
                     os.makedirs(dir, exist_ok=True)
             partition_cols = []
+            if target_path.endswith(".parquet") or target_path.endswith(".pq"):
+                partition_cols = None
             target_df = df
             if timestamp_key and (
                 self.partitioned or self.time_partitioning_granularity
@@ -693,7 +695,7 @@ class ParquetTarget(BaseStoreTarget):
      or after flush_after_seconds (if flush_after_seconds is set). Default 10k events
     :param flush_after_seconds: optional. Maximum number of seconds to hold events before they are written.
      All events will be written on flow termination, or after max_events are accumulated (if max_events is set).
-      Default 15 minutes
+     Default 15 minutes
     """
 
     kind = TargetTypes.parquet
@@ -759,14 +761,9 @@ class ParquetTarget(BaseStoreTarget):
 
     @staticmethod
     def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        if partition_cols:
-            df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
-        else:
-            with fs.open(target_path, "wb") as fp:
-                # In order to save the DataFrame in parquet format, all of the column names must be strings:
-                df.columns = [str(column) for column in df.columns.tolist()]
-                # Save to parquet:
-                df.to_parquet(fp, **kwargs)
+        # In order to save the DataFrame in parquet format, all of the column names must be strings:
+        df.columns = [str(column) for column in df.columns.tolist()]
+        df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -1118,6 +1115,8 @@ class NoSqlBaseTarget(BaseStoreTarget):
             df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
+            # To prevent modification of the original dataframe
+            df = df.copy(deep=False)
             access_key = self._secrets.get(
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
@@ -1159,6 +1158,8 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey.redis_driver import RedisDriver
 
         endpoint, uri = parse_path(self.get_target_path())
+        endpoint = endpoint or mlrun.mlconf.redis.url
+
         return Table(
             uri,
             RedisDriver(redis_url=endpoint, key_prefix="/"),
@@ -1232,10 +1233,12 @@ class KafkaTarget(BaseStoreTarget):
         producer_options=None,
         **kwargs,
     ):
-        attrs = {
-            "bootstrap_servers": bootstrap_servers,
-            "producer_options": producer_options,
-        }
+        attrs = {}
+        if bootstrap_servers is not None:
+            attrs["bootstrap_servers"] = bootstrap_servers
+        if bootstrap_servers is not None:
+            attrs["producer_options"] = producer_options
+
         super().__init__(*args, attributes=attrs, **kwargs)
 
     def add_writer_step(
@@ -1252,7 +1255,8 @@ class KafkaTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
-        bootstrap_servers = self.attributes.get("bootstrap_servers")
+        attributes = copy(self.attributes)
+        bootstrap_servers = attributes.pop("bootstrap_servers", None)
         topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
@@ -1263,7 +1267,7 @@ class KafkaTarget(BaseStoreTarget):
             columns=column_list,
             topic=topic,
             bootstrap_servers=bootstrap_servers,
-            producer_options=self.attributes.get("producer_options"),
+            **attributes,
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

@@ -94,6 +94,33 @@ class DBInterface(ABC):
     def del_runs(self, session, name="", project="", labels=None, state="", days_ago=0):
         pass
 
+    def overwrite_artifacts_with_tag(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        pass
+
+    def append_tag_to_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        pass
+
+    def delete_tag_from_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        pass
+
     @abstractmethod
     def store_artifact(
         self,
@@ -125,6 +152,8 @@ class DBInterface(ABC):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         pass
 
@@ -478,7 +507,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(self, session, project):
+    def list_artifact_tags(self, session, project, category):
         return []
 
     def create_marketplace_source(

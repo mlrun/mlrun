@@ -283,7 +283,7 @@ default_config = {
                     "pull_state_interval": 5,  # seconds
                 },
             },
-            # this is the default retention period for logs, if not specified different timeout interval
+            # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
         },

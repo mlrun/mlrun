@@ -25,7 +25,7 @@ There are two installation options:
 In both cases you need to set the `SHARED_DIR` environment variable to point to a host path for storing MLRun artifacts and DB, 
 for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows). Make sure the directory exists.
 
-It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
+You also need to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
 
 Add the `-d` flag to `docker-compose` for running in detached mode (in the background).

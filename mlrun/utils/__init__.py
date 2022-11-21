@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .azure_vault import AzureVaultStore  # noqa
-from .clones import get_git_username_password_from_token # noqa
+from .clones import get_git_username_password_from_token  # noqa
 from .helpers import *  # noqa
 from .http import *  # noqa
 from .logger import *  # noqa

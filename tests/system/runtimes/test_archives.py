@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import tempfile
 import base64
 import json
+import os
+import tempfile
 
 import pytest
 
@@ -267,6 +267,15 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert "tag=" in resp.decode()
 
     def test_project_subdir(self):
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 1000,
+        }
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+
         # load project into a tmp dir, look for the project.yaml in the subpath
         project = mlrun.load_project(
             tempfile.mkdtemp(),

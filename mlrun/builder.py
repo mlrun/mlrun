@@ -363,22 +363,26 @@ def build_image(
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+
+        # set remote source as kaniko's build context
         context = source
+        source = None
     else:
         if v3io:
             source = parsed_url.path
             to_mount = True
         src_dir, source = path.split(source)
 
+    user_unix_id = auth_info.user_unix_id or runtime_spec.security_context.run_as_user
     dock = make_dockerfile(
         base_image,
         commands,
         source=source,
         requirements=requirements_path,
         extra=extra,
-        user_unix_id=auth_info.user_unix_id or runtime_spec.security_context.run_as_user,
+        user_unix_id=user_unix_id,
         enriched_group_id=mlrun.mlconf.get_security_context_enrichment_group_id(
-            auth_info.user_unix_id
+            user_unix_id
         ),
     )
 

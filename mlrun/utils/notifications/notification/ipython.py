@@ -41,6 +41,10 @@ class IPythonNotification(NotificationBase):
         except ImportError:
             pass
 
+    @property
+    def active(self) -> bool:
+        return self._ipython is not None
+
     def send(
         self,
         message: str,

@@ -43,6 +43,9 @@ def docker_images(registry_url: str, registry_container_name: str, images: str):
     click.echo("Removed all tags. Running garbage collection...")
     _run_registry_garbage_collection(registry_container_name)
 
+    click.echo("Restarting datanode docker registry...")
+    _restart_docker_registry(registry_container_name)
+
     click.echo("Cleaning images from local Docker cache...")
     _clean_images_from_local_docker_cache(tags)
 
@@ -114,6 +117,11 @@ def _run_registry_garbage_collection(registry_container_name: str) -> None:
             "/etc/docker/registry/config.yml",
         ]
     )
+
+
+def _restart_docker_registry(registry_container_name: str) -> None:
+    """Restart Docker registry."""
+    subprocess.run(["docker", "restart", registry_container_name])
 
 
 def _clean_images_from_local_docker_cache(

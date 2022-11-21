@@ -110,20 +110,18 @@ class BaseMerger(abc.ABC):
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:
-
             if df.index is None or df.index.name is None:
                 index_columns_missing = []
                 for index in self._index_columns:
                     if index not in df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    return df.set_index(self._index_columns)
+                    df.set_index(self._index_columns, inplace=True)
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
-        return df
 
     @abc.abstractmethod
     def _generate_vector(

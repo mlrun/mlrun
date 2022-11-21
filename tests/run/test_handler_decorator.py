@@ -21,6 +21,7 @@ import cloudpickle
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
@@ -492,6 +493,74 @@ def test_log_as_default_artifact_types_with_mlrun():
     assert my_object == {"a": 5}
     assert os.path.basename(run_object.artifact("my_plot").local()) == "my_plot.html"
     assert isinstance(run_object.outputs["my_imputer"], str)
+
+    # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+@mlrun.handler(outputs=["dataset: dataset", "result: result", "no_type", None])
+def log_with_none_values(
+    is_none_dataset: bool = False,
+    is_none_result: bool = False,
+    is_none_no_type: bool = False,
+):
+    return (
+        None if is_none_dataset else np.zeros(shape=(5, 5)),
+        None if is_none_result else 5,
+        None if is_none_no_type else np.ones(shape=(10, 10)),
+        10,
+    )
+
+
+def test_log_with_none_values_without_mlrun():
+    """
+    Run the `log_with_none_values` function without MLRun to see the wrapper is transparent.
+    """
+    dataset, result, no_type, no_to_log = log_with_none_values()
+    assert isinstance(dataset, np.ndarray)
+    assert result == 5
+    assert isinstance(no_type, np.ndarray)
+    assert no_to_log == 10
+
+
+@pytest.mark.parametrize("is_none_dataset", [True, False])
+@pytest.mark.parametrize("is_none_result", [True, False])
+@pytest.mark.parametrize("is_none_no_type", [True, False])
+def test_log_with_none_values_with_mlrun(
+    is_none_dataset: bool, is_none_result: bool, is_none_no_type: bool
+):
+    """
+    Run the `log_with_none_values` function with MLRun to see the wrapper is logging and ignoring the returned values
+    as needed. Only result type should be logged as None, the dataset is needed to be ignored (not logged).
+    """
+    # Create the function and run:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+    run_object = mlrun_function.run(
+        handler="log_with_none_values",
+        params={
+            "is_none_dataset": is_none_dataset,
+            "is_none_result": is_none_result,
+            "is_none_no_type": is_none_no_type,
+        },
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Manual validation:
+    mlrun.utils.logger.info(run_object.outputs)
+
+    # Assertion:
+    assert (
+        len(run_object.outputs) == (0 if is_none_dataset else 1) + 1 + 1
+    )  # dataset only if True, result, no_type
+    if not is_none_dataset:
+        assert run_object.artifact("dataset").as_df().shape == (5, 5)
+    assert run_object.outputs["result"] == "None" if is_none_result else 5
+    if is_none_no_type:
+        assert run_object.outputs["no_type"] == "None"
+    else:
+        assert run_object.artifact("no_type").as_df().shape == (10, 10)
 
     # Clean the test outputs:
     artifact_path.cleanup()

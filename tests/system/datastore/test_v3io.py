@@ -99,3 +99,19 @@ class TestV3ioDataStore(TestMLRunSystem):
 
         finally:
             data_item.delete()
+
+    def test_list_dir(self):
+        dir_base_path = "/bigdata/test_base_dir/"
+        v3io_dir_url = "v3io://" + dir_base_path
+        dir_base_item = mlrun.datastore.store_manager.object(v3io_dir_url)
+        file_item = mlrun.datastore.store_manager.object(v3io_dir_url + "test_file")
+        file_item_deep = mlrun.datastore.store_manager.object(
+            v3io_dir_url + "test_dir/test_file"
+        )
+        try:
+            file_item.put("test")
+            file_item_deep.put("test")
+            actual_dir_content = dir_base_item.listdir()
+            assert actual_dir_content == ["test_dir/", "test_file"]
+        finally:
+            dir_base_item.delete()

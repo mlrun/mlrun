@@ -41,7 +41,6 @@ def make_dockerfile(
     workdir="/mlrun",
     extra="",
     user_unix_id=None,
-    enriched_group_id=None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -71,7 +70,11 @@ def make_dockerfile(
         else:
             dock += f"ADD {source} {workdir}\n"
 
-        dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+        if user_unix_id:
+            enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
+                user_unix_id
+            )
+            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -373,7 +376,15 @@ def build_image(
             to_mount = True
         src_dir, source = path.split(source)
 
-    user_unix_id = auth_info.user_unix_id or runtime_spec.security_context.run_as_user
+    user_unix_id = None
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+    ):
+        user_unix_id = (
+            auth_info.user_unix_id or runtime_spec.security_context.run_as_user
+        )
+
     dock = make_dockerfile(
         base_image,
         commands,
@@ -381,9 +392,6 @@ def build_image(
         requirements=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
-        enriched_group_id=mlrun.mlconf.get_security_context_enrichment_group_id(
-            user_unix_id
-        ),
     )
 
     kpod = make_kaniko_pod(

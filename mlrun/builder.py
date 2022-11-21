@@ -376,7 +376,7 @@ def build_image(
         source=source,
         requirements=requirements_path,
         extra=extra,
-        user_unix_id=auth_info.user_unix_id,
+        user_unix_id=auth_info.user_unix_id or runtime_spec.security_context.run_as_user,
         enriched_group_id=mlrun.mlconf.get_security_context_enrichment_group_id(
             auth_info.user_unix_id
         ),

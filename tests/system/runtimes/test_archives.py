@@ -14,6 +14,8 @@
 #
 import os
 import tempfile
+import base64
+import json
 
 import pytest
 
@@ -191,6 +193,15 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
     @pytest.mark.parametrize("load_mode", ["run", "build"])
     @pytest.mark.parametrize("compression_format", ["zip", "tar.gz"])
     def test_job_compressed(self, load_mode, compression_format):
+        default_security_context_dict = {
+            "runAsUser": 1000,
+            "runAsGroup": 1000,
+        }
+
+        mlrun.mlconf.function.spec.security_context.default = base64.b64encode(
+            json.dumps(default_security_context_dict).encode("utf-8")
+        )
+
         self._upload_code_to_cluster()
         fn = self._new_function("job", f"{load_mode}-compressed")
         fn.with_source_archive(

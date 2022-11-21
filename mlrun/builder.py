@@ -381,7 +381,7 @@ def build_image(
     user_unix_id = None
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
-        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+        != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
         user_unix_id = (
             auth_info.user_unix_id or runtime_spec.security_context.run_as_user

@@ -448,7 +448,7 @@ class HTTPRunDB(RunDBInterface):
                 if nil_resp < 3:
                     time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
                 else:
-                    time.sleep(10)
+                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval))
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0

@@ -71,7 +71,7 @@ def make_dockerfile(
         else:
             dock += f"ADD {source} {workdir}\n"
 
-        dock += f"RUN chown {user_unix_id}:{enriched_group_id} {workdir}\n"
+        dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"

@@ -191,7 +191,6 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def authenticate_request(
         self, request: fastapi.Request
     ) -> mlrun.api.schemas.AuthInfo:
-        raise Exception("ADAM have a look here")
         auth_info = mlrun.api.schemas.AuthInfo()
         header = request.headers.get("Authorization", "")
         if self._basic_auth_configured():

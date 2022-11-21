@@ -36,10 +36,12 @@ IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 def make_dockerfile(
     base_image,
     commands=None,
-    src_dir=None,
+    source=None,
     requirements=None,
     workdir="/mlrun",
     extra="",
+    user_unix_id=None,
+    enriched_group_id=None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -51,10 +53,25 @@ def make_dockerfile(
     for build_arg_key, build_arg_value in build_args.items():
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
-    if src_dir:
+    if source:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        dock += f"ADD {src_dir} {workdir}\n"
+        # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
+        if source.endswith(".zip"):
+            stage1 = f"""
+            FROM {base_image} AS extractor
+            RUN apt-get update -qqy && apt install --assume-yes unzip
+            RUN mkdir -p /source
+            COPY {source} /source
+            RUN cd /source && unzip {source} && rm {source}
+            """
+            dock = stage1 + "\n" + dock
+
+            dock += f"COPY --from=extractor /source/ {workdir}\n"
+        else:
+            dock += f"ADD {source} {workdir}\n"
+
+        dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -62,7 +79,7 @@ def make_dockerfile(
         dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
         dock += extra
-    print(dock)
+    logger.debug("Resolved dockerfile", dockfile_contents=dock)
     return dock
 
 
@@ -337,6 +354,9 @@ def build_image(
     parsed_url = urlparse(source)
     if inline_code:
         context = "/empty"
+    elif runtime_spec.build.load_source_on_run or not source:
+        source = None
+        src_dir = None
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
@@ -344,21 +364,22 @@ def build_image(
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
         context = source
-    elif source:
+    else:
         if v3io:
             source = parsed_url.path
             to_mount = True
-        if source.endswith(".tar.gz"):
-            source, src_dir = path.split(source)
-    else:
-        src_dir = None
+        src_dir, source = path.split(source)
 
     dock = make_dockerfile(
         base_image,
         commands,
-        src_dir=src_dir,
+        source=source,
         requirements=requirements_path,
         extra=extra,
+        user_unix_id=auth_info.user_unix_id,
+        enriched_group_id=mlrun.mlconf.get_security_context_enrichment_group_id(
+            auth_info.user_unix_id
+        ),
     )
 
     kpod = make_kaniko_pod(
@@ -379,7 +400,7 @@ def build_image(
 
     if to_mount:
         kpod.mount_v3io(
-            remote=source,
+            remote=src_dir,
             mount_path="/context",
             access_key=access_key,
             user=username,

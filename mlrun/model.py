@@ -19,7 +19,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from os import environ
+from os import environ, path
 from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
@@ -344,6 +344,26 @@ class ImageBuilder(ModelObj):
         self.with_mlrun = with_mlrun  #: with_mlrun
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
+
+    @property
+    def source(self):
+        return self._source
+
+    @source.setter
+    def source(self, source):
+        if source and not (
+            source.endswith(".tar.gz")
+            or source.endswith(".zip")
+            or source.startswith("git://")
+            or path.isfile(source)
+            or source in [".", "./"]
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source must be a compressed (tar.gz / zip) file, a git repo, "
+                "a file path or in the project's context (.)"
+            )
+
+        self._source = source
 
 
 class RunMetadata(ModelObj):

@@ -53,7 +53,7 @@ class IPythonNotification(NotificationBase):
         custom_html: str = None,
     ):
         if not self._ipython:
-            mlrun.utils.helpers.logger.warn(
+            mlrun.utils.helpers.logger.debug(
                 "Not in IPython environment, skipping notification"
             )
             return

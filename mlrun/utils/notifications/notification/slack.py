@@ -44,7 +44,7 @@ class SlackNotification(NotificationBase):
     ):
         webhook = self.params.get("webhook", None) or os.environ.get("SLACK_WEBHOOK")
         if not webhook:
-            mlrun.utils.helpers.logger.warn(
+            mlrun.utils.helpers.logger.debug(
                 "No slack webhook is set, skipping notification"
             )
             return

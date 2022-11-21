@@ -443,8 +443,10 @@ class HTTPRunDB(RunDBInterface):
             nil_resp = 0
             while state in ["pending", "running"]:
                 offset += len(text)
+                # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
+                # TODO: refactor this to use a conditional backoff mechanism
                 if nil_resp < 3:
-                    time.sleep(3)
+                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
                 else:
                     time.sleep(10)
                 state, text = self.get_log(uid, project, offset=offset)

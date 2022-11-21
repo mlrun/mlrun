@@ -855,24 +855,35 @@ class RunObject(RunTemplate):
         sleep=3,
         timeout=0,
         raise_on_failure=True,
-        show_logs=False,
+        show_logs=None,
         logs_interval=None,
     ):
-        """wait for async run to complete"""
+        """
+        Wait for remote run to complete.
+        Default behavior is to wait until reached terminal state or timeout passed, if timeout is 0 then wait forever
+        It pulls the run status from the db every sleep seconds.
+        If show_logs is not False and logs_interval is not None, it will print the logs when run reached terminal state
+        If show_logs is not False and logs_interval is defined, it will print the logs every logs_interval seconds
+        """
         total_time = 0
         offset = 0
         last_pull_log_time = None
+        logs_enabled = show_logs is not False
         while True:
-            if logs_interval and (
-                last_pull_log_time is None
-                or datetime.now() - last_pull_log_time > logs_interval
+            state = self.state()
+            if (
+                logs_enabled
+                and logs_interval
+                and (
+                    last_pull_log_time is None
+                    or datetime.now() - last_pull_log_time > logs_interval
+                )
             ):
                 last_pull_log_time = datetime.now()
                 offset = self.logs(watch=False, offset=offset)
 
-            state = self.state()
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
-                if logs_interval:
+                if logs_enabled and logs_interval:
                     self.logs(watch=False, offset=offset)
                 break
             time.sleep(sleep)
@@ -882,15 +893,13 @@ class RunObject(RunTemplate):
                     "Run did not reach terminal state on time"
                 )
 
+        if logs_enabled and not offset:
+            self.logs(watch=False)
+
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
-            if not offset:
-                self.logs(watch=False)
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"
             )
-
-        if show_logs and not offset:
-            self.logs(watch=False)
 
         return state
 

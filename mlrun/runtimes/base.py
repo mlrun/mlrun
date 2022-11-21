@@ -725,8 +725,12 @@ class BaseRuntime(ModelObj):
             and self.kfp
             and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
         ):
-            state_interval = config.httpdb.logs.pipelines.pull_state.pull_state_interval
-            logs_interval = config.httpdb.logs.pipelines.pull_state.pull_logs_interval
+            state_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_state_interval
+            )
+            logs_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_logs_interval
+            )
 
             runspec.wait_for_completion(
                 show_logs=True, sleep=state_interval, logs_interval=logs_interval

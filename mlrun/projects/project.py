@@ -2260,8 +2260,8 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
-        to existing parameters
+        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
+         add to existing parameters
         """
         return build_function(
             function,

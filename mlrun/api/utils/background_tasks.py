@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import anyio
 import asyncio
 import datetime
 import traceback
 import typing
 import uuid
 
+import anyio
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
@@ -163,7 +163,9 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 if asyncio.iscoroutinefunction(function):
                     await function(*args, **kwargs)
                 else:
-                    await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
+                    await fastapi.concurrency.run_in_threadpool(
+                        function, *args, **kwargs
+                    )
         except Exception:
             logger.warning(
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"

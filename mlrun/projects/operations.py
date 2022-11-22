@@ -131,6 +131,7 @@ def run_function(
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+    :param notification_configs: list of notification configurations to send when the run is completed
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)

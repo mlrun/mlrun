@@ -2171,6 +2171,7 @@ class MlrunProject(ModelObj):
         auto_build: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         artifact_path: str = None,
+        notification_configs: typing.List[mlrun.model.NotificationConfig] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2208,6 +2209,7 @@ class MlrunProject(ModelObj):
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
+        :param notification_configs: list of notification configurations to send when the run is completed
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2231,6 +2233,7 @@ class MlrunProject(ModelObj):
             auto_build=auto_build,
             schedule=schedule,
             artifact_path=artifact_path,
+            notification_configs=notification_configs,
         )
 
     def build_function(

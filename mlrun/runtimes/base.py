@@ -308,6 +308,7 @@ class BaseRuntime(ModelObj):
         local=False,
         local_code_path=None,
         auto_build=None,
+        notification_configs: List[mlrun.model.NotificationConfig] = None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -336,6 +337,7 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
+        :param notification_configs: list of notification configurations to fire when the run is completed
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -378,6 +380,7 @@ class BaseRuntime(ModelObj):
             out_path,
             artifact_path,
             workdir,
+            notification_configs,
         )
 
         if is_local(run.spec.output_path):
@@ -608,6 +611,7 @@ class BaseRuntime(ModelObj):
         out_path,
         artifact_path,
         workdir,
+        notification_configs: List[mlrun.model.NotificationConfig] = None,
     ):
         runspec.spec.handler = (
             handler or runspec.spec.handler or self.spec.default_handler or ""
@@ -699,6 +703,8 @@ class BaseRuntime(ModelObj):
             runspec.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
                 runspec.spec.output_path, runspec.metadata.project
             )
+
+        runspec.spec.notification_configs = notification_configs or []
         return runspec
 
     def _submit_job(self, runspec, schedule, db, watch):

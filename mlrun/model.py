@@ -894,13 +894,14 @@ class RunObject(RunTemplate):
             if (
                 logs_enabled
                 and logs_interval
+                and state not in mlrun.runtimes.constants.RunStates.terminal_states()
                 and (
                     last_pull_log_time is None
-                    or datetime.now() - last_pull_log_time > logs_interval
+                    or (datetime.now() - last_pull_log_time).seconds > logs_interval
                 )
             ):
                 last_pull_log_time = datetime.now()
-                offset = self.logs(watch=False, offset=offset)
+                state, offset = self.logs(watch=False, offset=offset)
 
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
                 if logs_enabled and logs_interval:
@@ -912,8 +913,7 @@ class RunObject(RunTemplate):
                 raise mlrun.errors.MLRunTimeoutError(
                     "Run did not reach terminal state on time"
                 )
-
-        if logs_enabled and not offset:
+        if logs_enabled and not logs_interval:
             self.logs(watch=False)
 
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:

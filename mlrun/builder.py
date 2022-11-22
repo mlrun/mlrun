@@ -71,7 +71,7 @@ def make_dockerfile(
         else:
             dock += f"ADD {source} {workdir}\n"
 
-        if user_unix_id and enriched_group_id:
+        if user_unix_id is not None and enriched_group_id is not None:
             dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
 
         dock += f"ENV PYTHONPATH {workdir}\n"

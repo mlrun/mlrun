@@ -39,6 +39,8 @@ def upgrade():
         sa.Column("kind", sa.String(length=255), nullable=False),
         sa.Column("message", sa.String(length=255), nullable=False),
         sa.Column("severity", sa.String(length=255), nullable=False),
+        sa.Column("when", sa.String(length=255), nullable=False),
+        sa.Column("condition", sa.String(length=255), nullable=False),
         sa.Column("params", sa.JSON(), nullable=True),
         sa.Column("run", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(

@@ -203,6 +203,12 @@ with warnings.catch_warnings():
         severity = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
+        when = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        condition = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
         params = Column("params", JSON)
         run = Column(Integer, ForeignKey("runs.id"))
 

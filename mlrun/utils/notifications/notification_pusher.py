@@ -38,7 +38,7 @@ class NotificationPusher(object):
         self._notifications = {}
 
         for run in self._runs:
-            for notification_config in run.get("spec", {}).get("notifications", []):
+            for notification_config in run.get("spec", {}).get("notification_configs", []):
                 if self._should_notify(run, notification_config):
                     self._notification_data.append((run, notification_config))
 

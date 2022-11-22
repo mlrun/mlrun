@@ -3419,7 +3419,7 @@ class SQLDB(DBInterface):
     def store_notification_configs(
         self,
         session,
-        notification_config_models: typing.List[NotificationConfig],
+        notification_config_models: typing.List[mlrun.model.NotificationConfig],
         run_uid: str,
         project: str,
         iter: int = 0,
@@ -3443,6 +3443,8 @@ class SQLDB(DBInterface):
             notification_config.kind = notification_config_model.kind
             notification_config.message = notification_config_model.message
             notification_config.severity = notification_config_model.severity
+            notification_config.when = notification_config_model.when
+            notification_config.condition = notification_config_model.condition
 
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()
             if k8s:

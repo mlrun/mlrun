@@ -375,12 +375,16 @@ class NotificationConfig(ModelObj):
         name=None,
         message=None,
         severity=None,
+        when=None,
+        condition=None,
         params=None,
     ):
         self.kind = kind
         self.name = name
         self.message = message
         self.severity = severity
+        self.when = when
+        self.condition = condition
         self.params = params or {}
 
 

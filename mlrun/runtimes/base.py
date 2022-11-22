@@ -733,7 +733,10 @@ class BaseRuntime(ModelObj):
             )
 
             runspec.wait_for_completion(
-                show_logs=True, sleep=state_interval, logs_interval=logs_interval
+                show_logs=True,
+                sleep=state_interval,
+                logs_interval=logs_interval,
+                raise_on_failure=False,
             )
             resp = self._get_db_run(runspec)
 

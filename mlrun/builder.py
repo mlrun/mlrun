@@ -41,6 +41,7 @@ def make_dockerfile(
     workdir="/mlrun",
     extra="",
     user_unix_id=None,
+    enriched_group_id=None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -70,11 +71,9 @@ def make_dockerfile(
         else:
             dock += f"ADD {source} {workdir}\n"
 
-        if user_unix_id:
-            enriched_group_id = mlrun.mlconf.get_security_context_enrichment_group_id(
-                user_unix_id
-            )
+        if user_unix_id and enriched_group_id:
             dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -311,8 +310,9 @@ def build_image(
     verbose=False,
     builder_env=None,
     client_version=None,
-    runtime_spec=None,
+    runtime=None,
 ):
+    runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
@@ -379,13 +379,16 @@ def build_image(
             source_to_copy = source
 
     user_unix_id = None
+    enriched_group_id = None
     if (
         mlrun.mlconf.function.spec.security_context.enrichment_mode
         != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
-        user_unix_id = (
-            auth_info.user_unix_id or runtime_spec.security_context.run_as_user
-        )
+        from mlrun.api.api.utils import ensure_function_security_context
+
+        ensure_function_security_context(runtime, auth_info)
+        user_unix_id = runtime.spec.security_context.run_as_user
+        enriched_group_id = runtime.spec.security_context.run_as_group
 
     dock = make_dockerfile(
         base_image,
@@ -394,6 +397,7 @@ def build_image(
         requirements=requirements_path,
         extra=extra,
         user_unix_id=user_unix_id,
+        enriched_group_id=enriched_group_id,
     )
 
     kpod = make_kaniko_pod(
@@ -549,7 +553,7 @@ def build_runtime(
         verbose=runtime.verbose,
         builder_env=builder_env,
         client_version=client_version,
-        runtime_spec=runtime.spec,
+        runtime=runtime,
     )
     runtime.status.build_pod = None
     if status == "skipped":

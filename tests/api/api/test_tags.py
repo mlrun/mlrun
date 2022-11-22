@@ -59,12 +59,12 @@ class TestArtifactTags:
         response_body = self._list_artifacts_and_assert(
             client, tag=tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact2_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
         response_body = self._list_artifacts_and_assert(
             client, tag=overwrite_tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact1_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_overwrite_artifact_tags_by_uid_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -93,12 +93,12 @@ class TestArtifactTags:
         response_body = self._list_artifacts_and_assert(
             client, tag=tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact2_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
         response_body = self._list_artifacts_and_assert(
             client, tag=overwrite_tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact1_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_overwrite_artifact_tags_by_multiple_uid_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -131,7 +131,7 @@ class TestArtifactTags:
             client, tag=overwrite_tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
     def test_overwrite_artifact_tags_by_multiple_key_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -164,7 +164,7 @@ class TestArtifactTags:
             client, tag=overwrite_tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
     def test_append_artifact_tags_by_key_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -194,12 +194,50 @@ class TestArtifactTags:
             client, tag=tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
         response_body = self._list_artifacts_and_assert(
             client, tag=new_tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact1_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
+
+    def test_append_artifact_tags_by_uid_identifier_latest(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        """
+        This tests backwards compatibility of cases where artifacts were saved using the `project.log_artifact`,
+        which at the time were setting the project producer tag to latest which then was populated as the artifact uid,
+        this is problematic as latest is actually also a possible tag, which the `list_artifacts` has a whole logic
+        which handles different use cases for tags and uids
+        """
+        self._create_project(client)
+
+        tag = "tag1"
+        new_tag = "tag2"
+        artifact1_labels = {"artifact_name": "artifact1"}
+        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+            client, tag=tag, uid="latest", labels=artifact1_labels
+        )
+        response = self._append_artifact_tag(
+            client=client,
+            tag=new_tag,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(
+                    key=artifact1_key, uid=artifact1_uid
+                ),
+            ],
+        )
+        assert response.status_code == http.HTTPStatus.OK.value
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_append_artifact_tags_by_uid_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -229,12 +267,12 @@ class TestArtifactTags:
             client, tag=tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
         response_body = self._list_artifacts_and_assert(
             client, tag=new_tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact1_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
     def test_append_artifact_tags_by_multiple_key_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -265,13 +303,13 @@ class TestArtifactTags:
             client, tag=tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
         response_body = self._list_artifacts_and_assert(
             client, tag=new_tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
     def test_append_artifact_existing_tag(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -300,7 +338,7 @@ class TestArtifactTags:
             client, tag=tag, expected_number_of_artifacts=2
         )
         for artifact in response_body["artifacts"]:
-            assert artifact["name"] in [artifact1_name, artifact2_name]
+            assert artifact["metadata"]["name"] in [artifact1_name, artifact2_name]
 
     def test_delete_artifact_tag_by_key_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -328,7 +366,7 @@ class TestArtifactTags:
         response_body = self._list_artifacts_and_assert(
             client, tag=tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact2_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
     def test_delete_artifact_tag_by_uid_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
@@ -355,7 +393,7 @@ class TestArtifactTags:
         response_body = self._list_artifacts_and_assert(
             client, tag=tag, expected_number_of_artifacts=1
         )
-        assert response_body["artifacts"][0]["name"] == artifact2_name
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact2_name
 
     def test_delete_artifact_tag_by_multiple_key_identifiers(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

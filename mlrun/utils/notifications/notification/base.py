@@ -35,6 +35,10 @@ class NotificationBase:
         self.name = name
         self.params = params or {}
 
+    @property
+    def active(self) -> bool:
+        return True
+
     def send(
         self,
         message: str,

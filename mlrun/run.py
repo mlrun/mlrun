@@ -28,7 +28,6 @@ from copy import deepcopy
 from enum import Enum
 from os import environ, makedirs, path
 from pathlib import Path
-from types import FunctionType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import cloudpickle
@@ -427,12 +426,12 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Function can be imported from function repositories (mlrun marketplace or local db),
+    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
 
-        function marketplace: hub://{name}[:{tag}]
+        function hub: hub://{name}[:{tag}]
         local mlrun db:       db://{project-name}/{name}[:{tag}]
 
     examples::
@@ -441,7 +440,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
-    :param url: path/url to marketplace, db or function YAML file
+    :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -724,7 +723,7 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
-    :param categories:   list of categories for mlrun function marketplace, defaults to None
+    :param categories:   list of categories for mlrun Function Hub, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
@@ -1551,60 +1550,6 @@ class OutputsLogger:
         ctx.log_result(**logging_kwargs, key=key, value=obj)
 
 
-# The map to use to get default artifact types of objects:
-OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP = {
-    pd.DataFrame: ArtifactType.DATASET,
-    pd.Series: ArtifactType.DATASET,
-    np.ndarray: ArtifactType.DATASET,
-    dict: ArtifactType.RESULT,
-    list: ArtifactType.RESULT,
-    tuple: ArtifactType.RESULT,
-    str: ArtifactType.RESULT,
-    int: ArtifactType.RESULT,
-    float: ArtifactType.RESULT,
-    bytes: ArtifactType.OBJECT,
-    bytearray: ArtifactType.OBJECT,
-}
-try:
-    import matplotlib.pyplot as plt
-
-    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[plt.Figure] = ArtifactType.PLOT
-    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[plt.Axes] = ArtifactType.PLOT
-except ModuleNotFoundError:
-    pass
-try:
-    import plotly
-
-    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[plotly.graph_objs.Figure] = ArtifactType.PLOT
-except ModuleNotFoundError:
-    pass
-try:
-    import bokeh.plotting as bokeh_plt
-
-    OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP[bokeh_plt.Figure] = ArtifactType.PLOT
-except ModuleNotFoundError:
-    pass
-
-# The map to use for logging an object by its type:
-OUTPUTS_LOGGING_MAP = {
-    ArtifactType.DATASET: OutputsLogger.log_dataset,
-    ArtifactType.DIRECTORY: OutputsLogger.log_directory,
-    ArtifactType.FILE: OutputsLogger.log_file,
-    ArtifactType.OBJECT: OutputsLogger.log_object,
-    ArtifactType.PLOT: OutputsLogger.log_plot,
-    ArtifactType.RESULT: OutputsLogger.log_result,
-}
-
-# The map to use for parsing an object by its type:
-INPUTS_PARSING_MAP = {
-    pd.DataFrame: InputsParser.parse_pandas_dataframe,
-    np.ndarray: InputsParser.parse_numpy_array,
-    dict: InputsParser.parse_dict,
-    list: InputsParser.parse_list,
-    object: InputsParser.parse_object,
-}
-
-
 class ContextHandler:
     """
     Private class for handling an MLRun context of a function that is wrapped in MLRun's `handler` decorator.
@@ -1613,41 +1558,90 @@ class ContextHandler:
       1. Check if the user used MLRun to run the wrapped function and if so, get the MLRun context.
       2. Parse the user's inputs (MLRun `DataItem`) to the function.
       3. Log the function's outputs to MLRun.
+
+    The context handler use dictionaries to map objects to their logging / parsing function. The maps can be edited
+    using the relevant `update_X` class method. If needed to add additional artifacts types, the `ArtifactType` class
+    can be inherited and replaced as well using the `update_artifact_type_class` class method.
     """
 
-    def __init__(
-        self,
-        artifact_type_class: Type[ArtifactType] = None,
-        objects_types_to_artifact_types_map_updates: Dict[Type, ArtifactType] = None,
-        outputs_logging_map_updates: Dict[ArtifactType, FunctionType] = None,
-        inputs_parsing_map_updates: Dict[Type, FunctionType] = None,
+    # The artifact type enum class to use:
+    _ARTIFACT_TYPE_CLASS = ArtifactType
+    # The map to use to get default artifact types of objects:
+    _DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP = None
+    # The map to use for logging an object by its type:
+    _OUTPUTS_LOGGING_MAP = None
+    # The map to use for parsing an object by its type:
+    _INPUTS_PARSING_MAP = None
+
+    @classmethod
+    def update_artifact_type_class(cls, artifact_type_class: Type[ArtifactType]):
+        """
+        Update the artifact type enum class that the handler will use to specify new artifact types to log and parse.
+
+        :param artifact_type_class: An enum inheriting from the `ArtifactType` enum.
+        """
+        cls._ARTIFACT_TYPE_CLASS = artifact_type_class
+
+    @classmethod
+    def update_default_objects_artifact_types_map(
+        cls, updates: Dict[type, ArtifactType]
     ):
         """
-        Initialize a context handler. Additional updates to the default common maps can be given to support custom types
-        to log and parse.
+        Enrich the default objects artifact types map with new objects types to support.
 
-        :param artifact_type_class:                         An enum inheriting from the `ArtifactType` enum to specify
-                                                            new artifact types to log and parse.
-        :param objects_types_to_artifact_types_map_updates: The map to use to get default artifact types of objects.
-        :param outputs_logging_map_updates:                 The map to use for logging an object by its type.
-        :param inputs_parsing_map_updates:                  The map to use for parsing an object by its type.
+        :param updates: New objects types to artifact types to support.
         """
-        # Set the supported artifact types:
-        self._artifact_type_class = (
-            ArtifactType if artifact_type_class is None else artifact_type_class
-        )
+        if cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP is None:
+            cls._init_default_objects_artifact_types_map()
+        cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.update(updates)
 
-        # Set the maps:
-        self._objects_types_to_artifacts_type_map = self._get_map(
-            base=OBJECTS_TYPES_TO_ARTIFACT_TYPES_MAP,
-            updates=objects_types_to_artifact_types_map_updates,
-        )
-        self._inputs_parsing_map = self._get_map(
-            base=INPUTS_PARSING_MAP, updates=inputs_parsing_map_updates
-        )
-        self._outputs_logging_map = self._get_map(
-            base=OUTPUTS_LOGGING_MAP, updates=outputs_logging_map_updates
-        )
+    @classmethod
+    def update_outputs_logging_map(
+        cls,
+        updates: Dict[ArtifactType, Callable[[MLClientCtx, Any, str, dict], None]],
+    ):
+        """
+        Enrich the outputs logging map with new artifact types to support. The outputs logging map is a dictionary of
+        artifact type enum as key, and a function that will handle the given output. The function must accept 4 keyword
+        arguments
+
+        * ctx: `mlrun.MLClientCtx` - The MLRun context to log with.
+        * obj: `Any` - The value / object to log.
+        * key: `str` - The key of the artifact.
+        * logging_kwargs: `dict` - Keyword arguments the user can pass in the instructions tuple.
+
+        :param updates: New artifact types to support - a dictionary of artifact type enum as key, and a function that
+                        will handle the given output to update the current map.
+        """
+        if cls._OUTPUTS_LOGGING_MAP is None:
+            cls._init_outputs_logging_map()
+        cls._OUTPUTS_LOGGING_MAP.update(updates)
+
+    @classmethod
+    def update_inputs_parsing_map(cls, updates: Dict[type, Callable[[DataItem], Any]]):
+        """
+        Enrich the inputs parsing map with new objects to support. The inputs parsing map is a dictionary of object
+        types as key, and a function that will handle the given input. The function must accept 1 keyword argument
+        (data_item: `mlrun.DataItem`) and return the relevant parsed object.
+
+        :param updates: New object types to support - a dictionary of artifact type enum as key, and a function that
+                        will handle the given input to update the current map.
+        """
+        if cls._INPUTS_PARSING_MAP is None:
+            cls._init_inputs_parsing_map()
+        cls._INPUTS_PARSING_MAP.update(updates)
+
+    def __init__(self):
+        """
+        Initialize a context handler.
+        """
+        # Initialize the maps:
+        if self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP is None:
+            self._init_default_objects_artifact_types_map()
+        if self._OUTPUTS_LOGGING_MAP is None:
+            self._init_outputs_logging_map()
+        if self._INPUTS_PARSING_MAP is None:
+            self._init_inputs_parsing_map()
 
         # Set up a variable to hold the context:
         self._context: MLClientCtx = None
@@ -1726,10 +1720,9 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key in kwargs.keys():
-            if (
-                isinstance(kwargs[key], mlrun.DataItem)
-                and expected_arguments_types[key] != inspect._empty
-            ):
+            if isinstance(kwargs[key], mlrun.DataItem) and expected_arguments_types[
+                key
+            ] not in [inspect._empty, mlrun.DataItem]:
                 kwargs[key] = self._parse_input(
                     data_item=kwargs[key], expected_type=expected_arguments_types[key]
                 )
@@ -1752,9 +1745,9 @@ class ContextHandler:
             if instructions is None:
                 continue
             # Parse the instructions:
-            artifact_type = self._objects_types_to_artifacts_type_map.get(
-                type(obj), self._artifact_type_class.DEFAULT
-            )
+            artifact_type = self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.get(
+                type(obj), self._ARTIFACT_TYPE_CLASS.DEFAULT
+            ).value
             key = None
             logging_kwargs = {}
             if isinstance(instructions, str):
@@ -1771,6 +1764,9 @@ class ContextHandler:
                 artifact_type = instructions[1]
                 if len(instructions) > 2:
                     logging_kwargs = instructions[2]
+            # Check if the object to log is None (None values are only logged if the artifact type is Result):
+            if obj is None and artifact_type != ArtifactType.RESULT.value:
+                continue
             # Log:
             self._log_output(
                 obj=obj,
@@ -1788,7 +1784,80 @@ class ContextHandler:
         for key, value in labels.items():
             self._context.set_label(key=key, value=value)
 
-    def _parse_input(self, data_item: DataItem, expected_type: Type) -> Any:
+    @classmethod
+    def _init_default_objects_artifact_types_map(cls):
+        """
+        Initialize the default objects artifact types map with the basic classes supported by MLRun. In addition, it
+        will try to support further common packages that are not required in MLRun.
+        """
+        # Initialize the map with the default classes:
+        cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP = {
+            pd.DataFrame: ArtifactType.DATASET,
+            pd.Series: ArtifactType.DATASET,
+            np.ndarray: ArtifactType.DATASET,
+            dict: ArtifactType.RESULT,
+            list: ArtifactType.RESULT,
+            tuple: ArtifactType.RESULT,
+            str: ArtifactType.RESULT,
+            int: ArtifactType.RESULT,
+            float: ArtifactType.RESULT,
+            bytes: ArtifactType.OBJECT,
+            bytearray: ArtifactType.OBJECT,
+        }
+
+        # Try to enrich it with further classes according ot the user's environment:
+        try:
+            import matplotlib.pyplot as plt
+
+            cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP[plt.Figure] = ArtifactType.PLOT
+            cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP[plt.Axes] = ArtifactType.PLOT
+        except ModuleNotFoundError:
+            pass
+        try:
+            import plotly
+
+            cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP[
+                plotly.graph_objs.Figure
+            ] = ArtifactType.PLOT
+        except ModuleNotFoundError:
+            pass
+        try:
+            import bokeh.plotting as bokeh_plt
+
+            cls._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP[
+                bokeh_plt.Figure
+            ] = ArtifactType.PLOT
+        except ModuleNotFoundError:
+            pass
+
+    @classmethod
+    def _init_outputs_logging_map(cls):
+        """
+        Initialize the outputs logging map for the basic artifact types supported by MLRun.
+        """
+        cls._OUTPUTS_LOGGING_MAP = {
+            ArtifactType.DATASET: OutputsLogger.log_dataset,
+            ArtifactType.DIRECTORY: OutputsLogger.log_directory,
+            ArtifactType.FILE: OutputsLogger.log_file,
+            ArtifactType.OBJECT: OutputsLogger.log_object,
+            ArtifactType.PLOT: OutputsLogger.log_plot,
+            ArtifactType.RESULT: OutputsLogger.log_result,
+        }
+
+    @classmethod
+    def _init_inputs_parsing_map(cls):
+        """
+        Initialize the inputs parsing map with the basic classes supported by MLRun.
+        """
+        cls._INPUTS_PARSING_MAP = {
+            pd.DataFrame: InputsParser.parse_pandas_dataframe,
+            np.ndarray: InputsParser.parse_numpy_array,
+            dict: InputsParser.parse_dict,
+            list: InputsParser.parse_list,
+            object: InputsParser.parse_object,
+        }
+
+    def _parse_input(self, data_item: DataItem, expected_type: type) -> Any:
         """
         Parse the given data frame to the expected type. By default, it will be parsed to an object (will be treated as
         a pickle).
@@ -1797,10 +1866,19 @@ class ContextHandler:
         :param expected_type: THe expected type to parse to.
 
         :returns: The parsed data item.
+
+        :raises MLRunRuntimeError: If an error was raised during the parsing function.
         """
-        return self._inputs_parsing_map.get(
-            expected_type, self._inputs_parsing_map[object]
-        )(data_item=data_item)
+        try:
+            return self._INPUTS_PARSING_MAP.get(
+                expected_type, self._INPUTS_PARSING_MAP[object]
+            )(data_item=data_item)
+        except Exception as exception:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"MLRun tried to parse a `DataItem` of type '{expected_type}' but failed. Be sure the item was "
+                f"logged correctly - as the type you are trying to parse it back to. In general, python objects should "
+                f"be logged as pickles."
+            ) from exception
 
     def _log_output(
         self,
@@ -1811,16 +1889,17 @@ class ContextHandler:
     ):
         """
         Log the given object to MLRun as the given artifact type with the provided key. The key can be part of a
-        logging keyword arguments to pas to the relevant context logging function.
+        logging keyword arguments to pass to the relevant context logging function.
 
         :param obj:           The object to log.
         :param artifact_type: The artifact type to log the object as.
         :param key:           The key (name) of the artifact or a logging kwargs to use when logging the artifact.
 
         :raises MLRunInvalidArgumentError: If a key was provided in the logging kwargs.
+        :raises MLRunRuntimeError:         If an error was raised during the logging function.
         """
         # Get the artifact type (will also verify the artifact type is valid):
-        artifact_type = self._artifact_type_class(artifact_type)
+        artifact_type = self._ARTIFACT_TYPE_CLASS(artifact_type)
 
         # Check if 'key' or 'item' were given the logging kwargs:
         if "key" in logging_kwargs or "item" in logging_kwargs:
@@ -1830,26 +1909,18 @@ class ContextHandler:
             )
 
         # Use the logging map to log the object:
-        self._outputs_logging_map[artifact_type](
-            ctx=self._context,
-            obj=obj,
-            key=key,
-            logging_kwargs=logging_kwargs,
-        )
-
-    @staticmethod
-    def _get_map(base: dict, updates: dict = None) -> dict:
-        """
-        Get an updated map based on the base map provided.
-
-        :param base:    The base map as default.
-        :param updates: The updates to the base map.
-
-        :return: The updated map.
-        """
-        if updates:
-            return {**base, **updates}
-        return base
+        try:
+            self._OUTPUTS_LOGGING_MAP[artifact_type](
+                ctx=self._context,
+                obj=obj,
+                key=key,
+                logging_kwargs=logging_kwargs,
+            )
+        except Exception as exception:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"MLRun tried to log '{key}' as '{artifact_type.value}' but failed. If you didn't provide the artifact "
+                f"type and the default one does not fit, try to select the correct type from the enum `ArtifactType`."
+            ) from exception
 
 
 def handler(
@@ -1866,7 +1937,7 @@ def handler(
                     values:
 
                     * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
-                            indicate the key and the artifact type will be defaulted according to the returned value
+                            indicate the key and the artifact type will be according to the returned value
                             type.
                     * tuple - A tuple of:
 
@@ -1887,7 +1958,7 @@ def handler(
 
                     * None - Do not log the output.
 
-                    The list length must be equal to the total amount of returned values from the function. Default to
+                    The list length must be equal to the total amount of returned values from the function. Default is
                     None - meaning no outputs will be logged.
 
     :param inputs: Parsing configurations for the arguments passed as inputs via the `run` method of an MLRun function.
@@ -1899,7 +1970,7 @@ def handler(
                    * Dict[str, Type] - A dictionary with argument name as key and the expected type to parse the
                                        `mlrun.DataItem` to.
 
-                   Defaulted to True.
+                   Default: True.
 
     Example::
 
@@ -1911,13 +1982,12 @@ def handler(
                 m += 1
                 return array, "I won't be logged", m
 
-            mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
-            run_object = mlrun_function.run(
-                handler="my_handler",
-                inputs={"array": "store://my_array_Artifact"},
-                params={"m": 2}
-            )
-
+            >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
+            >>> run_object = mlrun_function.run(
+            ...     handler="my_handler",
+            ...     inputs={"array": "store://my_array_Artifact"},
+            ...     params={"m": 2}
+            ... )
             >>> run_object.outputs
             {'my_multiplier': 3, 'my_array': 'store://...'}
     """

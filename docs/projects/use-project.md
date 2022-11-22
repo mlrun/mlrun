@@ -19,7 +19,7 @@ Alternatively, you can create functions using methods like {py:func}`~mlrun.run.
 The preferred approach is to use `set_function` (which also records the functions in the project spec).
 
 The {py:meth}`~mlrun.projects.MlrunProject.set_function` method allow you to add/update many types of functions:
-* **marketplace functions** - load/register a marketplace function into the project (func="hub://...")
+* **Function Hub functions** - load/register a Function Hub function into the project (func="hub://...")
 * **notebook file** - convert a notebook file into a function (func="path/to/file.ipynb")
 * **python file** - convert a python file into a function (func="path/to/file.py")
 * **database function** - function stored in MLRun DB (func="db://project/func-name:version")
@@ -33,8 +33,11 @@ If the function is not a single file function, and it requires access to multipl
 you should set the `with_repo=True` to add the entire repo code into the destination container during build or run time.
 
 ```{admonition} Note
-When using `with_repo=True` the functions need to be deployed (`function.deploy()`) to build a container, unless you set `project.spec.load_source_on_run=True` which instructs MLRun to load the git/archive repo into the function container 
-at run time and do not require a build (this is simpler when developing, for production it's preferred to build the image with the code)
+When using `with_repo=True` the function needs to be deployed using 
+{py:func}`~mlrun.projects.MlrunProject.deploy_function()` to build a container. Alternatively, you can use 
+{py:func}`~mlrun.projects.MlrunProject.set_source()` with `pull_at_runtime=True` which instructs MLRun to load the 
+git/archive repo into the function container at run time and therefore does not require a build (this is simpler when 
+developing, although for production it's preferred to build the image with the code.)
 ```
 
 Examples:

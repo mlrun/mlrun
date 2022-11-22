@@ -131,8 +131,31 @@ class V3ioStore(DataStore):
             headers["Range"] = get_range(size, offset)
         return http_get(self.url + self._join(key), headers)
 
+    def _put(self, key, data, max_chunk_size: int = ONE_GB):
+        """helper function for put method, allows for controlling max_chunk_size in testing"""
+        buffer_size = len(data)  # in bytes
+        if buffer_size <= ONE_MB:
+            http_put(self.url + self._join(key), data, self.headers, None)
+            return
+        append_header = deepcopy(self.headers)
+        append_header["Range"] = "-1"
+        buffer_offset = 0
+        try:
+            data = memoryview(data)
+        except TypeError:
+            pass
+        while buffer_offset < buffer_size:
+            chunk_size = min(buffer_size - buffer_offset, max_chunk_size)
+            http_put(
+                self.url + self._join(key),
+                data[buffer_offset : buffer_offset + chunk_size],
+                append_header if buffer_offset else self.headers,
+                None,
+            )
+            buffer_offset += chunk_size
+
     def put(self, key, data, append=False):
-        http_put(self.url + self._join(key), data, self.headers, None)
+        return self._put(key, data)
 
     def stat(self, key):
         head = http_head(self.url + self._join(key), self.headers)
@@ -144,9 +167,7 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(
-            endpoint=self.url, access_key=self.token, transport_kind="requests"
-        )
+        v3io_client = v3io.dataplane.Client(endpoint=self.url, access_key=self.token)
         container, subpath = split_path(self._join(key))
         if not subpath.endswith("/"):
             subpath += "/"
@@ -169,7 +190,11 @@ class V3ioStore(DataStore):
             raise
 
         # todo: full = key, size, last_modified
-        return [obj.key[subpath_length:] for obj in response.output.contents]
+        dir_content = [
+            dir.prefix[subpath_length:] for dir in response.output.common_prefixes
+        ]
+        obj_content = [obj.key[subpath_length:] for obj in response.output.contents]
+        return dir_content + obj_content
 
     def rm(self, path, recursive=False, maxdepth=None):
         """Recursive rm file/folder

@@ -783,6 +783,7 @@ class FlowStep(BaseStep):
                 raise GraphError(
                     f"graph loop, step {before} is specified in before and/or after {key}"
                 )
+            self[step.name].after_step(*self[before].after, append=False)
             self[before].after_step(step.name, append=False)
         self._last_added = step
         return step
@@ -1230,6 +1231,9 @@ def params_to_step(
     class_args=None,
 ):
     """return step object from provided params or classes/objects"""
+
+    class_args = class_args or {}
+
     if class_name and hasattr(class_name, "to_dict"):
         struct = class_name.to_dict()
         kind = struct.get("kind", StepKinds.task)
@@ -1248,6 +1252,10 @@ def params_to_step(
             )
         if not name:
             raise MLRunInvalidArgumentError("queue name must be specified")
+        # Pass full_event on only if it's explicitly defined
+        if full_event is not None:
+            class_args = class_args.copy()
+            class_args["full_event"] = full_event
         step = QueueStep(name, **class_args)
 
     elif class_name and class_name.startswith("*"):
@@ -1300,16 +1308,18 @@ def _init_async_objects(context, steps):
                 if step.path and not skip_stream:
                     stream_path = step.path
                     endpoint = None
-                    kafka_bootstrap_servers = step.options.get(
-                        "kafka_bootstrap_servers"
+                    options = {}
+                    options.update(step.options)
+                    kafka_bootstrap_servers = options.pop(
+                        "kafka_bootstrap_servers", None
                     )
                     if stream_path.startswith("kafka://") or kafka_bootstrap_servers:
                         topic, bootstrap_servers = parse_kafka_url(
                             stream_path, kafka_bootstrap_servers
                         )
 
-                        kafka_producer_options = step.options.get(
-                            "kafka_producer_options"
+                        kafka_producer_options = options.pop(
+                            "kafka_producer_options", None
                         )
 
                         step._async_object = storey.KafkaTarget(
@@ -1317,6 +1327,7 @@ def _init_async_objects(context, steps):
                             bootstrap_servers=bootstrap_servers,
                             producer_options=kafka_producer_options,
                             context=context,
+                            **options,
                         )
                     else:
                         if stream_path.startswith("v3io://"):
@@ -1326,6 +1337,7 @@ def _init_async_objects(context, steps):
                             storey.V3ioDriver(endpoint),
                             stream_path,
                             context=context,
+                            **options,
                         )
                 else:
                     step._async_object = storey.Map(lambda x: x)

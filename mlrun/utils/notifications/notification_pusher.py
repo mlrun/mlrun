@@ -132,11 +132,12 @@ class CustomNotificationPusher(object):
         asyncio.set_event_loop(notification_loop)
         tasks = []
         for notification in self._notifications.values():
-            tasks.append(
-                self._send_notification(
-                    notification, message, severity, runs, custom_html
+            if self.should_send_notification(notification_type):
+                tasks.append(
+                    self._send_notification(
+                        notification, message, severity, runs, custom_html
+                    )
                 )
-            )
         notification_loop.run_until_complete(asyncio.gather(*tasks))
         asyncio.set_event_loop(main_event_loop)
 
@@ -162,6 +163,26 @@ class CustomNotificationPusher(object):
             self._notifications[notification_type] = NotificationTypes(
                 notification_type
             ).get_notification()(params)
+
+    def should_send_notification(self, notification_type):
+        notification = self._notifications.get(notification_type)
+        if not notification or not notification.active:
+            return False
+
+        # get notification's inverse dependencies, and only send the notification if
+        # none of its inverse dependencies are being sent
+        inverse_dependencies = notification_type.inverse_dependencies()
+        for inverse_dependency in inverse_dependencies:
+            inverse_dependency_notification = self._notifications.get(
+                inverse_dependency
+            )
+            if (
+                inverse_dependency_notification
+                and inverse_dependency_notification.active
+            ):
+                return False
+
+        return True
 
     def push_pipeline_start_message(
         self,

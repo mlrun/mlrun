@@ -71,7 +71,7 @@ class TestRedisDataStore(TestMLRunSystem):
         with open("temp_upload", "w") as f:
             f.write(expected)
 
-        redis_path = "redis:///redis_object"
+        redis_path = "redis:///{redis_object}"
         data_item = mlrun.datastore.store_manager.object(redis_path)
 
         data_item.delete()

@@ -31,6 +31,7 @@ from nuclio.triggers import V3IOStreamTrigger
 import mlrun.errors
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
+from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
@@ -288,6 +289,16 @@ class RemoteRuntime(KubeResource):
 
     def set_config(self, key, value):
         self.spec.config[key] = value
+        return self
+
+    def with_annotations(self, annotations: dict):
+        """set a key/value annotations for function"""
+
+        self.spec.base_spec.setdefault("metadata", {})
+        self.spec.base_spec["metadata"].setdefault("annotations", {})
+        for key, value in annotations.items():
+            self.spec.base_spec["metadata"]["annotations"][key] = str(value)
+
         return self
 
     def add_volume(self, local, remote, name="fs", access_key="", user=""):
@@ -1524,10 +1535,13 @@ def _compile_nuclio_archive_config(
             code_entry_attributes["branch"] = branch
 
         password = get_secret("GIT_PASSWORD")
+        username = get_secret("GIT_USERNAME")
+
         token = get_secret("GIT_TOKEN")
         if token:
-            password = "x-oauth-basic"
-        code_entry_attributes["username"] = token or get_secret("GIT_USERNAME")
+            username, password = get_git_username_password_from_token(token)
+
+        code_entry_attributes["username"] = username
         code_entry_attributes["password"] = password
 
     # populate spec with relevant fields

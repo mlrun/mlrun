@@ -1223,6 +1223,7 @@ def test_get_obj_path(db: Session, client: TestClient):
         },
         {
             "path": "gcs://bucket/and/path",
+            "allowed_paths": "s3://",
             "expect_error": True,
         },
         {

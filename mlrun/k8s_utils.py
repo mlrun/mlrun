@@ -108,19 +108,42 @@ class K8sHelper:
         for item in items:
             self.del_pod(item.metadata.name, item.metadata.namespace)
 
-    def create_pod(self, pod):
+    def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
             pod = pod.pod
         pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
-        try:
-            resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
-        except ApiException as exc:
-            logger.error(f"spec:\n{pod.spec}")
-            logger.error(f"failed to create pod: {exc}")
-            raise exc
 
-        logger.info(f"Pod {resp.metadata.name} created")
-        return resp.metadata.name, resp.metadata.namespace
+        retry_count = 0
+        while True:
+            try:
+                resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
+            except ApiException as exc:
+
+                if retry_count > max_retry:
+                    logger.error(
+                        "failed to create pod after max retries",
+                        retry_count=retry_count,
+                        exc=str(exc),
+                        pod=pod,
+                    )
+                    raise exc
+
+                logger.error("failed to create pod", exc=str(exc), pod=pod)
+
+                # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
+                if "gke-resource-quotas" in str(exc):
+                    logger.warning(
+                        "failed to create pod due to gke resource error, "
+                        f"sleeping {retry_interval} seconds and retrying"
+                    )
+                    retry_count += 1
+                    time.sleep(retry_interval)
+                    continue
+
+                raise exc
+            else:
+                logger.info(f"Pod {resp.metadata.name} created")
+                return resp.metadata.name, resp.metadata.namespace
 
     def del_pod(self, name, namespace=None):
         try:

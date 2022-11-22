@@ -1,6 +1,45 @@
 services:
+  init_nuclio:
+    image: alpine:3.16
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        mkdir -p /etc/nuclio/config/platform; \
+        cat << EOF | tee /etc/nuclio/config/platform/platform.yaml
+        runtime:
+          common:
+            env:
+              MLRUN_DBPATH: http://${HOST_IP:?err}:8080
+        local:
+          defaultFunctionContainerNetworkName: mlrun
+          defaultFunctionRestartPolicy:
+            name: always
+            maxRetryCount: 0
+          defaultFunctionVolumes:
+            - volume:
+                name: mlrun-stuff
+                hostPath:
+                  path: ${SHARED_DIR:?err}
+              volumeMount:
+                name: mlrun-stuff
+                mountPath: /home/jovyan/data/
+        logger:
+          sinks:
+            myStdoutLoggerSink:
+              kind: stdout
+          system:
+            - level: debug
+              sink: myStdoutLoggerSink
+          functions:
+            - level: debug
+              sink: myStdoutLoggerSink
+        EOF
+    volumes:
+      - nuclio-platform-config:/etc/nuclio/config
+
   jupyter:
-    image: "mlrun/jupyter:${TAG:-1.0.6}"
+    image: "mlrun/jupyter:${TAG:-1.1.2}"
     ports:
       - "8080:8080"
       - "8888:8888"
@@ -22,7 +61,7 @@ services:
       - mlrun
 
   mlrun-ui:
-    image: "mlrun/mlrun-ui:${TAG:-1.0.6}"
+    image: "mlrun/mlrun-ui:${TAG:-1.1.2}"
     ports:
       - "8060:8090"
     environment:
@@ -38,11 +77,18 @@ services:
     ports:
       - "8070:8070"
     environment:
-      NUCLIO_DASHBOARD_EXTERNAL_IP_ADDRESSES: "${HOST_IP:-127.0.0.1}"
+      NUCLIO_DASHBOARD_EXTERNAL_IP_ADDRESSES: "${HOST_IP:?err}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - nuclio-platform-config:/etc/nuclio/config
+    depends_on:
+      - init_nuclio
     networks:
       - mlrun
 
+volumes:
+  nuclio-platform-config: {}
+
 networks:
-  mlrun: {}
+  mlrun:
+    name: mlrun

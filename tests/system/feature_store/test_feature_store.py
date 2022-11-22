@@ -74,6 +74,14 @@ class MyMap(MapClass):
         return event
 
 
+class IdentityMap(MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, x):
+        return x
+
+
 def my_func(df):
     return df
 
@@ -1715,28 +1723,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         csv_file = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        original_df = pd.read_csv(csv_file)
-        original_cols = original_df.shape[1]
-        print(original_df.shape)
-        print(original_df.info())
-
-        chunksize = 100
+        chunksize = 20
         source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
+
         if with_graph:
             myset.graph.to(name="s1", handler="my_func")
 
         df = fs.ingest(myset, source)
-        self._logger.info(f"output df:\n{df}")
 
         features = list(myset.spec.features.keys())
         print(len(features), features)
         print(myset.to_yaml())
-        print(df.shape)
-        # original cols - index - timestamp cols
-        assert len(features) == original_cols - 2, "wrong num of features"
-        assert df.shape[1] == original_cols, "num of cols not as expected"
-        # returned DF is only the first chunk (size 100)
-        assert df.shape[0] == chunksize, "dataframe size doesnt match"
+        self._logger.info(f"output df:\n{df}")
+
+        reference_df = pd.read_csv(csv_file)
+        reference_df = reference_df[0:chunksize].set_index("patient_id")
+
+        # patient_id (index) and timestamp (timestamp_key) are not in features list
+        assert features + ["timestamp"] == list(reference_df.columns)
+        assert df.equals(reference_df), "output dataframe is different from expected"
 
     def test_target_list_validation(self):
         targets = [ParquetTarget()]
@@ -1792,9 +1797,9 @@ class TestFeatureStore(TestMLRunSystem):
         agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
 
         # Make sure the map step was added right after the aggregation step
-        assert len(quotes_set.graph.states) == 2
-        assert quotes_set.graph.states[aggregates_step].after is None
-        assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
+        assert len(quotes_set.graph.steps) == 2
+        assert quotes_set.graph.steps[aggregates_step].after == []
+        assert quotes_set.graph.steps["somemap1"].after == [aggregates_step]
 
     def test_featureset_uri(self):
         stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
@@ -1983,7 +1988,8 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    def test_purge_redis(self):
+    @pytest.mark.parametrize("target_redis, ", ["", "redis://:aaa@localhost:6379"])
+    def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -1996,7 +2002,9 @@ class TestFeatureStore(TestMLRunSystem):
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
-            RedisNoSqlTarget(),
+            RedisNoSqlTarget()
+            if target_redis == ""
+            else RedisNoSqlTarget(path=target_redis),
         ]
         fset.set_targets(
             targets=targets,
@@ -2824,7 +2832,9 @@ class TestFeatureStore(TestMLRunSystem):
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
-    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(
@@ -2855,7 +2865,6 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2874,8 +2883,11 @@ class TestFeatureStore(TestMLRunSystem):
             bootstrap_servers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
-        with pytest.raises(ValueError):
+        try:
             fs.ingest(stocks_set, stocks, [target])
+            pytest.fail("Expected a ValueError to be raised")
+        except ValueError as ex:
+            assert str(ex) == "Not supported codec: invalid value"
 
     def test_alias_change(self):
         quotes = pd.DataFrame(
@@ -3016,17 +3028,102 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = fstore.ingest(prediction_set, df)
 
             read_back_df = pd.read_parquet(outdir)
-
             assert read_back_df.equals(returned_df)
-            assert read_back_df.to_dict() == {
-                "id": {0: "a", 1: "b"},
-                "number": {0: 11, 1: 22},
+
+            expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            assert read_back_df.equals(expected_df)
+
+    # regression test for #2557
+    @pytest.mark.parametrize(
+        ["index_columns"],
+        [[["mystr1"]], [["mystr1", "mystr2"]], [["mystr1", "mystr2", "myfloat1"]]],
+    )
+    def test_pandas_stats_include_index(self, index_columns):
+        fset = fstore.FeatureSet(
+            "myset",
+            entities=[Entity(index_column) for index_column in index_columns],
+            engine="pandas",
+        )
+
+        fset.graph.to("IdentityMap")
+
+        assert not fset.get_stats_table()
+
+        source_df = pd.DataFrame(
+            {
+                "mystr1": {0: "ozqqyhvprlghypgn", 1: "etkpkrbuhprigrtk"},
+                "mystr2": {0: "kllnbgkcskdiqrqy", 1: "luqsritvfwnfgziw"},
+                "myfloat1": {0: 7173728554904657, 1: -8019470409809931},
+                "myfloat2": {0: 0.03638798909492902, 1: 0.13661189704381071},
             }
+        )
+        fstore.preview(fset, source_df)
+        actual_stat = fset.get_stats_table().drop("hist", axis=1)
+        actual_stat = actual_stat.sort_index().sort_index(axis=1)
+
+        expected_stat = pd.DataFrame(
+            {
+                "count": {
+                    "myfloat1": 2.0,
+                    "myfloat2": 2.0,
+                    "mystr1": 2.0,
+                    "mystr2": 2.0,
+                },
+                "freq": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": 1.0,
+                    "mystr2": 1.0,
+                },
+                "max": {
+                    "myfloat1": 7173728554904657.0,
+                    "myfloat2": 0.13661189704381071,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "mean": {
+                    "myfloat1": -422870927452637.0,
+                    "myfloat2": 0.08649994306936987,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "min": {
+                    "myfloat1": -8019470409809931.0,
+                    "myfloat2": 0.03638798909492902,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "std": {
+                    "myfloat1": 1.0743214015866118e16,
+                    "myfloat2": 0.07086900494767057,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "top": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": "ozqqyhvprlghypgn",
+                    "mystr2": "kllnbgkcskdiqrqy",
+                },
+                "unique": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": 2.0,
+                    "mystr2": 2.0,
+                },
+            },
+            index=["myfloat1", "myfloat2", "mystr1", "mystr2"],
+        )
+
+        assert_frame_equal(expected_stat, actual_stat)
 
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
     orig_status_targets = list(fset.status.targets.keys())
+    from copy import deepcopy
+
+    orig_status_tar = deepcopy(fset.status.targets)
     target_names = [t.name for t in targets]
 
     for target in fset.status.targets:
@@ -3035,14 +3132,21 @@ def verify_purge(fset, targets):
             filesystem = driver._get_store().get_filesystem(False)
             if filesystem is not None:
                 assert filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
 
-    for target in fset.status.targets:
+    for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert not filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert not filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) == 0
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

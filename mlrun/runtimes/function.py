@@ -40,7 +40,7 @@ from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
-from ..utils import enrich_image_url, get_in, logger, update_in
+from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
@@ -1276,11 +1276,23 @@ def compile_function_config(
         )
 
     if function.spec.replicas:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
+
+        nuclio_spec.set_config(
+            "spec.minReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+
     else:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        nuclio_spec.set_config(
+            "spec.minReplicas",
+            as_number("spec.minReplicas", function.spec.min_replicas),
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas",
+            as_number("spec.maxReplicas", function.spec.max_replicas),
+        )
 
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)

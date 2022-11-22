@@ -71,7 +71,9 @@ def make_dockerfile(
         else:
             dock += f"ADD {source} {workdir}\n"
 
-        dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+        if user_unix_id is not None and enriched_group_id is not None:
+            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -308,8 +310,9 @@ def build_image(
     verbose=False,
     builder_env=None,
     client_version=None,
-    runtime_spec=None,
+    runtime=None,
 ):
+    runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
@@ -338,7 +341,6 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    src_dir = "."
     v3io = (
         source.startswith("v3io://") or source.startswith("v3ios://")
         if source
@@ -352,34 +354,50 @@ def build_image(
     builder_env = _generate_builder_env(project, builder_env)
 
     parsed_url = urlparse(source)
-    if inline_code:
+    source_to_copy = None
+    source_dir_to_mount = None
+    if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
-    elif runtime_spec.build.load_source_on_run or not source:
-        source = None
-        src_dir = None
+
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+
+        # set remote source as kaniko's build context and copy it
         context = source
+        source_to_copy = "."
+
     else:
         if v3io:
             source = parsed_url.path
             to_mount = True
-        src_dir, source = path.split(source)
+            source_dir_to_mount, source_to_copy = path.split(source)
+        else:
+            source_to_copy = source
+
+    user_unix_id = None
+    enriched_group_id = None
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+    ):
+        from mlrun.api.api.utils import ensure_function_security_context
+
+        ensure_function_security_context(runtime, auth_info)
+        user_unix_id = runtime.spec.security_context.run_as_user
+        enriched_group_id = runtime.spec.security_context.run_as_group
 
     dock = make_dockerfile(
         base_image,
         commands,
-        source=source,
+        source=source_to_copy,
         requirements=requirements_path,
         extra=extra,
-        user_unix_id=auth_info.user_unix_id,
-        enriched_group_id=mlrun.mlconf.get_security_context_enrichment_group_id(
-            auth_info.user_unix_id
-        ),
+        user_unix_id=user_unix_id,
+        enriched_group_id=enriched_group_id,
     )
 
     kpod = make_kaniko_pod(
@@ -400,7 +418,7 @@ def build_image(
 
     if to_mount:
         kpod.mount_v3io(
-            remote=src_dir,
+            remote=source_dir_to_mount,
             mount_path="/context",
             access_key=access_key,
             user=username,
@@ -535,7 +553,7 @@ def build_runtime(
         verbose=runtime.verbose,
         builder_env=builder_env,
         client_version=client_version,
-        runtime_spec=runtime.spec,
+        runtime=runtime,
     )
     runtime.status.build_pod = None
     if status == "skipped":

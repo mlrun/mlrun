@@ -68,6 +68,7 @@ def run_function(
     auto_build: bool = None,
     schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
+    notification_configs: List[mlrun.model.NotificationConfig] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -173,6 +174,7 @@ def run_function(
             or artifact_path,
             auto_build=auto_build,
             schedule=schedule,
+            notification_configs=notification_configs,
         )
         if run_result:
             run_result._notified = False

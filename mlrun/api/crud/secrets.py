@@ -105,10 +105,9 @@ class Secrets(
             if secrets_to_store:
                 mlrun.utils.vault.store_vault_project_secrets(project, secrets_to_store)
         elif secrets.provider == mlrun.api.schemas.SecretProviderName.kubernetes:
-            if mlrun.api.utils.singletons.k8s.get_k8s():
-                mlrun.api.utils.singletons.k8s.get_k8s().store_project_secrets(
-                    project, secrets_to_store
-                )
+            k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+            if k8s and k8s.is_running_inside_kubernetes_cluster():
+                k8s.store_project_secrets(project, secrets_to_store)
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"

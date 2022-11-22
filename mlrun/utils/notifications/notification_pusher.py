@@ -131,7 +131,7 @@ class CustomNotificationPusher(object):
         notification_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(notification_loop)
         tasks = []
-        for notification in self._notifications.values():
+        for notification_type, notification in self._notifications.items():
             if self.should_send_notification(notification_type):
                 tasks.append(
                     self._send_notification(

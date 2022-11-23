@@ -1,7 +1,6 @@
 (change-log)=
 # Change log
 - [v1.2.0](#v1-2-0)
-- [v1.1.0](#v1-1-0)
 - [Closed issues](#closed-issues)
 - [Open issues](#open-issues)
 
@@ -19,6 +18,7 @@
 - Supports Redis as an online feature set 
 <br>See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store-tech-preview)
 - The out-of-the-box feature store steps are available with the pandas engine
+- Supports GCP objects as data source for the feature store
 
 **UI**
 - The Labels in the **Models > Overview** tab can be edited 

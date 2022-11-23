@@ -38,9 +38,10 @@ class NotificationPusher(object):
         self._notifications = {}
 
         for run in self._runs:
-            for notification_config in run.get("spec", {}).get(
-                "notification_configs", []
-            ):
+            if isinstance(run, dict):
+                run = mlrun.model.RunObject.from_dict(run)
+
+            for notification_config in run.spec.notification_configs:
                 if self._should_notify(run, notification_config):
                     self._notification_data.append((run, notification_config))
 
@@ -61,10 +62,11 @@ class NotificationPusher(object):
 
     @staticmethod
     def _should_notify(
-        run: typing.Union[mlrun.model.RunObject, dict], notification_config: dict
+        run: typing.Union[mlrun.model.RunObject, dict],
+        notification_config: mlrun.model.NotificationConfig,
     ) -> bool:
-        when_states = notification_config.get("when", [])
-        condition = notification_config.get("condition", "")
+        when_states = notification_config.when
+        condition = notification_config.condition
         run_state = run.get("status", {}).get("state", "")
 
         # if at least one condition is met, notify
@@ -78,8 +80,10 @@ class NotificationPusher(object):
 
         return False
 
-    def _load_notification(self, notification_config: dict) -> NotificationBase:
-        params = notification_config.get("params", {})
+    def _load_notification(
+        self, notification_config: mlrun.model.NotificationConfig
+    ) -> NotificationBase:
+        params = notification_config.params or {}
         params_secret = params.get("secret", "")
         if params_secret:
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()
@@ -89,9 +93,9 @@ class NotificationPusher(object):
                 )
             params = k8s.load_secret(params_secret)
 
-        name = notification_config.get("name", "")
+        name = notification_config.name
         notification_type = NotificationTypes(
-            notification_config.get("kind", "console")
+            notification_config.kind or NotificationTypes.console
         )
         notification_key = name or notification_type
         if notification_key not in self._notifications:
@@ -104,10 +108,13 @@ class NotificationPusher(object):
         return self._notifications[notification_key]
 
     async def _send_notification(
-        self, notification: NotificationBase, run: dict, notification_config: dict
+        self,
+        notification: NotificationBase,
+        run: dict,
+        notification_config: mlrun.model.NotificationConfig,
     ):
         message = self.messages.get(run.get("status", {}).get("state", ""), "")
-        severity = notification_config.get("severity", NotificationSeverity.INFO)
+        severity = notification_config.severity or NotificationSeverity.INFO
         if asyncio.iscoroutinefunction(notification.send):
             await notification.send(message, severity, [run])
         else:

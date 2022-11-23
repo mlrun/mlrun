@@ -62,12 +62,12 @@ class NotificationPusher(object):
 
     @staticmethod
     def _should_notify(
-        run: typing.Union[mlrun.model.RunObject, dict],
+        run: mlrun.model.RunObject,
         notification_config: mlrun.model.NotificationConfig,
     ) -> bool:
         when_states = notification_config.when
         condition = notification_config.condition
-        run_state = run.get("status", {}).get("state", "")
+        run_state = run.state()
 
         # if at least one condition is met, notify
         for when_state in when_states:
@@ -110,10 +110,10 @@ class NotificationPusher(object):
     async def _send_notification(
         self,
         notification: NotificationBase,
-        run: dict,
+        run: mlrun.model.RunObject,
         notification_config: mlrun.model.NotificationConfig,
     ):
-        message = self.messages.get(run.get("status", {}).get("state", ""), "")
+        message = self.messages.get(run.state(), "")
         severity = notification_config.severity or NotificationSeverity.INFO
         if asyncio.iscoroutinefunction(notification.send):
             await notification.send(message, severity, [run])

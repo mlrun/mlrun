@@ -253,6 +253,7 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
+        print("building function", function.spec.build.commands)
         function.build_config(
             image=image,
             base_image=base_image,
@@ -261,6 +262,7 @@ def build_function(
             requirements=requirements,
             overwrite=overwrite_build_params,
         )
+        print("before building function", function.spec.build.commands)
         ready = function.deploy(
             watch=True,
             with_mlrun=with_mlrun,
@@ -268,6 +270,7 @@ def build_function(
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
         )
+        print("after building function", function.spec.build.commands)
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)
 

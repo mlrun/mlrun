@@ -596,10 +596,14 @@ class RunSpec(ModelObj):
 
     @notification_configs.setter
     def notification_configs(self, notification_configs):
-        self._verify_list(notification_configs, "notification_configs")
-        self._notification_configs = ObjectList.from_list(
-            NotificationConfig, notification_configs
-        )
+        if isinstance(notification_configs, list):
+            self._notification_configs = ObjectList.from_list(
+                NotificationConfig, notification_configs
+            )
+        elif isinstance(notification_configs, ObjectList):
+            self._notification_configs = notification_configs
+        else:
+            raise ValueError(f"Notification Configs must be a list")
 
 
 class RunStatus(ModelObj):

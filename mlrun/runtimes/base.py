@@ -704,7 +704,9 @@ class BaseRuntime(ModelObj):
                 runspec.spec.output_path, runspec.metadata.project
             )
 
-        runspec.spec.notification_configs = notification_configs or []
+        runspec.spec.notification_configs = (
+            notification_configs or runspec.spec.notification_configs or []
+        )
         return runspec
 
     def _submit_job(self, runspec, schedule, db, watch):

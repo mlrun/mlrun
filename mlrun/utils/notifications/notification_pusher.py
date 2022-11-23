@@ -28,7 +28,7 @@ from .notification import NotificationBase, NotificationSeverity, NotificationTy
 class NotificationPusher(object):
 
     messages = {
-        "success": "Run completed",
+        "completed": "Run completed",
         "error": "Run failed",
     }
 

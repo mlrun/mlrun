@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
@@ -247,6 +248,7 @@ def load_project(
         url = str(url)  # to support path objects
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
+            project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
@@ -1197,8 +1199,8 @@ class MlrunProject(ModelObj):
                 artifact = dict_to_artifact(artifact_dict)
                 if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
-                    artifact.spec.src_path = path.join(
-                        self.spec.get_code_path(), artifact.spec.src_path
+                    artifact.src_path = path.join(
+                        self.spec.get_code_path(), artifact.src_path
                     )
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
@@ -1271,7 +1273,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         item = am.log_artifact(
             producer,
@@ -2243,6 +2245,7 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,
+        overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2257,6 +2260,8 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
+         add to existing parameters
         """
         return build_function(
             function,
@@ -2270,6 +2275,7 @@ class MlrunProject(ModelObj):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
+            overwrite_build_params=overwrite_build_params,
         )
 
     def deploy_function(

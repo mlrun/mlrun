@@ -61,14 +61,16 @@ class LocalFeatureMerger(BaseMerger):
                 columns={name: alias for name, alias in columns if alias}, inplace=True
             )
             dfs.append(df)
+            del df
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
         self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
 
         if self.vector.status.label_column:
-            self._result_df = self._result_df.dropna(
-                subset=[self.vector.status.label_column]
+            self._result_df.dropna(
+                subset=[self.vector.status.label_column],
+                inplace=True,
             )
         # filter joined data frame by the query param
         if query:
@@ -79,7 +81,7 @@ class LocalFeatureMerger(BaseMerger):
         self._write_to_target()
 
         # check if need to set indices
-        self._result_df = self._set_indexes(self._result_df)
+        self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _asof_join(
@@ -94,17 +96,17 @@ class LocalFeatureMerger(BaseMerger):
         index_col_not_in_featureset = "index" not in featureset_df.columns
         # Sort left and right keys
         if type(entity_df.index) != pd.RangeIndex:
-            entity_df = entity_df.reset_index()
+            entity_df.reset_index(inplace=True)
         if type(featureset_df.index) != pd.RangeIndex:
-            featureset_df = featureset_df.reset_index()
+            featureset_df.reset_index(inplace=True)
         entity_df[entity_timestamp_column] = pd.to_datetime(
             entity_df[entity_timestamp_column]
         )
         featureset_df[featureset.spec.timestamp_key] = pd.to_datetime(
             featureset_df[featureset.spec.timestamp_key]
         )
-        entity_df = entity_df.sort_values(by=entity_timestamp_column)
-        featureset_df = featureset_df.sort_values(by=entity_timestamp_column)
+        entity_df.sort_values(by=entity_timestamp_column, inplace=True)
+        featureset_df.sort_values(by=entity_timestamp_column, inplace=True)
 
         merged_df = pd.merge_asof(
             entity_df,
@@ -123,7 +125,7 @@ class LocalFeatureMerger(BaseMerger):
             and index_col_not_in_featureset
             and "index" in merged_df.columns
         ):
-            merged_df = merged_df.drop(columns="index")
+            merged_df.drop(columns="index", inplace=True)
         return merged_df
 
     def _join(

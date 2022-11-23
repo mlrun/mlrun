@@ -363,6 +363,7 @@ def main():
         port=config.httpdb.port,
         debug=config.httpdb.debug,
         access_log=False,
+        timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
     )
 
 

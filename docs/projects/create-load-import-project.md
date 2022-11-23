@@ -28,7 +28,7 @@ location for the `context` directory (e.g. `./`) and other optional parameters (
 The `context` dir holds the configuration, code, and workflow files. File paths in the project are relative to the context root.
 
 ```python
-    # create a project with local and marketplace functions
+    # create a project with local and Hunction Hub functions
     project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
     project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
     project.set_function('hub://sklearn_classifier', 'train')
@@ -86,7 +86,7 @@ Example of creating a new project from a zip template:
     project = mlrun.new_project("myproj", "./", init_git=True, user_project=True,
                                 remote="git://github.com/mlrun/demo-xgb-project.git",
                                 from_template="http://mysite/proj.zip")
-    # add another marketplace function and save
+    # add another Function Hub function and save
     project.set_function('hub://test_classifier', 'test')  
     project.save()      
 ```

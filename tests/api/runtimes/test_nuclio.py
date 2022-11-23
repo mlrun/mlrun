@@ -993,7 +993,7 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_load_function_with_source_archive_s3(self):
         fn = self._generate_runtime(self.runtime_kind)
         fn.with_source_archive(
-            "s3://my-bucket/path/in/bucket/my-functions-archive",
+            "s3://my-bucket/path/in/bucket/my-functions-archive.tar.gz",
             handler="main:Handler",
             workdir="path/inside/functions/archive",
             runtime="golang",
@@ -1008,12 +1008,12 @@ class TestNuclioRuntime(TestRuntimeBase):
             "spec": {
                 "handler": "main:Handler",
                 "build": {
-                    "path": "s3://my-bucket/path/in/bucket/my-functions-archive",
+                    "path": "s3://my-bucket/path/in/bucket/my-functions-archive.tar.gz",
                     "codeEntryType": "s3",
                     "codeEntryAttributes": {
                         "workDir": "path/inside/functions/archive",
                         "s3Bucket": "my-bucket",
-                        "s3ItemKey": "path/in/bucket/my-functions-archive",
+                        "s3ItemKey": "path/in/bucket/my-functions-archive.tar.gz",
                         "s3AccessKeyId": "some-id",
                         "s3SecretAccessKey": "some-secret",
                         "s3SessionToken": "",

@@ -17,13 +17,17 @@ import os
 import time
 import uuid
 
+import pandas as pd
 import pytest
 import requests
 import v3io
+from storey import MapClass
 from v3io.dataplane import RaiseForStatus
 
 import mlrun
 import tests.system.base
+from mlrun import feature_store as fstore
+from mlrun.datastore.sources import KafkaSource
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -223,7 +227,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
     brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
 
     @pytest.fixture()
-    def kafka_consumer(self):
+    def kafka_fixture(self):
         import kafka
 
         # Setup
@@ -246,18 +250,133 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             consumer_timeout_ms=10 * 60 * 1000,
         )
 
+        kafka_producer = kafka.KafkaProducer(bootstrap_servers=self.brokers)
+
         # Test runs
-        yield kafka_consumer
+        yield kafka_consumer, kafka_producer
 
         # Teardown
         kafka_admin_client.delete_topics([self.topic, self.topic_out])
         kafka_admin_client.close()
         kafka_consumer.close()
 
+    def produce_kafka_helper(self, kafka_producer, df):
+        import io
+
+        import avro.schema
+        from avro.io import DatumWriter
+
+        schema = json.dumps(
+            {
+                "namespace": "example.avro",
+                "type": "record",
+                "name": "User",
+                "fields": [
+                    {"name": "ticker", "type": "string"},
+                    {"name": "name", "type": ["string", "null"]},
+                    {"name": "price", "type": ["int", "null"]},
+                ],
+            }
+        )
+
+        for row_index, _ in df.iterrows():
+            event_row_temp = df.loc[[row_index]]
+            event_row_dict = event_row_temp.to_dict("records")[0]
+            writer = DatumWriter(avro.schema.parse(schema))
+            bytes_writer = io.BytesIO()
+            encoder = avro.io.BinaryEncoder(bytes_writer)
+            writer.write(
+                event_row_dict,
+                encoder,
+            )
+            raw_bytes = bytes_writer.getvalue()
+            kafka_producer.send(self.topic_out, raw_bytes)
+            kafka_producer.flush()
+
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
-    def test_serving_with_kafka_queue(self, kafka_consumer):
+    def test_kafka_source_with_avro(self, kafka_fixture):
+        class MyMap(MapClass):
+            def do(self, event):
+                self.context.logger.info(f"MyMap: event = {event}")
+
+                if isinstance(event, bytes):
+                    event = {"key": event}
+                return event
+
+        row_divide = 3
+        stocks_df = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL", "CSCO", "AAPL", "AAPL"],
+                "name": [
+                    "Microsoft Corporation",
+                    "Alphabet Inc",
+                    "Apple Inc",
+                    "Cisco Systems Inc",
+                    "Apple Inc",
+                    "Apple Inc",
+                ],
+                "price": [int(30), int(40), int(50), int(20), int(60), int(70)],
+            }
+        )
+        fs_name = "stocks_set"
+        stocks_set = fstore.FeatureSet(fs_name, entities=[fstore.Entity("ticker")])
+
+        # need to set full_event = True since we need to change event md (key) in the Map step
+        stocks_set.graph.to("MyMap", full_event=True)
+        fstore.ingest(
+            featureset=stocks_set,
+            source=stocks_df[row_divide:],
+            infer_options=fstore.InferOptions.default(),
+        )
+        stocks_set.save()
+
+        kafka_source = KafkaSource(
+            brokers=self.brokers,
+            topics=self.topic_out,
+            initial_offset="earliest",
+            group="my_group",
+        )
+
+        func = mlrun.code_to_function(
+            name="map",
+            kind="serving",
+            # TODO - remove reference to assaf758/mlrun (once mlrun/mlrun is updated)
+            image="assaf758/mlrun:ML-2836",
+            requirements=["avro"],
+            # image='mlrun/mlrun',requirements=['avro'],
+            filename="/home/assafb/iguazio/mlrun/tests/system/runtimes/map-1.py",
+        )
+
+        run_config = fstore.RunConfig(local=False, function=func).apply(
+            mlrun.auto_mount()
+        )
+        stocks_set_endpoint = fstore.deploy_ingestion_service(
+            featureset=stocks_set,
+            source=kafka_source,
+            run_config=run_config,
+        )
+        print(stocks_set_endpoint)
+
+        kafka_consumer, kafka_producer = kafka_fixture
+        self.produce_kafka_helper(kafka_producer, stocks_df[0:row_divide])
+
+        time.sleep(90)  # wait for ingestion-service parquet to be written
+
+        vec = fstore.FeatureVector("test-vec", [f"{fs_name}.*"])
+        resp = fstore.get_offline_features(feature_vector=vec, with_indexes=True)
+        actual_df = resp.to_dataframe()
+
+        print(actual_df)
+        expected_df = stocks_df.set_index("ticker")
+        pd.testing.assert_frame_equal(actual_df, expected_df)
+
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
+    def test_serving_with_kafka_queue(self, kafka_fixture):
+        kafka_consumer, _ = kafka_fixture
         code_path = str(self.assets_path / "nuclio_function.py")
         child_code_path = str(self.assets_path / "child_function.py")
 

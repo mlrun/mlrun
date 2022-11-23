@@ -88,9 +88,6 @@ class TestRedisDataStore(TestMLRunSystem):
 
         assert expected == actual
 
-    # with the addition of curly-braces enclosing the redis keys, this test got broken.
-    # consider if ls functionality is needed when removing redis datastore
-    @pytest.mark.skip("FIXME - test is disabled")
     def test_redis_listdir(self):
 
         redis_path = "redis://"

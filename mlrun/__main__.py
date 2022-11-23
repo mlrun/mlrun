@@ -373,6 +373,10 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         fn.is_child = from_env and not kfp
+        # if pod is running inside kfp pod, we don't really need the run logs to be printed actively, we can just
+        # pull the run state, and print it at the end
+        # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
+        watch = watch or None if kfp else False
         resp = fn.run(
             runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
         )
@@ -822,7 +826,7 @@ def logs(uid, project, offset, db, watch):
     """Get or watch task logs"""
     mldb = get_run_db(db or mlconf.dbpath)
     if mldb.kind == "http":
-        state = mldb.watch_log(uid, project, watch=watch, offset=offset)
+        state, _ = mldb.watch_log(uid, project, watch=watch, offset=offset)
     else:
         state, text = mldb.get_log(uid, project, offset=offset)
         if text:

@@ -16,6 +16,7 @@ import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
+from mlrun import errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from tests.api.db.conftest import dbs
@@ -71,7 +72,7 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_update_feature_set(db: DBInterface, db_session: Session):
+def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)
 
@@ -81,9 +82,9 @@ def test_update_feature_set(db: DBInterface, db_session: Session):
     db.store_feature_set(
         db_session, project, name, feature_set, tag="latest", versioned=True
     )
-    assert feature_set.metadata.labels != {}
 
     feature_set = db.get_feature_set(db_session, project, name)
+    assert feature_set.metadata.labels != {}
     old_feature_set_dict = feature_set.dict()
 
     # remove labels from feature set and store it
@@ -112,3 +113,66 @@ def test_update_feature_set(db: DBInterface, db_session: Session):
     updated_feature_set_dict["metadata"].pop("updated")
 
     assert deepdiff.DeepDiff(old_feature_set_dict, updated_feature_set_dict) == {}
+
+    # return the labels to the feature set and store it
+    # should update the 1st feature set since they have the same uid
+    feature_set = db.get_feature_set(db_session, project, name)
+    feature_set.metadata.labels = {"owner": "saarc", "group": "dev"}
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
+
+    feature_sets = db.list_feature_sets(db_session, project)
+    assert len(feature_sets.feature_sets) == 2
+
+    updated_feature_set = db.get_feature_set(db_session, project, name)
+    assert updated_feature_set.metadata.labels == feature_set.metadata.labels
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_update_feature_set_by_uid(db: DBInterface, db_session: Session):
+    name = "mock_feature_set"
+    feature_set = _create_feature_set(name)
+
+    project = "proj-test"
+
+    feature_set = schemas.FeatureSet(**feature_set)
+    db.store_feature_set(
+        db_session, project, name, feature_set, tag="latest", versioned=True
+    )
+
+    feature_set = db.get_feature_set(db_session, project, name)
+
+    tag = "1.0.0"
+    db.store_feature_set(
+        db_session,
+        project,
+        name,
+        feature_set,
+        versioned=True,
+        tag=tag,
+        uid=feature_set.metadata.uid,
+    )
+    updated_feature_set = db.get_feature_set(
+        db_session, project, name, tag=tag, uid=feature_set.metadata.uid
+    )
+    assert updated_feature_set.metadata.tag == tag
+
+    features = [
+        {"name": "new_feature", "value_type": "str"},
+        {"name": "other_feature", "value_type": "int"},
+    ]
+
+    # updating feature set spec by uid is not allowed
+    with pytest.raises(errors.MLRunInvalidArgumentError):
+        feature_set.spec.features = features
+        db.store_feature_set(
+            db_session,
+            project,
+            name,
+            feature_set,
+            versioned=True,
+            uid=feature_set.metadata.uid,
+        )

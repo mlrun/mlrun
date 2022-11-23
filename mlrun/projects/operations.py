@@ -67,6 +67,7 @@ def run_function(
     project_object=None,
     auto_build: bool = None,
     schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+    artifact_path: str = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -128,7 +129,7 @@ def run_function(
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
-
+    :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -165,7 +166,11 @@ def run_function(
             verbose=verbose,
             watch=watch,
             local=local,
-            artifact_path=pipeline_context.workflow_artifact_path,
+            # workflow artifact_path has precedence over the project artifact_path equivalent to
+            # passing artifact_path to function.run() has precedence over the project.artifact_path and the default one
+            artifact_path=pipeline_context.workflow_artifact_path
+            or (project.artifact_path if project else None)
+            or artifact_path,
             auto_build=auto_build,
             schedule=schedule,
         )
@@ -206,7 +211,8 @@ def build_function(
     mlrun_version_specifier=None,
     builder_env: dict = None,
     project_object=None,
-):
+    overwrite_build_params: bool = False,
+) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
     :param function:        name of the function (in the project) or function object
@@ -223,21 +229,21 @@ def build_function(
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+    :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
+     to existing parameters
     """
     engine, function = _get_engine_and_function(function, project_object)
-    if requirements:
-        function.with_requirements(requirements)
-    if commands and function.spec.build.commands:
-        # add commands to existing build commands
-        for command in commands:
-            if command not in function.spec.build.commands:
-                function.spec.build.commands.append(command)
-
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "cannot build use deploy_function()"
         )
     if engine == "kfp":
+        if overwrite_build_params:
+            function.spec.build.commands = None
+        if requirements:
+            function.with_requirements(requirements)
+        if commands:
+            function.with_commands(commands)
         return function.deploy_step(
             image=image,
             base_image=base_image,
@@ -248,7 +254,12 @@ def build_function(
         )
     else:
         function.build_config(
-            image=image, base_image=base_image, commands=commands, secret=secret_name
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            requirements=requirements,
+            overwrite=overwrite_build_params,
         )
         ready = function.deploy(
             watch=True,
@@ -287,7 +298,7 @@ def deploy_function(
     builder_env: dict = None,
     project_object=None,
     mock: bool = None,
-):
+) -> Union[DeployStatus, kfp.dsl.ContainerOp]:
     """deploy real-time (nuclio based) functions
 
     :param function:   name of the function (in the project) or function object

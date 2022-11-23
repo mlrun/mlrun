@@ -15,7 +15,7 @@ Using Docker is limited to local, Nuclio, serving runtimes, and local pipelines.
 
 ## Overview
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
-MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, Nuclio, and  
+MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, Nuclio, and 
 Jupyter, do not have default resources. This means that they are set with the default cluster/namespace resources limits. These can be modified.
 
 There are two installation options:
@@ -25,7 +25,7 @@ There are two installation options:
 In both cases you need to set the `SHARED_DIR` environment variable to point to a host path for storing MLRun artifacts and DB, 
 for example `export SHARED_DIR=~/mlrun-data` (or use `set SHARED_DIR=c:\mlrun-data` in windows). Make sure the directory exists.
 
-It is recommended to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
+You also need to set the `HOST_IP` variable with your computer IP address (required for Nuclio dashboard). 
 You can select a specific MLRun version with the `TAG` variable and Nuclio version with the `NUCLIO_TAG` variable.
 
 Add the `-d` flag to `docker-compose` for running in detached mode (in the background).
@@ -153,8 +153,8 @@ This creates 4 services:
 - MLRun UI (in [http://localhost:8060](http://localhost:8060))
 - Nuclio Dashboard/controller (in [http://localhost:8070](http://localhost:8070))
 
-After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the [`quick-start` tutorial](../quick-start/quick-start.html) and `demos`.
-You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060))
+After the installation, access the Jupyter server (in [http://localhost:8888](http://localhost:8888)) and run through the [quick-start tutorial](../quick-start/quick-start.html) and `demos`.
+You can see the projects, tasks, and artifacts in MLRun UI (in [http://localhost:8060](http://localhost:8060)).
 
 The Jupyter environment is pre-configured to work with the local MLRun and Nuclio services. 
 You can switch to a remote or managed MLRun cluster by editing the `mlrun.env` file in the Jupyter files tree.

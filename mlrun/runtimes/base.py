@@ -360,6 +360,7 @@ class BaseRuntime(ModelObj):
                 params,
                 inputs,
                 artifact_path,
+                notification_configs=notification_configs,
             )
             self._save_or_fire_notification_configs(result, local)
             return result
@@ -554,6 +555,7 @@ class BaseRuntime(ModelObj):
         params,
         inputs,
         artifact_path,
+        notification_configs: List[mlrun.model.NotificationConfig] = None,
     ):
         if schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -578,6 +580,7 @@ class BaseRuntime(ModelObj):
             artifact_path=artifact_path,
             mode=self.spec.mode,
             allow_empty_resources=self.spec.allow_empty_resources,
+            notification_configs=notification_configs,
         )
 
     def _create_run_object(self, runspec):

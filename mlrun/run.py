@@ -127,6 +127,7 @@ def run_local(
     artifact_path: str = "",
     mode: str = None,
     allow_empty_resources=None,
+    notification_configs: List[mlrun.model.NotificationConfig] = None,
 ):
     """Run a task on function/code (.py, .ipynb or .yaml) locally,
 
@@ -195,6 +196,7 @@ def run_local(
         params=params,
         inputs=inputs,
         artifact_path=artifact_path,
+        notification_configs=notification_configs,
     )
 
 

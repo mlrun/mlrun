@@ -16,7 +16,7 @@
 - Supports overwriting commands when using `project.build_function`
 
 **Feature store**
-- Supports Redis as an online feature set (Tech Preview)
+- Supports Redis as an online feature set 
 <br>See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store-tech-preview)
 - The out-of-the-box feature store steps are available with the pandas engine
 
@@ -28,7 +28,7 @@
 - Documentation restructure and new content
 
 **Third party integrations**
-- Supports Confluent Kafka
+- Supports Confluent Kafka (Tech Preview)
 
 **Models**
 - A new model server for HuggingFace models is available

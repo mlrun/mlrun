@@ -21,12 +21,16 @@ Artifacts metadata is stored in the project's database. The main types of artifa
 
 Artifacts can be viewed and managed in the UI. In the project page, select the artifact type
 `models`, `files`, or `feature-store` (for datasets and feature store objects).
+```{admonition} Note
+Artifacts that are stored in a path **other than** V3IO, S3, Azure, or GCS cannot be accesed from the UI. 
+They can be used with the sdk, or with MLRun functions.
+```
 
 Example dataset artifact screen:
 <br><br>
 <img src="../_static/images/dataset_artifact.png" alt="projects-artifacts" width="800"/>
 
-You can search the artifacts based on time and labels.
+You can search the artifacts based on time and labels, and you can filter the artifacts by tag type.
 For each artifact, you can view its location, the artifact type, labels, 
 the producer of the artifact, the artifact owner, last update date, and type-specific information.
 You can also tag and remove tags from artifacts using the UI.

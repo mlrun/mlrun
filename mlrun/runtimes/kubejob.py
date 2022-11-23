@@ -142,6 +142,7 @@ class KubejobRuntime(KubeResource):
             )
             print("after with requirements", self.spec.build.commands)
         if commands:
+            print("after with commands", self.spec.build.commands)
             self.with_commands(commands, overwrite=False, verify_base_image=False)
             print("after with commands", self.spec.build.commands)
         if extra:

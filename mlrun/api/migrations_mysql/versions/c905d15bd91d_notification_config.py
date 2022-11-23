@@ -43,9 +43,7 @@ def upgrade():
         sa.Column(
             "severity", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),
-        sa.Column(
-            "when", sa.String(length=255, collation="utf8_bin"), nullable=False
-        ),
+        sa.Column("when", sa.String(length=255, collation="utf8_bin"), nullable=False),
         sa.Column(
             "condition", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),

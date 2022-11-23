@@ -3452,7 +3452,7 @@ class SQLDB(DBInterface):
                 secret_name = f"notification-{run_uid}-{notification_config.name}"
                 secret_data = notification_config_model.params
                 k8s.store_secrets(secret_name, secret_data)
-                notification_config.params_secret = secret_name
+                notification_config.params = {"secret": secret_name}
             else:
                 logger.warn(
                     "K8s not available, not storing notification params as secret"

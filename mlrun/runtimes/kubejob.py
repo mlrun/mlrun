@@ -134,13 +134,16 @@ class KubejobRuntime(KubeResource):
         # if overwrite and requirements or commands passed, clear the existing commands
         # (requirements are added to the commands parameter)
         if (requirements or commands) and overwrite:
+            print("clearing existing commands", self.spec.build.commands, commands, requirements, overwrite)
             self.spec.build.commands = None
         if requirements:
             self.with_requirements(
                 requirements, overwrite=False, verify_base_image=False
             )
+            print("after with requirements", self.spec.build.commands)
         if commands:
             self.with_commands(commands, overwrite=False, verify_base_image=False)
+            print("after with commands", self.spec.build.commands)
         if extra:
             self.spec.build.extra = extra
         if secret:

@@ -115,7 +115,6 @@ class TestProject(TestMLRunSystem):
         self.project.build_function(
             func_name, base_image="mlrun/mlrun", commands=commands
         )
-        # assert fn.spec.build.commands == commands
         assert (
             self.project.get_function(func_name, sync=False).spec.build.commands
             == commands

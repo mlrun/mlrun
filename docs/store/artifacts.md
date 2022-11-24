@@ -19,26 +19,31 @@ Artifacts metadata is stored in the project's database. The main types of artifa
 
 ## Viewing artifacts
 
-Artifacts can be viewed and managed in the UI. In the project page, select the artifact type
+Artifacts that are stored in certain paths (see [Artifact path](#artifact-path)) can be viewed and managed in the UI. 
+In the **Project** page, select the artifact type:
 `models`, `files`, or `feature-store` (for datasets and feature store objects).
-```{admonition} Note
-Artifacts that are stored in a path **other than** V3IO, S3, Azure, or GCS cannot be accesed from the UI. 
-They can be used with the sdk, or with MLRun functions.
-```
 
 Example dataset artifact screen:
 <br><br>
 <img src="../_static/images/dataset_artifact.png" alt="projects-artifacts" width="800"/>
 
-You can search the artifacts based on time and labels, and you can filter the artifacts by tag type.
-For each artifact, you can view its location, the artifact type, labels, 
-the producer of the artifact, the artifact owner, last update date, and type-specific information.
-You can also tag and remove tags from artifacts using the UI.
-
 Artifacts can also be viewed from the **Jobs > Artifacts** tab.
-For each artifact, you can view its content as well as download the artifact.
+
+You can search the artifacts based on time and labels, and you can filter the artifacts by tag type.
+For each artifact, you can view its content, its location, the artifact type, labels, 
+the producer of the artifact, the artifact owner, last update date, and type-specific information.
+You can download the artifact. You can also tag and remove tags from artifacts using the UI.
+
 
 ## Artifact path
+
+Any path that is supported by MLRun can be used to store artifacts using the artifact-path mechanism. However, only artifacts that are stored in paths that are system-configured as allowed in the MLRun service are visible in the UI. These are:
+- MLRun < 1.2: by default the allowed paths include only v3io paths
+- MLRun 1.2 and higher: allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// ` 
+
+```{admonition} Note
+Local paths &mdash; that begin with `/` or that do not include a `schema xxx://`  &mdash; cannot be set as allowed paths, for security reasons. 
+```
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 

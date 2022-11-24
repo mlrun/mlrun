@@ -79,7 +79,7 @@ being a column in this df). This could cause breakage for existing custom steps 
 | 2223 | Notebook names that contain "." cause the deploying function to fail with a ModuleNotFoundError | Do not use "." in notebook name | 1.0.0  |
 | 2199 | Spark operator job fails with default requests args                                          | NA               | 1.0.0      |
 | 1584 | `code_to_function` fails when filename contains special characters                           | Do not use special characters in filenames | 1.0.0      |
-| 2637 | Project gets error when running a workflow whose project has `init_git=True`.                |NA                             | 1.1.0 |
+| 2637 | Project gets error when running a workflow whose project has `init_git=True`.                |Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                             | 1.1.0 |
 
 
 

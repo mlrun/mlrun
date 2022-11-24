@@ -146,6 +146,17 @@ myst_substitutions = {"version": version}
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
+# Add here external imports:
+autodoc_mock_imports = [
+    "plotly",
+    "sklearn",
+    "tensorflow",
+    "tensorboard",
+    "torch",
+    "lightgbm",
+    "xgboost",
+]
+
 
 def copy_doc(src, dest, title=""):
     """Copy over .md documentation from other parts of the project"""

@@ -1674,8 +1674,6 @@ class MlrunProject(ModelObj):
             self.spec._function_objects[key] = function
         if enrich:
             return enrich_function_object(self, function, copy_function=copy_function)
-            # self.spec._function_objects[key] = enriched_function
-            # return self.spec._function_objects[key]
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:

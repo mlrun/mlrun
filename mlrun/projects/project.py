@@ -1647,7 +1647,12 @@ class MlrunProject(ModelObj):
         return self.get_function(key, sync)
 
     def get_function(
-        self, key, sync=True, enrich=False, ignore_cache=False
+        self,
+        key,
+        sync=True,
+        enrich=False,
+        ignore_cache=False,
+        copy_function=True,
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
@@ -1655,6 +1660,7 @@ class MlrunProject(ModelObj):
         :param sync:  will reload/reinit the function
         :param enrich: add project info/config/source info to the function object
         :param ignore_cache: read the function object from the DB (ignore the local cache)
+        :param copy_function: return a copy of the function object
 
         :returns: function object
         """
@@ -1667,7 +1673,9 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         if enrich:
-            return enrich_function_object(self, function)
+            return enrich_function_object(self, function, copy_function=copy_function)
+            # self.spec._function_objects[key] = enriched_function
+            # return self.spec._function_objects[key]
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:

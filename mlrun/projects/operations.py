@@ -36,7 +36,11 @@ def _get_engine_and_function(function, project=None):
                     "function name (str) can only be used in a project context, you must create, "
                     "load or get a project first or provide function object instead of its name"
                 )
-            function = project.get_function(function, sync=False, enrich=True)
+            # we don't want to use a copy of the function object, we want to use the actual object
+            # so changes on it will be reflected in the project and will persist for future use of the function
+            function = project.get_function(
+                function, sync=False, enrich=True, copy_function=False
+            )
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())
@@ -253,7 +257,6 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
-        print("building function", function.spec.build.commands)
         function.build_config(
             image=image,
             base_image=base_image,
@@ -262,7 +265,6 @@ def build_function(
             requirements=requirements,
             overwrite=overwrite_build_params,
         )
-        print("before building function", function.spec.build.commands)
         ready = function.deploy(
             watch=True,
             with_mlrun=with_mlrun,
@@ -270,7 +272,6 @@ def build_function(
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
         )
-        print("after building function", function.spec.build.commands)
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)
 

@@ -3443,7 +3443,7 @@ class SQLDB(DBInterface):
             notification_config.kind = notification_config_model.kind
             notification_config.message = notification_config_model.message
             notification_config.severity = notification_config_model.severity
-            notification_config.when = notification_config_model.when
+            notification_config.when = ",".join(notification_config_model.when)
             notification_config.condition = notification_config_model.condition
 
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()

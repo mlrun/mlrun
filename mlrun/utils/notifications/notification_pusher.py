@@ -46,19 +46,21 @@ class NotificationPusher(object):
                     self._notification_data.append((run, notification_config))
 
     def push(self):
-        # push all notifications in separate event loop to avoid interfering with the main loop
-        main_event_loop = asyncio.get_event_loop()
-        notification_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(notification_loop)
-        tasks = []
-        for notification_data in self._notification_data:
-            tasks.append(
-                self._send_notification(
-                    self._load_notification(notification_data[1]), *notification_data
+        async def _push():
+            tasks = []
+            for notification_data in self._notification_data:
+                tasks.append(
+                    self._send_notification(
+                        self._load_notification(notification_data[1]), *notification_data
+                    )
                 )
-            )
-        notification_loop.run_until_complete(asyncio.gather(*tasks))
-        asyncio.set_event_loop(main_event_loop)
+            await asyncio.gather(*tasks)
+
+        main_event_loop = asyncio.get_event_loop()
+        if main_event_loop.is_running():
+            asyncio.run_coroutine_threadsafe(_push(), main_event_loop)
+        else:
+            main_event_loop.run_until_complete(_push())
 
     @staticmethod
     def _should_notify(
@@ -73,7 +75,7 @@ class NotificationPusher(object):
         for when_state in when_states:
             if (
                 when_state == "success"
-                and run_state == "success"
+                and run_state == "completed"
                 and (not condition or ast.literal_eval(condition))
             ) or (when_state == "failure" and run_state == "error"):
                 return True
@@ -116,9 +118,9 @@ class NotificationPusher(object):
         message = self.messages.get(run.state(), "")
         severity = notification_config.severity or NotificationSeverity.INFO
         if asyncio.iscoroutinefunction(notification.send):
-            await notification.send(message, severity, [run])
+            await notification.send(message, severity, [run.to_dict()])
         else:
-            notification.send(message, severity, [run])
+            notification.send(message, severity, [run.to_dict()])
 
 
 class CustomNotificationPusher(object):
@@ -135,20 +137,22 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        # push all notifications in separate event loop to avoid interfering with the main loop
-        main_event_loop = asyncio.get_event_loop()
-        notification_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(notification_loop)
-        tasks = []
-        for notification_type, notification in self._notifications.items():
-            if self.should_send_notification(notification_type):
-                tasks.append(
-                    self._send_notification(
-                        notification, message, severity, runs, custom_html
+        async def _push():
+            tasks = []
+            for notification_type, notification in self._notifications.items():
+                if self.should_send_notification(notification_type):
+                    tasks.append(
+                        self._send_notification(
+                            notification, message, severity, runs, custom_html
+                        )
                     )
-                )
-        notification_loop.run_until_complete(asyncio.gather(*tasks))
-        asyncio.set_event_loop(main_event_loop)
+            await asyncio.gather(*tasks)
+
+        main_event_loop = asyncio.get_event_loop()
+        if main_event_loop.is_running():
+            asyncio.run_coroutine_threadsafe(_push(), main_event_loop)
+        else:
+            main_event_loop.run_until_complete(_push())
 
     @staticmethod
     async def _send_notification(

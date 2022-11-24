@@ -51,7 +51,8 @@ class NotificationPusher(object):
             for notification_data in self._notification_data:
                 tasks.append(
                     self._send_notification(
-                        self._load_notification(notification_data[1]), *notification_data
+                        self._load_notification(notification_data[1]),
+                        *notification_data,
                     )
                 )
             await asyncio.gather(*tasks)

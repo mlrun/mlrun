@@ -109,7 +109,7 @@ class TestProject(TestMLRunSystem):
             "echo 1111",
             "echo 2222",
         ]
-        fn = self.project.set_function(
+        self.project.set_function(
             "./assets/handler.py", func_name, kind="job", image="mlrun/mlrun"
         )
         self.project.build_function(

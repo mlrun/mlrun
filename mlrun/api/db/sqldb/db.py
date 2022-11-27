@@ -660,6 +660,27 @@ class SQLDB(DBInterface):
                     "as_records is not supported with best_iteration=True"
                 )
             return artifact_records
+
+        # In case best_iteration is requested and filtering is done by tag, then we might have artifacts from the best
+        # iteration (which is tagged) but not the link artifact (that is not tagged). This will cause the filtering
+        # happening next to fail. Therefore, we need to add to the list of results the link artifacts from the given
+        # keys + uids.
+        if best_iteration:
+            iteration_keys = set()
+            link_keys = set()
+            for artifact in artifact_records:
+                if self._name_with_iter_regex.match(artifact.key):
+                    key_without_iteration = artifact.key.split("-", maxsplit=1)[1]
+                    iteration_keys.add((key_without_iteration, artifact.uid))
+                else:
+                    link_keys.add((artifact.key, artifact.uid))
+            missing_link_keys = iteration_keys.difference(link_keys)
+            artifact_records.extend(
+                self._get_link_artifacts_by_keys_and_uids(
+                    session, project, missing_link_keys
+                )
+            )
+
         indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
         for artifact in artifact_records:
             has_iteration = self._name_with_iter_regex.match(artifact.key)
@@ -701,6 +722,19 @@ class SQLDB(DBInterface):
                 artifacts.append(artifact_struct)
 
         return artifacts
+
+    def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
+        # identifiers are tuples of (key, uid)
+        if not identifiers:
+            return []
+        predicates = [
+            and_(Artifact.key == key, Artifact.uid == uid) for (key, uid) in identifiers
+        ]
+        return (
+            self._query(session, Artifact, project=project)
+            .filter(or_(*predicates))
+            .all()
+        )
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project

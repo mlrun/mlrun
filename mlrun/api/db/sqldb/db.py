@@ -1171,6 +1171,7 @@ class SQLDB(DBInterface):
         # this would be fixed as part of the refactoring of the new artifact table structure where we would have
         # column for iteration as well.
         for artifact in artifacts:
+            tags_to_store = []
             query = (
                 self._query(
                     session,
@@ -1185,7 +1186,36 @@ class SQLDB(DBInterface):
             if not tag:
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
-            self._upsert(session, [tag], ignore=True)
+            tags_to_store.append(tag)
+
+            has_iteration = self._name_with_iter_regex.match(artifact.key)
+            if has_iteration:
+                linked_artifact_key = re.sub("^[0-9]+-", "", artifact.key)
+                linked_artifact = self._get_artifact(
+                    session, artifact.uid, project, linked_artifact_key
+                )
+                if (
+                    linked_artifact
+                    and linked_artifact.struct["spec"].get("link_iteration", "")
+                    == artifact.struct["spec"]["iter"]
+                ):
+                    query = (
+                        self._query(
+                            session,
+                            artifact.Tag,
+                            project=project,
+                            name=name,
+                        )
+                        .join(Artifact)
+                        .filter(Artifact.key == linked_artifact.key)
+                    )
+                    linked_tag = query.one_or_none()
+                    if not linked_tag:
+                        linked_tag = artifact.Tag(project=project, name=name)
+                    linked_tag.obj_id = linked_artifact.id
+                    tags_to_store.append(linked_tag)
+
+            self._upsert(session, tags_to_store, ignore=True)
 
     def tag_objects_v2(self, session, objs, project: str, name: str):
         tags = []

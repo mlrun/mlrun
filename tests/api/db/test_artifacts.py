@@ -671,6 +671,64 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
         )
 
 
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
+    artifact_key = "artifact-1"
+    artifact_1_uid = "uid-1"
+    artifact_2_uid = "uid-2"
+    artifact_3_uid = "uid-3"
+
+    num_iters = 5
+    best_iter_1 = 2
+    best_iter_2 = 4
+    best_iter_3 = 2
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_key,
+        artifact_1_uid,
+        num_iters,
+        best_iter_1,
+        ArtifactCategories.model,
+    )
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_key,
+        artifact_2_uid,
+        num_iters,
+        best_iter_2,
+        ArtifactCategories.model,
+    )
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_key,
+        artifact_3_uid,
+        num_iters,
+        best_iter_3,
+        ArtifactCategories.model,
+    )
+
+    for category in [ArtifactCategories.model, None]:
+        results = db.list_artifacts(
+            db_session, tag="*", best_iteration=True, category=category
+        )
+        assert len(results) == 3
+        expected_uids = [artifact_1_uid, artifact_2_uid, artifact_3_uid]
+        uids = []
+        for result in results:
+            uids.append(result["metadata"]["uid"])
+            if result["metadata"]["uid"] == artifact_3_uid:
+                assert result["metadata"]["tag"] == "latest"
+            else:
+                assert result["metadata"].get("tag") is None
+
+        assert set(expected_uids) == set(uids)
+
+
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
     "data_migration_db,db_session",

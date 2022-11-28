@@ -681,7 +681,10 @@ class SQLDB(DBInterface):
                 )
             )
 
-        indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
+        # concatenating <artifact.key> and <artifact.uid> to create a unique key for the artifacts
+        indexed_artifacts = {
+            f"{artifact.key}-{artifact.uid}": artifact for artifact in artifact_records
+        }
         for artifact in artifact_records:
             has_iteration = self._name_with_iter_regex.match(artifact.key)
 
@@ -697,7 +700,9 @@ class SQLDB(DBInterface):
                     link_iteration = artifact.struct["spec"].get("link_iteration")
 
                 if link_iteration:
-                    linked_key = f"{link_iteration}-{artifact.key}"
+                    # link artifact key is without the iteration so to pull the linked artifact we need to
+                    # concatenate the <link-iteration>-<artifact.key>-<artifact.uid> together
+                    linked_key = f"{link_iteration}-{artifact.key}-{artifact.uid}"
                     linked_artifact = indexed_artifacts.get(linked_key)
                     if linked_artifact:
                         artifact = linked_artifact

@@ -63,8 +63,8 @@ RUN mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cmake  \
         cython \
         rapids=22.10 \
-        pytorch \
-        torchvision \
+        pytorch=1.13.0 \
+        torchvision=0.14.0 \
         cxx-compiler \
         nvcc_linux-64 \
         cudnn \

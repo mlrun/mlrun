@@ -426,12 +426,12 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Function can be imported from function repositories (mlrun marketplace or local db),
+    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
 
-        function marketplace: hub://{name}[:{tag}]
+        function hub: hub://{name}[:{tag}]
         local mlrun db:       db://{project-name}/{name}[:{tag}]
 
     examples::
@@ -440,7 +440,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
-    :param url: path/url to marketplace, db or function YAML file
+    :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -723,7 +723,7 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
-    :param categories:   list of categories for mlrun function marketplace, defaults to None
+    :param categories:   list of categories for mlrun Function Hub, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
@@ -1747,7 +1747,7 @@ class ContextHandler:
             # Parse the instructions:
             artifact_type = self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.get(
                 type(obj), self._ARTIFACT_TYPE_CLASS.DEFAULT
-            )
+            ).value
             key = None
             logging_kwargs = {}
             if isinstance(instructions, str):
@@ -1764,6 +1764,9 @@ class ContextHandler:
                 artifact_type = instructions[1]
                 if len(instructions) > 2:
                     logging_kwargs = instructions[2]
+            # Check if the object to log is None (None values are only logged if the artifact type is Result):
+            if obj is None and artifact_type != ArtifactType.RESULT.value:
+                continue
             # Log:
             self._log_output(
                 obj=obj,
@@ -1863,10 +1866,19 @@ class ContextHandler:
         :param expected_type: THe expected type to parse to.
 
         :returns: The parsed data item.
+
+        :raises MLRunRuntimeError: If an error was raised during the parsing function.
         """
-        return self._INPUTS_PARSING_MAP.get(
-            expected_type, self._INPUTS_PARSING_MAP[object]
-        )(data_item=data_item)
+        try:
+            return self._INPUTS_PARSING_MAP.get(
+                expected_type, self._INPUTS_PARSING_MAP[object]
+            )(data_item=data_item)
+        except Exception as exception:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"MLRun tried to parse a `DataItem` of type '{expected_type}' but failed. Be sure the item was "
+                f"logged correctly - as the type you are trying to parse it back to. In general, python objects should "
+                f"be logged as pickles."
+            ) from exception
 
     def _log_output(
         self,
@@ -1884,6 +1896,7 @@ class ContextHandler:
         :param key:           The key (name) of the artifact or a logging kwargs to use when logging the artifact.
 
         :raises MLRunInvalidArgumentError: If a key was provided in the logging kwargs.
+        :raises MLRunRuntimeError:         If an error was raised during the logging function.
         """
         # Get the artifact type (will also verify the artifact type is valid):
         artifact_type = self._ARTIFACT_TYPE_CLASS(artifact_type)
@@ -1896,12 +1909,18 @@ class ContextHandler:
             )
 
         # Use the logging map to log the object:
-        self._OUTPUTS_LOGGING_MAP[artifact_type](
-            ctx=self._context,
-            obj=obj,
-            key=key,
-            logging_kwargs=logging_kwargs,
-        )
+        try:
+            self._OUTPUTS_LOGGING_MAP[artifact_type](
+                ctx=self._context,
+                obj=obj,
+                key=key,
+                logging_kwargs=logging_kwargs,
+            )
+        except Exception as exception:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"MLRun tried to log '{key}' as '{artifact_type.value}' but failed. If you didn't provide the artifact "
+                f"type and the default one does not fit, try to select the correct type from the enum `ArtifactType`."
+            ) from exception
 
 
 def handler(

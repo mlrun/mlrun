@@ -54,6 +54,7 @@ def test_client_spec(
     mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
         json.dumps(serialized_tolerations).encode("utf-8")
     )
+    mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = "enabled"
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -95,3 +96,6 @@ def test_client_spec(
     assert response_body[
         "preemptible_nodes_tolerations"
     ] == mlrun.mlconf.preemptible_nodes.tolerations.decode("utf-8")
+
+    assert response_body["logs"] == mlrun.mlconf.httpdb.logs.to_dict()
+    assert response_body["logs"]["pipelines"]["pull_state"]["mode"] == "enabled"

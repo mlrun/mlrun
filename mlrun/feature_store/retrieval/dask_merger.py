@@ -88,6 +88,7 @@ class DaskFeatureMerger(BaseMerger):
             node.data["save_cols"] += node.data["save_index"]
 
             df = df.persist()
+
             # rename columns to be unique for each feature set
             rename_col_dict = {
                 col: f"{col}_{name}"
@@ -99,6 +100,8 @@ class DaskFeatureMerger(BaseMerger):
             )
 
             dfs.append(df)
+            del df
+
             keys.append([node.data["left_keys"], node.data["right_keys"]])
 
             # update alias according to the unique column name
@@ -146,7 +149,7 @@ class DaskFeatureMerger(BaseMerger):
         self._write_to_target()
 
         # check if need to set indices
-        self._result_df = self._set_indexes(self._result_df)
+        self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _reset_index(self, df):

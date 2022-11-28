@@ -84,9 +84,9 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
         data_to_ingest.set_index(entities, inplace=True)
     elif isinstance(set_index_before, int) and len(entities) > 1:
         data_to_ingest.set_index(entities[set_index_before], inplace=True)
-    # One Hot Encode the newly defined mappings
+    # One Hot Encode the newly defined mappings (mapping values not unique for testing)
     one_hot_encoder_mapping = {
-        "department": list(data["department"].unique()),
+        "department": data["department"].tolist(),
     }
     # Define the corresponding FeatureSet
     data_set_pandas = fs.FeatureSet(

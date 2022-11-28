@@ -92,7 +92,6 @@ class LocalFeatureMerger(BaseMerger):
             dfs.append(df)
             keys.append([node.data["left_keys"], node.data["right_keys"]])
 
-
             # update alias according to the unique column name
             new_columns = []
             for col, alias in columns:
@@ -137,7 +136,7 @@ class LocalFeatureMerger(BaseMerger):
         self._write_to_target()
 
         # check if need to set indices
-        self._set_indexes(self._result_df)
+        self._result_df = self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _asof_join(

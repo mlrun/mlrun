@@ -135,12 +135,21 @@ class BaseMerger(abc.ABC):
                     if index not in df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    df.set_index(self._index_columns, inplace=True)
+                    if self.engine == "local" or self.engine == "spark":
+                        return df.set_index(self._index_columns)
+                    elif self.engine == "dask" and len(self._index_columns) == 1:
+                        return df.set_index(self._index_columns[0])
+                    else:
+                        logger.info(
+                            "The entities will stay as columns because "
+                            "Dask dataframe does not yet support multi-indexes"
+                        )
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
+        return self._result_df
 
     @abc.abstractmethod
     def _generate_vector(
@@ -184,9 +193,8 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
 
-
-        for featureset, featureset_df, lr_key, columns in zip(
-            featuresets, featureset_dfs, keys, all_columns
+        for i, featureset, featureset_df, lr_key, columns in zip(
+            range(len(featuresets)), featuresets, featureset_dfs, keys, all_columns
         ):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join

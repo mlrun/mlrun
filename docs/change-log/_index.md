@@ -68,7 +68,6 @@ being a column in this df). This could cause breakage for existing custom steps 
 | 2330 | Deploy new function (job) does not add source files to the new image |                                       | 1.0.0     | 1.2.0 |
 | 2684 |  Project's artifact-path is not passed to remote runs   |                                       | 0.10.0     | 1.2.0 |
 | 2679 |  Kubeflow pipeline ParallelFor does not work on kfp 1.8.14      |  Use KFP < 1.8.14               | 1.1.0     | 1.2.0 |
-| 2669 | Run fails after deploying function without a defined image           |                                       | 1.0.4     | 1.2.0 |
 
 
 ## Open issues

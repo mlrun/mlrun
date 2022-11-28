@@ -52,12 +52,13 @@ ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
 
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
-    conda install -n base \
+    conda install -n base -c conda-forge \
         python=${MLRUN_PYTHON_VERSION} \
         pip~=${MLRUN_PIP_VERSION} \
+        mamba \
     && conda clean -aqy
 
-RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
+RUN mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
     cmake  \
     cython \
     rapids=22.10 \
@@ -68,6 +69,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
     cudnn \
     nccl \
     mpi4py \
+#    openmpi=4.1.4 \
     && conda clean -aqy
 
 ARG OMPI=4.1.0
@@ -87,25 +89,9 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-ARG TENSORFLOW_VERSION=2.7.0
-ARG HOROVOD_VERSION=0.25.0
-
-ENV ENV_PREFIX=$PWD/env
-ENV CUDA_HOME=/usr/local/cuda-1.4
-ENV HOROVOD_CUDA_HOME=$CUDA_HOME
-ENV HOROVOD_NCCL_HOME=$ENV_PREFIX
-ENV HOROVOD_GPU_OPERATIONS=NCCL
-# RUN conda env config vars set CUDA_HOME=/usr/local/cuda-1.4 HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_NCCL_HOME=$ENV_PREFIX HOROVOD_CUDA_HOME=$CUDA_HOME
-# RUN conda deactivate && conda activate base 
-RUN wget --quiet https://anaconda.org/deepmodeling/horovod/0.25.0/download/linux-64/horovod-0.25.0-py39hfa38a42_0.tar.bz2 -O ~/horovod-0.25.0-py39h50483eb_0.tar.bz2
-#RUN conda install -c deepmodeling -c conda-forge -c "nvidia/label/cuda-10.2.0" cuda-compiler horovod-0.25.0-py39h50483eb_0.tar.bz2 tensorflow \
-#    && conda clean -aqy
-#RUN conda install -c conda-forge -c "nvidia/label/cuda-10.2.0" cuda-compiler tensorflow=2.9 \
-#    && conda clean -aqy
 RUN conda install -c conda-forge tensorflow=2.9
-RUN conda install ~/horovod-0.25.0-py39h50483eb_0.tar.bz2
-
-#RUN HOROVOD_WITHOUT_MXNET=1 HOROVOD_CUDA_HOME=/usr/local/cuda  HOROVOD_NCCL_HOME=$PWD/base  HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_NCCL_LINK=SHARED HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITHOUT_PYTORCH=1 HOROVOD_WITH_MPI=1 python -m pip install horovod==0.25.0
+RUN conda install https://anaconda.org/deepmodeling/horovod/0.25.0/download/linux-64/horovod-0.25.0-py39hfa38a42_0.tar.bz2 
+RUN horovodrun --check-build
 RUN horovodrun --check-build
 
 WORKDIR /mlrun

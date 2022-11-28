@@ -16,7 +16,7 @@ import copy
 import traceback
 import uuid
 from http import HTTPStatus
-from typing import Callable, Dict, Optional, Union
+from typing import Dict
 
 import fastapi
 from sqlalchemy.orm import Session
@@ -31,12 +31,7 @@ import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.projects.pipelines
-from mlrun.api.api.utils import (
-    apply_enrichment_and_validation_on_function,
-    get_run_db_instance,
-    get_scheduler,
-    log_and_raise,
-)
+from mlrun.api.api.utils import log_and_raise
 from mlrun.config import config
 from mlrun.utils.helpers import logger
 
@@ -52,12 +47,12 @@ def _get_workflow_by_name(project: mlrun.api.schemas.Project, workflow) -> Dict:
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
     status_code=HTTPStatus.ACCEPTED.value,
-    response_model=mlrun.api.schemas.SubmitWorkflowResponse,
+    response_model=mlrun.api.schemas.WorkflowResponse,
 )
 def submit_workflow(
     project: str,
     name: str,
-    request: Optional[mlrun.api.schemas.SubmitWorkflowRequest] = None,
+    workflow_request: mlrun.api.schemas.WorkflowRequest = mlrun.api.schemas.WorkflowRequest(),
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -76,19 +71,16 @@ def submit_workflow(
     in case of simply running a workflow, the returned run_id value is the id of the run of the auxiliary function.
     For getting the id and status of the workflow, use the `get_workflow_id` endpoint with the returned run id.
 
-    :param project:         name of the project
-    :param name:            name of the workflow
-    :param request:         the request includes:
-                                - workflow spec
-                                - arguments for the workflow
-                                - artifact path as the artifact target path of the workflow
-                                - source url of the project for overriding the existing one
-                                - run name to override the default: 'workflow-runner-<workflow name>'
-                                - kubernetes namespace if other than default
-    :param auth_info:       auth info of the request
-    :param db_session:      session that manages the current dialog with the database
+    :param project:             name of the project
+    :param name:                name of the workflow
+    :param workflow_request:    the request includes: workflow spec, arguments for the workflow, artifact path
+                                as the artifact target path of the workflow, source url of the project for overriding
+                                the existing one, run name to override the default: 'workflow-runner-<workflow name>'
+                                and kubernetes namespace if other than default
+    :param auth_info:           auth info of the request
+    :param db_session:          session that manages the current dialog with the database
 
-    :return: A response that contains the project name, workflow name, name of the workflow,
+    :returns: A response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
     # Getting project:
@@ -98,27 +90,12 @@ def submit_workflow(
         )
     )
 
-    request = request or mlrun.api.schemas.SubmitWorkflowRequest()
-    (
-        spec,
-        arguments,
-        artifact_path,
-        source,
-        run_name,
-        namespace,
-    ) = request.dict().values()
-    spec = (
-        mlrun.api.schemas.WorkflowSpec.parse_obj(spec)
-        if spec
-        else mlrun.api.schemas.WorkflowSpec()
-    )
-
     # Permission checks:
     # 1. CREATE run
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.run,
         project_name=project.metadata.name,
-        resource_name=run_name or "",
+        resource_name=workflow_request.run_name or "",
         action=mlrun.api.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
@@ -131,31 +108,23 @@ def submit_workflow(
         auth_info=auth_info,
     )
 
-    project_workflow_names = [workflow["name"] for workflow in project.spec.workflows]
-
-    # Taking from spec input or looking inside the project's workflows:
-    if spec:
-        workflow_name = spec.name or name
-        spec.name = workflow_name
-        if workflow_name in project_workflow_names:
-            # Update with favor to the workflow's spec from the input:
-            workflow = _get_workflow_by_name(project, spec.name)
-            workflow_spec = copy.deepcopy(workflow)
-            workflow_spec = {
-                key: val or workflow_spec.get(key) for key, val in spec.dict().items()
-            }
-        else:
-            workflow_spec = None
-    else:
-        workflow_spec = _get_workflow_by_name(project, name)
-
     # Verifying that project has a workflow name:
-    if not workflow_spec:
+    project_workflow_names = [workflow["name"] for workflow in project.spec.workflows]
+    if name not in project_workflow_names:
         log_and_raise(
             reason=f"{name} workflow not found in project",
         )
+    spec = workflow_request.spec
+    workflow = _get_workflow_by_name(project, name)
 
-    workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow_spec)
+    if spec:
+        # Merge between the workflow spec provided in the request with existing
+        # workflow while the provided workflow takes precedence over the existing workflow params
+        workflow = copy.deepcopy(workflow)
+        workflow = {key: val or workflow.get(key) for key, val in spec.dict().items()}
+
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec.from_dict(workflow)
+    run_name = workflow_request.run_name or f"workflow-runner-{workflow_spec.name}"
 
     # Scheduling must be performed only by chief:
     if (
@@ -163,141 +132,119 @@ def submit_workflow(
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
-        chief_client = mlrun.api.utils.clients.chief.Client()
-        data = {
-            "spec": spec,
-            "arguments": arguments,
-            "artifact_path": artifact_path,
-            "source": source,
-            "run_name": run_name,
-            "namespace": namespace,
-        }
-        return chief_client.submit_workflow(
-            project=project.metadata.name, name=name, json=data
-        )
+        try:
+            # Check permission for scheduling:
+            allowed_creating_schedule = mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+                resource_type=mlrun.api.schemas.AuthorizationResourceTypes.schedule,
+                project_name=project.metadata.name,
+                resource_name=run_name,
+                action=mlrun.api.schemas.AuthorizationAction.create,
+                auth_info=auth_info,
+            )
+        except mlrun.errors.MLRunAccessDeniedError:
+            allowed_creating_schedule = False
+
+        if not allowed_creating_schedule:
+            chief_client = mlrun.api.utils.clients.chief.Client()
+            return chief_client.submit_workflow(
+                project=project.metadata.name, name=name, json=workflow_request.dict()
+            )
     # Preparing inputs for load_and_run function
     # 1. To override the source of the project.
     # This is mainly for supporting loading project from a certain commits (GitHub)
-    if source:
-        project.spec.source = source
+    if workflow_request.source:
+        project.spec.source = workflow_request.source
 
     # 2. Overriding arguments of the existing workflow:
-    if arguments:
-        if not workflow_spec.args:
-            workflow_spec.args = {}
-        workflow_spec.args.update(arguments)
+    if workflow_request.arguments:
+        workflow_spec.args = workflow_spec.args or {}
+        workflow_spec.args.update(workflow_request.arguments)
 
     # This function is for loading the project and running workflow remotely.
     # In this way we support scheduling workflows (by scheduling a job that runs the workflow
     run_name = run_name or f"workflow-runner-{workflow_spec.name}"
-    load_and_run_fn = mlrun.new_function(
-        name=run_name,
+
+    # Creating the auxiliary function for loading and running the workflow
+    load_and_run_fn = mlrun.api.crud.Workflows().create_function(
+        run_name=run_name,
         project=project.metadata.name,
         kind="job",
-        image=mlrun.mlconf.default_base_image,  # To prevent deploy
+        # For preventing deployment
+        image=mlrun.mlconf.default_base_image,
+        db_session=db_session,
+        auth_info=auth_info,
+        # Enrichment and validation requires an access key.
+        access_key=mlrun.model.Credentials.generate_access_key,
+    )
+    logger.debug(
+        "saved function for running workflow",
+        project_name=load_and_run_fn.metadata.project,
+        function_name=load_and_run_fn.metadata.name,
+        workflow_name=workflow_spec.name,
+        arguments=workflow_spec.args,
+        source=project.spec.source,
+        kind=load_and_run_fn.kind,
     )
 
-    run_db = get_run_db_instance(db_session)
+    if workflow_spec.schedule:
+        # This logic follows the one is performed in `BaseRuntime._enrich_run()`
+        meta_uid = uuid.uuid4().hex
 
-    try:
-        # Setting a connection between the function and the DB:
-        load_and_run_fn.set_db_connection(run_db)
+        # creating runspec for scheduling:
+        run_object_kwargs = {
+            "spec": {
+                "scrape_metrics": config.scrape_metrics,
+                "output_path": (
+                    workflow_request.artifact_path or config.artifact_path
+                ).replace("{{run.uid}}", meta_uid),
+            },
+            "metadata": {"uid": meta_uid, "project": project.metadata.name},
+        }
 
-        # Enrichment and validation requires an access key.
-        # By using `$generate` the enriching process will generate an access key for this function.
-        load_and_run_fn.metadata.credentials.access_key = "$generate"
-        apply_enrichment_and_validation_on_function(
-            function=load_and_run_fn,
-            auth_info=auth_info,
-        )
-        load_and_run_fn.save()
-        logger.debug(
-            "saved function for running workflow",
-            project_name=load_and_run_fn.metadata.project,
-            function_name=load_and_run_fn.metadata.name,
-            workflow_name=workflow_spec.name,
-            arguments=workflow_spec.args,
-            source=project.spec.source,
-            kind=load_and_run_fn.kind,
-        )
-
-        if workflow_spec.schedule:
-            # This logic follows the one is performed in `BaseRuntime._enrich_run()`
-            meta_uid = uuid.uuid4().hex
-
-            # creating runspec for scheduling:
-            run_object_kwargs = {
-                "spec": {
-                    "scrape_metrics": config.scrape_metrics,
-                    "output_path": (artifact_path or config.artifact_path).replace(
-                        "{{run.uid}}", meta_uid
-                    ),
-                },
-                "metadata": {"uid": meta_uid, "project": project.metadata.name},
-            }
-
-            runspec = _create_run_object_for_workflow_runner(
+        try:
+            mlrun.api.crud.Workflows().execute_function(
+                function=load_and_run_fn,
                 project=project,
                 workflow_spec=workflow_spec,
-                artifact_path=artifact_path,
-                namespace=namespace,
-                **run_object_kwargs,
-            )
-
-            # Creating scheduled object:
-            scheduled_object = {
-                "task": runspec.to_dict(),
-                "schedule": workflow_spec.schedule,
-            }
-
-            # Creating schedule:
-            get_scheduler().create_schedule(
+                artifact_path=workflow_request.artifact_path,
+                namespace=workflow_request.namespace,
+                runspec_kwargs=run_object_kwargs,
                 db_session=db_session,
                 auth_info=auth_info,
-                project=project.metadata.name,
-                name=load_and_run_fn.metadata.name,
-                kind=mlrun.api.schemas.ScheduleKinds.job,
-                scheduled_object=scheduled_object,
-                cron_trigger=workflow_spec.schedule,
-                labels=load_and_run_fn.metadata.labels,
             )
 
-            return {
-                "project": project.metadata.name,
-                "name": workflow_spec.name,
-                "status": "scheduled",
-                "schedule": workflow_spec.schedule,
-            }
-
-        else:
-            runspec = _create_run_object_for_workflow_runner(
-                project=project,
-                workflow_spec=workflow_spec,
-                artifact_path=artifact_path,
-                namespace=namespace,
-                workflow_name=run_name,
-                workflow_handler=workflow_spec.handler,
+        except Exception as error:
+            logger.error(traceback.format_exc())
+            log_and_raise(
+                reason=f"Scheduling workflow {workflow_spec.name} failed with the following error: {error}"
             )
 
-            run = load_and_run_fn.run(
-                runspec=runspec,
-                local=False,
-                schedule=workflow_spec.schedule,
-                artifact_path=artifact_path,
-            )
+        return mlrun.api.schemas.WorkflowResponse(
+            project=project.metadata.name,
+            name=workflow_spec.name,
+            status="scheduled",
+            schedule=workflow_spec.schedule,
+        )
 
-            state = mlrun.run.RunStatuses.running
+    else:
+        run = mlrun.api.crud.Workflows().execute_function(
+            function=load_and_run_fn,
+            project=project,
+            workflow_spec=workflow_spec,
+            artifact_path=workflow_request.artifact_path,
+            namespace=workflow_request.namespace,
+            workflow_name=run_name,
+            local=False,
+        )
 
-            return {
-                "project": project.metadata.name,
-                "name": workflow_spec.name,
-                "status": state,
-                "run_id": run.uid(),
-            }
+        state = mlrun.run.RunStatuses.running
 
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        return mlrun.api.schemas.WorkflowResponse(
+            project=project.metadata.name,
+            name=workflow_spec.name,
+            status=state,
+            run_id=run.uid(),
+        )
 
 
 @router.get(
@@ -306,21 +253,33 @@ def submit_workflow(
 def get_workflow_id(
     project: str,
     uid: str,
+    name: str,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
 ):
     """
-    Retrieve workflow id by the uid of the runner.
+    Retrieve workflow id from the uid of the workflow runner.
+
+    When creating a remote workflow we are creating an auxiliary function
+    which is responsible for actually running the workflow,
+    as we don't know beforehand the workflow uid but only the run uid of the auxiliary function we ran,
+    we have to wait until the running function will log the workflow id it created.
+    Because we don't know how long it will take for the run to create the workflow
+    we decided to implement that in an asynchronous mechanism which at first,
+    client will get the run uid and then will pull the workflow id from the run id
+    kinda as you would use a background task to query if it finished.
+
     Supporting workflows that executed by the remote engine **only**.
 
     :param project:     name of the project
     :param uid:         the id of the running job that runs the workflow
+    :param name:        name of the workflow
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
 
-    :return: The id and status of the workflow.
+    :returns: The id and status of the workflow.
     """
     # Check permission READ run:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -330,94 +289,25 @@ def get_workflow_id(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    # Reading run:
-    run_db = get_run_db_instance(db_session)
-    run = run_db.read_run(uid=uid, project=project)
-
-    run_object = mlrun.RunObject.from_dict(run)
-
-    status = ""
-    # Does not have results yet:
-    if not isinstance(run_object.status.results, dict):
-        return {"workflow_id": None, "status": status}
-
-    workflow_id = run_object.status.results.get("workflow_id", None)
-
-    # Check permission READ run:
+    # Check permission READ workflow:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.run,
+        mlrun.api.schemas.AuthorizationResourceTypes.workflow,
         project,
-        workflow_id,
+        name,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    engine = run_object.status.results.get("engine")
-    if engine:
-        if engine == "kfp":
-            # special case for kfp because _KFPRemoteRunner.get_state() uses get pipeline
-            # which require access to remote api-service
-            pipeline = mlrun.api.crud.Pipelines().get_pipeline(
-                db_session=db_session, run_id=workflow_id, project=project
-            )
-            status = pipeline["run"].get("status", "")
-        else:
-            engine = mlrun.projects.pipelines.get_workflow_engine(engine)
-            status = engine.get_state(workflow_id, project)
 
-    return {"workflow_id": workflow_id, "status": status}
-
-
-def _create_run_object_for_workflow_runner(
-    project,
-    workflow_spec,
-    artifact_path: Optional[str] = None,
-    namespace: Optional[str] = None,
-    workflow_name: Optional[str] = None,
-    workflow_handler: Union[str, Callable] = None,
-    **kwargs,
-) -> mlrun.RunObject:
-    """
-    Creating run object for the load_and_run function.
-
-    :param project:             project object that matches the workflow
-    :param workflow_spec:       spec of the workflow to run
-    :param artifact_path:       artifact path target for the run
-    :param namespace:           kubernetes namespace if other than default
-    :param workflow_name:       name of the workflow to override the one in the workflow spec.
-    :param workflow_handler:    handler of the workflow to override the one in the workflow spec.
-    :param kwargs:              dictionary with "spec" and "metadata" keys with dictionaries as values that are
-                                corresponding to the keys.
-
-    :return:    a RunObject with the desired spec and metadata with labels.
-    """
-    spec_kwargs, metadata_kwargs = (
-        kwargs.get("spec"),
-        kwargs.get("metadata"),
-    ) if kwargs else {}, {}
-    spec = {
-        "parameters": {
-            "url": project.spec.source,
-            "project_name": project.metadata.name,
-            "workflow_name": workflow_name or workflow_spec.name,
-            "workflow_path": workflow_spec.path,
-            "workflow_arguments": workflow_spec.args,
-            "artifact_path": artifact_path,
-            "workflow_handler": workflow_handler or workflow_spec.handler,
-            "namespace": namespace,
-            "ttl": workflow_spec.ttl,
-            "engine": workflow_spec.engine,
-            "local": workflow_spec.run_local,
-        },
-        "handler": "mlrun.projects.load_and_run",
-    }
-    metadata = {"name": workflow_name}
-    spec.update(spec_kwargs)
-    metadata.update(metadata_kwargs)
-
-    # Creating object:
-    run_object = mlrun.RunObject.from_dict({"spec": spec, "metadata": metadata})
-
-    # Setting labels:
-    return run_object.set_label("job-type", "workflow-runner").set_label(
-        "workflow", workflow_name or workflow_spec.name
+    # Reading run:
+    run = mlrun.api.crud.Runs().get_run(
+        db_session=db_session, uid=uid, iter=0, project=project
     )
+    run_object = mlrun.RunObject.from_dict(run)
+
+    if not isinstance(run_object.status.results, dict):
+        # in case the run object did not instantiate with the "results" field at this point
+        return {"workflow_id": None}
+
+    workflow_id = run_object.status.results.get("workflow_id", "")
+
+    return mlrun.api.schemas.GetWorkflowResponse(workflow_id=workflow_id)

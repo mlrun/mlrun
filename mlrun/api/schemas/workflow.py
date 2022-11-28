@@ -20,7 +20,7 @@ from .schedule import ScheduleCronTrigger
 
 
 class WorkflowSpec(pydantic.BaseModel):
-    name: typing.Optional[str] = None
+    name: str
     engine: typing.Optional[str] = None
     code: typing.Optional[str] = None
     path: typing.Optional[str] = None
@@ -32,7 +32,7 @@ class WorkflowSpec(pydantic.BaseModel):
     run_local: typing.Optional[bool] = None
 
 
-class SubmitWorkflowRequest(pydantic.BaseModel):
+class WorkflowRequest(pydantic.BaseModel):
     spec: typing.Optional[WorkflowSpec] = None
     arguments: typing.Optional[typing.Dict] = None
     artifact_path: typing.Optional[str] = None
@@ -41,7 +41,7 @@ class SubmitWorkflowRequest(pydantic.BaseModel):
     namespace: typing.Optional[str] = None
 
 
-class SubmitWorkflowResponse(pydantic.BaseModel):
+class WorkflowResponse(pydantic.BaseModel):
     project: str = None
     name: str = None
     status: str = None
@@ -51,4 +51,3 @@ class SubmitWorkflowResponse(pydantic.BaseModel):
 
 class GetWorkflowResponse(pydantic.BaseModel):
     workflow_id: str = None
-    status: str = None

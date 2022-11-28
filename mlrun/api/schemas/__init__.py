@@ -152,7 +152,7 @@ from .secret import (
 from .tag import Tag, TagObjects
 from .workflow import (
     GetWorkflowResponse,
-    SubmitWorkflowRequest,
-    SubmitWorkflowResponse,
+    WorkflowRequest,
+    WorkflowResponse,
     WorkflowSpec,
 )

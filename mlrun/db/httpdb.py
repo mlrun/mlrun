@@ -2910,6 +2910,65 @@ class HTTPRunDB(RunDBInterface):
             )
         return None
 
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[dict, schemas.WorkflowSpec],
+        arguments: Optional[Dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ):
+        """
+        Submitting workflow for a remote execution.
+
+        :param project:         project name
+        :param name:            workflow name
+        :param workflow_spec:   the workflow spec to execute
+        :param arguments:       arguments for the workflow
+        :param artifact_path:   artifact target path of the workflow
+        :param source:          source url of the project
+        :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
+        :param namespace:       kubernetes namespace if other than default
+
+        :returns:    :py:class:`~mlrun.api.schemas.WorkflowResponse`.
+        """
+        req = {
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
+        }
+        if isinstance(workflow_spec, schemas.WorkflowSpec):
+            workflow_spec = workflow_spec.dict()
+        req["spec"] = workflow_spec
+
+        response = self.api_call(
+            "POST",
+            f"projects/{project}/workflows/{name}/submit",
+            json=req,
+        )
+        return schemas.WorkflowResponse(**response.json())
+
+    def get_workflow_id(
+        self,
+        project: str,
+        run_id: str,
+    ):
+        """
+        Retrieve workflow id from the uid of the workflow runner.
+
+        :param project: project name
+        :param run_id:  the id of the workflow runner - the job that runs the workflow
+
+        :returns:   :py:class:`~mlrun.api.schemas.GetWorkflowResponse`.
+        """
+        response = self.api_call("GET", f"projects/{project}/{run_id}")
+        return schemas.GetWorkflowResponse(**response.json())
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

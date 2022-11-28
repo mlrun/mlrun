@@ -25,7 +25,7 @@ protobuf>=3.20.2, <4
 kfp~=1.8.0, <1.8.14
 nest-asyncio~=1.0
 ipython~=7.0
-nuclio-jupyter~=0.9.4
+nuclio-jupyter~=0.9.5
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
 # limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us

@@ -70,7 +70,7 @@ RUN mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cudnn \
         nccl \
         mpi4py \
-        tensorflow=2.8 \
+        tensorflow=2.9 \
         && conda clean -aqy
 
 ARG OMPI=4.1.0

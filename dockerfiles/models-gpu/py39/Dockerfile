@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.4.3
+ARG CUDA_VER=11.7.0
 
 #FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
-FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
-#FROM nvidia/cuda:11.4.3-cudnn8-runtime-ubuntu20.04 runtime doesn't work with how we install openmpi and installing openmpi via conda is not recognizing gpu
+FROM nvidia/cuda:${CUDA_VER}-base-ubuntu20.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -39,12 +38,10 @@ RUN apt-get update && \
         wget && \
     rm -rf /var/lib/apt/lists/*
 
-RUN wget --quiet https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/installconda.sh && \
-    /bin/bash ~/installconda.sh -b -p /opt/conda && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
+    /bin/bash ~/installconda.sh -f -b -p /opt/conda && \
     rm ~/installconda.sh && \
-    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
-    echo "conda activate base" >> ~/.bashrc
+    conda init bash
 
 ARG MLRUN_PIP_VERSION=22.3.0
 ARG MLRUN_PYTHON_VERSION=3.9.13
@@ -53,7 +50,7 @@ ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
 
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
-    conda install -n base -c conda-forge \
+    conda install -n base \
         python=${MLRUN_PYTHON_VERSION} \
         pip~=${MLRUN_PIP_VERSION} \
         mamba \
@@ -61,19 +58,20 @@ RUN conda config --add channels conda-forge && \
 
 RUN mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cmake  \
-        cython \
-        rapids=22.10 \
-        pytorch=1.13.0 \
-        torchvision=0.14.0 \
-        cxx-compiler \
-        nvcc_linux-64 \
+        cudatoolkit=${CUDA_VER} \
         cudnn \
+        cxx-compiler \
+        cython \
+        make \
         nccl \
-        mpi4py \
+        python=${MLRUN_PYTHON_VERSION} \
+        pytorch=1.13 \
+        rapids=22.10 \
         tensorflow=2.9 \
-        && conda clean -aqy
+        torchvision=0.14 \
+    && conda clean -aqy
 
-ARG OMPI=4.1.0
+ARG OMPI=4.1.4
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -90,8 +88,10 @@ RUN mkdir /tmp/openmpi && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-RUN mamba install https://anaconda.org/deepmodeling/horovod/0.25.0/download/linux-64/horovod-0.25.0-py39hfa38a42_0.tar.bz2
-RUN horovodrun --check-build
+ARG HOROVOD_VERSION=0.25.0
+
+RUN mamba install -c deepmodeling -c conda-forge horovod=${HOROVOD_VERSION} && \
+    horovodrun --check-build
 
 WORKDIR /mlrun
 

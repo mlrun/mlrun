@@ -328,7 +328,7 @@ models-gpu-py39: update-version-file ## Build models-gpu docker image
 		--file dockerfiles/models-gpu/py39/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg CUDA_VER=11.4.3 \
+		--build-arg CUDA_VER=11.7.0 \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .

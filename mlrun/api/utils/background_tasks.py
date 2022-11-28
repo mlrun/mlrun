@@ -152,6 +152,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     async def background_task_wrapper(self, name: str, function, *args, **kwargs):
         try:
 
+            # Remove this now
             # In the current fastapi version, there is a bug in the starlette package it uses for the background tasks.
             # The bug causes the task to be cancelled if the client's http connection is closed before the task is done.
             # The bug is fixed in the latest version of starlette & fastapi. We will upgrade in 1.3.0, but until then we

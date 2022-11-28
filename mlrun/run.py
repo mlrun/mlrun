@@ -172,7 +172,7 @@ def run_local(
 
     if runtime:
         if task:
-            handler = handler or task.spec.handler_name
+            handler = handler or task.spec.handler
         handler = handler or runtime.spec.default_handler or ""
         meta = runtime.metadata.copy()
         meta.project = project or meta.project

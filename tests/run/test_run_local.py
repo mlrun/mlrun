@@ -134,6 +134,5 @@ def test_default_handler():
     )
 
     run = project.run_function("myfunc", handler="handler2", local=True)
-    assert (
-        run.output("handler") == "2"
-    )  # verify that the 2nd handler was running (not the default)
+    # verify that the 2nd handler was running (not the default)
+    assert run.output("handler") == "2"

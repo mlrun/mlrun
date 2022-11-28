@@ -14,8 +14,8 @@
 ARG CUDA_VER=11.4.3
 
 #FROM quay.io/mlrun/cuda:${CUDA_VER}-cudnn8-devel-ubuntu18.04
-#FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
-FROM nvidia/cuda:11.4.3-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
+#FROM nvidia/cuda:11.4.3-cudnn8-runtime-ubuntu20.04 runtime doesn't work with how we install openmpi and installing openmpi via conda is not recognizing gpu
 
 # need to be redeclared since used in the from
 ARG CUDA_VER

@@ -57,10 +57,10 @@ MLRUN_GIT_ORG ?= mlrun
 MLRUN_RELEASE_BRANCH ?= master
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_CUDA_VERSION = 11.0
-MLRUN_TENSORFLOW_VERSION = 2.8.0
+MLRUN_MODELS_TENSORFLOW_VERSION = 2.9.0
 # TODO: remove this variable when we will move models-gpu to python 3.9
 MLRUN_GPU_TENSORFLOW_VERSION = 2.4.1
-MLRUN_HOROVOD_VERSION = 0.25.0
+MLRUN_MODELS_HOROVOD_VERSION = 0.26.1
 # TODO: remove this variable when we will move models-gpu to python 3.9
 MLRUN_GPU_HOROVOD_VERSION = 0.22.1
 
@@ -272,8 +272,8 @@ models-core: base-core ## Build models core docker image
 	docker build \
 		--file dockerfiles/models/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
-		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
+		--build-arg TENSORFLOW_VERSION=$(MLRUN_MODELS_TENSORFLOW_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_MODELS_HOROVOD_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
@@ -329,8 +329,6 @@ models-gpu-py39: update-version-file ## Build models-gpu docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg CUDA_VER=11.4.3 \
-		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .

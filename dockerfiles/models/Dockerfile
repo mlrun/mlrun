@@ -37,7 +37,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 RUN python -m pip install torch==1.11.0+cpu torchvision==0.12.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-ARG TENSORFLOW_VERSION=2.8.0
+ARG TENSORFLOW_VERSION=2.9.0
 
 # intel-tensorflow is a slimmer, CPU optimizied distribution of tensorflow by intel
 RUN python -m pip install -U intel-tensorflow~=${TENSORFLOW_VERSION} mxnet

@@ -361,7 +361,6 @@ def main():
         "mlrun.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
-        debug=config.httpdb.debug,
         access_log=False,
         timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
     )

@@ -58,40 +58,40 @@ RUN conda config --add channels conda-forge && \
         mamba \
     && conda clean -aqy
 
-RUN mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
-    cmake  \
-    cython \
-    rapids=22.10 \
-    pytorch \
-    torchvision \
-    cxx-compiler \
-    nvcc_linux-64 \
-    cudnn \
-    nccl \
-    mpi4py \
-#    openmpi=4.1.4 \
-    && conda clean -aqy
+RUN mamba env config vars set OMPI_MCA_opal_cuda_support=true -n base && \
+    mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
+        cmake  \
+        cython \
+        rapids=22.10 \
+        pytorch \
+        torchvision \
+        cxx-compiler \
+        nvcc_linux-64 \
+        cudnn \
+        nccl \
+        mpi4py \
+        openmpi=4.1.4 \
+        && conda clean -aqy
 
 ARG OMPI=4.1.0
 
 # Install Open MPI
-RUN mkdir /tmp/openmpi && \
-    cd /tmp/openmpi && \
-    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
-    tar zxf openmpi-${OMPI}.tar.gz && \
-    cd openmpi-${OMPI} && \
-    ./configure --enable-orterun-prefix-by-default && \
-    make -j`nproc` all && \
-    make install && \
-    ldconfig && \
-    rm -rf /tmp/openmpi
+#RUN #mkdir /tmp/openmpi && \
+#    cd /tmp/openmpi && \
+#    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
+#    tar zxf openmpi-${OMPI}.tar.gz && \
+#    cd openmpi-${OMPI} && \
+#    ./configure --enable-orterun-prefix-by-default && \
+#    make -j`nproc` all && \
+#    make install && \
+#    ldconfig && \
+#    rm -rf /tmp/openmpi
 
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-RUN conda install -c conda-forge tensorflow=2.9
-RUN conda install https://anaconda.org/deepmodeling/horovod/0.25.0/download/linux-64/horovod-0.25.0-py39hfa38a42_0.tar.bz2 
-RUN horovodrun --check-build
+RUN mamba install -c conda-forge tensorflow=2.9
+RUN mamba install https://anaconda.org/deepmodeling/horovod/0.25.0/download/linux-64/horovod-0.25.0-py39hfa38a42_0.tar.bz2
 RUN horovodrun --check-build
 
 WORKDIR /mlrun

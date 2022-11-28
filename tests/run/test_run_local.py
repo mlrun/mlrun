@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import getpass
+import pathlib
 from os import environ, makedirs, path
 
 import mlrun
@@ -123,3 +124,16 @@ def test_force_run_local():
     assert not result.metadata.labels["kind"]
 
     mlrun.mlconf.force_run_local = old_force
+
+
+def test_default_handler():
+    function_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    project = mlrun.new_project("test-handler", save=False)
+    project.set_function(
+        function_path, "myfunc", handler="myhandler", image="mlrun/mlrun"
+    )
+
+    run = project.run_function("myfunc", handler="handler2", local=True)
+    assert (
+        run.output("handler") == "2"
+    )  # verify that the 2nd handler was running (not the default)

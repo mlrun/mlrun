@@ -171,6 +171,8 @@ def run_local(
     command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
+        if task:
+            handler = handler or task.spec.handler_name
         handler = handler or runtime.spec.default_handler or ""
         meta = runtime.metadata.copy()
         meta.project = project or meta.project

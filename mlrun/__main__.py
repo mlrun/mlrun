@@ -768,6 +768,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     """Run HTTP api/database server"""
     env = environ.copy()
+    env["MLRUN_ENV_FILE"] = ""  # ignore .env files
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:

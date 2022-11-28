@@ -15,8 +15,9 @@ Using Docker is limited to local, Nuclio, serving runtimes, and local pipelines.
 
 ## Overview
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
-MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, Nuclio, and 
-Jupyter, do not have default resources. This means that they are set with the default cluster/namespace resources limits. These can be modified.
+MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. 
+The MLRun service, MLRun UI, Nuclio, and Jupyter, do not have default resources. This means that they are set with the default 
+cluster/namespace resources limits. These can be modified.
 
 There are two installation options:
 - [**Use MLRun with your own client (PyCharm, VSCode, Jupyter)**](#use-mlrun-with-your-own-client)
@@ -101,7 +102,7 @@ After installing MLRun service, set your client environment to work with the ser
 
 ## Use MLRun with MLRun Jupyter image
 
-For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various ready-to-use MLRun examples.
+For the quickest experience with MLRun you can deploy MLRun with a pre-integrated Jupyter server loaded with various ready-to-use MLRun examples.
 
 **{Download}`[Download here]<./compose.with-jupyter.yaml>`** the `compose.with-jupyter.yaml` file, save it to the working dir and type:
 ````{toggle} show the compose.with-jupyter.yaml file

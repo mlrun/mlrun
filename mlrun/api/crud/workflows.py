@@ -85,9 +85,8 @@ class Workflows(
                 labels=function.metadata.labels,
             )
         else:
-            return function.run(
-                runspec=runspec, artifact_path=artifact_path, **run_kwargs
-            )
+            run_kwargs["artifact_path"] = kwargs.get("artifact_path", "")
+            return function.run(runspec=runspec, **run_kwargs)
 
 
 def _create_run_object(

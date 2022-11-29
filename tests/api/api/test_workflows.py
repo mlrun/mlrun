@@ -39,15 +39,12 @@ def _create_proj_with_workflow(client: TestClient):
 
 def test_workflow_does_not_exist(db: Session, client: TestClient):
     _create_proj_with_workflow(client)
-    # Spec with wrong name:
-    workflow_body = {"spec": {"name": "mane"}}
-
-    resp = client.post(
-        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit", json=workflow_body
-    )
+    # path with wrong name:
+    wrong_name = "not-" + PROJECT_NAME
+    resp = client.post(f"projects/{PROJECT_NAME}/workflows/{wrong_name}/submit")
     assert (
         resp.json()["detail"]["reason"]["reason"]
-        == f"{WORKFLOW_NAME} workflow not found in project"
+        == f"{wrong_name} workflow not found in project"
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
@@ -80,9 +77,9 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     mlrun.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
-    good_resp = client.get(f"projects/{PROJECT_NAME}/{right_id}")
+    good_resp = client.get(f"projects/{PROJECT_NAME}/{right_id}", params={"name": WORKFLOW_NAME})
     assert good_resp.json()["workflow_id"] == expected_workflow_id
-    bad_resp = client.get(f"projects/{PROJECT_NAME}/{wrong_id}")
+    bad_resp = client.get(f"projects/{PROJECT_NAME}/{wrong_id}", params={"name": WORKFLOW_NAME})
     assert bad_resp.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -97,5 +94,5 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     mlrun.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
-    resp = client.get(f"projects/{wrong_project_name}/{run_id}")
+    resp = client.get(f"projects/{wrong_project_name}/{run_id}", params={"name": PROJECT_NAME})
     assert resp.status_code == HTTPStatus.NOT_FOUND

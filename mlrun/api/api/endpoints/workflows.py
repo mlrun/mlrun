@@ -194,7 +194,7 @@ def submit_workflow(
         spec = {
             "scrape_metrics": config.scrape_metrics,
             "output_path": (
-                    workflow_request.artifac_path or config.artifact_path
+                    workflow_request.artifact_path or config.artifact_path
             ).replace("{{run.uid}}", meta_uid),
         }
         metadata = {"uid": meta_uid, "project": project.metadata.name}

@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from sqlalchemy.orm import Session
 
@@ -17,9 +17,9 @@ class Workflows(
     def create_function(
         self,
         run_name: str,
-        project: str,
         db_session: Session,
         auth_info: mlrun.api.schemas.AuthInfo,
+        project: str = None,
         access_key: str = None,
         **kwargs,
     ):
@@ -42,27 +42,32 @@ class Workflows(
     def execute_function(
         self,
         function: mlrun.runtimes.BaseRuntime,
-        project,
-        workflow_spec,
-        artifact_path,
-        namespace,
-        workflow_name=None,
+        project: Union[str, mlrun.api.schemas.Project],
+        load_only: bool = False,
         db_session: Session = None,
         auth_info: mlrun.api.schemas.AuthInfo = None,
         **kwargs,
     ):
-        runspec_kwargs = kwargs.get("runspec_kwargs", {})
-        runspec = _create_run_object_for_workflow_runner(
-            project=project,
-            workflow_spec=workflow_spec,
-            artifact_path=artifact_path,
-            namespace=namespace,
-            workflow_name=workflow_name,
-            workflow_handler=workflow_spec.handler,
-            **runspec_kwargs,
-        )
+        run_kwargs = kwargs.pop("run_kwargs", {})
+        workflow_spec = kwargs.get("workflow_spec")
 
-        if workflow_spec.schedule:
+        if load_only:
+            runspec = _create_run_object(
+                runspec_function=_create_run_object_for_load_project,
+                labels=[("job-type", "project-loader"), ("project", project)],
+                **kwargs,
+            )
+        else:
+
+            workflow_name = kwargs.get("workflow_name") or workflow_spec.name
+
+            runspec = _create_run_object(
+                runspec_function=_create_run_object_for_workflow_runner,
+                labels=[("job-type", "workflow-runner"), ("workflow", workflow_name)],
+                **kwargs,
+            )
+
+        if workflow_spec and workflow_spec.schedule:
             # Creating scheduled object:
             scheduled_object = {
                 "task": runspec.to_dict(),
@@ -80,7 +85,32 @@ class Workflows(
                 labels=function.metadata.labels,
             )
         else:
-            return function.run(runspec=runspec, artifact_path=artifact_path, **kwargs)
+            artifact_path = kwargs.get("artifact_path")
+            return function.run(
+                runspec=runspec, artifact_path=artifact_path, **run_kwargs
+            )
+
+
+def _create_run_object(
+    runspec_function,
+    labels: List = None,
+    **kwargs,
+):
+    runspec = runspec_function(**kwargs)
+    spec, metadata = runspec if isinstance(runspec, tuple) else runspec, None
+
+    run_object = {"spec": spec}
+    if metadata:
+        run_object["metadata"] = metadata
+
+    # Creating object:
+    run_object = mlrun.RunObject.from_dict(run_object)
+
+    # Setting labels:
+    if labels:
+        for key, value in labels:
+            run_object = run_object.set_label(key, value)
+    return run_object
 
 
 def _create_run_object_for_workflow_runner(
@@ -91,7 +121,7 @@ def _create_run_object_for_workflow_runner(
     workflow_name: Optional[str] = None,
     workflow_handler: Union[str, Callable] = None,
     **kwargs,
-) -> mlrun.RunObject:
+):
     """
     Creating run object for the load_and_run function.
 
@@ -129,11 +159,19 @@ def _create_run_object_for_workflow_runner(
     metadata = {"name": workflow_name}
     spec.update(spec_kwargs)
     metadata.update(metadata_kwargs)
+    return spec, metadata
 
-    # Creating object:
-    run_object = mlrun.RunObject.from_dict({"spec": spec, "metadata": metadata})
 
-    # Setting labels:
-    return run_object.set_label("job-type", "workflow-runner").set_label(
-        "workflow", workflow_name or workflow_spec.name
-    )
+def _create_run_object_for_load_project(
+    project,
+    source,
+):
+    spec = {
+        "parameters": {
+            "url": source,
+            "project_name": project,
+            "load_only": True,
+        },
+        "handler": "mlrun.projects.load_and_run",
+    }
+    return spec

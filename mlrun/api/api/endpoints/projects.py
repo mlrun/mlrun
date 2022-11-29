@@ -20,6 +20,7 @@ import fastapi.concurrency
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
@@ -317,6 +318,62 @@ async def get_project_summary(
             auth_info,
         )
     return project_summary
+
+
+@router.post(
+    "/projects/{project}/load",
+)
+def load_project(
+    project: str,
+    source: str,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    """
+    :param project:     project name
+    :param source:      name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                        git://github.com/mlrun/demo-xgb-project.git
+                        http://mysite/archived-project.zip
+                        <project-name>
+                        The git project should include the project yaml file.
+    :param auth_info:   auth info of the request
+    :param db_session:  session that manages the current dialog with the database
+    :returns:    The project object.
+    """
+    # Creating the auxiliary function for loading the project:
+    load_project_fn = mlrun.api.crud.Workflows().create_function(
+        run_name=f"load-project-{project}",
+        kind=mlrun.runtimes.RuntimeKinds.job,
+        # For preventing deployment
+        image=mlrun.mlconf.default_base_image,
+        db_session=db_session,
+        auth_info=auth_info,
+        # Enrichment and validation requires an access key.
+        access_key=mlrun.model.Credentials.generate_access_key,
+    )
+
+    logger.debug(
+        "saved function for loading project",
+        project_name=project,
+        function_name=load_project_fn.metadata.name,
+        kind=load_project_fn.kind,
+    )
+
+    mlrun.api.crud.Workflows().execute_function(
+        function=load_project_fn,
+        project=project,
+        source=source,
+        load_only=True,
+    )
+
+    project = get_project_member().get_project(db_session, project, auth_info.session)
+    return mlrun.api.schemas.Project(
+        project=project,
+    )
 
 
 def _is_request_from_leader(

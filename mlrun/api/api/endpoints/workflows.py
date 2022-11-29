@@ -168,7 +168,7 @@ def submit_workflow(
     load_and_run_fn = mlrun.api.crud.Workflows().create_function(
         run_name=run_name,
         project=project.metadata.name,
-        kind="job",
+        kind=mlrun.runtimes.RuntimeKinds.job,
         # For preventing deployment
         image=mlrun.mlconf.default_base_image,
         db_session=db_session,
@@ -191,7 +191,7 @@ def submit_workflow(
         meta_uid = uuid.uuid4().hex
 
         # creating runspec for scheduling:
-        run_object_kwargs = {
+        spec, metadata = {
             "spec": {
                 "scrape_metrics": config.scrape_metrics,
                 "output_path": (
@@ -208,7 +208,8 @@ def submit_workflow(
                 workflow_spec=workflow_spec,
                 artifact_path=workflow_request.artifact_path,
                 namespace=workflow_request.namespace,
-                runspec_kwargs=run_object_kwargs,
+                spec=spec,
+                metadata=metadata,
                 db_session=db_session,
                 auth_info=auth_info,
             )
@@ -227,6 +228,7 @@ def submit_workflow(
         )
 
     else:
+        run_arguments = {"local": False}
         run = mlrun.api.crud.Workflows().execute_function(
             function=load_and_run_fn,
             project=project,
@@ -234,7 +236,7 @@ def submit_workflow(
             artifact_path=workflow_request.artifact_path,
             namespace=workflow_request.namespace,
             workflow_name=run_name,
-            local=False,
+            run_kwargs=run_arguments,
         )
 
         state = mlrun.run.RunStatuses.running

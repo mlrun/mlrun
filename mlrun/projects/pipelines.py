@@ -846,6 +846,7 @@ def load_and_run(
     ttl: int = None,
     engine: str = None,
     local: bool = None,
+    load_only: bool = False,
 ):
     project = mlrun.load_project(
         context=f"./{project_name}",
@@ -856,6 +857,9 @@ def load_and_run(
         clone=clone,
     )
     context.logger.info(f"Loaded project {project.name} from remote successfully")
+
+    if load_only:
+        return
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")

@@ -43,7 +43,7 @@ class FileStats:
 
 
 class DataStore:
-    def __init__(self, parent, name, kind, endpoint=""):
+    def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
         self._parent = parent
         self.kind = kind
         self.name = name
@@ -53,6 +53,7 @@ class DataStore:
         self.options = {}
         self.from_spec = False
         self._filesystem = None
+        self._secrets = secrets or {}
 
     @property
     def is_structured(self):
@@ -81,7 +82,8 @@ class DataStore:
     def _get_secret_or_env(self, key, default=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
         return (
-            self._secret(key)
+            self._get_secret(key)
+            or self._get_parent_secret(key)
             or getenv(key)
             or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
             or default
@@ -100,8 +102,11 @@ class DataStore:
             return f"{self.subpath}/{key}"
         return key
 
-    def _secret(self, key):
+    def _get_parent_secret(self, key):
         return self._parent.secret(self.secret_pfx + key)
+
+    def _get_secret(self, key: str, default=None):
+        return self._secrets.get(key, default)
 
     @property
     def url(self):

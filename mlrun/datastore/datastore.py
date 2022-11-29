@@ -187,8 +187,8 @@ class StoreManager:
             else:
                 raise ValueError(f"no such store ({endpoint})")
 
+        store_key = f"{schema}://{endpoint}"
         if not secrets and self._get_db().kind == "http":
-            store_key = f"{schema}://{endpoint}"
             if store_key in self._stores.keys():
                 return self._stores[store_key], subpath
 

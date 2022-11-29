@@ -492,8 +492,8 @@ def http_upload(url, file_path, headers=None, auth=None):
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets)
         self.auth = None
 
     def get_filesystem(self, silent=True):

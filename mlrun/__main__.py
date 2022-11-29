@@ -874,11 +874,6 @@ def logs(uid, project, offset, db, watch):
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
 @click.option(
-    "--ensure-project",
-    is_flag=True,
-    help="ensure the project exists, if not, create project",
-)
-@click.option(
     "--schedule",
     type=str,
     default=None,
@@ -920,9 +915,7 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(
-        context, url, name, init_git=init_git, clone=clone, save=ensure_project
-    )
+    proj = load_project(context, url, name, init_git=init_git, clone=clone)
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 
@@ -988,11 +981,6 @@ def project(
             )
         except Exception as exc:
             print(traceback.format_exc())
-            if isinstance(exc, mlrun.errors.MLRunRuntimeError) and not ensure_project:
-                logger.warning(
-                    "If the project does not exist, it will not be created. Use --ensure-project to create the project."
-                )
-
             message = f"failed to run pipeline, {exc}"
             had_error = True
             print(message)

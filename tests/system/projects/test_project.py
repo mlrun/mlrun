@@ -74,7 +74,7 @@ class TestProject(TestMLRunSystem):
             / "assets"
         )
 
-    def _create_project(self, project_name, with_repo=False, overwrite=True):
+    def _create_project(self, project_name, with_repo=False, overwrite=False):
         proj = mlrun.new_project(
             project_name, str(self.assets_path), overwrite=overwrite
         )

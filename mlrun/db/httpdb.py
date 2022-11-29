@@ -2969,6 +2969,21 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", f"projects/{project}/{run_id}")
         return schemas.GetWorkflowResponse(**response.json())
 
+    def load_project(
+        self,
+        project: str,
+        source: str,
+    ):
+        """
+        Loading a project remotely from the given source.
+
+        :param project: project name
+        :param source:
+        :return:
+        """
+        response = self.api_call("POST", f"projects/{project}/load", params={"source": source})
+        return schemas.Project(**response.json())
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

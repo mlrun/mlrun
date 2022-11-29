@@ -50,7 +50,7 @@ class Workflows(
     ):
         run_kwargs = kwargs.pop("run_kwargs", {})
         workflow_spec = kwargs.get("workflow_spec")
-
+        kwargs["project"] = project
         if load_only:
             runspec = _create_run_object(
                 runspec_function=_create_run_object_for_load_project,
@@ -85,7 +85,6 @@ class Workflows(
                 labels=function.metadata.labels,
             )
         else:
-            artifact_path = kwargs.get("artifact_path")
             return function.run(
                 runspec=runspec, artifact_path=artifact_path, **run_kwargs
             )
@@ -97,7 +96,10 @@ def _create_run_object(
     **kwargs,
 ):
     runspec = runspec_function(**kwargs)
-    spec, metadata = runspec if isinstance(runspec, tuple) else runspec, None
+    if isinstance(runspec, tuple):
+        spec, metadata = runspec
+    else:
+        spec, metadata = runspec, None
 
     run_object = {"spec": spec}
     if metadata:
@@ -136,10 +138,9 @@ def _create_run_object_for_workflow_runner(
 
     :return:    a RunObject with the desired spec and metadata with labels.
     """
-    spec_kwargs, metadata_kwargs = (
-        kwargs.get("spec"),
-        kwargs.get("metadata"),
-    ) if kwargs else {}, {}
+    spec_kwargs = kwargs.get("spec") if kwargs else {}
+    metadata_kwargs = kwargs.get("metadata") if kwargs else {}
+
     spec = {
         "parameters": {
             "url": project.spec.source,

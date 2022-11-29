@@ -191,15 +191,13 @@ def submit_workflow(
         meta_uid = uuid.uuid4().hex
 
         # creating runspec for scheduling:
-        spec, metadata = {
-            "spec": {
-                "scrape_metrics": config.scrape_metrics,
-                "output_path": (
-                    workflow_request.artifact_path or config.artifact_path
-                ).replace("{{run.uid}}", meta_uid),
-            },
-            "metadata": {"uid": meta_uid, "project": project.metadata.name},
+        spec = {
+            "scrape_metrics": config.scrape_metrics,
+            "output_path": (
+                    workflow_request.artifac_path or config.artifact_path
+            ).replace("{{run.uid}}", meta_uid),
         }
+        metadata = {"uid": meta_uid, "project": project.metadata.name}
 
         try:
             mlrun.api.crud.Workflows().execute_function(

@@ -62,7 +62,7 @@ def test_bad_schedule_format(db: Session, client: TestClient):
         f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit", json=workflow_body
     )
     assert (
-        "runtime error: Wrong number of fields in crontab expression"
+        "Wrong number of fields in crontab expression"
         in resp.json()["detail"]["reason"]["reason"]
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST

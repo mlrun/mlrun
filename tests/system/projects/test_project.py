@@ -74,7 +74,7 @@ class TestProject(TestMLRunSystem):
             / "assets"
         )
 
-    def _create_project(self, project_name, with_repo=False, overwrite=False):
+    def _create_project(self, project_name, with_repo=False, overwrite=True):
         proj = mlrun.new_project(
             project_name, str(self.assets_path), overwrite=overwrite
         )
@@ -148,6 +148,22 @@ class TestProject(TestMLRunSystem):
         functions = project2.list_functions(tag="latest")
         assert len(functions) == 3  # prep-data, train, test
         assert functions[0].metadata.project == name
+
+    def test_run_watch_with_timeout(self):
+        name = "pipe1"
+        self.custom_project_names_to_delete.append(name)
+        # create project in context
+        self._create_project(name)
+
+        # load project from context dir and run a workflow
+        project2 = mlrun.load_project(str(self.assets_path), name=name)
+
+        # timeout before pipeline was completed
+        with pytest.raises(Exception) as exc:
+            project2.run(
+                "main", watch=True, timeout=5, artifact_path=f"v3io:///projects/{name}"
+            )
+        assert "pipeline run has not completed yet" in str(exc.value)
 
     def test_run_artifact_path(self):
         name = "pipe1"

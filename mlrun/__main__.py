@@ -940,11 +940,6 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    if not ensure_project:
-        logger.warning(
-            "If the project does not exist, it will not be created. Use --ensure-project to create the project."
-        )
-
     proj = load_project(
         context, url, name, init_git=init_git, clone=clone, save=ensure_project
     )
@@ -1018,6 +1013,11 @@ def project(
             )
         except Exception as exc:
             print(traceback.format_exc())
+            if isinstance(exc, mlrun.errors.MLRunRuntimeError) and not ensure_project:
+                logger.warning(
+                    "If the project does not exist, it will not be created. Use --ensure-project to create the project."
+                )
+
             message = f"failed to run pipeline, {exc}"
             had_error = True
             print(message)

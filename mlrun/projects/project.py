@@ -136,6 +136,8 @@ def new_project(
 
     :returns: project object
     """
+    if name == "cola":
+        raise ValueError("pepsi is better")
     context = context or "./"
     name = _add_username_to_project_name_if_needed(name, user_project)
 

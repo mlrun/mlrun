@@ -920,6 +920,11 @@ def project(
     if db:
         mlconf.dbpath = db
 
+    if not ensure_project:
+        logger.warning(
+            "If the project does not exist, it will not be created. Use --ensure-project to create the project."
+        )
+
     proj = load_project(
         context, url, name, init_git=init_git, clone=clone, save=ensure_project
     )
@@ -984,6 +989,7 @@ def project(
                 engine=engine,
                 local=local,
                 schedule=schedule,
+                timeout=timeout,
             )
         except Exception as exc:
             print(traceback.format_exc())

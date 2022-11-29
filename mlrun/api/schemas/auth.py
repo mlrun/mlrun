@@ -87,6 +87,7 @@ class AuthorizationResourceTypes(str, enum.Enum):
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
             # Marketplace sources are not project-scoped, and auth is globally on the sources endpoint.
             AuthorizationResourceTypes.marketplace_source: "/marketplace/sources",
+            # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
         }[self].format(project_name=project_name, resource_name=resource_name)
 

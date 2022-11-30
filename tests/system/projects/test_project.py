@@ -132,22 +132,6 @@ class TestProject(TestMLRunSystem):
         assert len(functions) == 3  # prep-data, train, test
         assert functions[0].metadata.project == name
 
-    def test_run_watch_with_timeout(self):
-        name = "pipe1"
-        self.custom_project_names_to_delete.append(name)
-        # create project in context
-        self._create_project(name)
-
-        # load project from context dir and run a workflow
-        project2 = mlrun.load_project(str(self.assets_path), name=name)
-
-        # timeout before pipeline was completed
-        with pytest.raises(Exception) as exc:
-            project2.run(
-                "main", watch=True, timeout=5, artifact_path=f"v3io:///projects/{name}"
-            )
-        assert "pipeline run has not completed yet" in str(exc.value)
-
     def test_run_artifact_path(self):
         name = "pipe1"
         self.custom_project_names_to_delete.append(name)
@@ -515,7 +499,39 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         print("OUT:\n", out)
-        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        assert (
+            out.find("pipeline run finished, state=Succeeded") != -1
+        ), "pipeline failed"
+
+    def test_run_cli_watch_with_timeout(self):
+        name = "run-cli-watch-with-timeout"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # exec the workflow and set a short timeout, should fail
+        args = [
+            "--name",
+            name,
+            "--url",
+            "git://github.com/mlrun/project-demo.git",
+            "--run",
+            "main",
+            "--watch",
+            "--timeout 1",
+            "--ensure-project",
+            project_dir,
+        ]
+        out = exec_project(args)
+
+        print("OUT:\n", out)
+        assert (
+            out.find(
+                "Exception: failed to execute command by the given deadline. last_exception: "
+                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+            )
+            != -1
+        )
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

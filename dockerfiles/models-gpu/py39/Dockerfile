@@ -46,8 +46,6 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
 ARG MLRUN_PIP_VERSION=22.3.0
 ARG MLRUN_PYTHON_VERSION=3.9.13
 
-ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
-
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \

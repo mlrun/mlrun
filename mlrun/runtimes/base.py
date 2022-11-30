@@ -343,9 +343,11 @@ class BaseRuntime(ModelObj):
 
         self._enrich_function()
 
+        run = self._create_run_object(runspec)
+
         if local:
             return self._run_local(
-                runspec,
+                run,
                 schedule,
                 local_code_path,
                 project,
@@ -356,8 +358,6 @@ class BaseRuntime(ModelObj):
                 inputs,
                 artifact_path,
             )
-
-        run = self._create_run_object(runspec)
 
         run = self._enrich_run(
             run,

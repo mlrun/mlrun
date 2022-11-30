@@ -530,47 +530,41 @@ class TestProject(TestMLRunSystem):
             project_dir, "git://github.com/mlrun/project-demo.git", name=project_name
         )
 
-        for engine, workflow_name, expected_status in [
-            ("local", "newflow", ""),
-            ("kfp", "main", "Succeeded"),
+        for engine, workflow_name in [
+            ("local", "newflow"),
+            ("kfp", "main"),
         ]:
             # Submitting workflow:
-            resp = self._run_db.api_call(
-                "POST",
-                f"projects/{project_name}/workflows/{workflow_name}/submit",
-                json={"spec": {"engine": engine}},
+            workflow_response = self._run_db.submit_workflow(
+                project=project_name,
+                name=workflow_name,
+                workflow_spec={"spec": {"engine": engine}},
             )
-            result = resp.json()
-            assert set(result.keys()) == {
-                "project",
-                "name",
-                "status",
-                "run_id",
-                "schedule",
-            }
+            assert all(
+                [hasattr(workflow_response, attr) for attr in
+                 ["project", "name", "status", "run_id", "schedule"]
+                 ]
+            )
 
             # waiting for the workflow to end:
-            runner_id = result["run_id"]
             workflow_status, workflow_id = None, None
-            num_tries = 100
-            while workflow_status != expected_status or not workflow_id:
-                resp = self._run_db.api_call(
-                    "GET", f"projects/{project_name}/{runner_id}"
+            num_tries = 10
+            while workflow_id:
+                get_workflow_response = self._run_db.get_workflow_id(
+                    project=project_name, run_id=workflow_response.run_id, json={"name": workflow_name}
                 )
-                result = resp.json()
-                assert set(result.keys()) == {"workflow_id", "status"}
-                workflow_status, workflow_id = result["status"], result["workflow_id"]
+                assert all([hasattr(get_workflow_response, attr) for attr in ["workflow_id", "status"]])
+                workflow_id = workflow_response.run_id
                 time.sleep(3)
                 if not num_tries:
                     break
                 num_tries -= 1
-            assert result["status"] == expected_status
 
     def test_submit_workflow_endpoint_with_scheduling(self):
         project_name = "submit-wf-schedule"
         project_dir = f"{projects_dir}/{project_name}"
         workflow_name = "main"
-
+        schedule_name = f"workflow-runner-{workflow_name}"
         try:
             self.custom_project_names_to_delete.append(project_name)
             shutil.rmtree(project_dir, ignore_errors=True)
@@ -583,36 +577,34 @@ class TestProject(TestMLRunSystem):
             project.save()
 
             # Submitting workflow:
-            resp = self._run_db.api_call(
-                "POST",
-                f"projects/{project_name}/workflows/{workflow_name}/submit",
-                json={"spec": {"schedule": "*/10 * * * *"}},
+            workflow_response = self._run_db.submit_workflow(
+                project=project_name,
+                name=workflow_name,
+                workflow_spec={"spec": {"schedule": "*/10 * * * *"}},
             )
 
             # Checking scheduled workflow submitted as expected:
-            result = resp.json()
-            assert set(result.keys()) == {
-                "project",
-                "name",
-                "status",
-                "run_id",
-                "schedule",
-            }
-            assert result["status"] == "scheduled"
-            resp = self._run_db.api_call("GET", f"projects/{project_name}/schedules")
-            schedules = resp.json()["schedules"]
+            assert all(
+                [hasattr(workflow_response, attr) for attr in
+                 ["project", "name", "status", "run_id", "schedule"]
+                 ]
+            )
+
+            assert workflow_response.schedule == "scheduled"
+            get_schedule_response = self._run_db.list_schedules(
+                project=project_name
+            )
+
+            schedules = get_schedule_response.schedules
             assert schedules and len(schedules) == 1
             schedule = schedules[0]
             print(schedule)
-            assert schedule["name"] == f"workflow-runner-{workflow_name}"
-            assert schedule["scheduled_object"]["task"]["status"]["state"] == "created"
+            assert schedule.name == schedule_name
+            assert schedule.scheduled_object["task"]["status"]["state"] == "created"
 
         finally:
             # Deleting submitted schedule:
-            self._run_db.api_call(
-                "DELETE",
-                f"projects/{project_name}/schedules",
-            )
+            self._run_db.delete_schedule(project=project_name, name=schedule_name)
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

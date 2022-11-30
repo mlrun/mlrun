@@ -541,19 +541,27 @@ class TestProject(TestMLRunSystem):
                 workflow_spec={"spec": {"engine": engine}},
             )
             assert all(
-                [hasattr(workflow_response, attr) for attr in
-                 ["project", "name", "status", "run_id", "schedule"]
-                 ]
+                [
+                    hasattr(workflow_response, attr)
+                    for attr in ["project", "name", "status", "run_id", "schedule"]
+                ]
             )
 
             # waiting for the workflow to end:
-            workflow_status, workflow_id = None, None
+            workflow_id = None
             num_tries = 10
             while workflow_id:
                 get_workflow_response = self._run_db.get_workflow_id(
-                    project=project_name, run_id=workflow_response.run_id, json={"name": workflow_name}
+                    project=project_name,
+                    run_id=workflow_response.run_id,
+                    json={"name": workflow_name},
                 )
-                assert all([hasattr(get_workflow_response, attr) for attr in ["workflow_id", "status"]])
+                assert all(
+                    [
+                        hasattr(get_workflow_response, attr)
+                        for attr in ["workflow_id", "status"]
+                    ]
+                )
                 workflow_id = workflow_response.run_id
                 time.sleep(3)
                 if not num_tries:
@@ -585,15 +593,14 @@ class TestProject(TestMLRunSystem):
 
             # Checking scheduled workflow submitted as expected:
             assert all(
-                [hasattr(workflow_response, attr) for attr in
-                 ["project", "name", "status", "run_id", "schedule"]
-                 ]
+                [
+                    hasattr(workflow_response, attr)
+                    for attr in ["project", "name", "status", "run_id", "schedule"]
+                ]
             )
 
             assert workflow_response.schedule == "scheduled"
-            get_schedule_response = self._run_db.list_schedules(
-                project=project_name
-            )
+            get_schedule_response = self._run_db.list_schedules(project=project_name)
 
             schedules = get_schedule_response.schedules
             assert schedules and len(schedules) == 1

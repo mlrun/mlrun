@@ -77,9 +77,13 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     mlrun.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
-    good_resp = client.get(f"projects/{PROJECT_NAME}/{right_id}", params={"name": WORKFLOW_NAME})
+    good_resp = client.get(
+        f"projects/{PROJECT_NAME}/{right_id}", params={"name": WORKFLOW_NAME}
+    )
     assert good_resp.json()["workflow_id"] == expected_workflow_id
-    bad_resp = client.get(f"projects/{PROJECT_NAME}/{wrong_id}", params={"name": WORKFLOW_NAME})
+    bad_resp = client.get(
+        f"projects/{PROJECT_NAME}/{wrong_id}", params={"name": WORKFLOW_NAME}
+    )
     assert bad_resp.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -94,5 +98,7 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     mlrun.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
-    resp = client.get(f"projects/{wrong_project_name}/{run_id}", params={"name": PROJECT_NAME})
+    resp = client.get(
+        f"projects/{wrong_project_name}/{run_id}", params={"name": PROJECT_NAME}
+    )
     assert resp.status_code == HTTPStatus.NOT_FOUND

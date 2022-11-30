@@ -2981,7 +2981,9 @@ class HTTPRunDB(RunDBInterface):
         :param source:
         :return:
         """
-        response = self.api_call("POST", f"projects/{project}/load", params={"source": source})
+        response = self.api_call(
+            "POST", f"projects/{project}/load", params={"source": source}
+        )
         return schemas.Project(**response.json())
 
 

@@ -369,7 +369,7 @@ def load_project(
         source=source,
         load_only=True,
     )
-
+    db_session.commit()
     project = get_project_member().get_project(db_session, project, auth_info.session)
     return mlrun.api.schemas.Project(
         project=project,

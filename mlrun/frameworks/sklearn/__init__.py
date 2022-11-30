@@ -27,6 +27,8 @@ from .utils import SKLearnTypes, SKLearnUtils
 
 # Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 SKLearnModelServer = PickleModelServer
+# TODO: Change in docs to the correct naming and add warning for this one:
+SklearnModelServer = SKLearnModelServer
 SKLearnArtifactsLibrary = MLArtifactsLibrary
 
 

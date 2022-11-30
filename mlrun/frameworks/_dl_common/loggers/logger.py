@@ -201,17 +201,6 @@ class Logger:
         """
         self._validation_iterations += 1
 
-    def log_metric(self, metric_name: str):
-        """
-        Log a new metric, noting it in the results and summary dictionaries.
-
-        :param metric_name: The metric name to log.
-        """
-        self._training_results[metric_name] = []
-        self._validation_results[metric_name] = []
-        self._training_summaries[metric_name] = []
-        self._validation_summaries[metric_name] = []
-
     def log_training_result(self, metric_name: str, result: float):
         """
         Log the given metric result in the training results dictionary at the current epoch.
@@ -219,6 +208,8 @@ class Logger:
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
+        if metric_name not in self._training_results:
+            self._training_results[metric_name] = [[]]
         self._training_results[metric_name][-1].append(result)
 
     def log_validation_result(self, metric_name: str, result: float):
@@ -228,6 +219,8 @@ class Logger:
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
+        if metric_name not in self._validation_results:
+            self._validation_results[metric_name] = [[]]
         self._validation_results[metric_name][-1].append(result)
 
     def log_training_summary(self, metric_name: str, result: float):
@@ -237,6 +230,8 @@ class Logger:
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
+        if metric_name not in self._training_summaries:
+            self._training_summaries[metric_name] = []
         self._training_summaries[metric_name].append(result)
 
     def log_validation_summary(self, metric_name: str, result: float):
@@ -246,6 +241,8 @@ class Logger:
         :param metric_name: The metric name as it was logged in 'log_metric'.
         :param result:      The metric result to log.
         """
+        if metric_name not in self._validation_summaries:
+            self._validation_summaries[metric_name] = []
         self._validation_summaries[metric_name].append(result)
 
     def log_static_hyperparameter(

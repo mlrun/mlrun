@@ -74,6 +74,7 @@ being a column in this df). This could cause breakage for existing custom steps 
 
 | ID   | Description                                            | Workaround                                    | Opened  |
 | ---- | -------------------------------------------------------| ------------------------------------ | ----------- |
+| 2849 | Pickling a class inside an mlrun function fails           | Use cloudpickle instead of pickle    | 1.2.0       |
 | 2516 | Feature store is not backwards compatible              |  NA                                   | 1.2.0      |
 | 2223 | Notebook names that contain "." cause the deploying function to fail with a ModuleNotFoundError | Do not use "." in notebook name | 1.0.0  |
 | 2199 | Spark operator job fails with default requests args                                          | NA               | 1.0.0      |

@@ -894,6 +894,11 @@ def logs(uid, project, offset, db, watch):
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
 @click.option(
+    "--ensure-project",
+    is_flag=True,
+    help="ensure the project exists, if not, create project",
+)
+@click.option(
     "--schedule",
     type=str,
     default=None,
@@ -935,7 +940,9 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(context, url, name, init_git=init_git, clone=clone)
+    proj = load_project(
+        context, url, name, init_git=init_git, clone=clone, save=ensure_project
+    )
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 

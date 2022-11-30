@@ -262,7 +262,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(
+        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         pass
 
     @abstractmethod

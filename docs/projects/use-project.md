@@ -19,7 +19,7 @@ Alternatively, you can create functions using methods like {py:func}`~mlrun.run.
 The preferred approach is to use `set_function` (which also records the functions in the project spec).
 
 The {py:meth}`~mlrun.projects.MlrunProject.set_function` method allow you to add/update many types of functions:
-* **marketplace functions** - load/register a marketplace function into the project (func="hub://...")
+* **Function Hub functions** - load/register a Function Hub function into the project (func="hub://...")
 * **notebook file** - convert a notebook file into a function (func="path/to/file.ipynb")
 * **python file** - convert a python file into a function (func="path/to/file.py")
 * **database function** - function stored in MLRun DB (func="db://project/func-name:version")

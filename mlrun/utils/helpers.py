@@ -1100,3 +1100,9 @@ def is_relative_path(path):
     if not path:
         return False
     return not (path.startswith("/") or ":\\" in path or "://" in path)
+
+
+def as_number(field_name, field_value):
+    if isinstance(field_value, str) and not field_value.isnumeric():
+        raise ValueError(f"{field_name} must be numeric (str/int types)")
+    return int(field_value)

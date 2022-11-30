@@ -343,9 +343,11 @@ class BaseRuntime(ModelObj):
 
         self._enrich_function()
 
+        run = self._create_run_object(runspec)
+
         if local:
             return self._run_local(
-                runspec,
+                run,
                 schedule,
                 local_code_path,
                 project,
@@ -356,8 +358,6 @@ class BaseRuntime(ModelObj):
                 inputs,
                 artifact_path,
             )
-
-        run = self._create_run_object(runspec)
 
         run = self._enrich_run(
             run,
@@ -667,7 +667,7 @@ class BaseRuntime(ModelObj):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
-                if not runspec.spec.output_path:
+                if not runspec.spec.output_path and self._get_db():
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
                         # spec first as get_db() depends on it
@@ -715,8 +715,32 @@ class BaseRuntime(ModelObj):
             txt = get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+        # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
+        # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
+        # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
+        # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
+        # in real time
+        if (
+            watch is None
+            and self.kfp
+            and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
+        ):
+            state_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_state_interval
+            )
+            logs_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_logs_interval
+            )
 
-        if watch or self.kfp:
+            runspec.wait_for_completion(
+                show_logs=True,
+                sleep=state_interval,
+                logs_interval=logs_interval,
+                raise_on_failure=False,
+            )
+            resp = self._get_db_run(runspec)
+
+        elif watch or self.kfp:
             runspec.logs(True, self._get_db())
             resp = self._get_db_run(runspec)
 
@@ -1029,23 +1053,67 @@ class BaseRuntime(ModelObj):
             update_function_entry_points(self, body)
         return self
 
-    def with_requirements(self, requirements: Union[str, List[str]]):
+    def with_requirements(
+        self,
+        requirements: Union[str, List[str]],
+        overwrite: bool = False,
+        verify_base_image: bool = True,
+    ):
         """add package requirements from file or list to build spec.
 
         :param requirements:  python requirements file path or list of packages
-
+        :param overwrite:     overwrite existing requirements
+        :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
         if isinstance(requirements, str):
             with open(requirements, "r") as fp:
                 requirements = fp.read().splitlines()
-        commands = self.spec.build.commands or []
+        commands = self.spec.build.commands or [] if not overwrite else []
         new_command = "python -m pip install " + " ".join(requirements)
         # make sure we dont append the same line twice
         if new_command not in commands:
             commands.append(new_command)
         self.spec.build.commands = commands
-        self.verify_base_image()
+        if verify_base_image:
+            self.verify_base_image()
+        return self
+
+    def with_commands(
+        self,
+        commands: List[str],
+        overwrite: bool = False,
+        verify_base_image: bool = True,
+    ):
+        """add commands to build spec.
+
+        :param commands:  list of commands to run during build
+
+        :return: function object
+        """
+        if not isinstance(commands, list):
+            raise ValueError("commands must be a string list")
+        if not self.spec.build.commands or overwrite:
+            self.spec.build.commands = commands
+        else:
+            # add commands to existing build commands
+            for command in commands:
+                if command not in self.spec.build.commands:
+                    self.spec.build.commands.append(command)
+            # using list(set(x)) won't retain order,
+            # solution inspired from https://stackoverflow.com/a/17016257/8116661
+            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
+        if verify_base_image:
+            self.verify_base_image()
+        return self
+
+    def clean_build_params(self):
+        # when using `with_requirements` we also execute `verify_base_image` which adds the base image and cleans the
+        # spec.image, so we need to restore the image back
+        if self.spec.build.base_image and not self.spec.image:
+            self.spec.image = self.spec.build.base_image
+
+        self.spec.build = {}
         return self
 
     def verify_base_image(self):

@@ -118,6 +118,17 @@ class Artifacts(
             for artifact in artifacts
         ]
 
+    def list_artifact_tags(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        project: str = mlrun.mlconf.default_project,
+        category: mlrun.api.schemas.ArtifactCategories = None,
+    ):
+        project = project or mlrun.mlconf.default_project
+        return mlrun.api.utils.singletons.db.get_db().list_artifact_tags(
+            db_session, project, category
+        )
+
     def delete_artifact(
         self,
         db_session: sqlalchemy.orm.Session,

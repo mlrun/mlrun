@@ -1723,28 +1723,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         csv_file = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        original_df = pd.read_csv(csv_file)
-        original_cols = original_df.shape[1]
-        print(original_df.shape)
-        print(original_df.info())
-
-        chunksize = 100
+        chunksize = 20
         source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
+
         if with_graph:
             myset.graph.to(name="s1", handler="my_func")
 
         df = fs.ingest(myset, source)
-        self._logger.info(f"output df:\n{df}")
 
         features = list(myset.spec.features.keys())
         print(len(features), features)
         print(myset.to_yaml())
-        print(df.shape)
-        # original cols - index - timestamp cols
-        assert len(features) == original_cols - 2, "wrong num of features"
-        assert df.shape[1] == original_cols, "num of cols not as expected"
-        # returned DF is only the first chunk (size 100)
-        assert df.shape[0] == chunksize, "dataframe size doesnt match"
+        self._logger.info(f"output df:\n{df}")
+
+        reference_df = pd.read_csv(csv_file)
+        reference_df = reference_df[0:chunksize].set_index("patient_id")
+
+        # patient_id (index) and timestamp (timestamp_key) are not in features list
+        assert features + ["timestamp"] == list(reference_df.columns)
+        assert df.equals(reference_df), "output dataframe is different from expected"
 
     def test_target_list_validation(self):
         targets = [ParquetTarget()]
@@ -1991,7 +1988,7 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    @pytest.mark.parametrize("target_redis, ", ["", "localhost:6379"])
+    @pytest.mark.parametrize("target_redis, ", ["", "redis://:aaa@localhost:6379"])
     def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
@@ -2007,7 +2004,7 @@ class TestFeatureStore(TestMLRunSystem):
             ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
             RedisNoSqlTarget()
             if target_redis == ""
-            else RedisNoSqlTarget(target_redis),
+            else RedisNoSqlTarget(path=target_redis),
         ]
         fset.set_targets(
             targets=targets,
@@ -2835,7 +2832,9 @@ class TestFeatureStore(TestMLRunSystem):
             data_set.set_targets()
             fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
 
-    @pytest.mark.skipif(not kafka_brokers, reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(
@@ -2866,7 +2865,6 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2885,8 +2883,11 @@ class TestFeatureStore(TestMLRunSystem):
             bootstrap_servers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
-        with pytest.raises(ValueError):
+        try:
             fs.ingest(stocks_set, stocks, [target])
+            pytest.fail("Expected a ValueError to be raised")
+        except ValueError as ex:
+            assert str(ex) == "Not supported codec: invalid value"
 
     def test_alias_change(self):
         quotes = pd.DataFrame(
@@ -3027,12 +3028,10 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = fstore.ingest(prediction_set, df)
 
             read_back_df = pd.read_parquet(outdir)
-
             assert read_back_df.equals(returned_df)
-            assert read_back_df.to_dict() == {
-                "id": {0: "a", 1: "b"},
-                "number": {0: 11, 1: 22},
-            }
+
+            expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            assert read_back_df.equals(expected_df)
 
     # regression test for #2557
     @pytest.mark.parametrize(

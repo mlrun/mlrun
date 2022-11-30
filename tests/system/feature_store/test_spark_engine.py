@@ -17,7 +17,6 @@ import pathlib
 import sys
 import uuid
 from datetime import datetime
-from time import sleep
 
 import fsspec
 import pandas as pd
@@ -258,6 +257,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey.sort_index(axis=1)
         )
 
+    # tests that data is filtered by time in scheduled jobs
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
@@ -277,10 +277,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/3 * * * *"
-
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet",
+            path=path,
+            time_field="time",
+            schedule="mock",  # to enable filtering by time
         )
 
         feature_set = fs.FeatureSet(
@@ -315,9 +316,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every third minute and it can take ~150 seconds to finish.
-        time_till_next_run = 180 - now.second - 60 * (now.minute % 3)
-        sleep(time_till_next_run + 150)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -341,7 +339,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ).to_parquet(path=path)
 
-            sleep(180)
+            fs.ingest(
+                feature_set,
+                source,
+                run_config=fs.RunConfig(local=False),
+                targets=targets,
+                spark_context=self.spark_service,
+            )
+
             resp = svc.get(
                 [
                     {"first_name": "yosi"},

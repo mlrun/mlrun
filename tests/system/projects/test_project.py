@@ -104,6 +104,23 @@ class TestProject(TestMLRunSystem):
         proj.save()
         return proj
 
+    def test_project_persists_function_changes(self):
+        func_name = "build-func"
+        commands = [
+            "echo 1111",
+            "echo 2222",
+        ]
+        self.project.set_function(
+            "./assets/handler.py", func_name, kind="job", image="mlrun/mlrun"
+        )
+        self.project.build_function(
+            func_name, base_image="mlrun/mlrun", commands=commands
+        )
+        assert (
+            self.project.get_function(func_name, sync=False).spec.build.commands
+            == commands
+        )
+
     def test_run(self):
         name = "pipe1"
         self.custom_project_names_to_delete.append(name)

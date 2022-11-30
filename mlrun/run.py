@@ -171,6 +171,8 @@ def run_local(
     command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
+        if task:
+            handler = handler or task.spec.handler
         handler = handler or runtime.spec.default_handler or ""
         meta = runtime.metadata.copy()
         meta.project = project or meta.project
@@ -426,12 +428,12 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Function can be imported from function repositories (mlrun marketplace or local db),
+    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
 
-        function marketplace: hub://{name}[:{tag}]
+        function hub: hub://{name}[:{tag}]
         local mlrun db:       db://{project-name}/{name}[:{tag}]
 
     examples::
@@ -440,7 +442,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
-    :param url: path/url to marketplace, db or function YAML file
+    :param url: path/url to Function Hub, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -723,7 +725,7 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
-    :param categories:   list of categories for mlrun function marketplace, defaults to None
+    :param categories:   list of categories for mlrun Function Hub, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
@@ -1747,7 +1749,7 @@ class ContextHandler:
             # Parse the instructions:
             artifact_type = self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.get(
                 type(obj), self._ARTIFACT_TYPE_CLASS.DEFAULT
-            )
+            ).value
             key = None
             logging_kwargs = {}
             if isinstance(instructions, str):
@@ -1764,6 +1766,9 @@ class ContextHandler:
                 artifact_type = instructions[1]
                 if len(instructions) > 2:
                     logging_kwargs = instructions[2]
+            # Check if the object to log is None (None values are only logged if the artifact type is Result):
+            if obj is None and artifact_type != ArtifactType.RESULT.value:
+                continue
             # Log:
             self._log_output(
                 obj=obj,

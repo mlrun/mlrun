@@ -361,17 +361,10 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
+                project_name=project,
+                identifier=identifier,
             )
         # TODO remove duplicates artifacts entries
         # delete related tags from artifacts identifiers
@@ -391,17 +384,10 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
+                project_name=project,
+                identifier=identifier,
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
 
@@ -415,19 +401,37 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self.list_artifacts(
+            artifacts += self._list_artifacts_for_tagging(
                 session,
-                project=project,
-                name=identifier.key,
-                kind=identifier.kind,
-                iter=identifier.iter,
-                # will be changed to uid, after refactoring the code, currently to list artifacts by uid
-                # we are passing it into the tag param and resolve whether it's a uid or a tag in the
-                # list_artifacts method (_resolve_tag)
-                tag=identifier.uid,
-                as_records=True,
+                project_name=project,
+                identifier=identifier,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    def _list_artifacts_for_tagging(
+        self,
+        session: Session,
+        project_name: str,
+        identifier: mlrun.api.schemas.ArtifactIdentifier,
+    ):
+        return self.list_artifacts(
+            session,
+            project=project_name,
+            name=identifier.key,
+            kind=identifier.kind,
+            iter=identifier.iter,
+            # 1. will be changed to uid, after refactoring the code, currently to list artifacts by uid
+            # we are passing it into the tag param and resolve whether it's a uid or a tag in the
+            # list_artifacts method (_resolve_tag)
+            # 2. if the identifier.uid is None, we want to list all artifacts, so we pass "*"
+            tag=identifier.uid or "*",
+            as_records=True,
+            # 1. because of backwards compatible that list_artifacts is keeping, we want to pass the function
+            # indication that the tag which is passed is uid
+            # 2. if uid wasn't passed as part of the identifiers then
+            # we will ask for tag "*" and in that case we don't want to use the tag as uid
+            use_tag_as_uid=True if identifier.uid else False,
+        )
 
     @retry_on_conflict
     def store_artifact(
@@ -513,10 +517,12 @@ class SQLDB(DBInterface):
             updated, key, labels = self._process_artifact_dict_to_store(
                 artifact, key, iter
             )
-
+        existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
             art = Artifact(key=key, uid=uid, updated=updated, project=project)
+            existed = False
+
         update_labels(art, labels)
 
         art.struct = artifact
@@ -524,6 +530,12 @@ class SQLDB(DBInterface):
         if tag_artifact:
             tag = tag or "latest"
             self.tag_artifacts(session, [art], project, tag)
+            # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
+            # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
+            # changes to be reflected in the "latest" tag, as this in not actual the "latest" version of the artifact
+            # which was produced by the user
+            if not existed and tag != "latest":
+                self.tag_artifacts(session, [art], project, "latest")
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):
@@ -602,6 +614,7 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         project = project or config.default_project
 
@@ -609,21 +622,37 @@ class SQLDB(DBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "best-iteration cannot be used when iter is specified"
             )
-
         # TODO: Refactor this area
         # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
         # old way - by the updated field
         ids = "latest"
         if tag:
-            # allow to ask for all versions of an artifact
-            if tag == "*":
+            # use_tag_as_uid is used to catch old artifacts which were created when logging artifacts using the project
+            # producer and not by context, this because when were logging artifacts using the project producer we were
+            # setting the artifact uid to be the same as the producer tag which at the time was "latest", this becomes a
+            # problem with uid="latest" because there are also "latest" tags in the system, which means we will get ids
+            # response from the `_resolve_tag` above and then we will iterate over the wrong artifact
+            # use_tag_as_uid==None is keeping the old behavior
+            # use_tag_as_uid==False also keeps the old behavior for now, but left that option to be able to change later
+            # use_tag_as_uid==True saying to the list artifacts that the tag is actually the uid
+            if tag == "*" or use_tag_as_uid:
                 ids = tag
             else:
                 ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
-            session, project, ids, labels, since, until, name, kind, category, iter
+            session,
+            project,
+            ids,
+            labels,
+            since,
+            until,
+            name,
+            kind,
+            category,
+            iter,
+            use_tag_as_uid=use_tag_as_uid,
         )
         if as_records:
             if best_iteration:
@@ -631,7 +660,31 @@ class SQLDB(DBInterface):
                     "as_records is not supported with best_iteration=True"
                 )
             return artifact_records
-        indexed_artifacts = {artifact.key: artifact for artifact in artifact_records}
+
+        # In case best_iteration is requested and filtering is done by tag, then we might have artifacts from the best
+        # iteration (which is tagged) but not the link artifact (that is not tagged). This will cause the filtering
+        # happening next to fail. Therefore, we need to add to the list of results the link artifacts from the given
+        # keys + uids.
+        if best_iteration:
+            iteration_keys = set()
+            link_keys = set()
+            for artifact in artifact_records:
+                if self._name_with_iter_regex.match(artifact.key):
+                    key_without_iteration = artifact.key.split("-", maxsplit=1)[1]
+                    iteration_keys.add((key_without_iteration, artifact.uid))
+                else:
+                    link_keys.add((artifact.key, artifact.uid))
+            missing_link_keys = iteration_keys.difference(link_keys)
+            artifact_records.extend(
+                self._get_link_artifacts_by_keys_and_uids(
+                    session, project, missing_link_keys
+                )
+            )
+
+        # concatenating <artifact.key> and <artifact.uid> to create a unique key for the artifacts
+        indexed_artifacts = {
+            f"{artifact.key}-{artifact.uid}": artifact for artifact in artifact_records
+        }
         for artifact in artifact_records:
             has_iteration = self._name_with_iter_regex.match(artifact.key)
 
@@ -647,7 +700,9 @@ class SQLDB(DBInterface):
                     link_iteration = artifact.struct["spec"].get("link_iteration")
 
                 if link_iteration:
-                    linked_key = f"{link_iteration}-{artifact.key}"
+                    # link artifact key is without the iteration so to pull the linked artifact we need to
+                    # concatenate the <link-iteration>-<artifact.key>-<artifact.uid> together
+                    linked_key = f"{link_iteration}-{artifact.key}-{artifact.uid}"
                     linked_artifact = indexed_artifacts.get(linked_key)
                     if linked_artifact:
                         artifact = linked_artifact
@@ -661,7 +716,9 @@ class SQLDB(DBInterface):
                 continue
 
             artifact_struct = artifact.struct
-            if ids != "latest":
+            # ids = "latest" and not tag means that it was not given by the user, so we will not set the tag in the
+            # artifact struct
+            if ids != "latest" or tag:
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
                     session, artifact_struct, artifact.id, tag
                 )
@@ -670,6 +727,19 @@ class SQLDB(DBInterface):
                 artifacts.append(artifact_struct)
 
         return artifacts
+
+    def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
+        # identifiers are tuples of (key, uid)
+        if not identifiers:
+            return []
+        predicates = [
+            and_(Artifact.key == key, Artifact.uid == uid) for (key, uid) in identifiers
+        ]
+        return (
+            self._query(session, Artifact, project=project)
+            .filter(or_(*predicates))
+            .all()
+        )
 
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
@@ -934,18 +1004,31 @@ class SQLDB(DBInterface):
         return [row[0] for row in query]
 
     def list_artifact_tags(
-        self, session, project
+        self, session, project, category: schemas.ArtifactCategories = None
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, artifact.key, tag)
         """
-        query = (
-            session.query(Artifact.key, Artifact.Tag.name)
-            .filter(Artifact.Tag.project == project)
-            .join(Artifact)
-            .distinct()
+        # TODO - refactor once we have the artifact kind as a field in the DB, the filtering on category can be done
+        # as a simple SQL query, and don't need to use the extra processing of listing tags etc.
+
+        artifacts = self.list_artifacts(
+            session, project=project, tag="*", category=category
         )
-        return [(project, row[0], row[1]) for row in query]
+        results = []
+        for artifact in artifacts:
+            if is_legacy_artifact(artifact):
+                results.append((project, artifact.get("db_key"), artifact.get("tag")))
+            else:
+                results.append(
+                    (
+                        project,
+                        artifact["spec"].get("db_key"),
+                        artifact["metadata"].get("tag"),
+                    )
+                )
+
+        return results
 
     def create_schedule(
         self,
@@ -1121,6 +1204,11 @@ class SQLDB(DBInterface):
         ]
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
+        # found a bug in here, which is being exposed for when have multi-param execution, this because each
+        # artifact key is being concatenated with the key and the iteration, this because problemtic in this query
+        # because we are filtering by the key+iteration and not just the key ( which would require some regex )
+        # this would be fixed as part of the refactoring of the new artifact table structure where we would have
+        # column for iteration as well.
         for artifact in artifacts:
             query = (
                 self._query(
@@ -2717,13 +2805,17 @@ class SQLDB(DBInterface):
         kind=None,
         category: schemas.ArtifactCategories = None,
         iter=None,
+        use_tag_as_uid: bool = None,
     ):
         """
         TODO: refactor this method
         basically ids should be list of strings (representing ids), but we also handle 3 special cases (mainly for
         BC until we refactor the whole artifacts API):
         1. ids == "*" - in which we don't care about ids we just don't add any filter for this column
-        2. ids == "latest" - in which we find the relevant uid by finding the latest artifact using the updated column
+        2. ids == "latest":
+        use_tag_as_uid==(None or False) we find the relevant uid by finding the latest artifact using the updated column
+        use_tag_as_uid==True we are treating the ids as uid (for backwards compatibility where we have artifacts which
+        were created with uid==latest when created using the project.log_artifact() method)
         3. ids is a string (different than "latest") - in which the meaning is actually a uid, so we add this filter
         """
         if category and kind:
@@ -2733,13 +2825,12 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         query = self._query(session, Artifact, project=project)
         if ids != "*":
-            if ids == "latest":
+            if ids == "latest" and not use_tag_as_uid:
                 query = self._latest_uid_filter(session, query)
             elif isinstance(ids, str):
                 query = query.filter(Artifact.uid == ids)
             else:
                 query = query.filter(Artifact.id.in_(ids))
-
         query = self._add_labels_filter(session, query, Artifact, labels)
 
         if since or until:

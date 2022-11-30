@@ -67,6 +67,7 @@ class DaskFeatureMerger(BaseMerger):
 
             df = df.persist()
             dfs.append(df)
+            del df
 
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
 
@@ -88,7 +89,7 @@ class DaskFeatureMerger(BaseMerger):
         self._write_to_target()
 
         # check if need to set indices
-        self._result_df = self._set_indexes(self._result_df)
+        self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _reset_index(self, df):

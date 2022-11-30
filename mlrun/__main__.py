@@ -909,6 +909,7 @@ def logs(uid, project, offset, db, watch):
 )
 @click.option(
     "--overwrite",
+    "-o",
     is_flag=True,
     help="overwrite a schedule when submitting a new one with the same name",
 )

@@ -756,7 +756,9 @@ class _RemoteRunner(_PipelineRunner):
             )
             if workflow_spec.schedule and overwrite:
                 run_db = mlrun.get_run_db()
-                run_db.delete_schedule(project=project.metadata.name, name=workflow_name)
+                run_db.delete_schedule(
+                    project=project.metadata.name, name=workflow_name
+                )
             run = load_and_run_fn.run(
                 runspec=runspec,
                 local=False,

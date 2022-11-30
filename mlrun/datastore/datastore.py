@@ -146,8 +146,9 @@ class StoreManager:
             resource = get_store_resource(
                 url,
                 db=self._get_db(),
-                secrets=secrets or self._secrets,
+                secrets=self._secrets,
                 project=project,
+                store_secrets=secrets,
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
@@ -188,14 +189,19 @@ class StoreManager:
                 raise ValueError(f"no such store ({endpoint})")
 
         store_key = f"{schema}://{endpoint}"
-        if not secrets and self._get_db().kind == "http":
+        if not secrets and self._executing_on_client():
             if store_key in self._stores.keys():
                 return self._stores[store_key], subpath
 
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
+        # when running on server we don't cache the datastore, because there are multiple users and we don't want to
+        # cache the credentials, so for each new request we create a new store
         store = schema_to_store(schema)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
-        if not secrets and self._get_db().kind == "http":
+        if not secrets and self._executing_on_client():
             self._stores[store_key] = store
         return store, subpath
+
+    def _executing_on_client(self):
+        return self._get_db().kind == "http"

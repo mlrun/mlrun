@@ -15,6 +15,7 @@
 import copy
 import datetime
 import http
+import json.decoder
 import os
 import typing
 import unittest.mock
@@ -25,7 +26,6 @@ import deepdiff
 import fastapi.testclient
 import mergedeep
 import pytest
-import simplejson.errors
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -123,7 +123,7 @@ def test_redirection_from_worker_to_chief_delete_project(
             assert response.status_code == expected_status
             try:
                 assert response.json() == expected_response
-            except simplejson.errors.JSONDecodeError:
+            except json.decoder.JSONDecodeError:
                 # NO_CONTENT response doesn't return json serializable response
                 assert response.text == expected_response
 
@@ -687,7 +687,7 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.api.schemas.ProjectsFormat.leader},
+        params={"format": mlrun.api.schemas.ProjectsFormat.leader.value},
         headers={
             mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
@@ -736,7 +736,7 @@ def test_projects_crud(
     project_patch = {
         "spec": {
             "description": "lemon",
-            "desired_state": mlrun.api.schemas.ProjectState.archived,
+            "desired_state": mlrun.api.schemas.ProjectState.archived.value,
         }
     }
     response = client.patch(f"projects/{name1}", json=project_patch)
@@ -782,7 +782,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
+        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full.value}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -832,7 +832,7 @@ def test_projects_crud(
 
     # list - names only - filter by state
     _list_project_names_and_assert(
-        client, [name1], params={"state": mlrun.api.schemas.ProjectState.archived}
+        client, [name1], params={"state": mlrun.api.schemas.ProjectState.archived.value}
     )
 
     # add function to project 1
@@ -1225,7 +1225,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
+    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only.value
     # list - names only - filter by state
     response = client.get(
         "projects",

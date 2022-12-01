@@ -2005,6 +2005,7 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
+            workflow_spec.overwrite_schedule = overwrite_schedule
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2032,7 +2033,6 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
-            overwrite_schedule=overwrite_schedule,
         )
         # run is None when scheduling
         if (

@@ -72,6 +72,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        overwrite_schedule: bool = False,
     ):
         self.engine = engine
         self.code = code
@@ -84,6 +85,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
+        self.overwrite_schedule = overwrite_schedule
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -451,7 +453,6 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule: bool = False,
     ) -> _PipelineRunStatus:
         return None
 
@@ -527,7 +528,6 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule: bool = False,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -638,7 +638,6 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule: bool = False,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -709,56 +708,76 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule: bool = False,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        try:
-            # Creating the load project and workflow running function:
-            load_and_run_fn = mlrun.new_function(
-                name=runner_name,
-                project=project.name,
-                kind="job",
-                image=mlrun.mlconf.default_base_image,
-            )
-            msg = "executing workflow "
-            if workflow_spec.schedule:
-                msg += "scheduling "
-            logger.info(
-                f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
-            )
-            runspec = mlrun.RunObject.from_dict(
-                {
-                    "spec": {
-                        "parameters": {
-                            "url": project.spec.source,
-                            "project_name": project.name,
-                            "workflow_name": workflow_name or workflow_spec.name,
-                            "workflow_path": workflow_spec.path,
-                            "workflow_arguments": workflow_spec.args,
-                            "artifact_path": artifact_path,
-                            "workflow_handler": workflow_handler
-                            or workflow_spec.handler,
-                            "namespace": namespace,
-                            "ttl": workflow_spec.ttl,
-                            "engine": workflow_spec.engine,
-                            "local": workflow_spec.run_local,
-                        },
-                        "handler": "mlrun.projects.load_and_run",
+        # Creating the load project and workflow running function:
+        load_and_run_fn = mlrun.new_function(
+            name=runner_name,
+            project=project.name,
+            kind="job",
+            image=mlrun.mlconf.default_base_image,
+        )
+        msg = "executing workflow "
+        if workflow_spec.schedule:
+            msg += "scheduling "
+        logger.info(
+            f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
+        )
+        runspec = mlrun.RunObject.from_dict(
+            {
+                "spec": {
+                    "parameters": {
+                        "url": project.spec.source,
+                        "project_name": project.name,
+                        "workflow_name": workflow_name or workflow_spec.name,
+                        "workflow_path": workflow_spec.path,
+                        "workflow_arguments": workflow_spec.args,
+                        "artifact_path": artifact_path,
+                        "workflow_handler": workflow_handler
+                        or workflow_spec.handler,
+                        "namespace": namespace,
+                        "ttl": workflow_spec.ttl,
+                        "engine": workflow_spec.engine,
+                        "local": workflow_spec.run_local,
                     },
-                    "metadata": {"name": workflow_name},
-                }
-            )
-            runspec = runspec.set_label("job-type", "workflow-runner").set_label(
-                "workflow", workflow_name
-            )
+                    "handler": "mlrun.projects.load_and_run",
+                },
+                "metadata": {"name": workflow_name},
+            }
+        )
+        runspec = runspec.set_label("job-type", "workflow-runner").set_label(
+            "workflow", workflow_name
+        )
+        if workflow_spec.schedule:
+            is_scheduled = True
+            schedule_name = runspec.spec.parameters.get("workflow_name")
+            run_db = mlrun.get_run_db()
+
+            try:
+                run_db.get_schedule(project.name, schedule_name)
+            except mlrun.errors.MLRunNotFoundError:
+                is_scheduled = False
+
+            if workflow_spec.overwrite_schedule:
+                run_db.delete_schedule(project.name, schedule_name)
+            elif is_scheduled:
+                raise mlrun.errors.MLRunConflictError(
+                    f"There is already a schedule for workflow {schedule_name}."
+                    "If you want to overwrite this schedule use 'overwrite = True'"
+                )
+            else:
+                logger.warning(
+                    f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
+                )
+
+        try:
             run = load_and_run_fn.run(
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
-                overwrite_schedule=overwrite_schedule,
                 artifact_path=artifact_path,
             )
             if workflow_spec.schedule:

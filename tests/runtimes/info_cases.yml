@@ -1,0 +1,132 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+- code: |
+    def inc(n: int) -> int:
+        """increment n"""
+        return n + 1
+  expected:
+      name: inc
+      doc: increment n
+      return:
+        name: ""
+        type: int
+        doc: ""
+        default: ""
+      params:
+        - name: n
+          type: int
+          doc: ""
+          default: ""
+      lineno: 1
+  id: inc_ann
+- code: |
+    def inc(n):
+        return n + 1
+  expected:
+      name: inc
+      doc: ""
+      return:
+        name: ""
+        type: ""
+        doc: ""
+        default: ""
+      params:
+        - name: n
+          type: ""
+          doc: ""
+          default: ""
+      lineno: 1
+  id: inc_no_ann
+- code: |
+    def inc(n: int) -> int:
+        """increment n
+
+        :param n: number to increment
+        :returns: a number
+        :rtype: int
+        """
+        return n + 1
+  expected:
+      name: inc
+      doc: increment n
+      return:
+        name: ""
+        type: int
+        doc: a number
+        default: ""
+      params:
+        - name: n
+          type: int
+          doc: number to increment
+          default: ""
+      lineno: 1
+  id: inc_ann_doc
+- code: |
+    def inc(n: int, delta: int = 1) -> int:
+        """increment n"""
+        return n + delta
+  expected:
+      name: inc
+      doc: increment n
+      return:
+        name: ""
+        type: int
+        doc: ""
+        default: ""
+      params:
+        - name: n
+          type: int
+          doc: ""
+          default: ""
+        - name: delta
+          type: int
+          doc: ""
+          default: "1"
+      lineno: 1
+  id: inc_ann_default
+- code: |
+    def open_archive(context, 
+                     target_dir: str = 'content',
+                     archive_url: str = ''):
+        """Open a file/object archive into a target directory
+        
+        :param target_dir:   target directory
+        :param archive_url:  source archive path/url
+        
+        :returns: content dir
+        """
+  expected:
+      name: open_archive
+      doc: Open a file/object archive into a target directory
+      return:
+        name: ""
+        type: ""
+        doc: "content dir"
+        default: ""
+      params:
+        - name: context
+          type: ""
+          doc: ""
+          default: ""
+        - name: target_dir
+          type: str
+          doc: "target directory"
+          default: "'content'"
+        - name: archive_url
+          type: str
+          doc: "source archive path/url"
+          default: "''"
+      lineno: 1
+  id: undocumented param

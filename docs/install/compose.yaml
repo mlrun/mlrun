@@ -1,0 +1,94 @@
+services:
+  init_nuclio:
+    image: alpine:3.16
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        mkdir -p /etc/nuclio/config/platform; \
+        cat << EOF | tee /etc/nuclio/config/platform/platform.yaml
+        runtime:
+          common:
+            env:
+              MLRUN_DBPATH: http://${HOST_IP:?err}:8080
+        local:
+          defaultFunctionContainerNetworkName: mlrun
+          defaultFunctionRestartPolicy:
+            name: always
+            maxRetryCount: 0
+          defaultFunctionVolumes:
+            - volume:
+                name: mlrun-stuff
+                hostPath:
+                  path: ${SHARED_DIR:?err}
+              volumeMount:
+                name: mlrun-stuff
+                mountPath: /home/jovyan/data/
+        logger:
+          sinks:
+            myStdoutLoggerSink:
+              kind: stdout
+          system:
+            - level: debug
+              sink: myStdoutLoggerSink
+          functions:
+            - level: debug
+              sink: myStdoutLoggerSink
+        EOF
+    volumes:
+      - nuclio-platform-config:/etc/nuclio/config
+
+  mlrun-api:
+    image: "mlrun/mlrun-api:${TAG:-1.2.0}"
+    ports:
+      - "8080:8080"
+    environment:
+      MLRUN_ARTIFACT_PATH: "${SHARED_DIR}/{{project}}"
+      # using local storage, meaning files / artifacts are stored locally, so we want to allow access to them
+      MLRUN_HTTPDB__REAL_PATH: /data
+      MLRUN_HTTPDB__DATA_VOLUME: "${SHARED_DIR}"
+      MLRUN_LOG_LEVEL: DEBUG
+      MLRUN_NUCLIO_DASHBOARD_URL: http://nuclio:8070
+      MLRUN_HTTPDB__DSN: "sqlite:////data/mlrun.db?check_same_thread=false"
+      MLRUN_UI__URL: http://localhost:8060
+      # not running on k8s meaning no need to store secrets
+      MLRUN_SECRET_STORES__KUBERNETES__AUTO_ADD_PROJECT_SECRETS: "false"
+      # let mlrun control nuclio resources
+      MLRUN_HTTPDB__PROJECTS__FOLLOWERS: "nuclio"
+    volumes:
+      - "${SHARED_DIR:?err}:/data"
+    networks:
+      - mlrun
+
+  mlrun-ui:
+    image: "mlrun/mlrun-ui:${TAG:-1.2.0}"
+    ports:
+      - "8060:8090"
+    environment:
+      MLRUN_API_PROXY_URL: http://mlrun-api:8080
+      MLRUN_NUCLIO_MODE: enable
+      MLRUN_NUCLIO_API_URL: http://nuclio:8070
+      MLRUN_NUCLIO_UI_URL: http://localhost:8070
+    networks:
+      - mlrun
+
+  nuclio:
+    image: "quay.io/nuclio/dashboard:${NUCLIO_TAG:-stable-amd64}"
+    ports:
+      - "8070:8070"
+    environment:
+      NUCLIO_DASHBOARD_EXTERNAL_IP_ADDRESSES: "${HOST_IP:?err}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nuclio-platform-config:/etc/nuclio/config
+    depends_on:
+      - init_nuclio
+    networks:
+      - mlrun
+
+volumes:
+  nuclio-platform-config: {}
+
+networks:
+  mlrun:
+    name: mlrun

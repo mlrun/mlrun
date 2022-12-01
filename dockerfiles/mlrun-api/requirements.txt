@@ -1,0 +1,5 @@
+uvicorn~=0.17.0
+dask-kubernetes~=0.11.0
+apscheduler~=3.6
+sqlite3-to-mysql~=1.4
+objgraph~=3.5

@@ -1324,17 +1324,13 @@ class HTTPRunDB(RunDBInterface):
         return resp.json()["data"]
 
     def submit_job(
-        self,
-        runspec,
-        schedule: Union[str, schemas.ScheduleCronTrigger] = None,
-        overwrite_schedule: bool = False,
+            self, runspec, schedule: Union[str, schemas.ScheduleCronTrigger] = None
     ):
         """Submit a job for remote execution.
 
         :param runspec: The runtime object spec (Task) to execute.
         :param schedule: Whether to schedule this job using a Cron trigger. If not specified, the job will be submitted
             immediately.
-        :param overwrite_schedule: Whether to delete an existing scheduled job with the same name.
         """
 
         try:
@@ -1343,7 +1339,6 @@ class HTTPRunDB(RunDBInterface):
                 if isinstance(schedule, schemas.ScheduleCronTrigger):
                     schedule = schedule.dict()
                 req["schedule"] = schedule
-                req["overwrite_schedule"] = overwrite_schedule
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
         except OSError as err:

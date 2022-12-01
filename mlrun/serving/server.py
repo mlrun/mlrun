@@ -21,7 +21,6 @@ import socket
 import sys
 import traceback
 import uuid
-from datetime import datetime, timezone
 from typing import Optional, Union
 
 import mlrun

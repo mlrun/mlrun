@@ -175,7 +175,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert stocks_set.status.stats["exchange"], "stats not created"
 
     def _ingest_quotes_featureset(self):
-        quotes_set = FeatureSet("stock-quotes", entities=["ticker"], timestamp_key="time")
+        quotes_set = FeatureSet(
+            "stock-quotes", entities=["ticker"], timestamp_key="time"
+        )
 
         flow = quotes_set.graph
         flow.to("MyMap", multiplier=3).to(
@@ -710,9 +712,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         csv_path = tempfile.mktemp(".csv")
         df.to_csv(path_or_buf=csv_path, index=False)
-        source = CSVSource(
-            path=csv_path, parse_dates=["another_time_column"]
-        )
+        source = CSVSource(path=csv_path, parse_dates=["another_time_column"])
 
         measurements = fs.FeatureSet(
             "fs", entities=[Entity("key")], timestamp_key="time_stamp"
@@ -2153,7 +2153,9 @@ class TestFeatureStore(TestMLRunSystem):
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
         fset_name = "a2-stream_test"
-        myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time")
+        myset = FeatureSet(
+            f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time"
+        )
         fs.ingest(myset, quotes)
         source = StreamSource(key_field="ticker")
         filename = str(
@@ -2599,7 +2601,9 @@ class TestFeatureStore(TestMLRunSystem):
         self, targets, feature_set_targets, expected_target_names
     ):
         fset_name = "dis-set"
-        fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time")
+        fset = FeatureSet(
+            f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time"
+        )
 
         if feature_set_targets:
             fset.set_targets(feature_set_targets, with_defaults=False)

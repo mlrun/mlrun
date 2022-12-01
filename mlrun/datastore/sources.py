@@ -601,9 +601,7 @@ class DataFrameSource:
 
     support_storey = True
 
-    def __init__(
-        self, df, key_field=None, context=None, iterator=False
-    ):
+    def __init__(self, df, key_field=None, context=None, iterator=False):
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]

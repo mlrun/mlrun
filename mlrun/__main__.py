@@ -1009,6 +1009,7 @@ def project(
                 engine=engine,
                 local=local,
                 schedule=schedule,
+                timeout=timeout,
             )
         except Exception as exc:
             print(traceback.format_exc())

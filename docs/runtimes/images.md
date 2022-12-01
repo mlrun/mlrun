@@ -19,7 +19,7 @@ See [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.
 ## MLRun images and external docker images
 
 There is no difference in the usage between the MLRun images and external docker images. However:
-- MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.0.6`. So, if the client gets upgraded you'll automatically get a new image tag. 
+- MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.2.0`. So, if the client gets upgraded you'll automatically get a new image tag. 
 - Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the datanode registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.2.0`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.2.0`.
 
 These characteristics are great when you’re working in a POC or development environment. But MLRun typically upgrades packages as part of the image, and therefore the default MLRun images can break your product flow. 

@@ -451,7 +451,7 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule=None,
+        overwrite_schedule: bool = False,
     ) -> _PipelineRunStatus:
         return None
 
@@ -527,7 +527,7 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule=None,
+        overwrite_schedule: bool = False,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -638,7 +638,7 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule=None,
+        overwrite_schedule: bool = False,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -709,7 +709,7 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite_schedule=None,
+        overwrite_schedule: bool = False,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"

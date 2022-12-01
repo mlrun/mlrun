@@ -1155,7 +1155,6 @@ class DataSource(ModelObj):
         "path",
         "attributes",
         "key_field",
-        "time_field",
         "schedule",
         "online",
         "workers",
@@ -1171,7 +1170,6 @@ class DataSource(ModelObj):
         path: str = None,
         attributes: Dict[str, str] = None,
         key_field: str = None,
-        time_field: str = None,
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
@@ -1182,7 +1180,6 @@ class DataSource(ModelObj):
         self.attributes = attributes or {}
         self.schedule = schedule
         self.key_field = key_field
-        self.time_field = time_field
         self.start_time = start_time
         self.end_time = end_time
 

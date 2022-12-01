@@ -688,7 +688,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
         )
         resp = fs.ingest(measurements, source)
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
@@ -713,7 +712,7 @@ class TestFeatureStore(TestMLRunSystem):
         csv_path = tempfile.mktemp(".csv")
         df.to_csv(path_or_buf=csv_path, index=False)
         source = CSVSource(
-            path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
+            path=csv_path, parse_dates=["another_time_column"]
         )
 
         measurements = fs.FeatureSet(
@@ -762,7 +761,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            time_field="timestamp",
             start_time=datetime(2020, 12, 1, 17, 33, 15),
             end_time="2020-12-01 17:33:16",
         )
@@ -778,7 +776,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            time_field="timestamp",
             start_time=datetime(2022, 12, 1, 17, 33, 15),
             end_time="2022-12-01 17:33:16",
         )
@@ -805,7 +802,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
         )
         measurements.set_targets(
             targets=[
@@ -1306,7 +1302,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
             schedule="mock",
         )
 
@@ -1686,7 +1681,6 @@ class TestFeatureStore(TestMLRunSystem):
             source = CSVSource(
                 "mycsv",
                 path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-                time_field="timestamp",
             )
 
             fs.ingest(
@@ -1963,7 +1957,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=path,
-            time_field="timestamp",
         )
         targets = [
             CSVTarget(),
@@ -1997,7 +1990,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=path,
-            time_field="timestamp",
         )
         targets = [
             CSVTarget(),
@@ -2048,7 +2040,6 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=path,
-            time_field="timestamp",
         )
         targets = [
             NoSqlTarget(
@@ -2163,9 +2154,9 @@ class TestFeatureStore(TestMLRunSystem):
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
         fset_name = "a2-stream_test"
-        myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
+        myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time")
         fs.ingest(myset, quotes)
-        source = StreamSource(key_field="ticker", time_field="time")
+        source = StreamSource(key_field="ticker")
         filename = str(
             pathlib.Path(tests.conftest.tests_root_directory)
             / "api"
@@ -2370,8 +2361,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_preview_saves_changes(self):
         name = "update-on-preview"
-        v3io_source = StreamSource(key_field="ticker", time_field="time")
-        fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
+        v3io_source = StreamSource(key_field="ticker")
+        fset = fs.FeatureSet(name, entities=[Entity("ticker")], timestamp_key="time")
         import v3io.dataplane
 
         v3io_client = v3io.dataplane.Client()
@@ -2609,12 +2600,12 @@ class TestFeatureStore(TestMLRunSystem):
         self, targets, feature_set_targets, expected_target_names
     ):
         fset_name = "dis-set"
-        fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
+        fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time")
 
         if feature_set_targets:
             fset.set_targets(feature_set_targets, with_defaults=False)
         fs.ingest(fset, quotes)
-        source = StreamSource(key_field="ticker", time_field="time")
+        source = StreamSource(key_field="ticker")
         filename = str(
             pathlib.Path(tests.conftest.tests_root_directory)
             / "api"

@@ -118,4 +118,3 @@ RUN python -m pip install \
 COPY . .
 
 RUN python -m pip install .[complete]
-

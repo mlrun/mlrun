@@ -911,7 +911,7 @@ def logs(uid, project, offset, db, watch):
     "--overwrite-schedule",
     "-os",
     is_flag=True,
-    help="overwrite a schedule when submitting a new one with the same name",
+    help="Overwrite a schedule when submitting a new one with the same name.",
 )
 def project(
     context,

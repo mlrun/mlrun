@@ -305,6 +305,7 @@ class BaseRuntime(ModelObj):
         local=False,
         local_code_path=None,
         auto_build=None,
+        overwrite_schedule: bool = False,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -333,6 +334,7 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
+        :param overwrite_schedule: delete schedule when submitting a new one with the same name
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -410,7 +412,7 @@ class BaseRuntime(ModelObj):
 
         # execute the job remotely (to a k8s cluster via the API service)
         if self._use_remote_api():
-            return self._submit_job(run, schedule, db, watch)
+            return self._submit_job(run, schedule, db, watch, overwrite_schedule)
 
         elif self._is_remote and not self._is_api_server and not self.kfp:
             logger.warning(
@@ -694,11 +696,13 @@ class BaseRuntime(ModelObj):
             )
         return runspec
 
-    def _submit_job(self, runspec, schedule, db, watch):
+    def _submit_job(self, runspec, schedule, db, watch, overwrite_schedule):
         if self._secrets:
             runspec.spec.secret_sources = self._secrets.to_serial()
         try:
-            resp = db.submit_job(runspec, schedule=schedule)
+            resp = db.submit_job(
+                runspec, schedule=schedule, overwrite_schedule=overwrite_schedule
+            )
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return

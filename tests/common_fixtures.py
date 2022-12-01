@@ -196,7 +196,7 @@ class RunDBMock:
             "tag": tag,
         }
 
-    def submit_job(self, runspec, schedule=None):
+    def submit_job(self, runspec, schedule=None, overwrite_schedule=None):
         return {"status": {"status_text": "just a status"}}
 
     def submit_pipeline(

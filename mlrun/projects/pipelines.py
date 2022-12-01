@@ -451,7 +451,7 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite=None,
+        overwrite_schedule=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -527,7 +527,7 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite=None,
+        overwrite_schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -638,7 +638,7 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite=None,
+        overwrite_schedule=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -709,7 +709,7 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
-        overwrite=None,
+        overwrite_schedule=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
@@ -754,15 +754,11 @@ class _RemoteRunner(_PipelineRunner):
             runspec = runspec.set_label("job-type", "workflow-runner").set_label(
                 "workflow", workflow_name
             )
-            if workflow_spec.schedule and overwrite:
-                run_db = mlrun.get_run_db()
-                run_db.delete_schedule(
-                    project=project.metadata.name, name=workflow_name
-                )
             run = load_and_run_fn.run(
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
+                overwrite_schedule=overwrite_schedule,
                 artifact_path=artifact_path,
             )
             if workflow_spec.schedule:

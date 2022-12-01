@@ -588,12 +588,14 @@ class TestProject(TestMLRunSystem):
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
         # overwriting nothing
-        project.run(workflow_name, schedule=schedules[0], overwrite=True)
+        project.run(workflow_name, schedule=schedules[0], overwrite_schedule=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert schedule.scheduled_object["schedule"] == schedules[0]
 
         # overwriting schedule:
-        project.run(workflow_name, schedule=schedules[1], dirty=True, overwrite=True)
+        project.run(
+            workflow_name, schedule=schedules[1], dirty=True, overwrite_schedule=True
+        )
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert schedule.scheduled_object["schedule"] == schedules[1]
 
@@ -605,7 +607,7 @@ class TestProject(TestMLRunSystem):
             "-d",
             "-r",
             workflow_name,
-            "-o",  # stands for overwrite
+            "-os",  # stands for overwrite-schedule
             "--schedule",
             f"'{schedules[2]}'",
         ]

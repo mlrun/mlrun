@@ -679,6 +679,12 @@ def _submit_run(
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
+            if data.get("overwrite_schedule"):
+                get_scheduler().delete_schedule(
+                    db_session,
+                    task["metadata"]["project"],
+                    task["metadata"]["name"],
+                )
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)

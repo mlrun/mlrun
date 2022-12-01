@@ -908,8 +908,8 @@ def logs(uid, project, offset, db, watch):
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
 @click.option(
-    "--overwrite",
-    "-o",
+    "--overwrite-schedule",
+    "-os",
     is_flag=True,
     help="overwrite a schedule when submitting a new one with the same name",
 )
@@ -938,7 +938,7 @@ def project(
     timeout,
     ensure_project,
     schedule,
-    overwrite,
+    overwrite_schedule,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1016,7 +1016,7 @@ def project(
                 engine=engine,
                 local=local,
                 schedule=schedule,
-                overwrite=overwrite,
+                overwrite_schedule=overwrite_schedule,
             )
         except Exception as exc:
             print(traceback.format_exc())

@@ -46,6 +46,8 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
 ARG MLRUN_PIP_VERSION=22.3.0
 ARG MLRUN_PYTHON_VERSION=3.9.13
 
+ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
+
 RUN conda config --add channels conda-forge && \
     conda update -n base -c defaults conda && \
     conda install -n base \
@@ -88,7 +90,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 ARG HOROVOD_VERSION=0.25.0
 
-RUN mamba install -c deepmodeling -c conda-forge horovod=${HOROVOD_VERSION} && \
+RUN mamba install -c deepmodeling horovod=${HOROVOD_VERSION} && \
     horovodrun --check-build
 
 WORKDIR /mlrun
@@ -116,3 +118,4 @@ RUN python -m pip install \
 COPY . .
 
 RUN python -m pip install .[complete]
+

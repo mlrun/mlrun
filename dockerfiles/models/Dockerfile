@@ -16,7 +16,11 @@ ARG MLRUN_BASE_IMAGE=mlrun/ml-base:unstable-core
 
 FROM ${MLRUN_BASE_IMAGE}
 
-ARG OMPI=4.1.0
+# install rust since it's a dependency of tokenizers
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . $HOME/.cargo/env
+
+ARG OMPI=4.1.4
 
 # Install Open MPI
 RUN mkdir /tmp/openmpi && \
@@ -52,9 +56,5 @@ RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
 RUN ln -sf /opt/conda/bin/python3 /usr/local/bin/python3
 
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
-
-# install rust since it's a dependency of tokenizers
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    . $HOME/.cargo/env
 
 RUN python -m pip install -r models-image-requirements.txt

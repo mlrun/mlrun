@@ -657,4 +657,6 @@ class TestProject(TestMLRunSystem):
         ]
         exec_project(args)
         schedule = self._run_db.get_schedule(name, workflow_name)
-        assert schedule.scheduled_object["schedule"] == schedules[2]
+        assert (
+                schedule.scheduled_object["schedule"] == schedules[2]
+        ), "Failed to overwrite from CLI"

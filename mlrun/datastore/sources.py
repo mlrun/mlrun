@@ -135,9 +135,12 @@ class CSVSource(BaseSourceDriver):
         if context:
             attributes["context"] = context
         parse_dates = self._parse_dates
-        if time_field not in parse_dates:
-            parse_dates = copy(parse_dates)
-            parse_dates.append(time_field)
+        if time_field is not None:
+            if parse_dates is None:
+                parse_dates = [time_field]
+            elif time_field not in parse_dates:
+                parse_dates = copy(parse_dates)
+                parse_dates.append(time_field)
         return storey.CSVSource(
             paths=self.path,
             header=True,
@@ -610,7 +613,7 @@ class DataFrameSource:
         self.context = context
         self.iterator = iterator
 
-    def to_step(self, key_field=None, context=None):
+    def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
         return storey.DataframeSource(

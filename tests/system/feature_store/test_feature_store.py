@@ -175,7 +175,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert stocks_set.status.stats["exchange"], "stats not created"
 
     def _ingest_quotes_featureset(self):
-        quotes_set = FeatureSet("stock-quotes", entities=["ticker"])
+        quotes_set = FeatureSet("stock-quotes", entities=["ticker"], timestamp_key="time")
 
         flow = quotes_set.graph
         flow.to("MyMap", multiplier=3).to(
@@ -204,7 +204,6 @@ class TestFeatureStore(TestMLRunSystem):
             quotes_set,
             quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
             options=fs.InferOptions.default(),
         )
         self._logger.info(f"quotes spec: {quotes_set.spec.to_yaml()}")

@@ -209,7 +209,6 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         self._logger.debug(f"Intermediate record: {record}")
         assert record["full_event_wrapper"] is True
         assert record["body"] == {"hello": "world"}
-        assert "time" in record.keys()
         assert "id" in record.keys()
 
 
@@ -333,7 +332,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         self._logger.debug(f"Intermediate record: {payload}")
         assert payload["full_event_wrapper"] is True
         assert payload["body"] == {"hello": "world"}
-        assert "time" in payload.keys()
         assert "id" in payload.keys()
         assert record.partition == 1
 

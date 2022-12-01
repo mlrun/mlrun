@@ -714,6 +714,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                 }
             )
 
+        # TODO: Event time is removed, replace.
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
         storey_event = storey.Event(body=events, key=endpoint_id, time=timestamp)

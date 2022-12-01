@@ -21,7 +21,6 @@ import pandas as pd
 from storey import MapClass
 
 import mlrun.errors
-from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
@@ -91,8 +90,6 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                 if not ok:
                     message = args.pop("message")
                     key_text = f" key={event.key}" if event.key else ""
-                    if event.time:
-                        key_text += f" time={event.time}"
                     print(
                         f"{validator.severity}! {name} {message},{key_text} args={args}"
                     )
@@ -114,8 +111,6 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                         message = args.pop("message")
                 if violations != 0:
                     text = f" column={column}, has {violations} violations"
-                    if event.time:
-                        text += f" time={event.time}"
                     print(
                         f"{validator.severity}! {column} {message},{text} args={all_args}"
                     )
@@ -483,10 +478,6 @@ class SetEventMetadata(MapClass):
             self._tagging_funcs.append(add_metadata("id", self.id_path))
         if self.key_path:
             self._tagging_funcs.append(add_metadata("key", self.key_path))
-        if self.time_path:
-            self._tagging_funcs.append(
-                add_metadata("time", self.time_path, get_event_time)
-            )
         if self.random_id:
             self._tagging_funcs.append(set_random_id)
 

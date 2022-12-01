@@ -39,7 +39,6 @@ def extract_meta(event):
     event.body = {
         "id": event.id,
         "key": event.key,
-        "time": event.time,
     }
     return event
 

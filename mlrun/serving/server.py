@@ -387,7 +387,6 @@ class MockEvent(object):
         self.id = event_id or uuid.uuid4().hex
         self.key = ""
         self.body = body
-        self.time = get_event_time(time) or datetime.now(timezone.utc)
 
         # optional
         self.headers = headers or {}
@@ -528,17 +527,3 @@ def format_error(server, context, source, event, message, args):
         "message": message,
         "args": args,
     }
-
-
-def get_event_time(time):
-    # init the event time from time, date, or str (similar to storey)
-    if time is not None and not isinstance(time, datetime):
-        if isinstance(time, str):
-            time = datetime.fromisoformat(time)
-        elif isinstance(time, int):
-            time = datetime.utcfromtimestamp(time)
-        else:
-            raise TypeError(
-                f"Event time parameter must be a datetime, string, or int. Got {type(time)} instead."
-            )
-    return time

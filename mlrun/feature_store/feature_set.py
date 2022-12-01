@@ -728,6 +728,7 @@ class FeatureSet(ModelObj):
                     time_field=self.spec.timestamp_key,
                     aggregates=[aggregation],
                     table=".",
+                    time_field=self.spec.timestamp_key,
                     **class_args,
                 )
             elif self.spec.engine == "spark":

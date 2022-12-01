@@ -2023,6 +2023,7 @@ class MlrunProject(ModelObj):
         if not inner_engine and engine == "remote":
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
+
         run = workflow_engine.run(
             self,
             workflow_spec,
@@ -2033,12 +2034,16 @@ class MlrunProject(ModelObj):
             namespace=namespace,
             overwrite_schedule=overwrite_schedule,
         )
-        run_msg = f"started run workflow {name} "
         # run is None when scheduling
-        if run:
-            run_msg += f"with run id = '{run.run_id}' "
-        run_msg += f"by {workflow_engine.engine} engine"
-        logger.info(run_msg)
+        if (
+            run
+            and run.state != mlrun.run.RunStatuses.failed
+            and not workflow_spec.schedule
+        ):
+            # Failure and schedule messages already logged
+            logger.info(
+                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
+            )
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)

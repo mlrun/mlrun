@@ -770,12 +770,14 @@ class _RemoteRunner(_PipelineRunner):
                 time.sleep(1)
             # After fetching the workflow_id the workflow executed successfully
             state = mlrun.run.RunStatuses.succeeded
-
-        except Exception as e:
+        except Exception as error:
             trace = traceback.format_exc()
             logger.error(trace)
+            if isinstance(error, mlrun.errors.MLRunConflictError):
+                logger.info("For overwriting scheduled workflow, use overwrite=True")
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
+                f"Workflow {workflow_name} run failed!, error: {error}\n{trace}",
+                "error",
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(

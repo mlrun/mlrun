@@ -679,13 +679,22 @@ def _submit_run(
         # fn.spec.rundb = "http://mlrun-api:8080"
         schedule = data.get("schedule")
         if schedule:
+            project_name = task["metadata"]["project"]
+            schedule_name = task["metadata"]["name"]
             if data.get("overwrite_schedule"):
-                get_scheduler().delete_schedule(
-                    db_session,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                )
-                db_session.commit()
+                if get_scheduler().list_schedules(
+                    db_session, project_name, schedule_name
+                ):
+                    get_scheduler().delete_schedule(
+                        db_session,
+                        project_name,
+                        schedule_name,
+                    )
+                    db_session.commit()
+                else:
+                    logger.warning(
+                        f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
+                    )
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)
@@ -693,19 +702,19 @@ def _submit_run(
             get_scheduler().create_schedule(
                 db_session,
                 auth_info,
-                task["metadata"]["project"],
-                task["metadata"]["name"],
+                project_name,
+                schedule_name,
                 schemas.ScheduleKinds.job,
                 data,
                 cron_trigger,
                 schedule_labels,
             )
-            project = task["metadata"]["project"]
+            project = project_name
 
             response = {
                 "schedule": schedule,
-                "project": task["metadata"]["project"],
-                "name": task["metadata"]["name"],
+                "project": project_name,
+                "name": schedule_name,
             }
         else:
             run = fn.run(task, watch=False)

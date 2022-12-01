@@ -685,6 +685,7 @@ def _submit_run(
                     task["metadata"]["project"],
                     task["metadata"]["name"],
                 )
+                db_session.commit()
             cron_trigger = schedule
             if isinstance(cron_trigger, dict):
                 cron_trigger = schemas.ScheduleCronTrigger(**cron_trigger)

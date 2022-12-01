@@ -1412,10 +1412,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         path = data_set.status.targets[0].get_path().get_absolute_path()
 
-        # the job will be scheduled every minute
-        cron_trigger = "*/1 * * * *"
-
-        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fs.FeatureSet(
             name="overwrite",
@@ -1432,7 +1429,7 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        sleep(60)
+
         features = ["overwrite.*"]
         vec = fs.FeatureVector("svec", features)
 

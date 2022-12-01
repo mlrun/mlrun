@@ -720,10 +720,7 @@ class _RemoteRunner(_PipelineRunner):
             kind="job",
             image=mlrun.mlconf.default_base_image,
         )
-        msg = "executing workflow "
-        if workflow_spec.schedule:
-            msg += "scheduling "
-        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
+
         runspec = mlrun.RunObject.from_dict(
             {
                 "spec": {
@@ -759,16 +756,23 @@ class _RemoteRunner(_PipelineRunner):
                 is_scheduled = False
 
             if workflow_spec.overwrite_schedule:
-                run_db.delete_schedule(project.name, schedule_name)
+                if is_scheduled:
+                    run_db.delete_schedule(project.name, schedule_name)
+                else:
+                    run_db.delete_schedule(project.name, schedule_name)
+                    logger.warning(
+                        f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
+                    )
             elif is_scheduled:
                 raise mlrun.errors.MLRunConflictError(
                     f"There is already a schedule for workflow {schedule_name}."
-                    "If you want to overwrite this schedule use 'overwrite = True'"
+                    " If you want to overwrite this schedule use 'overwrite = True'"
                 )
-            else:
-                logger.warning(
-                    f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
-                )
+
+        msg = "executing workflow "
+        if workflow_spec.schedule:
+            msg += "scheduling "
+        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
 
         try:
             run = load_and_run_fn.run(

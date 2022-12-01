@@ -622,14 +622,26 @@ class TestProject(TestMLRunSystem):
         # overwriting nothing
         project.run(workflow_name, schedule=schedules[0], overwrite_schedule=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
-        assert schedule.scheduled_object["schedule"] == schedules[0]
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[0]
+        ), "Failed to overwrite nothing"
 
         # overwriting schedule:
         project.run(
             workflow_name, schedule=schedules[1], dirty=True, overwrite_schedule=True
         )
         schedule = self._run_db.get_schedule(name, workflow_name)
-        assert schedule.scheduled_object["schedule"] == schedules[1]
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[1]
+        ), "Failed to overwrite existing schedule"
+
+        # submit schedule when one exists without overwrite - fail:
+        with pytest.raises(mlrun.errors.MLRunConflictError):
+            project.run(
+                workflow_name,
+                schedule=schedules[1],
+                dirty=True,
+            )
 
         # overwriting schedule from cli:
         args = [

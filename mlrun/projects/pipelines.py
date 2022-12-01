@@ -786,6 +786,7 @@ class _RemoteRunner(_PipelineRunner):
                 time.sleep(1)
             # After fetching the workflow_id the workflow executed successfully
             state = mlrun.run.RunStatuses.succeeded
+
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)

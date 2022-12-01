@@ -334,7 +334,7 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-        :param overwrite_schedule: delete schedule when submitting a new one with the same name
+        :param overwrite_schedule: Delete a schedule when submitting a new one with the same name.
 
         :return: run context object (RunObject) with run metadata, results and status
         """

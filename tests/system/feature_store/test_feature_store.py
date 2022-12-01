@@ -1303,11 +1303,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        # the job will be scheduled every minute
-        cron_trigger = "*/1 * * * *"
-
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet",
+            path=path,
+            time_field="time",
+            schedule="mock",
         )
 
         feature_set = fs.FeatureSet(
@@ -1340,8 +1340,6 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        # ingest starts every round minute.
-        sleep(60 - now.second + 10)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -1367,7 +1365,13 @@ class TestFeatureStore(TestMLRunSystem):
             # writing down a remote source
             fs.ingest(data_set, data, targets=[data_target], overwrite=False)
 
-            sleep(60)
+            fs.ingest(
+                feature_set,
+                source,
+                run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+                targets=targets,
+            )
+
             resp = svc.get(
                 [
                     {"first_name": "yosi"},
@@ -2865,6 +2869,9 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2887,7 +2894,8 @@ class TestFeatureStore(TestMLRunSystem):
             fs.ingest(stocks_set, stocks, [target])
             pytest.fail("Expected a ValueError to be raised")
         except ValueError as ex:
-            assert str(ex) == "Not supported codec: invalid value"
+            if str(ex) != "Not supported codec: invalid value":
+                raise ex
 
     def test_alias_change(self):
         quotes = pd.DataFrame(

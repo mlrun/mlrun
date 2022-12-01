@@ -723,9 +723,7 @@ class _RemoteRunner(_PipelineRunner):
         msg = "executing workflow "
         if workflow_spec.schedule:
             msg += "scheduling "
-        logger.info(
-            f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
-        )
+        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
         runspec = mlrun.RunObject.from_dict(
             {
                 "spec": {
@@ -736,8 +734,7 @@ class _RemoteRunner(_PipelineRunner):
                         "workflow_path": workflow_spec.path,
                         "workflow_arguments": workflow_spec.args,
                         "artifact_path": artifact_path,
-                        "workflow_handler": workflow_handler
-                        or workflow_spec.handler,
+                        "workflow_handler": workflow_handler or workflow_spec.handler,
                         "namespace": namespace,
                         "ttl": workflow_spec.ttl,
                         "engine": workflow_spec.engine,

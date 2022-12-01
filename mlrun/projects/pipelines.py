@@ -757,7 +757,7 @@ class _RemoteRunner(_PipelineRunner):
 
             if workflow_spec.overwrite_schedule:
                 if is_scheduled:
-                    logger.info("Deleting existing schedule")
+                    logger.info(f"Deleting schedule {schedule_name}")
                     run_db.delete_schedule(project.name, schedule_name)
                 else:
                     logger.warning(

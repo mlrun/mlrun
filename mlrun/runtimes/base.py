@@ -343,9 +343,11 @@ class BaseRuntime(ModelObj):
 
         self._enrich_function()
 
+        run = self._create_run_object(runspec)
+
         if local:
             return self._run_local(
-                runspec,
+                run,
                 schedule,
                 local_code_path,
                 project,
@@ -356,8 +358,6 @@ class BaseRuntime(ModelObj):
                 inputs,
                 artifact_path,
             )
-
-        run = self._create_run_object(runspec)
 
         run = self._enrich_run(
             run,
@@ -385,6 +385,7 @@ class BaseRuntime(ModelObj):
                     "absolute artifact_path must be specified"
                     " when running remote tasks"
                 )
+
         db = self._get_db()
 
         if not self.is_deployed():
@@ -395,7 +396,7 @@ class BaseRuntime(ModelObj):
                 self.deploy(skip_deployed=True, show_on_failure=True)
             else:
                 raise RunError(
-                    "function image is not built/ready, use .deploy() method first"
+                    "function image is not built/ready, set auto_build=True or use .deploy() method first"
                 )
 
         if self.verbose:
@@ -589,7 +590,7 @@ class BaseRuntime(ModelObj):
         self,
         runspec,
         handler,
-        project,
+        project_name,
         name,
         params,
         inputs,
@@ -620,7 +621,7 @@ class BaseRuntime(ModelObj):
             "run.metadata.name", runspec.metadata.name, mlrun.utils.regex.run_name
         )
         runspec.metadata.project = (
-            project
+            project_name
             or runspec.metadata.project
             or self.metadata.project
             or config.default_project
@@ -638,7 +639,6 @@ class BaseRuntime(ModelObj):
             else:
                 scrape_metrics = runspec.spec.scrape_metrics
         runspec.spec.scrape_metrics = scrape_metrics
-        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
         runspec.spec.input_path = (
             workdir or runspec.spec.input_path or self.spec.workdir
         )
@@ -652,7 +652,39 @@ class BaseRuntime(ModelObj):
         # update run metadata (uid, labels) and store in DB
         meta = runspec.metadata
         meta.uid = meta.uid or uuid.uuid4().hex
-        runspec.spec.output_path = runspec.spec.output_path or config.artifact_path
+
+        runspec.spec.output_path = out_path or artifact_path or runspec.spec.output_path
+
+        if not runspec.spec.output_path:
+            if runspec.metadata.project:
+                if (
+                    mlrun.pipeline_context.project
+                    and runspec.metadata.project
+                    == mlrun.pipeline_context.project.metadata.name
+                ):
+                    runspec.spec.output_path = (
+                        mlrun.pipeline_context.project.spec.artifact_path
+                        or mlrun.pipeline_context.workflow_artifact_path
+                    )
+
+                if not runspec.spec.output_path and self._get_db():
+                    try:
+                        # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
+                        # spec first as get_db() depends on it
+                        project = self._get_db().get_project(runspec.metadata.project)
+                        # this is mainly for tests, so we won't need to mock get_project for so many tests
+                        # in normal use cases if no project is found we will get an error
+                        if project:
+                            runspec.spec.output_path = project.spec.artifact_path
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.warning(
+                            f"project {project_name} is not saved in DB yet, "
+                            f"enriching output path with default artifact path: {config.artifact_path}"
+                        )
+
+            if not runspec.spec.output_path:
+                runspec.spec.output_path = config.artifact_path
+
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.uid}}", meta.uid
@@ -683,8 +715,32 @@ class BaseRuntime(ModelObj):
             txt = get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+        # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
+        # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
+        # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
+        # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
+        # in real time
+        if (
+            watch is None
+            and self.kfp
+            and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
+        ):
+            state_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_state_interval
+            )
+            logs_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_logs_interval
+            )
 
-        if watch or self.kfp:
+            runspec.wait_for_completion(
+                show_logs=True,
+                sleep=state_interval,
+                logs_interval=logs_interval,
+                raise_on_failure=False,
+            )
+            resp = self._get_db_run(runspec)
+
+        elif watch or self.kfp:
             runspec.logs(True, self._get_db())
             resp = self._get_db_run(runspec)
 
@@ -997,23 +1053,67 @@ class BaseRuntime(ModelObj):
             update_function_entry_points(self, body)
         return self
 
-    def with_requirements(self, requirements: Union[str, List[str]]):
+    def with_requirements(
+        self,
+        requirements: Union[str, List[str]],
+        overwrite: bool = False,
+        verify_base_image: bool = True,
+    ):
         """add package requirements from file or list to build spec.
 
         :param requirements:  python requirements file path or list of packages
-
+        :param overwrite:     overwrite existing requirements
+        :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
         if isinstance(requirements, str):
             with open(requirements, "r") as fp:
                 requirements = fp.read().splitlines()
-        commands = self.spec.build.commands or []
+        commands = self.spec.build.commands or [] if not overwrite else []
         new_command = "python -m pip install " + " ".join(requirements)
         # make sure we dont append the same line twice
         if new_command not in commands:
             commands.append(new_command)
         self.spec.build.commands = commands
-        self.verify_base_image()
+        if verify_base_image:
+            self.verify_base_image()
+        return self
+
+    def with_commands(
+        self,
+        commands: List[str],
+        overwrite: bool = False,
+        verify_base_image: bool = True,
+    ):
+        """add commands to build spec.
+
+        :param commands:  list of commands to run during build
+
+        :return: function object
+        """
+        if not isinstance(commands, list):
+            raise ValueError("commands must be a string list")
+        if not self.spec.build.commands or overwrite:
+            self.spec.build.commands = commands
+        else:
+            # add commands to existing build commands
+            for command in commands:
+                if command not in self.spec.build.commands:
+                    self.spec.build.commands.append(command)
+            # using list(set(x)) won't retain order,
+            # solution inspired from https://stackoverflow.com/a/17016257/8116661
+            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
+        if verify_base_image:
+            self.verify_base_image()
+        return self
+
+    def clean_build_params(self):
+        # when using `with_requirements` we also execute `verify_base_image` which adds the base image and cleans the
+        # spec.image, so we need to restore the image back
+        if self.spec.build.base_image and not self.spec.image:
+            self.spec.image = self.spec.build.base_image
+
+        self.spec.build = {}
         return self
 
     def verify_base_image(self):
@@ -1021,14 +1121,27 @@ class BaseRuntime(ModelObj):
         require_build = build.commands or (
             build.source and not build.load_source_on_run
         )
+        image = self.spec.image
+        # we allow users to not set an image, in that case we'll use the default
+        if (
+            not image
+            and self.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[self.kind]
+
         if (
             self.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
+            # TODO: need a better way to decide whether a function requires a build
             and require_build
-            and self.spec.image
+            and image
             and not self.spec.build.base_image
+            # when submitting a run we are loading the function from the db, and using new_function for it,
+            # this results reaching here, but we are already after deploy of the image, meaning we don't need to prepare
+            # the base image for deployment
+            and self._is_remote_api()
         ):
             # when the function require build use the image as the base_image for the build
-            self.spec.build.base_image = self.spec.image
+            self.spec.build.base_image = image
             self.spec.image = ""
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):

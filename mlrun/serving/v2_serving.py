@@ -14,7 +14,7 @@
 import threading
 import time
 import traceback
-from typing import Dict
+from typing import Dict, Union
 
 import mlrun
 from mlrun.api.schemas import (
@@ -29,6 +29,7 @@ from mlrun.config import config
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 from mlrun.utils.model_monitoring import EndpointType
 
+from .server import GraphServer
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 
@@ -153,7 +154,9 @@ class V2ModelServer(StepToDict):
             return
 
         if not self.context.is_mock or self.context.server.track_models:
-            self.model_endpoint_uid = _init_endpoint_record(server, self)
+            self.model_endpoint_uid = _init_endpoint_record(
+                graph_server=server, model=self
+            )
 
     def get_param(self, key: str, default=None):
         """get param by key (specified in the model or the function)"""
@@ -448,48 +451,83 @@ class _ModelLogPusher:
                 self.output_stream.push([data])
 
 
-def _init_endpoint_record(graph_server, model: V2ModelServer):
+def _init_endpoint_record(
+    graph_server: GraphServer, model: V2ModelServer
+) -> Union[str, None]:
+    """
+    Initialize model endpoint record and write it into the DB. In general, this method retrieve the unique model
+    endpoint ID which is generated according to the function uri and the model version. If the model endpoint is
+    already exist in the DB, we skip the creation process. Otherwise, it writes the new model endpoint record to the DB.
+
+    :param graph_server: A GraphServer object which will be used for getting the function uri.
+    :param model:        Base model serving class (v2). It contains important details for the model endpoint record
+                         such as model name, model path, and model version.
+
+    :return: Model endpoint unique ID.
+    """
+
     logger.info("Initializing endpoint records")
 
-    uid = None
-
+    # Generate required values for the model endpoint record
     try:
+        # Getting project name from the function uri
         project, uri, tag, hash_key = parse_versioned_object_uri(
             graph_server.function_uri
         )
-
-        if model.version:
-            versioned_model_name = f"{model.name}:{model.version}"
-        else:
-            versioned_model_name = f"{model.name}:latest"
-
-        model_endpoint = ModelEndpoint(
-            metadata=ModelEndpointMetadata(project=project, labels=model.labels),
-            spec=ModelEndpointSpec(
-                function_uri=graph_server.function_uri,
-                model=versioned_model_name,
-                model_class=model.__class__.__name__,
-                model_uri=model.model_path,
-                stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                    project=project, kind="stream"
-                ),
-                active=True,
-                monitoring_mode=ModelMonitoringMode.enabled
-                if model.context.server.track_models
-                else ModelMonitoringMode.disabled,
-            ),
-            status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
-        )
-
-        db = mlrun.get_run_db()
-
-        db.create_model_endpoint(
-            project=project,
-            endpoint_id=model_endpoint.metadata.uid,
-            model_endpoint=model_endpoint,
-        )
-        uid = model_endpoint.metadata.uid
     except Exception as e:
-        logger.error("Failed to create endpoint record", exc=e)
+        logger.error("Failed to parse function URI", exc=e)
+        return None
+
+    # Generating version model value based on the model name and model version
+    if model.version:
+        versioned_model_name = f"{model.name}:{model.version}"
+    else:
+        versioned_model_name = f"{model.name}:latest"
+
+    # Generating model endpoint ID based on function uri and model version
+    uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+        function_uri=graph_server.function_uri, versioned_model=versioned_model_name
+    ).uid
+
+    # If model endpoint object was found in DB, skip the creation process.
+    try:
+        mlrun.get_run_db().get_model_endpoint(project=project, endpoint_id=uid)
+
+    except mlrun.errors.MLRunNotFoundError:
+        logger.info("Creating a new model endpoint record", endpoint_id=uid)
+
+        try:
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(
+                    project=project, labels=model.labels, uid=uid
+                ),
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=model.__class__.__name__,
+                    model_uri=model.model_path,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
+                    ),
+                    active=True,
+                    monitoring_mode=ModelMonitoringMode.enabled
+                    if model.context.server.track_models
+                    else ModelMonitoringMode.disabled,
+                ),
+                status=ModelEndpointStatus(endpoint_type=EndpointType.NODE_EP),
+            )
+
+            db = mlrun.get_run_db()
+            db.create_model_endpoint(
+                project=project,
+                endpoint_id=model_endpoint.metadata.uid,
+                model_endpoint=model_endpoint,
+            )
+
+        except Exception as e:
+            logger.error("Failed to create endpoint record", exc=e)
+
+    except Exception as e:
+        logger.error("Failed to retrieve model endpoint object", exc=e)
 
     return uid

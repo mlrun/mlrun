@@ -419,7 +419,13 @@ class SQLDB(RunDBInterface):
     def get_project(
         self, name: str = None, project_id: int = None
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().get_project,
+            self.session,
+            name=name,
+        )
 
     def list_projects(
         self,

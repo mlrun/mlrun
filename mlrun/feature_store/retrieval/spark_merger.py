@@ -70,7 +70,7 @@ class SparkFeatureMerger(BaseMerger):
             ):
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.path,
+                    target.get_target_path(),
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
@@ -78,7 +78,7 @@ class SparkFeatureMerger(BaseMerger):
             else:
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.path,
+                    target.get_target_path(),
                     time_field=entity_timestamp_column,
                 )
 
@@ -95,6 +95,7 @@ class SparkFeatureMerger(BaseMerger):
             # select requested columns and rename with alias where needed
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             dfs.append(df)
+            del df
 
         # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
@@ -116,6 +117,9 @@ class SparkFeatureMerger(BaseMerger):
 
         self._write_to_target()
         return OfflineVectorResponse(self)
+
+    def _unpersist_df(self, df):
+        df.unpersist()
 
     def _asof_join(
         self,
@@ -221,7 +225,8 @@ class SparkFeatureMerger(BaseMerger):
     def get_df(self, to_pandas=True):
         if to_pandas:
             if self._pandas_df is None:
-                self._pandas_df = self._set_indexes(self._result_df.toPandas())
+                self._pandas_df = self._result_df.toPandas()
+                self._set_indexes(self._pandas_df)
             return self._pandas_df
 
         return self._result_df

@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   mariadb-client \
  && rm -rf /var/lib/apt/lists/*
 
-ARG MLRUN_PIP_VERSION=22.2.0
+ARG MLRUN_PIP_VERSION=22.3.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun

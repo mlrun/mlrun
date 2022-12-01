@@ -110,20 +110,18 @@ class BaseMerger(abc.ABC):
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:
-
             if df.index is None or df.index.name is None:
                 index_columns_missing = []
                 for index in self._index_columns:
                     if index not in df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    return df.set_index(self._index_columns)
+                    df.set_index(self._index_columns, inplace=True)
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
-        return df
 
     @abc.abstractmethod
     def _generate_vector(
@@ -137,6 +135,9 @@ class BaseMerger(abc.ABC):
         query=None,
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
+
+    def _unpersist_df(self, df):
+        pass
 
     def merge(
         self,
@@ -154,7 +155,9 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
 
-        for featureset, featureset_df in zip(featuresets, featureset_dfs):
+        for i in range(len(featuresets)):
+            featureset = featuresets[i]
+            featureset_df = featureset_dfs[i]
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
             else:
@@ -166,6 +169,12 @@ class BaseMerger(abc.ABC):
                 featureset,
                 featureset_df,
             )
+
+            # unpersist as required by the implementation (e.g. spark) and delete references
+            # to dataframe to allow for GC to free up the memory (local, dask)
+            self._unpersist_df(featureset_df)
+            featureset_dfs[i] = None
+            del featureset_df
 
         self._result_df = merged_df
 

@@ -20,14 +20,12 @@ typing-extensions>=3.10.0,<5
 protobuf>=3.20.2, <4
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
-kfp~=1.8.0
+# 1.8.14 introduced new features related to ParallelFor, while our actual kfp server is 1.8.1, which isn't compatible
+# with the new features, therefore limiting to 1.8.13
+kfp~=1.8.0, <1.8.14
 nest-asyncio~=1.0
 ipython~=7.0
-nuclio-jupyter~=0.9.1
-# nuclio-jupyter 0.9.3 requires nbconvert 6.4.5 which requires importlib_metadata>=3.6
-# when installing mlrun with old version of pip on a venv that already had a lower version of importlib_metadata it didn't upgrade it
-# therefore adding it explicitly
-importlib_metadata>=3.6
+nuclio-jupyter~=0.9.4
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
 # limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us
@@ -40,7 +38,7 @@ requests~=2.22
 sqlalchemy~=1.3
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
-v3io~=0.5.18
+v3io~=0.5.20
 pydantic~=1.5
 orjson~=3.3
 # 1.6.0 introduced some bug and we were just about to release a version TODO: find the root cause for the problems
@@ -58,10 +56,10 @@ kubernetes~=12.0
 humanfriendly~=8.2
 fastapi~=0.78.0
 fsspec~=2021.8.1
-v3iofs~=0.1.14
+v3iofs~=0.1.15
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=1.2.1
+storey~=1.2.4
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

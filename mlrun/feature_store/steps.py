@@ -105,7 +105,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
             if validator:
                 violations = 0
                 all_args = []
-                for i in range(body[column].shape[0]):
+                for i in body.index:
                     # check each body entry if there is validator for it
                     ok, args = validator.check(body.at[i, column])
                     if not ok:
@@ -185,7 +185,7 @@ class MapValues(StepToDict, MLRunStep):
         return mapped_values
 
     def _do_pandas(self, event):
-        df = pd.DataFrame()
+        df = pd.DataFrame(index=event.index)
         for feature in event.columns:
             feature_map = self.mapping.get(feature, {})
             if "ranges" in feature_map:
@@ -212,7 +212,6 @@ class MapValues(StepToDict, MLRunStep):
 
         if self.with_original_features:
             df = pd.concat([event, df], axis=1)
-        df.index = event.index
         return df
 
 
@@ -270,12 +269,13 @@ class OneHotEncoder(StepToDict, MLRunStep):
         """
         super().__init__(**kwargs)
         self.mapping = mapping
-        for values in mapping.values():
+        for key, values in mapping.items():
             for val in values:
                 if not (isinstance(val, str) or isinstance(val, (int, np.integer))):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
+            mapping[key] = list(set(values))
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])

@@ -134,11 +134,11 @@ class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
-        self,
-        mapping: Dict[str, Dict[str, Any]],
-        with_original_features: bool = False,
-        suffix: str = "mapped",
-        **kwargs,
+            self,
+            mapping: Dict[str, Dict[str, Any]],
+            with_original_features: bool = False,
+            suffix: str = "mapped",
+            **kwargs,
     ):
         """Map column values to new values
 
@@ -222,14 +222,36 @@ class MapValues(StepToDict, MLRunStep):
             df = pd.concat([event, df], axis=1)
         return df
 
+    def _do_spark(self, event):
+        from pyspark.sql.functions import when, lit
+        for column, column_map in self.mapping.items():
+            if 'ranges' not in column_map:
+                event = event.na.replace(column_map, subset=column)
+            else:
+                for val, val_range in self.mapping['ranges'].items():
+                    min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                    max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                    otherwise = ""
+                    if f'{column}_' in event.columns:
+                        otherwise = event[f'{column}_']
+                    event = event.withColumn(f'{column}_',
+                                             when((event[column] < max_val) & (event[column] > min_val),
+                                                  lit(val)).otherwise(otherwise))
+                event = event.drop(column).withColumnRenamed(f'{column}_', column)
+
+        if not self.with_original_features:
+            event = event.select([*self.mapping.keys()])
+
+        return event
+
 
 class Imputer(StepToDict, MLRunStep):
     def __init__(
-        self,
-        method: str = "avg",
-        default_value=None,
-        mapping: Dict[str, Any] = None,
-        **kwargs,
+            self,
+            method: str = "avg",
+            default_value=None,
+            mapping: Dict[str, Any] = None,
+            **kwargs,
     ):
         """Replace None values with default values
 
@@ -332,10 +354,10 @@ class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
-        self,
-        parts: Union[Dict[str, str], List[str]],
-        timestamp_col: str = None,
-        **kwargs,
+            self,
+            parts: Union[Dict[str, str], List[str]],
+            timestamp_col: str = None,
+            **kwargs,
     ):
         """Date Extractor extract a date-time component into new columns
 
@@ -438,16 +460,17 @@ class DateExtractor(StepToDict, MLRunStep):
                                           for part in self.parts]))
         return rdd2.toDF(columns)
 
+
 class SetEventMetadata(MapClass):
     """Set the event metadata (id, key, timestamp) from the event body"""
 
     def __init__(
-        self,
-        id_path: str = None,
-        key_path: str = None,
-        time_path: str = None,
-        random_id: bool = None,
-        **kwargs,
+            self,
+            id_path: str = None,
+            key_path: str = None,
+            time_path: str = None,
+            random_id: bool = None,
+            **kwargs,
     ):
         """Set the event metadata (id, key, timestamp) from the event body
 

@@ -757,9 +757,9 @@ class _RemoteRunner(_PipelineRunner):
 
             if workflow_spec.overwrite_schedule:
                 if is_scheduled:
+                    logger.info("Deleting existing schedule")
                     run_db.delete_schedule(project.name, schedule_name)
                 else:
-                    run_db.delete_schedule(project.name, schedule_name)
                     logger.warning(
                         f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
                     )

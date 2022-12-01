@@ -130,5 +130,5 @@ Example of using `deploy_function` inside a pipeline, after the `train` step, to
 
 
 ```{admonition} Note
-If the `mock` flag is set to `True`, MLRun creates a simulated (mock) function instead of a real Kubernetes service.
+If you want to create a simulated (mock) function instead of a real Kubernetes service, set the `mock` flag is set to `True`. See [deploy_function api](https://docs.mlrun.org/en/latest/api/mlrun.projects.html#mlrun.projects.MlrunProject.deploy_function).
 ```

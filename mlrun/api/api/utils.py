@@ -690,7 +690,6 @@ def _submit_run(
                         project_name,
                         schedule_name,
                     )
-                    db_session.commit()
                 else:
                     logger.warning(
                         f"No schedule by name '{schedule_name}' was found, nothing to overwrite."

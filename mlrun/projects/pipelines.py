@@ -790,7 +790,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error",
+                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(

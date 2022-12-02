@@ -72,7 +72,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        overwrite_schedule: bool = False,
+        overwrite_schedule=None,
     ):
         self.engine = engine
         self.code = code

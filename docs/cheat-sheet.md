@@ -640,7 +640,7 @@ Docs: [Feature store overview](./feature-store/feature-store-overview.html)
 - Feature Set: A group of features that can be ingested together and stored in logical group (usually one-to-one with a dataset, stream, table, etc.)
 - Feature Vector: A group of features from different Feature Sets
 
-![](./_static/images/feature_store_architecture.png)
+![](./_static/images/feature-store-training-v2.png)
 
 ### Engines
 
@@ -968,7 +968,7 @@ graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 # add error handling step, run only when/if the "pre-process" step fail (keep after="")  
 graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 ```
-![](./_static/images/advanced_model_serving.png)
+![](./_static/images/graph-flow.svg)
 
 ## Hyperparameter Tuning
 Docs: [Hyperparameter tuning optimization](./hyper-params.html)

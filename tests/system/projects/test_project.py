@@ -620,16 +620,14 @@ class TestProject(TestMLRunSystem):
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
         # overwriting nothing
-        project.run(workflow_name, schedule=schedules[0], overwrite_schedule=True)
+        project.run(workflow_name, schedule=schedules[0], overwrite=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[0]
         ), "Failed to overwrite nothing"
 
         # overwriting schedule:
-        project.run(
-            workflow_name, schedule=schedules[1], dirty=True, overwrite_schedule=True
-        )
+        project.run(workflow_name, schedule=schedules[1], dirty=True, overwrite=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[1]

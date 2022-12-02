@@ -760,7 +760,7 @@ class _RemoteRunner(_PipelineRunner):
                     logger.info(f"Deleting schedule {schedule_name}")
                     run_db.delete_schedule(project.name, schedule_name)
                 else:
-                    logger.warning(
+                    logger.info(
                         f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
                     )
             elif is_scheduled:

@@ -1017,7 +1017,7 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
-                overwrite_schedule=overwrite_schedule,
+                overwrite=overwrite_schedule,
             )
         except Exception as exc:
             print(traceback.format_exc())

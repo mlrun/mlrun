@@ -766,7 +766,7 @@ class _RemoteRunner(_PipelineRunner):
             elif is_scheduled:
                 raise mlrun.errors.MLRunConflictError(
                     f"There is already a schedule for workflow {schedule_name}."
-                    " If you want to overwrite this schedule use 'overwrite_schedule = True'"
+                    " If you want to overwrite this schedule use 'overwrite = True'"
                 )
 
         msg = "executing workflow "

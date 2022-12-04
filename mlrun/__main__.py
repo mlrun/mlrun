@@ -991,6 +991,7 @@ def project(
                 engine=engine,
                 local=local,
                 schedule=schedule,
+                timeout=timeout,
                 overwrite=overwrite_schedule,
             )
         except Exception as exc:

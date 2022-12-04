@@ -59,7 +59,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cmake  \
         cudatoolkit=${CUDA_VER} \
         cudnn \
-        cxx-compiler \
+        cxx-compiler=1.5.1 \
         cython \
         make \
         nccl \
@@ -89,7 +89,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 ARG HOROVOD_VERSION=0.25.0
 
-RUN conda install -c deepmodeling horovod=${HOROVOD_VERSION} && \
+RUN conda install -c deepmodeling -c conda-forge horovod=${HOROVOD_VERSION} mpich=3.3.2=h846660c_4 && \
     horovodrun --check-build
 
 WORKDIR /mlrun

@@ -2785,6 +2785,7 @@ class TestFeatureStore(TestMLRunSystem):
             columns=["workclass__Private", "workclass__Local_gov", "age"],
         )
         expected_df = expected_df.reindex(columns=df_res.columns)
+
         assert df_res.equals(expected_df)
 
     def test_onehot_with_int_values(self):

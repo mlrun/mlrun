@@ -887,6 +887,12 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+@click.option(
+    "--overwrite-schedule",
+    "-os",
+    is_flag=True,
+    help="Overwrite a schedule when submitting a new one with the same name.",
+)
 def project(
     context,
     name,
@@ -912,6 +918,7 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    overwrite_schedule,
 ):
     """load and/or run a project"""
     if env_file:
@@ -984,6 +991,7 @@ def project(
                 engine=engine,
                 local=local,
                 schedule=schedule,
+                overwrite=overwrite_schedule,
             )
         except Exception as exc:
             print(traceback.format_exc())

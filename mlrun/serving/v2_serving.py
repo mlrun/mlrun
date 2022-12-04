@@ -121,6 +121,7 @@ class V2ModelServer(StepToDict):
 
         self.metrics = {}
         self.labels = {}
+        self.model = None
         if model:
             self.model = model
             self.ready = True

@@ -53,10 +53,9 @@ RUN conda config --add channels conda-forge && \
     conda install -n base \
         python=${MLRUN_PYTHON_VERSION} \
         pip~=${MLRUN_PIP_VERSION} \
-        mamba \
     && conda clean -aqy
 
-RUN mamba install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
+RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cmake  \
         cudatoolkit=${CUDA_VER} \
         cudnn \
@@ -90,7 +89,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 ARG HOROVOD_VERSION=0.25.0
 
-RUN mamba install -c deepmodeling horovod=${HOROVOD_VERSION} && \
+RUN conda install -c deepmodeling horovod=${HOROVOD_VERSION} && \
     horovodrun --check-build
 
 WORKDIR /mlrun

@@ -1,40 +1,40 @@
 (cheat-sheet)=
-# MLRun Cheat Sheet
+# MLRun cheat sheet
 
-## Table of Contents
-- [MLRun Setup](#mlrun-setup)
-- [MLRun Projects](#mlrun-projects)
-    - [General Workflow](#general-workflow)
-    - [Git Integration](#git-integration)
-    - [CI/CD Integration](#ci-cd-integration)
+## Table of contents
+- [MLRun setup](#mlrun-setup)
+- [MLRun projects](#mlrun-projects)
+    - [General workflow](#general-workflow)
+    - [Git integration](#git-integration)
+    - [CI/CD integration](#ci-cd-integration)
     - [Secrets](#secrets)
-- [MLRun Functions](#mlrun-functions)
-    - [Essential Runtimes](#essential-runtimes)
-    - [Distributed Runtimes](#distributed-runtimes)
-    - [Resource Management](#resource-management)
-    - [Building Docker Images](#building-docker-images)
-- [Multi-Stage Workflows (Batch Pipelines)](#multi-stage-workflows-batch-pipelines)
+- [MLRun functions](#mlrun-functions)
+    - [Essential runtimes](#essential-runtimes)
+    - [Distributed runtimes](#distributed-runtimes)
+    - [Resource management](#resource-management)
+    - [Building docker images](#building-docker-images)
+- [Multi-stage workflows (batch pipelines)](#multi-stage-workflows-batch-pipelines)
 - [Logging](#logging)
-- [Experiment Tracking](#experiment-tracking)
-- [Model Inferencing and Serving](#model-inferencing-and-serving)
-- [Model Monitoring and Drift Detection](#model-monitoring-and-drift-detection)
-- [Sources and Targets](#sources-and-targets)
-- [Feature Store](#feature-store)
-- [Real-Time Pipelines](#real-time-pipelines)
-- [Hyperparameter Tuning](#hyperparameter-tuning)
+- [Experiment tracking](#experiment-tracking)
+- [Model Inferencing and serving](#model-inferencing-and-serving)
+- [Model monitoring and drift detection](#model-monitoring-and-drift-detection)
+- [Sources and targets](#sources-and-targets)
+- [Feature store](#feature-store)
+- [Real-time pipelines](#real-time-pipelines)
+- [Hyperparameter tuning](#hyperparameter-tuning)
 
-## MLRun Setup
+## MLRun setup
 Docs: [Set up your client environment](./install/remote.html), [Installation and setup guide](./install.html)
 
-### MLRun Server/Client Overview
+### MLRun server/client overview
 
-MLRun has two main components, the service and the client (SDK)
+MLRun has two main components, the service and the client (SDK):
 - MLRun service runs over Kubernetes (can also be deployed using local Docker for demo and test purposes) - see [installation documentation](./install.html) for more information
 - MLRun client SDK is installed in your development environment via `pip` and interacts with the service using REST API calls
 
-### Remote Connection (Laptop, CI/CD, etc.)
+### Remote connection (laptop, CI/CD, etc.)
 
-Create a `mlrun.env` file for environment variables
+Create a `mlrun.env` file for environment variables:
 ```
 # MLRun DB
 MLRUN_DBPATH=<URL endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
@@ -44,7 +44,7 @@ V3IO_USERNAME=<username of a platform user with access to the MLRun service>
 V3IO_ACCESS_KEY=<platform access key>
 ```
 
-Connect via MLRun Python SDK
+Connect via MLRun Python SDK:
 ```python
 # Import MLRun
 import mlrun
@@ -53,34 +53,34 @@ import mlrun
 mlrun.set_env_from_file("mlrun.env")
 ```
 
-## MLRun Projects
+## MLRun projects
 Docs: [Projects and automation](./projects/project.html)
 
-### General Workflow
+### General workflow
 Docs: [Create, save, and use projects](./projects/create-project.html)
 ```python
-# Create or load project
+# Create or load a project
 project = mlrun.get_or_create_project(name="my-project", context="./")
 
-# Add function to project
+# Add a function to the project
 project.set_function(name='train_model', func='train_model.py', kind='job', image='mlrun/mlrun')
 
-# Add workflow (pipeline) to project
+# Add aworkflow (pipeline) to the project
 project.set_workflow(name='training_pipeline', workflow_path='straining_pipeline.py')
 
-# Save project and generate project.yaml file
+# Save the project and generate the project.yaml file
 project.save()
 
 # Run pipeline via project
 project.run(name="training_pipeline", arguments={...})
 ```
 
-### Git Integration
+### Git integration
 Docs: [Create and use functions](./runtimes/create-and-use-functions.html#multiple-source-files)
 
-An MLRun project can be backed by a Git repo. Functions will consume the repo and pull the code either once when Docker image is built (production workflow) or at runtime (development workflow).
+An MLRun project can be backed by a Git repo. Functions consume the repo and pull the code either: once when Docker image is built (production workflow); or at runtime (development workflow).
 
-#### Pull repo code once (bake into Docker image)
+#### Pull the repo code once (bake into Docker image)
 
 ```python
 project.set_source(source="git://github.com/mlrun/project-archive.git")
@@ -93,7 +93,7 @@ fn = project.set_function(
 project.build_function(fn)
 ```
 
-#### Pull repo code at runtime
+#### Pull the repo code at runtime
 
 ```python
 project.set_source(source="git://github.com/mlrun/project-archive.git", pull_at_runtime=True)
@@ -104,23 +104,23 @@ fn = project.set_function(
 )
 ```
 
-### CI/CD Integration
+### CI/CD integration
 
 #### Overview
 
 Docs: [CI/CD integration](./projects/ci-integration.html)
 
 Best practice for working with CI/CD is using [MLRun Projects](./projects/project.html) with a combination of the following:
-- **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should be) be tied to a Git repo. One project maps to one Git repo.
+- **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should) be tied to a Git repo. One project maps to one Git repo.
 - **CI/CD:** Main tool for orchestrating production deployments. The CI/CD system should be responsible for deploying latest code changes from Git onto the remote cluster via MLRun Python SDK or CLI. 
-- **Iguazio/MLRun:** Kubernetes based compute environment for running data analytics, model training, or model deployment tasks.  Additionally, the cluster is where all experiment tracking, job information, logs, and more is located.
+- **Iguazio/MLRun:** Kubernetes-based compute environment for running data analytics, model training, or model deployment tasks.  Additionally, the cluster is where all experiment tracking, job information, logs, and more, is located.
 
 See [MLRun Projects](./projects/project.html) for more information on Git and CI/CD integration. In practice, this may look something like the following:
 ![](./_static/images/cicd_flow.png)
 
 #### Example (GitHub Actions)
 
-Full Example: [MLRun project-demo](https://github.com/mlrun/project-demo)
+Full example: [MLRun project-demo](https://github.com/mlrun/project-demo)
 
 ```yaml
 name: mlrun-project-workflow
@@ -157,19 +157,19 @@ jobs:
 Docs: [Working with secrets](./secrets.html)
 
 ```python
-# Add secrets to project
+# Add secrets to the project
 project.set_secrets(secrets={'AWS_KEY': '111222333'}, provider="kubernetes")
 
-# Run job with all secrets (automatically injects all project secrets for non-local runtimes)
+# Run the job with all secrets (automatically injects all project secrets for non-local runtimes)
 project.run_function(fn)
 
-# Retrieve secret within job
+# Retrieve the secret within the job
 context.get_secret("AWS_KEY")
 ```
 
-## MLRun Functions
+## MLRun functions
 
-### Essential Runtimes
+### Essential runtimes
 Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 
 #### Job
@@ -197,7 +197,7 @@ serving.add_model(key="iris", model_path="https://s3.wasabisys.com/iguazio/model
 project.deploy_function(serving)
 ```
 
-### Distributed Runtimes
+### Distributed runtimes
 Docs: [Kinds of functions (runtimes)](./concepts/functions-overview.html)
 
 #### MPIJob (Horovod)
@@ -239,10 +239,10 @@ spark.deploy() # build image
 spark.run(artifact_path='/User') # run spark job
 ```
 
-### Resource Management
+### Resource management
 Docs: [Managing job resources](./runtimes/configuring-job-resources.html)
 
-#### Requests/Limits (MEM/CPU/GPU)
+#### Requests/limits (MEM/CPU/GPU)
 
 ```python
 # Requests - lower bound
@@ -252,7 +252,7 @@ fn.with_requests(mem="1G", cpu=1)
 fn.with_limits(mem="2G", cpu=2, gpus=1)
 ```
 
-#### Scaling + Auto-Scaling
+#### Scaling and auto-scaling
 
 ```python
 # Nuclio/serving scaling
@@ -261,7 +261,7 @@ fn.spec.min_replicas = 1
 fn.spec.min_replicas = 4
 ```
 
-#### Mount Persistent Storage
+#### Mount persistent storage
 
 ```python
 # Mount Iguazio V3IO
@@ -271,19 +271,19 @@ fn.apply(mlrun.mount_v3io())
 fn.apply(mlrun.platforms.mount_pvc(pvc_name="data-claim", volume_name="data", volume_mount_path="/data"))
 ```
 
-#### Pod Priority
+#### Pod priority
 
 ```python
 fn.with_priority_class(name="igz-workload-medium")
 ```
 
-#### Node Selection
+#### Node selection
 
 ```python
 fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preemptible"})
 ```
 
-### Serving/Nuclio Triggers
+### Serving/Nuclio triggers
 
 Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/development/nuclio/triggers.py)
 ```python
@@ -307,10 +307,10 @@ serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))
 serve.add_trigger("cron_schedule", spec=nuclio.CronTrigger(schedule="0 9 * * *"))
 ```
 
-### Building Docker Images
+### Building Docker images
 Docs: [Build function image](./runtimes/image-build.html), [Images and their usage in MLRun](./runtimes/images.html#images-usage)
 
-#### Manually Build Image
+#### Manually build image
 
 ```python
 project.set_function(
@@ -330,7 +330,7 @@ project.build_function(
 )
 ```
 
-#### Automatically Build Image
+#### Automatically build image
 
 ```python
 project.set_function(
@@ -343,7 +343,7 @@ project.set_function(
 project.run_function("trainer", auto_build=True)
 ```
 
-## Multi-Stage Workflows (Batch Pipelines)
+## Multi-stage workflows (batch pipelines)
 
 Docs: [Running a multi-stage workflow](./concepts/workflow-overview.html)
 
@@ -387,7 +387,7 @@ def pipeline(source_url, label_column):
 ### Add workflow to project
 
 ```python
-# Functions within workflow
+# Functions within the workflow
 project.set_function(name='get-data', func='get_data.py', kind='job', image='mlrun/mlrun')
 project.set_function(name='train', func='train.py', kind='job', image='mlrun/mlrun')
 
@@ -440,10 +440,10 @@ context.logger.warning(message="Something might go wrong")
 context.logger.error(message="Something went wrong")
 ```
 
-## Experiment Tracking
+## Experiment tracking
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html), [Automated experiment tracking](./concepts/auto-logging-mlops.html), [Decorators and auto-logging](./concepts/decorators-and-auto-logging.html)
 
-### Manual Logging
+### Manual logging
 
 ```python
 context.log_result(key="accuracy", value=0.934)
@@ -451,7 +451,7 @@ context.log_model(key="model", model_file="model.pkl")
 context.log_dataset(key="model", df=df, format="csv", index=False)
 ```
 
-### Automatic Logging
+### Automatic logging
 
 ```python
 # Auto logging for ML frameworks
@@ -478,10 +478,10 @@ def train_and_predict(train_data,
     return list(clf.predict(predict_input))
 ```
 
-## Model Inferencing and Serving
+## Model inferencing and serving
 Docs: [Deploy models and applications](./deployment/index.html)
 
-### Real-Time Serving
+### Real-time serving
 
 Docs: [Using built-in model serving classes](./serving/built-in-model-serving.html), [Build your own model serving class](./serving/custom-model-serving-class.html), [Model serving API](./serving/model-api.html)
 
@@ -496,7 +496,7 @@ mock_server = serve.to_mock_server()
 addr = serve.deploy()
 ```
 
-### Batch Inferencing
+### Batch inferencing
 
 Docs: [Batch inference](./deployment/batch_inference.html)
 
@@ -509,25 +509,25 @@ batch_run = project.run_function(
 )
 ```
 
-## Model Monitoring and Drift Detection
+## Model monitoring and drift detection
 Docs: [Model monitoring overview](./monitoring/model-monitoring-deployment.html), [Batch inference](./deployment/batch_inference.html) 
 
-### Real Time Drift Detection
+### Real-time drift detection
 
 ```python
-# Log model with training set
+# Log the model with training set
 context.log_model("model", model_file="model.pkl", training_set=X_train)
 
-# Enable tracking for model server
+# Enable tracking for the model server
 serving_fn = import_function('hub://v2_model_server', project=project_name).apply(auto_mount())
 serving_fn.add_model("model", model_path="store://models/project-name/model:latest") # Model path comes from experiment tracking DB
 serving_fn.set_tracking()
 
-# Deploy model server
+# Deploy the model server
 serving_fn.deploy()
 ```
 
-### Batch Drift Detection
+### Batch drift detection
 
 ```python
 batch_inference = mlrun.import_function("hub://batch_inference")
@@ -545,7 +545,7 @@ batch_run = project.run_function(
 )
 ```
 
-## Sources and Targets
+## Sources and targets
 
 Abstract underlying storage to easily retrieve and store data from various sources
 
@@ -630,7 +630,7 @@ kafka_target = KafkaSource(
 redis_target.write_dataframe(df=kafka_df)
 ```
 
-## Feature Store
+## Feature store
 Docs: [Feature Store](./feature-store/feature-store.html), [Feature sets](./feature-store/feature-sets.html), [Feature set transformations](./feature-store/transformations.html), [Creating and using feature vectors](./feature-store/feature-vectors.html), [Feature store end-to-end demo](./feature-store/end-to-end-demo/index.html)
 
 ### Definitions
@@ -650,11 +650,11 @@ Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html), [I
 - `pandas` engine is designed for batch data that can fit into memory that will be transformed using Pandas dataframes
 - `spark` engine is designed for batch data that cannot fit into memory that will be transformed using Spark dataframes
 
-### Feature Sets
+### Feature sets
 
 Docs: [Feature sets](./feature-store/feature-sets.html)
 
-#### Basic Ingestion
+#### Basic ingestion
 
 Docs: [Ingest data using the feature store](./data-prep/ingest-data-fs.html)
 
@@ -674,7 +674,7 @@ fstore.ingest(
 )
 ```
 
-#### Feature Set per Engine
+#### Feature set per engine
 
 ```python
 from mlrun.datastore.sources import DataFrameSource
@@ -710,7 +710,7 @@ spark_set = fstore.FeatureSet(
 fstore.ingest(featureset=spark_set, source=CSVSource(path=v3io_data_path), spark_context=spark)
 ```
 
-#### Ingestion Methods
+#### Ingestion methods
 
 Docs: [Ingest data locally](./data-prep/ingest-data-fs.html#ingest-data-locally), [Ingest data using an MLRun job](./data-prep/ingest-data-fs.html#ingest-data-using-an-mlrun-job), [Real-time ingestion](./data-prep/ingest-data-fs.html#real-time-ingestion), [Incremental ingestion](./data-prep/ingest-data-fs.html#incremental-ingestion), [Feature store end-to-end demo](./feature-store/end-to-end-demo/index.html)
 
@@ -807,11 +807,11 @@ Use in graph
 quotes_set.graph.add_step("MyMapStorey", "multi", after="filter", multiplier=3)
 ```
 
-### Feature Vectors
+### Feature vectors
 
 Docs: [Feature vectors](./feature-store/feature-vectors.html)
 
-#### Basic Retrieval
+#### Basic retrieval
 
 ```python
 import mlrun.feature_store as fstore
@@ -840,21 +840,21 @@ feature_service.get(
 )
 ```
 
-## Real-Time Pipelines
+## Real-time pipelines
 Docs: [Real-time serving pipelines](./serving/serving-graph.html), [Real-time pipeline use cases](./serving/use-cases.html#), [Graph concepts and state machine](./serving/realtime-pipelines.html), [Model serving graph](./serving/model-serving-get-started.html), [Writing custom steps](./serving/writing-custom-steps.html)
 
 ### Definitions
 
-Graph is composed of the following:
-- Step: A Step runs a function or class handler or a REST API call
-- Router: A special type of step is a router with routing logic and multiple child routes/models
+Graphs are composed of the following:
+- Step: A step runs a function or class handler or a REST API call
+- Router: A special type of step with routing logic and multiple child routes/models
 - Queue: A queue or stream that accepts data from one or more source steps and publishes to one or more output steps
 
-Graph has two modes (topologies):
+Graphs have two modes (topologies):
 - Router topology (default): A minimal configuration with a single router and child tasks/routes
 - Flow topology: A full graph/DAG
 
-### Simple Graph
+### Simple graph
 
 Docs: [Real-time serving pipelines getting started](./serving/getting-started.html#getting-started)
 
@@ -902,7 +902,7 @@ project.deploy_function(fn)
 ```
 ![](./_static/images/hello_world_graph.png)
 
-### Simple Model Serving Router
+### Simple model serving router
 
 Docs: [Example of a simple model serving router](./serving/use-cases.html#example-of-a-simple-model-serving-router)
 
@@ -920,7 +920,7 @@ fn.invoke('/v2/models/model1/infer', body={"inputs": [5]})
 ```
 ![](./_static/images/simple_model_serving.png)
 
-### Custom Model Serving Class
+### Custom model serving class
 
 Docs: [Model serving graph](./serving/model-serving-get-started.html)
 
@@ -944,7 +944,7 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
         return result.tolist()
 ```
 
-### Advanced Data Processing and Serving Ensemble
+### Advanced data processing and serving ensemble
 
 ```python
 fn = project.set_function(
@@ -957,23 +957,23 @@ graph = function.set_topology("flow", engine="async")
 graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
      .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler("catcher")
 
-# add an Ensemble router with two child models (routes), the "*" prefix mark it is a router class
+# add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
 router.add_route("m1", class_name="ClassifierModel", model_path=path1)
 router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
-# add the final step (after the router) which handles post processing and respond to the client
+# add the final step (after the router), which handles post-processing and response to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 
-# add error handling step, run only when/if the "pre-process" step fail (keep after="")  
+# add error handling step, run only when/if the "pre-process" step fails (keep after="")  
 graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 ```
 ![](./_static/images/graph-flow.svg)
 
-## Hyperparameter Tuning
+## Hyperparameter tuning
 Docs: [Hyperparameter tuning optimization](./hyper-params.html)
 
-The following examples will be using this function:
+The following hyperparameter examples use this function:
 ```python
 # hp.py
 def hyper_func(context, p1, p2):
@@ -989,9 +989,12 @@ fn = project.set_function(
     handler="hyper_func"
 )
 ```
-> Note the selector can be named any value that is logged - in this case `multiplier`
+```{admonition} Note
 
-### Grid Search (default)
+The selector can be named any value that is logged - in this case `multiplier`
+```
+
+### Grid search (default)
 
 Docs: [Grid Search](./hyper-params.html#grid-search-default)
 
@@ -1004,11 +1007,11 @@ hp_tuning_run = project.run_function(
 )
 ```
 
-### Random Search
+### Random search
 
 Docs: [Random Search](./hyper-params.html#random-search)
 
-Runs random sample of parameter combinations
+Runs a random sample of parameter combinations
 ```python
 hp_tuning_run = project.run_function(
     "hp",
@@ -1020,11 +1023,11 @@ hp_tuning_run = project.run_function(
 )
 ```
 
-### List Search
+### List search
 
 Docs: [List Search](./hyper-params.html#list-search)
 
-Runs first parameter from each list followed by second from each list etc. **All lists must be of equal size**.
+Runs the first parameter from each list followed by the second from each list, etc. **All lists must be of equal size**.
 ```python
 hp_tuning_run = project.run_function(
     "hp",
@@ -1034,7 +1037,7 @@ hp_tuning_run = project.run_function(
 )
 ```
 
-### Parallel Executors
+### Parallel executors
 
 Docs: [Parallel execution over containers](./hyper-params.html#parallel-execution-over-containers)
 
@@ -1077,7 +1080,7 @@ fn = project.set_function(
     kind='nuclio:mlrun',
     image='mlrun/mlrun'
 )
-# replicas * workers need to match or exceed parallel_runs
+# (replicas * workers) must be equal to or greater than parallel_runs
 fn.spec.replicas = 2
 fn.with_http(workers=2)
 fn.deploy()

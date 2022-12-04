@@ -141,7 +141,9 @@ class ResourceCache:
         return _get_store_resource
 
 
-def get_store_resource(uri, db=None, secrets=None, project=None, data_store_secrets=None):
+def get_store_resource(
+    uri, db=None, secrets=None, project=None, data_store_secrets=None
+):
     """get store resource object by uri"""
 
     db = db or mlrun.get_run_db(secrets=secrets)

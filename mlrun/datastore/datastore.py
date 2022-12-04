@@ -148,7 +148,7 @@ class StoreManager:
                 db=self._get_db(),
                 secrets=self._secrets,
                 project=project,
-                store_secrets=secrets,
+                data_store_secrets=secrets,
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")

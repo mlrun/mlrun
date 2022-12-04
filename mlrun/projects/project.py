@@ -1980,7 +1980,7 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            workflow_spec.overwrite_schedule = overwrite or workflow_spec.overwrite_schedule
+            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2011,9 +2011,9 @@ class MlrunProject(ModelObj):
         )
         # run is None when scheduling
         if (
-                run
-                and run.state != mlrun.run.RunStatuses.failed
-                and not workflow_spec.schedule
+            run
+            and run.state != mlrun.run.RunStatuses.failed
+            and not workflow_spec.schedule
         ):
             # Failure and schedule messages already logged
             logger.info(

@@ -76,7 +76,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        overwrite_schedule=None,
+        overwrite: bool = None,
     ):
         self.engine = engine
         self.code = code
@@ -89,7 +89,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
-        self.overwrite_schedule = overwrite_schedule
+        self.overwrite = overwrite
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -757,7 +757,7 @@ class _RemoteRunner(_PipelineRunner):
             except mlrun.errors.MLRunNotFoundError:
                 is_scheduled = False
 
-            if workflow_spec.overwrite_schedule:
+            if workflow_spec.overwrite:
                 if is_scheduled:
                     logger.info(f"Deleting schedule {schedule_name}")
                     run_db.delete_schedule(project.name, schedule_name)

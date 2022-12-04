@@ -258,6 +258,25 @@ def test_forbidden_file_access():
         obj.stat()
 
 
+def test_verify_data_stores_are_not_cached_in_api():
+    user1_secrets = {"V3IO_ACCESS_KEY": "some-access"}
+    user1_objpath = "v3io://some-system/some-dir/some-file"
+
+    user2_secrets = {"V3IO_ACCESS_KEY": "some-other"}
+    user2_objpath = "v3io://some-system/some-dir/some-other-file"
+
+    store = mlrun.datastore.datastore.StoreManager(
+        secrets={"V3IO_ACCESS_KEY": "some-access-key"}
+    )
+    obj = store.object(url=user1_objpath, secrets=user1_secrets)
+    assert store._stores == {}
+    assert obj._store._secrets == user1_secrets
+
+    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
+    assert store._stores == {}
+    assert obj2._store._secrets == user2_secrets
+
+
 def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)

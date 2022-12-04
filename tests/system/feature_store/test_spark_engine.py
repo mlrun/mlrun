@@ -150,12 +150,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements = fs.FeatureSet(
             name,
             entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
             engine="spark",
         )
         # Added to test that we can ingest a column named "summary"
         measurements.graph.to(name="rename_column", handler="rename_column")
         source = CSVSource(
-            "mycsv", path=self.get_remote_csv_source_path(), time_field="timestamp"
+            "mycsv",
+            path=self.get_remote_csv_source_path(),
         )
         filename = str(
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
@@ -280,7 +282,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
             schedule="mock",  # to enable filtering by time
         )
 
@@ -392,11 +393,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
 
         data_set = fs.FeatureSet(
             f"{name}_storey",
             entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -484,7 +486,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
         name_spark = f"{name}_spark"
 
         data_set = fs.FeatureSet(
@@ -564,7 +566,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -627,7 +628,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -677,7 +677,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(

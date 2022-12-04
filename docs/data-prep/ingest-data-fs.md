@@ -115,7 +115,7 @@ Example:
 
 ```
 cron_trigger = "* */1 * * *" #will run every hour
-source = ParquetSource("myparquet", path=path, time_field="time", schedule=cron_trigger)
+source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
 feature_set = fs.FeatureSet(name=name, entities=[fs.Entity("first_name")], timestamp_key="time",)
 fs.ingest(feature_set, source, run_config=fs.RunConfig())
 ```

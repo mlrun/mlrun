@@ -69,15 +69,14 @@ class BaseSourceDriver(DataSource):
     def to_dataframe(self):
         return mlrun.store_manager.object(url=self.path).as_df()
 
-    def filter_df_start_end_time(self, df):
+    def filter_df_start_end_time(self, df, time_field):
         if self.start_time or self.end_time:
             self.start_time = (
                 datetime.min if self.start_time is None else self.start_time
             )
             self.end_time = datetime.max if self.end_time is None else self.end_time
             df = df.filter(
-                (df[self.time_field] > self.start_time)
-                & (df[self.time_field] <= self.end_time)
+                (df[time_field] > self.start_time) & (df[time_field] <= self.end_time)
             )
         return df
 
@@ -108,7 +107,7 @@ class CSVSource(BaseSourceDriver):
     :parameter schedule: string to configure scheduling of the ingestion job.
     :parameter attributes: additional parameters to pass to storey. For example:
         attributes={"timestamp_format": '%Y%m%d%H'}
-    :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
+    :parameter parse_dates: Optional. List of columns (names or integers) that will be
         attempted to parse as date column.
     """
 
@@ -164,11 +163,7 @@ class CSVSource(BaseSourceDriver):
 
         df = session.read.load(**self.get_spark_options())
         for col_name, col_type in df.dtypes:
-            if (
-                col_name == self.time_field
-                or self._parse_dates
-                and col_name in self._parse_dates
-            ):
+            if self._parse_dates and col_name in self._parse_dates:
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)
@@ -638,7 +633,6 @@ class OnlineSource(BaseSourceDriver):
         "path",
         "attributes",
         "key_field",
-        "time_field",
         "online",
         "workers",
     ]

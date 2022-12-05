@@ -187,7 +187,7 @@ def get_secret_or_env(
     value = None
     if secret_provider:
         if isinstance(secret_provider, Dict):
-            value = secret_provider.get(key, default)
+            value = secret_provider.get(key)
         else:
             value = secret_provider(key)
         if value:

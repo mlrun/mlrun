@@ -790,6 +790,11 @@ class KafkaSource(OnlineSource):
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
 
+    def to_dataframe(self):
+        raise mlrun.MLRunInvalidArgumentError(
+            "KafkaSource does not support batch processing"
+        )
+
     def add_nuclio_trigger(self, function):
         extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)

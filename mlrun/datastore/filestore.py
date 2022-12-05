@@ -21,8 +21,8 @@ from .base import DataStore, FileStats
 
 
 class FileStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, "file", endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, "file", endpoint, secrets=secrets)
 
     @property
     def url(self):

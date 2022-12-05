@@ -41,6 +41,7 @@ from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
+    KafkaSource,
     ParquetSource,
     StreamSource,
 )
@@ -3115,6 +3116,23 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         assert_frame_equal(expected_stat, actual_stat)
+
+    def test_ingest_with_kafka_source_fails(self):
+        source = KafkaSource(
+            brokers="broker_host:9092",
+            topics="mytopic",
+            group="mygroup",
+            sasl_user="myuser",
+            sasl_pass="mypassword",
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[fs.Entity("entity")])
+
+        with pytest.raises(mlrun.MLRunInvalidArgumentError):
+            fs.ingest(
+                fset,
+                source,
+            )
 
 
 def verify_purge(fset, targets):

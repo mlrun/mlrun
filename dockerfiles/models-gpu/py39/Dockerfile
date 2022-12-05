@@ -89,7 +89,9 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 ARG HOROVOD_VERSION=0.25.0
 
-RUN conda install -c deepmodeling -c conda-forge horovod=${HOROVOD_VERSION} mpich=3.3.2=h846660c_4 && \
+# explixitly install mpich from conda-forge since the default channel gets a dummy build
+# https://github.com/conda-forge/mpich-feedstock/issues/55#issuecomment-851260130
+RUN conda install -c deepmodeling horovod=${HOROVOD_VERSION} conda-forge::mpich && \
     horovodrun --check-build
 
 WORKDIR /mlrun

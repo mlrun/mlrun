@@ -21,6 +21,7 @@ __all__ = [
     "import_function",
     "handler",
     "ArtifactType",
+    "get_secret_or_env",
 ]
 
 import getpass
@@ -69,6 +70,7 @@ from .run import (
     wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server
+from .secrets import get_secret_or_env
 from .utils.version import Version
 
 __version__ = Version().get()["version"]

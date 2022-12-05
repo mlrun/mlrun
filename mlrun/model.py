@@ -773,8 +773,7 @@ class RunObject(RunTemplate):
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion(show_logs=False)
+        self._outputs_wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self._artifact(key)
@@ -794,8 +793,7 @@ class RunObject(RunTemplate):
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion(show_logs=False)
+        self._outputs_wait_for_completion()
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
@@ -806,14 +804,23 @@ class RunObject(RunTemplate):
 
     def artifact(self, key) -> "mlrun.DataItem":
         """return artifact DataItem by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion(show_logs=False)
+        self._outputs_wait_for_completion()
         artifact = self._artifact(key)
         if artifact:
             uri = get_artifact_target(artifact, self.metadata.project)
             if uri:
                 return mlrun.get_dataitem(uri)
         return None
+
+    def _outputs_wait_for_completion(self, show_logs=False, logs_interval: int = None):
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion(
+                show_logs=show_logs,
+                logs_interval=logs_interval
+                or int(
+                    mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_logs_interval
+                ),
+            )
 
     def _artifact(self, key):
         """return artifact DataItem by key"""

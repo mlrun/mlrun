@@ -157,13 +157,14 @@ def get_secret_or_env(
 ) -> str:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:
+
     1. If `secret_provider` was provided, will attempt to retrieve the secret from it
     2. If an MLRun `SecretsStore` was provided, query it for the secret key
-    2. An environment variable with the same key
-    3. An MLRun-generated env. variable, mounted from a project secret (to be used in MLRun runtimes)
-    4. The default value
+    3. An environment variable with the same key
+    4. An MLRun-generated env. variable, mounted from a project secret (to be used in MLRun runtimes)
+    5. The default value
 
-    example::
+    Example::
 
         secrets = { "KEY1": "VALUE1" }
         secret = get_secret_or_env("KEY1", secret_provider=secrets)
@@ -179,7 +180,7 @@ def get_secret_or_env(
     :param secret_provider: Dictionary or callable to extract the secret value from. If using a callable, it must
         use the signature `callable(key:str)`
     :param secret_store: An MLRun `SecretsStore`. Function will attempt to `get()` the secret from the store
-    :default: Default value to return if secret was not available through any other means
+    :param default: Default value to return if secret was not available through any other means
     :return: The secret value if found in any of the sources, or `default` if provided.
     """
 

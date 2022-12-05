@@ -31,10 +31,11 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 07-batch-infer
 ../feature-store/basic-demo
 MLRun demos repository <https://github.com/mlrun/demos>
+/cheat-sheet
 ```
 
 (other-tutorial)=
-## Targeted Tutorials
+## Targeted tutorials
 
 Each of the following tutorials is a dedicated Jupyter notebook. You can download them by clicking the `download` icon at the top of each page.
 
@@ -93,9 +94,13 @@ Use the feature store with data ingestion, model training, model serving, and au
 `````
 
 (e2e-demos)=
-## End to End Demos
+## End to end demos
 
 You can find the different end-to-end demos in the MLRun demos repository: [**github.com/mlrun/demos**](https://github.com/mlrun/demos).
+
+## Cheat sheet
+
+If you already know the basics, use the cheat sheet as a guide to typical use cases and their flows/SDK.
 
 ## Running the demos in Open Source MLRun
 

@@ -14,7 +14,7 @@
 
 from ast import literal_eval
 from os import environ, getenv
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Optional, Union
 
 from .utils import AzureVaultStore, VaultStore, list2dict
 
@@ -150,10 +150,10 @@ class SecretsStore:
 
 
 def get_secret_or_env(
-    key,
-    secret_provider: Union[Dict, Callable] = None,
-    secret_store: SecretsStore = None,
-    default=None,
+    key: str,
+    secret_provider: Union[Dict, Callable, None] = None,
+    secret_store: Optional[SecretsStore] = None,
+    default: Optional[str] = None,
 ) -> str:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:

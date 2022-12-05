@@ -40,7 +40,7 @@ class KubejobRuntime(KubeResource):
     _is_remote = True
 
     def is_deployed(self):
-        """check if the function is deployed (have a valid container)"""
+        """check if the function is deployed (has a valid container)"""
         if self.spec.image:
             return True
 
@@ -123,8 +123,8 @@ class KubejobRuntime(KubeResource):
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: requirements.txt file to install or list of packages to install
         :param overwrite:   overwrite existing build configuration
-        - when False we merge the new params with the existing (currently merge is applied to requirements and commands)
-        - when True we replace the existing params with the new ones
+           - when False we merge the new params with the existing (currently merge is applied to requirements and commands)
+           - when True we replace the existing params with the new ones
         :param verify_base_image: verify the base image is set
         """
         if image:

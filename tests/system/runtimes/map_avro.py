@@ -40,7 +40,6 @@ class MyMap(MapClass):
     )
     AVRO_SCHEMA = avro.schema.parse(schema)
 
-
     def do(self, event):
         self.context.logger.info(
             f"MyMap-1: event = {event.body} event_type={type(event.body)}"

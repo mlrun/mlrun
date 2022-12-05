@@ -760,17 +760,18 @@ class FileRunDB(RunDBInterface):
     def list_artifact_tags(self, project=None, category=None):
         raise NotImplementedError()
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key=None,
     ):
         raise NotImplementedError()
 
-    def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key=None
+    def delete_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
     ):
         raise NotImplementedError()
 
@@ -783,7 +784,6 @@ class FileRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key=None,
     ):
         raise NotImplementedError()
 
@@ -795,7 +795,14 @@ class FileRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
     ):
         raise NotImplementedError()
 

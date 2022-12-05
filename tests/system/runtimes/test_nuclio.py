@@ -275,12 +275,12 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         import avro.schema
         from avro.io import DatumWriter
 
-        from .map_avro import AVRO_SCHEMA
+        from .map_avro import MyMap
 
         for row_index, _ in df.iterrows():
             event_row_temp = df.loc[[row_index]]
             event_row_dict = event_row_temp.to_dict("records")[0]
-            writer = DatumWriter(AVRO_SCHEMA)
+            writer = DatumWriter(MyMap.AVRO_SCHEMA)
             bytes_writer = io.BytesIO()
             encoder = avro.io.BinaryEncoder(bytes_writer)
             writer.write(
@@ -299,14 +299,14 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         row_divide = 3
         stocks_df = pd.DataFrame(
             {
-                "ticker": ["MSFT", "GOOG", "AAPL", "CSCO", "AAPL", "AAPL"],
+                "ticker": ["MSFT", "GOOG", "AAPL", "CSCO", "META", "AMZN"],
                 "name": [
                     "Microsoft Corporation",
                     "Alphabet Inc",
                     "Apple Inc",
                     "Cisco Systems Inc",
-                    "Apple Inc",
-                    "Apple Inc",
+                    "Meta Platforms Inc",
+                    "Amazon.com Inc",
                 ],
                 "price": [int(30), int(40), int(50), int(20), int(60), int(70)],
             }
@@ -360,7 +360,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         print(actual_df)
         expected_df = stocks_df.set_index("ticker")
-        pd.testing.assert_frame_equal(actual_df, expected_df)
+        # setting check_like=True since the order of the two parquet merge
+        # can happen two-ways (based on alphanumeric order)
+        pd.testing.assert_frame_equal(actual_df, expected_df, check_like=True)
 
     @pytest.mark.skipif(
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"

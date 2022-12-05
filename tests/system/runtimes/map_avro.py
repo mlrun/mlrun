@@ -23,28 +23,30 @@ import avro.io
 import avro.schema
 from storey import MapClass
 
-schema = json.dumps(
-    {
-        "namespace": "example.avro",
-        "type": "record",
-        "name": "User",
-        "fields": [
-            {"name": "ticker", "type": "string"},
-            {"name": "name", "type": ["string", "null"]},
-            {"name": "price", "type": ["int", "null"]},
-        ],
-    }
-)
-AVRO_SCHEMA = avro.schema.parse(schema)
-
 
 class MyMap(MapClass):
+
+    schema = json.dumps(
+        {
+            "namespace": "example.avro",
+            "type": "record",
+            "name": "User",
+            "fields": [
+                {"name": "ticker", "type": "string"},
+                {"name": "name", "type": ["string", "null"]},
+                {"name": "price", "type": ["int", "null"]},
+            ],
+        }
+    )
+    AVRO_SCHEMA = avro.schema.parse(schema)
+
+
     def do(self, event):
         self.context.logger.info(
             f"MyMap-1: event = {event.body} event_type={type(event.body)}"
         )
 
-        reader = avro.io.DatumReader(AVRO_SCHEMA)
+        reader = avro.io.DatumReader(self.AVRO_SCHEMA)
 
         bytes_reader = io.BytesIO(event.body)
         decoder = avro.io.BinaryDecoder(bytes_reader)

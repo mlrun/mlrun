@@ -14,7 +14,7 @@
 import sys
 import tempfile
 from base64 import b64encode
-from os import getenv, path, remove
+from os import path, remove
 
 import dask.dataframe as dd
 import fsspec
@@ -24,7 +24,6 @@ import requests
 import urllib3
 
 import mlrun.errors
-from mlrun.secrets import SecretsStore
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False

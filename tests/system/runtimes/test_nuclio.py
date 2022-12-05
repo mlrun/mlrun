@@ -217,6 +217,14 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         assert "id" in record.keys()
 
 
+class MyMap(MapClass):
+    def do(self, event):
+        self.context.logger.info(f"MyMap: event = {event}")
+
+        if isinstance(event, bytes):
+            event = {"key": event}
+        return event
+
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
@@ -265,24 +273,12 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         import avro.schema
         from avro.io import DatumWriter
-
-        schema = json.dumps(
-            {
-                "namespace": "example.avro",
-                "type": "record",
-                "name": "User",
-                "fields": [
-                    {"name": "ticker", "type": "string"},
-                    {"name": "name", "type": ["string", "null"]},
-                    {"name": "price", "type": ["int", "null"]},
-                ],
-            }
-        )
+        from . map_avro import AVRO_SCHEMA
 
         for row_index, _ in df.iterrows():
             event_row_temp = df.loc[[row_index]]
             event_row_dict = event_row_temp.to_dict("records")[0]
-            writer = DatumWriter(avro.schema.parse(schema))
+            writer = DatumWriter(AVRO_SCHEMA)
             bytes_writer = io.BytesIO()
             encoder = avro.io.BinaryEncoder(bytes_writer)
             writer.write(
@@ -297,13 +293,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_kafka_source_with_avro(self, kafka_fixture):
-        class MyMap(MapClass):
-            def do(self, event):
-                self.context.logger.info(f"MyMap: event = {event}")
-
-                if isinstance(event, bytes):
-                    event = {"key": event}
-                return event
 
         row_divide = 3
         stocks_df = pd.DataFrame(
@@ -327,7 +316,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         stocks_set.graph.to("MyMap", full_event=True)
         fstore.ingest(
             featureset=stocks_set,
-            source=stocks_df[row_divide:],
+            source=stocks_df[0:row_divide],
             infer_options=fstore.InferOptions.default(),
         )
         stocks_set.save()
@@ -342,11 +331,10 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func = mlrun.code_to_function(
             name="map",
             kind="serving",
-            # TODO - remove reference to assaf758/mlrun (once mlrun/mlrun is updated)
+            # TODO - remove reference to assaf758/mlrun (once mlrun/mlrun is updated with this fix)
             image="assaf758/mlrun:ML-2836",
             requirements=["avro"],
-            # image='mlrun/mlrun',requirements=['avro'],
-            filename="/home/assafb/iguazio/mlrun/tests/system/runtimes/map-1.py",
+            filename="/home/assafb/iguazio/mlrun/tests/system/runtimes/map_avro.py",
         )
 
         run_config = fstore.RunConfig(local=False, function=func).apply(
@@ -360,7 +348,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         print(stocks_set_endpoint)
 
         kafka_consumer, kafka_producer = kafka_fixture
-        self.produce_kafka_helper(kafka_producer, stocks_df[0:row_divide])
+        self.produce_kafka_helper(kafka_producer, stocks_df[row_divide:])
 
         time.sleep(90)  # wait for ingestion-service parquet to be written
 

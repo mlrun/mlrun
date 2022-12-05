@@ -812,14 +812,19 @@ class RunObject(RunTemplate):
                 return mlrun.get_dataitem(uri)
         return None
 
-    def _outputs_wait_for_completion(self, show_logs=False, logs_interval: int = None):
+    def _outputs_wait_for_completion(
+        self,
+        show_logs=False,
+    ):
+        """
+        Wait for the run to complete to fetch run outputs.
+        When runs a function with watch=False, and wants to pass the outputs to another function,
+        the outputs will not be available until the run is completed.
+        :param show_logs: default False, because we don't want to print the logs of the run when user asks for outputs
+        """
         if self.outputs_wait_for_completion:
             self.wait_for_completion(
                 show_logs=show_logs,
-                logs_interval=logs_interval
-                or int(
-                    mlrun.mlconf.httpdb.logs.pipelines.pull_state.pull_logs_interval
-                ),
             )
 
     def _artifact(self, key):
@@ -899,6 +904,7 @@ class RunObject(RunTemplate):
         If show_logs is not False and logs_interval is defined, it will print the logs every logs_interval seconds
         if show_logs is False it will not print the logs, will still pull the run state until it reaches terminal state
         """
+        # TODO: rename sleep to pull_state_interval
         total_time = 0
         offset = 0
         last_pull_log_time = None
@@ -912,7 +918,8 @@ class RunObject(RunTemplate):
         while True:
             state = self.state()
             if (
-                logs_interval
+                logs_enabled
+                and logs_interval
                 and state not in mlrun.runtimes.constants.RunStates.terminal_states()
                 and (
                     last_pull_log_time is None
@@ -920,8 +927,7 @@ class RunObject(RunTemplate):
                 )
             ):
                 last_pull_log_time = datetime.now()
-                if logs_enabled:
-                    state, offset = self.logs(watch=False, offset=offset)
+                state, offset = self.logs(watch=False, offset=offset)
 
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
                 if logs_enabled and logs_interval:

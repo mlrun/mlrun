@@ -23,7 +23,6 @@ import avro.io
 import avro.schema
 from storey import MapClass
 
-
 schema = json.dumps(
     {
         "namespace": "example.avro",
@@ -40,7 +39,6 @@ AVRO_SCHEMA = avro.schema.parse(schema)
 
 
 class MyMap(MapClass):
-
     def do(self, event):
         self.context.logger.info(
             f"MyMap-1: event = {event.body} event_type={type(event.body)}"

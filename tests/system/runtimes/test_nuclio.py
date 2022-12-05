@@ -225,6 +225,7 @@ class MyMap(MapClass):
             event = {"key": event}
         return event
 
+
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
@@ -273,7 +274,8 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         import avro.schema
         from avro.io import DatumWriter
-        from . map_avro import AVRO_SCHEMA
+
+        from .map_avro import AVRO_SCHEMA
 
         for row_index, _ in df.iterrows():
             event_row_temp = df.loc[[row_index]]

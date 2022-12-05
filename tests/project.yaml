@@ -1,9 +1,0 @@
-kind: project
-metadata:
-  name: test
-spec:
-  functions: []
-  workflows: []
-  artifacts: []
-  source: ''
-  desired_state: online

@@ -52,8 +52,7 @@ def get_files(
     secrets = get_secrets(auth_info)
     body = None
     try:
-        stores = store_manager.set(secrets)
-        obj = stores.object(url=objpath, secrets=secrets)
+        obj = store_manager.object(url=objpath, secrets=secrets)
         if objpath.endswith("/"):
             listdir = obj.listdir()
             return {
@@ -97,8 +96,7 @@ def get_filestat(
     secrets = get_secrets(auth_info)
     stat = None
     try:
-        stores = store_manager.set(secrets)
-        stat = stores.object(url=path).stat()
+        stat = store_manager.object(url=path, secrets=secrets).stat()
     except FileNotFoundError as exc:
         log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=str(exc))
 

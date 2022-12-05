@@ -53,7 +53,7 @@ def get_files(
     body = None
     try:
         stores = store_manager.set(secrets)
-        obj = stores.object(url=objpath)
+        obj = stores.object(url=objpath, secrets=secrets)
         if objpath.endswith("/"):
             listdir = obj.listdir()
             return {

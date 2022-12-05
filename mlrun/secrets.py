@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from ast import literal_eval
-from os import environ
+from os import environ, getenv
+from typing import Callable, Dict, Union
 
 from .utils import AzureVaultStore, VaultStore, list2dict
 
@@ -146,3 +147,57 @@ class SecretsStore:
                     for secret in source["source"]
                 }
         return None
+
+
+def get_secret_or_env(
+    key,
+    secret_provider: Union[Dict, Callable] = None,
+    secret_store: SecretsStore = None,
+    default=None,
+) -> str:
+    """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
+    The function will retrieve a secret value, attempting to find it according to the following order:
+    1. If `secret_provider` was provided, will attempt to retrieve the secret from it
+    2. If an MLRun `SecretsStore` was provided, query it for the secret key
+    2. An environment variable with the same key
+    3. An MLRun-generated env. variable, mounted from a project secret (to be used in MLRun runtimes)
+    4. The default value
+
+    example::
+
+        secrets = { "KEY1": "VALUE1" }
+        secret = get_secret_or_env("KEY1", secret_provider=secrets)
+
+        # Using a function to retrieve a secret
+        def my_secret_provider(key):
+            # some internal logic to retrieve secret
+            return value
+
+        secret = get_secret_or_env("KEY1", secret_provider=my_secret_provider, default="TOO-MANY-SECRETS")
+
+    :param key: Secret key to look for
+    :param secret_provider: Dictionary or callable to extract the secret value from. If using a callable, it must
+        use the signature `callable(key:str)`
+    :param secret_store: An MLRun `SecretsStore`. Function will attempt to `get()` the secret from the store
+    :default: Default value to return if secret was not available through any other means
+    :return: The secret value if found in any of the sources, or `default` if provided.
+    """
+
+    value = None
+    if secret_provider:
+        if isinstance(secret_provider, Dict):
+            value = secret_provider.get(key, default)
+        else:
+            value = secret_provider(key)
+        if value:
+            return value
+
+    if secret_store:
+        value = secret_store.get(key)
+
+    return (
+        value
+        or getenv(key)
+        or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
+        or default
+    )

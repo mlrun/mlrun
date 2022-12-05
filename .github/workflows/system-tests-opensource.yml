@@ -162,19 +162,24 @@ jobs:
         # but this seems to work
         start args: '--addons=registry --insecure-registry="192.168.49.2:5000"'
 
-    - name: Get mlrun kit charts and create namespace
+    - name: Get mlrun ce charts and create namespace
       run: |
-        helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
+        helm repo add mlrun-ce https://mlrun.github.io/ce
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
 
-    - name: Install MLRun Kit helm chart
+    - name: Install MLRun CE helm chart
       run: |
         helm --namespace ${NAMESPACE} \
-            install mlrun-kit \
+            install mlrun-ce \
             --debug \
             --wait \
             --timeout 600s \
+            --set kube-prometheus-stack.enabled=false \
+            --set mlrun.httpDB.dbType="sqlite" \
+            --set mlrun.httpDB.dirPath="/mlrun/db" \
+            --set mlrun.httpDB.dsn="sqlite:////mlrun/db/mlrun.db?check_same_thread=false" \
+            --set mlrun.httpDB.oldDsn="" \
             --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
@@ -185,7 +190,7 @@ jobs:
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
             --set mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-            v3io-stable/mlrun-kit
+            mlrun/mlrun-ce
 
     - name: Prepare system tests env
       run: |

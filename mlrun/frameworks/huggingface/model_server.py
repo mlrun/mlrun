@@ -44,7 +44,7 @@ class HuggingFaceModelServer(V2ModelServer):
     ):
         """
         Initialize a serving class for a Hugging face model.
-        :param context:         The mlrun context to work with
+        :param context:         For internal use (passed in init).
         :param name:            The name of this server to be initialized
         :param model_path:      Not in use. When adding a model pass any string value
         :param model_name:      The model's name in the Hugging Face hub

@@ -47,7 +47,7 @@ class LGBMModelServer(V2ModelServer):
         """
         Initialize a serving class for a torch model.
 
-        :param context:                  The mlrun context to work with.
+        :param context:                  For internal use (passed in init).
         :param name:                     The name of this server to be initialized.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start

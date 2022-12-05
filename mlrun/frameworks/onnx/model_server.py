@@ -44,7 +44,7 @@ class ONNXModelServer(V2ModelServer):
         """
         Initialize a serving class for an onnx.ModelProto model.
 
-        :param context:             The mlrun context to work with.
+        :param context:             For internal use (passed in init).
         :param name:                The model name to be served.
         :param model:               Model to handle or None in case a loading parameters were supplied.
         :param model_path:          Path to the model's directory to load it from. The onnx file must start with the

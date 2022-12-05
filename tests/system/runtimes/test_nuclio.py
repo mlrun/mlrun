@@ -28,6 +28,7 @@ import mlrun
 import tests.system.base
 from mlrun import feature_store as fstore
 from mlrun.datastore.sources import KafkaSource
+from mlrun.datastore.targets import ParquetTarget
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -275,7 +276,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         import avro.schema
         from avro.io import DatumWriter
 
-        from .map_avro import MyMap
+        from .assets.map_avro import MyMap
 
         for row_index, _ in df.iterrows():
             event_row_temp = df.loc[[row_index]]
@@ -316,9 +317,12 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
 
         # need to set full_event = True since we need to change event key in the Map step
         stocks_set.graph.to("MyMap", full_event=True)
+
+        target = ParquetTarget(flush_after_seconds=10)
         fstore.ingest(
             featureset=stocks_set,
             source=stocks_df[0:row_divide],
+            targets=[target],
             infer_options=fstore.InferOptions.default(),
         )
         stocks_set.save()
@@ -336,7 +340,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             # TODO - remove reference to assaf758/mlrun (once mlrun/mlrun is updated with this fix)
             image="assaf758/mlrun:ML-2836",
             requirements=["avro"],
-            filename="tests/system/runtimes/map_avro.py",
+            filename=str(self.assets_path / "map_avro.py"),
         )
 
         run_config = fstore.RunConfig(local=False, function=func).apply(

@@ -13,8 +13,6 @@
 # limitations under the License.
 #
 
-# mlrun: start-code
-
 import io
 import json
 
@@ -57,6 +55,3 @@ class MyMap(MapClass):
         event.key = record["ticker"]
         event.body = record
         return event
-
-
-# mlrun: end-code

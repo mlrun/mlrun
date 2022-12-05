@@ -123,8 +123,8 @@ class KubejobRuntime(KubeResource):
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: requirements.txt file to install or list of packages to install
         :param overwrite:   overwrite existing build configuration
-           - when False we merge the new params with the existing (currently merge is applied to requirements and commands)
-           - when True we replace the existing params with the new ones
+           - False: the new params are merged with the existing (currently merge is applied to requirements and commands)
+           - True: the existing params are replaced by the new ones
         :param verify_base_image: verify the base image is set
         """
         if image:

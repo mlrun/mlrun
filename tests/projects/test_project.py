@@ -644,7 +644,6 @@ def test_project_ops():
     ],
 )
 def test_validating_large_int_params(parameters, hyperparameters, expectation):
-    # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1", save=False)
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")

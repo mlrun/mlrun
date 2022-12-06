@@ -315,7 +315,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         fs_name = "stocks_set"
         stocks_set = fstore.FeatureSet(fs_name, entities=[fstore.Entity("ticker")])
 
-        # need to set full_event = True since we need to change event key in the Map step
+        # need to set full_event=True since we need to change event key in the Map step
         stocks_set.graph.to("MyMap", full_event=True)
 
         target = ParquetTarget(flush_after_seconds=10)
@@ -337,8 +337,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         func = mlrun.code_to_function(
             name="map",
             kind="serving",
-            # TODO - remove reference to assaf758/mlrun (once mlrun/mlrun is updated with this fix)
-            image="assaf758/mlrun:ML-2836",
+            image="mlrun/mlrun",
             requirements=["avro"],
             filename=str(self.assets_path / "map_avro.py"),
         )
@@ -349,6 +348,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         stocks_set_endpoint = fstore.deploy_ingestion_service(
             featureset=stocks_set,
             source=kafka_source,
+            targets=[target],
             run_config=run_config,
         )
         print(stocks_set_endpoint)
@@ -356,7 +356,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         kafka_consumer, kafka_producer = kafka_fixture
         self.produce_kafka_helper(kafka_producer, stocks_df[row_divide:])
 
-        time.sleep(90)  # wait for ingestion-service parquet to be written
+        time.sleep(20)  # wait for ingestion-service parquet to be written
 
         vec = fstore.FeatureVector("test-vec", [f"{fs_name}.*"])
         resp = fstore.get_offline_features(feature_vector=vec, with_indexes=True)

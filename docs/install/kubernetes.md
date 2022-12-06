@@ -96,6 +96,16 @@ Add the Community Edition helm chart repo:
 helm repo add mlrun-ce https://mlrun.github.io/ce
 ```
 
+Run the following command to ensure the repo is installed and available:
+```bash
+helm repo list
+```
+It should outuput something like:
+```bash
+NAME        URL
+mlrun-ce    https://mlrun.github.io/ce
+```
+
 Update the repo to make sure you're getting the latest chart:
 
 ```bash
@@ -147,14 +157,15 @@ When the installation is complete, the helm command prints the URLs and Ports of
 
 ## Installing the Full Version
 
-To install the full version of the chart, use the following command:
+To install the full version of the chart first follow the instructions of installing the light version up until the helm
+install command, and then use the following command instead:
 
 ```bash
 helm --namespace mlrun \
     install mlrun-ce \
     --wait \
     --timeout 960s \
-    -f override-full.yaml \
+    -f https://raw.githubusercontent.com/mlrun/ce/development/charts/mlrun-ce/override-full.yaml \
     --set global.registry.url=<registry-url> \
     --set global.registry.secretName=registry-credentials \
     --set global.externalHostAddress=<host-machine-address> \

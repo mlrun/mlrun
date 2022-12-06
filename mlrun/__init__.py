@@ -22,6 +22,7 @@ __all__ = [
     "handler",
     "ArtifactType",
     "get_secret_or_env",
+    "is_running_as_api",
 ]
 
 import getpass

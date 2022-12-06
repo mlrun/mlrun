@@ -1,0 +1,69 @@
+(ecosystem)=
+# MLRun ecosystem 
+
+This section lists the data stores, development tools, services, platforms, etc., supported by MLRun's open ecosystem. 
+
+## Data stores 
+
+- Object (S3, gs, az) 
+- Files, NFS 
+- Pandas/Spark DF 
+- BigQuery 
+- Snowflake 
+- Redis 
+- Iguazio V3IO 
+
+## Event sources 
+
+- HTTP 
+- Cron 
+- Kafka 
+- Iguazio V3IO 
+
+## Execution frameworks 
+
+- Nuclio 
+- Spark 
+- Dask 
+- Horovod/MPI 
+- K8s Jobs 
+
+## Dev environments 
+
+- PyCharm 
+- VSCode 
+- Jupyter 
+- Colab 
+- AzureML 
+- SageMaker 
+- Codespaces 
+- Others (set with environment variables) 
+
+## Frameworks 
+
+- SKLearn 
+- XGBoost 
+- LGBM 
+- TF / Keras 
+- PyTorch 
+- ONNX 
+- Custom 
+
+## Platforms 
+
+- Kubernetes 
+   - AWS EKS 
+   - Azure AKS 
+   - GKE 
+   - VMWare 
+- Local (e.g., Kubernetes engine on Docker Desktop) 
+   - Docker 
+   - Linux/KVM 
+   - NVIDIA DGX 
+
+## CI/CD 
+
+- Jenkins 
+- Github Actions 
+- Gitlab CI/CD 
+- KFP 

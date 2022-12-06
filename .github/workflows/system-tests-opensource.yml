@@ -170,6 +170,18 @@ jobs:
 
     - name: Install MLRun CE helm chart
       run: |
+        # TODO: There are a couple of modifications to the helm chart that we are doing right now:
+        #       1. The grafana prometheus stack is disabled as there are currently no system tests checking its
+        #          functionality. Once the model monitoring feature is complete and we have system tests for it, we
+        #          can enable it. (flags: --set kube-prometheus-stack.enabled=false)
+        #       2. The mlrun DB is set as the old SQLite db. There is a bug in github workers when trying to run a mysql
+        #          server pod in minikube installed on the worker, the mysql pod crashes. There isn't much information
+        #          about this issue online as this isn't how github expect you to use mysql in workflows - the worker
+        #          has a mysql server installed directly on it and should be enabled and used as the DB. So we might
+        #          want in the future to use that instead, unless the mysql will be able to come up without crashing.
+        #          (flags: --set mlrun.httpDB.dbType="sqlite" --set mlrun.httpDB.dirPath="/mlrun/db"
+        #          --set mlrun.httpDB.dsn="sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
+        #          --set mlrun.httpDB.oldDsn="")
         helm --namespace ${NAMESPACE} \
             install mlrun-ce \
             --debug \

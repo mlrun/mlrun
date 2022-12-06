@@ -1157,7 +1157,7 @@ class BaseRuntime(ModelObj):
                 self.verify_run_params(param_value)
 
             # verify that integer parameters don't exceed a int64
-            if isinstance(param_value, int) and param_value >= 2**64:
+            if isinstance(param_value, int) and abs(param_value) >= 2**63:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"parameter {param_name} value {param_name} exceeds int64"
                 )

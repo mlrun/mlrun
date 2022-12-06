@@ -621,14 +621,26 @@ def test_project_ops():
 @pytest.mark.parametrize(
     "parameters,hyperparameters,expectation",
     [
-        ({"x": 2**64}, None, pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        ({"x": 2**64 - 1}, None, does_not_raise()),
+        ({"x": 2**63}, None, pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         (
+            {"x": -(2**63)},
             None,
-            {"x": [1, 2**64]},
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
-        (None, {"x": [3, 2**64 - 1]}, does_not_raise()),
+        ({"x": 2**63 - 1}, None, does_not_raise()),
+        ({"x": -(2**63) + 1}, None, does_not_raise()),
+        (
+            None,
+            {"x": [1, 2**63]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            None,
+            {"x": [1, -(2**63)]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (None, {"x": [3, 2**63 - 1]}, does_not_raise()),
+        (None, {"x": [3, -(2**63) + 1]}, does_not_raise()),
     ],
 )
 def test_validating_large_int_params(parameters, hyperparameters, expectation):

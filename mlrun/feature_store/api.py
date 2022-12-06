@@ -256,11 +256,16 @@ def get_online_feature_service(
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
     :param update_stats:      update features statistics from the requested feature sets on the vector. Default: False.
     """
-    if isinstance(feature_vector, FeatureVector) or impute_policy:
+    if isinstance(feature_vector, FeatureVector):
         update_stats = True
     feature_vector = _features_to_vector_and_check_permissions(
         feature_vector, update_stats
     )
+
+    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
+    if impute_policy and not feature_vector.status.stats:
+        update_stats = True
+
     graph, index_columns = init_feature_vector_graph(
         feature_vector, fixed_window_type, update_stats=update_stats
     )

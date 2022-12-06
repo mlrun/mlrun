@@ -51,14 +51,13 @@ def test_get_secret_from_env():
     # Use a SecretsStore
     store = SecretsStore()
     store.add_source("inline", local_secrets)
-    assert mlrun.get_secret_or_env(key, secret_store=store) == override_value
+    assert mlrun.get_secret_or_env(key, secret_provider=store) == override_value
 
     # Verify that default is used if nothing else is found
     assert (
         mlrun.get_secret_or_env(
             "SOME_GIBBERISH",
-            secret_store=store,
-            secret_provider=local_secrets,
+            secret_provider=store,
             default="not gibberish",
         )
         == "not gibberish"

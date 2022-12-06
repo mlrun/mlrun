@@ -440,6 +440,7 @@ class BaseRuntime(ModelObj):
         else:
             # single run
             try:
+                self.verify_run_params(run)
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = run.logs(True, self._get_db())
@@ -826,6 +827,11 @@ class BaseRuntime(ModelObj):
         results = RunList()
         num_errors = 0
         tasks = generator.generate(runobj)
+
+        # verify valid task parameters
+        for task in tasks:
+            self.verify_run_params(task)
+
         for task in tasks:
             try:
                 self.store_run(task)
@@ -1143,6 +1149,15 @@ class BaseRuntime(ModelObj):
             # when the function require build use the image as the base_image for the build
             self.spec.build.base_image = image
             self.spec.image = ""
+
+    @staticmethod
+    def verify_run_params(run: RunObject):
+        # verify that integer parameters don't exceed a int64
+        for param in run.spec.parameters:
+            if isinstance(param.value, int) and param.value > 2 ** 63:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"parameter {param.name} value {param.value} exceeds int64"
+                )
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)

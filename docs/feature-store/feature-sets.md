@@ -11,9 +11,9 @@ The feature set object contains the following information:
 - **Metadata** &mdash; General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
 - **Key attributes** &mdash; Entity (the join key), timestamp key (optional), label column.
 - **Features** &mdash; The list of features along with their schema, metadata, validation policies and statistics.
-- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.).
+- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](../api/mlrun.datastore.html).
 - **Transformation** &mdash; The data transformation pipeline (e.g. aggregation, enrichment etc.).
-- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. 
+- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. See the [target descriptions](../data-prep/ingest-data-fs.html#target-stores).
 - **Function** &mdash; The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
 **In this section**

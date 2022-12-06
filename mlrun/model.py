@@ -817,10 +817,10 @@ class RunObject(RunTemplate):
         show_logs=False,
     ):
         """
-        Wait for the run to complete to fetch run outputs.
-        When runs a function with watch=False, and wants to pass the outputs to another function,
+        Wait for the run to complete fetching the run outputs.
+        When running a function with watch=False, and passing the outputs to another function,
         the outputs will not be available until the run is completed.
-        :param show_logs: default False, because we don't want to print the logs of the run when user asks for outputs
+        :param show_logs: default False, avoid spamming unwanted logs of the run when the user asks for outputs
         """
         if self.outputs_wait_for_completion:
             self.wait_for_completion(
@@ -912,7 +912,7 @@ class RunObject(RunTemplate):
         state = self.state()
         if state not in mlrun.runtimes.constants.RunStates.terminal_states():
             logger.info(
-                f"run {self.metadata.name} is not in terminal state, waiting for it to reach terminal state",
+                f"run {self.metadata.name} is not completed yet, waiting for it to complete",
                 current_state=state,
             )
         while True:

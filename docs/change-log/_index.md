@@ -16,35 +16,49 @@
 
 ### New and updated features
 
-**API**
+#### Artifacts
+- Support for artifact tagging:
+    SDK: Add `tag_artifacts`  and `delete_artifacts_tags` that can be used to modify existing artifacts tags and have more than one version for an artifact.
+    API: Introduce new endpoints in `/projects/<project>/tags`.
+	UI: You can add and edit artifact tags in the UI.
+
+#### Functions
+- Add `function.with_annotations({"framework":"tensorflow"})` to user created functions.
+- Add `overwrite_build_params` to `project.build_function()` so the user can choose whether or not to keep the build params that were used in previous function builds.
+- Support S3 profile and assume-role when using `fsspec`.
 - `deploy_function` has a new option of mock deployment that allows running the function locally
-- Artifact management improvements: You can add and edit artifact tags
-- Supports overwriting commands when using `project.build_function`
 
-**Feature store**
-- Supports Redis as an online feature set 
-<br>See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store-tech-preview)
-- The out-of-the-box feature store steps are available with the pandas engine
-- Supports GCP objects as data source for the feature store
+#### Feature store
+- Support Redis as an online feature set. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store-tech-preview).)
+- Support GCP objects as a data source for the feature store.
+- Support GitHub fine grained tokens.
+- Fully support ingesting with pandas engine, now equivalent to ingestion with `storey` engine:
+   - Support DataFrame with multi-index.
+   - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
+- Add new step: `DropFeature` for pandas and storey engines.
+- Add param query for `get_offline_feature` for filtering the output.
 
-**UI**
-- The Labels in the **Models > Overview** tab can be edited 
-- Artifact management improvements: You can add and edit artifact tags in the UI
+#### Models
+- The Labels in the **Models > Overview** tab can be edited
 
-**Documentation**
+#### Frameworks
+- Add `HuggingFaceModelServer` to `mlrun.frameworks` at `mlrun.frameworks.huggingface` to serve `HuggingFace` models.
+
+#### Installation
+- Add option to install `google-cloud` requirements using `mlrun[google-cloud]`:  when installing MLRun for integration with GCP clients, only compatible packages are installed.
+
+####Documentation
 - Restructure and new content
 
-**Third party integrations**
+#### Third party integrations
 - Supports Confluent Kafka (Tech Preview)
 
-**Models**
-- A new model server for HuggingFace models is available
-
-**V3IO**
-- Supports upload of files larger that 5GB
-
-### Infrastructure improvements
-- Refactor of artifacts' API endpoints. (The previous API will be deprecated in a future release.)
+#### Internal
+- Refactor artifacts endpoints to follow the MLRun convention of `/projects/<project>/artifacts/...`. (The previous API will be deprecated in a future release.)
+- Add `/api/_internal/memory-reports/` endpoints for memory related metrics to better understand the memory consumption of the API.
+- Improve the HTTP retry mechanism.
+- Support a new lightweight mechanism for KFP pods to pull the run state they triggered. Default behavior is legacy, which pulls the logs of the run to figure out the run state. 
+The new behavior can be enabled using a feature flag configured in the API.
 
 ### Breaking changes
 
@@ -54,7 +68,6 @@ being a column in this df). This could cause breakage for existing custom steps 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2)
-
 
 
 ## v1.1.3
@@ -142,7 +155,8 @@ Workflows
 - Supports configuring CPU, GPU, and memory default limits for user jobs
 - Supports configuring pods priority and spot instances
 - Enhanced masking of sensitive data
-**Projects**
+
+#### Projects
 - Setting owner and members are in a dedicated Project Settings section
 - Project Monitoring has a new Consumer Groups report
 
@@ -161,24 +175,28 @@ Workflows
 ## Closed issues
 
 | ID   | Description                                                    | Workaround                  | Opened | Closed |
-|----- | ---------------------------------------------------------------|----------------------------------|-----------|-----------|      
-| 2778 | Getting Started demo: Artifacts dashboard does not display     | NA                               | 1.0.4  | 1.2.0  |
+|----- | ---------------------------------------------------------------|----------------------------------|-----------|-----------|   
+| 2778 | Getting Started demo: Artifacts dashboard does not display.     | NA                               | 1.0.4  | 1.2.0  |
+| 2759 | Align timeouts for requests that are getting re-routed from worker to chief (for projects/background related endpoints). | **1.2.0**  | 1.2.0  | 
+| 2684 | Add `artifact_path` enrichment from project artifact_path. Previously, the parameter wasn't applied to project runs when defining `project.artifact_path`.   | NA                         | 0.10.0     | 1.2.0 |
+| 2679 | Kubeflow pipeline ParallelFor does not work on kfp 1.8.14.      |  Use KFP < 1.8.14               | 1.1.0     | 1.2.0 |
 | 2669 | When running a function after building the image, the flow fails. | Set the image parameter for the runtime, for example: ```func = mlrun.code_to_function("func4", kind="job", handler="my_function", image="mlrun/mlrun", requirements=["pandas"])```. This sets the created image in the image field (replaces the given value)                          | 1.0.0     | 1.2.0    |
 |      |                                                        | Another option is to set the base image for the function: ```func.build_config(base_image="mlrun/mlrun")```  |       |      | 
-| 2055 | Can now delete a model via tag                                  |                                       | 1.0.0     |  1.2.0    |
-| 2657 | Scheduled jobs on GKE fail with resource quota error           |                                       | 1.0.0     | 1.2.0 |
-| 2421 | Demo: Clicking on artifact logged with ".html" artifact's dashboard does not give artifact details |          | 1.2.0     | 1.1.0 |
-| 2104 | Deploying monitoring stream application results in `ResourceNotFoundException` |                             | 1.0.0     | 1.2.0  |
-| 2330 | Deploy new function (job) should add source files to the new image |                                       | 1.0.0     | 1.2.0 |
-| 2684 | Project's artifact-path should pass to remote runs   |                                       | 0.10.0     | 1.2.0 |
-| 2679 | Kubeflow pipeline ParallelFor does not work on kfp 1.8.14      |  Use KFP < 1.8.14               | 1.1.0     | 1.2.0 |
-| ???? | Fix legacy artifacts load when loading project                 |                                 | ????     | 1.1.3|
-| 2865 | CLI: Timeout is applied when running pipeline                  | NA                              | 1.1.2 | 1.1.3|  
-| 2873 | CLI: Supports overwriting schedule when creating scheduling workflow | NA                        | 1.1.2 | 1.1.3|  
-| 2655 | Cluster went into a degraded mode, and projects not seen       | Create new project, old projects are returned. | 1.1.0 | 1.1.1 |
-| 2518 | Mismatch between Nuclio and MLRun status screens               | NA                              | 1.1.0 | 1.1.1 |
+| 2657 | Resolved: Scheduled jobs failed on GKE with resource quota error. |                                       | 1.0.0     | 1.2.0 |
+| 2421 | Demo: Clicking on artifact logged with ".html" artifact's dashboard does not give artifact details. |          | 1.2.0     | 1.1.0 |
+| 2358 | Support logging artifacts larger than 5GB  to V3IO.             | NA                               | 1.0.4  | 1.2.0  |
+| 2330 | Deploy new function (job) should add zip source files to the new image. |                                       | 1.0.0     | 1.2.0 |
+| 2104 | Deploying monitoring stream application results in `ResourceNotFoundException`. |                             | 1.0.0     | 1.2.0  |
+| 2055 | Can now delete a model via tag.                                  |                                       | 1.0.0     |  1.2.0    |
+| **????** | Fix for corner cases when legacy artifacts were saved to yaml and loaded back into the system using `load_project()`. |                                 | ????     | 1.2.0 |
+| **????** | Docker compose deployment: Nuclio is configured properly with a platformConfig file that sets proper mounts and network configuration for Nuclio functions, meaning that they run in the same network as MLRun. |  | 1.2.0 |
+| **????** | Background tasks get cancelled prematurely, due to a bug in the starlette package used by the current FastAPI version. Tasks were cancelled if the client's http connection was closed before completing the task. |  | 1.2.0 |
+| 2865 | CLI: Timeout is applied when running pipeline.                 | NA                              | 1.1.2 | 1.1.3|  
+| 2873 | CLI: Supports overwriting schedule when creating scheduling workflow. | NA                        | 1.1.2 | 1.1.3|  
+| 2655 | Cluster went into a degraded mode, and projects not seen.       | Create new project, old projects are returned. | 1.1.0 | 1.1.1 |
+| 2518 | Mismatch between Nuclio and MLRun status screens .             | NA                              | 1.1.0 | 1.1.1 |
 | 2653 | **code_to_function fails with "BuildError: cannot convert notebook" on 3.2.3  **                 |       | 1.1.1 |                      
-| 2062 | Job name needs to be validated to avoid DNS-1035 non-compliance | NA                             | 1.0.0 | 1.1.0 |
+| 2062 | Job name needs to be validated to avoid DNS-1035 non-compliance. | NA                             | 1.0.0 | 1.1.0 |
           
 
 
@@ -204,7 +222,7 @@ Workflows
 
 
 | ID   | Description                                                    | Workaround                           | Opened | 
-| ----- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
+| ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | 2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less (Kubernetes limitation). |  v1.0.0  |
  
 

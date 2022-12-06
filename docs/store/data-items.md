@@ -10,6 +10,9 @@ of data and metadata.
 Example function:
 
 ```python
+%%writefile data-prep.py
+import mlrun
+
 def prep_data(context, source_url: mlrun.DataItem, label_column='label'):
     # Convert the DataItem to a Pandas DataFrame
     df = source_url.as_df()
@@ -17,13 +20,16 @@ def prep_data(context, source_url: mlrun.DataItem, label_column='label'):
     context.log_dataset('cleaned_data', df=df, index=False, format='csv')
 ```
 
-Running the function:
+Creating a project, setting the function into it, defining the URL with the data and running the function:
 
 ```python
+source_url = 'https://s3.wasabisys.com/iguazio/data/iris/iris_dataset.csv'
+project = mlrun.get_or_create_project("data-items", "./", user_project=True)
+data_prep_func = project.set_function("data-prep.py", name="data-prep", kind="job", image="mlrun/mlrun", handler="prep_data")
 prep_data_run = data_prep_func.run(name='prep_data',
                                    handler=prep_data,
                                    inputs={'source_url': source_url},
-                                   params={'label_column': 'userid'})
+                                   params={'label_column': 'label'})
 ```
 
 In order to call the function with an `input` you can use the `inputs` dictionary attribute. In order to pass

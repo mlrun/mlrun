@@ -148,6 +148,7 @@ setup(
         "mlrun.api.api.endpoints",
         "mlrun.api.api.endpoints.internal",
         "mlrun.api.crud",
+        "mlrun.api.crud.model_monitoring",
         "mlrun.api.db",
         "mlrun.api.db.filedb",
         "mlrun.api.db.sqldb",

@@ -212,12 +212,13 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "retry_api_call_on_exception": "enabled",
+        "http_connection_timeout_keep_alive": 11,
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -268,6 +269,24 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
+        },
+        "logs": {
+            "pipelines": {
+                # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
+                # pipeline step instead of pulling the state by getting the run logs
+                "pull_state": {
+                    # enabled - pull state of a run every "pull_state_interval" seconds and pull logs every
+                    # "pull_logs_interval" seconds
+                    # disabled - pull logs every "pull_logs_default_interval" seconds
+                    "mode": "disabled",
+                    # those params are used when mode is enabled
+                    "pull_logs_interval": 30,  # seconds
+                    "pull_state_interval": 5,  # seconds
+                },
+            },
+            # this is the default interval period for pulling logs, if not specified different timeout interval
+            "pull_logs_default_interval": 3,  # seconds
+            "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
         },
         "authorization": {
             "mode": "none",  # one of none, opa
@@ -347,6 +366,8 @@ default_config = {
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
+        # See mlrun.api.schemas.ModelEndpointStoreType for available options
+        "store_type": "kv",
     },
     "secret_stores": {
         "vault": {
@@ -855,6 +876,10 @@ class Config:
     def is_nuclio_detected(self):
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return True if mlrun.mlconf.nuclio_version else False
+
+    def get_v3io_access_key(self):
+        # Get v3io access key from the environment
+        return os.environ.get("V3IO_ACCESS_KEY")
 
 
 # Global configuration

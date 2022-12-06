@@ -19,12 +19,18 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from os import environ
+from os import environ, path
 from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target, is_legacy_artifact
+from .utils import (
+    dict_to_json,
+    dict_to_yaml,
+    get_artifact_target,
+    is_legacy_artifact,
+    logger,
+)
 
 # Changing {run_id} will break and will not be backward compatible.
 RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
@@ -344,6 +350,26 @@ class ImageBuilder(ModelObj):
         self.with_mlrun = with_mlrun  #: with_mlrun
         self.auto_build = auto_build  #: auto_build
         self.build_pod = None
+
+    @property
+    def source(self):
+        return self._source
+
+    @source.setter
+    def source(self, source):
+        if source and not (
+            source.endswith(".tar.gz")
+            or source.endswith(".zip")
+            or source.startswith("git://")
+            or path.isfile(source)
+            or source in [".", "./"]
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source must be a compressed (tar.gz / zip) file, a git repo, "
+                "a file path or in the project's context (.)"
+            )
+
+        self._source = source
 
 
 class RunMetadata(ModelObj):
@@ -747,8 +773,7 @@ class RunObject(RunTemplate):
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self._artifact(key)
@@ -768,8 +793,7 @@ class RunObject(RunTemplate):
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
@@ -780,14 +804,28 @@ class RunObject(RunTemplate):
 
     def artifact(self, key) -> "mlrun.DataItem":
         """return artifact DataItem by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         artifact = self._artifact(key)
         if artifact:
             uri = get_artifact_target(artifact, self.metadata.project)
             if uri:
                 return mlrun.get_dataitem(uri)
         return None
+
+    def _outputs_wait_for_completion(
+        self,
+        show_logs=False,
+    ):
+        """
+        Wait for the run to complete fetching the run outputs.
+        When running a function with watch=False, and passing the outputs to another function,
+        the outputs will not be available until the run is completed.
+        :param show_logs: default False, avoid spamming unwanted logs of the run when the user asks for outputs
+        """
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion(
+                show_logs=show_logs,
+            )
 
     def _artifact(self, key):
         """return artifact DataItem by key"""
@@ -826,7 +864,7 @@ class RunObject(RunTemplate):
         db = mlrun.get_run_db()
         db.list_runs(uid=self.metadata.uid, project=self.metadata.project).show()
 
-    def logs(self, watch=True, db=None):
+    def logs(self, watch=True, db=None, offset=0):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
@@ -834,23 +872,66 @@ class RunObject(RunTemplate):
             print("DB is not configured, cannot show logs")
             return None
 
+        new_offset = 0
         if db.kind == "http":
-            state = db.watch_log(self.metadata.uid, self.metadata.project, watch=watch)
+            state, new_offset = db.watch_log(
+                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+            )
         else:
-            state, text = db.get_log(self.metadata.uid, self.metadata.project)
+            state, text = db.get_log(
+                self.metadata.uid, self.metadata.project, offset=offset
+            )
             if text:
                 print(text.decode())
 
         if state:
             print(f"final state: {state}")
-        return state
+        return state, new_offset
 
-    def wait_for_completion(self, sleep=3, timeout=0, raise_on_failure=True):
-        """wait for async run to complete"""
+    def wait_for_completion(
+        self,
+        sleep=3,
+        timeout=0,
+        raise_on_failure=True,
+        show_logs=None,
+        logs_interval=None,
+    ):
+        """
+        Wait for remote run to complete.
+        Default behavior is to wait until reached terminal state or timeout passed, if timeout is 0 then wait forever
+        It pulls the run status from the db every sleep seconds.
+        If show_logs is not False and logs_interval is not None, it will print the logs when run reached terminal state
+        If show_logs is not False and logs_interval is defined, it will print the logs every logs_interval seconds
+        if show_logs is False it will not print the logs, will still pull the run state until it reaches terminal state
+        """
+        # TODO: rename sleep to pull_state_interval
         total_time = 0
+        offset = 0
+        last_pull_log_time = None
+        logs_enabled = show_logs is not False
+        state = self.state()
+        if state not in mlrun.runtimes.constants.RunStates.terminal_states():
+            logger.info(
+                f"run {self.metadata.name} is not completed yet, waiting for it to complete",
+                current_state=state,
+            )
         while True:
             state = self.state()
+            if (
+                logs_enabled
+                and logs_interval
+                and state not in mlrun.runtimes.constants.RunStates.terminal_states()
+                and (
+                    last_pull_log_time is None
+                    or (datetime.now() - last_pull_log_time).seconds > logs_interval
+                )
+            ):
+                last_pull_log_time = datetime.now()
+                state, offset = self.logs(watch=False, offset=offset)
+
             if state in mlrun.runtimes.constants.RunStates.terminal_states():
+                if logs_enabled and logs_interval:
+                    self.logs(watch=False, offset=offset)
                 break
             time.sleep(sleep)
             total_time += sleep
@@ -858,11 +939,14 @@ class RunObject(RunTemplate):
                 raise mlrun.errors.MLRunTimeoutError(
                     "Run did not reach terminal state on time"
                 )
-        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
+        if logs_enabled and not logs_interval:
             self.logs(watch=False)
+
+        if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"
             )
+
         return state
 
     @staticmethod

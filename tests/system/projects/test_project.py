@@ -103,6 +103,23 @@ class TestProject(TestMLRunSystem):
         proj.save()
         return proj
 
+    def test_project_persists_function_changes(self):
+        func_name = "build-func"
+        commands = [
+            "echo 1111",
+            "echo 2222",
+        ]
+        self.project.set_function(
+            "./assets/handler.py", func_name, kind="job", image="mlrun/mlrun"
+        )
+        self.project.build_function(
+            func_name, base_image="mlrun/mlrun", commands=commands
+        )
+        assert (
+            self.project.get_function(func_name, sync=False).spec.build.commands
+            == commands
+        )
+
     def test_run(self):
         name = "pipe1"
         self.custom_project_names_to_delete.append(name)
@@ -499,7 +516,39 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         print("OUT:\n", out)
-        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        assert (
+            out.find("pipeline run finished, state=Succeeded") != -1
+        ), "pipeline failed"
+
+    def test_run_cli_watch_with_timeout(self):
+        name = "run-cli-watch-with-timeout"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # exec the workflow and set a short timeout, should fail
+        args = [
+            "--name",
+            name,
+            "--url",
+            "git://github.com/mlrun/project-demo.git",
+            "--run",
+            "main",
+            "--watch",
+            "--timeout 1",
+            "--ensure-project",
+            project_dir,
+        ]
+        out = exec_project(args)
+
+        print("OUT:\n", out)
+        assert (
+            out.find(
+                "Exception: failed to execute command by the given deadline. last_exception: "
+                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+            )
+            != -1
+        )
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)

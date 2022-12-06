@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:1.0.6
+        image: mlrun/mlrun-api:1.2.0
         env:
         - name: MLRUN_NAMESPACE
           valueFrom:
@@ -91,7 +91,7 @@ spec:
     spec:
       containers:
       - name: mlrun-ui
-        image: mlrun/mlrun-ui:1.0.6
+        image: mlrun/mlrun-ui:1.2.0
         env:
         - name: MLRUN_API_PROXY_URL
           value: http://mlrun-api:8080

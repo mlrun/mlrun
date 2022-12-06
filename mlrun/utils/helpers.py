@@ -16,13 +16,13 @@ import enum
 import hashlib
 import inspect
 import json
-import os
 import re
 import sys
 import time
 import typing
 from datetime import datetime, timezone
 from importlib import import_module
+from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
@@ -120,20 +120,6 @@ if is_ipython and config.nest_asyncio_enabled in ["1", "True"]:
     import nest_asyncio
 
     nest_asyncio.apply()
-
-
-_is_running_as_api = None
-
-
-def is_running_as_api():
-    # MLRUN_IS_API_SERVER is set when running the api server which is being done through the CLI command mlrun db
-    global _is_running_as_api
-
-    if _is_running_as_api is None:
-        # os.getenv will load the env var as string, and json.loads will convert it to a bool
-        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
-
-    return _is_running_as_api
 
 
 class run_keys:
@@ -399,7 +385,7 @@ def list2dict(lines: list):
         key, value = line[:i].strip(), line[i + 1 :].strip()
         if key is None:
             raise ValueError("cannot find key in line (key=value)")
-        value = os.path.expandvars(value)
+        value = path.expandvars(value)
         out[key] = value
     return out
 
@@ -1105,7 +1091,7 @@ def set_paths(pythonpath=""):
         return
     paths = pythonpath.split(":")
     for p in paths:
-        abspath = os.path.abspath(p)
+        abspath = path.abspath(p)
         if abspath not in sys.path:
             sys.path.append(abspath)
 

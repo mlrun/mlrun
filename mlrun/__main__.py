@@ -785,6 +785,8 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     if verbose:
         env["MLRUN_LOG_LEVEL"] = "DEBUG"
 
+    env["MLRUN_IS_API_SERVER"] = "true"
+
     # create the DB dir if needed
     dsn = dsn or mlconf.httpdb.dsn
     if dsn and dsn.startswith("sqlite:///"):

@@ -175,7 +175,7 @@ jobs:
             --debug \
             --wait \
             --timeout 600s \
-            -f https://github.com/mlrun/ce/blob/development/charts/mlrun-ce/override-full.yaml \
+            -f https://raw.githubusercontent.com/mlrun/ce/development/charts/mlrun-ce/override-full.yaml \
             --set kube-prometheus-stack.enabled=false \
             --set mlrun.httpDB.dbType="sqlite" \
             --set mlrun.httpDB.dirPath="/mlrun/db" \

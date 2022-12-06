@@ -440,7 +440,7 @@ class BaseRuntime(ModelObj):
         else:
             # single run
             try:
-                self.verify_run_params(run)
+                self.verify_run_params(run.spec.parameters)
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = run.logs(True, self._get_db())
@@ -830,7 +830,7 @@ class BaseRuntime(ModelObj):
 
         # verify valid task parameters
         for task in tasks:
-            self.verify_run_params(task)
+            self.verify_run_params(task.spec.parameters)
 
         for task in tasks:
             try:
@@ -1150,13 +1150,16 @@ class BaseRuntime(ModelObj):
             self.spec.build.base_image = image
             self.spec.image = ""
 
-    @staticmethod
-    def verify_run_params(run: RunObject):
-        # verify that integer parameters don't exceed a int64
-        for param in run.spec.parameters:
-            if isinstance(param.value, int) and param.value > 2**63:
+    def verify_run_params(self, parameters: typing.Dict[str, typing.Any]):
+        for param_name, param_value in parameters.items():
+
+            if isinstance(param_value, dict):
+                self.verify_run_params(param_value)
+
+            # verify that integer parameters don't exceed a int64
+            if isinstance(param_value, int) and param_value > 2**63:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"parameter {param.name} value {param.value} exceeds int64"
+                    f"parameter {param_name} value {param_name} exceeds int64"
                 )
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):

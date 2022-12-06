@@ -17,6 +17,7 @@ import pathlib
 import shutil
 import tempfile
 import zipfile
+from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import inflection
@@ -615,3 +616,31 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
+
+
+@pytest.mark.parametrize(
+    "parameters,hyperparameters,expectation",
+    [
+        ({"x": 2**64}, None, pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ({"x": 2**63}, None, does_not_raise()),
+        (
+            None,
+            {"x": [1, 2**64]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (None, {"x": [3, 2**63]}, does_not_raise()),
+    ],
+)
+def test_validating_large_int_params(parameters, hyperparameters, expectation):
+    # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    with expectation:
+        proj1.run_function(
+            "f1",
+            params=parameters,
+            hyperparams=hyperparameters,
+            local=True,
+        )

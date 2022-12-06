@@ -33,10 +33,10 @@ class HuggingFaceModelServer(V2ModelServer):
         self,
         context: mlrun.MLClientCtx = None,
         name: str = None,
+        task: str = None,
         model_path: str = None,
         model_name: str = None,
         model_class: str = None,
-        task: str = None,
         tokenizer_name: str = None,
         tokenizer_class: str = None,
         framework: str = None,
@@ -46,13 +46,13 @@ class HuggingFaceModelServer(V2ModelServer):
         Initialize a serving class for a Hugging face model.
         :param context:         For internal use (passed in init).
         :param name:            The name of this server to be initialized
+        :param task:            The task defining which pipeline will be returned.
         :param model_path:      Not in use. When adding a model pass any string value
         :param model_name:      The model's name in the Hugging Face hub
                                 e.g., `nlptown/bert-base-multilingual-uncased-sentiment`
         :param model_class:     The model class type object which can be passed as the class's name (string).
                                 Must be provided and to be matched with `model_name`.
                                 e.g., `AutoModelForSequenceClassification`
-        :param task:            The task defining which pipeline will be returned.
         :param tokenizer_name:  The name of the tokenizer in the Hugging Face hub
                                 e.g., `nlptown/bert-base-multilingual-uncased-sentiment`
         :param tokenizer_class: The model's class type object which can be passed as the class's name (string).

@@ -1,7 +1,7 @@
 (feature-store)=
 # Feature store 
 
-A feature store provides a single pane of glass for sharing all available features across
+AA feature store provides a single pane of glass for sharing all available features across
 the organization along with their metadata. MLRun Feature store support security, versioning, 
 and data snapshots, enabling better data lineage, compliance, and manageability.
  

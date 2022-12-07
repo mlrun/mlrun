@@ -72,6 +72,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        overwrite: bool = None,
     ):
         self.engine = engine
         self.code = code
@@ -84,6 +85,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
+        self.overwrite = overwrite
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:

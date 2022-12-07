@@ -41,6 +41,7 @@ from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
+    KafkaSource,
     ParquetSource,
     StreamSource,
 )
@@ -1303,11 +1304,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        # the job will be scheduled every minute
-        cron_trigger = "*/1 * * * *"
-
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet",
+            path=path,
+            time_field="time",
+            schedule="mock",
         )
 
         feature_set = fs.FeatureSet(
@@ -1340,8 +1341,6 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        # ingest starts every round minute.
-        sleep(60 - now.second + 10)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -1367,7 +1366,13 @@ class TestFeatureStore(TestMLRunSystem):
             # writing down a remote source
             fs.ingest(data_set, data, targets=[data_target], overwrite=False)
 
-            sleep(60)
+            fs.ingest(
+                feature_set,
+                source,
+                run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+                targets=targets,
+            )
+
             resp = svc.get(
                 [
                     {"first_name": "yosi"},
@@ -1408,10 +1413,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         path = data_set.status.targets[0].get_path().get_absolute_path()
 
-        # the job will be scheduled every minute
-        cron_trigger = "*/1 * * * *"
-
-        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fs.FeatureSet(
             name="overwrite",
@@ -1428,7 +1430,7 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        sleep(60)
+
         features = ["overwrite.*"]
         vec = fs.FeatureVector("svec", features)
 
@@ -2455,7 +2457,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.get_offline_features(vector)
 
-    def test_online_impute(self):
+    @pytest.mark.parametrize("pass_vector_as_uri", [True, False])
+    def test_online_impute(self, pass_vector_as_uri):
         data = pd.DataFrame(
             {
                 "time_stamp": [
@@ -2487,8 +2490,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
+        vector.save()
+
         with fs.get_online_feature_service(
-            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
+            vector.uri if pass_vector_as_uri else vector,
+            impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4},
         ) as svc:
             print(svc.vector.status.to_yaml())
 
@@ -2865,6 +2871,9 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2887,7 +2896,8 @@ class TestFeatureStore(TestMLRunSystem):
             fs.ingest(stocks_set, stocks, [target])
             pytest.fail("Expected a ValueError to be raised")
         except ValueError as ex:
-            assert str(ex) == "Not supported codec: invalid value"
+            if str(ex) != "Not supported codec: invalid value":
+                raise ex
 
     def test_alias_change(self):
         quotes = pd.DataFrame(
@@ -3116,6 +3126,23 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         assert_frame_equal(expected_stat, actual_stat)
+
+    def test_ingest_with_kafka_source_fails(self):
+        source = KafkaSource(
+            brokers="broker_host:9092",
+            topics="mytopic",
+            group="mygroup",
+            sasl_user="myuser",
+            sasl_pass="mypassword",
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[fs.Entity("entity")])
+
+        with pytest.raises(mlrun.MLRunInvalidArgumentError):
+            fs.ingest(
+                fset,
+                source,
+            )
 
 
 def verify_purge(fset, targets):

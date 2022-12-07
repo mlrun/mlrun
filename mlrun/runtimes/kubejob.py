@@ -40,7 +40,7 @@ class KubejobRuntime(KubeResource):
     _is_remote = True
 
     def is_deployed(self):
-        """check if the function is deployed (have a valid container)"""
+        """check if the function is deployed (has a valid container)"""
         if self.spec.image:
             return True
 
@@ -69,6 +69,11 @@ class KubejobRuntime(KubeResource):
         :param workdir: working dir relative to the archive root or absolute (e.g. './subdir')
         :param pull_at_runtime: load the archive into the container at job runtime vs on build/deploy
         """
+        if source.endswith(".zip") and not pull_at_runtime:
+            logger.warn(
+                "zip files are not natively extracted by docker, use tar.gz for faster loading during build"
+            )
+
         self.spec.build.source = source
         if handler:
             self.spec.default_handler = handler
@@ -99,6 +104,9 @@ class KubejobRuntime(KubeResource):
         load_source_on_run=None,
         with_mlrun=None,
         auto_build=None,
+        requirements=None,
+        overwrite=False,
+        verify_base_image=True,
     ):
         """specify builder configuration for the deploy operation
 
@@ -113,22 +121,32 @@ class KubejobRuntime(KubeResource):
         :param with_mlrun: add the current mlrun package to the container build
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
+        :param requirements: requirements.txt file to install or list of packages to install
+        :param overwrite:  overwrite existing build configuration
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
+        :param verify_base_image: verify the base image is set
         """
         if image:
             self.spec.build.image = image
+        if base_image:
+            self.spec.build.base_image = base_image
+        # if overwrite and requirements or commands passed, clear the existing commands
+        # (requirements are added to the commands parameter)
+        if (requirements or commands) and overwrite:
+            self.spec.build.commands = None
+        if requirements:
+            self.with_requirements(
+                requirements, overwrite=False, verify_base_image=False
+            )
         if commands:
-            if not isinstance(commands, list):
-                raise ValueError("commands must be a string list")
-            self.spec.build.commands = self.spec.build.commands or []
-            self.spec.build.commands += commands
-            # using list(set(x)) won't retain order, solution inspired from https://stackoverflow.com/a/17016257/8116661
-            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
+            self.with_commands(commands, overwrite=False, verify_base_image=False)
         if extra:
             self.spec.build.extra = extra
         if secret:
             self.spec.build.secret = secret
-        if base_image:
-            self.spec.build.base_image = base_image
         if source:
             self.spec.build.source = source
         if load_source_on_run:
@@ -137,6 +155,9 @@ class KubejobRuntime(KubeResource):
             self.spec.build.with_mlrun = with_mlrun
         if auto_build:
             self.spec.build.auto_build = auto_build
+
+        if verify_base_image:
+            self.verify_base_image()
 
     def deploy(
         self,
@@ -162,10 +183,6 @@ class KubejobRuntime(KubeResource):
         """
 
         build = self.spec.build
-
-        # make sure we disable load_on_run mode if the source code is in the image
-        if build.source:
-            build.load_source_on_run = False
 
         if with_mlrun is None:
             if build.with_mlrun is not None:

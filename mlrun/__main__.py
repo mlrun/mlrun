@@ -68,7 +68,7 @@ def main():
     pass
 
 
-@main.command(context_settings=dict(ignore_unknown_options=True))
+@main.command()
 @click.argument("url", type=str, required=False)
 @click.option(
     "--param",
@@ -373,6 +373,10 @@ def run(
         if auto_mount:
             fn.apply(auto_mount_modifier())
         fn.is_child = from_env and not kfp
+        # if pod is running inside kfp pod, we don't really need the run logs to be printed actively, we can just
+        # pull the run state, and print it at the end
+        # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
+        watch = watch or None if kfp else False
         resp = fn.run(
             runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
         )
@@ -383,7 +387,7 @@ def run(
         exit(1)
 
 
-@main.command(context_settings=dict(ignore_unknown_options=True))
+@main.command()
 @click.argument("func_url", type=str, required=False)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
@@ -539,7 +543,7 @@ def build(
         exit(1)
 
 
-@main.command(context_settings=dict(ignore_unknown_options=True))
+@main.command()
 @click.argument("spec", type=str, required=False)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
@@ -641,7 +645,7 @@ def deploy(
         fp.write(function.status.nuclio_name)
 
 
-@main.command(context_settings=dict(ignore_unknown_options=True))
+@main.command()
 @click.argument("pod", type=str)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
@@ -654,7 +658,7 @@ def watch(pod, namespace, timeout):
     print(f"Pod {pod} last status is: {status}")
 
 
-@main.command(context_settings=dict(ignore_unknown_options=True))
+@main.command()
 @click.argument("kind", type=str)
 @click.argument("name", type=str, default="", required=False)
 @click.option("--selector", "-s", default="", help="label selector")
@@ -764,6 +768,8 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
     """Run HTTP api/database server"""
     env = environ.copy()
+    # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
+    env.pop("MLRUN_ENV_FILE", None)
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:
@@ -778,6 +784,8 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background):
         env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
     if verbose:
         env["MLRUN_LOG_LEVEL"] = "DEBUG"
+
+    env["MLRUN_IS_API_SERVER"] = "true"
 
     # create the DB dir if needed
     dsn = dsn or mlconf.httpdb.dsn
@@ -822,7 +830,7 @@ def logs(uid, project, offset, db, watch):
     """Get or watch task logs"""
     mldb = get_run_db(db or mlconf.dbpath)
     if mldb.kind == "http":
-        state = mldb.watch_log(uid, project, watch=watch, offset=offset)
+        state, _ = mldb.watch_log(uid, project, watch=watch, offset=offset)
     else:
         state, text = mldb.get_log(uid, project, offset=offset)
         if text:
@@ -1003,6 +1011,7 @@ def project(
                 engine=engine,
                 local=local,
                 schedule=schedule,
+                timeout=timeout,
             )
         except Exception as exc:
             print(traceback.format_exc())

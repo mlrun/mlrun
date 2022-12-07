@@ -44,6 +44,21 @@ env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
 
+# setting it here to make sure this is the first thing that is getting defined, so even if something in the config
+# will for some reason try to access it, it will be defined
+_is_running_as_api = None
+
+
+def is_running_as_api():
+    # MLRUN_IS_API_SERVER is set when running the api server which is being done through the CLI command mlrun db
+    global _is_running_as_api
+
+    if _is_running_as_api is None:
+        # os.getenv will load the env var as string, and json.loads will convert it to a bool
+        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
+
+    return _is_running_as_api
+
 
 default_config = {
     "namespace": "",  # default kubernetes namespace

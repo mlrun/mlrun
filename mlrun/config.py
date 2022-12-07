@@ -368,7 +368,7 @@ default_config = {
         "parquet_batching_max_events": 10000,
         # See mlrun.api.schemas.ModelEndpointStoreType for available options
         "store_type": "kv",
-        "connection_string": ""
+        "connection_string": "",
     },
     "secret_stores": {
         "vault": {

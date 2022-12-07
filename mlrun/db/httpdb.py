@@ -2588,6 +2588,7 @@ class HTTPRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
+        convert_to_endpoint_object=True,
     ) -> schemas.ModelEndpointList:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -2632,6 +2633,7 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "top-level": top_level,
                 "uid": uids,
+                "convert_to_endpoint_object": convert_to_endpoint_object,
             },
         )
         return schemas.ModelEndpointList(**response.json())
@@ -2644,21 +2646,32 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
+        convert_to_endpoint_object: bool = True,
     ) -> schemas.ModelEndpoint:
         """
-        Returns a ModelEndpoint object with additional metrics and feature related data.
+        Returns a single ModelEndpoint object with additional metrics and feature related data.
 
-        :param project: The name of the project
-        :param endpoint_id: The id of the model endpoint
-        :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
-                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
-                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
-            the output of the resulting object
+        :param project:                    The name of the project
+        :param endpoint_id:                The unique id of the model endpoint.
+        :param start:                      The start time of the metrics. Can be represented by a string containing an
+                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
+                                           0 for the earliest time.
+        :param end:                        The end time of the metrics. Can be represented by a string containing an
+                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
+                                           0 for the earliest time.
+        :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
+                                           metrics for model endpoints such as predictions_per_second and
+                                           latency_avg_5m but also custom metrics defined by the user. Please note that
+                                           these metrics are stored in the time series DB and the results will be
+                                           appeared under model_endpoint.spec.metrics.
+        :param feature_analysis:           When True, the base feature statistics and current feature statistics will
+                                           be added to the output of the resulting object.
+        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
+                                           into a ModelEndpoint or not. True by default.
+
+        :return: A ModelEndpoint object.
         """
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
@@ -2670,6 +2683,7 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
+                "convert_to_endpoint_object": convert_to_endpoint_object,
             },
         )
         return schemas.ModelEndpoint(**response.json())
@@ -2686,9 +2700,9 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. The values should be
-                           from type string or from a valid numerical type such as int or float. More details
-                           about the model endpoint available attributes can be found under
+                           of this dictionary should exist in the target table. Note that the values should be
+                           from type string or from a valid numerical type such as int or float.
+                            More details about the model endpoint available attributes can be found under
                            :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
                            Example::

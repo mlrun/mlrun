@@ -14,12 +14,15 @@
 #
 class EventFieldType:
     FUNCTION_URI = "function_uri"
+    FUNCTION = "function"
+    MODEL_URI = "model_uri"
     MODEL = "model"
     VERSION = "version"
     VERSIONED_MODEL = "versioned_model"
     MODEL_CLASS = "model_class"
     TIMESTAMP = "timestamp"
     ENDPOINT_ID = "endpoint_id"
+    ENDPOINT_TYPE = "endpoint_type"
     REQUEST_ID = "request_id"
     RECORD_TYPE = "record_type"
     FEATURES = "features"
@@ -47,6 +50,22 @@ class EventFieldType:
     MINUTES = "minutes"
     HOURS = "hours"
     DAYS = "days"
+    MODEL_ENDPOINTS = "model_endpoints"
+    STATE = "state"
+    PROJECT = "project"
+    STREAM_PATH = "stream_path"
+    ACTIVE = "active"
+    MONITORING_MODE = "monitoring_mode"
+    FEATURE_STATS = "feature_stats"
+    CURRENT_STATS = "current_stats"
+    CHILDREN = "children"
+    CHILDREN_UIDS = "children_uids"
+    DRIFT_MEASURES = "drift_measures"
+    DRIFT_STATUS = "drift_status"
+    MONITOR_CONFIGURATION = "monitor_configuration"
+    FEATURE_SET_URI = "monitoring_feature_set_uri"
+    ALGORITHM = "algorithm"
+    ACCURACY = "accuracy"
 
 
 class EventLiveStats:
@@ -63,5 +82,10 @@ class EventKeyMetrics:
     ENDPOINT_FEATURES = "endpoint_features"
 
 
-class StoreTarget:
+class TimeSeriesTarget:
     TSDB = "tsdb"
+
+
+class ModelEndpointTarget:
+    KV = "kv"
+    SQL = "sql"

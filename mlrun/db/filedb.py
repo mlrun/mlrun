@@ -796,6 +796,7 @@ class FileRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
+        convert_to_endpoint_object=True,
     ):
         raise NotImplementedError()
 
@@ -807,6 +808,7 @@ class FileRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
+        convert_to_endpoint_object: bool = True,
     ):
         raise NotImplementedError()
 

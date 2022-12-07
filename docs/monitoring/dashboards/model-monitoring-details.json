@@ -15,34 +15,32 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 8,
-  "iteration": 1627466479152,
+  "id": 26,
+  "iteration": 1668331436338,
   "links": [
     {
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
       "tags": [],
-      "targetBlank": true,
       "title": "Model Monitoring - Performance",
       "type": "link",
       "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
     {
-      "icon": "dashboard",
-      "includeVars": false,
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": true,
       "keepTime": true,
       "tags": [],
-      "targetBlank": true,
       "title": "Model Monitoring - Overview",
-      "tooltip": "",
       "type": "link",
-      "url": "/d/g0M4uh0Mz"
+      "url": "d/g0M4uh0Mz/model-monitoring-overview"
     }
   ],
   "panels": [
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -152,6 +150,10 @@
               {
                 "id": "custom.align",
                 "value": "center"
+              },
+              {
+                "id": "custom.width",
+                "value": null
               }
             ]
           },
@@ -191,24 +193,49 @@
         "x": 0,
         "y": 0
       },
-      "id": 12,
+      "id": 23,
       "options": {
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "name"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "7.2.0",
       "targets": [
         {
-          "hide": false,
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
           "rawQuery": true,
+          "rawSql": "SELECT\nendpoint_id, \nmodel,\nfunction_uri,\nmodel_class,\npredictions_per_second,\nlatency_avg_1h,\nfirst_request,\nlast_request\nFROM model_endpoints\nWHERE\n  $__timeFilter(timestamp) AND\n  active=1 and endpoint_id='$MODEL'\n  order by timestamp",
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfilter=endpoint_id==\"$MODEL\";\nfields=endpoint_id,model,function_uri,model_class,predictions_per_second,latency_avg_1h,first_request,last_request;",
-          "type": "table"
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "target": "endpoint_id=$MODELENDPOINT;project=$PROJECT;target_endpoint=get_endpoint;",
+          "timeColumn": "time",
+          "type": "table",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            },
+            {
+              "name": "",
+              "params": [
+                "endpoint_id",
+                "=",
+                "value"
+              ],
+              "type": "expression"
+            }
+          ]
         }
       ],
       "timeFrom": null,
@@ -218,10 +245,32 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {},
-            "indexByName": {},
+            "excludeByName": {
+              "accuracy": true,
+              "drift_status": true,
+              "endpoint_function": false,
+              "endpoint_id": false,
+              "error_count": true
+            },
+            "indexByName": {
+              "accuracy": 9,
+              "drift_status": 8,
+              "endpoint_function": 2,
+              "endpoint_id": 0,
+              "endpoint_model": 1,
+              "endpoint_model_class": 3,
+              "error_count": 10,
+              "first_request": 6,
+              "last_request": 7,
+              "latency_avg_1h": 5,
+              "predictions_per_second": 4
+            },
             "renameByName": {
+              "drift_status": "",
+              "endpoint_function": "Function URI",
               "endpoint_id": "Endpoint ID",
+              "endpoint_model": "Model",
+              "endpoint_model_class": "Model Class",
               "first_request": "First Request",
               "function": "Function",
               "function_uri": "Function URI",
@@ -395,7 +444,7 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "target_endpoint=overall_feature_analysis;endpoint_id=$MODEL;project=$PROJECT",
+          "target": "target_endpoint=overall_feature_analysis;endpoint_id=$MODELENDPOINT;project=$PROJECT",
           "type": "table"
         }
       ],
@@ -568,7 +617,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "target_endpoint=individual_feature_analysis;endpoint_id=$MODEL;project=$PROJECT",
+          "target": "target_endpoint=individual_feature_analysis;endpoint_id=$MODELENDPOINT;project=$PROJECT",
           "type": "table"
         }
       ],
@@ -639,6 +688,8 @@
         "rightSide": true,
         "show": true,
         "sideWidth": 250,
+        "sort": "current",
+        "sortDesc": true,
         "total": false,
         "values": true
       },
@@ -661,7 +712,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODEL'  AND record_type=='endpoint_features';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODELENDPOINT'  AND record_type=='endpoint_features';",
           "type": "timeserie"
         }
       ],
@@ -709,7 +760,7 @@
       }
     }
   ],
-  "refresh": "1m",
+  "refresh": false,
   "schemaVersion": 26,
   "style": "dark",
   "tags": [],
@@ -717,7 +768,6 @@
     "list": [
       {
         "allValue": null,
-        "current": {},
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -727,7 +777,7 @@
         "name": "PROJECT",
         "options": [],
         "query": "target_endpoint=list_projects",
-        "refresh": 0,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -739,16 +789,15 @@
       },
       {
         "allValue": null,
-        "current": {},
-        "datasource": "iguazio",
-        "definition": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+        "datasource": "model-monitoring",
+        "definition": "project=$PROJECT;target_endpoint=list_endpoints_ids",
         "hide": 0,
         "includeAll": false,
-        "label": "Model",
+        "label": "Model Endpoint",
         "multi": false,
-        "name": "MODEL",
+        "name": "MODELENDPOINT",
         "options": [],
-        "query": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+        "query": "project=$PROJECT;target_endpoint=list_endpoints_ids",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -762,12 +811,12 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-12h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Details",
   "uid": "AohIXhAMk",
-  "version": 3
+  "version": 2
 }

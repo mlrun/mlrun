@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 7,
-  "iteration": 1627466285618,
+  "id": 15,
+  "iteration": 1668102407058,
   "links": [
     {
       "icon": "external link",
@@ -28,17 +28,19 @@
       "url": "/d/9CazA-UGz/model-monitoring-performance"
     },
     {
-      "icon": "info",
+      "icon": "external link",
+      "includeVars": true,
       "keepTime": true,
       "tags": [],
-      "title": "Model Alerts",
+      "targetBlank": false,
+      "title": "Model Monitoring - Details",
       "type": "link",
-      "url": "/d/q6GvXh0Gz/model-alerts"
+      "url": "d/AohIXhAMk/model-monitoring-details"
     }
   ],
   "panels": [
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -83,9 +85,8 @@
       "pluginVersion": "7.2.0",
       "targets": [
         {
-          "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=endpoint_id;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
@@ -106,7 +107,7 @@
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -130,10 +131,10 @@
       "gridPos": {
         "h": 3,
         "w": 5,
-        "x": 6,
+        "x": 5,
         "y": 0
       },
-      "id": 8,
+      "id": 23,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
@@ -154,18 +155,34 @@
           "hide": false,
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=predictions_per_second;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
       "title": "Predictions/s (5 Minute Average)",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "predictions_per_second"
+              ]
+            }
+          }
+        },
+        {
+          "id": "labelsToFields",
+          "options": {}
+        }
+      ],
       "transparent": true,
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -186,7 +203,7 @@
       "gridPos": {
         "h": 3,
         "w": 5,
-        "x": 12,
+        "x": 11,
         "y": 0
       },
       "id": 10,
@@ -209,7 +226,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=latency_avg_1h;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
@@ -218,19 +235,25 @@
       "title": "Average Latency (Last Hour)",
       "transformations": [
         {
-          "id": "reduce",
+          "id": "filterFieldsByName",
           "options": {
-            "reducers": [
-              "mean"
-            ]
+            "include": {
+              "names": [
+                "latency_avg_1h"
+              ]
+            }
           }
+        },
+        {
+          "id": "labelsToFields",
+          "options": {}
         }
       ],
       "transparent": true,
       "type": "stat"
     },
     {
-      "datasource": "iguazio",
+      "datasource": "model-monitoring",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -255,7 +278,7 @@
       "gridPos": {
         "h": 3,
         "w": 6,
-        "x": 18,
+        "x": 16,
         "y": 0
       },
       "id": 12,
@@ -278,13 +301,34 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=kv;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/endpoints;\nfields=error_count;",
+          "target": "project=$PROJECT;target_endpoint=list_endpoints",
           "type": "table"
         }
       ],
       "timeFrom": null,
       "timeShift": null,
       "title": "Errors",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "error_count"
+              ]
+            }
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "max",
+              "sum"
+            ]
+          }
+        }
+      ],
       "transparent": true,
       "type": "stat"
     },
@@ -883,7 +927,7 @@
       }
     }
   ],
-  "refresh": "5s",
+  "refresh": "1m",
   "schemaVersion": 26,
   "style": "dark",
   "tags": [],
@@ -891,7 +935,6 @@
     "list": [
       {
         "allValue": null,
-        "current": {},
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -914,12 +957,12 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-12h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 2
+  "version": 8
 }

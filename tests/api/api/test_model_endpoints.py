@@ -18,6 +18,7 @@ from random import choice, randint
 from typing import Optional
 
 import pytest
+import sqlalchemy.exc
 
 import mlrun.api.crud
 import mlrun.api.schemas
@@ -30,7 +31,7 @@ from mlrun.api.schemas import (
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 
 TEST_PROJECT = "test_model_endpoints"
-
+CONNECTION_STRING = "sqlite:///test.db"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
@@ -41,7 +42,7 @@ def test_build_kv_cursor_filter_expression():
 
     # Initialize endpoint store target object
     endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointKVStore(
             project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
         )
     )
@@ -224,7 +225,7 @@ def test_get_endpoint_features_function():
 
     # Initialize endpoint store target object
     endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointKVStore(
             project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
         )
     )
@@ -281,3 +282,105 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
         ),
         status=ModelEndpointStatus(state=state),
     )
+
+
+def test_SQLtarget_list_model_endpoints():
+    """Testing list model endpoint using _ModelEndpointSQLStore object. In the following test
+    we create two model endpoints and list these endpoints. In addition, this test validates the
+    filter optional operation within the list model endpoints API. At the end of this test, we validate
+    that the model endpoints are deleted from the DB.
+    """
+
+    # Generate model endpoint target
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointSQLStore(
+            project=TEST_PROJECT, connection_string=CONNECTION_STRING + "s2"
+        )
+    )
+
+    # First, validate that there are no model endpoints records at the moment
+    try:
+        list_of_endpoints = endpoint_target.list_model_endpoints()
+        endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+        list_of_endpoints = endpoint_target.list_model_endpoints()
+        assert len(list_of_endpoints.endpoints) == 0
+
+    except sqlalchemy.exc.NoSuchTableError:
+        # Model endpoints table was yet to be created
+        # This table will be created automatically in the first model endpoint recording
+        pass
+
+    # Generate and write the 1st model endpoint into the DB table
+    mock_endpoint_1 = _mock_random_endpoint()
+    endpoint_target.write_model_endpoint(endpoint=mock_endpoint_1)
+
+    # Validate that there is a single model endpoint
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    assert len(list_of_endpoints.endpoints) == 1
+
+    # Generate and write the 2nd model endpoint into the DB table
+    mock_endpoint_2 = _mock_random_endpoint()
+    mock_endpoint_2.spec.model = "test_model"
+    endpoint_target.write_model_endpoint(endpoint=mock_endpoint_2)
+
+    # Validate that there are exactly two model endpoints within the DB
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    assert len(list_of_endpoints.endpoints) == 2
+
+    # List only the model endpoint that has the model test_model
+    filtered_list_of_endpoints = endpoint_target.list_model_endpoints(
+        model="test_model"
+    )
+    assert len(filtered_list_of_endpoints.endpoints) == 1
+
+    # Clean model endpoints from DB
+    endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    assert (len(list_of_endpoints.endpoints)) == 0
+
+
+def test_SQLtarget_patch_endpoint():
+    """Testing the update of a model endpoint using _ModelEndpointSQLStore object. In the following
+    test we update attributes within the model endpoint spec and status and then validate that there
+    attributes were actually updated.
+    """
+
+    # Generate model endpoint target
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointSQLStore(
+            project=TEST_PROJECT, connection_string=CONNECTION_STRING
+        )
+    )
+
+    # First, validate that there are no model endpoints records at the moment
+    try:
+        list_of_endpoints = endpoint_target.list_model_endpoints()
+        endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+        list_of_endpoints = endpoint_target.list_model_endpoints()
+        assert len(list_of_endpoints.endpoints) == 0
+
+    except sqlalchemy.exc.NoSuchTableError:
+        # Model endpoints table was yet to be created
+        # This table will be created automatically in the first model endpoint recording
+        pass
+
+    # Generate and write the model endpoint into the DB table
+    mock_endpoint = _mock_random_endpoint()
+    mock_endpoint.metadata.uid = "1234"
+    endpoint_target.write_model_endpoint(mock_endpoint)
+
+    # Generate dictionary of attributes and update the model endpoint
+    updated_attributes = {"model": "test_model", "latency_avg_1h": 5.2}
+    endpoint_target.update_model_endpoint(
+        endpoint_id=mock_endpoint.metadata.uid, attributes=updated_attributes
+    )
+
+    # Validate that these attributes were actually updated
+    endpoint = endpoint_target.get_model_endpoint(
+        endpoint_id=mock_endpoint.metadata.uid
+    )
+    assert endpoint.spec.model == "test_model"
+    assert endpoint.status.latency_avg_1h == 5.2
+
+    # Clear model endpoint from DB
+    endpoint_target.delete_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)

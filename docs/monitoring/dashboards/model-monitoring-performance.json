@@ -15,13 +15,13 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 9,
-  "iteration": 1627466092078,
+  "id": 25,
+  "iteration": 1668331353565,
   "links": [
     {
       "asDropdown": true,
       "icon": "external link",
-      "includeVars": false,
+      "includeVars": true,
       "keepTime": true,
       "tags": [],
       "title": "Model Monitoring - Overview",
@@ -34,7 +34,7 @@
       "keepTime": true,
       "tags": [],
       "targetBlank": false,
-      "title": "Model Monitoring Details",
+      "title": "Model Monitoring - Details",
       "type": "link",
       "url": "d/AohIXhAMk/model-monitoring-details"
     }
@@ -93,7 +93,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODEL'  AND record_type=='drift_measures';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfilter=endpoint_id=='$MODELENDPOINT'  AND record_type=='drift_measures';",
           "type": "timeserie"
         }
       ],
@@ -190,7 +190,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_5m,latency_avg_1h;\nfilter=endpoint_id=='$MODEL';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=latency_avg_5m,latency_avg_1h;\nfilter=endpoint_id=='$MODELENDPOINT';",
           "type": "timeserie"
         }
       ],
@@ -286,7 +286,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;\nfilter=endpoint_id=='$MODEL';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_per_second;\nfilter=endpoint_id=='$MODELENDPOINT';",
           "type": "timeserie"
         }
       ],
@@ -382,7 +382,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_count_5m,predictions_count_1h;\nfilter=endpoint_id=='$MODEL';",
+          "target": "backend=tsdb;\ncontainer=users;\ntable=pipelines/$PROJECT/model-endpoints/events;\nfields=predictions_count_5m,predictions_count_1h;\nfilter=endpoint_id=='$MODELENDPOINT';",
           "type": "timeserie"
         }
       ],
@@ -481,7 +481,7 @@
         {
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/model-endpoints/events; filter=endpoint_id=='$MODEL'  AND record_type=='custom_metrics';",
+          "target": "backend=tsdb; container=users; table=pipelines/$PROJECT/model-endpoints/events; filter=endpoint_id=='$MODELENDPOINT'  AND record_type=='custom_metrics';",
           "type": "timeserie"
         }
       ],
@@ -537,7 +537,6 @@
     "list": [
       {
         "allValue": null,
-        "current": {},
         "datasource": "model-monitoring",
         "definition": "target_endpoint=list_projects",
         "hide": 0,
@@ -559,17 +558,16 @@
       },
       {
         "allValue": null,
-        "current": {},
-        "datasource": "iguazio",
-        "definition": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
+        "datasource": "model-monitoring",
+        "definition": "project=$PROJECT;target_endpoint=list_endpoints_ids",
         "hide": 0,
         "includeAll": false,
-        "label": "Model",
+        "label": "Model Endpoint",
         "multi": false,
-        "name": "MODEL",
+        "name": "MODELENDPOINT",
         "options": [],
-        "query": "backend=kv;container=users;table=pipelines/$PROJECT/model-endpoints/endpoints;fields=endpoint_id;",
-        "refresh": 0,
+        "query": "project=$PROJECT;target_endpoint=list_endpoints_ids",
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -582,12 +580,12 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Model Monitoring - Performance",
   "uid": "9CazA-UGz",
-  "version": 2
+  "version": 4
 }

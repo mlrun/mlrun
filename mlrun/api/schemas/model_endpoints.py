@@ -120,6 +120,8 @@ class ModelEndpointStatus(ObjectStatus):
     children_uids: Optional[List[str]]
     endpoint_type: Optional[EndpointType]
     monitoring_feature_set_uri: Optional[str]
+    predictions_per_second: Optional[float]
+    latency_avg_1h: Optional[float]
 
     class Config:
         extra = Extra.allow

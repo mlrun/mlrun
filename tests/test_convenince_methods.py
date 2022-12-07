@@ -166,8 +166,11 @@ def test_set_and_load_default_config():
     if env_body:
         with open(env_path, "w") as fp:
             fp.write(env_body)
-    del os.environ["YYYY"]
-    del os.environ["MLRUN_KFP_TTL"]
+    print(os.environ)
+    if "YYYY" in os.environ:
+        del os.environ["YYYY"]
+    if "MLRUN_KFP_TTL" in os.environ:
+        del os.environ["MLRUN_KFP_TTL"]
 
 
 def _exec_mlrun(cmd, cwd=None):

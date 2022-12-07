@@ -11,14 +11,14 @@ This section lists the data stores, development tools, services, platforms, etc.
 - BigQuery 
 - Snowflake 
 - Redis 
-- Iguazio V3IO 
+- Iguazio V3IO object/key-value 
 
 ## Event sources 
 
 - HTTP 
 - Cron 
 - Kafka 
-- Iguazio V3IO 
+- Iguazio V3IO streams
 
 ## Execution frameworks 
 
@@ -39,7 +39,7 @@ This section lists the data stores, development tools, services, platforms, etc.
 - Codespaces 
 - Others (set with environment variables) 
 
-## Frameworks 
+## Machine learning frameworks 
 
 - SKLearn 
 - XGBoost 

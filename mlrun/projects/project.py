@@ -1079,6 +1079,7 @@ class MlrunProject(ModelObj):
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                              Note that we adhere to the Unix crontab format, where day of week 0 is Sunday - https://en.wikipedia.org/wiki/Cron
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
@@ -1962,6 +1963,7 @@ class MlrunProject(ModelObj):
                           (which will be converted to the class using its `from_crontab` constructor),
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                          Note that we adhere to the Unix crontab format, where day of week 0 is Sunday - https://en.wikipedia.org/wiki/Cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :returns: run id
@@ -2212,7 +2214,8 @@ class MlrunProject(ModelObj):
         :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
-                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                                Note that we adhere to the Unix crontab format, where day of week 0 is Sunday - https://en.wikipedia.org/wiki/Cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp

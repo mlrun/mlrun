@@ -1050,9 +1050,10 @@ class HTTPRunDB(RunDBInterface):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
         schedule itself are within the schedule object provided.
         The :py:class:`~ScheduleCronTrigger` follows the guidelines in
-        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html.
+        https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html.
         It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
-        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format).
+        crontab-formatted string. Note that we adhere to the Unix crontab format,
+        where day of week 0 is Sunday (see https://en.wikipedia.org/wiki/Cron for more information on the format).
 
         Example::
 

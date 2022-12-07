@@ -10,7 +10,7 @@ of data and metadata.
 Example function:
 
 ```python
-#Save this code as a .py file:
+# Save this code as a .py file:
 import mlrun
 
 def prep_data(context, source_url: mlrun.DataItem, label_column='label'):

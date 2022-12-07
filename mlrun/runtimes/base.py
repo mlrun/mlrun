@@ -322,7 +322,8 @@ class BaseRuntime(ModelObj):
                                (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-                               Note that we adhere to the Unix crontab format, where day of week 0 is Sunday - https://en.wikipedia.org/wiki/Cron
+                               Note that we adhere to the Unix crontab format, where day of week 0 is Sunday -
+                               https://en.wikipedia.org/wiki/Cron
         :param hyperparams:    dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
                                the default strategy is grid search, can specify strategy (grid, list, random)
                                and other options in the hyper_param_options parameter

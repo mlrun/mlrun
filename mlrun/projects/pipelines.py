@@ -693,17 +693,6 @@ class _LocalRunner(_PipelineRunner):
         pass
 
 
-def is_remote(project):
-    return (
-            project.spec.source and
-            (
-                    project.spec.source.startswith("git://") or
-                    project.spec.source.endswith("tar.gz") or
-                    project.spec.source.endswith(".zip")
-            )
-    )
-
-
 class _RemoteRunner(_PipelineRunner):
     """remote pipelines runner"""
 
@@ -724,11 +713,22 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        if workflow_spec.schedule and not is_remote(project):
-            source = project.spec.source or "no source"
+        if (
+            workflow_spec.schedule
+            # Checks if the source of the project is a remote one:
+            and not project.spec.source
+            or any(project.spec.source.startswith(prefix) for prefix in [".", "/"])
+            or (
+                not project.spec.source.startswith("git://")
+                or not any(
+                    project.spec.source.endswith(suffix)
+                    for suffix in ["tar.gz", ".zip"]
+                )
+            )
+        ):
             raise ValueError(
-                f"the project's source is {source},"
-                " but scheduling can be performed only when the project has a remote source"
+                f"Workflow scheduling can only be performed by a remote project."
+                f"The project's source: {project.spec.source} is not a remote one e.g., git."
             )
 
         # Creating the load project and workflow running function:

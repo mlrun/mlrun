@@ -21,12 +21,14 @@
     SDK: Add `tag_artifacts`  and `delete_artifacts_tags` that can be used to modify existing artifacts tags and have more than one version for an artifact.
     API: Introduce new endpoints in `/projects/<project>/tags`.
 	UI: You can add and edit artifact tags in the UI.
-
-#### Functions
-- Add `function.with_annotations({"framework":"tensorflow"})` to user created functions.
-- Add `overwrite_build_params` to `project.build_function()` so the user can choose whether or not to keep the build params that were used in previous function builds.
+    
+#### Auth
 - Support S3 profile and assume-role when using `fsspec`.
-- `deploy_function` has a new option of mock deployment that allows running the function locally
+- Support GitHub fine grained tokens.
+
+#### Documentation
+- Restructure and new content
+
 
 #### Feature store
 - Support Redis as an online feature set. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store-tech-preview).)
@@ -38,17 +40,21 @@
 - Add new step: `DropFeature` for pandas and storey engines.
 - Add param query for `get_offline_feature` for filtering the output.
 
-#### Models
-- The Labels in the **Models > Overview** tab can be edited
-
 #### Frameworks
 - Add `HuggingFaceModelServer` to `mlrun.frameworks` at `mlrun.frameworks.huggingface` to serve `HuggingFace` models.
+
+#### Functions
+- Add `function.with_annotations({"framework":"tensorflow"})` to user created functions.
+- Add `overwrite_build_params` to `project.build_function()` so the user can choose whether or not to keep the build params that were used in previous function builds.
+- `deploy_function` has a new option of mock deployment that allows running the function locally
+
 
 #### Installation
 - Add option to install `google-cloud` requirements using `mlrun[google-cloud]`:  when installing MLRun for integration with GCP clients, only compatible packages are installed.
 
-####Documentation
-- Restructure and new content
+
+#### Models
+- The Labels in the **Models > Overview** tab can be edited
 
 #### Third party integrations
 - Supports Confluent Kafka (Tech Preview)

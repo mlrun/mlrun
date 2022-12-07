@@ -54,7 +54,7 @@ RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.1.x https://github.com/mlrun/demos.git $HOME/demos && \
+RUN git clone --branch master https://github.com/mlrun/demos.git $HOME/demos && \
     cd $HOME/demos && ./community_edition_align.sh && cd -
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 

@@ -653,6 +653,7 @@ def deploy(
 )
 def watch(pod, namespace, timeout):
     """Read current or previous task (pod) logs."""
+    print("This command will be deprecated in future version !!!\n")
     k8s = K8sHelper(namespace)
     status = k8s.watch(pod, namespace, timeout)
     print(f"Pod {pod} last status is: {status}")
@@ -669,38 +670,31 @@ def watch(pod, namespace, timeout):
 @click.option("--db", help="db path/url")
 @click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
-    """List/get one or more object per kind/class."""
+    """List/get one or more object per kind/class.
+
+    KIND - resource type to list/get: run | runtime | artifact | function
+    NAME - optional, resource name or category
+    """
 
     if db:
         mlconf.dbpath = db
-
+    if not project:
+        print("warning, project parameter was not specified using default !")
     if kind.startswith("po"):
-        k8s = K8sHelper(namespace)
-        if name:
-            resp = k8s.get_pod(name, namespace)
-            print(resp)
-            return
+        print("Unsupported, use 'get runtimes' instead")
+        return
 
-        items = k8s.list_pods(namespace, selector)
-        print(f"{'state':10} {'started':16} {'type':8} name")
-        for i in items:
-            task = i.metadata.labels.get("mlrun/class", "")
-            if task:
-                name = i.metadata.name
-                state = i.status.phase
-                start = ""
-                if i.status.start_time:
-                    start = i.status.start_time.strftime("%b %d %H:%M:%S")
-                print(f"{state:10} {start:16} {task:8} {name}")
     elif kind.startswith("runtime"):
         run_db = get_run_db(db or mlconf.dbpath)
-        if name:
-            # the runtime identifier is its kind
-            runtime = run_db.list_runtime_resources(kind=name, label_selector=selector)
+        # the name field is used as function kind, set to None if empty
+        name = name if name else None
+        runtimes = run_db.list_runtime_resources(
+            label_selector=selector, kind=name, project=project
+        )
+        for runtime in runtimes:
             print(dict_to_yaml(runtime.dict()))
-            return
-        runtimes = run_db.list_runtime_resources(label_selector=selector)
-        print(dict_to_yaml(runtimes.dict()))
+            print()
+
     elif kind.startswith("run"):
         run_db = get_run_db()
         if name:
@@ -753,7 +747,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         print(tabulate(lines, headers=headers))
     else:
         print(
-            "currently only get pods | runs | artifacts | func [name] | runtime are supported"
+            "currently only get runs | runtimes | artifacts | func [name] | runtime are supported"
         )
 
 

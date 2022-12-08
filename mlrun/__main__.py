@@ -68,7 +68,7 @@ def main():
     pass
 
 
-@main.command()
+@main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("url", type=str, required=False)
 @click.option(
     "--param",
@@ -387,7 +387,7 @@ def run(
         exit(1)
 
 
-@main.command()
+@main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("func_url", type=str, required=False)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
@@ -543,7 +543,7 @@ def build(
         exit(1)
 
 
-@main.command()
+@main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("spec", type=str, required=False)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
@@ -645,7 +645,7 @@ def deploy(
         fp.write(function.status.nuclio_name)
 
 
-@main.command()
+@main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("pod", type=str)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
@@ -659,7 +659,7 @@ def watch(pod, namespace, timeout):
     print(f"Pod {pod} last status is: {status}")
 
 
-@main.command()
+@main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("kind", type=str)
 @click.argument("name", type=str, default="", required=False)
 @click.option("--selector", "-s", default="", help="label selector")

@@ -906,7 +906,10 @@ async def test_schedule_access_key_reference_handling(
     username = "some-user-name"
     access_key = "some-access-key"
 
-    secret_ref = "$ref:" + k8s_secrets_mock.store_auth_secret(username, access_key)
+    secret_ref = (
+        mlrun.model.Credentials.secret_reference_prefix
+        + k8s_secrets_mock.store_auth_secret(username, access_key)
+    )
     auth_info = mlrun.api.schemas.AuthInfo()
     auth_info.access_key = secret_ref
 
@@ -1227,8 +1230,11 @@ def _assert_schedule_get_and_list_credentials_enrichment(
         include_credentials=True,
     )
 
-    secret_ref = "$ref:" + tests.api.conftest.K8sSecretsMock.get_auth_secret_name(
-        expected_username, expected_access_key
+    secret_ref = (
+        mlrun.model.Credentials.secret_reference_prefix
+        + tests.api.conftest.K8sSecretsMock.get_auth_secret_name(
+            expected_username, expected_access_key
+        )
     )
     assert schedule.credentials.access_key == secret_ref
     schedules = scheduler.list_schedules(

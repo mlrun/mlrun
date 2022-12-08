@@ -829,11 +829,6 @@ def retry_until_successful(
     :param kwargs: functions kwargs
     :return: function result
     """
-    if timeout and timeout <= backoff:
-        logger.warning(
-            f"timeout ({timeout}) should be higher than backoff ({backoff}) = backoff."
-            f" Set timeout to be higher than backoff."
-        )
     start_time = time.time()
     last_exception = None
 
@@ -841,11 +836,18 @@ def retry_until_successful(
     if isinstance(backoff, int) or isinstance(backoff, float):
         backoff = create_linear_backoff(base=backoff, coefficient=0)
 
+    next_interval = next(backoff)
+    if timeout and timeout <= next_interval:
+        logger.warning(
+            f"timeout ({timeout}) should be higher than backoff ({backoff}) = backoff."
+            f" Set timeout to be higher than backoff."
+        )
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
-        next_interval = next(backoff)
         try:
             result = _function(*args, **kwargs)
+            next_interval = next(backoff)
             return result
 
         except mlrun.errors.MLRunFatalFailureError as exc:

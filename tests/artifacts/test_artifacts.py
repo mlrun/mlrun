@@ -263,6 +263,20 @@ def test_log_artifact(
         assert expected_hash in logged_artifact.target_path
 
 
+def test_log_artifact_all_upload_options():
+    for upload_options in [False, True, None]:
+        artifact = mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas")
+        logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+            artifact, upload=upload_options
+        )
+        if upload_options or upload_options is None:
+            assert logged_artifact.target_path is not None
+            assert logged_artifact.metadata.hash is not None
+        else:
+            assert logged_artifact.target_path is None
+            assert logged_artifact.metadata.hash is None
+
+
 @pytest.mark.parametrize(
     "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
     [

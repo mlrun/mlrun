@@ -177,31 +177,33 @@ class ArtifactManager:
         item.iter = producer.iteration
         item.project = producer.project
 
-        if target_path:
-            if is_relative_path(target_path):
-                raise ValueError(
-                    f"target_path ({target_path}) param cannot be relative"
-                )
-            upload = False
-        elif src_path and "://" in src_path:
-            if upload:
-                raise ValueError(f"Cannot upload from remote path {src_path}")
-            target_path = src_path
-            upload = False
+        # resolve target path only if upload is not set to False (default is None)
+        if upload or upload is None:
+            if target_path:
+                if is_relative_path(target_path):
+                    raise ValueError(
+                        f"target_path ({target_path}) param cannot be relative"
+                    )
+                upload = False
+            elif src_path and "://" in src_path:
+                if upload:
+                    raise ValueError(f"Cannot upload from remote path {src_path}")
+                target_path = src_path
+                upload = False
 
-        # if mlrun.mlconf.generate_target_path_from_artifact_hash outputs True and the user
-        # didn't pass target_path explicitly then we won't use `generate_target_path` to calculate the target path,
-        # but rather use the `resolve_<body/file>_target_hash_path` in the `item.upload` method.
-        elif (
-            not item.is_inline()
-            and not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
-        ):
-            target_path = item.generate_target_path(artifact_path, producer)
+            # if mlrun.mlconf.generate_target_path_from_artifact_hash outputs True and the user
+            # didn't pass target_path explicitly then we won't use `generate_target_path` to calculate the target path,
+            # but rather use the `resolve_<body/file>_target_hash_path` in the `item.upload` method.
+            elif (
+                not item.is_inline()
+                and not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
+            ):
+                target_path = item.generate_target_path(artifact_path, producer)
 
-        if target_path and item.is_dir and not target_path.endswith("/"):
-            target_path += "/"
+            if target_path and item.is_dir and not target_path.endswith("/"):
+                target_path += "/"
 
-        item.target_path = target_path
+            item.target_path = target_path
 
         item.before_log()
         self.artifacts[key] = item

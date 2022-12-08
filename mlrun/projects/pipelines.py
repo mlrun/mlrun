@@ -713,20 +713,8 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        if (
-            workflow_spec.schedule
-            # Checks if the source of the project is a remote one:
-            and not project.spec.source
-            or any(project.spec.source.startswith(prefix) for prefix in [".", "/"])
-            or (
-                not project.spec.source.startswith("git://")
-                or not any(
-                    project.spec.source.endswith(suffix)
-                    for suffix in ["tar.gz", ".zip"]
-                )
-            )
-        ):
-            raise ValueError(
+        if workflow_spec.schedule and not project.spec.is_remote():
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Workflow scheduling can only be performed by a remote project."
                 f"The project's source: {project.spec.source} is not a remote one e.g., git."
             )

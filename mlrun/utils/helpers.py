@@ -829,6 +829,11 @@ def retry_until_successful(
     :param kwargs: functions kwargs
     :return: function result
     """
+    if timeout and timeout <= backoff:
+        logger.warning(
+            f"timeout ({timeout}) should be higher than backoff ({backoff}) = backoff."
+            f" Set timeout to be higher than backoff."
+        )
     start_time = time.time()
     last_exception = None
 

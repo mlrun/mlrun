@@ -94,7 +94,7 @@ Add the Community Edition helm chart repo:
 helm repo add mlrun-ce https://mlrun.github.io/ce
 ```
 
-Run the following command to ensure the repo is installed and available:
+Run the following command to ensure that the repo is installed and available:
 ```bash
 helm repo list
 ```

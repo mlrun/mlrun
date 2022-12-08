@@ -757,7 +757,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         )
 
 
-@main.command(context_settings=mlconf.cli.context_settings.to_dict())
+@main.command()
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
 @click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
@@ -820,7 +820,7 @@ def version():
     print(f"MLRun version: {str(Version().get())}")
 
 
-@main.command(context_settings=mlconf.cli.context_settings.to_dict())
+@main.command()
 @click.argument("uid", type=str)
 @click.option("--project", "-p", help="project name")
 @click.option("--offset", type=int, default=0, help="byte offset")
@@ -840,7 +840,7 @@ def logs(uid, project, offset, db, watch):
         print(f"final state: {state}")
 
 
-@main.command(context_settings=mlconf.cli.context_settings.to_dict())
+@main.command()
 @click.argument("context", default="", type=str, required=False)
 @click.option("--name", "-n", help="project name")
 @click.option("--url", "-u", help="remote git or archive url")
@@ -1038,7 +1038,7 @@ def validate_kind(ctx, param, value):
     return value
 
 
-@main.command(context_settings=mlconf.cli.context_settings.to_dict())
+@main.command()
 @click.argument("kind", callback=validate_kind, default=None, required=False)
 @click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
@@ -1086,9 +1086,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
     )
 
 
-@main.command(
-    name="watch-stream", context_settings=mlconf.cli.context_settings.to_dict()
-)
+@main.command(name="watch-stream")
 @click.argument("url", type=str)
 @click.option(
     "--shard-ids",

@@ -455,6 +455,11 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
+    "cli": {
+        "context_settings": {
+            "ignore_unknown_options": False,
+        }
+    },
 }
 
 

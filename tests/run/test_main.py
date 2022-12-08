@@ -60,6 +60,58 @@ def test_main_run_basic():
     assert out.find("state: completed") != -1, out
 
 
+def test_main_run_unknown_option():
+    with pytest.raises(Exception) as e:
+        exec_run(
+            f"{examples_path}/training.py",
+            ["--force-something"],
+            "test_main_run_basic",
+        )
+    assert "Error: No such option: --force-something" in str(e.value)
+
+
+def test_main_run_ignore_unknown_option():
+    os.environ["MLRUN_CLI__CONTEXT_SETTINGS__IGNORE_UNKNOWN_OPTIONS"] = "true"
+
+    # unknown flags must be after the url argument
+    out = exec_main(
+        "run",
+        [
+            "--name",
+            "test_main_run_basic",
+            "--dump",
+            f"{examples_path}/training.py",
+            "--some-arg",
+        ],
+    )
+    print(out)
+    assert out.find("state: completed") != -1, out
+    assert (
+        out.find(f"{examples_path}/training.py', '--some-arg']") != -1
+    ), "arg was not passed to subcommand"
+
+
+def test_main_run_pass_args_to_subcommand():
+
+    # unknown flags must be after the url argument
+    out = exec_main(
+        "run",
+        [
+            "--name",
+            "test_main_run_basic",
+            "--dump",
+            "--",
+            f"{examples_path}/training.py",
+            "--some-arg",
+        ],
+    )
+    print(out)
+    assert out.find("state: completed") != -1, out
+    assert (
+        out.find(f"{examples_path}/training.py', '--some-arg']") != -1
+    ), "arg was not passed to subcommand"
+
+
 def test_main_run_hyper():
     out = exec_run(
         f"{examples_path}/training.py",

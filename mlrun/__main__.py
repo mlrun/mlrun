@@ -68,7 +68,7 @@ def main():
     pass
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("url", type=str, required=False)
 @click.option(
     "--param",
@@ -387,7 +387,7 @@ def run(
         exit(1)
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("func_url", type=str, required=False)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
@@ -543,7 +543,7 @@ def build(
         exit(1)
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("spec", type=str, required=False)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
@@ -645,7 +645,7 @@ def deploy(
         fp.write(function.status.nuclio_name)
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("pod", type=str)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
@@ -658,7 +658,7 @@ def watch(pod, namespace, timeout):
     print(f"Pod {pod} last status is: {status}")
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("kind", type=str)
 @click.argument("name", type=str, default="", required=False)
 @click.option("--selector", "-s", default="", help="label selector")
@@ -757,7 +757,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         )
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
 @click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
@@ -820,7 +820,7 @@ def version():
     print(f"MLRun version: {str(Version().get())}")
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("uid", type=str)
 @click.option("--project", "-p", help="project name")
 @click.option("--offset", type=int, default=0, help="byte offset")
@@ -840,7 +840,7 @@ def logs(uid, project, offset, db, watch):
         print(f"final state: {state}")
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("context", default="", type=str, required=False)
 @click.option("--name", "-n", help="project name")
 @click.option("--url", "-u", help="remote git or archive url")
@@ -1038,7 +1038,7 @@ def validate_kind(ctx, param, value):
     return value
 
 
-@main.command()
+@main.command(context_settings=mlconf.cli.context_settings.to_dict())
 @click.argument("kind", callback=validate_kind, default=None, required=False)
 @click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
@@ -1086,7 +1086,9 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
     )
 
 
-@main.command(name="watch-stream")
+@main.command(
+    name="watch-stream", context_settings=mlconf.cli.context_settings.to_dict()
+)
 @click.argument("url", type=str)
 @click.option(
     "--shard-ids",

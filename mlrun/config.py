@@ -898,7 +898,6 @@ class Config:
 
 
 # Global configuration
-dbpath = None
 config = Config.from_dict(default_config)
 
 
@@ -909,7 +908,7 @@ def _populate():
     populate will run only once, after first call it does nothing.
     """
     global _loaded
-    global config
+
     with _load_lock:
         _do_populate()
 

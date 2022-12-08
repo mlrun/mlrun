@@ -121,6 +121,9 @@ kubectl --namespace mlrun create secret docker-registry registry-credentials \
     --docker-password <your-password> \
     --docker-email <your-email>
 ```
+> **Note:**
+> If using docker hub, the registry server is `https://index.docker.io/v1/`. Refer to the [Docker ID documentation](https://docs.docker.com/docker-id/) for 
+> creating a user with login to configure in the secret.
 
 Where:
 
@@ -167,14 +170,14 @@ When you have a REDIS service deployed, you can configure MLRun CE to use it by 
 ## Usage
 
 Your applications are now available in your local browser:
-- jupyter-notebook - http://<host-machine-address>:30040
-- nuclio - http://<host-machine-address>:30050
-- mlrun UI - http://<host-machine-address>:30060
-- mlrun API (external) - http://<host-machine-address>:30070
-- minio API - http://<host-machine-address>:30080
-- minio UI - http://<host-machine-address>:30090
-- pipeline UI - http://<host-machine-address>:30100
-- grafana UI - http://<host-machine-address>:30110
+- jupyter-notebook - `http://<host-machine-address>:30040`
+- nuclio - `http://<host-machine-address>:30050`
+- mlrun UI - `http://<host-machine-address>:30060`
+- mlrun API (external) - `http://<host-machine-address>:30070`
+- minio API - `http://<host-machine-address>:30080`
+- minio UI - `http://<host-machine-address>:30090`
+- pipeline UI - `http://<host-machine-address>:30100`
+- grafana UI - `http://<host-machine-address>:30110`
 
 
 ```{admonition} Check state

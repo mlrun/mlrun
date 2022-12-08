@@ -891,6 +891,98 @@ async def test_schedule_access_key_generation(
 
 
 @pytest.mark.asyncio
+async def test_schedule_access_key_reference_handling(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
+    project = config.default_project
+    schedule_name = "schedule-name"
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    username = "some-user-name"
+    access_key = "some-access-key"
+
+    secret_ref = "$ref:" + k8s_secrets_mock.store_auth_secret(username, access_key)
+    auth_info = mlrun.api.schemas.AuthInfo()
+    auth_info.access_key = secret_ref
+
+    scheduler.create_schedule(
+        db,
+        auth_info,
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+
+    _assert_schedule_get_and_list_credentials_enrichment(
+        db, scheduler, project, schedule_name, access_key, username
+    )
+
+
+@pytest.mark.asyncio
+async def test_schedule_convert_from_old_credentials_to_new(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    # Verify that objects created with the old methodology of storing secrets are converted properly when the
+    # scheduler is reloaded, and new auth secrets are generated for them.
+    project = config.default_project
+    schedule_name = "schedule-name"
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
+    cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    username = "some-user-name"
+    access_key = "some-access-key"
+
+    # Creating without auth info and without setting is_jobs_auth_required, since we will create the secrets later
+    # to simulate an old schedule.
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+
+    auth_info = mlrun.api.schemas.AuthInfo(username=username, access_key=access_key)
+    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
+    scheduler._store_schedule_secrets(auth_info, project, schedule_name)
+    _assert_schedule_secrets(scheduler, project, schedule_name, username, access_key)
+
+    # now reload the schedules, to trigger conversion.
+
+    await scheduler.stop()
+
+    jobs = scheduler._list_schedules_from_scheduler(project)
+    assert jobs == []
+
+    await scheduler.start(db)
+    _assert_schedule_auth_secrets(
+        k8s_secrets_mock.get_auth_secret_name(username, access_key),
+        username,
+        access_key,
+    )
+
+    jobs = scheduler._list_schedules_from_scheduler(project)
+    assert jobs[0].args[5].username == username
+    assert jobs[0].args[5].access_key == access_key
+    _assert_schedule_get_and_list_credentials_enrichment(
+        db, scheduler, project, schedule_name, access_key, username
+    )
+    _assert_schedule_secrets(scheduler, project, schedule_name, None, None)
+
+
+@pytest.mark.asyncio
 async def test_update_schedule(
     db: Session,
     scheduler: Scheduler,
@@ -1143,6 +1235,10 @@ def _assert_schedule_get_and_list_credentials_enrichment(
         db, project, schedule_name, include_credentials=True
     )
     assert schedules.schedules[0].credentials.access_key == secret_ref
+
+    jobs = scheduler._list_schedules_from_scheduler(project)
+    assert jobs[0].args[5].access_key == expected_access_key
+    assert jobs[0].args[5].username == expected_username
 
 
 def _assert_schedule_auth_secrets(

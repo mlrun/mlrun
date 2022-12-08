@@ -48,7 +48,7 @@ class Scheduler:
 
     _secret_username_subtype = "username"
     _secret_access_key_subtype = "access_key"
-    _db_record_auth_label = "auth_key"
+    _db_record_auth_label = "mlrun-auth-key"
 
     def __init__(self):
         scheduler_config = json.loads(config.httpdb.scheduling.scheduler_config)
@@ -678,14 +678,18 @@ class Scheduler:
                 )
 
                 # Schedule was created using the old method. Transform schedule secrets to using auth secrets
-                # and remove the old secrets. Need to also add the label to the DB object identifying the auth
-                # secret
+                # and remove the old secrets.
                 if need_to_update_credentials:
                     secret_name = self._store_schedule_secrets_using_auth_secret(
                         auth_info
                     )
+
+                    # Append the auth key label to the schedule labels in the DB.
+                    labels = {
+                        label["name"]: label["value"] for label in db_schedule.labels
+                    }
                     labels = self._append_access_key_secret_to_labels(
-                        db_schedule.labels, secret_name
+                        labels, secret_name
                     )
                     get_db().update_schedule(
                         db_session,

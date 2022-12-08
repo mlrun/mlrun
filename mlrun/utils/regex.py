@@ -30,6 +30,8 @@ dns_1123_label = [
     r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 ]
 
+tag_name = r"^[^!@$%^&*()_+#]+$"
+
 # DNS 1035 - used by k8s for services services
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L220
 dns_1035_label = [r"[a-z]([-a-z0-9]*[a-z0-9])?"]
@@ -69,5 +71,6 @@ sparkjob_name = label_value + sprakjob_length + sparkjob_service_name
 # It should be a valid namespace name (cause we plan to map it to one) which is dns 1123 label
 # of the 3 restrictions, dns 1123 label is the most strict, so we enforce only it
 project_name = dns_1123_label
+
 
 secret_key = k8s_secret_and_config_map_key

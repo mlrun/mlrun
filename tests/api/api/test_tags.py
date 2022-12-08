@@ -18,6 +18,7 @@ import typing
 import uuid
 
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
@@ -238,6 +239,44 @@ class TestArtifactTags:
             client, tag=new_tag, expected_number_of_artifacts=1
         )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
+
+    def test_append_artifact_tags_with_charachters(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        """
+        test
+        # is there a wat to use here parameterized?
+        """
+
+        self._create_project(client)
+        tag = "tag1"
+        new_tag = "tag$%^#"
+        artifact1_labels = {"artifact_name": "artifact1"}
+
+        # which error and status code?
+        with pytest.raises(RuntimeError):
+            _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+                client, tag=tag, uid="latest", labels=artifact1_labels
+            )
+            response = self._append_artifact_tag(
+                client=client,
+                tag=new_tag,
+                identifiers=[
+                    mlrun.api.schemas.ArtifactIdentifier(
+                        key=artifact1_key, uid=artifact1_uid
+                    ),
+                ],
+            )
+            assert response.status_code == http.HTTPStatus.OK.value
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=tag, expected_number_of_artifacts=1
+        )
+        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
+
+        response_body = self._list_artifacts_and_assert(
+            client, tag=new_tag, expected_number_of_artifacts=0
+        )
 
     def test_append_artifact_tags_by_uid_identifier(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient

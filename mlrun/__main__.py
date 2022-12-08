@@ -997,9 +997,7 @@ def project(
                 )
             except mlrun.errors.MLRunConflictError as error:
                 raise mlrun.errors.MLRunConflictError(
-                    str(error).replace(
-                        "overwrite = True", "--overwrite-schedule"
-                    )
+                    str(error).replace("overwrite = True", "--overwrite-schedule")
                 )
         except Exception as exc:
             print(traceback.format_exc())

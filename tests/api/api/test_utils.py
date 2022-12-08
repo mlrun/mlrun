@@ -21,7 +21,6 @@ import kubernetes.client
 import pytest
 from deepdiff import DeepDiff
 from fastapi.testclient import TestClient
-from nuclio import utils
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -206,7 +205,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
-    assert parsed_function_object.metadata.name == utils.normalize_name(function_name)
+    assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
     assert (
@@ -371,7 +370,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
-    assert parsed_function_object.metadata.name == utils.normalize_name(function_name)
+    assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == PROJECT
     assert parsed_function_object.metadata.tag == function_tag
     assert (
@@ -412,7 +411,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
         db, mlrun.api.schemas.AuthInfo(), submit_job_body
     )
-    assert parsed_function_object.metadata.name == utils.normalize_name(function_name)
+    assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
     assert parsed_function_object.metadata.tag == function_tag
     assert parsed_function_object.metadata.credentials.access_key == access_key
@@ -1300,7 +1299,7 @@ def _generate_original_function(
     volumes=None,
     volume_mounts=None,
 ):
-    function_name = "function_name"
+    function_name = "function-name"
     project = "some-project"
     function_tag = "function_tag"
     original_function = {

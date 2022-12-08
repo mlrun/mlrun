@@ -89,7 +89,6 @@ being a column in this df). This could cause breakage for existing custom steps 
 | ID   | Description                                            | Workaround                                    | Opened |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
 | 2849 | Cannot pickle a class inside an mlrun function         | Use cloudpickle instead of pickle             | 1.2.0  |
-| 2516 | Feature store is not backwards compatible              | Planned for a future release                  | 1.2.0  |
 | 2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | 1.0.0  |
 | 2199 | Spark operator job fails with default requests args       | NA                                         | 1.0.0 |
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |

@@ -20,7 +20,6 @@ import zipfile
 
 import deepdiff
 import inflection
-import pandas as pd
 import pytest
 
 import mlrun
@@ -616,56 +615,3 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
-
-
-def test_project_log_dataset_stats():
-    raw_data = {
-        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
-        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
-        "age": [42, 52, 36, 24, 73],
-        "testScore": [25, 94, 57, 62, 70],
-    }
-    df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
-    for test_case in [
-        {
-            "name": "df-with-stats-none",
-            "df": df,
-            "stats": None,
-            "expected_none_status_stats": False,
-        },
-        {
-            "name": "df-with-stats-true",
-            "df": df,
-            "stats": True,
-            "expected_none_status_stats": False,
-        },
-        {
-            "name": "df-with-stats-false",
-            "df": df,
-            "stats": False,
-            "expected_none_status_stats": True,
-        },
-        {
-            "name": "df-with-stats-none-many-columns",
-            "df": pd.DataFrame(
-                raw_data, columns=[f"column-title-{i}" for i in range(200)]
-            ),
-            "stats": None,
-            "expected_none_status_stats": True,
-        },
-    ]:
-        proj = mlrun.new_project("proj", save=False)
-        df_name = test_case["name"]
-        proj.log_dataset(df_name, df=test_case["df"], stats=test_case["stats"])
-        if test_case["expected_none_status_stats"]:
-
-            assert proj.get_artifact(df_name).status.stats is None
-        else:
-            assert proj.get_artifact(df_name).status.stats is not None
-
-        # delete the created dataframe if it exists
-        df_file_path = os.path.join(
-            pathlib.Path(__file__).absolute().parent, f"{df_name}.parquet"
-        )
-        if os.path.exists(df_file_path):
-            os.remove(df_file_path)

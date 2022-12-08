@@ -5,8 +5,7 @@
 - [Prerequisites](#prerequisites)
 - [Community Edition Flavors](#community-edition-flavors)
 - [Installing on Docker Desktop](#installing-on-docker-desktop)
-- [Installing the Lite Version](#installing-the-lite-version)
-- [Installing the Full Version](#installing-the-full-version)
+- [Installing the Chart](#installing-the-chart)
 - [Configuring Online Feature Store](#configuring-online-feature-store)
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
@@ -22,7 +21,9 @@ on Windows or Mac, [Docker Desktop](https://www.docker.com/products/docker-deskt
 instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more information.
 - Helm 3.6 CLI is installed. Refer to the [Helm installation instructions](https://helm.sh/docs/intro/install/) for more information.
 - An accessible docker-registry (such as [Docker Hub](https://hub.docker.com)). The registry's URL and credentials are consumed by the applications via a pre-created secret.
-- Storage: 7Gi
+- Storage: 
+  - 8Gi
+  - It is also required to set a default storage class for the kubernetes cluster in order for the pods to have persistent storage. Please see the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/#the-storageclass-resource) for more information.
 - RAM: A minimum of 8Gi is required for running all the initial MLRun components. The amount of RAM required for running MLRun jobs depends on the job's requirements.
 
 ``` {admonition} Note
@@ -31,8 +32,7 @@ The MLRun Community Edition resources are configured initially with the default 
 
 ## Community Edition flavors
 
-The MLRun CE (Community Edition) chart arrives in 2 flavors - lite and full.
-The lite version is the default installation and includes the following components:
+The MLRun CE (Community Edition) includes the following components:
 * MLRun - https://github.com/mlrun/mlrun
   - MLRun API
   - MLRun UI
@@ -41,8 +41,6 @@ The lite version is the default installation and includes the following componen
 * Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
 * MPI Operator - https://github.com/kubeflow/mpi-operator
 * Minio - https://github.com/minio/minio/tree/master/helm/minio
-
-The Full Version also includes:
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
 * Pipelines - https://github.com/kubeflow/pipelines
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
@@ -78,7 +76,7 @@ To learn about the various UI options and their usage, see:
 
 
 <a id="installing-the-chart"></a>
-## Installing the Lite Version
+## Installing the Chart
 
 ```{admonition} Note
 These instructions use `mlrun` as the namespace (`-n` parameter). You can choose a different namespace in your kubernetes cluster.
@@ -100,7 +98,8 @@ Run the following command to ensure the repo is installed and available:
 ```bash
 helm repo list
 ```
-It should outuput something like:
+
+It should output something like:
 ```bash
 NAME        URL
 mlrun-ce    https://mlrun.github.io/ce
@@ -155,23 +154,6 @@ Where:
 
 When the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
 
-## Installing the Full Version
-
-To install the full version of the chart first follow the instructions of installing the light version up until the helm
-install command, and then use the following command instead:
-
-```bash
-helm --namespace mlrun \
-    install mlrun-ce \
-    --wait \
-    --timeout 960s \
-    -f https://raw.githubusercontent.com/mlrun/ce/development/charts/mlrun-ce/override-full.yaml \
-    --set global.registry.url=<registry-url> \
-    --set global.registry.secretName=registry-credentials \
-    --set global.externalHostAddress=<host-machine-address> \
-    mlrun-ce/mlrun-ce
-```
-
 ## Configuring Online Feature Store
 The MLRun Community Edition now supports the online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
 To deploy a REDIS service, refer to the following [link](https://redis.io/docs/getting-started/).
@@ -220,6 +202,17 @@ You can use your code on a local machine while running your functions on a remot
 ## Advanced chart configuration
 
 Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
+
+### Opt out of components
+The chart installs many components. You might not need them all in your deployment depending on your use cases.
+In order to opt out of some of the components, you can use the following helm values:
+```bash
+...
+--set pipelines.enabled=false \
+--set kube-prometheus-stack.enabled=false \
+--set sparkOperator.enabled=false \
+...
+```
 
 ## Uninstalling the Chart
 ```bash

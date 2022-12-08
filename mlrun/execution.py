@@ -467,7 +467,7 @@ class MLClientCtx(object):
 
             access_key = context.get_secret("ACCESS_KEY")
         """
-        return mlrun.get_secret_or_env(key, secret_store=self._secrets_manager)
+        return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
 
     def _set_input(self, key, url=""):
         if url is None:

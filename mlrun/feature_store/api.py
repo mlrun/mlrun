@@ -261,6 +261,11 @@ def get_online_feature_service(
     feature_vector = _features_to_vector_and_check_permissions(
         feature_vector, update_stats
     )
+
+    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
+    if impute_policy and not feature_vector.status.stats:
+        update_stats = True
+
     graph, index_columns = init_feature_vector_graph(
         feature_vector, fixed_window_type, update_stats=update_stats
     )
@@ -877,6 +882,7 @@ def _ingest_with_spark(
     finally:
         if created_spark_context:
             spark.stop()
+            spark.sparkContext.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             df = None
     if return_df:

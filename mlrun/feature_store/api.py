@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import os
 from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
@@ -787,9 +786,6 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
-            for k, v in os.environ.items():
-                print(k, "=", v)
-            print()
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
             created_spark_context = True
 

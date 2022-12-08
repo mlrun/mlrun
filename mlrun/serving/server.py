@@ -250,7 +250,7 @@ class GraphServer(ModelObj):
             try:
                 body = json.loads(event.body)
                 event.body = body
-            except json.decoder.JSONDecodeError as exc:
+            except (json.decoder.JSONDecodeError, UnicodeDecodeError) as exc:
                 if event.content_type in ["json", "application/json"]:
                     # if its json type and didnt load, raise exception
                     message = f"failed to json decode event, {exc}"

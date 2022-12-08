@@ -14,7 +14,7 @@
 import sys
 import tempfile
 from base64 import b64encode
-from os import getenv, path, remove
+from os import path, remove
 
 import dask.dataframe as dd
 import fsspec
@@ -24,7 +24,6 @@ import requests
 import urllib3
 
 import mlrun.errors
-from mlrun.secrets import SecretsStore
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
@@ -81,12 +80,8 @@ class DataStore:
 
     def _get_secret_or_env(self, key, default=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
-        return (
-            self._get_secret(key)
-            or self._get_parent_secret(key)
-            or getenv(key)
-            or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
-            or default
+        return mlrun.get_secret_or_env(
+            key, secret_provider=self._get_secret, default=default
         )
 
     def get_storage_options(self):
@@ -106,7 +101,7 @@ class DataStore:
         return self._parent.secret(self.secret_pfx + key)
 
     def _get_secret(self, key: str, default=None):
-        return self._secrets.get(key, default)
+        return self._secrets.get(key, default) or self._get_parent_secret(key)
 
     @property
     def url(self):

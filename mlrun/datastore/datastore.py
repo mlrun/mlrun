@@ -112,7 +112,7 @@ class StoreManager:
 
     def _get_db(self):
         if not self._db:
-            self._db = mlrun.db.get_run_db(secrets=self._secrets)
+            self._db = mlrun.get_run_db(secrets=self._secrets)
         return self._db
 
     def from_dict(self, struct: dict):
@@ -141,7 +141,9 @@ class StoreManager:
     def get_store_artifact(
         self, url, project="", allow_empty_resources=None, secrets=None
     ):
-
+        """
+        This is expected to be run only on client side. server is not expected to load artifacts.
+        """
         try:
             resource = get_store_resource(
                 url,
@@ -189,7 +191,7 @@ class StoreManager:
                 raise ValueError(f"no such store ({endpoint})")
 
         store_key = f"{schema}://{endpoint}"
-        if not secrets and self._executing_on_client():
+        if not secrets and not mlrun.is_running_as_api():
             if store_key in self._stores.keys():
                 return self._stores[store_key], subpath
 
@@ -199,9 +201,6 @@ class StoreManager:
         store = schema_to_store(schema)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
-        if not secrets and self._executing_on_client():
+        if not secrets and not mlrun.is_running_as_api():
             self._stores[store_key] = store
         return store, subpath
-
-    def _executing_on_client(self):
-        return self._get_db().kind == "http"

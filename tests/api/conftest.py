@@ -45,6 +45,7 @@ def db() -> Generator:
     config.httpdb.db_type = "sqldb"
     dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
     config.httpdb.dsn = dsn
+    mlrun._is_running_as_api = True
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests

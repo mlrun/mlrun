@@ -2449,7 +2449,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.get_offline_features(vector)
 
-    def test_online_impute(self):
+    @pytest.mark.parametrize("pass_vector_as_uri", [True, False])
+    def test_online_impute(self, pass_vector_as_uri):
         data = pd.DataFrame(
             {
                 "time_stamp": [
@@ -2481,8 +2482,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
+        vector.save()
+
         with fs.get_online_feature_service(
-            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
+            vector.uri if pass_vector_as_uri else vector,
+            impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4},
         ) as svc:
             print(svc.vector.status.to_yaml())
 

@@ -663,8 +663,9 @@ def test_project_log_dataset_stats():
         else:
             assert proj.get_artifact(df_name).status.stats is not None
 
-        # delete the created dataframe
+        # delete the created dataframe if it exists
         df_file_path = os.path.join(
             pathlib.Path(__file__).absolute().parent, f"{df_name}.parquet"
         )
-        os.remove(df_file_path)
+        if os.path.exists(df_file_path):
+            os.remove(df_file_path)

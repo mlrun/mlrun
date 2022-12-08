@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
@@ -786,6 +787,9 @@ def _ingest_with_spark(
                     f"{featureset.metadata.project}-{featureset.metadata.name}"
                 )
 
+            for k, v in os.environ.items():
+                print(k, "=", v)
+            print()
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
             created_spark_context = True
 
@@ -882,6 +886,7 @@ def _ingest_with_spark(
     finally:
         if created_spark_context:
             spark.stop()
+            spark.sparkContext.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             df = None
     if return_df:

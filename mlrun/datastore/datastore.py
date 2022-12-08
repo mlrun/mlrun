@@ -22,7 +22,7 @@ import mlrun.errors
 # is fully initialized)
 # TODO: remove it and just use `mlrun.is_running_as_api()` when the fileDB is removed or the config.db_path setter
 #  is being set in a different way
-from ..config import is_running_as_api
+# from ..config import is_running_as_api
 from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
 from .filestore import FileStore
@@ -197,7 +197,7 @@ class StoreManager:
                 raise ValueError(f"no such store ({endpoint})")
 
         store_key = f"{schema}://{endpoint}"
-        if not secrets and not is_running_as_api():
+        if not secrets and not mlrun.config.is_running_as_api():
             if store_key in self._stores.keys():
                 return self._stores[store_key], subpath
 
@@ -207,6 +207,6 @@ class StoreManager:
         store = schema_to_store(schema)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
-        if not secrets and not is_running_as_api():
+        if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
         return store, subpath

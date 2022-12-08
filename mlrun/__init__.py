@@ -29,7 +29,6 @@ from os import environ, path
 import dotenv
 
 from .config import config as mlconf
-from .config import is_running_as_api
 from .datastore import DataItem, store_manager
 from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError

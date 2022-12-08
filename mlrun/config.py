@@ -913,12 +913,9 @@ def _populate():
     with _load_lock:
         _do_populate()
 
-    config.dbpath = dbpath
-
 
 def _do_populate(env=None):
     global config
-    global dbpath
     if "MLRUN_ENV_FILE" in os.environ:
         env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
         dotenv.load_dotenv(env_file, override=True)
@@ -935,12 +932,10 @@ def _do_populate(env=None):
         if not isinstance(data, dict):
             raise TypeError(f"configuration in {config_path} not a dict")
 
-        dbpath = data.pop("dbpath") if "dbpath" in data else None
         config.update(data)
 
     data = read_env(env)
     if data:
-        dbpath = data.pop("dbpath") if "dbpath" in data else None
         config.update(data)
 
     # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
@@ -954,7 +949,6 @@ def _do_populate(env=None):
     del config._cfg["iguazio_api_url"]
 
     _validate_config(config)
-    config.dbpath = dbpath
 
 
 def _validate_config(config):

@@ -10,6 +10,7 @@
 - [Start working](#start-working)
 - [Configuring the remote environment](#configuring-the-remote-environment)
 - [Advanced chart configuration](#advanced-chart-configuration)
+- [Storage Resources](#storage-resources)
 - [Uninstalling the chart](#uninstalling-the-chart)
 - [Upgrading the chart](#upgrading-the-chart)
 
@@ -214,10 +215,25 @@ In order to opt out of some of the components, you can use the following helm va
 ...
 ```
 
+## Storage resources
+
+When installing the MLRun Community Edition, several storage resources are created:
+
+- **PVs via default configured storage class**: Used to hold the file system of the stacks pods, including the MySQL database of MLRun, Minio for artifacts and Pipelines Storage and more. These are deleted when the stack is uninstalled.
+- **Container Images in the configured docker-registry**: When building and deploying MLRun and Nuclio functions via the MLRun Community Edition, the function images are stored in the given configured docker registry. These images persist in the docker registry and are not deleted.
+
 ## Uninstalling the Chart
+
+The following command will delete the pods, deployments, config maps, services, roles+role bindings and PVCs associated with the chart and release.
+
 ```bash
 helm --namespace mlrun uninstall mlrun-ce
 ```
+
+#### Notes on dangling resources
+- The created CRDs are not deleted by default and should be manually cleaned up. 
+- As stated above, the images in the docker registry are not deleted either and should be cleaned up manually.
+- If you installed the chart in its own namespace, it's also possible to delete the entire namespace to clean up all resources (apart from the docker registry images).
 
 #### Note on terminating pods and hanging resources
 This chart generates several persistent volume claims that provide persistency (via PVC) out of the box. 

@@ -212,7 +212,7 @@ def test_dataset_stats():
             "expected_none_status_stats": True,
         },
         {
-            # status is not set and df very large
+            # status is not set and df is very large
             "df": pandas.DataFrame(
                 raw_data, columns=[f"column-title-{i}" for i in range(200)]
             ),

@@ -386,6 +386,8 @@ class Scheduler:
             )
             return secret_name
 
+    # TODO - this function is no longer used except to simulate "the old way" in tests. Remove this once we
+    #       are sure we are far enough that it's no longer going to be used (or keep, and use for other things).
     def _store_schedule_secrets(
         self,
         auth_info: mlrun.api.schemas.AuthInfo,

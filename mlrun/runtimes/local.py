@@ -381,6 +381,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
+    print("running:", cmd)
     process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
     while True:
         nextline = process.stdout.readline()

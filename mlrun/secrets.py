@@ -151,8 +151,7 @@ class SecretsStore:
 
 def get_secret_or_env(
     key: str,
-    secret_provider: Union[Dict, Callable, None] = None,
-    secret_store: Optional[SecretsStore] = None,
+    secret_provider: Union[Dict, SecretsStore, Callable, None] = None,
     default: Optional[str] = None,
 ) -> str:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
@@ -177,24 +176,20 @@ def get_secret_or_env(
         secret = get_secret_or_env("KEY1", secret_provider=my_secret_provider, default="TOO-MANY-SECRETS")
 
     :param key: Secret key to look for
-    :param secret_provider: Dictionary or callable to extract the secret value from. If using a callable, it must
-        use the signature `callable(key:str)`
-    :param secret_store: An MLRun `SecretsStore`. Function will attempt to `get()` the secret from the store
+    :param secret_provider: Dictionary, callable or `SecretsStore` to extract the secret value from. If using a
+        callable, it must use the signature `callable(key:str)`
     :param default: Default value to return if secret was not available through any other means
     :return: The secret value if found in any of the sources, or `default` if provided.
     """
 
     value = None
     if secret_provider:
-        if isinstance(secret_provider, Dict):
+        if isinstance(secret_provider, (Dict, SecretsStore)):
             value = secret_provider.get(key)
         else:
             value = secret_provider(key)
         if value:
             return value
-
-    if secret_store:
-        value = secret_store.get(key)
 
     return (
         value

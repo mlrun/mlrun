@@ -183,12 +183,13 @@ is in columns `Ready` and `State`. If all images have already been pulled locall
 a minute for all services to start.
 ```
 
-> **Note:**
-> - You can change the ports by providing values to the helm install command.
-> - You can add and configure a k8s ingress-controller for better security and control over external access.
-
+```{admonition} Note
+You can change the ports by providing values to the helm install command.
+You can add and configure a k8s ingress-controller for better security and control over external access.
+```
 
 ## Start Working
+    
 Open the Jupyter notebook on [**jupyter-notebook UI**](http://localhost:30040) and run the code in the 
 [**examples/mlrun_basics.ipynb**](https://github.com/mlrun/mlrun/blob/master/examples/mlrun_basics.ipynb) notebook.
 
@@ -230,23 +231,23 @@ The following command will delete the pods, deployments, config maps, services, 
 helm --namespace mlrun uninstall mlrun-ce
 ```
 
-#### Notes on dangling resources
+### Notes on dangling resources
 - The created CRDs are not deleted by default and should be manually cleaned up. 
 - As stated above, the images in the docker registry are not deleted either and should be cleaned up manually.
 - If you installed the chart in its own namespace, it's also possible to delete the entire namespace to clean up all resources (apart from the docker registry images).
 
-#### Note on terminating pods and hanging resources
+### Note on terminating pods and hanging resources
 This chart generates several persistent volume claims that provide persistency (via PVC) out of the box. 
 Upon uninstallation, any hanging / terminating pods will hold the PVCs and PVs respectively, as those prevent their safe removal.
 Since pods that are stuck in terminating state seem to be a never-ending plague in k8s, note this,
 and remember to clean the remaining PVs and PVCs.
 
-#### Handing stuck-at-terminating pods:
+### Handing stuck-at-terminating pods:
 ```bash
 kubectl --namespace mlrun delete pod --force --grace-period=0 <pod-name>
 ```
 
-#### Reclaim dangling persistency resources:
+### Reclaim dangling persistency resources:
 
 ```{admonition} WARNING 
 **This will result in data loss!**

@@ -997,7 +997,7 @@ def project(
                 )
             except mlrun.errors.MLRunConflictError as error:
                 raise mlrun.errors.MLRunConflictError(
-                    f"failed to run pipeline, {error}".replace(
+                    str(error).replace(
                         "overwrite = True", "--overwrite-schedule"
                     )
                 )

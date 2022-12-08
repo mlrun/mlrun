@@ -760,20 +760,10 @@ async def test_rescheduling_secrets_storing(
     jobs = scheduler._list_schedules_from_scheduler(project)
     assert jobs[0].args[5].access_key == access_key
     assert jobs[0].args[5].username == username
-    k8s_secrets_mock.assert_project_secrets(
-        project,
-        {
-            mlrun.api.crud.Secrets().generate_client_project_secret_key(
-                mlrun.api.crud.SecretsClientType.schedules,
-                name,
-                scheduler._secret_access_key_subtype,
-            ): access_key,
-            mlrun.api.crud.Secrets().generate_client_project_secret_key(
-                mlrun.api.crud.SecretsClientType.schedules,
-                name,
-                scheduler._secret_username_subtype,
-            ): username,
-        },
+    k8s_secrets_mock.assert_auth_secret(
+        k8s_secrets_mock.get_auth_secret_name(username, access_key),
+        username,
+        access_key,
     )
 
     await scheduler.stop()
@@ -813,11 +803,13 @@ async def test_schedule_crud_secrets_handling(
             scheduled_object,
             cron_trigger,
         )
-        _assert_schedule_secrets(
-            scheduler, project, schedule_name, username, access_key
+        _assert_schedule_auth_secrets(
+            k8s_secrets_mock.get_auth_secret_name(username, access_key),
+            username,
+            access_key,
         )
         _assert_schedule_get_and_list_credentials_enrichment(
-            db, scheduler, project, schedule_name, access_key
+            db, scheduler, project, schedule_name, access_key, username
         )
 
         username = "new-username"
@@ -830,11 +822,14 @@ async def test_schedule_crud_secrets_handling(
             schedule_name,
             labels={"label-key": "label-value"},
         )
-        _assert_schedule_secrets(
-            scheduler, project, schedule_name, username, access_key
+
+        _assert_schedule_auth_secrets(
+            k8s_secrets_mock.get_auth_secret_name(username, access_key),
+            username,
+            access_key,
         )
         _assert_schedule_get_and_list_credentials_enrichment(
-            db, scheduler, project, schedule_name, access_key
+            db, scheduler, project, schedule_name, access_key, username
         )
 
         # delete schedule
@@ -843,7 +838,6 @@ async def test_schedule_crud_secrets_handling(
             project,
             schedule_name,
         )
-        _assert_schedule_secrets(scheduler, project, schedule_name, None, None)
 
 
 @pytest.mark.asyncio
@@ -873,7 +867,9 @@ async def test_schedule_access_key_generation(
         cron_trigger,
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
-    _assert_schedule_secrets(scheduler, project, schedule_name, None, access_key)
+    _assert_schedule_auth_secrets(
+        k8s_secrets_mock.get_auth_secret_name("", access_key), "", access_key
+    )
 
     access_key = "generated-access-key-2"
     mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
@@ -889,7 +885,9 @@ async def test_schedule_access_key_generation(
         labels={"label-key": "label-value"},
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
-    _assert_schedule_secrets(scheduler, project, schedule_name, None, access_key)
+    _assert_schedule_auth_secrets(
+        k8s_secrets_mock.get_auth_secret_name("", access_key), "", access_key
+    )
 
 
 @pytest.mark.asyncio
@@ -1128,6 +1126,7 @@ def _assert_schedule_get_and_list_credentials_enrichment(
     project: str,
     schedule_name: str,
     expected_access_key: str,
+    expected_username: str,
 ):
     schedule = scheduler.get_schedule(
         db,
@@ -1135,11 +1134,25 @@ def _assert_schedule_get_and_list_credentials_enrichment(
         schedule_name,
         include_credentials=True,
     )
-    assert schedule.credentials.access_key == expected_access_key
+
+    secret_ref = "$ref:" + tests.api.conftest.K8sSecretsMock.get_auth_secret_name(
+        expected_username, expected_access_key
+    )
+    assert schedule.credentials.access_key == secret_ref
     schedules = scheduler.list_schedules(
         db, project, schedule_name, include_credentials=True
     )
-    assert schedules.schedules[0].credentials.access_key == expected_access_key
+    assert schedules.schedules[0].credentials.access_key == secret_ref
+
+
+def _assert_schedule_auth_secrets(
+    secret_name: str,
+    expected_username: str,
+    expected_access_key: str,
+):
+    auth_data = mlrun.api.crud.Secrets().read_auth_secret(secret_name)
+    assert expected_username == auth_data.username
+    assert expected_access_key == auth_data.access_key
 
 
 def _assert_schedule_secrets(

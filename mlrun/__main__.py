@@ -978,29 +978,29 @@ def project(
                 git_repo, git_issue, token=proj.get_secret("GITHUB_TOKEN")
             )
         try:
-            proj.run(
-                run,
-                workflow_path,
-                arguments=args,
-                artifact_path=artifact_path,
-                namespace=namespace,
-                sync=sync,
-                watch=watch,
-                dirty=dirty,
-                workflow_handler=handler,
-                engine=engine,
-                local=local,
-                schedule=schedule,
-                timeout=timeout,
-                overwrite=overwrite_schedule,
-            )
-        except mlrun.errors.MLRunConflictError as error:
-            # We don't want to print traceback in this case because it will add the SDK error with "overwrite = True"
-            message = f"failed to run pipeline, {error}".replace(
-                "overwrite = True", "--overwrite-schedule"
-            )
-            had_error = True
-            print(message)
+            try:
+                proj.run(
+                    run,
+                    workflow_path,
+                    arguments=args,
+                    artifact_path=artifact_path,
+                    namespace=namespace,
+                    sync=sync,
+                    watch=watch,
+                    dirty=dirty,
+                    workflow_handler=handler,
+                    engine=engine,
+                    local=local,
+                    schedule=schedule,
+                    timeout=timeout,
+                    overwrite=overwrite_schedule,
+                )
+            except mlrun.errors.MLRunConflictError as error:
+                raise mlrun.errors.MLRunConflictError(
+                    f"failed to run pipeline, {error}".replace(
+                        "overwrite = True", "--overwrite-schedule"
+                    )
+                )
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {exc}"

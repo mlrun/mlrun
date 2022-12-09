@@ -1319,7 +1319,7 @@ class MlrunProject(ModelObj):
         labels=None,
         format="",
         preview=None,
-        stats=False,
+        stats=None,
         target_path="",
         extra_data=None,
         label_column: str = None,

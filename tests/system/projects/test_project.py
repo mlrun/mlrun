@@ -606,3 +606,11 @@ class TestProject(TestMLRunSystem):
         project.set_secrets(file_path=env_file)
         secrets = db.list_project_secret_keys(name, provider="kubernetes")
         assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
+
+    def test_failed_schedule_workflow_non_remote_project(self):
+        name = "non-remote-fail"
+        project = self._create_project(name)
+        self.custom_project_names_to_delete.append(name)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            project.run("main", schedule="*/10 * * * *")

@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 
+import json
 import typing
 
 import pandas as pd
-import sqlalchemy
 import sqlalchemy as db
 from sqlalchemy.orm import sessionmaker
 
@@ -52,8 +52,6 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
 
         super().__init__(project=project)
         self.connection_string = connection_string
-        self.db = db
-        self.sessionmaker = sessionmaker
         self.table_name = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
 
     def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
@@ -64,13 +62,13 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
         :param endpoint: ModelEndpoint object that will be written into the DB.
         """
 
-        engine = self.db.create_engine(self.connection_string)
+        engine = db.create_engine(self.connection_string)
 
         with engine.connect():
             if not engine.has_table(self.table_name):
                 logger.info("Creating new model endpoints table in DB")
                 # Define schema and table for the model endpoints table as required by the SQL table structure
-                metadata = self.db.MetaData()
+                metadata = db.MetaData()
                 self._get_table(self.table_name, metadata)
 
                 # Create the table that stored in the MetaData object (if not exist)
@@ -95,17 +93,17 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
 
         """
 
-        engine = self.db.create_engine(self.connection_string)
+        engine = db.create_engine(self.connection_string)
         with engine.connect():
             # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
-            metadata = self.db.MetaData()
-            model_endpoints_table = self.db.Table(
+            metadata = db.MetaData()
+            model_endpoints_table = db.Table(
                 self.table_name, metadata, autoload=True, autoload_with=engine
             )
 
             # Define and execute the query with the given attributes and the related model endpoint id
             update_query = (
-                self.db.update(model_endpoints_table)
+                db.update(model_endpoints_table)
                 .values(attributes)
                 .where(
                     model_endpoints_table.c[
@@ -122,16 +120,17 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
 
         :param endpoint_id: The unique id of the model endpoint.
         """
-        engine = self.db.create_engine(self.connection_string)
+        engine = db.create_engine(self.connection_string)
         with engine.connect():
             # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
-            metadata = self.db.MetaData()
-            model_endpoints_table = self.db.Table(
+            metadata = db.MetaData()
+            model_endpoints_table = db.Table(
                 self.table_name, metadata, autoload=True, autoload_with=engine
             )
 
             # Delete the model endpoint record using sqlalchemy ORM
-            session = self.sessionmaker(bind=engine)()
+            session = sessionmaker(bind=engine)()
+
             session.query(model_endpoints_table).filter_by(
                 endpoint_id=endpoint_id
             ).delete()
@@ -177,7 +176,7 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
             endpoint_id=endpoint_id,
         )
 
-        engine = self.db.create_engine(self.connection_string)
+        engine = db.create_engine(self.connection_string)
 
         # Validate that the model endpoints table exists
         if not engine.has_table(self.table_name):
@@ -186,14 +185,12 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
         with engine.connect():
 
             # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
-            metadata = self.db.MetaData()
-            model_endpoints_table = self.db.Table(
+            metadata = db.MetaData()
+            model_endpoints_table = db.Table(
                 self.table_name, metadata, autoload=True, autoload_with=engine
             )
 
             # Get the model endpoint record using sqlalchemy ORM
-            from sqlalchemy.orm import sessionmaker
-
             session = sessionmaker(bind=engine)()
 
             columns = model_endpoints_table.columns.keys()
@@ -234,7 +231,7 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
         self,
         model: str = None,
         function: str = None,
-        labels: typing.List = None,
+        labels: typing.Union[typing.List[str], typing.Dict] = None,
         top_level: bool = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
@@ -270,7 +267,7 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
                           metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
         """
 
-        engine = self.db.create_engine(self.connection_string)
+        engine = db.create_engine(self.connection_string)
 
         # Generate an empty ModelEndpointList that will be filled afterwards with ModelEndpoint objects
         endpoint_list = mlrun.api.schemas.model_endpoints.ModelEndpointList(
@@ -279,14 +276,12 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
         with engine.connect():
 
             # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
-            metadata = self.db.MetaData()
-            model_endpoints_table = self.db.Table(
+            metadata = db.MetaData()
+            model_endpoints_table = db.Table(
                 self.table_name, metadata, autoload=True, autoload_with=engine
             )
 
-            # Get the model endpoint records using sqlalchemy ORM
-            from sqlalchemy.orm import sessionmaker
-
+            # Get the model endpoints records using sqlalchemy ORM
             session = sessionmaker(bind=engine)()
 
             columns = model_endpoints_table.columns.keys()
@@ -326,13 +321,22 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
                     filtered_values=endpoint_types,
                     combined=False,
                 )
-            if labels:
-                # TODO: Add labels filters
-                pass
+            # Labels from type list won't be supported from 1.4.0
+            # TODO: Remove in 1.4.0
+            if labels and isinstance(labels, typing.List):
+                logger.warn(
+                    "Labels should be from type dictionary, not list",
+                    labels=labels,
+                )
 
             # Convert the results from the DB into a ModelEndpoint object and append it to the ModelEndpointList
             for endpoint_values in query.all():
                 endpoint_dict = dict(zip(columns, endpoint_values))
+                # Filter labels
+                if labels and labels != json.loads(
+                    endpoint_dict.get(model_monitoring_constants.EventFieldType.LABELS)
+                ):
+                    continue
                 endpoint_obj = self._convert_into_model_endpoint_object(endpoint_dict)
 
                 # If time metrics were provided, retrieve the results from the time series DB
@@ -352,12 +356,12 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
 
     @staticmethod
     def _filter_values(
-        query: sqlalchemy.orm.query.Query,
-        model_endpoints_table: sqlalchemy.Table,
+        query: db.orm.query.Query,
+        model_endpoints_table: db.Table,
         key_filter: str,
         filtered_values: typing.List,
         combined=True,
-    ) -> sqlalchemy.orm.query.Query:
+    ) -> db.orm.query.Query:
         """Filtering the SQL query object according to the provided filters.
 
         :param query:                 SQLAlchemy ORM query object. Includes the SELECT statements generated by the ORM
@@ -379,127 +383,108 @@ class _ModelEndpointSQLStore(_ModelEndpointStore):
 
         # Apply AND/OR operator on the SQL query object with the filters tuple
         if combined:
-            return query.filter(sqlalchemy.and_(*filter_query))
+            return query.filter(db.and_(*filter_query))
         else:
-            return query.filter(sqlalchemy.or_(*filter_query))
+            return query.filter(db.or_(*filter_query))
 
-    def _get_table(self, table_name: str, metadata: sqlalchemy.MetaData):
-        """Declaring a new SQL table object with the required model endpoints columns
+    @staticmethod
+    def _get_table(table_name: str, metadata: db.MetaData):
+        """Declaring a new SQL table object with the required model endpoints columns. Below you can find the list
+        of available columns:
+
+        [endpoint_id, state, project, function_uri, model, model_class, labels, model_uri, stream_path, active,
+        monitoring_mode, feature_stats, current_stats, feature_names, children, label_names, timestamp, endpoint_type,
+        children_uids, drift_measures, drift_status, monitor_configuration, monitoring_feature_set_uri, latency_avg_5m,
+        latency_avg_1h, predictinos_per_second, predictions_count_5m, first_request, last_request, error_count]
 
         :param table_name: Model endpoints SQL table name.
         :param metadata:   SQLAlchemy MetaData object that used to describe the SQL DataBase. The below method uses the
                            MetaData object for declaring a table.
         """
 
-        self.db.Table(
+        db.Table(
             table_name,
             metadata,
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventFieldType.ENDPOINT_ID,
-                self.db.String(40),
+                db.String(40),
                 primary_key=True,
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.STATE, self.db.String(10)
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.PROJECT, self.db.String(40)
-            ),
-            self.db.Column(
+            db.Column(model_monitoring_constants.EventFieldType.STATE, db.String(10)),
+            db.Column(model_monitoring_constants.EventFieldType.PROJECT, db.String(40)),
+            db.Column(
                 model_monitoring_constants.EventFieldType.FUNCTION_URI,
-                self.db.String(255),
+                db.String(255),
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.MODEL, self.db.String(255)
-            ),
-            self.db.Column(
+            db.Column(model_monitoring_constants.EventFieldType.MODEL, db.String(255)),
+            db.Column(
                 model_monitoring_constants.EventFieldType.MODEL_CLASS,
-                self.db.String(255),
+                db.String(255),
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.LABELS, self.db.Text
+            db.Column(model_monitoring_constants.EventFieldType.LABELS, db.Text),
+            db.Column(
+                model_monitoring_constants.EventFieldType.MODEL_URI, db.String(255)
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.MODEL_URI, self.db.String(255)
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.STREAM_PATH, self.db.Text
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.ACTIVE, self.db.Boolean
-            ),
-            self.db.Column(
+            db.Column(model_monitoring_constants.EventFieldType.STREAM_PATH, db.Text),
+            db.Column(model_monitoring_constants.EventFieldType.ACTIVE, db.Boolean),
+            db.Column(
                 model_monitoring_constants.EventFieldType.MONITORING_MODE,
-                self.db.String(10),
+                db.String(10),
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.FEATURE_STATS, self.db.Text
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.CURRENT_STATS, self.db.Text
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.FEATURE_NAMES, self.db.Text
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.CHILDREN, self.db.Text
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.LABEL_NAMES, self.db.Text
-            ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.TIMESTAMP, self.db.DateTime
-            ),
-            self.db.Column(
+            db.Column(model_monitoring_constants.EventFieldType.FEATURE_STATS, db.Text),
+            db.Column(model_monitoring_constants.EventFieldType.CURRENT_STATS, db.Text),
+            db.Column(model_monitoring_constants.EventFieldType.FEATURE_NAMES, db.Text),
+            db.Column(model_monitoring_constants.EventFieldType.CHILDREN, db.Text),
+            db.Column(model_monitoring_constants.EventFieldType.LABEL_NAMES, db.Text),
+            db.Column(model_monitoring_constants.EventFieldType.TIMESTAMP, db.DateTime),
+            db.Column(
                 model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
-                self.db.String(10),
+                db.String(10),
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.CHILDREN_UIDS, self.db.Text
+            db.Column(model_monitoring_constants.EventFieldType.CHILDREN_UIDS, db.Text),
+            db.Column(
+                model_monitoring_constants.EventFieldType.DRIFT_MEASURES, db.Text
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.DRIFT_MEASURES, self.db.Text
-            ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventFieldType.DRIFT_STATUS,
-                self.db.String(40),
+                db.String(40),
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventFieldType.MONITOR_CONFIGURATION,
-                self.db.Text,
+                db.Text,
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventFieldType.FEATURE_SET_URI,
-                self.db.String(255),
+                db.String(255),
             ),
-            self.db.Column(
-                model_monitoring_constants.EventLiveStats.LATENCY_AVG_5M, self.db.Float
+            db.Column(
+                model_monitoring_constants.EventLiveStats.LATENCY_AVG_5M, db.Float
             ),
-            self.db.Column(
-                model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H, self.db.Float
+            db.Column(
+                model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H, db.Float
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND,
-                self.db.Float,
+                db.Float,
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventLiveStats.PREDICTIONS_COUNT_5M,
-                self.db.Float,
+                db.Float,
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventLiveStats.PREDICTIONS_COUNT_1H,
-                self.db.Float,
+                db.Float,
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventFieldType.FIRST_REQUEST,
-                self.db.String(40),
+                db.String(40),
             ),
-            self.db.Column(
+            db.Column(
                 model_monitoring_constants.EventFieldType.LAST_REQUEST,
-                self.db.String(40),
+                db.String(40),
             ),
-            self.db.Column(
-                model_monitoring_constants.EventFieldType.ERROR_COUNT, self.db.Integer
+            db.Column(
+                model_monitoring_constants.EventFieldType.ERROR_COUNT, db.Integer
             ),
         )
 

@@ -124,7 +124,7 @@ class _ModelEndpointStore(ABC):
         self,
         model: str = None,
         function: str = None,
-        labels: typing.List = None,
+        labels: typing.Union[typing.List[str], typing.Dict] = None,
         top_level: bool = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
@@ -180,8 +180,8 @@ class _ModelEndpointStore(ABC):
         children = endpoint.status.children or []
         endpoint_type = endpoint.status.endpoint_type or None
         children_uids = endpoint.status.children_uids or []
-        predictions_per_second = endpoint.status.predictions_per_second or None
-        latency_avg_1h = endpoint.status.latency_avg_1h or None
+        predictions_per_second = endpoint.status.predictions_per_second or 0
+        latency_avg_1h = endpoint.status.latency_avg_1h or 0
 
         # Fill the data. Note that because it is a flat dictionary, we use json.dumps() for encoding hierarchies
         # such as current_stats or label_names
@@ -325,6 +325,7 @@ class _ModelEndpointStore(ABC):
         children_uids = self._json_loads_if_not_none(
             endpoint.get(model_monitoring_constants.EventFieldType.CHILDREN_UIDS)
         )
+
         labels = self._json_loads_if_not_none(
             endpoint.get(model_monitoring_constants.EventFieldType.LABELS)
         )
@@ -385,7 +386,7 @@ class _ModelEndpointStore(ABC):
                 endpoint_type=endpoint_type or None,
                 children_uids=children_uids or None,
                 monitoring_feature_set_uri=endpoint.get(
-                    model_monitoring_constants.EventFieldType.MONITORING_FEATURE_SET_URI
+                    model_monitoring_constants.EventFieldType.FEATURE_SET_URI
                 )
                 or None,
                 predictions_per_second=endpoint.get(

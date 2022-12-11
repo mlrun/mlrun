@@ -226,7 +226,7 @@ def list_model_endpoints(
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
-    labels: List[str] = Query([], alias="label"),
+    labels=Query([], alias="label"),
     start: str = Query(default="now-1h"),
     end: str = Query(default="now"),
     metrics: List[str] = Query([], alias="metric"),

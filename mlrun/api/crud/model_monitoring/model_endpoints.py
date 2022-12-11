@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
+import json
 import os
 import typing
 
@@ -416,7 +415,7 @@ class ModelEndpoints:
         project: str,
         model: str = None,
         function: str = None,
-        labels: typing.List[str] = None,
+        labels: typing.Union[typing.List[str], str] = "{}",
         metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
@@ -472,6 +471,12 @@ class ModelEndpoints:
             top_level=top_level,
             uids=uids,
         )
+
+        # Labels from type list won't be supported from 1.4.0, only str that will be converted into dictionary
+        # TODO: Remove in 1.4.0 the following 2 lines and uncomment the last line
+        if labels and isinstance(labels, str):
+            labels = json.loads(labels)
+        # labels = json.loads(labels)
 
         endpoint_target = get_model_endpoint_target(
             access_key=auth_info.data_session, project=project

@@ -18,9 +18,7 @@ import typing
 
 import mlrun
 
-from .kv_model_endpoint_store import _ModelEndpointKVStore
 from .model_endpoint_store import _ModelEndpointStore
-from .sql_model_endpoint_store import _ModelEndpointSQLStore
 
 
 class ModelEndpointStoreType(enum.Enum):
@@ -53,6 +51,8 @@ class ModelEndpointStoreType(enum.Enum):
 
         if self.value == ModelEndpointStoreType.kv.value:
 
+            from .kv_model_endpoint_store import _ModelEndpointKVStore
+
             # Get V3IO access key from env
             access_key = (
                 mlrun.mlconf.get_v3io_access_key() if access_key is None else access_key
@@ -67,6 +67,8 @@ class ModelEndpointStoreType(enum.Enum):
             if connection_string is not None
             else mlrun.mlconf.model_endpoint_monitoring.connection_string
         )
+        from .sql_model_endpoint_store import _ModelEndpointSQLStore
+
         return _ModelEndpointSQLStore(
             project=project, connection_string=sql_connection_string
         )

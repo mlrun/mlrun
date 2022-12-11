@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import json
 import tempfile
 import time
 import traceback
@@ -2565,7 +2566,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_id: str,
     ):
         """
-        Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
+        Deletes the DB record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
@@ -2582,7 +2583,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: List[str] = None,
+        labels: Union[List[str], Dict] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
@@ -2621,6 +2622,10 @@ class HTTPRunDB(RunDBInterface):
         """
 
         path = f"projects/{project}/model-endpoints"
+
+        if labels and isinstance(labels, dict):
+            labels = json.dumps(labels)
+
         response = self.api_call(
             method="GET",
             path=path,

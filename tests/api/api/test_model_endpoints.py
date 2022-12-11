@@ -41,11 +41,16 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointKVStore(
-            project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+    store_type_object = (
+        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+            value="kv"
         )
     )
+
+    endpoint_target = store_type_object.to_endpoint_target(
+        project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+    )
+
     with pytest.raises(MLRunInvalidArgumentError):
         endpoint_target.build_kv_cursor_filter_expression("")
 
@@ -224,10 +229,14 @@ def test_get_endpoint_features_function():
     feature_names = list(stats.keys())
 
     # Initialize endpoint store target object
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointKVStore(
-            project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+    store_type_object = (
+        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+            value="kv"
         )
+    )
+
+    endpoint_target = store_type_object.to_endpoint_target(
+        project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
     features = endpoint_target.get_endpoint_features(feature_names, stats, stats)
@@ -284,7 +293,7 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
     )
 
 
-def test_SQLtarget_list_model_endpoints():
+def test_sql_target_list_model_endpoints():
     """Testing list model endpoint using _ModelEndpointSQLStore object. In the following test
     we create two model endpoints and list these endpoints. In addition, this test validates the
     filter optional operation within the list model endpoints API. At the end of this test, we validate
@@ -292,10 +301,13 @@ def test_SQLtarget_list_model_endpoints():
     """
 
     # Generate model endpoint target
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointSQLStore(
-            project=TEST_PROJECT, connection_string=CONNECTION_STRING + "s2"
+    store_type_object = (
+        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+            value="sql"
         )
+    )
+    endpoint_target = store_type_object.to_endpoint_target(
+        project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
     # First, validate that there are no model endpoints records at the moment
@@ -339,17 +351,20 @@ def test_SQLtarget_list_model_endpoints():
     assert (len(list_of_endpoints.endpoints)) == 0
 
 
-def test_SQLtarget_patch_endpoint():
+def test_sql_target_patch_endpoint():
     """Testing the update of a model endpoint using _ModelEndpointSQLStore object. In the following
     test we update attributes within the model endpoint spec and status and then validate that there
     attributes were actually updated.
     """
 
     # Generate model endpoint target
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointSQLStore(
-            project=TEST_PROJECT, connection_string=CONNECTION_STRING
+    store_type_object = (
+        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+            value="sql"
         )
+    )
+    endpoint_target = store_type_object.to_endpoint_target(
+        project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
     # First, validate that there are no model endpoints records at the moment

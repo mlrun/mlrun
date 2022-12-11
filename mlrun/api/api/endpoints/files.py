@@ -197,8 +197,9 @@ def _verify_and_get_project_secrets(project, auth_info):
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.crud.Secrets().list_project_secrets(
+    secrets_data = mlrun.api.crud.Secrets().list_project_secrets(
         project,
         mlrun.api.schemas.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
     )
+    return secrets_data.secrets or {}

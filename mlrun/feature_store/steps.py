@@ -14,6 +14,7 @@
 #
 import re
 import uuid
+from collections import OrderedDict
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -275,7 +276,8 @@ class OneHotEncoder(StepToDict, MLRunStep):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
-            mapping[key] = list(set(values))
+            # Use OrderedDict to dedup without losing the original order
+            mapping[key] = list(OrderedDict.fromkeys(values).keys())
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])
@@ -308,6 +310,8 @@ class OneHotEncoder(StepToDict, MLRunStep):
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
+            col_rename = {name: OneHotEncoder._sanitized_category(name) for name in encoded.columns}
+            encoded.rename(columns=col_rename, inplace=True)
             event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
         event.drop(columns=list(self.mapping.keys()), inplace=True)
         return event

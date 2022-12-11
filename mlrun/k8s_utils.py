@@ -395,6 +395,29 @@ class K8sHelper:
         secret_name = self.get_project_secret_name(project)
         self.store_secrets(secret_name, secrets, namespace)
 
+    def read_auth_secret(self, secret_name, namespace=""):
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
+        except ApiException:
+            return None
+
+        def _get_secret_value(key):
+            if secret_data.get(key):
+                return base64.b64decode(secret_data[key]).decode("utf-8")
+            else:
+                return None
+
+        username = _get_secret_value(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+        )
+        access_key = _get_secret_value(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+        )
+
+        return username, access_key
+
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(access_key)
         secret_data = {

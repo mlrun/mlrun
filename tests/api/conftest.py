@@ -124,7 +124,8 @@ class K8sSecretsMock:
     def set_is_running_in_k8s_cluster(self, value: bool):
         self._is_running_in_k8s = value
 
-    def get_auth_secret_name(self, username: str, access_key: str) -> str:
+    @staticmethod
+    def get_auth_secret_name(username: str, access_key: str) -> str:
         return f"secret-ref-{username}-{access_key}"
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
@@ -145,6 +146,18 @@ class K8sSecretsMock:
 
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         del self.auth_secrets_map[secret_ref]
+
+    def read_auth_secret(self, secret_name, namespace=""):
+        secret = self.auth_secrets_map.get(secret_name)
+        if not secret:
+            return None, None
+        username = secret[
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+        ]
+        access_key = secret[
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+        ]
+        return username, access_key
 
     def store_project_secrets(self, project, secrets, namespace=""):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
@@ -245,6 +258,7 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         "get_auth_secret_name",
         "store_auth_secret",
         "delete_auth_secret",
+        "read_auth_secret",
     ]
 
     for mocked_function_name in mocked_function_names:

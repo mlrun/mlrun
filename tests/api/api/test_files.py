@@ -91,7 +91,7 @@ def test_files(db: Session, client: TestClient, files_mock, k8s_secrets_mock) ->
     files_mock.assert_called_once_with(url=path, secrets=env_secrets)
     files_mock.reset_mock()
 
-    resp = client.get(f"projects/wrong-project/files?path={path}&use-secrets=false")
+    resp = client.get(f"projects/{project}/files?path={path}&use-secrets=false")
     assert resp
     files_mock.assert_called_once_with(url=path, secrets=env_secrets)
     files_mock.reset_mock()

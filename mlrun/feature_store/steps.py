@@ -310,7 +310,10 @@ class OneHotEncoder(StepToDict, MLRunStep):
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
-            col_rename = {name: OneHotEncoder._sanitized_category(name) for name in encoded.columns}
+            col_rename = {
+                name: OneHotEncoder._sanitized_category(name)
+                for name in encoded.columns
+            }
             encoded.rename(columns=col_rename, inplace=True)
             event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
         event.drop(columns=list(self.mapping.keys()), inplace=True)

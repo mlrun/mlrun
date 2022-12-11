@@ -14,6 +14,7 @@
 #
 import re
 import uuid
+from collections import OrderedDict
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -275,7 +276,8 @@ class OneHotEncoder(StepToDict, MLRunStep):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
-            mapping[key] = list(set(values))
+            # Use OrderedDict to dedup without losing the original order
+            mapping[key] = list(OrderedDict.fromkeys(values).keys())
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])

@@ -5,7 +5,7 @@ For AWS users, the easiest way to install MLRun is to use a native AWS deploymen
 
 ## Prerequisites
 
-AWS account with permissions that include the ability to: 
+AWS account with permissions that include the ability to:
 
 - Run a CloudFormation stack
 - Create an EKS cluster
@@ -14,7 +14,7 @@ AWS account with permissions that include the ability to:
 - Create S3 buckets
 - Deploy and pull images from ECR.
 
-For the full set of required permissions, **{Download}`download the IAM policy<./aws_policy.json>`** or expand & copy the IAM policy below: 
+For the full set of required permissions, **{Download}`download the IAM policy<./aws_policy.json>`** or expand & copy the IAM policy below:
 
 ````{dropdown} show the IAM policy
    ```{literalinclude} ./aws_policy.json
@@ -25,8 +25,8 @@ For the full set of required permissions, **{Download}`download the IAM policy<.
   For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) and [policies and permissions in IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html).
 
 > **Notes**:
-> - To access the instances, you will need to have at least one key pair for SSH keys. For more information see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
-> - You need to have a Route53 domain configured. External domain registration is currently not supported. For more information see [What is Amazon Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
+> - To access the instances, you will need to have at least one key pair for SSH keys (**See step 9** in configuration settings below). For more information see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
+> - You need to have a Route53 domain configured (**See step 11** in configuration settings below). External domain registration is currently not supported. For more information see [What is Amazon Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
 > - The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example, reserved instance configuration, saving plan, and AWS credits you have associated with your account. It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor and set-up alerts.
 
 ## Post deployment expectations
@@ -45,36 +45,36 @@ The key components deployed on your EKS cluster are:
 
 Make sure you are logged in to the correct AWS account.
 
-**Click the AWS icon to deploy MLRun.**
+**Click the button below to deploy MLRun.**
 
-<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateUrl=https%3A%2F%2Fmlrun-ce-cfn.s3.us-east-2.amazonaws.com%2Fquickstart-amazon-eks%2Ftemplates%2Figuazio-mlrun-kit-entrypoint-new-vpc.template.yaml&stackName=MLrun-community&param_AdditionalEKSAdminUserArn=&param_AvailabilityZones%5B%5D=&param_ClusterDomain=&param_DeployMLRunKit=true&param_EKSClusterName=&param_KeyPairName=&param_MLrunKitVersion=&param_NodeInstanceFamily=Standard&param_NodeInstanceType=m5.2xlarge&param_NumberOfAZs=3&param_NumberOfNodes=3&param_ProvisionBastionHost=Disabled&param_RegistryDomainName=index.docker.io&param_RegistryEmail=&param_RegistrySuffix=%2Fv1%2F&param_RegistryUsername=&param_RemoteAccessCIDR="><img src="../_static/images/aws_launch_stack.png"></img></a>
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateUrl=https%3A%2F%2Fmlrun-ce-cfn.s3.us-east-2.amazonaws.com%2Fquickstart-amazon-eks%2Ftemplates%2Figuazio-mlrun-kit-entrypoint-new-vpc.template.yaml&stackName=MLrun-community&param_AdditionalEKSAdminUserArn=&param_AvailabilityZones%5B%5D=&param_ClusterDomain=&param_DeployMLRunKit=true&param_EKSClusterName=&param_KeyPairName=&param_MLrunKitVersion=&param_NodeInstanceFamily=Standard&param_NodeInstanceType=m5.2xlarge&param_NumberOfAZs=3&param_MaxNumberOfNodes=3&param_ProvisionBastionHost=Enabled&param_RegistryDomainName=index.docker.io&param_RegistryEmail=&param_RegistrySuffix=%2Fv1%2F&param_RegistryUsername=&param_RemoteAccessCIDR="><img src="../_static/images/aws_launch_stack.png"></img></a>
 
 After clicking the icon, the browser directs you to the CloudFormation stack page in your AWS account, or redirects you to the AWS login page if you are not currently logged in.
 
 > **Note**: You must fill in fields marked as mandatory (m) for the configuration to complete. Fields marked as optional (o) can be left blank.
 
-1. **Stack name** (m)&mdash;the name of the stack. You cannot continue if left blank. This field becomes the logical id of the stack. Stack name can include letters (A-Z and a-z), numbers (0-9), and dashes (-).
+1. **Stack name** (m)&mdash;the name of the stack. You cannot continue if left blank. This field becomes the logical id of the stack. Stack name can include letters (A-Z and a-z), numbers (0-9), and dashes (-). For example: "John-1".
 
 **Parameters**
 
-2. **EKS cluster name** (m)&mdash;the name of EKS cluster created. The EKS cluster is used to run the MLRun services. For example, `https://jupyter.<eks_cluster_name>.<route53_domain_name>`
+2. **EKS cluster name** (m)&mdash;the name of EKS cluster created. The EKS cluster is used to run the MLRun services. For example: "John-1".
 
 **VPC network Configuration**
 
 3. **Number of Availability Zones** (m)&mdash;number of availability zones. The default is set to 3. Choose from the dropdown to change the number. The minimum is 2.
 4. **Availability zones** (m)&mdash;select a zone from the dropdown. The list is based on the region of the instance. The number of zones must match the number of zones Number of Availability Zones.
-5. **Allowed external access CIDR** (m)&mdash;range of IP address allowed to access the cluster. Addresses that are not in this range are will not be able to access the cluster.
+5. **Allowed external access CIDR** (m)&mdash;range of IP address allowed to access the cluster. Addresses that are not in this range will not be able to access the cluster. Contact your IT manager/network administrator if you are not sure what to fill here.
 
 **Amazon EKS configuration**
 
 6. **Additional EKS admin ARN (IAM user)** (o)&mdash;add an additional admin user to the instance. Users can be added after the stack has been created. For more information see [Create a kubeconfig for Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html).
 7. **Instance type** (m)&mdash;select from the dropdown list. The default is m5.2xlarge. For size considerations see [Amazon EC2 Instance Types](https://aws.amazon.com/ec2/instance-types/).
-8. **Number of Nodes** (m)&mdash;number of nodes in the cluster. The minimum must match the number of **Availability Zones**. The number of nodes combined with the **Instance type** determines the AWS infrastructure cost. 
+8. **Maximum Number of Nodes** (m)&mdash;maximum number of nodes in the cluster. The minimum value of this parameter must match the number of **Availability Zones**. The number of nodes combined with the **Instance type** determines the AWS infrastructure cost.
 
 **Amazon EC2 configuration**
 
 9. **SSH key name** (m)&mdash;select from the stored keys in the dropdown. The list is based on the SSH keys that are in your account. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
-10. **Provision bastion host** (m)&mdash;create a bastion host for SSH access to the Kubernetes nodes. The default is enabled.
+10. **Provision bastion host** (m)&mdash;create a bastion host for SSH access to the Kubernetes nodes. The default is enabled. This will allow ssh access to your EKS EC2 instances through a public IP.
 
 
 **Iguazio MLRun configuration**
@@ -115,15 +115,15 @@ When installing the MLRun Community Edition via Cloud Formation, several storage
 The feature store can store data on a fast key value database table for quick serving. This online feature store capability requires an external key value database.
 
 Currently the MLRun feature store supports the following options:
-- Redis 
+- Redis
 - Iguazio key value database
-  
+
 To use Redis, you must install Redis separately and provide the Redis URL when configuring the AWS CloudFormation stack. Refer to the [Redis getting-started page](https://redis.io/docs/getting-started/) for information about Redis installation.
 
 ## Streaming support
 
-For online serving, it is often convenient to use MLRun graph with a streaming engine. This allows managing queues between steps and functions. 
-MLRun supports Kafka streams as well as Iguazio V3IO streams. 
+For online serving, it is often convenient to use MLRun graph with a streaming engine. This allows managing queues between steps and functions.
+MLRun supports Kafka streams as well as Iguazio V3IO streams.
 See the examples on how to configure the MLRun serving graph with {ref}`kafka<serving-kafka-stream-example>` and {ref}`V3IO<serving-v3io-stream-example>`.
 
 ## Cleanup

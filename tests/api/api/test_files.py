@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import unittest.mock
 from http import HTTPStatus
 
@@ -26,8 +25,6 @@ from tests.common_fixtures import (  # noqa: F401
     patch_file_forbidden,
     patch_file_not_found,
 )
-
-from mlrun.api.api.utils import get_secrets
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")

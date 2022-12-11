@@ -616,8 +616,14 @@ class TestProject(TestMLRunSystem):
             schedule.scheduled_object["schedule"] == schedules[1]
         ), "Failed to overwrite existing schedule"
 
+        expected_error_message = (
+            f"There is already a schedule for workflow {workflow_name}."
+            f" If you want to overwrite this schedule use 'overwrite = True'"
+        )
         # submit schedule when one exists without overwrite - fail:
-        with pytest.raises(mlrun.errors.MLRunConflictError):
+        with pytest.raises(
+            mlrun.errors.MLRunConflictError, match=expected_error_message
+        ):
             project.run(
                 workflow_name,
                 schedule=schedules[1],
@@ -641,3 +647,65 @@ class TestProject(TestMLRunSystem):
         assert (
             schedule.scheduled_object["schedule"] == schedules[2]
         ), "Failed to overwrite from CLI"
+
+        # without overwrite schedule from cli:
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--schedule",
+            f"'{schedules[1]}'",
+        ]
+        out = exec_project(args)
+        assert (
+            expected_error_message.replace("overwrite = True", "--overwrite-schedule")
+            in out
+        )
+
+    def test_overwrite_timeout_warning(self):
+        name = "overwrite-timeout-warning-test"
+        project_dir = f"{projects_dir}/{name}"
+        workflow_name = "main"
+        bad_timeout = "6"
+        good_timeout = "12"
+        self.custom_project_names_to_delete.append(name)
+        mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+        )
+
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--timeout",
+            bad_timeout,
+        ]
+        out = exec_project(args)
+        warning_message = (
+            "[warning] timeout ({}) should be higher than backoff (10)."
+            " Set timeout to be higher than backoff."
+        )
+        expected_warning_log = warning_message.format(bad_timeout)
+        assert expected_warning_log in out
+
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--timeout",
+            good_timeout,
+        ]
+        out = exec_project(args)
+        unexpected_warning_log = warning_message.format(good_timeout)
+        assert unexpected_warning_log not in out

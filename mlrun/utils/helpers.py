@@ -839,7 +839,7 @@ def retry_until_successful(
     first_interval = next(backoff)
     if timeout and timeout <= first_interval:
         logger.warning(
-            f"timeout ({timeout}) should be higher than backoff ({backoff}) = backoff."
+            f"timeout ({timeout}) should be higher than backoff ({first_interval})."
             f" Set timeout to be higher than backoff."
         )
 

@@ -422,13 +422,19 @@ class BaseRuntime(ModelObj):
         )
         self._pre_run(run, execution)  # hook for runtime specific prep
 
+        # Verify run params and hyperparams
+        self.verify_run_params(run.spec.parameters)
+
         # create task generator (for child runs) from spec
-        task_generator = None
-        if not self._is_nested:
-            task_generator = get_generator(run.spec, execution)
+        task_generator = get_generator(run.spec, execution)
+        if task_generator:
+            # verify valid task parameters
+            tasks = task_generator.generate(run)
+            for task in tasks:
+                self.verify_run_params(task.spec.parameters)
 
         last_err = None
-        if task_generator:
+        if task_generator and not self._is_nested:
             # multiple runs (based on hyper params or params file)
             runner = self._run_many
             if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
@@ -440,7 +446,6 @@ class BaseRuntime(ModelObj):
         else:
             # single run
             try:
-                self.verify_run_params(run.spec.parameters)
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
                     state = run.logs(True, self._get_db())
@@ -828,10 +833,6 @@ class BaseRuntime(ModelObj):
         num_errors = 0
         tasks = generator.generate(runobj)
 
-        # verify valid task parameters
-        for task in tasks:
-            self.verify_run_params(task.spec.parameters)
-
         for task in tasks:
             try:
                 self.store_run(task)
@@ -1159,7 +1160,7 @@ class BaseRuntime(ModelObj):
             # verify that integer parameters don't exceed a int64
             if isinstance(param_value, int) and abs(param_value) >= 2**63:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"parameter {param_name} value {param_name} exceeds int64"
+                    f"parameter {param_name} value {param_value} exceeds int64"
                 )
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):

@@ -453,6 +453,7 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> _PipelineRunStatus:
         return None
 
@@ -528,6 +529,7 @@ class _KFPRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -638,6 +640,7 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -708,15 +711,17 @@ class _RemoteRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        if workflow_spec.schedule and not project.spec.is_remote():
+        project_source = source or project.spec.source
+        if not project_source.startswith("://"):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Workflow scheduling can only be performed by a remote project."
-                f"The project's source: {project.spec.source} is not a remote one e.g., git."
+                f"Workflow scheduling can only be performed by a project with remote source."
+                f"The given source {project_source} is not a remote one e.g., git."
             )
 
         # Creating the load project and workflow running function:

@@ -495,3 +495,31 @@ def test_mock_deploy():
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
     mlrun.mlconf.nuclio_version = nuclio_version_config
+
+
+def test_mock_invoke():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    project = mlrun.new_project("x", save=False)
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # disable config
+    mlrun.mlconf.mock_nuclio_deployment = "1"
+
+    # test mock deployment is working
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test that it tries real endpoint when turned off
+    with pytest.raises(Exception):
+        mlrun.deploy_function(fn, dashboard="bad-address")
+        fn.invoke("/v2/models/my/infer", testdata, mock=False)
+
+    # set the mock through the config
+    fn._set_as_mock(False)
+    mlrun.mlconf.mock_nuclio_deployment = ""
+    resp = fn.invoke("/v2/models/my/infer", testdata, mock=True)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # return config valued
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config

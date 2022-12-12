@@ -727,8 +727,6 @@ class ServingRuntime(RemoteRuntime):
 
     def _set_as_mock(self, enable):
         if not enable:
-            if self._mock_server:
-                self.invoke = self._old_invoke
             self._mock_server = None
             return
 
@@ -736,17 +734,4 @@ class ServingRuntime(RemoteRuntime):
             "Deploying serving function MOCK (for simulation)...\n"
             "Turn off the mock (mock=False) and make sure Nuclio is installed for real deployment to Nuclio"
         )
-        server = self.to_mock_server()
-        self._mock_server = server
-        self._old_invoke = self.invoke
-
-        def invoke(
-            path: str,
-            body=None,
-            method: str = None,
-            headers: dict = None,
-            **kwargs,
-        ):
-            return self._mock_server.test(path, body, method, headers)
-
-        self.invoke = invoke
+        self._mock_server = self.to_mock_server()

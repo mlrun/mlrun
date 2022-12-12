@@ -499,7 +499,7 @@ def test_mock_deploy():
 
 def test_mock_invoke():
     mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
-    project = mlrun.new_project("x", save=False)
+    mlrun.new_project("x", save=False)
     fn = mlrun.new_function("tests", kind="serving")
     fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
 

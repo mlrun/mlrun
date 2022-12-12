@@ -57,7 +57,7 @@ This section lists the data stores, development tools, services, platforms, etc.
    - GKE 
    - VMWare 
 - Local (e.g., Kubernetes engine on Docker Desktop) 
-   - Docker 
+- Docker 
    - Linux/KVM 
    - NVIDIA DGX 
 

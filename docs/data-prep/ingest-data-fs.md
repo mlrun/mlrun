@@ -137,14 +137,14 @@ When defining a source, it maps to nuclio event triggers. <br>
 You can also create a custom `source` to access various databases or data sources.
 
 ## Target stores
-By default, the feature sets are saved in parquet and the Iguazio NoSQL DB (`NoSqlTarget`). <br>
+By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
 The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage, Redis, and on Iguazio DB/FS.
 ```
-### Redis target store (Tech preview) 
+### Redis target store 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).
 - The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>

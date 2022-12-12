@@ -832,7 +832,6 @@ class BaseRuntime(ModelObj):
         results = RunList()
         num_errors = 0
         tasks = generator.generate(runobj)
-
         for task in tasks:
             try:
                 self.store_run(task)

@@ -207,6 +207,7 @@ def load_project(
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
+    sync_functions: bool = True,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -283,6 +284,9 @@ def load_project(
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
+
+    if sync_functions:
+        project.sync_functions()
 
     _set_as_current_default_project(project)
 

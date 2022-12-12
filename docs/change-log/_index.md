@@ -25,7 +25,7 @@
 
 
 #### Feature store
-- Support Redis as an online feature set. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store-tech-preview).)
+- Support Redis as an online feature set for storey engine only. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).)
 - Support GCP objects as a data source for the feature store.
 - Fully support ingesting with pandas engine, now equivalent to ingestion with `storey` engine:
    - Support DataFrame with multi-index.

@@ -941,9 +941,29 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    proj = load_project(
-        context, url, name, init_git=init_git, clone=clone, save=ensure_project
-    )
+    if url and not ensure_project:
+        logger.warning(
+            "If you want to create/update the project in the DB with a remote URL, please use --ensure-project flag"
+        )
+
+    try:
+        proj = load_project(
+            context,
+            url if ensure_project else name,
+            name,
+            init_git=init_git,
+            clone=clone,
+            save=ensure_project,
+        )
+
+    except mlrun.errors.MLRunNotFoundError as exc:
+        if not ensure_project and run:
+            logger.error(
+                "Unable to run workflow of an unsaved project, please use --ensure-project to create a new project"
+            )
+
+        raise exc
+
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")
 

@@ -579,7 +579,7 @@ def new_function(
     command = get_in(runtime, "spec.command", command)
     name = name or get_in(runtime, "metadata.name", "")
 
-    if not kind and not command:
+    if (not kind and not command) or kind == "handler":
         runner = HandlerRuntime()
     else:
         if kind in ["", "local"] and command:

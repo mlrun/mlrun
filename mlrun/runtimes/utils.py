@@ -199,7 +199,7 @@ class AsyncLogWriter:
 
 def add_code_metadata(path=""):
     if path:
-        if "://" in path:
+        if "://" in str(path):
             return None
         if os.path.isfile(path):
             path = os.path.dirname(path)

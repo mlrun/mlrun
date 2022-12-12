@@ -177,7 +177,7 @@ class ArtifactManager:
         item.iter = producer.iteration
         item.project = producer.project
 
-        # if target_path is provided and not relative, then no need to upload the artifact as it's already exists
+        # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
             if is_relative_path(target_path):
                 raise ValueError(
@@ -185,8 +185,8 @@ class ArtifactManager:
                 )
             upload = False
 
-        # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it's
-        # already exists, then set the target_path to the src_path and set upload to False
+        # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it
+        # already exists. In this case set the target_path to the src_path and set upload to False
         elif src_path and "://" in src_path:
             if upload:
                 raise ValueError(f"Cannot upload from remote path {src_path}")

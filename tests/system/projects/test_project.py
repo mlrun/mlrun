@@ -709,3 +709,11 @@ class TestProject(TestMLRunSystem):
         out = exec_project(args)
         unexpected_warning_log = warning_message.format(good_timeout)
         assert unexpected_warning_log not in out
+
+    def test_failed_schedule_workflow_non_remote_project(self):
+        name = "non-remote-fail"
+        project = self._create_project(name)
+        self.custom_project_names_to_delete.append(name)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            project.run("main", schedule="*/10 * * * *")

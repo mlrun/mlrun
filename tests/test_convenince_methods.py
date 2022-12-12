@@ -14,11 +14,15 @@
 #
 import os
 import pathlib
+import subprocess
+import sys
 
+import dotenv
 import pytest
 
 import mlrun
 import mlrun.projects.project
+from tests.conftest import out_path
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 
@@ -117,3 +121,63 @@ def test_deduct_v3io_paths():
     conf = mlrun.config.read_env({"MLRUN_DBPATH": "https://mlrun-api" + cluster})
     assert conf["v3io_api"] == "https://webapi" + cluster
     assert conf["v3io_framesd"] == "https://framesd" + cluster
+
+
+def test_set_config():
+    env_path = f"{out_path}/env/myenv.env"
+    api = "http://localhost:8080"
+    pathlib.Path(env_path).parent.mkdir(parents=True, exist_ok=True)
+    _exec_mlrun(
+        f"config set -f {env_path} -a {api} -u joe -k mykey -p /c/y -e XXX=myvar"
+    )
+
+    expected = {
+        "MLRUN_DBPATH": api,
+        "MLRUN_ARTIFACT_PATH": "/c/y",
+        "V3IO_USERNAME": "joe",
+        "V3IO_ACCESS_KEY": "mykey",
+        "XXX": "myvar",
+    }
+    env_vars = dotenv.dotenv_values(env_path)
+    assert len(env_vars) == 5
+    for key, val in expected.items():
+        assert env_vars[key] == val
+
+
+def test_set_and_load_default_config():
+    env_path = os.path.expanduser(mlrun.config.default_env_file)
+    env_body = None
+    if os.path.isfile(env_path):
+        with open(env_path, "r") as fp:
+            env_body = fp.read()
+
+    # set two config (mlrun and custom vars) and read/verify the default .env file
+    _exec_mlrun("config set -e YYYY=myvar -e MLRUN_KFP_TTL=12345")
+    env_vars = dotenv.dotenv_values(env_path)
+    assert env_vars["YYYY"] == "myvar"
+    assert env_vars["MLRUN_KFP_TTL"] == "12345"
+
+    # verify the new env impact mlrun config
+    mlrun.mlconf.reload()
+    assert mlrun.mlconf.kfp_ttl == 12345
+
+    # write back old content and del env vars
+    os.remove(env_path)
+    if env_body:
+        with open(env_path, "w") as fp:
+            fp.write(env_body)
+    print(os.environ)
+    if "YYYY" in os.environ:
+        del os.environ["YYYY"]
+    if "MLRUN_KFP_TTL" in os.environ:
+        del os.environ["MLRUN_KFP_TTL"]
+
+
+def _exec_mlrun(cmd, cwd=None):
+    cmd = [sys.executable, "-m", "mlrun"] + cmd.split()
+    out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+    if out.returncode != 0:
+        print(out.stderr.decode("utf-8"), file=sys.stderr)
+        print(out.stdout.decode("utf-8"), file=sys.stderr)
+        raise Exception(out.stderr.decode("utf-8"))
+    return out.stdout.decode("utf-8")

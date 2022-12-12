@@ -713,29 +713,44 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        # Creating the load project and workflow running function:
-        load_and_run_fn = mlrun.new_function(
-            name=runner_name,
-            project=project.name,
-            kind="job",
-            image=mlrun.mlconf.default_base_image,
-        )
+        if workflow_spec.schedule and not project.spec.is_remote():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Workflow scheduling can only be performed by a remote project."
+                f"The project's source: {project.spec.source} is not a remote one e.g., git."
+            )
 
-        runspec = mlrun.RunObject.from_dict(
-            {
-                "spec": {
-                    "parameters": {
-                        "url": project.spec.source,
-                        "project_name": project.name,
-                        "workflow_name": workflow_name or workflow_spec.name,
-                        "workflow_path": workflow_spec.path,
-                        "workflow_arguments": workflow_spec.args,
-                        "artifact_path": artifact_path,
-                        "workflow_handler": workflow_handler or workflow_spec.handler,
-                        "namespace": namespace,
-                        "ttl": workflow_spec.ttl,
-                        "engine": workflow_spec.engine,
-                        "local": workflow_spec.run_local,
+        try:
+            # Creating the load project and workflow running function:
+            load_and_run_fn = mlrun.new_function(
+                name=runner_name,
+                project=project.name,
+                kind="job",
+                image=mlrun.mlconf.default_base_image,
+            )
+            msg = "executing workflow "
+            if workflow_spec.schedule:
+                msg += "scheduling "
+            logger.info(
+                f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
+            )
+            runspec = mlrun.RunObject.from_dict(
+                {
+                    "spec": {
+                        "parameters": {
+                            "url": project.spec.source,
+                            "project_name": project.name,
+                            "workflow_name": workflow_name or workflow_spec.name,
+                            "workflow_path": workflow_spec.path,
+                            "workflow_arguments": workflow_spec.args,
+                            "artifact_path": artifact_path,
+                            "workflow_handler": workflow_handler
+                            or workflow_spec.handler,
+                            "namespace": namespace,
+                            "ttl": workflow_spec.ttl,
+                            "engine": workflow_spec.engine,
+                            "local": workflow_spec.run_local,
+                        },
+                        "handler": "mlrun.projects.load_and_run",
                     },
                     "handler": "mlrun.projects.load_and_run",
                 },

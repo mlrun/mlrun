@@ -22,11 +22,10 @@ __all__ = [
     "handler",
     "ArtifactType",
     "get_secret_or_env",
-    "is_running_as_api",
 ]
 
 import json
-from os import environ, getenv, path
+from os import environ, path
 
 import dotenv
 
@@ -87,19 +86,6 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
     kfp_ep = f"https://dashboard.{igz_domain}/pipelines"
     environ["KF_PIPELINES_UI_ENDPOINT"] = kfp_ep
     mlconf.remote_host = mlconf.remote_host or igz_domain
-
-_is_running_as_api = None
-
-
-def is_running_as_api():
-    # MLRUN_IS_API_SERVER is set when running the api server which is being done through the CLI command mlrun db
-    global _is_running_as_api
-
-    if _is_running_as_api is None:
-        # os.getenv will load the env var as string, and json.loads will convert it to a bool
-        _is_running_as_api = json.loads(getenv("MLRUN_IS_API_SERVER", "false"))
-
-    return _is_running_as_api
 
 
 def set_environment(

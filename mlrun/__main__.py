@@ -943,10 +943,13 @@ def project(
 
     if url and not ensure_project:
         logger.warning(
-            "If you want to create/update the project in the DB with a remote URL, please use --ensure-project flag"
+            "To create/update a project in the DB with a remote URL, please use --ensure-project flag"
         )
 
     try:
+
+        # If the user asked to run a workflow, we need to make sure the project exists in the DB
+        # and not load it from the URL
         proj = load_project(
             context,
             url if ensure_project else name,
@@ -957,9 +960,9 @@ def project(
         )
 
     except mlrun.errors.MLRunNotFoundError as exc:
-        if not ensure_project and run:
+        if not ensure_project:
             logger.error(
-                "Unable to run workflow of an unsaved project, please use --ensure-project to create a new project"
+                "Project was not found in the DB, please use --ensure-project to create a new project"
             )
 
         raise exc

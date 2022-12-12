@@ -159,8 +159,8 @@ Where:
 When the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
 
 > **Note:**
-> There is currently a known issue with installing the chart on Macs using Apple Silicon (M1). The issue is to the pipelines
-> mysql database not being able to start. The workaround for now is to opt out of pipelines by installing the chart with the 
+> There is currently a known issue with installing the chart on Macs using Apple Silicon (M1). The current pipelines
+> mysql database fails to start. The workaround for now is to opt out of pipelines by installing the chart with the 
 > `--set pipelines.mysql.enabled=false`. 
 
 ## Configuring Online Feature Store

@@ -158,6 +158,11 @@ Where:
 
 When the installation is complete, the helm command prints the URLs and Ports of all the MLRun CE services.
 
+> **Note:**
+> There is currently a known issue with installing the chart on Macs using Apple Silicon (M1). The issue is to the pipelines
+> mysql database not being able to start. The workaround for now is to opt out of pipelines by installing the chart with the 
+> `--set pipelines.mysql.enabled=false`. 
+
 ## Configuring Online Feature Store
 The MLRun Community Edition now supports the online feature store. To enable it, you need to first deploy a REDIS service that is accessible to your MLRun CE cluster.
 To deploy a REDIS service, refer to the following [link](https://redis.io/docs/getting-started/).

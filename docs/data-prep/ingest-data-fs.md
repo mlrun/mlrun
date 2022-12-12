@@ -37,7 +37,7 @@ There are two types of inferring:
 data-types of the features and listing the entities that are involved. Options belonging to this type are 
 `Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value 
 containing all the options of this type.
--  Stats/preview: Ths related to calculating statistics and generating a preview of the actual data in the dataset. 
+-  Stats/preview: This related to calculating statistics and generating a preview of the actual data in the dataset. 
 Options of this type are `Stats`, `Histogram` and `Preview`. 
 
 The `InferOptions class` has the following values:<br>
@@ -52,7 +52,7 @@ class InferOptions:<br>
     
 The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
 
-When simultanesouly ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
+When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
 
 
 ## Ingest data locally

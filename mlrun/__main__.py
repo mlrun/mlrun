@@ -910,6 +910,7 @@ def logs(uid, project, offset, db, watch):
 )
 @click.option(
     "--lazy-load",
+    "-ll",
     is_flag=True,
     help="Lazy load the project functions, only load when needed",
 )

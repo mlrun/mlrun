@@ -2457,7 +2457,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.get_offline_features(vector)
 
-    def test_online_impute(self):
+    @pytest.mark.parametrize("pass_vector_as_uri", [True, False])
+    def test_online_impute(self, pass_vector_as_uri):
         data = pd.DataFrame(
             {
                 "time_stamp": [
@@ -2489,8 +2490,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
+        vector.save()
+
         with fs.get_online_feature_service(
-            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
+            vector.uri if pass_vector_as_uri else vector,
+            impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4},
         ) as svc:
             print(svc.vector.status.to_yaml())
 
@@ -2755,7 +2759,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert df_res_2.equals(expected_df)
 
-    def test_set_event_with_spaces_or_hyphens(self):
+    @pytest.mark.parametrize("engine", ["pandas", "storey"])
+    def test_set_event_with_spaces_or_hyphens(self, engine):
 
         lst_1 = [
             " Private",
@@ -2773,7 +2778,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # Define the corresponding FeatureSet
         data_set = FeatureSet(
-            "test", entities=[Entity("id")], description="feature set"
+            "test", entities=[Entity("id")], description="feature set", engine=engine
         )
 
         data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))

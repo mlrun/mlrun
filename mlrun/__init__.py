@@ -24,7 +24,7 @@ __all__ = [
     "get_secret_or_env",
 ]
 
-import getpass
+import json
 from os import environ, path
 
 import dotenv

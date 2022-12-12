@@ -49,6 +49,7 @@ See the supported data stores, development tools, services, platforms, etc., sup
 ```
 
 ````
+`````
 
 The [**MLOps development workflow**](./mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -123,7 +124,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring & drift detection <./tutorial/05-model-monitoring.html>`
 
-`````
+
 
 <a id="core-components"></a>
 ## MLRun core components

@@ -2686,28 +2686,26 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. Note that the values should be
+                           of this dictionary should exist in the target table. The values should be
                            from type string or from a valid numerical type such as int or float. More details
                            about the model endpoint available attributes can be found under
                            :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
-                           example::
+                           Example::
 
-                           # Generate current stats for two features
-                           current_stats = {'tvd_sum': 2.2,
-                                            'tvd_mean': 0.5,
-                                            'hellinger_sum': 3.6,
-                                            'hellinger_mean': 0.9,
-                                            'kld_sum': 24.2,
-                                            'kld_mean': 6.0,
-                                            'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
-                                            'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+                                # Generate current stats for two features
+                                current_stats = {'tvd_sum': 2.2,
+                                                 'tvd_mean': 0.5,
+                                                 'hellinger_sum': 3.6,
+                                                 'hellinger_mean': 0.9,
+                                                 'kld_sum': 24.2,
+                                                 'kld_mean': 6.0,
+                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
 
-                           # Create attributes dictionary according to the required format
-                           attributes = {
-                                "current_stats": json.dumps(current_stats),
-                                "drift_status": "DRIFT_DETECTED",
-                           }
+                                # Create attributes dictionary according to the required format
+                                attributes = {`current_stats`: json.dumps(current_stats),
+                                              `drift_status`: "DRIFT_DETECTED"}
 
         """
 

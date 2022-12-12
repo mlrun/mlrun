@@ -127,7 +127,7 @@ For the storey engine, the feature is currently implemented for ParquetSource on
 
 For batch ingestion the feature store supports dataframes and files (i.e. csv & parquet). <br>
 The files can reside on S3, NFS, Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
-When working with S3/Azure, there are additional requirements. Use pip install mlrun[s3] or pip install mlrun[azure-blob-storage] to install them. 
+When working with S3/Azure, there are additional requirements. Use: pip install mlrun[s3]; pip install mlrun[azure-blob-storage]; or pip install mlrun[google-cloud-storage] to install them. 
 - Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`. 
 - S3: define `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_BUCKET`.
 

@@ -23,8 +23,8 @@ from .base import DataStore, FileStats, get_range
 
 
 class S3Store(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
         self._temp_credentials = None
         region = None

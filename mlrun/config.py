@@ -43,7 +43,7 @@ env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-
+default_env_file = "~/.mlrun.env"
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -366,6 +366,8 @@ default_config = {
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
+        # See mlrun.api.schemas.ModelEndpointStoreType for available options
+        "store_type": "kv",
     },
     "secret_stores": {
         "vault": {
@@ -454,6 +456,19 @@ default_config = {
         "expose_internal_api_endpoints": False,
     },
 }
+
+_is_running_as_api = None
+
+
+def is_running_as_api():
+    # MLRUN_IS_API_SERVER is set when running the api server which is being done through the CLI command mlrun db
+    global _is_running_as_api
+
+    if _is_running_as_api is None:
+        # os.getenv will load the env var as string, and json.loads will convert it to a bool
+        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
+
+    return _is_running_as_api
 
 
 class Config:
@@ -875,6 +890,10 @@ class Config:
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return True if mlrun.mlconf.nuclio_version else False
 
+    def get_v3io_access_key(self):
+        # Get v3io access key from the environment
+        return os.environ.get("V3IO_ACCESS_KEY")
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -895,9 +914,14 @@ def _populate():
 def _do_populate(env=None):
     global config
 
-    if "MLRUN_ENV_FILE" in os.environ:
-        env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
-        dotenv.load_dotenv(env_file, override=True)
+    if not os.environ.get("MLRUN_IGNORE_ENV_FILE") and not is_running_as_api():
+        if "MLRUN_ENV_FILE" in os.environ:
+            env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
+            dotenv.load_dotenv(env_file, override=True)
+        else:
+            env_file = os.path.expanduser(default_env_file)
+            if os.path.isfile(env_file):
+                dotenv.load_dotenv(env_file, override=True)
 
     if not config:
         config = Config.from_dict(default_config)

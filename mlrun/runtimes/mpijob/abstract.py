@@ -239,6 +239,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
         k8s = self._get_k8s()
         namespace = k8s.resolve_namespace(namespace)
+        items = []
         try:
             resp = k8s.crdapi.list_namespaced_custom_object(
                 mpi_group,
@@ -248,10 +249,10 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 watch=False,
                 label_selector=selector,
             )
-        except client.rest.ApiException as exc:
+        except client.exceptions.ApiException as exc:
             print(f"Exception when reading MPIJob: {exc}")
+            return items
 
-        items = []
         if resp:
             items = resp.get("items", [])
             if show and items:
@@ -266,8 +267,9 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             resp = k8s.crdapi.get_namespaced_custom_object(
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
-        except client.rest.ApiException as exc:
+        except client.exceptions.ApiException as exc:
             print(f"Exception when reading MPIJob: {exc}")
+            return None
         return resp
 
     def get_pods(self, name=None, namespace=None, launcher=False):

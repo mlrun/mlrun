@@ -69,6 +69,8 @@ def config_test_base():
     mlrun.datastore.store_manager._db = None
     mlrun.datastore.store_manager._stores = {}
 
+    # remove the is_running_as_api cache so it won't pass between tests
+    mlrun.config._is_running_as_api = None
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
 

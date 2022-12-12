@@ -720,8 +720,8 @@ class _RemoteRunner(_PipelineRunner):
         project_source = source or project.spec.source
         if not project_source.startswith("://"):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Workflow scheduling can only be performed by a project with remote source."
-                f"The given source {project_source} is not a remote one e.g., git."
+                f"Remote workflows can only be performed by a project with remote source."
+                f"The given source '{project_source}' is not remote."
             )
 
         # Creating the load project and workflow running function:
@@ -736,7 +736,7 @@ class _RemoteRunner(_PipelineRunner):
             {
                 "spec": {
                     "parameters": {
-                        "url": project.spec.source,
+                        "url": project_source,
                         "project_name": project.name,
                         "workflow_name": workflow_name or workflow_spec.name,
                         "workflow_path": workflow_spec.path,

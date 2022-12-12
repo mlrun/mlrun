@@ -1937,6 +1937,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         overwrite: bool = False,
+        source: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1966,6 +1967,7 @@ class MlrunProject(ModelObj):
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param source:    remote source to overwrite the actual `project.spec.source` (used when engine is remote).
         :returns: run id
         """
 
@@ -2033,6 +2035,7 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            source=source,
         )
         # run is None when scheduling
         if (

@@ -37,7 +37,7 @@ import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
 
-from ..config import config
+from ..config import config, is_running_as_api
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
@@ -135,13 +135,6 @@ class run_keys:
 def verify_field_regex(
     field_name, field_value, patterns, raise_on_failure: bool = True
 ) -> bool:
-    logger.debug(
-        "Validating field against patterns",
-        field_name=field_name,
-        field_value=field_value,
-        pattern=patterns,
-    )
-
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug

@@ -687,9 +687,7 @@ class Scheduler:
                     )
 
                     # Append the auth key label to the schedule labels in the DB.
-                    labels = {
-                        label["name"]: label["value"] for label in db_schedule.labels
-                    }
+                    labels = {label.name: label.value for label in db_schedule.labels}
                     labels = self._append_access_key_secret_to_labels(
                         labels, secret_name
                     )

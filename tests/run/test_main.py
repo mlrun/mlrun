@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import os
 import pathlib
 import sys
@@ -58,6 +59,27 @@ def test_main_run_basic():
     )
     print(out)
     assert out.find("state: completed") != -1, out
+
+
+def test_main_run_wait_for_completion():
+    """
+    Test that the run command waits for the run to complete before returning (mainly sanity as this is expected when
+    running local function
+    """
+    path = str(pathlib.Path(__file__).absolute().parent / "assets" / "sleep.py")
+    time_to_sleep = 5
+    start_time = datetime.datetime.now()
+    out = exec_run(
+        path,
+        compose_param_list(dict(time_to_sleep=time_to_sleep)),
+        "test_main_run_wait_for_completion",
+    )
+    end_time = datetime.datetime.now()
+    print(out)
+    assert out.find("state: completed") != -1, out
+    assert (
+        end_time - start_time
+    ).seconds >= time_to_sleep, "run did not wait for completion"
 
 
 def test_main_run_hyper():

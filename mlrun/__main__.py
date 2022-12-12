@@ -908,6 +908,11 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+@click.option(
+    "--lazy-load",
+    is_flag=True,
+    help="Lazy load the project functions, only load when needed",
+)
 def project(
     context,
     name,
@@ -933,6 +938,7 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    lazy_load,
 ):
     """load and/or run a project"""
     if env_file:
@@ -941,8 +947,16 @@ def project(
     if db:
         mlconf.dbpath = db
 
+    sync_functions = not lazy_load
+
     proj = load_project(
-        context, url, name, init_git=init_git, clone=clone, save=ensure_project
+        context,
+        url,
+        name,
+        init_git=init_git,
+        clone=clone,
+        save=ensure_project,
+        sync_functions=sync_functions,
     )
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")

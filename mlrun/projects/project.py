@@ -219,20 +219,21 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:      project local directory path
-    :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
-                         git://github.com/mlrun/demo-xgb-project.git
-                         http://mysite/archived-project.zip
-                         <project-name>
-                         The git project should include the project yaml file.
-                         If the project yaml file is in a sub-directory, must specify the sub-directory.
-    :param name:         project name
-    :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will git init the context dir
-    :param subpath:      project subpath (within the archive)
-    :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current user name to the project name (for db:// prefixes)
-    :param save:         whether to save the created project and artifact in the DB
+    :param context:         project local directory path
+    :param url:             name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                            git://github.com/mlrun/demo-xgb-project.git
+                            http://mysite/archived-project.zip
+                            <project-name>
+                            The git project should include the project yaml file.
+                            If the project yaml file is in a sub-directory, must specify the sub-directory.
+    :param name:            project name
+    :param secrets:         key:secret dict or SecretsStore used to download sources
+    :param init_git:        if True, will git init the context dir
+    :param subpath:         project subpath (within the archive)
+    :param clone:           if True, always clone (delete any existing content)
+    :param user_project:    add the current user name to the project name (for db:// prefixes)
+    :param save:            whether to save the created project and artifact in the DB
+    :param sync_functions:  whether to reload function objects from specs and files
 
     :returns: project object
     """
@@ -286,7 +287,7 @@ def load_project(
         project.register_artifacts()
 
     if sync_functions:
-        project.sync_functions()
+        project.sync_functions(save=save)
 
     _set_as_current_default_project(project)
 

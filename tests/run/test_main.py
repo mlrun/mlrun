@@ -67,11 +67,11 @@ def test_main_run_wait_for_completion():
     running local function
     """
     path = str(pathlib.Path(__file__).absolute().parent / "assets" / "sleep.py")
-    time_to_sleep = 5
+    time_to_sleep = 10
     start_time = datetime.datetime.now()
     out = exec_run(
         path,
-        compose_param_list(dict(time_to_sleep=time_to_sleep)),
+        compose_param_list(dict(time_to_sleep=time_to_sleep)) + ["--handler", "handler"],
         "test_main_run_wait_for_completion",
     )
     end_time = datetime.datetime.now()

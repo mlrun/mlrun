@@ -441,7 +441,7 @@ def test_submit_job_failure_params_exceed_int64(
     resp = client.post("submit_job", json=submit_job_body)
 
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
-    assert f"exceeds int64" in resp.json()["detail"]["reason"]
+    assert "exceeds int64" in resp.json()["detail"]["reason"]
 
 
 def _create_submit_job_body(function, project, with_output_path=True):

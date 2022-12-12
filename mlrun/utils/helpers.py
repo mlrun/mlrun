@@ -37,7 +37,7 @@ import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
 
-from ..config import config, is_running_as_api
+from ..config import config
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True

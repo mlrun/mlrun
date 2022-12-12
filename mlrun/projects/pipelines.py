@@ -717,11 +717,14 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        project_source = source or project.spec.source
-        if not project_source.startswith("://"):
+        save, project_source = (
+            (False, source) if source else (True, project.spec.source)
+        )
+
+        if "://" not in project_source:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Remote workflows can only be performed by a project with remote source."
-                f"The given source '{project_source}' is not remote."
+                f"remote workflows can only be performed by a project with remote source,"
+                f"the given source '{project_source}' is not remote"
             )
 
         # Creating the load project and workflow running function:
@@ -738,6 +741,7 @@ class _RemoteRunner(_PipelineRunner):
                     "parameters": {
                         "url": project_source,
                         "project_name": project.name,
+                        "save": save,
                         "workflow_name": workflow_name or workflow_spec.name,
                         "workflow_path": workflow_spec.path,
                         "workflow_arguments": workflow_spec.args,
@@ -910,6 +914,7 @@ def load_and_run(
     init_git: bool = None,
     subpath: str = None,
     clone: bool = False,
+    save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
     workflow_arguments: typing.Dict[str, typing.Any] = None,
@@ -929,6 +934,7 @@ def load_and_run(
         init_git=init_git,
         subpath=subpath,
         clone=clone,
+        save=save,
     )
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 

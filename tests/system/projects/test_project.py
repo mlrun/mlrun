@@ -659,7 +659,7 @@ class TestProject(TestMLRunSystem):
             schedule.scheduled_object["schedule"] == schedules[2]
         ), "Failed to overwrite from CLI"
 
-    def test_failed_schedule_workflow_non_remote_project(self):
+    def test_failed_schedule_workflow_non_remote_source(self):
         name = "non-remote-fail"
 
         # Creating a local project

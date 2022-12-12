@@ -30,6 +30,8 @@ calling the <model-url>/xx (operation = xx).
 * [Creating a model serving function (service)](#creating-a-model-serving-function-service)
 * [Model monitoring](#model-monitoring)
     
+See also {ref}`enable-model-monitoring`.
+    
 ## Minimal sklearn serving function example
 
 ```python
@@ -163,15 +165,3 @@ fn.deploy()
 ```
 
 You can also deploy a model from within an ML pipeline (check the various demos for details).
-
-## Model monitoring
-
-Model activities can be tracked into a real-time stream and time-series DB. The monitoring data
-is used to create real-time dashboards and track model accuracy and drift. 
-To set the tracking stream options, specify the following function spec attributes:
-
-        fn.set_tracking(stream_path, batch, sample)
-
-* **stream_path** &mdash; the v3io stream path (e.g. `v3io:///users/..`)
-* **sample** &mdash; optional, sample every N requests
-* **batch** &mdash; optional, send micro-batches every N requests

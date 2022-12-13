@@ -74,6 +74,8 @@ def validate_base_argument(ctx, param, value):
             param=param,
         )
 
+    return value
+
 
 @click.group()
 def main():
@@ -473,7 +475,7 @@ def build(
             print("Runtime:")
             pprint(runtime)
         func = new_function(runtime=runtime)
-    elif func_url.startswith("db://"):
+    elif func_url and func_url.startswith("db://"):
         func_url = func_url[5:]
         func = import_function(func_url)
     elif func_url:

@@ -271,7 +271,6 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
         kind = runtime.kind or ""
         if kind in RuntimeKinds.nuclio_runtimes():
             code = get_in(runtime.spec.base_spec, "spec.build.functionSourceCode", code)
-            command = ""  # in nuclio functions command is reserved for the address/url
         if code:
             if (
                 origin_filename

@@ -12,8 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
+import os
+from sys import executable
+
 import mlrun
 import tests.system.base
+
+
+def exec_run(args):
+    cmd = [executable, "-m", "mlrun", "run"] + args
+    out = os.popen(" ".join(cmd)).read()
+    return out
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -126,3 +136,43 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run(handler="json.dumps", params={"obj": {"x": 99}})
         print(run.status.results)
         assert run.output("return") == '{"x": 99}'
+
+    def test_run_cli_watch_remote_job(self):
+        sleep_func = mlrun.code_to_function(
+            "sleep-function",
+            filename=str(self.assets_path / "sleep.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(sleep_func)
+        self.project.sync_functions(save=True)
+
+        run_name = "watch-test"
+        # ideally we wouldn't add sleep to a test, but in this scenario where we want to make sure that we actually
+        # wait for the run to finish, and because we can't be sure how long it will take to spawn the pod and run the
+        # function, we need to set pretty long timeout
+        time_to_sleep = 30
+        args = [
+            "--name",
+            run_name,
+            "--func-url",
+            f"db://{self.project_name}/sleep-function",
+            "--watch",
+            "--project",
+            self.project_name,
+            "--param",
+            f"time_to_sleep={time_to_sleep}",
+            "--handler",
+            "handler",
+        ]
+        start_time = datetime.datetime.now()
+        exec_run(args)
+        end_time = datetime.datetime.now()
+
+        assert (
+            end_time - start_time
+        ).seconds >= time_to_sleep, "run did not wait for completion"
+
+        runs = mlrun.get_run_db().list_runs(project=self.project_name, name=run_name)
+        assert len(runs) == 1

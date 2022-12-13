@@ -1,4 +1,4 @@
-some - incompatible - code
+import notexisting
 
 
 def handler(context):

@@ -148,14 +148,11 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         self.project.set_function(sleep_func)
         self.project.sync_functions(save=True)
 
-        print(mlrun.get_run_db().list_functions(project=self.project_name))
-
         run_name = "watch-test"
         # ideally we wouldn't add sleep to a test, but in this scenario where we want to make sure that we actually
         # wait for the run to finish, and because we can't be sure how long it will take to spawn the pod and run the
         # function, we need to set pretty long timeout
         time_to_sleep = 30
-        # exec the workflow and set a short timeout, should fail
         args = [
             "--name",
             run_name,

@@ -32,7 +32,7 @@ def get_engine(first_event):
     if isinstance(first_event, pd.DataFrame):
         return "pandas"
     if hasattr(first_event, "rdd"):
-        return 'spark'
+        return "spark"
     return "storey"
 
 
@@ -49,7 +49,7 @@ class MLRunStep(MapClass):
         engine = get_engine(event)
         if engine == "pandas":
             self.do = self._do_pandas
-        elif engine == 'spark':
+        elif engine == "spark":
             self.do = self._do_spark
         else:
             self.do = self._do_storey
@@ -134,11 +134,11 @@ class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
     def __init__(
-            self,
-            mapping: Dict[str, Dict[str, Any]],
-            with_original_features: bool = False,
-            suffix: str = "mapped",
-            **kwargs,
+        self,
+        mapping: Dict[str, Dict[str, Any]],
+        with_original_features: bool = False,
+        suffix: str = "mapped",
+        **kwargs,
     ):
         """Map column values to new values
 
@@ -223,21 +223,26 @@ class MapValues(StepToDict, MLRunStep):
         return df
 
     def _do_spark(self, event):
-        from pyspark.sql.functions import when, lit
+        from pyspark.sql.functions import lit, when
+
         for column, column_map in self.mapping.items():
-            if 'ranges' not in column_map:
+            if "ranges" not in column_map:
                 event = event.na.replace(column_map, subset=column)
             else:
-                for val, val_range in self.mapping['ranges'].items():
+                for val, val_range in self.mapping["ranges"].items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     otherwise = ""
-                    if f'{column}_' in event.columns:
-                        otherwise = event[f'{column}_']
-                    event = event.withColumn(f'{column}_',
-                                             when((event[column] < max_val) & (event[column] > min_val),
-                                                  lit(val)).otherwise(otherwise))
-                event = event.drop(column).withColumnRenamed(f'{column}_', column)
+                    if f"{column}_" in event.columns:
+                        otherwise = event[f"{column}_"]
+                    event = event.withColumn(
+                        f"{column}_",
+                        when(
+                            (event[column] < max_val) & (event[column] > min_val),
+                            lit(val),
+                        ).otherwise(otherwise),
+                    )
+                event = event.drop(column).withColumnRenamed(f"{column}_", column)
 
         if not self.with_original_features:
             event = event.select([*self.mapping.keys()])
@@ -247,11 +252,11 @@ class MapValues(StepToDict, MLRunStep):
 
 class Imputer(StepToDict, MLRunStep):
     def __init__(
-            self,
-            method: str = "avg",
-            default_value=None,
-            mapping: Dict[str, Any] = None,
-            **kwargs,
+        self,
+        method: str = "avg",
+        default_value=None,
+        mapping: Dict[str, Any] = None,
+        **kwargs,
     ):
         """Replace None values with default values
 
@@ -281,6 +286,18 @@ class Imputer(StepToDict, MLRunStep):
             val = self.mapping.get(feature, self.default_value)
             if val is not None:
                 event[feature].fillna(val, inplace=True)
+        return event
+
+    def _do_spark(self, event):
+
+        for feature in event.columns:
+            val = self.mapping.get(feature, self.default_value)
+            if val is not None:
+                event = event.na.fill(val, feature)
+                # for future use
+                # from pyspark.ml.feature import Imputer
+                # imputer = Imputer(inputCols=[feature], outputCols=[feature]).setStrategy(val)
+                # event = imputer.fit(event).transform(event)
         return event
 
 
@@ -342,6 +359,38 @@ class OneHotEncoder(StepToDict, MLRunStep):
         event.drop(columns=list(self.mapping.keys()), inplace=True)
         return event
 
+    def _do_spark(self, event):
+        import pyspark.sql.functions as F
+        from pyspark.ml.feature import OneHotEncoder, StringIndexerModel
+        from pyspark.ml.functions import vector_to_array
+
+        for key, values in self.mapping.items():
+            key_ = key
+            if dict(event.dtypes)[key] == "string":
+                event = StringIndexerModel.from_labels(
+                    values, inputCol=key, outputCol=f"{key}_"
+                ).transform(event)
+                event = event.drop(key)
+                key_ = f"{key}_"
+            else:
+                column_map = {values[i]: i for i in range(len(values))}
+                event = event.na.replace(column_map, subset=key)
+            event = (
+                OneHotEncoder(inputCols=[key_], outputCols=[f"{key_}_"], dropLast=False)
+                .fit(event)
+                .transform(event)
+            )
+            event = event.select("*", vector_to_array(f"{key_}_").alias(f"{key_}__"))
+            cols_expanded = [(F.col(f"{key_}__")[i]) for i in range(len(values))]
+            event = event.select("*", *cols_expanded)
+            for i, val in enumerate(values):
+                event = event.withColumnRenamed(
+                    f"{key_}__[{i}]", f"{key}_{self._sanitized_category(val)}"
+                )
+            event = event.drop(key_, f"{key_}_", f"{key_}__")
+
+        return event
+
     @staticmethod
     def _sanitized_category(category):
         # replace(" " and "-") -> "_"
@@ -354,10 +403,10 @@ class DateExtractor(StepToDict, MLRunStep):
     """Date Extractor allows you to extract a date-time component"""
 
     def __init__(
-            self,
-            parts: Union[Dict[str, str], List[str]],
-            timestamp_col: str = None,
-            **kwargs,
+        self,
+        parts: Union[Dict[str, str], List[str]],
+        timestamp_col: str = None,
+        **kwargs,
     ):
         """Date Extractor extract a date-time component into new columns
 
@@ -454,10 +503,15 @@ class DateExtractor(StepToDict, MLRunStep):
 
     def _do_spark(self, event):
         timestamp_col = self.timestamp_col or "timestamp"
-        columns = event.columns + [self._get_key_name(part, self.timestamp_col) for part in self.parts]
-        rdd2 = event.rdd.map(lambda x: (*[x[col] for col in event.columns],
-                                        *[getattr(pd.Timestamp(x[timestamp_col]), part)
-                                          for part in self.parts]))
+        columns = event.columns + [
+            self._get_key_name(part, self.timestamp_col) for part in self.parts
+        ]
+        rdd2 = event.rdd.map(
+            lambda x: (
+                *[x[col] for col in event.columns],
+                *[getattr(pd.Timestamp(x[timestamp_col]), part) for part in self.parts],
+            )
+        )
         return rdd2.toDF(columns)
 
 
@@ -465,12 +519,12 @@ class SetEventMetadata(MapClass):
     """Set the event metadata (id, key, timestamp) from the event body"""
 
     def __init__(
-            self,
-            id_path: str = None,
-            key_path: str = None,
-            time_path: str = None,
-            random_id: bool = None,
-            **kwargs,
+        self,
+        id_path: str = None,
+        key_path: str = None,
+        time_path: str = None,
+        random_id: bool = None,
+        **kwargs,
     ):
         """Set the event metadata (id, key, timestamp) from the event body
 

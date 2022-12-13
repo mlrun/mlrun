@@ -96,7 +96,7 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
         engine="pandas",
     )
 
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set_pandas.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
     data_set_pandas._run_db = rundb_mock
 
@@ -165,7 +165,7 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
         entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
     data_set._run_db = rundb_mock
 
@@ -207,7 +207,7 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
         description="feature set",
         engine="pandas",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set_pandas.graph.to(Imputer(mapping={"department": "IT"}))
     data_set_pandas._run_db = rundb_mock
 
@@ -241,7 +241,7 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
         entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set.graph.to(Imputer(mapping={"department": "IT"}))
     data_set._run_db = rundb_mock
 
@@ -337,7 +337,7 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
         entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set.graph.to(
         MapValues(
             mapping={
@@ -386,7 +386,7 @@ def test_pandas_step_data_extractor(rundb_mock, entities, set_index_before):
         description="feature set",
         engine="pandas",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set_pandas.graph.to(
         DateExtractor(
             parts=["hour", "day_of_week"],
@@ -511,7 +511,7 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
         entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set.graph.to(FeaturesetValidator())
     data_set["age"] = fs.Feature(
         validator=MinMaxValidator(min=30, severity="info"),
@@ -556,7 +556,7 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
         description="feature set",
         engine="pandas",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set_pandas.graph.to(DropFeatures(features=["age"]))
     data_set_pandas._run_db = rundb_mock
 
@@ -591,7 +591,7 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
         entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing grpah steps
+    # Pre-processing graph steps
     data_set.graph.to(DropFeatures(features=["age"]))
     data_set._run_db = rundb_mock
 

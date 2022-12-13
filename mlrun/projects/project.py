@@ -1666,7 +1666,7 @@ class MlrunProject(ModelObj):
     def get_function(
         self,
         key,
-        sync=True,
+        sync=False,
         enrich=False,
         ignore_cache=False,
         copy_function=True,
@@ -1674,7 +1674,7 @@ class MlrunProject(ModelObj):
         """get function object by name
 
         :param key:   name of key for search
-        :param sync:  will reload/reinit the function
+        :param sync:  will reload/reinit the function from the project spec
         :param enrich: add project info/config/source info to the function object
         :param ignore_cache: read the function object from the DB (ignore the local cache)
         :param copy_function: return a copy of the function object

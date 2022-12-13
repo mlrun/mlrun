@@ -38,4 +38,5 @@ Table of Contents
    genindex
    api/index
    cli
+   ecosystem  
    glossary

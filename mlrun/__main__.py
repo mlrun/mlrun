@@ -900,9 +900,9 @@ def logs(uid, project, offset, db, watch):
     help="ensure the project exists, if not, create project",
 )
 @click.option(
-    "--overwrite-project",
+    "--prioritize-source",
     is_flag=True,
-    help="overwrite project from context / remote URL using 'cascade' deletion strategy (deletes project resources) if project with name exists",
+    help="give priority to project from context or remote URL and save it in the DB",
 )
 @click.option(
     "--schedule",
@@ -938,6 +938,7 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    prioritize_source,
 ):
     """load and/or run a project"""
     if env_file:
@@ -946,12 +947,9 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    if url and not ensure_project:
-        logger.warning(
-            "To create/update a project in the DB with a remote URL, please use --ensure-project flag"
-        )
+    if prioritize_source:
 
-    if ensure_project:
+        # give priority to project from context or remote URL
         proj = load_project(
             context,
             url,
@@ -962,16 +960,18 @@ def project(
             save=True,
         )
 
-        if not proj:
-            proj = mlrun.get_or_create_project(
-                name=name,
-                context=context,
-                init_git=init_git,
-                clone=clone,
-                save=True,
-            )
+    elif ensure_project:
+        proj = mlrun.get_or_create_project(
+            name,
+            context=context,
+            url=url,
+            init_git=init_git,
+            clone=clone,
+            secrets=secrets,
+        )
 
     elif run or sync:
+        logger.info("Loading project from DB")
         try:
 
             # If the user asked to run a workflow, we need to make sure the project exists in the DB
@@ -990,12 +990,14 @@ def project(
             if not ensure_project:
                 logger.error(
                     "Project was not found in the DB, please use --ensure-project to create a new project "
-                    "or load it from a remote URL (with --url)"
+                    "or --prioritize-source to load it from context or remote URL"
                 )
 
             raise exc
 
     else:
+
+        # just load the project
         proj = load_project(
             context,
             url,

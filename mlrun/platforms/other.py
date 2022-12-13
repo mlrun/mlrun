@@ -204,7 +204,12 @@ def mount_s3(
             "can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both"
         )
 
-    if aws_access_key or aws_secret_key:
+    if not secret_name and (
+        aws_access_key
+        or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
+        or aws_secret_key
+        or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
+    ):
         logger.warning(
             "it is recommended to use k8s secret (specify secret_name), "
             "specifying the aws_access_key/aws_secret_key directly is unsafe"

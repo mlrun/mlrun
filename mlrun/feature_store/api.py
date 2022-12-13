@@ -974,6 +974,7 @@ def get_feature_vector(uri, project=None):
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):
     """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
@@ -996,6 +997,7 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
 
 def delete_feature_vector(name, project="", tag=None, uid=None):
     """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+    
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag

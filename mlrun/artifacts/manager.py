@@ -177,12 +177,16 @@ class ArtifactManager:
         item.iter = producer.iteration
         item.project = producer.project
 
+        # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
             if is_relative_path(target_path):
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
             upload = False
+
+        # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it
+        # already exists. In this case set the target_path to the src_path and set upload to False
         elif src_path and "://" in src_path:
             if upload:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
@@ -193,7 +197,13 @@ class ArtifactManager:
         # didn't pass target_path explicitly then we won't use `generate_target_path` to calculate the target path,
         # but rather use the `resolve_<body/file>_target_hash_path` in the `item.upload` method.
         elif (
-            not item.is_inline()
+            # if the user didn't pass target_path explicitly but asked for upload (or didn't set upload at all)
+            # and the other conditions match we will enrich the target_path.
+            # generally we don't want to enrich target_path if there is no matching artifact in target_path either
+            # there is already a remote artifact in target_path ( that was previously uploaded ) or the user asked
+            # to upload the artifact.
+            (upload or upload is None)
+            and not item.is_inline()
             and not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
         ):
             target_path = item.generate_target_path(artifact_path, producer)

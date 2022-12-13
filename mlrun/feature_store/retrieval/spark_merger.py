@@ -230,3 +230,6 @@ class SparkFeatureMerger(BaseMerger):
             return self._pandas_df
 
         return self._result_df
+
+    def get_default_image(self):
+        return mlrun.mlconf.feature_store.default_job_image

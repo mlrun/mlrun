@@ -158,11 +158,14 @@ def get_offline_features(
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
 
+    merger_engine = get_merger(engine)
+
     if run_config:
         return run_merge_job(
             feature_vector,
             target,
             entity_rows,
+            merger_engine,
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,
@@ -179,7 +182,6 @@ def get_offline_features(
     if start_time and not end_time:
         # if end_time is not specified set it to now()
         end_time = pd.Timestamp.now()
-    merger_engine = get_merger(engine)
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,

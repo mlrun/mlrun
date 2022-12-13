@@ -25,6 +25,7 @@ from ..common import RunConfig
 def run_merge_job(
     vector,
     target,
+    merger,
     entity_rows=None,
     timestamp_column=None,
     run_config=None,
@@ -42,12 +43,12 @@ def run_merge_job(
         if function_ref.is_empty():
             function_ref = FunctionReference(name=name, kind="job")
         if not function_ref.url:
-            function_ref.code = _default_merger_handler
+            function_ref.code = _default_merger_handler.replace(
+                "{{{merger}}}", merger.__name__
+            )
         run_config.function = function_ref
 
-    function = run_config.to_function(
-        "job", mlrun.mlconf.feature_store.default_job_image
-    )
+    function = run_config.to_function("job", merger.get_default_image())
     function.metadata.project = vector.metadata.project
     function.metadata.name = function.metadata.name or name
     task = new_task(
@@ -115,7 +116,7 @@ class RemoteVectorResponse:
 
 _default_merger_handler = """
 import mlrun
-from mlrun.feature_store.retrieval import LocalFeatureMerger
+import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
                   timestamp_column=None, drop_columns=None, with_indexes=None, query=None):
@@ -126,9 +127,9 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
         entity_rows = entity_rows.as_df()
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
-    merger = LocalFeatureMerger(vector)
-    resp = merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
-                        query=query)
+    merger = mlrun.feature_store.retrieval.{{{merger}}}(vector)
+    merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
+                 query=query)
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)
     context.log_result('target', target)

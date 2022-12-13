@@ -17,6 +17,7 @@ import abc
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 
+from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
 from ...utils import logger
 
 
@@ -217,3 +218,8 @@ class BaseMerger(abc.ABC):
         """return results as csv file"""
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
+
+    def get_default_image(self):
+        return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
+            with_gpu=False
+        )

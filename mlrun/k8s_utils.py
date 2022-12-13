@@ -106,7 +106,7 @@ class K8sHelper:
             raise ValueError("labels selector or states list must be specified")
         items = self.list_pods(namespace, selector, states)
         for item in items:
-            self.del_pod(item.metadata.name, item.metadata.namespace)
+            self.delete_pod(item.metadata.name, item.metadata.namespace)
 
     def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
@@ -145,7 +145,7 @@ class K8sHelper:
                 logger.info(f"Pod {resp.metadata.name} created")
                 return resp.metadata.name, resp.metadata.namespace
 
-    def del_pod(self, name, namespace=None):
+    def delete_pod(self, name, namespace=None):
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
@@ -180,7 +180,7 @@ class K8sHelper:
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
 
-    def del_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+    def delete_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
         try:
             namespace = self.resolve_namespace(namespace)
             self.crdapi.delete_namespaced_custom_object(

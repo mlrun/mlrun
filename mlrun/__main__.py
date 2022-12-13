@@ -475,12 +475,14 @@ def build(
             print("Runtime:")
             pprint(runtime)
         func = new_function(runtime=runtime)
-    elif func_url and func_url.startswith("db://"):
-        func_url = func_url[5:]
-        func = import_function(func_url)
+
     elif func_url:
-        func_url = "function.yaml" if func_url == "." else func_url
+        if func_url.startswith("db://"):
+            func_url = func_url[5:]
+        elif func_url == ".":
+            func_url = "function.yaml"
         func = import_function(func_url)
+
     else:
         print("please specify the function path or url")
         exit(1)

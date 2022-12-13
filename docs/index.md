@@ -201,4 +201,5 @@ MLRun includes the following major components:
 :maxdepth: 1
 
 architecture
+ecosystem
 ```

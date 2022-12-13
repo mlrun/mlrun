@@ -183,15 +183,20 @@ def mount_s3(
 ):
     """Modifier function to add s3 env vars or secrets to container
 
+    **Warning:**
+    Using this function to configure AWS credentials will expose these credentials in the pod spec of the runtime
+    created. It is recommended to use project-secrets for this purpose, or use the `secret_name` parameter.
+
     :param secret_name: kubernetes secret name (storing the access/secret keys)
-    :param aws_access_key: AWS_ACCESS_KEY_ID value
-    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value
+    :param aws_access_key: AWS_ACCESS_KEY_ID value. If this parameter is not specified and AWS_ACCESS_KEY_ID env.
+                            variable is defined, the value will be taken from the env. variable
+    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value. If this parameter is not specified and AWS_SECRET_ACCESS_KEY
+                            env. variable is defined, the value will be taken from the env. variable
     :param endpoint_url: s3 endpoint address (for non AWS s3)
     :param prefix: string prefix to add before the env var name (for working with multiple s3 data stores)
     :param aws_region: amazon region
     :param non_anonymous: force the S3 API to use non-anonymous connection, even if no credentials are provided
         (for authenticating externally, such as through IAM instance-roles)
-    :return:
     """
 
     if secret_name and (aws_access_key or aws_secret_key):

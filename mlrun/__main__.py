@@ -67,9 +67,9 @@ pd.set_option("mode.chained_assignment", None)
 def validate_base_argument(ctx, param, value):
     if value.startswith("-"):
         raise click.BadParameter(
-            f"{param.param_decls} cannot start with '-', ensure the command options are typed correctly. "
+            f"{param.human_readable_name} cannot start with '-', ensure the command options are typed correctly. "
             f"Preferably use '--' to separate options and arguments "
-            f"e.g. 'mlrun run --option1 --option2 -- {param.param_decls} [--arg1|arg1] [--arg2|arg2]'",
+            f"e.g. 'mlrun run --option1 --option2 -- {param.human_readable_name} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )

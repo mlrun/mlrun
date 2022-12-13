@@ -69,7 +69,7 @@ def validate_base_argument(ctx, param, value):
         raise click.BadParameter(
             f"{param.human_readable_name} cannot start with '-', ensure the command options are typed correctly. "
             f"Preferably use '--' to separate options and arguments "
-            f"e.g. 'mlrun run --option1 --option2 -- {param.human_readable_name} [--arg1|arg1] [--arg2|arg2]'",
+            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )

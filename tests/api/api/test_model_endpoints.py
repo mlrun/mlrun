@@ -41,10 +41,8 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = (
-        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-            value="kv"
-        )
+    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+        value="kv"
     )
 
     endpoint_target = store_type_object.to_endpoint_target(
@@ -229,10 +227,8 @@ def test_get_endpoint_features_function():
     feature_names = list(stats.keys())
 
     # Initialize endpoint store target object
-    store_type_object = (
-        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-            value="kv"
-        )
+    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+        value="kv"
     )
 
     endpoint_target = store_type_object.to_endpoint_target(
@@ -301,10 +297,8 @@ def test_sql_target_list_model_endpoints():
     """
 
     # Generate model endpoint target
-    store_type_object = (
-        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-            value="sql"
-        )
+    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+        value="sql"
     )
     endpoint_target = store_type_object.to_endpoint_target(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
@@ -358,10 +352,8 @@ def test_sql_target_patch_endpoint():
     """
 
     # Generate model endpoint target
-    store_type_object = (
-        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-            value="sql"
-        )
+    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+        value="sql"
     )
     endpoint_target = store_type_object.to_endpoint_target(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING

@@ -676,7 +676,8 @@ class MLClientCtx(object):
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
         :param local_path:    path to the local dataframe file that exists locally.
-                              If it exists, the local file will be uploaded to the datastore instead of the given df.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
         :param artifact_path: target artifact path (when not using the default)
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`

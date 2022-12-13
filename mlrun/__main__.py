@@ -761,7 +761,24 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option("--verbose", is_flag=True, help="verbose log")
 @click.option("--background", "-b", is_flag=True, help="run in background process")
 @click.option("--artifact-path", "-a", help="default artifact path")
-def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact_path):
+@click.option(
+    "--env-file",
+    default="",
+    is_flag=False,
+    flag_value="$",
+    help="update the specified mlrun .env file (if value not provided defaults to '~/.mlrun.env')",
+)
+def db(
+    port,
+    dirpath,
+    dsn,
+    logs_path,
+    data_volume,
+    verbose,
+    background,
+    artifact_path,
+    env_file,
+):
     """Run HTTP api/database server"""
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
@@ -800,6 +817,7 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
+    pid = None
     if background:
         print("Starting MLRun API service in the background...")
         child = Popen(
@@ -809,15 +827,26 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
             stderr=open("mlrun-stderr.log", "w"),
             start_new_session=True,
         )
+        pid = child.pid
         print(
-            f"background pid: {child.pid}, logs written to mlrun-stdout.log and mlrun-stderr.log\n"
-            f"use: kill {child.pid}, to stop the mlrun service process (in linux/mac)"
+            f"background pid: {pid}, logs written to mlrun-stdout.log and mlrun-stderr.log, use:\n"
+            f"`kill {pid}` (linux/mac) or `taskkill /pid {pid} /t /f` (windows), to kill the mlrun service process"
         )
     else:
         child = Popen(cmd, env=env)
         returncode = child.wait()
         if returncode != 0:
             raise SystemExit(returncode)
+    if env_file:
+        # update mlrun env file with the API path and PID (for killing it)
+        env_file = mlrun.config.default_env_file if env_file == "$" else env_file
+        filename = path.expanduser(env_file)
+        dotenv.set_key(
+            filename, "MLRUN_DBPATH", f"http://localhost:{port or 8080}", quote_mode=""
+        )
+        if pid:
+            dotenv.set_key(filename, "MLRUN_SERVICE_PID", str(pid), quote_mode="")
+        print(f"updated conviguration in {env_file} .env file")
 
 
 @main.command()

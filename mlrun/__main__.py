@@ -1060,13 +1060,7 @@ def validate_runtime_kind(ctx, param, value):
 
 @main.command()
 @click.argument("kind", callback=validate_runtime_kind, default=None, required=False)
-@click.argument(
-    "object_id",
-    metavar="id",
-    type=str,
-    default=None,
-    required=False,
-)
+@click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
 @click.option(

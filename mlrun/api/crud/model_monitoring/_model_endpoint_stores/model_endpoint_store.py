@@ -27,7 +27,7 @@ import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
 
-class _ModelEndpointStore(ABC):
+class ModelEndpointStore(ABC):
     """
     An abstract class to handle the model endpoint in the DB target.
     """
@@ -105,11 +105,11 @@ class _ModelEndpointStore(ABC):
                                            RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                            `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days),
                                            or 0 for the earliest time.
-        :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
-                                           metrics for model endpoints such as predictions_per_second and
-                                           latency_avg_5m but also custom metrics defined by the user. Please note
-                                           that these metrics are stored in the time series DB and the results will
-                                           be appeared under model_endpoint.spec.metrics.
+        :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
+                                           pre-defined real-time metrics for model endpoints such as
+                                           predictions_per_second and latency_avg_5m but also custom metrics defined
+                                           by the user. Please note that these metrics are stored in the time series
+                                           DB and the results will be appeared under model_endpoint.spec.metrics.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
@@ -142,10 +142,11 @@ class _ModelEndpointStore(ABC):
                                 of a label (i.e. list("key==value")) or by looking for the existence of a given
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param metrics:         A list of metrics to return for each model endpoint. There are pre-defined metrics
-                                for model endpoints such as predictions_per_second and latency_avg_5m but also custom
-                                metrics defined by the user. Please note that these metrics are stored in the time
-                                series DB and the results will be appeared under model_endpoint.spec.metrics.
+        :param metrics:         A list of real-time metrics to return for each model endpoint. There are pre-defined
+                                real-time metrics for model endpoints such as predictions_per_second and latency_avg_5m
+                                but also custom metrics defined by the user. Please note that these metrics are stored
+                                in the time series DB and the results will be appeared under
+                                model_endpoint.spec.metrics.
         :param start:           The start time of the metrics. Can be represented by a string containing an RFC 3339
                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
@@ -180,8 +181,14 @@ class _ModelEndpointStore(ABC):
         children = endpoint.status.children or []
         endpoint_type = endpoint.status.endpoint_type or None
         children_uids = endpoint.status.children_uids or []
-        predictions_per_second = endpoint.status.predictions_per_second or 0
-        latency_avg_1h = endpoint.status.latency_avg_1h or 0
+
+        # Get model endpoint metrics. If not exist, initialize the generic metrics.
+        metrics = endpoint.status.metrics or {}
+        if model_monitoring_constants.EventKeyMetrics.GENERIC not in metrics:
+            metrics[model_monitoring_constants.EventKeyMetrics.GENERIC] = {
+                model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H: 0,
+                model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+            }
 
         # Fill the data. Note that because it is a flat dictionary, we use json.dumps() for encoding hierarchies
         # such as current_stats or label_names
@@ -211,16 +218,7 @@ class _ModelEndpointStore(ABC):
             model_monitoring_constants.EventFieldType.CURRENT_STATS: json.dumps(
                 current_stats
             ),
-            model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND: json.dumps(
-                predictions_per_second
-            )
-            if predictions_per_second is not None
-            else None,
-            model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H: json.dumps(
-                latency_avg_1h
-            )
-            if latency_avg_1h is not None
-            else None,
+            model_monitoring_constants.EventFieldType.METRICS: json.dumps(metrics),
             model_monitoring_constants.EventFieldType.FEATURE_NAMES: json.dumps(
                 feature_names
             ),
@@ -330,6 +328,10 @@ class _ModelEndpointStore(ABC):
             endpoint.get(model_monitoring_constants.EventFieldType.LABELS)
         )
 
+        metrics = self._json_loads_if_not_none(
+            endpoint.get(model_monitoring_constants.EventFieldType.METRICS)
+        )
+
         # Convert into model endpoint object
         endpoint_obj = mlrun.api.schemas.ModelEndpoint(
             metadata=mlrun.api.schemas.ModelEndpointMetadata(
@@ -389,16 +391,7 @@ class _ModelEndpointStore(ABC):
                     model_monitoring_constants.EventFieldType.FEATURE_SET_URI
                 )
                 or None,
-                predictions_per_second=endpoint.get(
-                    model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND
-                )
-                if endpoint.get("predictions_per_second") != "null"
-                else None,
-                latency_avg_1h=endpoint.get(
-                    model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H
-                )
-                if endpoint.get("latency_avg_1h") != "null"
-                else None,
+                metrics=metrics or None,
             ),
         )
 
@@ -421,20 +414,20 @@ class _ModelEndpointStore(ABC):
 
         return endpoint_obj
 
-    def get_endpoint_metrics(
+    def get_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
         metrics: typing.List[str],
         start: str = "now-1h",
         end: str = "now",
         access_key: str = mlrun.mlconf.get_v3io_access_key(),
-    ) -> typing.Dict[str, mlrun.api.schemas.Metric]:
+    ) -> typing.Dict[str, typing.List]:
         """
         Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
         predictions_per_second and latency_avg_5m but also custom metrics defined by the user.
 
         :param endpoint_id:      The unique id of the model endpoint.
-        :param metrics:          A list of metrics to return for the model endpoint.
+        :param metrics:          A list of real-time metrics to return for the model endpoint.
         :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
@@ -446,9 +439,8 @@ class _ModelEndpointStore(ABC):
         :param access_key:       V3IO access key that will be used for generating Frames client object. By default,
                                  the access key will be retrieved from the environment variables.
 
-        :return: A dictionary of metrics in which the key is a metric name and the value is a Metric object that also
-                 includes the relevant timestamp. More details about the Metric object can be found under
-                 mlrun.api.schemas.Metric.
+        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
+                 includes timestamps and the values.
         """
 
         if not metrics:
@@ -499,9 +491,8 @@ class _ModelEndpointStore(ABC):
                 values = [
                     (str(timestamp), value) for timestamp, value in metric_data.items()
                 ]
-                metrics_mapping[metric] = mlrun.api.schemas.Metric(
-                    name=metric, values=values
-                )
+                metrics_mapping[metric] = values
+
         except v3io_frames.errors.ReadError:
             logger.warn("Failed to read tsdb", endpoint=endpoint_id)
 

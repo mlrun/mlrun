@@ -18,7 +18,7 @@ import typing
 
 import mlrun
 
-from .model_endpoint_store import _ModelEndpointStore
+from .model_endpoint_store import ModelEndpointStore
 
 
 class ModelEndpointStoreType(enum.Enum):
@@ -32,7 +32,7 @@ class ModelEndpointStoreType(enum.Enum):
         project: str,
         access_key: str = None,
         connection_string: str = None,
-    ) -> _ModelEndpointStore:
+    ) -> ModelEndpointStore:
         """
         Return a ModelEndpointStore object based on the provided enum value.
 
@@ -87,7 +87,7 @@ class ModelEndpointStoreType(enum.Enum):
 
 def get_model_endpoint_target(
     project: str, access_key: str = None
-) -> _ModelEndpointStore:
+) -> ModelEndpointStore:
     """
     Getting the DB target type based on mlrun.config.model_endpoint_monitoring.store_type.
 

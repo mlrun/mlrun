@@ -99,7 +99,6 @@ from .model_endpoints import (
     GrafanaStringColumn,
     GrafanaTable,
     GrafanaTimeSeriesTarget,
-    Metric,
     ModelEndpoint,
     ModelEndpointList,
     ModelEndpointMetadata,

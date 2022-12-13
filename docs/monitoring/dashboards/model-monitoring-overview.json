@@ -15,8 +15,8 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 15,
-  "iteration": 1668102407058,
+  "id": 18,
+  "iteration": 1670854388615,
   "links": [
     {
       "icon": "external link",
@@ -576,6 +576,18 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Average Latency (Last Hour)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "µs"
+              }
+            ]
           }
         ]
       },
@@ -639,9 +651,11 @@
               "first_request": "First Request",
               "function": "Function",
               "last_request": "Last Request",
+              "latency_avg_1h": "Average Latency (Last Hour)",
               "latency_avg_1s": "Average Latency",
               "model": "Model",
               "model_class": "Class",
+              "predictions_per_second": "Predictions/s (5 Minute Average)",
               "predictions_per_second_count_1s": "Predictions/1s",
               "tag": "Tag"
             }
@@ -964,5 +978,5 @@
   "timezone": "",
   "title": "Model Monitoring - Overview",
   "uid": "g0M4uh0Mz",
-  "version": 8
+  "version": 1
 }

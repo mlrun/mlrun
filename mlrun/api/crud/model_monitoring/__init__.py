@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from .model_endpoint_stores import (  # noqa: F401
+from ._model_endpoint_stores import (  # noqa: F401
     ModelEndpointStoreType,
     get_model_endpoint_target,
 )

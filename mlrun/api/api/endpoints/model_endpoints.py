@@ -261,10 +261,10 @@ def list_model_endpoints(
     :param function:  The name of the function to filter by.
     :param labels:    A list of labels to filter by. Label filters work by either filtering a specific value of a label
                       (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
-    :param metrics:   A list of metrics to return for each endpoint. There are pre-defined metrics for model endpoints
-                      such as predictions_per_second and latency_avg_5m but also custom metrics defined by the user.
-                      Please note that these metrics are stored in the time series DB and the results will be appeared
-                      under model_endpoint.spec.metrics of each endpoint.
+    :param metrics:   A list of real-time metrics to return for each endpoint. There are pre-defined real-time metrics
+                      for model endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
+                      defined by the user. Please note that these metrics are stored in the time series DB and t
+                      he results will be appeared under model_endpoint.spec.metrics of each endpoint.
     :param start:     The start time of the metrics. Can be represented by a string containing an RFC 3339
                       time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
                       `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
@@ -340,9 +340,9 @@ def get_model_endpoint(
                                        RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                        `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
                                        0 for the earliest time.
-    :param metrics:                    A list of metrics to return for the model endpoint. There are pre-defined
-                                       metrics for model endpoints such as predictions_per_second and
-                                       latency_avg_5m but also custom metrics defined by the user. Please note that
+    :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
+                                       pre-defined real-time metrics for model endpoints such as predictions_per_second
+                                       and latency_avg_5m but also custom metrics defined by the user. Please note that
                                        these metrics are stored in the time series DB and the results will be
                                        appeared under model_endpoint.spec.metrics.
     :param feature_analysis:           When True, the base feature statistics and current feature statistics will

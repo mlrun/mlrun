@@ -28,9 +28,7 @@ import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.api.crud.model_monitoring.model_endpoint_stores import (
-    get_model_endpoint_target,
-)
+from mlrun.api.crud.model_monitoring import get_model_endpoint_target
 from mlrun.model_monitoring.constants import (
     EventFieldType,
     EventKeyMetrics,
@@ -416,21 +414,34 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
                 EventFieldType.ENDPOINT_ID,
                 EventFieldType.LABELS,
                 EventFieldType.UNPACKED_LABELS,
-                EventLiveStats.LATENCY_AVG_5M,
-                EventLiveStats.LATENCY_AVG_1H,
-                EventLiveStats.PREDICTIONS_PER_SECOND,
-                EventLiveStats.PREDICTIONS_COUNT_5M,
-                EventLiveStats.PREDICTIONS_COUNT_1H,
                 EventFieldType.FIRST_REQUEST,
                 EventFieldType.LAST_REQUEST,
                 EventFieldType.ERROR_COUNT,
             ]
         }
+
+        # Add generic metrics statistics
+        generic_metrics = {
+            k: event[k]
+            for k in [
+                EventLiveStats.LATENCY_AVG_5M,
+                EventLiveStats.LATENCY_AVG_1H,
+                EventLiveStats.PREDICTIONS_PER_SECOND,
+                EventLiveStats.PREDICTIONS_COUNT_5M,
+                EventLiveStats.PREDICTIONS_COUNT_1H,
+            ]
+        }
+
+        e[EventFieldType.METRICS] = json.dumps(
+            {EventKeyMetrics.GENERIC: generic_metrics}
+        )
+
         # Unpack labels dictionary
         e = {
             **e,
             **e.pop(EventFieldType.UNPACKED_LABELS, {}),
         }
+
         # Write labels as json string as required by the DB format
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
         return e

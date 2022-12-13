@@ -36,6 +36,7 @@ from mlrun.api.schemas import (
 )
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.errors import MLRunBadRequestError
+from mlrun.model_monitoring.constants import EventKeyMetrics, EventLiveStats
 from mlrun.utils import config, logger
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client
@@ -311,19 +312,7 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
         GrafanaColumn(text="latency_avg_1h", type="number"),
     ]
 
-    # Add metrics columns to the new table if exit within at least one of the model endpoint objects
-    metric_columns = []
-
-    found_metrics = set()
-    for endpoint in endpoint_list:
-        if endpoint.status.metrics is not None:
-            for key in endpoint.status.metrics.keys():
-                if key not in found_metrics:
-                    found_metrics.add(key)
-                    metric_columns.append(GrafanaColumn(text=key, type="number"))
-
     # Create the GrafanaTable object
-    columns = columns + metric_columns
     table = GrafanaTable(columns=columns)
 
     # Fill the table with the provided model endpoints list
@@ -338,13 +327,13 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
             endpoint.status.accuracy,
             endpoint.status.error_count,
             endpoint.status.drift_status,
-            endpoint.status.predictions_per_second,
-            endpoint.status.latency_avg_1h,
+            endpoint.status.metrics[EventKeyMetrics.GENERIC][
+                EventLiveStats.PREDICTIONS_PER_SECOND
+            ],
+            endpoint.status.metrics[EventKeyMetrics.GENERIC][
+                EventLiveStats.LATENCY_AVG_1H
+            ],
         ]
-
-        if endpoint.status.metrics is not None and metric_columns:
-            for metric_column in metric_columns:
-                row.append(endpoint.status.metrics[metric_column.text])
 
         table.add_row(*row)
 

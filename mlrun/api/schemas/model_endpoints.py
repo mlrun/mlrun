@@ -55,11 +55,6 @@ class ModelEndpointSpec(ObjectSpec):
     monitoring_mode: Optional[str] = ModelMonitoringMode.disabled
 
 
-class Metric(BaseModel):
-    name: str
-    values: List[Tuple[str, float]]
-
-
 class Histogram(BaseModel):
     buckets: List[float]
     counts: List[int]
@@ -114,14 +109,12 @@ class ModelEndpointStatus(ObjectStatus):
     error_count: Optional[int]
     drift_status: Optional[str]
     drift_measures: Optional[dict]
-    metrics: Optional[Dict[str, Metric]]
+    metrics: Optional[Dict[str, Dict[str, Any]]]
     features: Optional[List[Features]]
     children: Optional[List[str]]
     children_uids: Optional[List[str]]
     endpoint_type: Optional[EndpointType]
     monitoring_feature_set_uri: Optional[str]
-    predictions_per_second: Optional[float]
-    latency_avg_1h: Optional[float]
 
     class Config:
         extra = Extra.allow

@@ -900,6 +900,11 @@ def logs(uid, project, offset, db, watch):
     help="ensure the project exists, if not, create project",
 )
 @click.option(
+    "--overwrite-project",
+    is_flag=True,
+    help="overwrite project from context / remote URL using 'cascade' deletion strategy (deletes project resources) if project with name exists",
+)
+@click.option(
     "--schedule",
     type=str,
     default=None,
@@ -946,26 +951,60 @@ def project(
             "To create/update a project in the DB with a remote URL, please use --ensure-project flag"
         )
 
-    try:
-
-        # If the user asked to run a workflow, we need to make sure the project exists in the DB
-        # and not load it from the URL
+    if ensure_project:
         proj = load_project(
             context,
-            url if ensure_project else name,
+            url,
             name,
+            secrets=secrets,
             init_git=init_git,
             clone=clone,
-            save=ensure_project,
+            save=True,
         )
 
-    except mlrun.errors.MLRunNotFoundError as exc:
-        if not ensure_project:
-            logger.error(
-                "Project was not found in the DB, please use --ensure-project to create a new project"
+        if not proj:
+            proj = mlrun.get_or_create_project(
+                name=name,
+                context=context,
+                init_git=init_git,
+                clone=clone,
+                save=True,
             )
 
-        raise exc
+    elif run or sync:
+        try:
+
+            # If the user asked to run a workflow, we need to make sure the project exists in the DB
+            # and not load it from the URL
+            proj = load_project(
+                context,
+                name,
+                name,
+                secrets=secrets,
+                init_git=init_git,
+                clone=clone,
+                save=False,
+            )
+
+        except mlrun.errors.MLRunNotFoundError as exc:
+            if not ensure_project:
+                logger.error(
+                    "Project was not found in the DB, please use --ensure-project to create a new project "
+                    "or load it from a remote URL (with --url)"
+                )
+
+            raise exc
+
+    else:
+        proj = load_project(
+            context,
+            url,
+            name,
+            secrets=secrets,
+            init_git=init_git,
+            clone=clone,
+            save=False,
+        )
 
     url_str = " from " + url if url else ""
     print(f"Loading project {proj.name}{url_str} into {context}:\n")

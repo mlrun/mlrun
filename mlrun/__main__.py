@@ -64,10 +64,12 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
-def validate_command_or_url(ctx, param, value):
+def validate_base_argument(ctx, param, value):
     if value.startswith("-"):
         raise click.BadParameter(
-            f"command/url cannot start with '-', ensure the command options are typed correctly",
+            f"{param} cannot start with '-', ensure the command options are typed correctly. "
+            f"Preferably use '--' to separate options and arguments "
+            f"e.g. 'mlrun run --option1 --option2 -- {param} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )
@@ -79,7 +81,7 @@ def main():
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("url", type=str, required=False, callback=validate_command_or_url)
+@click.argument("url", type=str, required=False, callback=validate_base_argument)
 @click.option(
     "--param",
     "-p",
@@ -398,7 +400,7 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("func_url", type=str, required=False)
+@click.argument("func_url", type=str, required=False, callback=validate_base_argument)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
 @click.option("--tag", default="", help="function tag")
@@ -554,7 +556,7 @@ def build(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("spec", type=str, required=False)
+@click.argument("spec", type=str, required=False, callback=validate_base_argument)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
     "--func-url",
@@ -656,7 +658,7 @@ def deploy(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("pod", type=str)
+@click.argument("pod", type=str, callback=validate_base_argument)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
     "--timeout", "-t", default=600, show_default=True, help="timeout in seconds"
@@ -670,8 +672,10 @@ def watch(pod, namespace, timeout):
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("kind", type=str)
-@click.argument("name", type=str, default="", required=False)
+@click.argument("kind", type=str, callback=validate_base_argument)
+@click.argument(
+    "name", type=str, default="", required=False, callback=validate_base_argument
+)
 @click.option("--selector", "-s", default="", help="label selector")
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option("--uid", help="unique ID")
@@ -829,7 +833,7 @@ def version():
 
 
 @main.command()
-@click.argument("uid", type=str)
+@click.argument("uid", type=str, callback=validate_base_argument)
 @click.option("--project", "-p", help="project name")
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
@@ -849,7 +853,9 @@ def logs(uid, project, offset, db, watch):
 
 
 @main.command()
-@click.argument("context", default="", type=str, required=False)
+@click.argument(
+    "context", default="", type=str, required=False, callback=validate_base_argument
+)
 @click.option("--name", "-n", help="project name")
 @click.option("--url", "-u", help="remote git or archive url")
 @click.option("--run", "-r", help="run workflow name of .py file")
@@ -1048,7 +1054,14 @@ def validate_kind(ctx, param, value):
 
 @main.command()
 @click.argument("kind", callback=validate_kind, default=None, required=False)
-@click.argument("object_id", metavar="id", type=str, default=None, required=False)
+@click.argument(
+    "object_id",
+    metavar="id",
+    type=str,
+    default=None,
+    required=False,
+    callback=validate_base_argument,
+)
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
 @click.option(
@@ -1095,7 +1108,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
 
 
 @main.command(name="watch-stream")
-@click.argument("url", type=str)
+@click.argument("url", type=str, callback=validate_base_argument)
 @click.option(
     "--shard-ids",
     "-s",
@@ -1126,7 +1139,9 @@ def watch_stream(url, shard_ids, seek, interval, is_json):
 
 
 @main.command(name="config")
-@click.argument("command", type=str, default="", required=False)
+@click.argument(
+    "command", type=str, default="", required=False, callback=validate_base_argument
+)
 @click.option(
     "--env-file",
     "-f",

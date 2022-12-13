@@ -1517,6 +1517,7 @@ class MlrunProject(ModelObj):
                     artifact, local_path=temp_dir, artifact_path=artifact_path
                 )
 
+            # TODO - unreachable (weak) code (see return)
             if dataitem.kind != "file":
                 remove(item_file)
         else:

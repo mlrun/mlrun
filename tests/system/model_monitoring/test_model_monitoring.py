@@ -580,8 +580,13 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         serving_fn.deploy()
 
         # Validate that the model monitoring batch access key is replaced with an internal secret
-        batch_function = mlrun.get_run_db().get_function(name='model-monitoring-batch', project=self.project_name)
-        assert 'mlrun-auth-secrets' in batch_function['metadata']['credentials']['access_key']
+        batch_function = mlrun.get_run_db().get_function(
+            name="model-monitoring-batch", project=self.project_name
+        )
+        assert (
+            "mlrun-auth-secrets"
+            in batch_function["metadata"]["credentials"]["access_key"]
+        )
 
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)

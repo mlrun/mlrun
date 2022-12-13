@@ -32,7 +32,7 @@ from .utils import logger
 _k8s = None
 
 
-def get_k8s_helper(namespace=None, silent=False, log=False):
+def get_k8s_helper(namespace=None, silent=False, log=False) -> "K8sHelper":
     """
     :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
     k8s cluster)
@@ -157,8 +157,8 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if pod is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete pod: {exc}")
-            raise exc
+                logger.error(f"failed to delete pod: {exc}", pod_name=name)
+                raise exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
@@ -179,6 +179,34 @@ class K8sHelper:
         return self.get_pod(
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
+
+    def del_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+        try:
+            namespace = self.resolve_namespace(namespace)
+            self.crdapi.delete_namespaced_custom_object(
+                crd_group,
+                crd_version,
+                namespace,
+                crd_plural,
+                name,
+            )
+            logger.info(
+                "Deleted crd object",
+                crd_name=name,
+                namespace=namespace,
+            )
+        except ApiException as exc:
+
+            # ignore error if crd is already removed
+            if exc.status != 404:
+                logger.error(
+                    f"failed to delete crd: {exc}",
+                    crd_name=name,
+                    crd_group=crd_group,
+                    crd_version=crd_version,
+                    crd_plural=crd_plural,
+                )
+                raise exc
 
     def logs(self, name, namespace=None):
         try:

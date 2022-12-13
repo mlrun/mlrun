@@ -67,9 +67,9 @@ pd.set_option("mode.chained_assignment", None)
 def validate_base_argument(ctx, param, value):
     if value.startswith("-"):
         raise click.BadParameter(
-            f"{param} cannot start with '-', ensure the command options are typed correctly. "
+            f"{param.param_decls} cannot start with '-', ensure the command options are typed correctly. "
             f"Preferably use '--' to separate options and arguments "
-            f"e.g. 'mlrun run --option1 --option2 -- {param} [--arg1|arg1] [--arg2|arg2]'",
+            f"e.g. 'mlrun run --option1 --option2 -- {param.param_decls} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
         )
@@ -1043,7 +1043,7 @@ def project(
         proj.sync_functions(save=True)
 
 
-def validate_kind(ctx, param, value):
+def validate_runtime_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
     if value is not None and value not in possible_kinds:
         raise click.BadParameter(
@@ -1053,7 +1053,7 @@ def validate_kind(ctx, param, value):
 
 
 @main.command()
-@click.argument("kind", callback=validate_kind, default=None, required=False)
+@click.argument("kind", callback=validate_runtime_kind, default=None, required=False)
 @click.argument(
     "object_id",
     metavar="id",

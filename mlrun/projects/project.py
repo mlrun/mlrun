@@ -747,6 +747,23 @@ class ProjectSpec(ModelObj):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
 
+    def is_remote(self) -> bool:
+        """
+        Checks if the source of the project is remote.
+        A remote project can be considered as one of the following:
+            * GitHub project e.g., git://github.com/mlrun/project-demo.git
+            * Archive project e.g., "v3io:///projects/my-project/my-project.zip
+              (Archiving a project can be done by `project.export`)
+        """
+        source = self.source
+        if not source or source.startswith(".") or source.startswith("/"):
+            return False
+        return (
+            source.startswith("git://")
+            or source.endswith(".tar.gz")
+            or source.endswith(".zip")
+        )
+
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -1301,7 +1318,7 @@ class MlrunProject(ModelObj):
         labels=None,
         format="",
         preview=None,
-        stats=False,
+        stats=None,
         target_path="",
         extra_data=None,
         label_column: str = None,
@@ -1649,7 +1666,7 @@ class MlrunProject(ModelObj):
     def get_function(
         self,
         key,
-        sync=True,
+        sync=False,
         enrich=False,
         ignore_cache=False,
         copy_function=True,
@@ -1657,7 +1674,7 @@ class MlrunProject(ModelObj):
         """get function object by name
 
         :param key:   name of key for search
-        :param sync:  will reload/reinit the function
+        :param sync:  will reload/reinit the function from the project spec
         :param enrich: add project info/config/source info to the function object
         :param ignore_cache: read the function object from the DB (ignore the local cache)
         :param copy_function: return a copy of the function object

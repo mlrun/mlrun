@@ -263,6 +263,28 @@ def test_log_artifact(
         assert expected_hash in logged_artifact.target_path
 
 
+def test_log_artifact_with_target_path_and_upload_options():
+    for target_path in ["s3://some/path", None]:
+        # True and None expected to upload
+        for upload_options in [False, True, None]:
+            artifact = mlrun.artifacts.Artifact(
+                key="some-artifact", body="asdasdasdasdas", format="parquet"
+            )
+            logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+                artifact, target_path=target_path, upload=upload_options
+            )
+            print(logged_artifact)
+            if not target_path and (upload_options or upload_options is None):
+                # if no target path was given, and upload is True or None, we expect the artifact to get uploaded
+                # and a target path to be generated
+                assert logged_artifact.target_path is not None
+                assert logged_artifact.metadata.hash is not None
+            elif target_path:
+                # if target path is given, we don't upload and therefore don't calculate hash
+                assert logged_artifact.target_path == target_path
+                assert logged_artifact.metadata.hash is None
+
+
 @pytest.mark.parametrize(
     "artifact,artifact_path,expected_hash,expected_target_path,expected_error",
     [

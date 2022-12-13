@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import time
 from os import listdir, makedirs, path, stat
 from shutil import copyfile
 
@@ -46,9 +46,9 @@ class FileStore(DataStore):
             return fp.read(size)
 
     def put(self, key, data, append=False):
-        dir = path.dirname(self._join(key))
-        if dir:
-            makedirs(dir, exist_ok=True)
+        dir_to_create = path.dirname(self._join(key))
+        if dir_to_create:
+            self._ensure_directory(dir_to_create)
         mode = "a" if append else "w"
         if isinstance(data, bytes):
             mode = mode + "b"
@@ -77,3 +77,15 @@ class FileStore(DataStore):
 
     def listdir(self, key):
         return listdir(key)
+
+    def _ensure_directory(self, dir_to_create):
+        # We retry the makedirs because it can fail if another process is creating the same dir
+        # Note - inside it try to catch FileExistsError, but it still fails sometimes during its internal logic
+        # where it calls `mkdir()`.
+        while True:
+            try:
+                makedirs(dir_to_create, exist_ok=True)
+                return
+            except FileExistsError:
+                time.sleep(0.1)
+                pass

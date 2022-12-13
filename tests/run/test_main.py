@@ -63,15 +63,16 @@ def test_main_run_basic():
 
 def test_main_run_wait_for_completion():
     """
-    Test that the run command waits for the run to complete before returning (mainly sanity as this is expected when
-    running local function
+    Test that the run command waits for the run to complete before returning
+    (mainly sanity as this is expected when running local function)
     """
     path = str(pathlib.Path(__file__).absolute().parent / "assets" / "sleep.py")
     time_to_sleep = 10
     start_time = datetime.datetime.now()
     out = exec_run(
         path,
-        compose_param_list(dict(time_to_sleep=time_to_sleep)) + ["--handler", "handler"],
+        compose_param_list(dict(time_to_sleep=time_to_sleep))
+        + ["--handler", "handler"],
         "test_main_run_wait_for_completion",
     )
     end_time = datetime.datetime.now()

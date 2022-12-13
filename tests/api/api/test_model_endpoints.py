@@ -42,7 +42,7 @@ def test_build_kv_cursor_filter_expression():
 
     # Initialize endpoint store target object
     store_type_object = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
             value="kv"
         )
     )
@@ -230,7 +230,7 @@ def test_get_endpoint_features_function():
 
     # Initialize endpoint store target object
     store_type_object = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
             value="kv"
         )
     )
@@ -302,7 +302,7 @@ def test_sql_target_list_model_endpoints():
 
     # Generate model endpoint target
     store_type_object = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
             value="sql"
         )
     )
@@ -359,7 +359,7 @@ def test_sql_target_patch_endpoint():
 
     # Generate model endpoint target
     store_type_object = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores.ModelEndpointStoreType(
+        mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
             value="sql"
         )
     )

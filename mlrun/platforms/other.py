@@ -185,7 +185,8 @@ def mount_s3(
 
     **Warning:**
     Using this function to configure AWS credentials will expose these credentials in the pod spec of the runtime
-    created. It is recommended to use project-secrets for this purpose, or use the `secret_name` parameter.
+    created. It is recommended to use the `secret_name` parameter, or set the credentials as project-secrets and avoid
+    using this function.
 
     :param secret_name: kubernetes secret name (storing the access/secret keys)
     :param aws_access_key: AWS_ACCESS_KEY_ID value. If this parameter is not specified and AWS_ACCESS_KEY_ID env.

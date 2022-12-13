@@ -67,8 +67,8 @@ pd.set_option("mode.chained_assignment", None)
 def validate_base_argument(ctx, param, value):
     if value and value.startswith("-"):
         raise click.BadParameter(
-            f"{param.human_readable_name} cannot start with '-', ensure the command options are typed correctly. "
-            f"Preferably use '--' to separate options and arguments "
+            f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
+            f"correctly. Preferably use '--' to separate options and arguments "
             f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
             ctx=ctx,
             param=param,
@@ -837,7 +837,7 @@ def version():
 
 
 @main.command()
-@click.argument("uid", type=str, callback=validate_base_argument)
+@click.argument("uid", type=str)
 @click.option("--project", "-p", help="project name")
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
@@ -857,9 +857,7 @@ def logs(uid, project, offset, db, watch):
 
 
 @main.command()
-@click.argument(
-    "context", default="", type=str, required=False, callback=validate_base_argument
-)
+@click.argument("context", default="", type=str, required=False)
 @click.option("--name", "-n", help="project name")
 @click.option("--url", "-u", help="remote git or archive url")
 @click.option("--run", "-r", help="run workflow name of .py file")
@@ -1064,7 +1062,6 @@ def validate_runtime_kind(ctx, param, value):
     type=str,
     default=None,
     required=False,
-    callback=validate_base_argument,
 )
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
@@ -1112,7 +1109,7 @@ def clean(kind, object_id, api, label_selector, force, grace_period):
 
 
 @main.command(name="watch-stream")
-@click.argument("url", type=str, callback=validate_base_argument)
+@click.argument("url", type=str)
 @click.option(
     "--shard-ids",
     "-s",
@@ -1143,9 +1140,7 @@ def watch_stream(url, shard_ids, seek, interval, is_json):
 
 
 @main.command(name="config")
-@click.argument(
-    "command", type=str, default="", required=False, callback=validate_base_argument
-)
+@click.argument("command", type=str, default="", required=False)
 @click.option(
     "--env-file",
     "-f",

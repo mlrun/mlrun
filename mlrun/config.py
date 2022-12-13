@@ -503,13 +503,18 @@ class Config:
         name = self.__class__.__name__
         return f"{name}({self._cfg!r})"
 
-    def update(self, cfg):
+    def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
                     getattr(self, key).update(value)
                 else:
-                    setattr(self, key, value)
+                    try:
+                        setattr(self, key, value)
+                    except mlrun.errors.MLRunRuntimeError as exc:
+                        if not skip_errors:
+                            raise exc
+                        print(f"Warning, failed to set config key {key}={value}, {exc}")
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
@@ -899,7 +904,7 @@ class Config:
 config = Config.from_dict(default_config)
 
 
-def _populate():
+def _populate(skip_errors=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -908,10 +913,10 @@ def _populate():
     global _loaded
 
     with _load_lock:
-        _do_populate()
+        _do_populate(skip_errors=skip_errors)
 
 
-def _do_populate(env=None):
+def _do_populate(env=None, skip_errors=False):
     global config
 
     if not os.environ.get("MLRUN_IGNORE_ENV_FILE") and not is_running_as_api():
@@ -935,11 +940,11 @@ def _do_populate(env=None):
         if not isinstance(data, dict):
             raise TypeError(f"configuration in {config_path} not a dict")
 
-        config.update(data)
+        config.update(data, skip_errors=skip_errors)
 
     data = read_env(env)
     if data:
-        config.update(data)
+        config.update(data, skip_errors=skip_errors)
 
     # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
     # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
@@ -1083,4 +1088,4 @@ def read_env(env=None, prefix=env_prefix):
     return config
 
 
-_populate()
+_populate(skip_errors=True)

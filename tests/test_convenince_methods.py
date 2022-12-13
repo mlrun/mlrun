@@ -161,8 +161,10 @@ def test_set_and_load_default_config():
     mlrun.mlconf.reload()
     assert mlrun.mlconf.kfp_ttl == 12345
 
+    _exec_mlrun("config clear")
+    assert not os.path.isfile(env_path), "config file was not deleted"
+
     # write back old content and del env vars
-    os.remove(env_path)
     if env_body:
         with open(env_path, "w") as fp:
             fp.write(env_body)

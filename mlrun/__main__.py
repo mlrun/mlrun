@@ -19,7 +19,7 @@ import socket
 import traceback
 from ast import literal_eval
 from base64 import b64decode, b64encode
-from os import environ, path
+from os import environ, path, remove
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
@@ -765,7 +765,9 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
     """Run HTTP api/database server"""
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
-    env.pop("MLRUN_ENV_FILE", None)
+    env["MLRUN_IGNORE_ENV_FILE"] = "true"
+    env["MLRUN_DBPATH"] = ""
+
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:
@@ -780,7 +782,12 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
         env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
     if verbose:
         env["MLRUN_LOG_LEVEL"] = "DEBUG"
-    if artifact_path:
+    if artifact_path or "MLRUN_ARTIFACT_PATH" not in env:
+        if not artifact_path:
+            artifact_path = (
+                env.get("MLRUN_HTTPDB__DATA_VOLUME", "./artifacts").rstrip("/")
+                + "/{{project}}"
+            )
         env["MLRUN_ARTIFACT_PATH"] = path.realpath(path.expanduser(artifact_path))
 
     env["MLRUN_IS_API_SERVER"] = "true"
@@ -1145,6 +1152,7 @@ def show_or_set_config(
         get (default) - list the local or remote configuration
                         (can specify the remote api + credentials or an env_file)
         set           - set configuration parameters in mlrun default or specified .env file
+        clear         - delete the default or specified config .env file
 
     \b
     Examples:
@@ -1199,6 +1207,17 @@ def show_or_set_config(
                 f"to use the {env_file} .env file add the following to your development environment:\n"
                 f"MLRUN_ENV_FILE={env_file}"
             )
+
+    elif op == "clear":
+        filename = path.expanduser(env_file or mlrun.config.default_env_file)
+        if not path.isfile(filename):
+            print(f".env file {filename} not found")
+        else:
+            print(f"deleting .env file {filename}")
+            remove(filename)
+
+    else:
+        print(f"Error, unsupported config option {op}")
 
 
 def fill_params(params, params_dict=None):

@@ -154,6 +154,8 @@ def run_local(
     :param params:   input parameters (dict)
     :param inputs:   input objects (dict of key: path)
     :param artifact_path: default artifact output path
+    :param mode:    TBD.
+    :param allow_empty_resources:   TBD.
 
     :return: run object
     """

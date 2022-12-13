@@ -30,7 +30,7 @@ def open_archive(context, archive_url: DataItem, target_path, refresh=False):
     :param context:      function execution context
     :param archive_url:  url of archive file
     :param target_path:  file system path to store extracted files
-    :param key:          key of archive contents in artifact store
+    :param refresh: TBD.
     """
     os.makedirs(target_path, exist_ok=True)
 

@@ -64,13 +64,22 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
+def validate_command_or_url(ctx, param, value):
+    if value.startswith("-"):
+        raise click.BadParameter(
+            f"command/url cannot start with '-', ensure the command options are typed correctly",
+            ctx=ctx,
+            param=param,
+        )
+
+
 @click.group()
 def main():
     pass
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("url", type=str, required=False)
+@click.argument("url", type=str, required=False, callback=validate_command_or_url)
 @click.option(
     "--param",
     "-p",

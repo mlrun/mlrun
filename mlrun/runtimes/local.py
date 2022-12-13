@@ -305,11 +305,23 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 tmp=tmp,
                 host=socket.gethostname(),
             )
-            fn = self._get_handler(handler, context)
-            global_context.set(context)
-            sout, serr = exec_from_params(fn, runobj, context)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
-            return context.to_dict()
+            try:
+                fn = self._get_handler(handler, context)
+                global_context.set(context)
+                sout, serr = exec_from_params(fn, runobj, context)
+                log_std(
+                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
+                )
+                return context.to_dict()
+            # this exception handling is for the case where we fail to pre-load the function code
+            # while the run is already in progress
+            except Exception as exc:
+                # if we failed to load the function code, we need to update the status of the run, as it doesn't
+                # reach the end of the function where the status is updated
+                context.set_state(error=str(exc), commit=True)
+                raise mlrun.errors.MLRunRuntimeError(
+                    "failed on pre-loading function code"
+                ) from exc
 
         else:
             command = self.spec.command

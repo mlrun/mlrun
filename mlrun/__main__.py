@@ -65,7 +65,7 @@ pd.set_option("mode.chained_assignment", None)
 
 
 def validate_base_argument(ctx, param, value):
-    if value.startswith("-"):
+    if value and value.startswith("-"):
         raise click.BadParameter(
             f"{param.human_readable_name} cannot start with '-', ensure the command options are typed correctly. "
             f"Preferably use '--' to separate options and arguments "
@@ -674,7 +674,11 @@ def watch(pod, namespace, timeout):
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.argument("kind", type=str, callback=validate_base_argument)
 @click.argument(
-    "name", type=str, default="", required=False, callback=validate_base_argument
+    "name",
+    type=str,
+    default="",
+    required=False,
+    callback=validate_base_argument,
 )
 @click.option("--selector", "-s", default="", help="label selector")
 @click.option("--namespace", "-n", help="kubernetes namespace")

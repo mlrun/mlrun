@@ -583,10 +583,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         batch_function = mlrun.get_run_db().get_function(
             name="model-monitoring-batch", project=self.project_name
         )
-        assert (
-            "mlrun-auth-secrets"
-            in batch_function["metadata"]["credentials"]["access_key"]
+        batch_access_key = batch_function["metadata"]["credentials"]["access_key"]
+        ref = mlrun.model.Credentials.secret_reference_prefix
+        auth_secret = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
         )
+        assert batch_access_key.startswith(ref + auth_secret)
 
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)

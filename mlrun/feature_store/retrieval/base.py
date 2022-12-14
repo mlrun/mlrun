@@ -17,7 +17,6 @@ import abc
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 
-from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
 from ...utils import logger
 
 
@@ -221,6 +220,4 @@ class BaseMerger(abc.ABC):
 
     @classmethod
     def get_default_image(cls):
-        return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
-            with_gpu=False
-        )
+        return mlrun.mlconf.feature_store.default_job_image

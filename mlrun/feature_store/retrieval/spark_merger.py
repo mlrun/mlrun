@@ -15,6 +15,7 @@
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
+from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
@@ -233,4 +234,6 @@ class SparkFeatureMerger(BaseMerger):
 
     @classmethod
     def get_default_image(cls):
-        return mlrun.mlconf.feature_store.default_job_image
+        return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
+            with_gpu=False
+        )

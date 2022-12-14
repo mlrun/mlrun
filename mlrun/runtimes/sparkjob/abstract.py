@@ -833,11 +833,16 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                     .replace("Z", "+00:00")
                 )
             else:
-                completion_time = datetime.fromisoformat(
-                    crd_object.get("status", {})
-                    .get("lastSubmissionAttemptTime")
-                    .replace("Z", "+00:00")
+                last_submission_attempt_time = crd_object.get("status", {}).get(
+                    "lastSubmissionAttemptTime"
                 )
+                if last_submission_attempt_time:
+                    last_submission_attempt_time = last_submission_attempt_time.replace(
+                        "Z", "+00:00"
+                    )
+                    completion_time = datetime.fromisoformat(
+                        last_submission_attempt_time
+                    )
         return in_terminal_state, completion_time, desired_run_state
 
     def _update_ui_url(

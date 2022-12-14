@@ -9,6 +9,8 @@ Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Ins
 
 This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks) and presents the [**MLRun core components**](#core-components).
 
+See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
+
 ```
 
 
@@ -199,4 +201,5 @@ MLRun includes the following major components:
 :maxdepth: 1
 
 architecture
+ecosystem
 ```

@@ -1885,7 +1885,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                self._delete_pod(namespace, pod)
+                get_k8s_helper().delete_pod(pod.metadata.name, namespace)
                 deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(
@@ -1961,8 +1961,12 @@ class BaseRuntimeHandler(ABC):
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    self._delete_crd(
-                        namespace, crd_group, crd_version, crd_plural, crd_object
+                    get_k8s_helper().delete_crd(
+                        crd_object["metadata"]["name"],
+                        crd_group,
+                        crd_version,
+                        crd_plural,
+                        namespace,
                     )
                     deleted_crds.append(crd_object)
                 except Exception:
@@ -2366,40 +2370,6 @@ class BaseRuntimeHandler(ABC):
             .get("mlrun/name", "no-name")
         )
         return project, uid, name
-
-    @staticmethod
-    def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):
-        k8s_helper = get_k8s_helper()
-        name = crd_object["metadata"]["name"]
-        try:
-            k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group,
-                crd_version,
-                namespace,
-                crd_plural,
-                name,
-            )
-            logger.info(
-                "Deleted crd object",
-                name=name,
-                namespace=namespace,
-                crd_plural=crd_plural,
-            )
-        except ApiException as exc:
-            # ignore error if crd object is already removed
-            if exc.status != 404:
-                raise
-
-    @staticmethod
-    def _delete_pod(namespace, pod):
-        k8s_helper = get_k8s_helper()
-        try:
-            k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-            logger.info("Deleted pod", pod=pod.metadata.name)
-        except ApiException as exc:
-            # ignore error if pod is already removed
-            if exc.status != 404:
-                raise
 
     @staticmethod
     def _build_pod_resources(pods) -> List[mlrun.api.schemas.RuntimeResource]:

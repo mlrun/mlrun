@@ -220,7 +220,7 @@ class BaseMerger(abc.ABC):
         return size
 
     @classmethod
-    def get_default_image():
+    def get_default_image(cls):
         return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
             with_gpu=False
         )

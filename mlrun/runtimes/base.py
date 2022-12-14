@@ -418,7 +418,11 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(
-            run.to_dict(), autocommit=False, is_api=self._is_api_server, update_db=False
+            run.to_dict(),
+            db,
+            autocommit=False,
+            is_api=self._is_api_server,
+            update_db=False,
         )
 
         self._verify_run_params(run.spec.parameters)

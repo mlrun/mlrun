@@ -762,11 +762,11 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option("--background", "-b", is_flag=True, help="run in background process")
 @click.option("--artifact-path", "-a", help="default artifact path")
 @click.option(
-    "--env-file",
+    "--update-env",
     default="",
     is_flag=False,
-    flag_value="$",
-    help="update the specified mlrun .env file (if value not provided defaults to '~/.mlrun.env')",
+    flag_value=mlrun.config.default_env_file,
+    help=f"update the specified mlrun .env file (if TEXT not provided defaults to {mlrun.config.default_env_file})",
 )
 def db(
     port,
@@ -777,7 +777,7 @@ def db(
     verbose,
     background,
     artifact_path,
-    env_file,
+    update_env,
 ):
     """Run HTTP api/database server"""
     env = environ.copy()
@@ -837,16 +837,17 @@ def db(
         returncode = child.wait()
         if returncode != 0:
             raise SystemExit(returncode)
-    if env_file:
-        # update mlrun env file with the API path and PID (for killing it)
-        env_file = mlrun.config.default_env_file if env_file == "$" else env_file
-        filename = path.expanduser(env_file)
+    if update_env:
+        # update mlrun client env file with the API path, so client will use the new DB
+        # update and PID, allow killing the correct process in a config script
+        filename = path.expanduser(update_env)
         dotenv.set_key(
             filename, "MLRUN_DBPATH", f"http://localhost:{port or 8080}", quote_mode=""
         )
+        dotenv.set_key(filename, "MLRUN_MOCK_NUCLIO_DEPLOYMENT", "auto", quote_mode="")
         if pid:
             dotenv.set_key(filename, "MLRUN_SERVICE_PID", str(pid), quote_mode="")
-        print(f"updated conviguration in {env_file} .env file")
+        print(f"updated configuration in {update_env} .env file")
 
 
 @main.command()

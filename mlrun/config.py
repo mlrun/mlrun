@@ -1088,4 +1088,5 @@ def read_env(env=None, prefix=env_prefix):
     return config
 
 
+# populate config and skip errors (so `import mlrun` will not fail and we can fix config/dbpath issues)
 _populate(skip_errors=True)

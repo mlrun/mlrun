@@ -313,14 +313,18 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
                 return context.to_dict()
-            # this exception handling is for the case where we fail to pre-load the function code
-            # while the run is already in progress
+            # if RunError was raised it means that the error was raised as part of running the function
+            # ( meaning the state was already updated to error ) therefore we just re-raise the error
+            except RunError as err:
+                raise err
+            # this exception handling is for the case where we fail on pre-loading or post-running the function
+            # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
             except Exception as exc:
-                # if we failed to load the function code, we need to update the status of the run, as it doesn't
-                # reach the end of the function where the status is updated
+                # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
+                # by the caller and will set the state to error ( in `update_run_state` )
                 context.set_state(error=str(exc), commit=True)
-                raise mlrun.errors.MLRunRuntimeError(
-                    "failed on pre-loading function code"
+                raise RunError(
+                    "failed on pre-loading / post-running of the function"
                 ) from exc
 
         else:

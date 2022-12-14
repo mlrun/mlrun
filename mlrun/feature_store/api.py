@@ -164,8 +164,8 @@ def get_offline_features(
         return run_merge_job(
             feature_vector,
             target,
-            entity_rows,
             merger_engine,
+            entity_rows,
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
             drop_columns=drop_columns,

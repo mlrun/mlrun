@@ -530,6 +530,7 @@ class _KFPRunner(_PipelineRunner):
             workflow_handler, workflow_spec, project, secrets
         )
         if source:
+            logger.info(f"setting project source: {source}")
             project.set_source(source)
 
         namespace = namespace or config.namespace
@@ -647,6 +648,7 @@ class _LocalRunner(_PipelineRunner):
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         if source and not workflow_spec.run_local:
+            logger.info(f"setting project source: {source}")
             project.set_source(source)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(

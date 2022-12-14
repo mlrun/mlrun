@@ -706,3 +706,16 @@ class TestProject(TestMLRunSystem):
         assert (
             run.state == mlrun.run.RunStatuses.failed
         ), "pipeline supposed to fail since newflow is not in the temporary source"
+
+        for engine in ["remote", "kfp", "local"]:
+            # Ensuring that the loaded project is from the given source
+            run = project.run(
+                "newflow",
+                engine=engine,
+                source=temporary_source,
+                dirty=True,
+                watch=True,
+            )
+            assert (
+                    run.state == mlrun.run.RunStatuses.failed
+            ), "pipeline supposed to fail since newflow is not in the temporary source"

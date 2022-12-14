@@ -23,8 +23,7 @@ on:
 
     # * is a special character in YAML so you have to quote this string
     # Run the system tests every 8 hours (cron hours should divide 24 equally, otherwise there will be an overlap at the end of the day)
-    - cron:  '0 */8 * * *'
-
+    - cron:  '0 22 * * *'
   workflow_dispatch:
     inputs:
       docker_registry:
@@ -226,8 +225,14 @@ jobs:
       matrix:
         test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
     steps:
+    - name: set var  branch_to_test  to development
+      if: github.event.schedule=='0 22 * * *'
+      run: |
+        echo "branch_to_test=development" >> $GITHUB_ENV
     # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v3
+      with:
+        ref: ${{ env.branch_to_test }}
     - name: Set up python 3.7
       uses: actions/setup-python@v4
       with:

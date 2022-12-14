@@ -890,6 +890,13 @@ class Config:
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return True if mlrun.mlconf.nuclio_version else False
 
+    def use_nuclio_mock(self, force_mock=None):
+        # determine if to use Nuclio mock service
+        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
+        if mock_nuclio and mock_nuclio == "auto":
+            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
+        return True if mock_nuclio and force_mock is None else force_mock
+
     def get_v3io_access_key(self):
         # Get v3io access key from the environment
         return os.environ.get("V3IO_ACCESS_KEY")

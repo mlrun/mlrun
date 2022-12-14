@@ -418,12 +418,10 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(
-            run.to_dict(), db, autocommit=False, is_api=self._is_api_server
+            run.to_dict(), autocommit=False, is_api=self._is_api_server, update_db=False
         )
-        self._pre_run(run, execution)  # hook for runtime specific prep
 
-        # Verify run params and hyperparams
-        self.verify_run_params(run.spec.parameters)
+        self._verify_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
         task_generator = get_generator(run.spec, execution)
@@ -431,9 +429,17 @@ class BaseRuntime(ModelObj):
             # verify valid task parameters
             tasks = task_generator.generate(run)
             for task in tasks:
-                self.verify_run_params(task.spec.parameters)
+                self._verify_run_params(task.spec.parameters)
+
+        # post verifications, update execution in db and run pre run hooks
+        execution.commit(completed=False)
+        self._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None
+        # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
+        # So while in the API, we consider the hyper-run as a single run, and then in the runtime itself when the
+        # runtime is now a local runtime and therefore `self._is_nested == False`, we run each task as a separate run by
+        # using the task generator
         if task_generator and not self._is_nested:
             # multiple runs (based on hyper params or params file)
             runner = self._run_many
@@ -1150,11 +1156,13 @@ class BaseRuntime(ModelObj):
             self.spec.build.base_image = image
             self.spec.image = ""
 
-    def verify_run_params(self, parameters: typing.Dict[str, typing.Any]):
+    def _verify_run_params(self, parameters: typing.Dict[str, typing.Any]):
         for param_name, param_value in parameters.items():
 
             if isinstance(param_value, dict):
-                self.verify_run_params(param_value)
+                # if the parameter is a dict, we might have some nested parameters,
+                # in this case we need to verify them as well recursively
+                self._verify_run_params(param_value)
 
             # verify that integer parameters don't exceed a int64
             if isinstance(param_value, int) and abs(param_value) >= 2**63:

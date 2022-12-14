@@ -406,10 +406,10 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
 @pytest.mark.parametrize(
     "task_name,parameters,hyperparameters",
     [
-        ("param-pos", {"x": 2**63}, None),
-        ("param-neg", {"x": -(2**63)}, None),
-        ("hyperparam-pos", None, {"x": [1, 2**63]}),
-        ("hyperparam-neg", None, {"x": [1, -(2**63)]}),
+        ("param-pos", {"x": 2**63 + 1}, None),
+        ("param-neg", {"x": -(2**63 + 1)}, None),
+        ("hyperparam-pos", None, {"x": [1, 2**63 + 1]}),
+        ("hyperparam-neg", None, {"x": [1, -(2**63 + 1)]}),
     ],
 )
 def test_submit_job_failure_params_exceed_int64(
@@ -442,6 +442,10 @@ def test_submit_job_failure_params_exceed_int64(
 
     assert resp.status_code == HTTPStatus.BAD_REQUEST.value
     assert "exceeds int64" in resp.json()["detail"]["reason"]
+
+    resp = client.get("runs", params={"project": project_name})
+    # assert the run wasn't saved to the DB
+    assert len(resp.json()["runs"]) == 0
 
 
 def _create_submit_job_body(function, project, with_output_path=True):

@@ -251,6 +251,7 @@ class MLClientCtx(object):
         host=None,
         log_stream=None,
         is_api=False,
+        update_db=True,
     ):
         """create execution context from dict"""
 
@@ -305,7 +306,8 @@ class MLClientCtx(object):
         if start:
             self._start_time = start
         self._state = "running"
-        self._update_db(commit=True)
+        if update_db:
+            self._update_db(commit=True)
         return self
 
     @property

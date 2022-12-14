@@ -44,13 +44,7 @@ from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
-from tests.conftest import (
-    logs_path,
-    results,
-    root_path,
-    rundb_path,
-    tests_root_directory,
-)
+from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
 

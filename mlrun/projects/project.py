@@ -339,7 +339,7 @@ def get_or_create_project(
             # only loading project from db so no need to save it
             save=False,
         )
-        logger.info(f"loaded project {name} from MLRun DB")
+        logger.info(f"loaded project {project.name} from MLRun DB")
         return project
 
     except mlrun.errors.MLRunNotFoundError:

@@ -259,7 +259,7 @@ def test_forbidden_file_access():
 
 
 def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
-    mlrun._is_running_as_api = True
+    mlrun.config._is_running_as_api = True
 
     user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
     user1_objpath = "v3io://some-system/some-dir/user1"

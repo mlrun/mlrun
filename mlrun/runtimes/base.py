@@ -38,7 +38,7 @@ from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
-from ..config import config
+from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..execution import MLClientCtx
@@ -485,21 +485,22 @@ class BaseRuntime(ModelObj):
                     f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
                 )
             )
-        elif not self.is_child:
-            ui_url = get_ui_url(project, uid)
-            ui_url = f"\nor click {ui_url} for UI" if ui_url else ""
+        elif not (self.is_child and is_running_as_api()):
             project_flag = f"-p {project}" if project else ""
-            print(
-                f"to track results use the CLI:\n"
-                f"info: mlrun get run {uid} {project_flag}\nlogs: mlrun logs {uid} {project_flag}{ui_url}"
+            info_cmd = f"mlrun get run {uid} {project_flag}"
+            logs_cmd = f"mlrun logs {uid} {project_flag}"
+            logger.info(
+                "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
             )
-
+            ui_url = get_ui_url(project, uid)
+            if ui_url:
+                logger.info("Or click for UI", ui_url=ui_url)
         if result:
             run = RunObject.from_dict(result)
             logger.info(f"run executed, status={run.status.state}")
             if run.status.state == "error":
                 if self._is_remote and not self.is_child:
-                    print(f"runtime error: {run.status.error}")
+                    logger.error(f"runtime error: {run.status.error}")
                 raise RunError(run.status.error)
             return run
 

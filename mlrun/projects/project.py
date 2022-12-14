@@ -89,7 +89,7 @@ def init_repo(context, url, init_git):
 
 def new_project(
     name,
-    context=None,
+    context: str = "./",
     init_git: bool = False,
     user_project: bool = False,
     remote: str = None,
@@ -198,7 +198,7 @@ def new_project(
 
 
 def load_project(
-    context: str,
+    context: str = "./",
     url: str = None,
     name: str = None,
     secrets: dict = None,
@@ -235,13 +235,13 @@ def load_project(
 
     :returns: project object
     """
+    if not context:
+        raise ValueError("valid context (local dir path) must be provided")
 
     secrets = secrets or {}
     repo = None
     project = None
     name = _add_username_to_project_name_if_needed(name, user_project)
-    if not context:
-        raise ValueError("valid context (local dir path) must be provided")
 
     from_db = False
     if url:
@@ -291,7 +291,7 @@ def load_project(
 
 def get_or_create_project(
     name: str,
-    context: str,
+    context: str = "./",
     url: str = None,
     secrets: dict = None,
     init_git=False,
@@ -311,7 +311,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (Default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -324,7 +324,7 @@ def get_or_create_project(
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
-
+    context = context or "./"
     try:
         # load project from the DB
         project = load_project(
@@ -1324,9 +1324,10 @@ class MlrunProject(ModelObj):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
+        :param local_path:    path to the local dataframe file that exists locally.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param artifact_path: target artifact path (when not using the default).
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag

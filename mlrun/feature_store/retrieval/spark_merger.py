@@ -231,5 +231,6 @@ class SparkFeatureMerger(BaseMerger):
 
         return self._result_df
 
-    def get_default_image(self):
+    @classmethod
+    def get_default_image():
         return mlrun.mlconf.feature_store.default_job_image

@@ -219,7 +219,8 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
-    def get_default_image(self):
+    @classmethod
+    def get_default_image():
         return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
             with_gpu=False
         )

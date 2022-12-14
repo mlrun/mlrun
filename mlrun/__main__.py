@@ -1022,7 +1022,6 @@ def project(
                 schedule=schedule,
                 timeout=timeout,
                 overwrite=overwrite_schedule,
-                source=url,
             )
         except Exception as exc:
             print(traceback.format_exc())

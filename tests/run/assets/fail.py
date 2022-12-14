@@ -1,4 +1,4 @@
-import notexisting
+import notexisting  # noqa: F401
 
 
 def handler(context):

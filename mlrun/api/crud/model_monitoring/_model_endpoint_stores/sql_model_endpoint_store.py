@@ -279,6 +279,15 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
         endpoint_list = mlrun.api.schemas.model_endpoints.ModelEndpointList(
             endpoints=[]
         )
+
+        # Validate that the model endpoints table exists
+        if not engine.has_table(self.table_name):
+            logger.warn(
+                "Table not found, return an empty ModelEndpointList",
+                table=self.table_name,
+            )
+            return endpoint_list
+
         with engine.connect():
             # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
             metadata = db.MetaData()
@@ -362,7 +371,7 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
                         ] = endpoint_metrics
 
                 endpoint_list.endpoints.append(endpoint_obj)
-
+            session.close()
         return endpoint_list
 
     @staticmethod
@@ -486,7 +495,8 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
         self, endpoints: mlrun.api.schemas.model_endpoints.ModelEndpointList
     ):
         """
-        Delete all model endpoints resources in both SQL and the time series DB.
+        Delete all model endpoints resources in both SQL and the time series DB. In addition, delete the model
+        endpoints table from SQL if it's empty at the end of the process.
 
         :param endpoints: An object of ModelEndpointList which is literally a list of model endpoints along with some
                           metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
@@ -497,3 +507,41 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
             self.delete_model_endpoint(
                 endpoint.metadata.uid,
             )
+
+        # Drop the SQL table if it's empty
+        self._drop_table()
+
+    def _drop_table(self):
+        """Delete model endpoints SQL table. If table is not empty, then it won't be deleted."""
+        engine = db.create_engine(self.connection_string)
+        with engine.connect():
+            if not engine.has_table(self.table_name):
+                logger.warn(
+                    "Table not found",
+                    table=self.table_name,
+                )
+                return
+
+            # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
+            metadata = db.MetaData()
+            model_endpoints_table = db.Table(
+                self.table_name, metadata, autoload=True, autoload_with=engine
+            )
+
+            # Count the model endpoint records using sqlalchemy ORM
+            session = sessionmaker(bind=engine)()
+            rows = session.query(model_endpoints_table).count()
+            session.close()
+
+            # Drop the table if no records have been found
+            if rows > 0:
+                logger.info(
+                    "Table is not empty and therefore won't be deleted from DB",
+                    table_name=self.table_name,
+                )
+            else:
+                metadata.drop_all(bind=engine, tables=[model_endpoints_table])
+                logger.info(
+                    "Table has been deleted from SQL", table_name=self.table_name
+                )
+        return

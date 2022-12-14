@@ -18,7 +18,6 @@ from random import choice, randint
 from typing import Optional
 
 import pytest
-import sqlalchemy.exc
 
 import mlrun.api.crud
 import mlrun.api.schemas
@@ -32,7 +31,7 @@ from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 
 TEST_PROJECT = "test_model_endpoints"
 CONNECTION_STRING = "sqlite:///test.db"
-TABLE_NAME = "MODEL_ENDPOINTS_TEST"
+TEST_TABLE = "test_table_model_endpoints"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
@@ -305,19 +304,14 @@ def test_sql_target_list_model_endpoints():
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
-    endpoint_target.table_name = TABLE_NAME
+    endpoint_target.table_name = TEST_TABLE
 
     # First, validate that there are no model endpoints records at the moment
-    try:
-        list_of_endpoints = endpoint_target.list_model_endpoints()
-        endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
-        list_of_endpoints = endpoint_target.list_model_endpoints()
-        assert len(list_of_endpoints.endpoints) == 0
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
 
-    except sqlalchemy.exc.NoSuchTableError:
-        # Model endpoints table was yet to be created
-        # This table will be created automatically in the first model endpoint recording
-        pass
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    assert len(list_of_endpoints.endpoints) == 0
 
     # Generate and write the 1st model endpoint into the DB table
     mock_endpoint_1 = _mock_random_endpoint()
@@ -362,19 +356,15 @@ def test_sql_target_patch_endpoint():
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
-    endpoint_target.table_name = TABLE_NAME
+    endpoint_target.table_name = TEST_TABLE
 
     # First, validate that there are no model endpoints records at the moment
-    try:
-        list_of_endpoints = endpoint_target.list_model_endpoints()
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    if len(list_of_endpoints.endpoints) > 0:
+        # Delete old model endpoints records
         endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
         list_of_endpoints = endpoint_target.list_model_endpoints()
         assert len(list_of_endpoints.endpoints) == 0
-
-    except sqlalchemy.exc.NoSuchTableError:
-        # Model endpoints table was yet to be created
-        # This table will be created automatically in the first model endpoint recording
-        pass
 
     # Generate and write the model endpoint into the DB table
     mock_endpoint = _mock_random_endpoint()
@@ -396,3 +386,7 @@ def test_sql_target_patch_endpoint():
 
     # Clear model endpoint from DB
     endpoint_target.delete_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
+
+    # Drop model endpoints test table from DB
+    list_of_endpoints = endpoint_target.list_model_endpoints()
+    endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)

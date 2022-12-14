@@ -105,7 +105,13 @@ jobs:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: set var  branch_to_test  to development
+        if: github.event.schedule=='0 22 * * *'
+        run: |
+          echo "branch_to_test=development" >> $GITHUB_ENV
     - uses: actions/checkout@v3
+      with:
+        ref: ${{ env.branch_to_test }}
     - name: Set up python 3.7
       uses: actions/setup-python@v4
       with:
@@ -141,14 +147,14 @@ jobs:
       run: |
         echo "::set-output name=mlrun_hash::$( \
           cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
+          git clone --single-branch --branch ${{ env.branch_to_test }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
           git rev-parse --short=8 HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)"
         echo "::set-output name=ui_hash::$( \
           cd /tmp && \
-          git clone --single-branch --branch development https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
+          git clone --single-branch --branch ${{ env.branch_to_test }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
           git rev-parse --short=8 HEAD && \
           cd .. && \

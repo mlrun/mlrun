@@ -678,6 +678,7 @@ class TestProject(TestMLRunSystem):
         original_source = "git://github.com/mlrun/project-demo.git"
         temporary_source = original_source + "#yaronha-patch-1"
         self.custom_project_names_to_delete.append(name)
+        artifact_path = f"v3io:///projects/{name}"
 
         project = mlrun.load_project(
             project_dir,
@@ -689,33 +690,27 @@ class TestProject(TestMLRunSystem):
             "main",
             engine="remote",
             source=temporary_source,
+            artifact_path=artifact_path,
         )
 
         # Ensuring that the project's source has not changed in the db:
         project_from_db = self._run_db.get_project(name)
         assert project_from_db.spec.source == original_source
 
-        # Ensuring that the loaded project is from the given source
-        run = project.run(
-            "newflow",
-            engine="remote",
-            source=temporary_source,
-            dirty=True,
-            watch=True,
-        )
-        assert (
-            run.state == mlrun.run.RunStatuses.failed
-        ), "pipeline supposed to fail since newflow is not in the temporary source"
-
-        for engine in ["remote", "kfp", "local"]:
+        for engine, expected_state in [
+            ("remote", mlrun.run.RunStatuses.failed),
+            ("kfp", mlrun.run.RunStatuses.failed),
+            ("local", None),
+        ]:
             # Ensuring that the loaded project is from the given source
             run = project.run(
                 "newflow",
                 engine=engine,
                 source=temporary_source,
                 dirty=True,
+                artifact_path=artifact_path,
                 watch=True,
             )
             assert (
-                    run.state == mlrun.run.RunStatuses.failed
-            ), "pipeline supposed to fail since newflow is not in the temporary source"
+                run.state == expected_state
+            ), f"pipeline supposed to fail since newflow is not in the temporary source, engine = {engine}"

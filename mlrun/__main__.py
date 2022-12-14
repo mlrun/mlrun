@@ -902,7 +902,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--prioritize-source",
     is_flag=True,
-    help="give priority to project from context or remote URL and save it in the DB",
+    help="give priority to project from remote URL or context and save it in the DB",
 )
 @click.option(
     "--schedule",

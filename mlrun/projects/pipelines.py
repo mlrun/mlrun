@@ -529,6 +529,8 @@ class _KFPRunner(_PipelineRunner):
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
+        if source:
+            project.set_source(source)
 
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -644,6 +646,8 @@ class _LocalRunner(_PipelineRunner):
         # When using KFP, it would do this replacement. When running locally, we need to take care of it.
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
+        if source and not workflow_spec.run_local:
+            project.set_source(source)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id
@@ -774,6 +778,10 @@ class _RemoteRunner(_PipelineRunner):
                     " If you want to overwrite this schedule use 'overwrite = True'"
                 )
 
+        # The returned engine for this runner is the engine of the workflow.
+        # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
+        inner_engine = get_workflow_engine(workflow_spec.engine)
+
         msg = "executing workflow "
         if workflow_spec.schedule:
             msg += "scheduling "
@@ -805,7 +813,7 @@ class _RemoteRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
                 run_id,
-                get_workflow_engine(workflow_spec.engine),
+                inner_engine,
                 project=project,
                 workflow=workflow_spec,
                 state=state,
@@ -817,29 +825,11 @@ class _RemoteRunner(_PipelineRunner):
         pipeline_context.clear()
         return _PipelineRunStatus(
             run_id,
-            get_workflow_engine(workflow_spec.engine),
+            inner_engine,
             project=project,
             workflow=workflow_spec,
             state=state,
         )
-
-    @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        # The returned engine for this runner is the engine of the workflow.
-        # So the right function will be invoked (another runner).
-        pass
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-    ):
-        # The returned engine for this runner is the engine of the workflow.
-        # So the right function will be invoked (another runner).
-        pass
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

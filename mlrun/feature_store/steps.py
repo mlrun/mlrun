@@ -229,7 +229,7 @@ class MapValues(StepToDict, MLRunStep):
             if "ranges" not in column_map:
                 event = event.na.replace(column_map, subset=column)
             else:
-                for val, val_range in self.mapping["ranges"].items():
+                for val, val_range in column_map["ranges"].items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     otherwise = ""

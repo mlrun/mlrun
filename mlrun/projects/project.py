@@ -2039,11 +2039,9 @@ class MlrunProject(ModelObj):
             source=source,
         )
         # run is None when scheduling
-        if (
-            run
-            and run.state != mlrun.run.RunStatuses.failed
-            and not workflow_spec.schedule
-        ):
+        if run and run.state == mlrun.run.RunStatuses.failed:
+            return run
+        if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
                 f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"

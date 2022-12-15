@@ -697,20 +697,15 @@ class TestProject(TestMLRunSystem):
         project_from_db = self._run_db.get_project(name)
         assert project_from_db.spec.source == original_source
 
-        for engine, expected_state in [
-            ("remote", mlrun.run.RunStatuses.failed),
-            ("kfp", mlrun.run.RunStatuses.failed),
-            ("local", None),
-        ]:
-            # Ensuring that the loaded project is from the given source
-            run = project.run(
-                "newflow",
-                engine=engine,
-                source=temporary_source,
-                dirty=True,
-                artifact_path=artifact_path,
-                watch=True,
-            )
-            assert (
-                run.state == expected_state
-            ), f"pipeline supposed to fail since newflow is not in the temporary source, engine = {engine}"
+        # Ensuring that the loaded project is from the given source
+        run = project.run(
+            "newflow",
+            engine="remote",
+            source=temporary_source,
+            dirty=True,
+            artifact_path=artifact_path,
+            watch=True,
+        )
+        assert (
+            run.state == mlrun.run.RunStatuses.failed
+        ), "pipeline supposed to fail since newflow is not in the temporary source"

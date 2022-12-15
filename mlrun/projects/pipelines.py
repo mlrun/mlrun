@@ -44,7 +44,7 @@ def get_workflow_engine(engine_kind, local=False):
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
-                "in order to run a local pipeline remotely, please use `engine='remote: local'` instead"
+                "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
@@ -529,9 +529,9 @@ class _KFPRunner(_PipelineRunner):
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
-        if source:
+        if source and not workflow_spec.run_local:
             logger.info(f"setting project source: {source}")
-            project.set_source(source)
+            project.set_source(source, pull_at_runtime=True)
 
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -647,7 +647,7 @@ class _LocalRunner(_PipelineRunner):
         # When using KFP, it would do this replacement. When running locally, we need to take care of it.
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
-        if source and not workflow_spec.run_local:
+        if source and workflow_spec.run_local:
             logger.info(f"setting project source: {source}")
             project.set_source(source)
         pipeline_context.workflow_artifact_path = artifact_path

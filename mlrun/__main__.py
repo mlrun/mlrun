@@ -299,7 +299,14 @@ def run(
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
-        if suffix != ".py" and mode != "pass" and url_file != "{codefile}":
+
+        # * is a placeholder for the url file when we want to use url args and let mlrun resolve the url file
+        if (
+            suffix != ".py"
+            and mode != "pass"
+            and url_file != "{codefile}"
+            and url_file != "*"
+        ):
             print(
                 f"command/url ({url}) must specify a .py file when not in 'pass' mode"
             )

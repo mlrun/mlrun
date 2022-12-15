@@ -803,9 +803,15 @@ class BaseRuntime(ModelObj):
 
             if command:
                 args += [command]
-            command = "mlrun"
+
             if self.spec.args:
+                if not command:
+                    # * is a placeholder for the url file when we want to use url args and
+                    # let mlrun resolve the url file
+                    args += ["*"]
                 args = args + self.spec.args
+
+            command = "mlrun"
         else:
             command = command.format(**runobj.spec.parameters)
             if self.spec.args:

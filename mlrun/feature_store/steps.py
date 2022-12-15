@@ -363,15 +363,16 @@ class OneHotEncoder(StepToDict, MLRunStep):
         import pyspark.sql.functions as F
         from pyspark.ml.feature import OneHotEncoder, StringIndexerModel
         from pyspark.ml.functions import vector_to_array
+        from pyspark.sql.types import IntegerType
 
         for key, values in self.mapping.items():
             key_ = key
-            if dict(event.dtypes)[key] == "string":
-                event = StringIndexerModel.from_labels(
-                    values, inputCol=key, outputCol=f"{key}_"
-                ).transform(event)
-                event = event.drop(key)
-                key_ = f"{key}_"
+            print(dict(event.dtypes)[key])
+            if dict(event.dtypes)[key] == 'string':
+                event = StringIndexerModel.from_labels(values, inputCol=key, outputCol=f'{key}_').transform(event)
+                key_ = f'{key}_'
+            elif dict(event.dtypes)[key] == 'boolean':
+                event = event.withColumn(key, event[key].cast(IntegerType()))
             else:
                 column_map = {values[i]: i for i in range(len(values))}
                 event = event.na.replace(column_map, subset=key)
@@ -382,7 +383,8 @@ class OneHotEncoder(StepToDict, MLRunStep):
             )
             event = event.select("*", vector_to_array(f"{key_}_").alias(f"{key_}__"))
             cols_expanded = [(F.col(f"{key_}__")[i]) for i in range(len(values))]
-            event = event.select("*", *cols_expanded)
+            i = np.where(np.array(event.columns) == key)[0][0]
+            event = event.select(*event.columns[:i], *cols_expanded, *event.columns[i + 1:])
             for i, val in enumerate(values):
                 event = event.withColumnRenamed(
                     f"{key_}__[{i}]", f"{key}_{self._sanitized_category(val)}"

@@ -40,7 +40,7 @@ from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
-from ..utils import enrich_image_url, get_in, logger, update_in
+from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
@@ -806,6 +806,7 @@ class RemoteRuntime(KubeResource):
         dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
+        mock: bool = None,
     ):
         """Invoke the remote (live) function and return the results
 
@@ -820,9 +821,20 @@ class RemoteRuntime(KubeResource):
         :param dashboard: nuclio dashboard address
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
+        :param mock:     use mock server vs a real Nuclio function (for local simulations)
         """
         if not method:
             method = "POST" if body else "GET"
+
+        if (self._mock_server and mock is None) or mlconf.use_nuclio_mock(mock):
+            # if we deployed mock server or in simulated nuclio environment use mock
+            if not self._mock_server:
+                self._set_as_mock(True)
+            return self._mock_server.test(path, body, method, headers)
+
+        # clear the mock server when using the real endpoint
+        self._mock_server = None
+
         if "://" not in path:
             if not self.status.address:
                 state, _, _ = self._get_state(dashboard, auth_info=auth_info)
@@ -1276,11 +1288,23 @@ def compile_function_config(
         )
 
     if function.spec.replicas:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
+
+        nuclio_spec.set_config(
+            "spec.minReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+
     else:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        nuclio_spec.set_config(
+            "spec.minReplicas",
+            as_number("spec.minReplicas", function.spec.min_replicas),
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas",
+            as_number("spec.maxReplicas", function.spec.max_replicas),
+        )
 
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)

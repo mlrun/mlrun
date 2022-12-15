@@ -367,7 +367,12 @@ class TestRuntimeHandlerBase:
         expected_pod_names: List[str], expected_pod_namespace: str = None
     ):
         calls = [
-            unittest.mock.call(expected_pod_name, expected_pod_namespace)
+            unittest.mock.call(
+                expected_pod_name,
+                expected_pod_namespace,
+                grace_period_seconds=0,
+                propagation_policy="Background",
+            )
             for expected_pod_name in expected_pod_names
         ]
         if not expected_pod_names:

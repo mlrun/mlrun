@@ -36,7 +36,11 @@ def _get_engine_and_function(function, project=None):
                     "function name (str) can only be used in a project context, you must create, "
                     "load or get a project first or provide function object instead of its name"
                 )
-            function = project.get_function(function, sync=False, enrich=True)
+            # we don't want to use a copy of the function object, we want to use the actual object
+            # so changes on it will be reflected in the project and will persist for future use of the function
+            function = project.get_function(
+                function, sync=False, enrich=True, copy_function=False
+            )
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())
@@ -330,12 +334,11 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
-        if mock_nuclio and mock_nuclio == "auto":
-            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
-        mock = True if mock_nuclio and mock is None else mock
+        mock = mlrun.mlconf.use_nuclio_mock(mock)
         function._set_as_mock(mock)
         if mock:
+            # make sure the latest ver is saved in the DB (same as in function.deploy())
+            function.save()
             return DeployStatus(
                 state="ready",
                 outputs={"endpoint": "Mock", "name": function.metadata.name},

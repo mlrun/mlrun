@@ -135,13 +135,6 @@ class run_keys:
 def verify_field_regex(
     field_name, field_value, patterns, raise_on_failure: bool = True
 ) -> bool:
-    logger.debug(
-        "Validating field against patterns",
-        field_name=field_name,
-        field_value=field_value,
-        pattern=patterns,
-    )
-
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
@@ -1100,3 +1093,9 @@ def is_relative_path(path):
     if not path:
         return False
     return not (path.startswith("/") or ":\\" in path or "://" in path)
+
+
+def as_number(field_name, field_value):
+    if isinstance(field_value, str) and not field_value.isnumeric():
+        raise ValueError(f"{field_name} must be numeric (str/int types)")
+    return int(field_value)

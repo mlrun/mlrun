@@ -367,13 +367,12 @@ class OneHotEncoder(StepToDict, MLRunStep):
 
         for key, values in self.mapping.items():
             key_ = key
-            print(dict(event.dtypes)[key])
             if dict(event.dtypes)[key] == 'string':
                 event = StringIndexerModel.from_labels(values, inputCol=key, outputCol=f'{key}_').transform(event)
                 key_ = f'{key}_'
-            elif dict(event.dtypes)[key] == 'boolean':
-                event = event.withColumn(key, event[key].cast(IntegerType()))
             else:
+                if dict(event.dtypes)[key] == 'boolean':
+                    event = event.withColumn(key, event[key].cast(IntegerType()))
                 column_map = {values[i]: i for i in range(len(values))}
                 event = event.na.replace(column_map, subset=key)
             event = (
@@ -382,9 +381,10 @@ class OneHotEncoder(StepToDict, MLRunStep):
                 .transform(event)
             )
             event = event.select("*", vector_to_array(f"{key_}_").alias(f"{key_}__"))
-            cols_expanded = [(F.col(f"{key_}__")[i]) for i in range(len(values))]
+            cols_expanded = [(F.col(f'{key_}__')[i]).cast(IntegerType()).alias(f'{key_}__[{i}]')
+                             for i in range(len(values))]
             i = np.where(np.array(event.columns) == key)[0][0]
-            event = event.select(*event.columns[:i], *cols_expanded, *event.columns[i + 1:])
+            event = event.select(*event.columns[:i], *cols_expanded, *event.columns[i+1:])
             for i, val in enumerate(values):
                 event = event.withColumnRenamed(
                     f"{key_}__[{i}]", f"{key}_{self._sanitized_category(val)}"

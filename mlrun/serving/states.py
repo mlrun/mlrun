@@ -1156,7 +1156,9 @@ def _add_graphviz_flow(
     # draw targets after the last step (if specified)
     if targets:
         for target in targets or []:
-            graph.node(target.fullname, label=target.name, shape=target.get_shape())
+            target_kind, target_name = target.name.split("/", 1)
+            label = f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+            graph.node(target.fullname, label=label, shape=target.get_shape())
             last_step = target.after or default_final_step
             if last_step:
                 graph.edge(last_step, target.fullname)

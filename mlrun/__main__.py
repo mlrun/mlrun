@@ -64,13 +64,26 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
+def validate_base_argument(ctx, param, value):
+    if value and value.startswith("-"):
+        raise click.BadParameter(
+            f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
+            f"correctly. Preferably use '--' to separate options and arguments "
+            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
+            ctx=ctx,
+            param=param,
+        )
+
+    return value
+
+
 @click.group()
 def main():
     pass
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("url", type=str, required=False)
+@click.argument("url", type=str, required=False, callback=validate_base_argument)
 @click.option(
     "--param",
     "-p",
@@ -392,7 +405,7 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("func_url", type=str, required=False)
+@click.argument("func_url", type=str, required=False, callback=validate_base_argument)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
 @click.option("--tag", default="", help="function tag")
@@ -465,12 +478,14 @@ def build(
             print("Runtime:")
             pprint(runtime)
         func = new_function(runtime=runtime)
-    elif func_url.startswith("db://"):
-        func_url = func_url[5:]
-        func = import_function(func_url)
+
     elif func_url:
-        func_url = "function.yaml" if func_url == "." else func_url
+        if func_url.startswith("db://"):
+            func_url = func_url[5:]
+        elif func_url == ".":
+            func_url = "function.yaml"
         func = import_function(func_url)
+
     else:
         print("please specify the function path or url")
         exit(1)
@@ -548,7 +563,7 @@ def build(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("spec", type=str, required=False)
+@click.argument("spec", type=str, required=False, callback=validate_base_argument)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
     "--func-url",
@@ -650,7 +665,7 @@ def deploy(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("pod", type=str)
+@click.argument("pod", type=str, callback=validate_base_argument)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
     "--timeout", "-t", default=600, show_default=True, help="timeout in seconds"
@@ -664,8 +679,14 @@ def watch(pod, namespace, timeout):
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("kind", type=str)
-@click.argument("name", type=str, default="", required=False)
+@click.argument("kind", type=str, callback=validate_base_argument)
+@click.argument(
+    "name",
+    type=str,
+    default="",
+    required=False,
+    callback=validate_base_argument,
+)
 @click.option("--selector", "-s", default="", help="label selector")
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option("--uid", help="unique ID")
@@ -1039,7 +1060,7 @@ def project(
         proj.sync_functions(save=True)
 
 
-def validate_kind(ctx, param, value):
+def validate_runtime_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
     if value is not None and value not in possible_kinds:
         raise click.BadParameter(
@@ -1049,7 +1070,7 @@ def validate_kind(ctx, param, value):
 
 
 @main.command()
-@click.argument("kind", callback=validate_kind, default=None, required=False)
+@click.argument("kind", callback=validate_runtime_kind, default=None, required=False)
 @click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")

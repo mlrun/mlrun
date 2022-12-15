@@ -773,9 +773,17 @@ def retry_until_successful(
     if isinstance(backoff, int) or isinstance(backoff, float):
         backoff = create_linear_backoff(base=backoff, coefficient=0)
 
+    first_interval = next(backoff)
+    if timeout and timeout <= first_interval:
+        logger.warning(
+            f"timeout ({timeout}) should be higher than backoff ({first_interval})."
+            f" Set timeout to be higher than backoff."
+        )
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
-        next_interval = next(backoff)
+        next_interval = first_interval or next(backoff)
+        first_interval = None
         try:
             result = _function(*args, **kwargs)
             return result

@@ -1,9 +1,23 @@
 (change-log)=
 # Change log
+- [v1.2.1](#v1-2-1)
 - [v1.2.0](#v1-2-0)
+- [v1.0.6](#v1-0-6)
+- [v1.0.5](#v1-0-5)
+- [v1.0.4](#v1-0-4)
+- [v1.0.3](#v1-0-3)
+- [v1.0.2](#v1-0-2)
+- [v1.0.0](#v1-0-0)
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
+
+## v1.2.1
+
+### Closed issues
+- 
+
+
 
 
 ## v1.2.0
@@ -27,10 +41,10 @@
 #### Feature store
 - Support Redis as an online feature set for storey engine only. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).)
 - Support GCP objects as a data source for the feature store.
-- Fully support ingesting with pandas engine, now equivalent to ingestion with `storey` engine:
+- Fully support ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
    - Support DataFrame with multi-index.
    - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
-- Add new step: `DropFeature` for pandas and storey engines.
+- Add new step: `DropFeature` for pandas and storey engines. (TechPreview)
 - Add param query for `get_offline_feature` for filtering the output.
 
 #### Frameworks
@@ -61,8 +75,8 @@ The new behavior can be enabled using a feature flag configured in the API.
 
 ### Breaking changes
 
-- Feature store: Ingestion using pandas now takes the dataframe and creates an index out of the entity column (and removes it from 
-being a column in this df). This could cause breakage for existing custom steps when using a pandas engine.
+- Feature store: Ingestion using pandas now takes the dataframe and creates indices out of the entity column (and removes it as 
+   a column in this df). This could cause breakage for existing custom steps when using a pandas engine.
 
 ### Closed issues
 
@@ -243,25 +257,26 @@ UI: Features & enhancement
 ### New and updated features
 
 #### Feature store
-- Supports snowflake as a datasource for the feature store
+- Supports snowflake as a datasource for the feature store.
 
 #### UI
-
-- Supports configuring CPU, GPU, and memory default limits for user jobs
-- Supports configuring pods priority and spot instances
-- Enhanced masking of sensitive data
+- Supports configuring pod priority.
+- Enhanced masking of sensitive data.
+- The dataset tab is now in the Projects main menu (was previously under the Feature store).
 
 #### Projects
-- Setting owner and members are in a dedicated Project Settings section
-- Project Monitoring has a new Consumer Groups report
+- Setting owner and members are in a dedicated Project Settings section.
+- The Project Monitoring report has a new tile named Consumer groups (v3io streams) that shows the total number
+   of consumer groups, with drill-down capabilities for more details.
 
 
 #### Resource management
-- Supports preemptible nodes
-- Add limits to all mlrun function, by default
+- Supports preemptible nodes.
+- Supports configuring CPU, GPU, and memory default limits for user jobs.
 
 #### Graph
-- New screen shows real-time pipeline
+- A new tab under Projects | Models named Real-time pipelines that displays the real time pipeline graph, 
+   with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Closed issues
 
@@ -279,13 +294,12 @@ UI: Features & enhancement
 
 | ID   | Description                                            | Workaround                                    | Opened |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
-| 2849 | Cannot pickle a class inside an mlrun function         | Use cloudpickle instead of pickle             | 1.2.0  |
+| 2489 | Cannot pickle a class inside an mlrun function         | Use cloudpickle instead of pickle             | 1.2.0  |
 | 2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | 1.0.0  |
 | 2199 | Spark operator job fails with default requests args       | NA                                         | 1.0.0 |
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
-| 2637 | Running a workflow whose project has `init_git=True`, results in Project error |Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                             | 1.1.0 |
-
-Kafka ingestion service on empty feature set returns an error
+| 2637 | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | 1.1.0 |
+| 2407 | Kafka ingestion service on empty feature set returns an error. | Ingest a sample of the data manually, which creates the schema for the feature set and allow the ingestion service to accept new reocrds. | 1.1.0 |
 
 ## Limitations
 

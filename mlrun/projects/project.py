@@ -1966,7 +1966,7 @@ class MlrunProject(ModelObj):
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
+        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
         :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
@@ -2048,7 +2048,7 @@ class MlrunProject(ModelObj):
                 f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
-        if watch and not workflow_spec.schedule:
+        if (timeout or watch) and not workflow_spec.schedule:
             run._engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

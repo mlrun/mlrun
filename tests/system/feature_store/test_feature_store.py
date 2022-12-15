@@ -2753,7 +2753,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert df_res_2.equals(expected_df)
 
-    def test_set_event_with_spaces_or_hyphens(self):
+    @pytest.mark.parametrize("engine", ["pandas", "storey"])
+    def test_set_event_with_spaces_or_hyphens(self, engine):
 
         lst_1 = [
             " Private",
@@ -2771,7 +2772,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # Define the corresponding FeatureSet
         data_set = FeatureSet(
-            "test", entities=[Entity("id")], description="feature set"
+            "test", entities=[Entity("id")], description="feature set", engine=engine
         )
 
         data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))

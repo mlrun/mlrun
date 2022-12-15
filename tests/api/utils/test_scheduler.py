@@ -921,6 +921,7 @@ async def test_schedule_access_key_reference_handling(
         schemas.ScheduleKinds.job,
         scheduled_object,
         cron_trigger,
+        labels={"label1": "value1", "label2": "value2"},
     )
 
     _assert_schedule_get_and_list_credentials_enrichment(
@@ -953,6 +954,7 @@ async def test_schedule_convert_from_old_credentials_to_new(
         schemas.ScheduleKinds.job,
         scheduled_object,
         cron_trigger,
+        labels={"label1": "value1", "label2": "value2"},
     )
 
     auth_info = mlrun.api.schemas.AuthInfo(username=username, access_key=access_key)
@@ -1230,12 +1232,12 @@ def _assert_schedule_get_and_list_credentials_enrichment(
         include_credentials=True,
     )
 
-    secret_ref = (
-        mlrun.model.Credentials.secret_reference_prefix
-        + tests.api.conftest.K8sSecretsMock.get_auth_secret_name(
-            expected_username, expected_access_key
-        )
+    secret_name = tests.api.conftest.K8sSecretsMock.get_auth_secret_name(
+        expected_username, expected_access_key
     )
+    secret_ref = mlrun.model.Credentials.secret_reference_prefix + secret_name
+
+    assert schedule.labels[scheduler._db_record_auth_label] == secret_name
     assert schedule.credentials.access_key == secret_ref
     schedules = scheduler.list_schedules(
         db, project, schedule_name, include_credentials=True

@@ -154,4 +154,7 @@ def get_model_monitoring_batch_function(
     # Needs to be a member of the project and have access to project data path
     function.metadata.credentials.access_key = model_monitoring_access_key
 
+    # Ensure that the auth env vars are set
+    mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+
     return function

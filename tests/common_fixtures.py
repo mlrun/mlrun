@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import shutil
 import unittest
 from http import HTTPStatus
 from os import environ
+from pathlib import Path
 from typing import Callable, Generator
 from unittest.mock import Mock
 
@@ -42,7 +44,7 @@ from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
-from tests.conftest import logs_path, root_path, rundb_path
+from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
 
@@ -50,6 +52,13 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_test_base():
+
+    # recreating the test results path on each test instead of running it on conftest since
+    # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
+    # in parallel and may cause errors.
+    shutil.rmtree(results, ignore_errors=True, onerror=None)
+    Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
+
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
     environ["MLRUN_httpdb__dirpath"] = rundb_path
@@ -63,14 +72,14 @@ def config_test_base():
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 
-    # remove the run db cache so it won't pass between tests
+    # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
     mlrun.datastore.store_manager._stores = {}
 
-    # remove the is_running_as_api cache so it won't pass between tests
-    mlrun._is_running_as_api = None
+    # remove the is_running_as_api cache, so it won't pass between tests
+    mlrun.config._is_running_as_api = None
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
 

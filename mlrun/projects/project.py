@@ -1968,7 +1968,8 @@ class MlrunProject(ModelObj):
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
-        :param source:    remote source to overwrite the actual `project.spec.source` (used when engine is remote).
+        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          for other engines the source is to validate that the code is up-to-date
         :returns: run id
         """
 

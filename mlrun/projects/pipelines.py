@@ -460,7 +460,7 @@ class _PipelineRunner(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def get_state(run_id, project=None):
+    def get_state(run_id, project: str = None):
         return ""
 
     @staticmethod
@@ -531,7 +531,7 @@ class _KFPRunner(_PipelineRunner):
         )
         if source and not workflow_spec.run_local:
             logger.info(f"setting project source: {source}")
-            project.set_source(source, pull_at_runtime=True)
+            project.set_source(source)
 
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -569,7 +569,7 @@ class _KFPRunner(_PipelineRunner):
         return status
 
     @staticmethod
-    def get_state(run_id, project=None):
+    def get_state(run_id, project: str = None):
         project_name = project or ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
@@ -674,7 +674,7 @@ class _LocalRunner(_PipelineRunner):
         )
 
     @staticmethod
-    def get_state(run_id, project=None):
+    def get_state(run_id, project: str = None):
         return ""
 
     @staticmethod
@@ -713,6 +713,8 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
+        # If the user provided a source we want to load the project from the source
+        # (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
         save, project_source = (
             (False, source) if source else (True, project.spec.source)
         )

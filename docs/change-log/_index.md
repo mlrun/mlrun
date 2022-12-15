@@ -84,6 +84,177 @@ being a column in this df). This could cause breakage for existing custom steps 
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.0)
 
 
+
+## v1.1.3
+
+See [Closed issues](#closed-issues).
+
+### See more
+- [MLRun change log in GitHub]()
+- [UI change log in GitHub]()
+
+## v1.1.2
+
+### New and updated features
+
+**V3IO**
+- v3io-py bumped to 0.5.19
+- v3io-fs bumped to 0.1.15
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.2)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.2-rc3)
+
+## v1.1.1
+
+### New and updated features
+
+#### API
+- Supports workflow scheduling 
+
+#### UI
+- Projects: Supports editing model labels
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.1)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.1)
+
+
+## v1.1.0
+
+### New and updated features
+
+#### API
+-  MLRun scalability: Workers are used to handle the connection to the MLRun database and can be increased to improve handling of high workloads against the MLRun DB. You can configure the number of workers for an MLRun service, which is applied to the service's user-created pods. The default is 2. 
+   - v1.1.0 cannot run on top of 3.0.x.
+   - For Iguazio v <3.5.0 number of workers set to 1 by default. To change this number, contact support (helm-chart change required).
+   - Multi-instance is not supported for MLrun running on SQLite.
+-  Supports pipeline scheduling  
+   
+   
+   
+#### Feature store
+- Supports S3, Azure, GCS targets when using Spark as an engine for the feature store
+- Snowflake as datasource has a connector ID: `iguazio_platform`
+- You can add a time-based filter condition when running `get_offline_feature` with a given vector. 
+
+
+#### UI
+Projects
+- The Projects home page now has three tiles, Data, Jobs and Workflows, Deployment, that guide you through key capabilities of Iguazio, and provide quick access to common tasks.
+- The Projects | Jobs | Monitor Jobs tab now displays the Spark UI URL.
+- The information of the Drift Analysis tab is now displayed in the Model Overview.
+- If there is an error, the error messages are now displayed in the Projects | Jobs | Monitor jobs tab.
+Workflows
+- The steps in Workflows are color-coded to identify their status: blue=running; green=completed; red=error.
+
+#### Storey
+- MLRun can write to parquet with flexible schema per batch for ParquetTarget: useful for inconsistent or unknown schema.
+
+#### Documentation
+- Added Azure and S3 examples to {ref}`Ingesting features with Spark <ingest-features-with-spark>`
+
+### Closed issues
+
+
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.0)
+
+## v1.0.6
+
+### Closed issues
+- Import from mlrun (1.0.4) fails with "ImportError: cannot import name dataclass_transform" (ML-2552)
+   Workaround for previous releases:
+   Install `pip install pydantic==1.9.2` after `align_mlrun.sh`. 
+   [View in Git](https://github.com/mlrun/mlrun/pull/).
+- MLRun FeatureSet was not not enriching with security context when running from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/
+- Mlrun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/).
+
+## v1.0.5
+
+### Closed issues).
+- MLRun: remove root permissions. [View in Git](https://github.com/mlrun/mlrun/pull/
+- Users running a pipeline via CLI project run (watch=true) can now set the timeout (previously was 1 hour). [View in Git](https://github.com/mlrun/mlrun/pull/
+- MLRun: Supports pushing images to ECR. [View in Git](https://github.com/mlrun/mlrun/pull/).
+
+## v1.0.4
+
+### New and updated features
+Bump storey to 1.0.6 [1.0.x], #2041, @gtopper
+Add typing-extensions explictly, #2036, @Hedingber
+Add vulnerability check to CI and fix vulnerabilities [Backport 1.0.x], #2028, @Hedingber
+UI: Features & enhancement
+
+### Closed issues
+- Limit Azure transitive dependency to avoid new bug #2034 [View in Git](https://github.com/mlrun/mlrun/pull/).
+- Images: Fix GPU image to have new signing keys, #2030[View in Git](https://github.com/mlrun/mlrun/pull/).
+- Spark: Allow mounting v3io on driver but not executors [Backport 1.0.x], #2023, @Hedingber[View in Git](https://github.com/mlrun/mlrun/pull/).
+- Tests: Send only string headers to align to new requests limitation #2039  [View in Git](https://github.com/mlrun/mlrun/pull/).
+- UI: Bug fixes
+
+
+## v1.0.3
+
+### New and updated features
+
+- Images: Fix security vulnerabilities
+- Jupyter Image: Relax artifact_path settings and add README notebook
+- API: Fix projects leader to sync enrichment to followers
+- Projects: Fixes and usability improvements for working with archives
+
+## v1.0.2
+
+### New and updated features
+
+- Frameworks: Fix to logging the target columns in favor of model monitoring
+- Projects: Fix/support archives with project run/build/deploy methods
+- Runtimes: Add java options spark job parameters
+- Runtimes: Fix jobs stuck in non-terminal state after node drain/preemption
+- Spark: Allow setting executor and driver core parameter in spark operator
+- API: Block unauthorized paths on files endpoints
+- Requirements: Fix ImportError on ingest to Azure
+- Documentation: New quick start guide and update docker install section
+
+
+## v1.0.0
+
+### New and updated features
+
+#### Feature store
+- Supports snowflake as a datasource for the feature store
+
+#### UI
+
+- Supports configuring CPU, GPU, and memory default limits for user jobs
+- Supports configuring pods priority and spot instances
+- Enhanced masking of sensitive data
+
+#### Projects
+- Setting owner and members are in a dedicated Project Settings section
+- Project Monitoring has a new Consumer Groups report
+
+
+#### Resource management
+- Supports preemptible nodes
+- Add limits to all mlrun function, by default
+
+#### Graph
+- New screen shows real-time pipeline
+
+### Closed issues
+
+- 
+
+
+
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.0)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.0)
+
+
 ## Open issues
 
 | ID   | Description                                            | Workaround                                    | Opened |
@@ -93,6 +264,8 @@ being a column in this df). This could cause breakage for existing custom steps 
 | 2199 | Spark operator job fails with default requests args       | NA                                         | 1.0.0 |
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
 | 2637 | Running a workflow whose project has `init_git=True`, results in Project error |Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                             | 1.1.0 |
+
+Kafka ingestion service on empty feature set returns an error
 
 ## Limitations
 

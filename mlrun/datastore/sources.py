@@ -70,6 +70,10 @@ class BaseSourceDriver(DataSource):
         return mlrun.store_manager.object(url=self.path).as_df()
 
     def filter_df_start_end_time(self, df, time_field):
+        # give priority to source time_field over the feature set's timestamp_key
+        if self.time_field:
+            time_field = self.time_field
+
         if self.start_time or self.end_time:
             self.start_time = (
                 datetime.min if self.start_time is None else self.start_time
@@ -104,6 +108,7 @@ class CSVSource(BaseSourceDriver):
     :parameter path: path to CSV file
     :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
         (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
+    :parameter time_field: DEPRECATED. Use parse_dates to parse timestamps.
     :parameter schedule: string to configure scheduling of the ingestion job.
     :parameter attributes: additional parameters to pass to storey. For example:
         attributes={"timestamp_format": '%Y%m%d%H'}
@@ -121,14 +126,20 @@ class CSVSource(BaseSourceDriver):
         path: str = None,
         attributes: Dict[str, str] = None,
         key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
         parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
-        super().__init__(name, path, attributes, key_field, schedule)
+        super().__init__(name, path, attributes, key_field, time_field, schedule)
         self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
+
+        # give priority to source time_field over feature set
+        # this only matters for augmenting the parse_dates and is only here for backward compatibility
+        if self.time_field:
+            time_field = self.time_field
 
         attributes = self.attributes or {}
         if context:
@@ -189,12 +200,12 @@ class ParquetSource(BaseSourceDriver):
     :parameter name: name of the source
     :parameter path: path to Parquet file or directory
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: Optional. Feature set's timestamp_key will be used if None. The results will be filtered
+         by this column and start_filter & end_filter.
     :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
          'filter_column' > start_filter. Default is None
     :parameter end_filter: datetime. If not None, the results will be filtered by partitions
          'filter_column' <= end_filter. Default is None
-    :parameter filter_column: Optional. if not None, the results will be filtered by this column and
-         start_filter & end_filter
     :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
@@ -212,6 +223,7 @@ class ParquetSource(BaseSourceDriver):
         path: str = None,
         attributes: Dict[str, str] = None,
         key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
@@ -222,6 +234,7 @@ class ParquetSource(BaseSourceDriver):
             path,
             attributes,
             key_field,
+            time_field,
             schedule,
             start_time,
             end_time,
@@ -261,6 +274,10 @@ class ParquetSource(BaseSourceDriver):
         context=None,
     ):
         import storey
+
+        # give priority to source time_field over the feature set's timestamp_key
+        if self.time_field:
+            time_field = self.time_field
 
         attributes = self.attributes or {}
         if context:
@@ -312,6 +329,7 @@ class BigQuerySource(BaseSourceDriver):
                                         must be set to a dataset where the GCP user has table creation permission
     :parameter chunksize: number of rows per chunk (default large single chunk)
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be used for time filtering. Defaults to the feature set's timestamp_key.
     :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
@@ -333,6 +351,7 @@ class BigQuerySource(BaseSourceDriver):
         materialization_dataset: str = None,
         chunksize: int = None,
         key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
         start_time=None,
         end_time=None,
@@ -357,6 +376,7 @@ class BigQuerySource(BaseSourceDriver):
             name,
             attributes=attrs,
             key_field=key_field,
+            time_field=time_field,
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
@@ -490,6 +510,7 @@ class SnowflakeSource(BaseSourceDriver):
 
     :parameter name: source name
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
+    :parameter time_field: the column to be used for time filtering. Defaults to the feature set's timestamp_key.
     :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
@@ -510,6 +531,7 @@ class SnowflakeSource(BaseSourceDriver):
         self,
         name: str = "",
         key_field: str = None,
+        time_field: str = None,
         schedule: str = None,
         start_time=None,
         end_time=None,
@@ -533,6 +555,7 @@ class SnowflakeSource(BaseSourceDriver):
             name,
             attributes=attrs,
             key_field=key_field,
+            time_field=time_field,
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
@@ -633,6 +656,7 @@ class OnlineSource(BaseSourceDriver):
         "path",
         "attributes",
         "key_field",
+        "time_field",
         "online",
         "workers",
     ]
@@ -644,9 +668,10 @@ class OnlineSource(BaseSourceDriver):
         path: str = None,
         attributes: Dict[str, str] = None,
         key_field: str = None,
+        time_field: str = None,
         workers: int = None,
     ):
-        super().__init__(name, path, attributes, key_field)
+        super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
         self.workers = workers
 

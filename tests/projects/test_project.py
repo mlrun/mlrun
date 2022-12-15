@@ -619,35 +619,46 @@ def test_project_ops():
 
 
 @pytest.mark.parametrize(
-    "parameters,hyperparameters,expectation",
+    "parameters,hyperparameters,expectation,run_saved",
     [
-        ({"x": 2**63}, None, pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        (
+            {"x": 2**63},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
         (
             {"x": -(2**63)},
             None,
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
         ),
-        ({"x": 2**63 - 1}, None, does_not_raise()),
-        ({"x": -(2**63) + 1}, None, does_not_raise()),
+        ({"x": 2**63 - 1}, None, does_not_raise(), True),
+        ({"x": -(2**63) + 1}, None, does_not_raise(), True),
         (
             None,
             {"x": [1, 2**63]},
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
         ),
         (
             None,
             {"x": [1, -(2**63)]},
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
         ),
-        (None, {"x": [3, 2**63 - 1]}, does_not_raise()),
-        (None, {"x": [3, -(2**63) + 1]}, does_not_raise()),
+        (None, {"x": [3, 2**63 - 1]}, does_not_raise(), True),
+        (None, {"x": [3, -(2**63) + 1]}, does_not_raise(), True),
     ],
 )
-def test_validating_large_int_params(parameters, hyperparameters, expectation):
+def test_validating_large_int_params(
+    rundb_mock, parameters, hyperparameters, expectation, run_saved
+):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1", save=False)
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
 
+    rundb_mock.reset()
     with expectation:
         proj1.run_function(
             "f1",
@@ -655,3 +666,5 @@ def test_validating_large_int_params(parameters, hyperparameters, expectation):
             hyperparams=hyperparameters,
             local=True,
         )
+
+    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)

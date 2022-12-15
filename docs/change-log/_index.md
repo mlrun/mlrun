@@ -170,14 +170,23 @@ Workflows
    Install `pip install pydantic==1.9.2` after `align_mlrun.sh`. 
    [View in Git](https://github.com/mlrun/mlrun/pull/).
 - MLRun FeatureSet was not not enriching with security context when running from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/
-- Mlrun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/).
+- Mlrun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set 
+   request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/).
+   
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.6)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.6)
 
 ## v1.0.5
 
-### Closed issues).
-- MLRun: remove root permissions. [View in Git](https://github.com/mlrun/mlrun/pull/
-- Users running a pipeline via CLI project run (watch=true) can now set the timeout (previously was 1 hour). [View in Git](https://github.com/mlrun/mlrun/pull/
+### Closed issues
+- MLRun: remove root permissions. [View in Git](https://github.com/mlrun/mlrun/pull/).
+- Users running a pipeline via CLI project run (watch=true) can now set the timeout (previously was 1 hour). [View in Git](https://github.com/mlrun/mlrun/pull/).
 - MLRun: Supports pushing images to ECR. [View in Git](https://github.com/mlrun/mlrun/pull/).
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.5)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.5)
 
 ## v1.0.4
 
@@ -188,12 +197,16 @@ Add vulnerability check to CI and fix vulnerabilities [Backport 1.0.x], #2028, @
 UI: Features & enhancement
 
 ### Closed issues
-- Limit Azure transitive dependency to avoid new bug #2034 [View in Git](https://github.com/mlrun/mlrun/pull/).
-- Images: Fix GPU image to have new signing keys, #2030[View in Git](https://github.com/mlrun/mlrun/pull/).
-- Spark: Allow mounting v3io on driver but not executors [Backport 1.0.x], #2023, @Hedingber[View in Git](https://github.com/mlrun/mlrun/pull/).
-- Tests: Send only string headers to align to new requests limitation #2039  [View in Git](https://github.com/mlrun/mlrun/pull/).
+- Limit Azure transitive dependency to avoid new bug. [View in Git](https://github.com/mlrun/mlrun/pull/2034).
+- Images: Fix GPU image to have new signing keys. [View in Git](https://github.com/mlrun/mlrun/pull/2030).
+- Spark: Allow mounting v3io on driver but not executors. <Backport 1.0.x> [View in Git](https://github.com/mlrun/mlrun/pull/2023).
+- Tests: Send only string headers to align to new requests limitation #2039  [View in Git](https://github.com/mlrun/mlrun/pull/2038).
 - UI: Bug fixes
 
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.4)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.4)
 
 ## v1.0.3
 
@@ -202,7 +215,11 @@ UI: Features & enhancement
 - Images: Fix security vulnerabilities
 - Jupyter Image: Relax artifact_path settings and add README notebook
 - API: Fix projects leader to sync enrichment to followers
-- Projects: Fixes and usability improvements for working with archives
+- Projects: Fixes and usability improvements for working with 
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.3)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.3)
 
 ## v1.0.2
 
@@ -217,6 +234,9 @@ UI: Features & enhancement
 - Requirements: Fix ImportError on ingest to Azure
 - Documentation: New quick start guide and update docker install section
 
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.2)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.2)
 
 ## v1.0.0
 

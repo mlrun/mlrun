@@ -1157,7 +1157,12 @@ def _add_graphviz_flow(
     if targets:
         for target in targets or []:
             target_kind, target_name = target.name.split("/", 1)
-            label = f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+            if target_kind != target_name:
+                label = (
+                    f"<{target_name}<br/><font point-size='8'>({target_kind})</font>>"
+                )
+            else:
+                label = target_name
             graph.node(target.fullname, label=label, shape=target.get_shape())
             last_step = target.after or default_final_step
             if last_step:

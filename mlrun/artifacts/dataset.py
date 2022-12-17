@@ -176,7 +176,27 @@ class DatasetArtifact(Artifact):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", DatasetArtifactSpec)
 
-    def upload(self):
+    def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
+        if not self.spec.target_path:
+            if self.spec.src_path:
+                (
+                    self.metadata.hash,
+                    self.spec.target_path,
+                ) = self.resolve_file_target_hash_path(
+                    self.spec.src_path, artifact_path=artifact_path
+                )
+            else:
+                (
+                    self.metadata.hash,
+                    self.spec.target_path,
+                ) = self.resolve_dataframe_target_hash_path(
+                    self._df, artifact_path=artifact_path
+                )
+
         suffix = pathlib.Path(self.spec.target_path).suffix
         format = self.spec.format
         if not format:
@@ -194,6 +214,19 @@ class DatasetArtifact(Artifact):
             src_path=self.spec.src_path,
             **self._kw,
         )
+
+    def resolve_dataframe_target_hash_path(self, dataframe, artifact_path: str):
+        if not artifact_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unable to resolve body target hash path, artifact_path is not defined"
+            )
+        dataframe_hash = mlrun.utils.helpers.calculate_dataframe_hash(dataframe)
+        suffix = self._resolve_suffix()
+        artifact_path = (
+            artifact_path + "/" if not artifact_path.endswith("/") else artifact_path
+        )
+        target_path = f"{artifact_path}{dataframe_hash}{suffix}"
+        return dataframe_hash, target_path
 
     @property
     def df(self) -> pd.DataFrame:
@@ -235,9 +268,11 @@ class DatasetArtifact(Artifact):
         artifact.spec.header = preview_df.columns.values.tolist()
         artifact.status.preview = preview_df.values.tolist()
         artifact.spec.schema = build_table_schema(preview_df)
-        if (
-            stats
-            or (
+
+        # set artifact stats if stats is explicitly set to true, or if stats is None and the dataframe is small
+        if stats or (
+            stats is None
+            and (
                 artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
             )
             or ignore_preview_limits
@@ -662,4 +697,4 @@ def upload_dataframe(
         size = target_class(path=target_path).write_dataframe(df, **kw)
         return size, None
 
-    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yes")
+    raise mlrun.errors.MLRunInvalidArgumentError(f"format {format} not implemented yet")

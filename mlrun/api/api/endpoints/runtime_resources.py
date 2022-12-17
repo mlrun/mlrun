@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import http
 import typing
@@ -199,6 +213,7 @@ def _delete_runtime_resources(
         allowed_projects,
         grouped_by_project_runtime_resources_output,
         is_non_project_runtime_resource_exists,
+        not_allowed_projects_exist,
     ) = _get_runtime_resources_allowed_projects(
         project,
         auth_info,
@@ -207,6 +222,18 @@ def _delete_runtime_resources(
         object_id,
         mlrun.api.schemas.AuthorizationAction.delete,
     )
+
+    # TODO: once we have more granular permissions, we should check if the user is allowed to delete the specific
+    #  runtime resources and not just the project in general
+    if not_allowed_projects_exist:
+
+        # if the user is not allowed to delete at least one of the projects, we return 403 as to:
+        # 1. not leak information about the existence of not allowed projects
+        # 2. not allow the user to do a partial delete action (delete some projects' resources and not others)
+        raise mlrun.errors.MLRunAccessDeniedError(
+            "Access denied to one or more runtime resources"
+        )
+
     # if nothing allowed, simply return empty response
     if allowed_projects:
         permissions_label_selector = _generate_label_selector_for_allowed_projects(
@@ -267,6 +294,7 @@ def _list_runtime_resources(
         allowed_projects,
         grouped_by_project_runtime_resources_output,
         _,
+        _,
     ) = _get_runtime_resources_allowed_projects(
         project, auth_info, label_selector, kind_filter, object_id
     )
@@ -285,7 +313,10 @@ def _get_runtime_resources_allowed_projects(
     object_id: typing.Optional[str] = None,
     action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
 ) -> typing.Tuple[
-    typing.List[str], mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput, bool
+    typing.List[str],
+    mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
+    bool,
+    bool,
 ]:
     if project != "*":
         mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
@@ -323,10 +354,12 @@ def _get_runtime_resources_allowed_projects(
         auth_info,
         action=action,
     )
+    not_allowed_projects_exist = len(projects) != len(allowed_projects)
     return (
         allowed_projects,
         grouped_by_project_runtime_resources_output,
         is_non_project_runtime_resource_exists,
+        not_allowed_projects_exist,
     )
 
 

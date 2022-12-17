@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import importlib
 import sys
 from typing import Any, Dict, List, Tuple, Union
@@ -118,16 +132,16 @@ class PyTorchMLRunInterface:
         :param scheduler_step_frequency: The frequency in which to step the given scheduler. Can be equal to one of the
                                          strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                          every batch), or an integer that specify per how many iterations to step or a
-                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Default:
                                          'epoch'.
-        :param epochs:                   Amount of epochs to perform. Defaulted to a single epoch.
+        :param epochs:                   Amount of epochs to perform. Default: a single epoch.
         :param training_iterations:      Amount of iterations (batches) to perform on each epoch's training. If 'None'
                                          the entire training set will be used.
         :param validation_iterations:    Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                          the entire validation set will be used.
         :param callbacks:                The callbacks to use on this run.
-        :param use_cuda:                 Whether to use cuda. Only relevant if cuda is available. Defaulted to True.
-        :param use_horovod:              Whether to use horovod - a distributed training framework. Defaulted to None,
+        :param use_cuda:                 Whether to use cuda. Only relevant if cuda is available. Default: True.
+        :param use_horovod:              Whether to use horovod - a distributed training framework. Default: None,
                                          meaning it will be read from context if available and if not - False.
         """
         # Load the input:
@@ -192,7 +206,7 @@ class PyTorchMLRunInterface:
                 ):
                     break
 
-            # End of a epoch callbacks:
+            # End of an epoch callbacks:
             if not self._callbacks_handler.on_epoch_end(epoch=epoch):
                 break
             print()
@@ -222,8 +236,8 @@ class PyTorchMLRunInterface:
         :param iterations:       Amount of iterations (batches) to perform on the dataset. If 'None' the entire dataset
                                  will be used.
         :param callbacks:        The callbacks to use on this run.
-        :param use_cuda:         Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
-        :param use_horovod:      Whether or not to use horovod - a distributed training framework. Defaulted to None,
+        :param use_cuda:         Whether or not to use cuda. Only relevant if cuda is available. Default: True.
+        :param use_horovod:      Whether or not to use horovod - a distributed training framework. Default: None,
                                  meaning it will be read from context if available and if not - False.
 
         :return: The evaluation loss and metrics results in a list.
@@ -298,11 +312,11 @@ class PyTorchMLRunInterface:
         MLRun and Tensorboard, see 'pytorch.callbacks.MLRunLoggingCallback' and
         'pytorch.callbacks.TensorboardLoggingCallback'.
 
-        :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Defaulted to True.
+        :param add_mlrun_logger:            Whether or not to add the 'MLRunLoggingCallback'. Default: True.
         :param mlrun_callback_kwargs:       Key word arguments for the MLRun callback. For further information see the
                                             documentation of the class 'MLRunLoggingCallback'. Note that both 'context'
                                             and 'auto_log' parameters are already given here.
-        :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Defaulted to True.
+        :param add_tensorboard_logger:      Whether or not to add the 'TensorboardLoggingCallback'. Default: True.
         :param tensorboard_callback_kwargs: Key word arguments for the tensorboard callback. For further information see
                                             the documentation of the class 'TensorboardLoggingCallback'. Note that both
                                             'context' and 'auto_log' parameters are already given here.
@@ -342,9 +356,9 @@ class PyTorchMLRunInterface:
 
         :param inputs:     The inputs to infer through the model and get its predictions. Expecting a torch.Tensor or a
                            list of torch.Tensors to match each input layer.
-        :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
+        :param use_cuda:   Whether or not to use cuda. Only relevant if cuda is available. Default: True.
         :param batch_size: Batch size to use for prediction. If equals to -1, the entire inputs will be inferred at once
-                           (batch size will be equal to the amount of inputs). Defaulted to -1.
+                           (batch size will be equal to the amount of inputs). Default: -1.
 
         :return: The model's predictions (outputs) list.
         """
@@ -411,17 +425,17 @@ class PyTorchMLRunInterface:
         :param scheduler_step_frequency: The frequecny in which to step the given scheduler. Can be equal to one of the
                                          strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                          every batch), or an integer that specify per how many iterations to step or a
-                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                         float percentage (0.0 < x < 1.0) for per x / iterations to step. Default:
                                          'epoch'.
-        :param epochs:                   Amount of epochs to perform. Defaulted to a single epoch.
+        :param epochs:                   Amount of epochs to perform. Default: a single epoch.
         :param training_iterations:      Amount of iterations (batches) to perform on each epoch's training. If 'None'
                                          the entire training set will be used.
         :param validation_iterations:    Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                          the entire validation set will be used.
         :param callbacks:                The callbacks to use on this run.
-        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default:
                                          True.
-        :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
+        :param use_horovod:              Whether or not to use horovod - a distributed training framework. Default:
                                          None, meaning it will be read from context if available and if not - False.
 
         :raise MLRunInvalidArgumentError: In case one of the given parameters is invalid.

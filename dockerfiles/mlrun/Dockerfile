@@ -29,7 +29,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 WORKDIR /mlrun
 
-ARG MLRUN_PIP_VERSION=22.0.0
+# non-recursive chmod for the run to be able to create the handler file with any security context
+RUN chmod 777 /mlrun
+
+ARG MLRUN_PIP_VERSION=22.3.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt

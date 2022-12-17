@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 import functools
 import inspect
@@ -230,7 +244,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         Replace the properties of the given object according to the configuration in the MLRun interface.
 
         :param obj:        The object to replace its properties.
-        :param properties: The properties to replace in the object. Defaulted to all the properties in the interface
+        :param properties: The properties to replace in the object. Default: all the properties in the interface
                            '_REPLACE_PROPERTIES' dictionary.
         """
         # Set default replacing properties if there are no properties given:
@@ -274,7 +288,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
 
         :param obj:       The object to replace its functions / methods.
-        :param functions: The functions / methods to replace in the object. Defaulted to all the functions / methods in
+        :param functions: The functions / methods to replace in the object. Default: all the functions / methods in
                           the interface '_REPLACE_METHODS' and '_REPLACE_FUNCTIONS' lists.
         """
         # Set default list if there are no functions / methods to restore:

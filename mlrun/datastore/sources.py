@@ -28,7 +28,7 @@ from mlrun.secrets import SecretsStore
 
 from ..config import config
 from ..model import DataSource
-from ..platforms.iguazio import parse_v3io_path
+from ..platforms.iguazio import parse_path
 from ..utils import get_class
 from .utils import store_path_to_spark
 
@@ -200,7 +200,7 @@ class ParquetSource(BaseSourceDriver):
          'filter_column' <= end_filter. Default is None
     :parameter filter_column: Optional. if not None, the results will be filtered by this column and
          start_filter & end_filter
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+    :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
@@ -321,12 +321,12 @@ class BigQuerySource(BaseSourceDriver):
     :parameter chunksize: number of rows per chunk (default large single chunk)
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+    :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
     :parameter gcp_project: google cloud project name
-    :parameter spark_options: additional spart read options
+    :parameter spark_options: additional spark read options
     """
 
     kind = "bigquery"
@@ -502,7 +502,7 @@ class SnowflakeSource(BaseSourceDriver):
     :parameter name: source name
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
     :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
-    :parameter schedule: string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
+    :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
     :parameter end_time: filters out data after this time
@@ -742,7 +742,7 @@ class StreamSource(OnlineSource):
         super().__init__(name, attributes=attrs, **kwargs)
 
     def add_nuclio_trigger(self, function):
-        endpoint, stream_path = parse_v3io_path(self.path)
+        endpoint, stream_path = parse_path(self.path)
         v3io_client = v3io.dataplane.Client(endpoint=endpoint)
         container, stream_path = split_path(stream_path)
         res = v3io_client.create_stream(
@@ -771,13 +771,14 @@ class KafkaSource(OnlineSource):
 
     def __init__(
         self,
-        brokers="localhost:9092",
-        topics="topic",
+        brokers=None,
+        topics=None,
         group="serving",
         initial_offset="earliest",
         partitions=None,
         sasl_user=None,
         sasl_pass=None,
+        attributes=None,
         **kwargs,
     ):
         """Sets kafka source for the flow
@@ -789,37 +790,45 @@ class KafkaSource(OnlineSource):
         :param partitions: Optional, A list of partitions numbers for which the function receives events.
         :param sasl_user: Optional, user name to use for sasl authentications
         :param sasl_pass: Optional, password to use for sasl authentications
+        :param attributes: Optional, extra attributes to be passed to kafka trigger
         """
         if isinstance(topics, str):
             topics = [topics]
         if isinstance(brokers, str):
             brokers = [brokers]
-        attrs = {
-            "brokers": brokers,
-            "topics": topics,
-            "partitions": partitions,
-            "group": group,
-            "initial_offset": initial_offset,
-        }
+        attributes = {} if attributes is None else copy(attributes)
+        attributes["brokers"] = brokers
+        attributes["topics"] = topics
+        attributes["group"] = group
+        attributes["initial_offset"] = initial_offset
+        if partitions is not None:
+            attributes["partitions"] = partitions
+        sasl = attributes.pop("sasl", {})
         if sasl_user and sasl_pass:
-            attrs["sasl_user"] = sasl_user
-            attrs["sasl_user"] = sasl_user
-        super().__init__(attributes=attrs, **kwargs)
+            sasl["enabled"] = True
+            sasl["user"] = sasl_user
+            sasl["password"] = sasl_pass
+        if sasl:
+            attributes["sasl"] = sasl
+        super().__init__(attributes=attributes, **kwargs)
+
+    def to_dataframe(self):
+        raise mlrun.MLRunInvalidArgumentError(
+            "KafkaSource does not support batch processing"
+        )
 
     def add_nuclio_trigger(self, function):
-        partitions = self.attributes.get("partitions")
+        extra_attributes = copy(self.attributes)
+        partitions = extra_attributes.pop("partitions", None)
         trigger = KafkaTrigger(
-            brokers=self.attributes["brokers"],
-            topics=self.attributes["topics"],
+            brokers=extra_attributes.pop("brokers"),
+            topics=extra_attributes.pop("topics"),
             partitions=partitions,
-            consumer_group=self.attributes["group"],
-            initial_offset=self.attributes["initial_offset"],
+            consumer_group=extra_attributes.pop("group"),
+            initial_offset=extra_attributes.pop("initial_offset"),
+            extra_attributes=extra_attributes,
         )
         func = function.add_trigger("kafka", trigger)
-        sasl_user = self.attributes.get("sasl_user")
-        sasl_pass = self.attributes.get("sasl_pass")
-        if sasl_user and sasl_pass:
-            trigger.sasl(sasl_user, sasl_pass)
         replicas = 1 if not partitions else len(partitions)
         func.spec.min_replicas = replicas
         func.spec.max_replicas = replicas

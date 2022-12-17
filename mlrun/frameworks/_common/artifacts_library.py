@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from abc import ABC, abstractmethod
 from typing import Dict, List, Type, Union
 
@@ -39,7 +53,7 @@ class ArtifactsLibrary(ABC):
         :param artifacts:         The artifacts parameter passed to the function. Can be passed as a configuration
                                   dictionary or an initialized plans list that will simply be returned.
         :param context:           A context to look in if the configuration was passed as a parameter.
-        :param include_default:   Whether to include the default in addition to the provided plans. Defaulted to True.
+        :param include_default:   Whether to include the default in addition to the provided plans. Default: True.
         :param default_kwargs:    Additional key word arguments to pass to the 'default' method of the given artifact
                                   library class.
 

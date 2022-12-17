@@ -60,7 +60,7 @@ def schema_to_store(schema):
             )
 
         return S3Store
-    elif schema == "az":
+    elif schema in ["az", "wasbs", "wasb"]:
         try:
             from .azure_blob import AzureBlobStore
         except ImportError:
@@ -71,6 +71,10 @@ def schema_to_store(schema):
         return AzureBlobStore
     elif schema in ["v3io", "v3ios"]:
         return V3ioStore
+    elif schema in ["redis", "rediss"]:
+        from .redis import RedisStore
+
+        return RedisStore
     elif schema in ["http", "https"]:
         return HttpStore
     elif schema in ["gcs", "gs"]:
@@ -134,11 +138,19 @@ class StoreManager:
     def _add_store(self, store):
         self._stores[store.name] = store
 
-    def get_store_artifact(self, url, project="", allow_empty_resources=None):
-
+    def get_store_artifact(
+        self, url, project="", allow_empty_resources=None, secrets=None
+    ):
+        """
+        This is expected to be run only on client side. server is not expected to load artifacts.
+        """
         try:
             resource = get_store_resource(
-                url, db=self._get_db(), secrets=self._secrets, project=project
+                url,
+                db=self._get_db(),
+                secrets=self._secrets,
+                project=project,
+                data_store_secrets=secrets,
             )
         except Exception as exc:
             raise OSError(f"artifact {url} not found, {exc}")
@@ -151,16 +163,20 @@ class StoreManager:
             )
         return resource, target
 
-    def object(self, url, key="", project="", allow_empty_resources=None) -> DataItem:
+    def object(
+        self, url, key="", project="", allow_empty_resources=None, secrets: dict = None
+    ) -> DataItem:
         meta = artifact_url = None
         if is_store_uri(url):
             artifact_url = url
-            meta, url = self.get_store_artifact(url, project, allow_empty_resources)
+            meta, url = self.get_store_artifact(
+                url, project, allow_empty_resources, secrets
+            )
 
-        store, subpath = self.get_or_create_store(url)
+        store, subpath = self.get_or_create_store(url, secrets=secrets)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
-    def get_or_create_store(self, url) -> (DataStore, str):
+    def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
 
@@ -175,9 +191,16 @@ class StoreManager:
                 raise ValueError(f"no such store ({endpoint})")
 
         store_key = f"{schema}://{endpoint}"
-        if store_key in self._stores.keys():
-            return self._stores[store_key], subpath
+        if not secrets and not mlrun.config.is_running_as_api():
+            if store_key in self._stores.keys():
+                return self._stores[store_key], subpath
 
-        store = schema_to_store(schema)(self, schema, store_key, endpoint)
-        self._stores[store_key] = store
+        # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
+        # when running on server we don't cache the datastore, because there are multiple users and we don't want to
+        # cache the credentials, so for each new request we create a new store
+        store = schema_to_store(schema)(
+            self, schema, store_key, parsed_url.netloc, secrets=secrets
+        )
+        if not secrets and not mlrun.config.is_running_as_api():
+            self._stores[store_key] = store
         return store, subpath

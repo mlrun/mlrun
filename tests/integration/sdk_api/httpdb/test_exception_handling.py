@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 
 import mlrun
@@ -60,20 +74,6 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         ):
             mlrun.get_run_db().delete_project(
                 "some-project-name", deletion_strategy=invalid_deletion_strategy
-            )
-
-        # python exception - list endpoints uses v3io client which uses python http client which throws some exception
-        # (socket.gaierror) since the v3io address is empty
-        # This is handled in the mlrun/api/main.py::generic_error_handler
-        with pytest.raises(
-            mlrun.errors.MLRunInternalServerError,
-            match=r"500 Server Error: Internal Server Error for url: http:\/\/(.*)"
-            rf"\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project\/model-"
-            r"endpoints\?start=now-1h&end=now&top-level=False: details: {\'reason\': \"ValueError\(\'Access key must be"
-            r" provided in Client\(\) arguments or in the V3IO_ACCESS_KEY environment variable\'\)\"}",
-        ):
-            mlrun.get_run_db().list_model_endpoints(
-                "some-project", access_key="some-access-key"
             )
 
         # lastly let's verify that a request error (failure reaching to the server) is handled nicely

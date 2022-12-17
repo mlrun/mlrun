@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 from abc import abstractmethod
 from datetime import datetime
@@ -75,7 +89,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
                                       tensorboard. Can be passed as a string equal to 'epoch' for per epoch and 'batch'
                                       for per single batch, or as an integer specifying per how many iterations to
                                       update. Notice that writing to tensorboard too frequently may cause the training
-                                      to be slower. Defaulted to 'epoch'.
+                                      to be slower. Default: 'epoch'.
 
         :raise MLRunInvalidArgumentError: If the `update_frequency` is illegal or if `tensorboard_directory` and
                                           `context` were not given.
@@ -590,7 +604,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         """
         Extract the given epoch results from all the collected values and results.
 
-        :param epoch: The epoch to get the results. Defaulted to the last epoch (-1).
+        :param epoch: The epoch to get the results. Default: the last epoch (-1).
 
         :return: A dictionary where the keys are the collected value and the values are the results.
         """

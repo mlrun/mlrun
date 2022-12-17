@@ -1,6 +1,23 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
+import shutil
+import tempfile
 import zipfile
+from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import inflection
@@ -10,6 +27,16 @@ import mlrun
 import mlrun.errors
 import mlrun.projects.project
 import tests.conftest
+
+
+@pytest.fixture()
+def context():
+    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
+    yield context
+
+    # clean up
+    if context.exists():
+        shutil.rmtree(context)
 
 
 def test_sync_functions():
@@ -58,11 +85,41 @@ def test_create_project_from_file_with_legacy_structure():
         "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
         "o-Customer-Churn.csv",
         "db_key": "raw-data",
+        "src_path": "./relative_path",
     }
-    legacy_project.artifacts = [artifact_dict]
+    model_dict = {
+        "db_key": "model_best_estimator",
+        "framework": "xgboost",
+        "hash": "934cb89155cfd9225cb6f7271f1f1bb775eeb340",
+        "iter": "0",
+        "key": "model_best_estimator",
+        "kind": "model",
+        "labels": {"framework": "xgboost"},
+        "model_file": "model_best_estimator.pkl",
+        "producer": {
+            "kind": "run",
+            "name": "some_run",
+            "owner": "admin",
+            "uri": "some_run/311a3bb1c85145e7a3daa0aa4189a4f9",
+            "workflow": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
+        },
+        "size": 100,
+        "tag": "0.0.24",
+        "tree": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
+        "src_path": "./relative_path",
+        "target_path": "/some/target/path",
+        "updated": "2022-09-29T19:32:57.718312+00:00",
+    }
+
+    legacy_project.artifacts = [artifact_dict, model_dict]
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
     project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
+
+    # This is usually called as part of load_project. However, since we're using save=False, this doesn't get
+    # called. So, calling manually to verify it works.
+    project.register_artifacts()
+
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description
@@ -190,6 +247,170 @@ def test_build_project_from_minimal_dict():
     mlrun.projects.MlrunProject.from_dict(project_dict)
 
 
+@pytest.mark.parametrize(
+    "url,project_name,project_files,clone,num_of_files_to_create,create_child_dir,"
+    "override_context,expect_error,error_msg",
+    [
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            True,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.zip",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "project.tar.gz",
+            "pipe2",
+            ["prep_data.py", "project.yaml"],
+            False,
+            3,
+            True,
+            "",
+            False,
+            "",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            3,
+            True,
+            "",
+            True,
+            "Failed to load project from git, context directory is not empty. "
+            "Set clone param to True to remove the contents of the context directory.",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            [],
+            False,
+            0,
+            False,
+            pathlib.Path(tests.conftest.tests_root_directory)
+            / "projects"
+            / "assets"
+            / "body.txt",
+            True,
+            "projects/assets/body.txt' already exists and is not an empty directory",
+        ),
+        (
+            "git://github.com/mlrun/project-demo.git",
+            "pipe",
+            ["prep_data.py", "project.yaml", "kflow.py", "newflow.py"],
+            False,
+            0,
+            False,
+            "",
+            False,
+            "",
+        ),
+    ],
+)
+def test_load_project(
+    context,
+    url,
+    project_name,
+    project_files,
+    clone,
+    num_of_files_to_create,
+    create_child_dir,
+    override_context,
+    expect_error,
+    error_msg,
+):
+    temp_files = []
+    child_dir = os.path.join(context, "child")
+
+    # use override context to test invalid paths - it will not be deleted on teardown
+    context = override_context or context
+
+    # create random files
+    if num_of_files_to_create:
+        context.mkdir()
+        temp_files = [
+            tempfile.NamedTemporaryFile(dir=context, delete=False).name
+            for _ in range(num_of_files_to_create)
+        ]
+        for temp_file in temp_files:
+            assert os.path.exists(os.path.join(context, temp_file))
+
+    if create_child_dir:
+        os.mkdir(child_dir)
+
+    if expect_error:
+        with pytest.raises(Exception) as exc:
+            mlrun.load_project(context=context, url=url, clone=clone, save=False)
+        assert error_msg in str(exc.value)
+        return
+
+    project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
+
+    for temp_file in temp_files:
+
+        # verify that the context directory was cleaned if clone is True
+        assert os.path.exists(os.path.join(context, temp_file)) is not clone
+
+    if create_child_dir:
+        assert os.path.exists(child_dir) is not clone
+
+    assert project.name == project_name
+    assert project.spec.context == context
+    assert project.spec.source == str(url)
+    for project_file in project_files:
+        assert os.path.exists(os.path.join(context, project_file))
+
+
 def _assert_project_function_objects(project, expected_function_objects):
     project_function_objects = project.spec._function_objects
     assert len(project_function_objects) == len(expected_function_objects)
@@ -220,6 +441,33 @@ def test_set_func_requirements():
         "python -m pip install y",
         "python -m pip install pandas",
     ]
+
+
+def test_set_func_with_tag():
+    project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
+    project.set_function(
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        "desc1",
+        tag="v1",
+        image="mlrun/mlrun",
+    )
+
+    func = project.get_function("desc1")
+    assert func.metadata.tag == "v1"
+    project.set_function(
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        "desc1",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc1")
+    assert func.metadata.tag is None
+    project.set_function(
+        str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        "desc2",
+        image="mlrun/mlrun",
+    )
+    func = project.get_function("desc2")
+    assert func.metadata.tag is None
 
 
 def test_function_run_cli():
@@ -270,3 +518,153 @@ def test_export_to_zip():
     # check upload to (remote) DataItem
     project.export("memory://x.zip")
     assert mlrun.get_dataitem("memory://x.zip").stat().size
+
+
+def test_function_receives_project_artifact_path(rundb_mock):
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+    func1 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    run1 = func1.run(local=True)
+    # because there is not artifact path in the project, then the default artifact path is used
+    assert run1.spec.output_path == mlrun.mlconf.artifact_path
+    rundb_mock.reset()
+
+    proj1.spec.artifact_path = "/var"
+
+    func2 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    run2 = func2.run(local=True)
+    assert run2.spec.output_path == proj1.spec.artifact_path
+
+    run3 = func2.run(local=True, artifact_path="/not/tmp")
+    assert run3.spec.output_path == "/not/tmp"
+
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+
+    run4 = func2.run(local=True, project="proj1")
+    assert run4.spec.output_path == proj1.spec.artifact_path
+
+    rundb_mock.reset()
+    mlrun.pipeline_context.clear(with_project=True)
+
+    func3 = mlrun.code_to_function(
+        "func", kind="job", image="mlrun/mlrun", handler="myhandler", filename=func_path
+    )
+    # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
+    run5 = func3.run(local=True, project="proj1")
+    assert run5.spec.output_path == mlrun.mlconf.artifact_path
+
+
+def test_run_function_passes_project_artifact_path(rundb_mock):
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    # expected to call `get_project` because there is no proj1.artifact_path
+    mlrun.get_run_db().store_project("proj1", proj1)
+    run1 = proj1.run_function("f1", local=True)
+    assert run1.spec.output_path == mlrun.mlconf.artifact_path
+    rundb_mock.reset()
+
+    proj1.spec.artifact_path = "/var"
+
+    run2 = proj1.run_function("f1", local=True)
+    assert run2.spec.output_path == proj1.spec.artifact_path
+
+    mlrun.pipeline_context.workflow_artifact_path = "/data"
+    run3 = proj1.run_function("f1", local=True)
+    assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    # without using project's run_function
+    run4 = mlrun.run_function(proj1.get_function("f1"))
+    assert run4.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    # without using project's run_function, but passing project object instead
+    run5 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
+    assert run5.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
+
+    mlrun.pipeline_context.clear(with_project=True)
+    # expected to call `get_project`
+    mlrun.get_run_db().store_project("proj1", proj1)
+    run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
+    assert run6.spec.output_path == proj1.spec.artifact_path
+
+
+def test_project_ops():
+    # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    proj2 = mlrun.new_project("proj2", save=False)
+    proj2.set_function(func_path, "f2", image="mlrun/mlrun", handler="myhandler")
+
+    run = proj1.run_function("f1", params={"x": 1}, local=True)
+    assert run.spec.function.startswith("proj1/f1")
+    assert run.output("y") == 2  # = x * 2
+
+    run = proj2.run_function("f2", params={"x": 2}, local=True)
+    assert run.spec.function.startswith("proj2/f2")
+    assert run.output("y") == 4  # = x * 2
+
+
+@pytest.mark.parametrize(
+    "parameters,hyperparameters,expectation,run_saved",
+    [
+        (
+            {"x": 2**63},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        (
+            {"x": -(2**63)},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        ({"x": 2**63 - 1}, None, does_not_raise(), True),
+        ({"x": -(2**63) + 1}, None, does_not_raise(), True),
+        (
+            None,
+            {"x": [1, 2**63]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        (
+            None,
+            {"x": [1, -(2**63)]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        (None, {"x": [3, 2**63 - 1]}, does_not_raise(), True),
+        (None, {"x": [3, -(2**63) + 1]}, does_not_raise(), True),
+    ],
+)
+def test_validating_large_int_params(
+    rundb_mock, parameters, hyperparameters, expectation, run_saved
+):
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    rundb_mock.reset()
+    with expectation:
+        proj1.run_function(
+            "f1",
+            params=parameters,
+            hyperparams=hyperparameters,
+            local=True,
+        )
+
+    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)

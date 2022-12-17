@@ -1,8 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import datetime
 import traceback
 import typing
 
 import humanfriendly
 import mergedeep
+import pytz
 import sqlalchemy.orm
 
 import mlrun.api.crud
@@ -284,9 +300,18 @@ class Member(
         :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
         also sync deletions that may occur without updating us the follower
         """
-        leader_projects, latest_updated_at = self._leader_client.list_projects(
-            self._sync_session, self._synced_until_datetime
-        )
+        try:
+            leader_projects, latest_updated_at = self._leader_client.list_projects(
+                self._sync_session, self._synced_until_datetime
+            )
+        except Exception:
+
+            # if we failed to get projects from the leader, we'll try get all the
+            # projects without the updated_at filter
+            leader_projects, latest_updated_at = self._leader_client.list_projects(
+                self._sync_session
+            )
+
         db_session = mlrun.api.db.session.create_session()
         try:
             db_projects = mlrun.api.crud.Projects().list_projects(
@@ -326,6 +351,12 @@ class Member(
                         mlrun.api.schemas.DeletionStrategy.cascading,
                     )
             if latest_updated_at:
+
+                # sanity and defensive programming - if the leader returned a latest_updated_at that is older
+                # than the epoch, we'll set it to the epoch
+                epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))
+                if latest_updated_at < epoch:
+                    latest_updated_at = epoch
                 self._synced_until_datetime = latest_updated_at
         finally:
             mlrun.api.db.session.close_session(db_session)

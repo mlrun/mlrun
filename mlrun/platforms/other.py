@@ -14,6 +14,9 @@
 #
 # this file is based on the code from kubeflow pipelines git
 import os
+from typing import Dict
+
+import kfp.dsl
 
 import mlrun
 from mlrun.config import config
@@ -180,15 +183,21 @@ def mount_s3(
 ):
     """Modifier function to add s3 env vars or secrets to container
 
+    **Warning:**
+    Using this function to configure AWS credentials will expose these credentials in the pod spec of the runtime
+    created. It is recommended to use the `secret_name` parameter, or set the credentials as project-secrets and avoid
+    using this function.
+
     :param secret_name: kubernetes secret name (storing the access/secret keys)
-    :param aws_access_key: AWS_ACCESS_KEY_ID value
-    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value
+    :param aws_access_key: AWS_ACCESS_KEY_ID value. If this parameter is not specified and AWS_ACCESS_KEY_ID env.
+                            variable is defined, the value will be taken from the env. variable
+    :param aws_secret_key: AWS_SECRET_ACCESS_KEY value. If this parameter is not specified and AWS_SECRET_ACCESS_KEY
+                            env. variable is defined, the value will be taken from the env. variable
     :param endpoint_url: s3 endpoint address (for non AWS s3)
     :param prefix: string prefix to add before the env var name (for working with multiple s3 data stores)
     :param aws_region: amazon region
     :param non_anonymous: force the S3 API to use non-anonymous connection, even if no credentials are provided
         (for authenticating externally, such as through IAM instance-roles)
-    :return:
     """
 
     if secret_name and (aws_access_key or aws_secret_key):
@@ -196,7 +205,12 @@ def mount_s3(
             "can use k8s_secret for credentials or specify them (aws_access_key, aws_secret_key) not both"
         )
 
-    if aws_access_key or aws_secret_key:
+    if not secret_name and (
+        aws_access_key
+        or os.environ.get(prefix + "AWS_ACCESS_KEY_ID")
+        or aws_secret_key
+        or os.environ.get(prefix + "AWS_SECRET_ACCESS_KEY")
+    ):
         logger.warning(
             "it is recommended to use k8s secret (specify secret_name), "
             "specifying the aws_access_key/aws_secret_key directly is unsafe"
@@ -258,3 +272,35 @@ def mount_s3(
             )
 
     return _use_s3_cred
+
+
+def set_env_variables(env_vars_dict: Dict[str, str] = None, **kwargs):
+    """
+    Modifier function to apply a set of environment variables to a runtime. Variables may be passed
+    as either a dictionary of name-value pairs, or as arguments to the function.
+    See `KubeResource.apply` for more information on modifiers.
+
+    Usage::
+
+        function.apply(set_env_variables({"ENV1": "value1", "ENV2": "value2"}))
+        or
+        function.apply(set_env_variables(ENV1=value1, ENV2=value2))
+
+    :param env_vars_dict: dictionary of env. variables
+    :param kwargs: environment variables passed as args
+    """
+
+    env_data = env_vars_dict.copy() if env_vars_dict else {}
+    for key, value in kwargs.items():
+        env_data[key] = value
+
+    def _set_env_variables(container_op: kfp.dsl.ContainerOp):
+        from kubernetes import client as k8s_client
+
+        for _key, _value in env_data.items():
+            container_op.container.add_env_variable(
+                k8s_client.V1EnvVar(name=_key, value=_value)
+            )
+        return container_op
+
+    return _set_env_variables

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import re
 import subprocess
@@ -23,6 +37,7 @@ class PackageTester:
         )
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
         targets_import = "import mlrun.datastore.targets"
+        redis_import = "import redis"
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
@@ -46,11 +61,12 @@ class PackageTester:
             "[google-cloud-storage]": {
                 "import_test_command": f"{basic_import}; {google_cloud_storage_import}"
             },
+            "[redis]": {"import_test_command": f"{basic_import}; {redis_import}"},
             # TODO: this won't actually fail if the requirement is missing
             "[kafka]": {"import_test_command": f"{basic_import}; {targets_import}"},
             "[complete]": {
                 "import_test_command": f"{basic_import}; {s3_import}; {azure_blob_storage_import}; "
-                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {targets_import}",
+                + f"{azure_key_vault_import}; {google_cloud_storage_import}; {redis_import}; {targets_import}",
                 "perform_vulnerability_check": True,
             },
         }
@@ -247,7 +263,7 @@ class PackageTester:
             extra=extra,
         )
         self._run_command(
-            "python -m pip install --upgrade pip~=22.0.0",
+            "python -m pip install --upgrade pip~=22.3.0",
             run_in_venv=True,
         )
 

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import shutil
 import zipfile
@@ -80,7 +94,7 @@ class TFKerasModelHandler(DLModelHandler):
                                          * If given a loaded model object and the model name is None, the name will be
                                            set to the model's object name / class.
         :param model_format:             The format to use for saving and loading the model. Should be passed as a
-                                         member of the class 'ModelFormats'. Defaulted to 'ModelFormats.SAVED_MODEL'.
+                                         member of the class 'ModelFormats'. Default: 'ModelFormats.SAVED_MODEL'.
         :param context:                  MLRun context to work with for logging the model.
         :param modules_map:              A dictionary of all the modules required for loading the model. Each key
                                          is a path to a module and its value is the object name to import from it. All
@@ -203,7 +217,7 @@ class TFKerasModelHandler(DLModelHandler):
         logged and returned as artifacts.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted artifacts location.
+                            stored will be used to save the model in the default artifacts location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
@@ -317,14 +331,14 @@ class TFKerasModelHandler(DLModelHandler):
         :param model_name:      The name to give to the converted ONNX model. If not given the default name will be the
                                 stored model name with the suffix '_onnx'.
         :param optimize:        Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
-                                Defaulted to True.
+                                Default: True.
         :param input_signature: An numpy.ndarray or tensorflow.TensorSpec that describe the input port (shape and data
                                 type). If the model has multiple inputs, a list is expected in the order of the input
                                 ports. If not provided, the method will try to extract the input signature of the model.
         :param output_path:     In order to save the ONNX model, pass here the output directory. The model file will be
-                                named with the model name given. Defaulted to None (not saving).
+                                named with the model name given. Default: None (not saving).
         :param log:             In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                handler has a MLRun context set. Defaulted to None.
+                                handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

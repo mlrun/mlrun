@@ -1,6 +1,22 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import shutil
 import unittest
 from http import HTTPStatus
 from os import environ
+from pathlib import Path
 from typing import Callable, Generator
 from unittest.mock import Mock
 
@@ -28,7 +44,7 @@ from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
-from tests.conftest import logs_path, root_path, rundb_path
+from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
 
@@ -36,6 +52,13 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_test_base():
+
+    # recreating the test results path on each test instead of running it on conftest since
+    # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
+    # in parallel and may cause errors.
+    shutil.rmtree(results, ignore_errors=True, onerror=None)
+    Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
+
     environ["PYTHONPATH"] = root_path
     environ["MLRUN_DBPATH"] = rundb_path
     environ["MLRUN_httpdb__dirpath"] = rundb_path
@@ -49,12 +72,14 @@ def config_test_base():
     # reload config so that values overridden by tests won't pass to other tests
     mlrun.config.config.reload()
 
-    # remove the run db cache so it won't pass between tests
+    # remove the run db cache, so it won't pass between tests
     mlrun.db._run_db = None
     mlrun.db._last_db_url = None
     mlrun.datastore.store_manager._db = None
     mlrun.datastore.store_manager._stores = {}
 
+    # remove the is_running_as_api cache, so it won't pass between tests
+    mlrun.config._is_running_as_api = None
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
 
@@ -156,11 +181,22 @@ class RunDBMock:
     def reset(self):
         self._function = None
         self._pipeline = None
+        self._project_name = None
+        self._project = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
         self._function = function
         return "1234-1234-1234-1234"
+
+    def store_run(self, struct, uid, project="", iter=0):
+        self._run = {
+            uid: {
+                "struct": struct,
+                "projct": project,
+                "iter": iter,
+            }
+        }
 
     def get_function(self, function, project, tag):
         return {
@@ -192,6 +228,12 @@ class RunDBMock:
         self._project_name = name
         self._project = project
 
+    def get_project(self, name):
+        if self._project_name and name == self._project_name:
+            return self._project
+        else:
+            raise mlrun.errors.MLRunNotFoundError("Project not found")
+
     def remote_builder(
         self,
         func,
@@ -205,7 +247,13 @@ class RunDBMock:
             state="ready",
             nuclio_name="test-nuclio-name",
         )
-        return {"data": {"status": status.to_dict()}}
+        return {
+            "data": {
+                "status": status.to_dict(),
+                "metadata": self._function.get("metadata"),
+                "spec": self._function.get("spec"),
+            }
+        }
 
     def get_builder_status(
         self,
@@ -317,6 +365,13 @@ class RunDBMock:
             expected_envs["S3_NON_ANONYMOUS"] = "true"
         assert expected_envs == env_dict
 
+    def assert_env_variables(self, expected_env_dict):
+        env_list = self._function["spec"]["env"]
+        env_dict = {item["name"]: item["value"] for item in env_list}
+
+        for key, value in expected_env_dict.items():
+            assert env_dict[key] == value
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.api.schemas.AuthorizationVerificationInput,
@@ -334,7 +389,6 @@ def rundb_mock() -> RunDBMock:
 
     orig_use_remote_api = BaseRuntime._use_remote_api
     orig_get_db = BaseRuntime._get_db
-    BaseRuntime._use_remote_api = unittest.mock.Mock(return_value=True)
     BaseRuntime._get_db = unittest.mock.Mock(return_value=mock_object)
 
     orig_db_path = config.dbpath

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import unittest.mock
 from datetime import datetime, timedelta
@@ -70,10 +84,15 @@ def test_grafana_proxy_model_endpoints_check_connection(
 def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
-    for endpoint in endpoints_in:
-        mlrun.api.crud.ModelEndpoints().write_endpoint_to_kv(
-            _get_access_key(), endpoint
+    # Initialize endpoint store target object
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+            project=TEST_PROJECT, access_key=_get_access_key()
         )
+    )
+
+    for endpoint in endpoints_in:
+        endpoint_target.write_model_endpoint(endpoint)
 
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
@@ -412,8 +431,15 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
     for e in endpoints:
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
+    # Initialize endpoint store target object
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+            project=TEST_PROJECT, access_key=_get_access_key()
+        )
+    )
+
     for endpoint in endpoints:
-        mlrun.api.crud.ModelEndpoints().create_or_patch(_get_access_key(), endpoint)
+        endpoint_target.write_model_endpoint(endpoint)
 
         total = 0
 

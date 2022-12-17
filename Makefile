@@ -37,7 +37,12 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.7.13
-MLRUN_PIP_VERSION ?= 22.0.0
+MLRUN_PIP_VERSION ?= 22.2.0
+# MLRUN_GPU_PIP_VERSION is used because pip declaration in the dockerfile of gpu image is almost at the start of the file
+# which will cause the cache to be mostly invalidated if we change the pip version, because we are unable to rebuild
+# the image until we will move to newer python version, we will use the old one which is 22.0.0
+# TODO: remove this variable when we will move to newer python version
+MLRUN_GPU_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -66,6 +71,19 @@ MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
+# if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
+# if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
+# if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
+MLRUN_SYSTEM_TESTS_COMPONENT ?=
+MLRUN_SYSTEM_TESTS_IGNORE_COMPONENT := $(shell echo "$(MLRUN_SYSTEM_TESTS_COMPONENT)" | sed 's/^no_\(.*\)/\1/g')
+ifndef MLRUN_SYSTEM_TESTS_COMPONENT
+	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "tests/system"
+else ifeq ($(MLRUN_SYSTEM_TESTS_COMPONENT),$(MLRUN_SYSTEM_TESTS_IGNORE_COMPONENT))
+	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT)"
+else
+	MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX = "--ignore=tests/system/$(MLRUN_SYSTEM_TESTS_COMPONENT) tests/system"
+endif
+
 .PHONY: help
 help: ## Display available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -84,6 +102,16 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt \
 		-r docs/requirements.txt
+
+.PHONY: install-complete-requirements
+install-complete-requirements: ## Install all requirements needed for development and testing
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	python -m pip install .[complete]
+
+.PHONY: install-all-requirements
+install-all-requirements: ## Install all requirements needed for development and testing
+	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
+	python -m pip install .[all]
 
 .PHONY: create-migration-sqlite
 create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
@@ -273,7 +301,7 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
+		--build-arg MLRUN_PIP_VERSION=$(MLRUN_GPU_PIP_VERSION) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
@@ -452,7 +480,12 @@ test-migrations: clean ## Run mlrun db migrations tests
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
-	docker run --env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) -t --rm $(MLRUN_SYSTEM_TEST_IMAGE_NAME)
+	docker run \
+		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
+		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
+		-t \
+		--rm \
+		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)
 
 .PHONY: test-system
 test-system: ## Run mlrun system tests
@@ -461,7 +494,7 @@ test-system: ## Run mlrun system tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/system
+		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-system-open-source
 test-system-open-source: update-version-file ## Run mlrun system tests with opensource configuration
@@ -471,7 +504,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		--durations=100 \
 		-rf \
 		-m "not enterprise" \
-		tests/system
+		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
 .PHONY: test-package
 test-package: ## Run mlrun package tests

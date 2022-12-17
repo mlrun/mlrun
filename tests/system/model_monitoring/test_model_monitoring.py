@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
 import string
@@ -13,9 +27,12 @@ import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
 import mlrun
+import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.artifacts.model
 import mlrun.feature_store
+import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.utils
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -37,10 +54,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
     project_name = "model-monitor-sys-test4"
 
     def test_clear_endpoint(self):
+        """Validates the process of create and delete a basic model endpoint"""
+
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
 
-        db.create_or_patch_model_endpoint(
+        db.create_model_endpoint(
             endpoint.metadata.project, endpoint.metadata.uid, endpoint
         )
 
@@ -50,9 +69,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         assert endpoint_response
         assert endpoint_response.metadata.uid == endpoint.metadata.uid
 
-        db.delete_model_endpoint_record(
-            endpoint.metadata.project, endpoint.metadata.uid
-        )
+        db.delete_model_endpoint(endpoint.metadata.project, endpoint.metadata.uid)
 
         # test for existence with "underlying layers" functions
         with pytest.raises(MLRunNotFoundError):
@@ -61,33 +78,58 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             )
 
     def test_store_endpoint_update_existing(self):
+        """Validates the process of create and update a basic model endpoint"""
+
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
 
-        db.create_or_patch_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
+        db.create_model_endpoint(
+            project=endpoint.metadata.project,
+            endpoint_id=endpoint.metadata.uid,
+            model_endpoint=endpoint,
         )
 
         endpoint_before_update = db.get_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid
+            project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
         )
 
         assert endpoint_before_update.status.state is None
 
         updated_state = "testing...testing...1 2 1 2"
-        endpoint_before_update.status.state = updated_state
+        drift_status = "DRIFT_DETECTED"
+        current_stats = {
+            "tvd_sum": 2.2,
+            "tvd_mean": 0.5,
+            "hellinger_sum": 3.6,
+            "hellinger_mean": 0.9,
+            "kld_sum": 24.2,
+            "kld_mean": 6.0,
+            "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
+            "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
+        }
 
-        db.create_or_patch_model_endpoint(
-            endpoint_before_update.metadata.project,
-            endpoint_before_update.metadata.uid,
-            endpoint_before_update,
+        # {"drift_status": "POSSIBLE_DRIFT", "state": "new_state"}
+
+        # Create attributes dictionary according to the required format
+        attributes = {
+            "state": updated_state,
+            "drift_status": drift_status,
+            "current_stats": json.dumps(current_stats),
+        }
+
+        db.patch_model_endpoint(
+            project=endpoint_before_update.metadata.project,
+            endpoint_id=endpoint_before_update.metadata.uid,
+            attributes=attributes,
         )
 
         endpoint_after_update = db.get_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid
+            project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
         )
 
         assert endpoint_after_update.status.state == updated_state
+        assert endpoint_after_update.status.drift_status == drift_status
+        assert endpoint_after_update.status.current_stats == current_stats
 
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
@@ -102,7 +144,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         ]
 
         for endpoint in endpoints_in:
-            db.create_or_patch_model_endpoint(
+            db.create_model_endpoint(
                 endpoint.metadata.project, endpoint.metadata.uid, endpoint
             )
 
@@ -131,7 +173,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             if i < 4:
                 endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-            db.create_or_patch_model_endpoint(
+            db.create_model_endpoint(
                 endpoint_details.metadata.project,
                 endpoint_details.metadata.uid,
                 endpoint_details,
@@ -316,9 +358,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 name="model-monitoring-stream", project=self.project_name, tag=""
             )
         )
-        stat = mlrun.get_run_db().get_builder_status(base_runtime)
 
-        assert base_runtime.status.state == "ready", stat
+        # Wait 20 sec if model monitoring stream function is still in building process
+        mlrun.utils.helpers.retry_until_successful(
+            2,
+            20,
+            mlrun.utils.logger,
+            False,
+            self._check_monitoring_building_state,
+            base_runtime=base_runtime,
+        )
 
         # invoke the model before running the model monitoring batch job
         iris_data = iris["data"].tolist()
@@ -339,7 +388,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         mlrun.get_run_db().invoke_schedule(self.project_name, "model-monitoring-batch")
         # it can take ~1 minute for the batch pod to finish running
-        sleep(75)
+        sleep(60)
 
         tsdb_path = f"/pipelines/{self.project_name}/model-endpoints/events/"
         client = get_frames_client(
@@ -519,11 +568,28 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         )
         serving_fn.add_model("diabetes_model", model_path=train_run.outputs["model"])
 
+        # Define tracking policy
+        tracking_policy = {
+            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
+        }
+
         # Enable model monitoring
-        serving_fn.set_tracking()
+        serving_fn.set_tracking(tracking_policy=tracking_policy)
 
         # Deploy the serving function
         serving_fn.deploy()
+
+        # Validate that the model monitoring batch access key is replaced with an internal secret
+        batch_function = mlrun.get_run_db().get_function(
+            name="model-monitoring-batch", project=self.project_name
+        )
+        batch_access_key = batch_function["metadata"]["credentials"]["access_key"]
+        auth_secret = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        assert batch_access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix + auth_secret
+        )
 
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
@@ -534,6 +600,34 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         assert (
             model_endpoint.spec.monitoring_mode
             == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+        )
+
+        # Validate tracking policy
+        batch_job = db.get_schedule(
+            project=self.project_name, name="model-monitoring-batch"
+        )
+        assert batch_job.cron_trigger.hour == "*/3"
+
+        # TODO: uncomment the following assertion once the auto trainer function
+        #  from mlrun marketplace is upgraded to 1.0.8
+        # assert len(model_obj.spec.feature_stats) == len(
+        #     model_endpoint.spec.feature_names
+        # ) + len(model_endpoint.spec.label_names)
+
+        # Validate monitoring feature set URI
+        assert mlrun.feature_store.get_feature_set(
+            model_endpoint.status.monitoring_feature_set_uri
+        )
+
+        monitoring_feature_set = mlrun.feature_store.get_feature_set(
+            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
+        )
+
+        # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version
+        # tag from the feature set URI)
+        assert (
+            model_endpoint.status.monitoring_feature_set_uri
+            == monitoring_feature_set.uri.replace(":latest", "")
         )
 
     @staticmethod
@@ -556,6 +650,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
                 model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
                 model_class="classifier",
+                active=True,
             ),
             status=ModelEndpointStatus(state=state),
         )
+
+    def _check_monitoring_building_state(self, base_runtime):
+        # Check if model monitoring stream function is ready
+        stat = mlrun.get_run_db().get_builder_status(base_runtime)
+        assert base_runtime.status.state == "ready", stat

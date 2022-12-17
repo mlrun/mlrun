@@ -1,12 +1,27 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from abc import ABC
 from types import ModuleType
-from typing import Callable, List
+from typing import Callable, List, Tuple, Union
 
 import lightgbm as lgb
 
 import mlrun
 
 from ..._common import MLRunInterface
+from ..._ml_common import MLArtifactsLibrary, MLTypes
 from ..callbacks import Callback, MLRunLoggingCallback
 from ..model_handler import LGBMModelHandler
 from ..utils import LGBMTypes, LGBMUtils
@@ -98,8 +113,30 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
             passed_kwargs=kwargs,
             default_value=None,
         )
-        x_train = train_set.data
-        y_train = train_set.label
+        train_set = (  # Post training LightGBBM is consuming the data, so we keep it in a tuple.
+            train_set.data,
+            train_set.label,
+        )
+
+        # Get the validation sets:
+        validation_sets, _ = MLRunInterface._get_function_argument(
+            func=lgb.original_train,
+            argument_name="valid_sets",
+            passed_args=args,
+            passed_kwargs=kwargs,
+            default_value=[],
+        )
+        validation_sets_names, _ = MLRunInterface._get_function_argument(
+            func=lgb.original_train,
+            argument_name="valid_names",
+            passed_args=args,
+            passed_kwargs=kwargs,
+            default_value=[f"valid_{i}" for i in range(len(validation_sets))],
+        )
+        validation_sets = [
+            ((validation_set.data, validation_set.label), name)
+            for validation_set, name in zip(validation_sets, validation_sets_names)
+        ]
 
         # Collect the mlrun callbacks from the provided callbacks:
         callbacks, is_given = MLRunInterface._get_function_argument(
@@ -113,14 +150,16 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         if is_given is None:
             kwargs["callbacks"] = callbacks
 
-        # Call the pre train function:
+        # Call the pre-train function:
         lgb._pre_train()
 
         # Call the original train function:
         booster = lgb.original_train(*args, **kwargs)
 
         # Call the post train function:
-        lgb._post_train(booster=booster, x_train=x_train, y_train=y_train)
+        lgb._post_train(
+            booster=booster, train_set=train_set, validation_sets=validation_sets
+        )
 
         return booster
 
@@ -138,7 +177,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         call will use these configurations to initialize callbacks and log the model at the end of training.
 
         :param context:                       MLRun context to log to.
-        :param log_model:                     Whether to log the model at the end of training. Defaulted to True.
+        :param log_model:                     Whether to log the model at the end of training. Default: True.
         :param model_handler_kwargs:          Keyword arguments to use for initializing the model handler for the newly
                                               trained model.
         :param log_model_kwargs:              Keyword arguments to use for calling the handler's `log` method.
@@ -220,14 +259,17 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     @staticmethod
     def _post_train(
         booster: lgb.Booster,
-        x_train: LGBMTypes.DatasetType,
-        y_train: LGBMTypes.DatasetType,
+        train_set: Tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]],
+        validation_sets: List[
+            Tuple[Tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]], str]
+        ],
     ):
         """
         Called post training to call the mlrun callbacks `on_train_end` method and to log the model.
 
-        :param booster:   The booster to log.
-        :param train_set: The training set that was used to train the given booster.
+        :param booster:         The booster to log.
+        :param train_set:       The training set that was used to train the given booster.
+        :param validation_sets: The validation sets used for training validation.
         """
         # Call the `on_train_end` method of the callbacks while collecting extra data from the mlrun logging callback:
         extra_data = {}
@@ -237,6 +279,46 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
             if isinstance(callback, MLRunLoggingCallback):
                 extra_data = {**extra_data, **callback.logger.get_artifacts()}
                 metrics = {**metrics, **callback.logger.get_metrics()}
+
+        # Try to produce validation artifacts:  # TODO: Temporary until the Evaluator class will be implemented!
+        algorithm_functionality = LGBMUtils.get_algorithm_functionality(
+            objective=booster.params.get("objective", "regression")
+        )
+        plans = [MLArtifactsLibrary.feature_importance()]
+        if algorithm_functionality.is_classification():
+            plans += [
+                MLArtifactsLibrary.calibration_curve(),
+                MLArtifactsLibrary.roc_curve(),
+                MLArtifactsLibrary.confusion_matrix(),
+            ]
+        validations_artifacts = {}
+        for validation_set, validation_set_name in validation_sets:
+            artifacts = {}
+            y_pred = booster.predict(validation_set[0])
+            plans.append(MLArtifactsLibrary.dataset(name=validation_set_name))
+            for plan in plans:
+                try:
+                    artifacts = {
+                        **artifacts,
+                        **plan.produce(
+                            model=booster,
+                            x=validation_set[0],
+                            y=validation_set[1],
+                            y_pred=y_pred,
+                        ),
+                    }
+                except Exception:
+                    pass
+            artifacts = {
+                f"{validation_set_name}-{key}": value
+                for key, value in artifacts.items()
+            }
+            for artifact in artifacts.values():
+                if validation_set_name not in artifact.key:
+                    artifact.metadata.key = f"{validation_set_name}-{artifact.key}"
+                lgb._context.log_artifact(artifact)
+            validations_artifacts = {**validations_artifacts, **artifacts}
+            plans.pop(-1)
 
         # Apply the booster MLRun interface:
         LGBMBoosterMLRunInterface.add_interface(obj=booster)
@@ -253,8 +335,8 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
         # Set the sample set to the training set if None:
         if lgb._log_model_kwargs.get("sample_set", None) is None:
             sample_set, target_columns = LGBMUtils.concatenate_x_y(
-                x=x_train,
-                y=y_train,
+                x=train_set[0],
+                y=train_set[1],
                 target_columns_names=lgb._log_model_kwargs.get("target_columns", None),
             )
             booster.model_handler.set_target_columns(target_columns=target_columns)
@@ -262,6 +344,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
 
         # Check if needed to log the model:
         if lgb._log_model:
+            booster.model_handler.register_artifacts(artifacts=validations_artifacts)
             booster.model_handler.log(**lgb._log_model_kwargs)
 
         lgb._context.commit(completed=False)

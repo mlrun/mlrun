@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import http
 import json
@@ -40,6 +54,7 @@ def test_client_spec(
     mlrun.mlconf.preemptible_nodes.tolerations = base64.b64encode(
         json.dumps(serialized_tolerations).encode("utf-8")
     )
+    mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = "enabled"
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
@@ -81,3 +96,6 @@ def test_client_spec(
     assert response_body[
         "preemptible_nodes_tolerations"
     ] == mlrun.mlconf.preemptible_nodes.tolerations.decode("utf-8")
+
+    assert response_body["logs"] == mlrun.mlconf.httpdb.logs.to_dict()
+    assert response_body["logs"]["pipelines"]["pull_state"]["mode"] == "enabled"

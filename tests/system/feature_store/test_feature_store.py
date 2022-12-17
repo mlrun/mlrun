@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import math
 import os
@@ -20,12 +34,14 @@ from storey import MapClass
 
 import mlrun
 import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
+    KafkaSource,
     ParquetSource,
     StreamSource,
 )
@@ -34,13 +50,14 @@ from mlrun.datastore.targets import (
     KafkaTarget,
     NoSqlTarget,
     ParquetTarget,
+    RedisNoSqlTarget,
     TargetTypes,
     get_target_driver,
 )
 from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
-from mlrun.feature_store.steps import FeaturesetValidator
+from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
 from tests.system.base import TestMLRunSystem
 
@@ -56,6 +73,14 @@ class MyMap(MapClass):
         event["xx"] = event["bid"] * self._multiplier
         event["zz"] = 9
         return event
+
+
+class IdentityMap(MapClass):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def do(self, x):
+        return x
 
 
 def my_func(df):
@@ -641,7 +666,7 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv", path=os.path.relpath(str(self.assets_path / "testdata.csv"))
         )
         path = str(self.results_path / _generate_random_name())
-        target = ParquetTarget(path=path)
+        target = ParquetTarget(path=path, partitioned=False)
 
         fset = fs.FeatureSet(
             name="test", entities=[Entity("patient_id")], timestamp_key="timestamp"
@@ -831,7 +856,9 @@ class TestFeatureStore(TestMLRunSystem):
                 time_partitioning_granularity,
             ]
         ):
-            time_partitioning_granularity = "hour"
+            time_partitioning_granularity = (
+                mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+            )
         if time_partitioning_granularity:
             for unit in ["year", "month", "day", "hour"]:
                 expected_partitions.append(unit)
@@ -1268,7 +1295,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        data_target = ParquetTarget()
+        data_target = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("sched_data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[data_target])
 
@@ -1277,11 +1304,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        # the job will be scheduled every minute
-        cron_trigger = "*/1 * * * *"
-
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet",
+            path=path,
+            time_field="time",
+            schedule="mock",
         )
 
         feature_set = fs.FeatureSet(
@@ -1314,8 +1341,6 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        # ingest starts every round minute.
-        sleep(60 - now.second + 10)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -1341,7 +1366,13 @@ class TestFeatureStore(TestMLRunSystem):
             # writing down a remote source
             fs.ingest(data_set, data, targets=[data_target], overwrite=False)
 
-            sleep(60)
+            fs.ingest(
+                feature_set,
+                source,
+                run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
+                targets=targets,
+            )
+
             resp = svc.get(
                 [
                     {"first_name": "yosi"},
@@ -1376,16 +1407,13 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
         # writing down a remote source
-        target2 = ParquetTarget()
+        target2 = ParquetTarget(partitioned=False)
         data_set = fs.FeatureSet("data", entities=[Entity("first_name")])
         fs.ingest(data_set, data, targets=[target2])
 
         path = data_set.status.targets[0].get_path().get_absolute_path()
 
-        # the job will be scheduled every minute
-        cron_trigger = "*/1 * * * *"
-
-        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fs.FeatureSet(
             name="overwrite",
@@ -1393,7 +1421,7 @@ class TestFeatureStore(TestMLRunSystem):
             timestamp_key="time",
         )
 
-        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet")]
+        targets = [ParquetTarget(path="v3io:///bigdata/bla.parquet", partitioned=False)]
 
         fs.ingest(
             feature_set,
@@ -1402,7 +1430,7 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-        sleep(60)
+
         features = ["overwrite.*"]
         vec = fs.FeatureVector("svec", features)
 
@@ -1490,6 +1518,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         side_file_out = pd.read_csv(side_file_path)
         default_file_out = pd.read_parquet(default_file_path)
+        # default parquet target is partitioned
+        default_file_out.drop(
+            columns=mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS, inplace=True
+        )
         self._split_graph_expected_default.set_index("ticker", inplace=True)
 
         assert all(self._split_graph_expected_default == default_file_out.round(2))
@@ -1604,7 +1636,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_forced_columns_target(self):
         columns = ["time", "ask"]
-        targets = [ParquetTarget(columns=columns)]
+        targets = [ParquetTarget(columns=columns, partitioned=False)]
         quotes_set, _ = prepare_feature_set(
             "forced-columns", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -1624,7 +1656,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fs.get_offline_features(csv_vec)
         csv_vec_df = resp.to_dataframe()
 
-        targets = [ParquetTarget()]
+        targets = [ParquetTarget(partitioned=False)]
         parquet_align_set, _ = prepare_feature_set(
             "parquet-align", "ticker", quotes, timestamp_key="time", targets=targets
         )
@@ -1636,6 +1668,36 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert all(csv_df == parquet_df)
         assert all(csv_vec_df == parquet_vec_df)
+
+    @pytest.mark.parametrize("with_columns", [False, True])
+    def test_parquet_target_to_dataframe(self, with_columns):
+        measurements_partitioned = None
+        measurements_nonpartitioned = None
+        for partitioned in [False, True]:
+            name = f"measurements_{uuid.uuid4()}_{partitioned}"
+            key = "patient_id"
+            measurements = fs.FeatureSet(
+                name, entities=[Entity(key)], timestamp_key="timestamp"
+            )
+            if partitioned:
+                measurements_partitioned = measurements
+            else:
+                measurements_nonpartitioned = measurements
+
+            source = CSVSource(
+                "mycsv",
+                path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+                time_field="timestamp",
+            )
+
+            fs.ingest(
+                measurements, source, targets=[ParquetTarget(partitioned=partitioned)]
+            )
+
+        columns = ["department", "room"] if with_columns else None
+        df_from_partitioned = measurements_partitioned.to_dataframe(columns)
+        df_from_nonpartitioned = measurements_nonpartitioned.to_dataframe(columns)
+        assert df_from_partitioned.equals(df_from_nonpartitioned)
 
     def test_sync_pipeline(self):
         stocks_set = fs.FeatureSet(
@@ -1663,28 +1725,25 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         csv_file = os.path.relpath(str(self.assets_path / "testdata.csv"))
-        original_df = pd.read_csv(csv_file)
-        original_cols = original_df.shape[1]
-        print(original_df.shape)
-        print(original_df.info())
-
-        chunksize = 100
+        chunksize = 20
         source = CSVSource("mycsv", path=csv_file, attributes={"chunksize": chunksize})
+
         if with_graph:
             myset.graph.to(name="s1", handler="my_func")
 
         df = fs.ingest(myset, source)
-        self._logger.info(f"output df:\n{df}")
 
         features = list(myset.spec.features.keys())
         print(len(features), features)
         print(myset.to_yaml())
-        print(df.shape)
-        # original cols - index - timestamp cols
-        assert len(features) == original_cols - 2, "wrong num of features"
-        assert df.shape[1] == original_cols, "num of cols not as expected"
-        # returned DF is only the first chunk (size 100)
-        assert df.shape[0] == chunksize, "dataframe size doesnt match"
+        self._logger.info(f"output df:\n{df}")
+
+        reference_df = pd.read_csv(csv_file)
+        reference_df = reference_df[0:chunksize].set_index("patient_id")
+
+        # patient_id (index) and timestamp (timestamp_key) are not in features list
+        assert features + ["timestamp"] == list(reference_df.columns)
+        assert df.equals(reference_df), "output dataframe is different from expected"
 
     def test_target_list_validation(self):
         targets = [ParquetTarget()]
@@ -1740,9 +1799,9 @@ class TestFeatureStore(TestMLRunSystem):
         agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
 
         # Make sure the map step was added right after the aggregation step
-        assert len(quotes_set.graph.states) == 2
-        assert quotes_set.graph.states[aggregates_step].after is None
-        assert quotes_set.graph.states["somemap1"].after == [aggregates_step]
+        assert len(quotes_set.graph.steps) == 2
+        assert quotes_set.graph.steps[aggregates_step].after == []
+        assert quotes_set.graph.steps["somemap1"].after == [aggregates_step]
 
     def test_featureset_uri(self):
         stocks_set = fs.FeatureSet("stocks01", entities=[fs.Entity("ticker")])
@@ -1898,7 +1957,7 @@ class TestFeatureStore(TestMLRunSystem):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             fs.ingest(fset, df1, overwrite=False)
 
-    def test_purge(self):
+    def test_purge_v3io(self):
         key = "patient_id"
         fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
         path = os.path.relpath(str(self.assets_path / "testdata.csv"))
@@ -1924,8 +1983,48 @@ class TestFeatureStore(TestMLRunSystem):
         fs.ingest(fset, source)
 
         targets_to_purge = targets[:-1]
+
         verify_purge(fset, targets_to_purge)
 
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
+    @pytest.mark.parametrize("target_redis, ", ["", "redis://:aaa@localhost:6379"])
+    def test_purge_redis(self, target_redis):
+        key = "patient_id"
+        fset = fs.FeatureSet("purge", entities=[Entity(key)], timestamp_key="timestamp")
+        path = os.path.relpath(str(self.assets_path / "testdata.csv"))
+        source = CSVSource(
+            "mycsv",
+            path=path,
+            time_field="timestamp",
+        )
+        targets = [
+            CSVTarget(),
+            CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
+            RedisNoSqlTarget()
+            if target_redis == ""
+            else RedisNoSqlTarget(path=target_redis),
+        ]
+        fset.set_targets(
+            targets=targets,
+            with_defaults=False,
+        )
+        fs.ingest(fset, source)
+
+        verify_purge(fset, targets)
+
+        fs.ingest(fset, source)
+
+        targets_to_purge = targets[:-1]
+
+        verify_purge(fset, targets_to_purge)
+
+    # After moving to run on a new system test environment this test was running for 75 min and then failing
+    # skipping until it get fixed as this results all the suite to run much longer
+    @pytest.mark.timeout(180)
     def test_purge_nosql(self):
         def get_v3io_api_host():
             """Return only the host out of v3io_api
@@ -1968,7 +2067,9 @@ class TestFeatureStore(TestMLRunSystem):
                 with_defaults=False,
                 targets=test_target,
             )
+            self._logger.info(f"ingesting with target {tar.name}")
             fs.ingest(fset, source)
+            self._logger.info(f"purging target {tar.name}")
             verify_purge(fset, test_target)
 
     def test_ingest_dataframe_index(self):
@@ -2356,7 +2457,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.get_offline_features(vector)
 
-    def test_online_impute(self):
+    @pytest.mark.parametrize("pass_vector_as_uri", [True, False])
+    def test_online_impute(self, pass_vector_as_uri):
         data = pd.DataFrame(
             {
                 "time_stamp": [
@@ -2388,8 +2490,11 @@ class TestFeatureStore(TestMLRunSystem):
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
+        vector.save()
+
         with fs.get_online_feature_service(
-            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
+            vector.uri if pass_vector_as_uri else vector,
+            impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4},
         ) as svc:
             print(svc.vector.status.to_yaml())
 
@@ -2572,8 +2677,90 @@ class TestFeatureStore(TestMLRunSystem):
         for key in res.to_dataframe().to_dict().keys():
             assert key in expected
 
-    def test_set_event_with_spaces_or_hyphens(self):
-        from mlrun.feature_store.steps import OneHotEncoder
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_get_offline_features_with_filter(self, engine):
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+
+        data = pd.DataFrame(
+            {
+                "name": ["A", "B", "C", "D", "E"],
+                "age": [33, 4, 76, 90, 24],
+                "department": ["IT", "RD", "RD", "Marketing", "IT"],
+            },
+            index=[0, 1, 2, 3, 4],
+        )
+        data["id"] = data.index
+
+        one_hot_encoder_mapping = {
+            "department": list(data["department"].unique()),
+        }
+        data_set = FeatureSet(
+            "fs-new", entities=[Entity("id")], description="feature set"
+        )
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+        fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        fv_name = "new-fv"
+        features = [
+            "fs-new.name",
+            "fs-new.age",
+            "fs-new.department_RD",
+            "fs-new.department_IT",
+            "fs-new.department_Marketing",
+        ]
+
+        my_fv = fs.FeatureVector(fv_name, features, description="my feature vector")
+        my_fv.save()
+        # expected data frame
+        expected_df = pd.DataFrame(
+            {
+                "name": ["C"],
+                "age": [76],
+                "department_RD": [1],
+                "department_IT": [0],
+                "department_Marketing": [0],
+            },
+            index=[0],
+        )
+
+        # different tests
+        result_1 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="age>6 and department_RD==1",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_1 = result_1.to_dataframe()
+
+        assert df_res_1.equals(expected_df)
+
+        result_2 = fs.get_offline_features(
+            fv_name,
+            target=ParquetTarget(),
+            query="name in ['C']",
+            engine=engine,
+            engine_args=engine_args,
+        )
+        df_res_2 = result_2.to_dataframe()
+
+        assert df_res_2.equals(expected_df)
+
+    @pytest.mark.parametrize("engine", ["pandas", "storey"])
+    def test_set_event_with_spaces_or_hyphens(self, engine):
 
         lst_1 = [
             " Private",
@@ -2581,6 +2768,33 @@ class TestFeatureStore(TestMLRunSystem):
             " Local-gov",
             " Private",
         ]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": list(data["workclass"].unique())}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set", engine=engine
+        )
+
+        data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+        data_set.set_targets()
+
+        df_res = fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+        expected_df = pd.DataFrame(
+            list(zip([1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
+            columns=["workclass__Private", "workclass__Local_gov", "age"],
+        )
+
+        assert df_res.equals(expected_df)
+
+    def test_onehot_with_int_values(self):
+        lst_1 = [0, 0, 1, 0]
         lst_2 = [0, 1, 2, 3]
         lst_3 = [25, 38, 28, 44]
         data = pd.DataFrame(
@@ -2601,12 +2815,33 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected_df = pd.DataFrame(
             list(zip([1, 1, 0, 1], [0, 0, 1, 0], lst_3)),
-            columns=["workclass__Private", "workclass__Local_gov", "age"],
+            columns=["workclass_0", "workclass_1", "age"],
         )
 
         assert df_res.equals(expected_df)
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    def test_onehot_with_array_values(self):
+        lst_1 = [[1, 2], [1, 2], [0, 1], [1, 2]]
+        lst_2 = [0, 1, 2, 3]
+        lst_3 = [25, 38, 28, 44]
+        data = pd.DataFrame(
+            list(zip(lst_2, lst_1, lst_3)), columns=["id", "workclass", "age"]
+        )
+        # One Hot Encode the newly defined mappings
+        one_hot_encoder_mapping = {"workclass": [[1, 2], [0, 1]]}
+
+        # Define the corresponding FeatureSet
+        data_set = FeatureSet(
+            "test", entities=[Entity("id")], description="feature set"
+        )
+        with pytest.raises(ValueError):
+            data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
+            data_set.set_targets()
+            fs.ingest(data_set, data, infer_options=fs.InferOptions.default())
+
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target(self, kafka_consumer):
 
         stocks = pd.DataFrame(
@@ -2637,7 +2872,9 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
-    @pytest.mark.skipif(kafka_brokers == "", reason="KAFKA_BROKERS must be set")
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2656,8 +2893,12 @@ class TestFeatureStore(TestMLRunSystem):
             bootstrap_servers=kafka_brokers,
             producer_options={"compression_type": "invalid value"},
         )
-        with pytest.raises(ValueError):
+        try:
             fs.ingest(stocks_set, stocks, [target])
+            pytest.fail("Expected a ValueError to be raised")
+        except ValueError as ex:
+            if str(ex) != "Not supported codec: invalid value":
+                raise ex
 
     def test_alias_change(self):
         quotes = pd.DataFrame(
@@ -2781,25 +3022,159 @@ class TestFeatureStore(TestMLRunSystem):
         finally:
             service.close()
 
+    # regression test for #2424
+    def test_pandas_write_parquet(self):
+        prediction_set = fstore.FeatureSet(
+            name="myset", entities=[fstore.Entity("id")], engine="pandas"
+        )
+
+        df = pd.DataFrame({"id": ["a", "b"], "number": [11, 22]})
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            outdir = f"{tempdir}/test_pandas_write_parquet/"
+            prediction_set.set_targets(
+                with_defaults=False, targets=[ParquetTarget(path=outdir)]
+            )
+
+            returned_df = fstore.ingest(prediction_set, df)
+
+            read_back_df = pd.read_parquet(outdir)
+            assert read_back_df.equals(returned_df)
+
+            expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            assert read_back_df.equals(expected_df)
+
+    # regression test for #2557
+    @pytest.mark.parametrize(
+        ["index_columns"],
+        [[["mystr1"]], [["mystr1", "mystr2"]], [["mystr1", "mystr2", "myfloat1"]]],
+    )
+    def test_pandas_stats_include_index(self, index_columns):
+        fset = fstore.FeatureSet(
+            "myset",
+            entities=[Entity(index_column) for index_column in index_columns],
+            engine="pandas",
+        )
+
+        fset.graph.to("IdentityMap")
+
+        assert not fset.get_stats_table()
+
+        source_df = pd.DataFrame(
+            {
+                "mystr1": {0: "ozqqyhvprlghypgn", 1: "etkpkrbuhprigrtk"},
+                "mystr2": {0: "kllnbgkcskdiqrqy", 1: "luqsritvfwnfgziw"},
+                "myfloat1": {0: 7173728554904657, 1: -8019470409809931},
+                "myfloat2": {0: 0.03638798909492902, 1: 0.13661189704381071},
+            }
+        )
+        fstore.preview(fset, source_df)
+        actual_stat = fset.get_stats_table().drop("hist", axis=1)
+        actual_stat = actual_stat.sort_index().sort_index(axis=1)
+
+        expected_stat = pd.DataFrame(
+            {
+                "count": {
+                    "myfloat1": 2.0,
+                    "myfloat2": 2.0,
+                    "mystr1": 2.0,
+                    "mystr2": 2.0,
+                },
+                "freq": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": 1.0,
+                    "mystr2": 1.0,
+                },
+                "max": {
+                    "myfloat1": 7173728554904657.0,
+                    "myfloat2": 0.13661189704381071,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "mean": {
+                    "myfloat1": -422870927452637.0,
+                    "myfloat2": 0.08649994306936987,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "min": {
+                    "myfloat1": -8019470409809931.0,
+                    "myfloat2": 0.03638798909492902,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "std": {
+                    "myfloat1": 1.0743214015866118e16,
+                    "myfloat2": 0.07086900494767057,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "top": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": "ozqqyhvprlghypgn",
+                    "mystr2": "kllnbgkcskdiqrqy",
+                },
+                "unique": {
+                    "myfloat1": math.nan,
+                    "myfloat2": math.nan,
+                    "mystr1": 2.0,
+                    "mystr2": 2.0,
+                },
+            },
+            index=["myfloat1", "myfloat2", "mystr1", "mystr2"],
+        )
+
+        assert_frame_equal(expected_stat, actual_stat)
+
+    def test_ingest_with_kafka_source_fails(self):
+        source = KafkaSource(
+            brokers="broker_host:9092",
+            topics="mytopic",
+            group="mygroup",
+            sasl_user="myuser",
+            sasl_pass="mypassword",
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[fs.Entity("entity")])
+
+        with pytest.raises(mlrun.MLRunInvalidArgumentError):
+            fs.ingest(
+                fset,
+                source,
+            )
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)
     orig_status_targets = list(fset.status.targets.keys())
+    from copy import deepcopy
+
+    orig_status_tar = deepcopy(fset.status.targets)
     target_names = [t.name for t in targets]
 
     for target in fset.status.targets:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
 
-    for target in fset.status.targets:
+    for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
             filesystem = driver._get_store().get_filesystem(False)
-            assert not filesystem.exists(driver.get_target_path())
+            if filesystem is not None:
+                assert not filesystem.exists(driver.get_target_path())
+            else:
+                files_list = driver._get_store().listdir(driver.get_target_path())
+                assert len(files_list) == 0
 
     fset.reload(update_spec=False)
     assert set(fset.status.targets.keys()) == set(orig_status_targets) - set(

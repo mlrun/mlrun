@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Any, Dict, List, Type, Union
 
 import numpy as np
@@ -20,8 +34,8 @@ class PyTorchModelServer(V2ModelServer):
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx,
-        name: str,
+        context: mlrun.MLClientCtx = None,
+        name: str = None,
         model: Module = None,
         model_path: str = None,
         model_name: str = None,
@@ -37,7 +51,7 @@ class PyTorchModelServer(V2ModelServer):
         """
         Initialize a serving class for a torch model.
 
-        :param context:                  The mlrun context to work with.
+        :param context:                  For internal use (passed in init).
         :param name:                     The name of this server to be initialized.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
@@ -86,9 +100,9 @@ class PyTorchModelServer(V2ModelServer):
                                          before loading the model). If the model path given is of a store object, the
                                          custom objects files will be read from the logged custom object artifact of the
                                          model.
-        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+        :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default:
                                          True.
-        :param to_list:                  Whether to return a list instead of a torch.Tensor. Defaulted to False.
+        :param to_list:                  Whether to return a list instead of a torch.Tensor. Default: False.
         :param protocol:                 -
         :param class_args:               -
         """
@@ -101,29 +115,39 @@ class PyTorchModelServer(V2ModelServer):
             **class_args,
         )
 
-        # Set up a model handler:
-        self._model_handler = PyTorchModelHandler(
-            model_path=model_path,
-            model=model,
-            model_name=model_name,
-            model_class=model_class,
-            modules_map=modules_map,
-            custom_objects_map=custom_objects_map,
-            custom_objects_directory=custom_objects_directory,
-            context=self.context,
-        )
+        # Store the model handler attributes:
+        self.model_name = model_name
+        self.model_class = model_class
+        self.modules_map = modules_map
+        self.custom_objects_map = custom_objects_map
+        self.custom_objects_directory = custom_objects_directory
 
         # Store the preferences:
-        self._use_cuda = use_cuda
-        self._to_list = to_list
+        self.use_cuda = use_cuda
+        self.to_list = to_list
+
+        # Set up a model handler:
+        self._model_handler: PyTorchModelHandler = None
 
         # Prepare inference parameters:
-        self._pytorch_interface = None  # type: PyTorchMLRunInterface
+        self._pytorch_interface: PyTorchMLRunInterface = None
 
     def load(self):
         """
         Use the model handler to load the model.
         """
+        # Initialize the model handler:
+        self._model_handler = PyTorchModelHandler(
+            model_path=self.model_path,
+            model=self.model,
+            model_name=self.model_name,
+            model_class=self.model_class,
+            modules_map=self.modules_map,
+            custom_objects_map=self.custom_objects_map,
+            custom_objects_directory=self.custom_objects_directory,
+            context=self.context,
+        )
+
         # Load the model:
         if self._model_handler.model is None:
             self._model_handler.load()
@@ -153,11 +177,11 @@ class PyTorchModelServer(V2ModelServer):
 
         # Predict:
         predictions = self._pytorch_interface.predict(
-            inputs=inputs, use_cuda=self._use_cuda
+            inputs=inputs, use_cuda=self.use_cuda
         )
 
         # Return as list if required:
-        return predictions if not self._to_list else predictions.tolist()
+        return predictions if not self.to_list else predictions.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

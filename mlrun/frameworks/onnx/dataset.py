@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import math
 from typing import Callable, List, Tuple, Union
 
@@ -23,11 +37,11 @@ class ONNXDataset:
 
         :param x:                     The data to handle.
         :param y:                     Ground truth for the data 'x'.
-        :param batch_size:            The batch size to use. Defaulted to 1.
+        :param batch_size:            The batch size to use. Default: 1.
         :param x_transforms:          A list of callable transforms to apply on the 'x' data.
         :param y_transforms:          A list of callable transforms to apply on the 'y' ground truth.
         :param is_batched_transforms: Whether the given transforms support batched data or not. If not, the transform
-                                      will be applied on each item of a given batch. Defaulted to False.
+                                      will be applied on each item of a given batch. Default: False.
         """
         # Store given parameters:
         self._x = x

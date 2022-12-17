@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import copy
 
 from deepdiff import DeepDiff
@@ -158,6 +172,75 @@ def test_with_requests():
     )
 
 
+def test_with_request_patch():
+    runtime = _get_runtime()
+    runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
+    function = mlrun.new_function(runtime=runtime)
+    function.with_requests(mem="9G", patch=True)
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "9G"},
+        "limits": {},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+    function.with_requests(cpu="15")  # default patch = False
+    expected = {
+        "requests": {"cpu": "15"},
+        "limits": {},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
+def test_with_limits_patch():
+    runtime = _get_runtime()
+    runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
+    mlrun.mlconf.default_function_pod_resources = {
+        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+    }
+    function = mlrun.new_function(runtime=runtime)
+    function.with_limits(mem="9G", patch=True)
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "1M"},
+        "limits": {"cpu": "1", "memory": "9G"},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    function.with_limits(mem="9G")  # default patch = False
+    expected = {
+        "requests": {"cpu": "50mi", "memory": "1M"},
+        "limits": {"memory": "9G"},
+    }
+    assert (
+        DeepDiff(
+            function.spec.resources,
+            expected,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
 def test_with_limits():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
@@ -221,3 +304,10 @@ def test_new_function_override_default_image_pull_secret():
         )
         == {}
     )
+
+
+def test_new_function_invalid_characters():
+    runtime = _get_runtime()
+    invalid_function_name = "invalid_name with_spaces"
+    function = mlrun.new_function(name=invalid_function_name, runtime=runtime)
+    assert function.metadata.name == "invalid-name-with-spaces"

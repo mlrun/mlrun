@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict
 
 import numpy as np
@@ -35,7 +49,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         :param sample_weight: Sample weights to apply.
         :param normalize:     One of {'true', 'pred', 'all'} to normalize the confusion matrix over the true values
                               (rows), the predicted values (columns) or all. If None, confusion matrix will not be
-                              normalized. Defaulted to None.
+                              normalized. Default: None.
         """
         # Store the parameters:
         self._labels = labels

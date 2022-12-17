@@ -1,5 +1,5 @@
 (using-functions)=
-# Configuring Functions
+# Configuring functions
 
 **MLRun Functions** (function objects) can be created by using any of the following methods:
 
@@ -8,7 +8,7 @@
  a notebook (code file will be embedded in the function object).
 - **{py:func}`~mlrun.run.import_function`**: imports a function from a local or remote YAML function-configuration file or 
   from a function object in the MLRun database (using a DB address of the format `db://<project>/<name>[:<tag>]`)
-  or from the function marketplace (e.g. `hub://describe`). See [MLRun Functions Marketplace](./load-from-marketplace.html).
+  or from the Function Hub (e.g. `hub://describe`). See [MLRun Function Hub](./load-from-marketplace.html).
 
 When you create a function, you can:
 - Use the {py:meth}`~mlrun.runtimes.BaseRuntime.save` function method to save a function object in the MLRun database.

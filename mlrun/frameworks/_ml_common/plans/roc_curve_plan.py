@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict, List, Union
 
 import numpy as np
@@ -38,18 +52,18 @@ class ROCCurvePlan(MLPlotPlan):
         * https://scikit-learn.org/stable/modules/generated/sklearn.metrics.roc_auc_score.html
 
         :param pos_label:         The label of the positive class. When None, if 'y_true' (y) is in {-1, 1} or {0, 1},
-                                  'pos_label' is set to 1, otherwise an error will be raised. Defaulted to None.
+                                  'pos_label' is set to 1, otherwise an error will be raised. Default: None.
         :param sample_weight:     Sample weights to apply.
         :param drop_intermediate: Whether to drop some suboptimal thresholds which would not appear on a plotted ROC
-                                  curve. Defaulted to True.
+                                  curve. Default: True.
         :param average:           Determines the type of averaging performed on the data. If None, the scores for each
-                                  class are returned. Defaulted to "macro".
+                                  class are returned. Default: "macro".
         :param max_fpr:           For multiclass it should be equal to 1 or None. If not None, the standardized partial
-                                  AUC [2] over the range [0, max_fpr] is returned. Defaulted to None.
+                                  AUC [2] over the range [0, max_fpr] is returned. Default: None.
         :param multi_class:       Only used for multiclass targets. Determines the type of configuration to use. Can be
-                                  one of {'raise', 'ovr', 'ovo'}. Defaulted to "raise".
+                                  one of {'raise', 'ovr', 'ovo'}. Default: "raise".
         :param labels:            Only used for multiclass targets. List of labels that index the classes in 'y_pred'.
-                                  If None, the labels found in 'y_true' (y) will be used. Defaulted to None.
+                                  If None, the labels found in 'y_true' (y) will be used. Default: None.
         """
         # Store the parameters:
         self._pos_label = pos_label

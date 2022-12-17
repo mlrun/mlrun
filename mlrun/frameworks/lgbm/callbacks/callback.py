@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from abc import ABC
 
 from lightgbm.callback import CallbackEnv
@@ -10,9 +24,9 @@ class Callback(ABC):
 
     There are two configurable class properties:
 
-    * order: int = 10 - The priority of the callback to be called first. Lower value means higher priority. Defaulted to
+    * order: int = 10 - The priority of the callback to be called first. Lower value means higher priority. Default:
       10.
-    * before_iteration: bool = False - Whether to call this callback before each iteration or after. Defaulted to after
+    * before_iteration: bool = False - Whether to call this callback before each iteration or after. Default: after
       (False).
 
     LightGBM will pass a `CallbackEnv` object to the callbacks - a `NamedTuple` with the following items:
@@ -61,8 +75,8 @@ class Callback(ABC):
         Initialize a new callback to use in LightGBM's training.
 
         :param order:            The priority of the callback to be called first. Lower value means higher priority.
-                                 Defaulted to 10.
-        :param before_iteration: Whether to call this callback before each iteration or after. Defaulted to after
+                                 Default: 10.
+        :param before_iteration: Whether to call this callback before each iteration or after. Default: after
                                  (False).
         """
         self.order = order

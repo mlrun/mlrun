@@ -1,4 +1,19 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+import warnings
 from typing import Dict, List, Union
 
 import mlrun
@@ -12,6 +27,8 @@ from .utils import SKLearnTypes, SKLearnUtils
 
 # Placeholders as the SciKit-Learn API is commonly used among all ML frameworks:
 SKLearnModelServer = PickleModelServer
+# TODO: Change in docs to the correct naming and add warning for this one:
+SklearnModelServer = SKLearnModelServer
 SKLearnArtifactsLibrary = MLArtifactsLibrary
 
 
@@ -40,13 +57,13 @@ def apply_mlrun(
     parameters: Dict[str, Union[str, int, float]] = None,
     extra_data: Dict[str, SKLearnTypes.ExtraDataType] = None,
     auto_log: bool = True,
-    **kwargs
+    **kwargs,
 ) -> SKLearnModelHandler:
     """
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.
 
     :param model:                    The model to wrap. Can be loaded from the model path given as well.
-    :param model_name:               The model name to use for storing the model artifact. Defaulted to "model".
+    :param model_name:               The model name to use for storing the model artifact. Default: "model".
     :param tag:                      The model's tag to log with.
     :param model_path:               The model's store object path. Mandatory for evaluation (to know which model to
                                      update). If model is not provided, it will be loaded from this path.
@@ -108,7 +125,7 @@ def apply_mlrun(
     :param parameters:               Parameters to log with the model.
     :param extra_data:               Extra data to log with the model.
     :param auto_log:                 Whether to apply MLRun's auto logging on the model. Auto logging will add the
-                                     default artifacts and metrics to the lists of artifacts and metrics. Defaulted to
+                                     default artifacts and metrics to the lists of artifacts and metrics. Default:
                                      True.
 
     :return: The model handler initialized with the provided model.
@@ -180,3 +197,15 @@ def apply_mlrun(
     )
 
     return handler
+
+
+# TODO: Remove once 1.0.0 is no longer supported
+def __getattr__(name):
+    if name == "SklearnModelServer":
+        warnings.warn(
+            "PendingDeprecationWarning: 'SklearnModelServer' was renamed to 'SKLearnModelServer'. "
+            "Please use the new name. The old name will be removed in mlrun 1.2.0.",
+            PendingDeprecationWarning,
+        )
+        return SKLearnModelServer
+    raise ImportError(f"cannot import name '{name}' from '{__name__}' ({__file__})")

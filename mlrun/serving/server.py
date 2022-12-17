@@ -82,6 +82,7 @@ class GraphServer(ModelObj):
         graph_initializer=None,
         error_stream=None,
         track_models=None,
+        tracking_policy=None,
         secret_sources=None,
         default_content_type=None,
     ):
@@ -98,6 +99,7 @@ class GraphServer(ModelObj):
         self.graph_initializer = graph_initializer
         self.error_stream = error_stream
         self.track_models = track_models
+        self.tracking_policy = tracking_policy
         self._error_stream_object = None
         self.secret_sources = secret_sources
         self._secrets = SecretsStore.from_list(secret_sources)
@@ -249,7 +251,7 @@ class GraphServer(ModelObj):
             try:
                 body = json.loads(event.body)
                 event.body = body
-            except json.decoder.JSONDecodeError as exc:
+            except (json.decoder.JSONDecodeError, UnicodeDecodeError) as exc:
                 if event.content_type in ["json", "application/json"]:
                     # if its json type and didnt load, raise exception
                     message = f"failed to json decode event, {exc}"
@@ -444,6 +446,14 @@ class GraphContext:
     @property
     def server(self):
         return self._server
+
+    @property
+    def project(self):
+        """current project name (for the current function)"""
+        project, _, _, _ = mlrun.utils.parse_versioned_object_uri(
+            self._server.function_uri
+        )
+        return project
 
     def push_error(self, event, message, source=None, **kwargs):
         if self.verbose:

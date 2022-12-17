@@ -1,10 +1,26 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import mimetypes
 from http import HTTPStatus
 
 import fastapi
 
 import mlrun.api.api.deps
+import mlrun.api.crud.secrets
 import mlrun.api.schemas
+import mlrun.api.utils.auth.verifier
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
 from mlrun.utils import logger
@@ -23,6 +39,80 @@ def get_files(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
+    return _get_files(schema, objpath, user, size, offset, auth_info)
+
+
+@router.get("/projects/{project}/files")
+def get_files_with_project_secrets(
+    project: str,
+    schema: str = "",
+    objpath: str = fastapi.Query("", alias="path"),
+    user: str = "",
+    size: int = 0,
+    offset: int = 0,
+    use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+    secrets = {}
+    if use_secrets:
+        secrets = _verify_and_get_project_secrets(project, auth_info)
+
+    return _get_files(schema, objpath, user, size, offset, auth_info, secrets=secrets)
+
+
+@router.get("/filestat")
+def get_filestat(
+    schema: str = "",
+    path: str = "",
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    user: str = "",
+):
+    return _get_filestat(schema, path, user, auth_info)
+
+
+@router.get("/projects/{project}/filestat")
+def get_filestat_with_project_secrets(
+    project: str,
+    schema: str = "",
+    path: str = "",
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    user: str = "",
+    use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
+):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+    secrets = {}
+    if use_secrets:
+        secrets = _verify_and_get_project_secrets(project, auth_info)
+
+    return _get_filestat(schema, path, user, auth_info, secrets=secrets)
+
+
+def _get_files(
+    schema: str,
+    objpath: str,
+    user: str,
+    size: int,
+    offset: int,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    secrets: dict = None,
+):
     _, filename = objpath.split(objpath)
 
     objpath = get_obj_path(schema, objpath, user=user)
@@ -35,11 +125,12 @@ def get_files(
 
     logger.debug("Got get files request", path=objpath)
 
-    secrets = get_secrets(auth_info)
+    secrets = secrets or {}
+    secrets.update(get_secrets(auth_info))
+
     body = None
     try:
-        stores = store_manager.set(secrets)
-        obj = stores.object(url=objpath)
+        obj = store_manager.object(url=objpath, secrets=secrets)
         if objpath.endswith("/"):
             listdir = obj.listdir()
             return {
@@ -61,14 +152,12 @@ def get_files(
     )
 
 
-@router.get("/filestat")
-def get_filestat(
-    schema: str = "",
-    path: str = "",
-    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    user: str = "",
+def _get_filestat(
+    schema: str,
+    path: str,
+    user: str,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    secrets: dict = None,
 ):
     _, filename = path.split(path)
 
@@ -80,11 +169,12 @@ def get_filestat(
 
     logger.debug("Got get filestat request", path=path)
 
-    secrets = get_secrets(auth_info)
+    secrets = secrets or {}
+    secrets.update(get_secrets(auth_info))
+
     stat = None
     try:
-        stores = store_manager.set(secrets)
-        stat = stores.object(url=path).stat()
+        stat = store_manager.object(url=path, secrets=secrets).stat()
     except FileNotFoundError as exc:
         log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=str(exc))
 
@@ -97,3 +187,19 @@ def get_filestat(
         "modified": stat.modified,
         "mimetype": ctype,
     }
+
+
+def _verify_and_get_project_secrets(project, auth_info):
+    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.secret,
+        project,
+        mlrun.api.schemas.SecretProviderName.kubernetes,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    secrets_data = mlrun.api.crud.Secrets().list_project_secrets(
+        project,
+        mlrun.api.schemas.SecretProviderName.kubernetes,
+        allow_secrets_from_k8s=True,
+    )
+    return secrets_data.secrets or {}

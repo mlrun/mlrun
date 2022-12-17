@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import os
 import tempfile
 import time
 import traceback
@@ -25,8 +24,6 @@ from typing import Dict, List, Optional, Union
 import kfp
 import requests
 import semver
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 import mlrun
 import mlrun.projects
@@ -34,6 +31,7 @@ from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError
 
 from ..api.schemas import ModelEndpoint
+from ..artifacts import Artifact
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
@@ -53,18 +51,6 @@ _artifact_keys = [
 
 def bool2str(val):
     return "yes" if val else "no"
-
-
-http_adapter = HTTPAdapter(
-    max_retries=Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[500, 502, 503, 504],
-        # we want to retry but not to raise since we do want that last response (to parse details on the
-        # error from response body) we'll handle raising ourselves
-        raise_on_status=False,
-    ),
-)
 
 
 class HTTPRunDB(RunDBInterface):
@@ -212,9 +198,10 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         if not self.session:
-            self.session = requests.Session()
-            self.session.mount("http://", http_adapter)
-            self.session.mount("https://", http_adapter)
+            self.session = mlrun.utils.HTTPSessionWithRetry(
+                retry_on_exception=config.httpdb.retry_api_call_on_exception
+                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value
+            )
 
         try:
             response = self.session.request(
@@ -272,6 +259,12 @@ class HTTPRunDB(RunDBInterface):
                     f"warning!, server ({server_cfg['namespace']}) and client ({config.namespace})"
                     " namespace don't match"
                 )
+            if config.ce.mode and config.ce.mode != server_cfg.get("ce_mode", ""):
+                logger.warning(
+                    f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
+                    " CE mode don't match"
+                )
+            config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")
@@ -308,6 +301,21 @@ class HTTPRunDB(RunDBInterface):
                 config.valid_function_priority_class_names
                 or server_cfg.get("valid_function_priority_class_names")
             )
+            config.artifacts.calculate_hash = (
+                config.artifacts.calculate_hash
+                if config.artifacts.calculate_hash is not None
+                else server_cfg.get("calculate_artifact_hash")
+            )
+            config.artifacts.generate_target_path_from_artifact_hash = (
+                config.artifacts.generate_target_path_from_artifact_hash
+                if config.artifacts.generate_target_path_from_artifact_hash is not None
+                else server_cfg.get("generate_artifact_target_path_from_artifact_hash")
+            )
+
+            config.redis.url = config.redis.url or server_cfg.get("redis_url")
+            # allow client to set the default partial WA for lack of support of per-target auxiliary options
+            config.redis.type = config.redis.type or server_cfg.get("redis_type")
+
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (
@@ -362,6 +370,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("force_run_local") or config.force_run_local
             )
             config.function = server_cfg.get("function") or config.function
+            config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
 
         except Exception as exc:
             logger.warning(
@@ -434,18 +443,26 @@ class HTTPRunDB(RunDBInterface):
             nil_resp = 0
             while state in ["pending", "running"]:
                 offset += len(text)
+                # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
+                # TODO: refactor this to use a conditional backoff mechanism
                 if nil_resp < 3:
-                    time.sleep(3)
+                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
                 else:
-                    time.sleep(10)
+                    time.sleep(
+                        int(
+                            mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                        )
+                    )
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0
                     print(text.decode(), end="")
                 else:
                     nil_resp += 1
+        else:
+            offset += len(text)
 
-        return state
+        return state, offset
 
     def store_run(self, struct, uid, project="", iter=0):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
@@ -625,7 +642,7 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project that the artifact belongs to.
         """
 
-        path = self._path_of("artifact", project, uid) + "/" + key
+        endpoint_path = f"projects/{project}/artifacts/{uid}/{key}"
         params = {
             "tag": tag,
         }
@@ -635,32 +652,32 @@ class HTTPRunDB(RunDBInterface):
         error = f"store artifact {project}/{uid}/{key}"
 
         body = _as_json(artifact)
-        self.api_call("POST", path, error, params=params, body=body)
+        self.api_call("POST", endpoint_path, error, params=params, body=body)
 
     def read_artifact(self, key, tag=None, iter=None, project=""):
         """Read an artifact, identified by its key, tag and iteration."""
 
         project = project or config.default_project
         tag = tag or "latest"
-        path = f"projects/{project}/artifact/{key}?tag={tag}"
+        endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
         error = f"read artifact {project}/{key}"
-        # The default is legacy format, need to override it.
+        # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
         params = {"format": schemas.ArtifactsFormat.full.value}
         if iter:
             params["iter"] = str(iter)
-        resp = self.api_call("GET", path, error, params=params)
+        resp = self.api_call("GET", endpoint_path, error, params=params)
         return resp.json()["data"]
 
     def del_artifact(self, key, tag=None, project=""):
         """Delete an artifact."""
 
-        path = self._path_of("artifact", project, key)  # TODO: uid?
+        endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
             "tag": tag,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params)
 
     def list_artifacts(
         self,
@@ -704,7 +721,6 @@ class HTTPRunDB(RunDBInterface):
 
         params = {
             "name": name,
-            "project": project,
             "tag": tag,
             "label": labels or [],
             "iter": iter,
@@ -714,7 +730,8 @@ class HTTPRunDB(RunDBInterface):
             "format": schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
-        resp = self.api_call("GET", "artifacts", error, params=params)
+        endpoint_path = f"projects/{project}/artifacts"
+        resp = self.api_call("GET", endpoint_path, error, params=params)
         values = ArtifactList(resp.json()["artifacts"])
         values.tag = tag
         return values
@@ -732,21 +749,27 @@ class HTTPRunDB(RunDBInterface):
         project = project or config.default_project
         params = {
             "name": name,
-            "project": project,
             "tag": tag,
             "label": labels or [],
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
-        self.api_call("DELETE", "artifacts", error, params=params)
+        endpoint_path = f"projects/{project}/artifacts"
+        self.api_call("DELETE", endpoint_path, error, params=params)
 
-    def list_artifact_tags(self, project=None) -> List[str]:
+    def list_artifact_tags(
+        self,
+        project=None,
+        category: Union[str, schemas.ArtifactCategories] = None,
+    ) -> List[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
+        params = {"category": category} if category else {}
+
         response = self.api_call(
-            "GET", f"projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message, params=params
         )
         return response.json()["tags"]
 
@@ -816,17 +839,17 @@ class HTTPRunDB(RunDBInterface):
         mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         """List current runtime resources, which are usually (but not limited to) Kubernetes pods or CRDs.
-        Function applies for runs of type ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``, and will return per
+        Function applies for runs of type `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`, and will return per
         runtime kind a list of the runtime resources (which may have already completed their execution).
 
         :param project: Get only runtime resources of a specific project, by default None, which will return only the
-        projects you're authorized to see.
+            projects you're authorized to see.
         :param label_selector: A label filter that will be passed to Kubernetes for filtering the results according
             to their labels.
-        :param kind: The kind of runtime to query. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param kind: The kind of runtime to query. May be one of `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`
         :param object_id: The identifier of the mlrun object to query its runtime resources. for most function runtimes,
-        runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the runtime
-        resources are per Function, for which the identifier is the Function's name.
+            runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the runtime
+            resources are per Function, for which the identifier is the Function's name.
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
@@ -906,19 +929,19 @@ class HTTPRunDB(RunDBInterface):
         """Delete all runtime resources which are in terminal state.
 
         :param project: Delete only runtime resources of a specific project, by default None, which will delete only
-        from the projects you're authorized to delete from.
+            from the projects you're authorized to delete from.
         :param label_selector: Delete only runtime resources matching the label selector.
-        :param kind: The kind of runtime to delete. May be one of ``['dask', 'job', 'spark', 'remote-spark', 'mpijob']``
+        :param kind: The kind of runtime to delete. May be one of `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`
         :param object_id: The identifier of the mlrun object to delete its runtime resources. for most function
-        runtimes, runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the
-        runtime resources are per Function, for which the identifier is the Function's name.
+            runtimes, runtime resources are per Run, for which the identifier is the Run's UID. For dask runtime, the
+            runtime resources are per Function, for which the identifier is the Function's name.
         :param force: Force deletion - delete the runtime resource even if it's not in terminal state or if the grace
-        period didn't pass.
+            period didn't pass.
         :param grace_period: Grace period given to the runtime resource before they are actually removed, counted from
-        the moment they moved to terminal state.
+            the moment they moved to terminal state.
 
         :returns: :py:class:`~mlrun.api.schemas.GroupedByProjectRuntimeResourcesOutput` listing the runtime resources
-        that were removed.
+            that were removed.
         """
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
@@ -1492,7 +1515,10 @@ class HTTPRunDB(RunDBInterface):
         return uid or tag or "latest"
 
     def create_feature_set(
-        self, feature_set: Union[dict, schemas.FeatureSet], project="", versioned=True
+        self,
+        feature_set: Union[dict, schemas.FeatureSet, FeatureSet],
+        project="",
+        versioned=True,
     ) -> dict:
         """Create a new :py:class:`~mlrun.feature_store.FeatureSet` and save in the :py:mod:`mlrun` DB. The
         feature-set must not previously exist in the DB.
@@ -1505,6 +1531,8 @@ class HTTPRunDB(RunDBInterface):
         """
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
+        elif isinstance(feature_set, FeatureSet):
+            feature_set = feature_set.to_dict()
 
         project = (
             project
@@ -1692,7 +1720,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_feature_set(
         self,
-        feature_set: Union[dict, schemas.FeatureSet],
+        feature_set: Union[dict, schemas.FeatureSet, FeatureSet],
         name=None,
         project="",
         tag=None,
@@ -1718,6 +1746,8 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(feature_set, schemas.FeatureSet):
             feature_set = feature_set.dict()
+        elif isinstance(feature_set, FeatureSet):
+            feature_set = feature_set.to_dict()
 
         name = name or feature_set["metadata"]["name"]
         project = (
@@ -1789,7 +1819,7 @@ class HTTPRunDB(RunDBInterface):
 
     def create_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector],
+        feature_vector: Union[dict, schemas.FeatureVector, FeatureVector],
         project="",
         versioned=True,
     ) -> dict:
@@ -1803,6 +1833,8 @@ class HTTPRunDB(RunDBInterface):
         """
         if isinstance(feature_vector, schemas.FeatureVector):
             feature_vector = feature_vector.dict()
+        elif isinstance(feature_vector, FeatureVector):
+            feature_vector = feature_vector.to_dict()
 
         project = (
             project
@@ -1896,7 +1928,7 @@ class HTTPRunDB(RunDBInterface):
 
     def store_feature_vector(
         self,
-        feature_vector: Union[dict, schemas.FeatureVector],
+        feature_vector: Union[dict, schemas.FeatureVector, FeatureVector],
         name=None,
         project="",
         tag=None,
@@ -1922,6 +1954,8 @@ class HTTPRunDB(RunDBInterface):
 
         if isinstance(feature_vector, schemas.FeatureVector):
             feature_vector = feature_vector.dict()
+        elif isinstance(feature_vector, FeatureVector):
+            feature_vector = feature_vector.to_dict()
 
         name = name or feature_vector["metadata"]["name"]
         project = (
@@ -1986,6 +2020,95 @@ class HTTPRunDB(RunDBInterface):
 
         error_message = f"Failed deleting feature-vector {name}"
         self.api_call("DELETE", path, error_message)
+
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        objects: Union[mlrun.api.schemas.TagObjects, dict],
+        replace: bool = False,
+    ):
+        """Tag a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to set on the objects.
+        :param objects: The objects to tag.
+        :param replace: Whether to replace the existing tags of the objects or to add the new tag to them.
+        """
+
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed to tag {tag_name} on objects {objects}"
+        method = "POST" if replace else "PUT"
+        self.api_call(
+            method,
+            path,
+            error_message,
+            body=dict_to_json(
+                objects.dict()
+                if isinstance(objects, mlrun.api.schemas.TagObjects)
+                else objects
+            ),
+        )
+
+    def delete_objects_tag(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: Union[mlrun.api.schemas.TagObjects, dict],
+    ):
+        """Delete a tag from a list of objects.
+
+        :param project: Project which contains the objects.
+        :param tag_name: The tag to delete from the objects.
+        :param tag_objects: The objects to delete the tag from.
+
+        """
+        path = f"projects/{project}/tags/{tag_name}"
+        error_message = f"Failed deleting tag from {tag_name}"
+        self.api_call(
+            "DELETE",
+            path,
+            error_message,
+            body=dict_to_json(
+                tag_objects.dict()
+                if isinstance(tag_objects, mlrun.api.schemas.TagObjects)
+                else tag_objects
+            ),
+        )
+
+    def tag_artifacts(
+        self,
+        artifacts: Union[List[Artifact], List[dict], Artifact, dict],
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        """Tag a list of artifacts.
+
+        :param artifacts: The artifacts to tag. Can be a list of :py:class:`~mlrun.artifacts.Artifact` objects or
+            dictionaries, or a single object.
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        :param replace: If True, replace existing tags, otherwise append to existing tags.
+        """
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+        self.tag_objects(project, tag_name, objects=tag_objects, replace=replace)
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        """Delete tag from a list of artifacts.
+
+        :param artifacts: The artifacts to delete the tag from. Can be a list of :py:class:`~mlrun.artifacts.Artifact`
+            objects or dictionaries, or a single object.
+        :param project: Project which contains the artifacts.
+        :param tag_name: The tag to set on the artifacts.
+        """
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+        self.delete_objects_tag(project, tag_name, tag_objects)
 
     def list_projects(
         self,
@@ -2415,61 +2538,43 @@ class HTTPRunDB(RunDBInterface):
             )
         return True
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key: Optional[str] = None,
     ):
         """
-        Creates or updates a KV record with the given model_endpoint record
+        Creates a DB record with the given model_endpoint record.
 
-        :param project: The name of the project
-        :param endpoint_id: The id of the endpoint
-        :param model_endpoint: An object representing the model endpoint
-        :param access_key: V3IO access key, when None, will be look for in environ
+        :param project: The name of the project.
+        :param endpoint_id: The id of the endpoint.
+        :param model_endpoint: An object representing the model endpoint.
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="PUT",
+            method="POST",
             path=path,
             body=model_endpoint.json(),
-            headers={"X-V3io-Access-Key": access_key},
         )
 
-    def delete_model_endpoint_record(
+    def delete_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
-        access_key: Optional[str] = None,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
-        :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="DELETE",
             path=path,
-            headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2481,7 +2586,6 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key: Optional[str] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
     ) -> schemas.ModelEndpointList:
@@ -2501,20 +2605,19 @@ class HTTPRunDB(RunDBInterface):
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
-        (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+            (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics
-        :param end: The end time of the metrics
-        :param access_key: V3IO access key, when None, will be look for in environ
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
+                                 days), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
+                                 days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints"
         response = self.api_call(
@@ -2530,7 +2633,6 @@ class HTTPRunDB(RunDBInterface):
                 "top-level": top_level,
                 "uid": uids,
             },
-            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -2542,7 +2644,6 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-        access_key: Optional[str] = None,
     ) -> schemas.ModelEndpoint:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
@@ -2550,18 +2651,15 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics
-        :param end: The end time of the metrics
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
+                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
+                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
-        the output of the resulting object
-        :param access_key: V3IO access key, when None, will be look for in environ
+            the output of the resulting object
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
@@ -2573,9 +2671,51 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
-            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
+    ):
+        """
+        Updates model endpoint with provided attributes.
+
+        :param project: The name of the project.
+        :param endpoint_id: The id of the endpoint.
+        :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
+                           of this dictionary should exist in the target table. The values should be
+                           from type string or from a valid numerical type such as int or float. More details
+                           about the model endpoint available attributes can be found under
+                           :py:class:`~mlrun.api.schemas.ModelEndpoint`.
+
+                           Example::
+
+                                # Generate current stats for two features
+                                current_stats = {'tvd_sum': 2.2,
+                                                 'tvd_mean': 0.5,
+                                                 'hellinger_sum': 3.6,
+                                                 'hellinger_mean': 0.9,
+                                                 'kld_sum': 24.2,
+                                                 'kld_mean': 6.0,
+                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+
+                                # Create attributes dictionary according to the required format
+                                attributes = {`current_stats`: json.dumps(current_stats),
+                                              `drift_status`: "DRIFT_DETECTED"}
+
+        """
+
+        attributes = {"attributes": _as_json(attributes)}
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        self.api_call(
+            method="PATCH",
+            path=path,
+            params=attributes,
+        )
 
     def create_marketplace_source(
         self, source: Union[dict, schemas.IndexedMarketplaceSource]
@@ -2583,12 +2723,13 @@ class HTTPRunDB(RunDBInterface):
         """
         Add a new marketplace source.
 
-        MLRun maintains an ordered list of marketplace sources ("sources"). Each source has its details registered and
-        its order within the list. When creating a new source, the special order ``-1`` can be used to mark this source
-        as last in the list. However, once the source is in the MLRun list, its order will always be ``>0``.
+        MLRun maintains an ordered list of marketplace sources (“sources”) Each source has
+        its details registered and its order within the list. When creating a new source, the special order ``-1``
+        can be used to mark this source as last in the list. However, once the source is in the MLRun list,
+        its order will always be ``>0``.
 
-        The global marketplace source always exists in the list, and is always the last source (``order = -1``).
-        It cannot be modified nor can it be moved to another order in the list.
+        The global marketplace source always exists in the list, and is always the last source
+        (``order = -1``). It cannot be modified nor can it be moved to another order in the list.
 
         The source object may contain credentials which are needed to access the datastore where the source is stored.
         These credentials are not kept in the MLRun DB, but are stored inside a kubernetes secret object maintained by
@@ -2702,8 +2843,9 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
-        :param force_refresh: Make the server fetch the catalog from the actual marketplace source, rather than rely
-            on cached information which may exist from previous get requests. For example, if the source was re-built,
+        :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
+            rather than rely on cached information which may exist from previous get requests. For example,
+            if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
             of :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem` entries.
@@ -2735,7 +2877,8 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-        :param force_refresh: Make the server fetch the information from the actual marketplace source, rather than
+        :param force_refresh: Make the server fetch the information from the actual marketplace
+            source, rather than
             rely on cached information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.
         """

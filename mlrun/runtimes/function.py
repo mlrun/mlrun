@@ -31,6 +31,7 @@ from nuclio.triggers import V3IOStreamTrigger
 import mlrun.errors
 from mlrun.datastore import parse_s3_bucket_and_key
 from mlrun.db import RunDBError
+from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
@@ -38,8 +39,8 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_v3io_path, split_path, v3io_cred
-from ..utils import enrich_image_url, get_in, logger, update_in
+from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
+from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
@@ -128,6 +129,7 @@ class NuclioSpec(KubeResourceSpec):
         "readiness_timeout",
         "function_handler",
         "nuclio_runtime",
+        "base_image_pull",
     ]
 
     def __init__(
@@ -211,6 +213,9 @@ class NuclioSpec(KubeResourceSpec):
         #  we need to do one of the two
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or default_max_replicas
+        # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
+        # indicate that the base image should be pulled from the container registry (not cached)
+        self.base_image_pull: bool = None
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -264,6 +269,7 @@ class NuclioStatus(FunctionStatus):
 class RemoteRuntime(KubeResource):
     kind = "remote"
     _is_nested = False
+    _mock_server = None
 
     @property
     def spec(self) -> NuclioSpec:
@@ -283,6 +289,16 @@ class RemoteRuntime(KubeResource):
 
     def set_config(self, key, value):
         self.spec.config[key] = value
+        return self
+
+    def with_annotations(self, annotations: dict):
+        """set a key/value annotations for function"""
+
+        self.spec.base_spec.setdefault("metadata", {})
+        self.spec.base_spec["metadata"].setdefault("annotations", {})
+        for key, value in annotations.items():
+            self.spec.base_spec["metadata"]["annotations"][key] = str(value)
+
         return self
 
     def add_volume(self, local, remote, name="fs", access_key="", user=""):
@@ -309,29 +325,33 @@ class RemoteRuntime(KubeResource):
     ):
         """Load nuclio function from remote source
 
-                Note: remote source may require credentials, those can be stored in the project secrets or passed
-                in the function.deploy() using the builder_env dict, see the required credentials per source:
-                v3io - "V3IO_ACCESS_KEY".
-                git - "GIT_USERNAME", "GIT_PASSWORD".
-                AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
+        Note: remote source may require credentials, those can be stored in the project secrets or passed
+        in the function.deploy() using the builder_env dict, see the required credentials per source:
 
-                :param source: a full path to the nuclio function source (code entry) to load the function from
-                :param handler: a path to the function's handler, including path inside archive/git repo
-                :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-                :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        - v3io - "V3IO_ACCESS_KEY".
+        - git - "GIT_USERNAME", "GIT_PASSWORD".
+        - AWS S3 - "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" or "AWS_SESSION_TOKEN".
 
-                Examples::
-                    git:
-                        fn.with_source_archive("git://github.com/org/repo#my-branch",
-                          handler="main:handler",
-                          workdir="path/inside/repo")
-                    s3:
-                        fn.spec.nuclio_runtime = "golang"
-                        fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
-                          handler="my_func:Handler",
-                          workdir="path/inside/functions/archive",
-                          runtime="golang")
-        )
+        :param source: a full path to the nuclio function source (code entry) to load the function from
+        :param handler: a path to the function's handler, including path inside archive/git repo
+        :param workdir: working dir  relative to the archive root (e.g. 'subdir')
+        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+
+        :Examples:
+
+            git::
+
+                fn.with_source_archive("git://github.com/org/repo#my-branch",
+                        handler="main:handler",
+                        workdir="path/inside/repo")
+
+            s3::
+
+                fn.spec.nuclio_runtime = "golang"
+                fn.with_source_archive("s3://my-bucket/path/in/bucket/my-functions-archive",
+                    handler="my_func:Handler",
+                    workdir="path/inside/functions/archive",
+                    runtime="golang")
         """
         self.spec.build.source = source
         # update handler in function_handler
@@ -460,7 +480,7 @@ class RemoteRuntime(KubeResource):
         """
         endpoint = None
         if "://" in stream_path:
-            endpoint, stream_path = parse_v3io_path(stream_path, suffix="")
+            endpoint, stream_path = parse_path(stream_path, suffix="")
         container, path = split_path(stream_path)
         shards = shards or 1
         extra_attributes = extra_attributes or {}
@@ -528,6 +548,7 @@ class RemoteRuntime(KubeResource):
             logger.info("Starting remote function deploy")
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
+            self._update_credentials_from_remote_build(data["data"])
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
@@ -785,6 +806,7 @@ class RemoteRuntime(KubeResource):
         dashboard: str = "",
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
+        mock: bool = None,
     ):
         """Invoke the remote (live) function and return the results
 
@@ -799,9 +821,20 @@ class RemoteRuntime(KubeResource):
         :param dashboard: nuclio dashboard address
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
+        :param mock:     use mock server vs a real Nuclio function (for local simulations)
         """
         if not method:
             method = "POST" if body else "GET"
+
+        if (self._mock_server and mock is None) or mlconf.use_nuclio_mock(mock):
+            # if we deployed mock server or in simulated nuclio environment use mock
+            if not self._mock_server:
+                self._set_as_mock(True)
+            return self._mock_server.test(path, body, method, headers)
+
+        # clear the mock server when using the real endpoint
+        self._mock_server = None
+
         if "://" not in path:
             if not self.status.address:
                 state, _, _ = self._get_state(dashboard, auth_info=auth_info)
@@ -991,6 +1024,50 @@ class RemoteRuntime(KubeResource):
         else:
             return f"http://{self.status.address}/{path}"
 
+    def _update_credentials_from_remote_build(self, remote_data):
+        self.metadata.credentials = remote_data.get("metadata", {}).get(
+            "credentials", {}
+        )
+
+        credentials_env_var_names = ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]
+        new_env = []
+
+        # the env vars in the local spec and remote spec are in the format of a list of dicts
+        # e.g.:
+        # env = [
+        #   {
+        #     "name": "V3IO_ACCESS_KEY",
+        #     "value": "some-value"
+        #   },
+        #   ...
+        # ]
+        # remove existing credentials env vars
+        for env in self.spec.env:
+            if isinstance(env, dict):
+                env_name = env["name"]
+            elif isinstance(env, client.V1EnvVar):
+                env_name = env.name
+            else:
+                continue
+
+            if env_name not in credentials_env_var_names:
+                new_env.append(env)
+
+        # add credentials env vars from remote build
+        for remote_env in remote_data.get("spec", {}).get("env", []):
+            if remote_env.get("name") in credentials_env_var_names:
+                new_env.append(remote_env)
+
+        self.spec.env = new_env
+
+    def _set_as_mock(self, enable):
+        # todo: create mock_server for Nuclio
+        if enable:
+            raise NotImplementedError(
+                "Mock (simulation) is currently not supported for Nuclio, Turn off the mock (mock=False) "
+                "and make sure Nuclio is installed for real deployment to Nuclio"
+            )
+
 
 def parse_logs(logs):
     logs = json.loads(logs)
@@ -1169,7 +1246,8 @@ def compile_function_config(
     # https://github.com/nuclio/nuclio/blob/e4af2a000dc52ee17337e75181ecb2652b9bf4e5/pkg/processor/build/builder.go#L1073
     if function.spec.build.secret:
         nuclio_spec.set_config("spec.imagePullSecrets", function.spec.build.secret)
-
+    if function.spec.base_image_pull:
+        nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
     # don't send node selections if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.5.20", "1.6.10"):
         if function.spec.node_selector:
@@ -1210,11 +1288,23 @@ def compile_function_config(
         )
 
     if function.spec.replicas:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.replicas)
+
+        nuclio_spec.set_config(
+            "spec.minReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas", as_number("spec.Replicas", function.spec.replicas)
+        )
+
     else:
-        nuclio_spec.set_config("spec.minReplicas", function.spec.min_replicas)
-        nuclio_spec.set_config("spec.maxReplicas", function.spec.max_replicas)
+        nuclio_spec.set_config(
+            "spec.minReplicas",
+            as_number("spec.minReplicas", function.spec.min_replicas),
+        )
+        nuclio_spec.set_config(
+            "spec.maxReplicas",
+            as_number("spec.maxReplicas", function.spec.max_replicas),
+        )
 
     if function.spec.service_account:
         nuclio_spec.set_config("spec.serviceAccount", function.spec.service_account)
@@ -1469,10 +1559,13 @@ def _compile_nuclio_archive_config(
             code_entry_attributes["branch"] = branch
 
         password = get_secret("GIT_PASSWORD")
+        username = get_secret("GIT_USERNAME")
+
         token = get_secret("GIT_TOKEN")
         if token:
-            password = "x-oauth-basic"
-        code_entry_attributes["username"] = token or get_secret("GIT_USERNAME")
+            username, password = get_git_username_password_from_token(token)
+
+        code_entry_attributes["username"] = username
         code_entry_attributes["password"] = password
 
     # populate spec with relevant fields

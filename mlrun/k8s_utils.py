@@ -32,7 +32,7 @@ from .utils import logger
 _k8s = None
 
 
-def get_k8s_helper(namespace=None, silent=False, log=False):
+def get_k8s_helper(namespace=None, silent=False, log=False) -> "K8sHelper":
     """
     :param silent: set to true if you're calling this function from a code that might run from remotely (outside of a
     k8s cluster)
@@ -106,23 +106,46 @@ class K8sHelper:
             raise ValueError("labels selector or states list must be specified")
         items = self.list_pods(namespace, selector, states)
         for item in items:
-            self.del_pod(item.metadata.name, item.metadata.namespace)
+            self.delete_pod(item.metadata.name, item.metadata.namespace)
 
-    def create_pod(self, pod):
+    def create_pod(self, pod, max_retry=3, retry_interval=3):
         if "pod" in dir(pod):
             pod = pod.pod
         pod.metadata.namespace = self.resolve_namespace(pod.metadata.namespace)
-        try:
-            resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
-        except ApiException as exc:
-            logger.error(f"spec:\n{pod.spec}")
-            logger.error(f"failed to create pod: {exc}")
-            raise exc
 
-        logger.info(f"Pod {resp.metadata.name} created")
-        return resp.metadata.name, resp.metadata.namespace
+        retry_count = 0
+        while True:
+            try:
+                resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
+            except ApiException as exc:
 
-    def del_pod(self, name, namespace=None):
+                if retry_count > max_retry:
+                    logger.error(
+                        "failed to create pod after max retries",
+                        retry_count=retry_count,
+                        exc=str(exc),
+                        pod=pod,
+                    )
+                    raise exc
+
+                logger.error("failed to create pod", exc=str(exc), pod=pod)
+
+                # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
+                if "gke-resource-quotas" in str(exc):
+                    logger.warning(
+                        "failed to create pod due to gke resource error, "
+                        f"sleeping {retry_interval} seconds and retrying"
+                    )
+                    retry_count += 1
+                    time.sleep(retry_interval)
+                    continue
+
+                raise exc
+            else:
+                logger.info(f"Pod {resp.metadata.name} created")
+                return resp.metadata.name, resp.metadata.namespace
+
+    def delete_pod(self, name, namespace=None):
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
@@ -134,8 +157,8 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if pod is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete pod: {exc}")
-            raise exc
+                logger.error(f"failed to delete pod: {exc}", pod_name=name)
+                raise exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
@@ -156,6 +179,34 @@ class K8sHelper:
         return self.get_pod(
             name, namespace, raise_on_not_found=True
         ).status.phase.lower()
+
+    def delete_crd(self, name, crd_group, crd_version, crd_plural, namespace=None):
+        try:
+            namespace = self.resolve_namespace(namespace)
+            self.crdapi.delete_namespaced_custom_object(
+                crd_group,
+                crd_version,
+                namespace,
+                crd_plural,
+                name,
+            )
+            logger.info(
+                "Deleted crd object",
+                crd_name=name,
+                namespace=namespace,
+            )
+        except ApiException as exc:
+
+            # ignore error if crd is already removed
+            if exc.status != 404:
+                logger.error(
+                    f"failed to delete crd: {exc}",
+                    crd_name=name,
+                    crd_group=crd_group,
+                    crd_version=crd_version,
+                    crd_plural=crd_plural,
+                )
+                raise exc
 
     def logs(self, name, namespace=None):
         try:
@@ -371,6 +422,29 @@ class K8sHelper:
     def store_project_secrets(self, project, secrets, namespace=""):
         secret_name = self.get_project_secret_name(project)
         self.store_secrets(secret_name, secrets, namespace)
+
+    def read_auth_secret(self, secret_name, namespace=""):
+        namespace = self.resolve_namespace(namespace)
+
+        try:
+            secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
+        except ApiException:
+            return None
+
+        def _get_secret_value(key):
+            if secret_data.get(key):
+                return base64.b64decode(secret_data[key]).decode("utf-8")
+            else:
+                return None
+
+        username = _get_secret_value(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+        )
+        access_key = _get_secret_value(
+            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+        )
+
+        return username, access_key
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
         secret_name = self.get_auth_secret_name(access_key)

@@ -1,4 +1,17 @@
-import os
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -82,10 +95,9 @@ class FeaturesDriftTablePlot:
         inputs_statistics: dict,
         metrics: Dict[str, Union[dict, float]],
         drift_results: Dict[str, DriftResultType],
-        output_path: str = "./",
     ) -> str:
         """
-        Produce the html file of the table plot with the given information and the stored configurations in the class.
+        Produce the html code of the table plot with the given information and the stored configurations in the class.
 
         :param features:              List of all the features names to include in the table. These names expected to be
                                       in the statistics and metrics dictionaries.
@@ -93,7 +105,6 @@ class FeaturesDriftTablePlot:
         :param inputs_statistics:     The inputs calculated statistics dictionary.
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.
         :param drift_results:         The drift results per feature according to the rules of the monitor.
-        :param output_path:           Directory for the html file of the plot to be saved in.
 
         :return: The full path to the html file of the plot.
         """
@@ -107,22 +118,17 @@ class FeaturesDriftTablePlot:
         )
 
         # Get its HTML representation:
-        html_plot = figure.to_html()
+        figure_html = figure.to_html()
 
         # Turn off the table columns dragging by injecting the following JavaScript code:
-        start, end = html_plot.rsplit(";", 1)
+        start, end = figure_html.rsplit(";", 1)
         middle = (
             ';for (const element of document.getElementsByClassName("table")) '
             '{element.style.pointerEvents = "none";}'
         )
-        html_plot = start + middle + end
+        figure_html = start + middle + end
 
-        # Save the plot into the html file:
-        plot_file = os.path.join(output_path, "table_plot.html")
-        with open(plot_file, "w") as html_file:
-            html_file.write(html_plot)
-
-        return plot_file
+        return figure_html
 
     def _read_columns_names(self, statistics_dictionary: dict, drift_metrics: dict):
         """
@@ -250,6 +256,10 @@ class FeaturesDriftTablePlot:
         if isinstance(value, str):
             return ""
 
+        # Check fo nan values:
+        if np.isnan(value):
+            return ""
+
         # Any whole number or number with a long integer value should be parsed into short characters
         # (e.g: 10000 -> 10k, 1100000 -> 1.1m):
         integer_length = len(str(int(value)))
@@ -319,8 +329,10 @@ class FeaturesDriftTablePlot:
         self, sample_hist: Tuple[list, list], input_hist: Tuple[list, list]
     ) -> Tuple[go.Scatter, go.Scatter]:
         """
-        Plot the feature's histograms to include in the histograms column. Both histograms are returned to later be
-        added in the same figure, so they will be on top of each other and not separated.
+        Plot the feature's histograms to include in the "histograms" column. Both histograms are returned to later be
+        added in the same figure, so they will be on top of each other and not separated. Both histograms are rescaled
+        to be from 0.0 to 1.0, so they will be drawn in the same scale regardless the amount of elements they were
+        calculated upon.
 
         :param sample_hist: The sample set histogram data.
         :param input_hist:  The input histogram data.
@@ -340,6 +352,8 @@ class FeaturesDriftTablePlot:
         ):
             # Read the histogram tuple:
             counts, bins = histogram
+            # Rescale the counts to be in percentages (between 0.0 to 1.0):
+            counts = np.array(counts) / sum(counts)
             # Convert to NumPy for vectorization:
             bins = np.array(bins)
             # Center the bins (leave the first one):

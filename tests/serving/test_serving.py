@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 import os
 import pathlib
@@ -435,3 +449,77 @@ def test_model_chained():
     assert (
         resp["m1"]["outputs"] == 5 * 2 and resp["m2"]["outputs"] == 5 * 3
     ), "unexpected model results"
+
+
+def test_mock_deploy():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    nuclio_version_config = mlrun.mlconf.nuclio_version
+    project = mlrun.new_project("x", save=False)
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # disable config
+    mlrun.mlconf.mock_nuclio_deployment = ""
+
+    # test mock deployment is working
+    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test mock deployment is working via project object
+    project.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test that it tries real deployment when turned off
+    with pytest.raises(Exception):
+        mlrun.deploy_function(fn, dashboard="bad-address")
+        fn.invoke("/v2/models/my/infer", testdata)
+
+    # set the mock through the config
+    fn._set_as_mock(False)
+    mlrun.mlconf.mock_nuclio_deployment = "auto"
+    mlrun.mlconf.nuclio_version = ""
+
+    mlrun.deploy_function(fn)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    mlrun.mlconf.mock_nuclio_deployment = "1"
+    mlrun.mlconf.nuclio_version = "1.1"
+
+    mlrun.deploy_function(fn)
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # return config valued
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
+    mlrun.mlconf.nuclio_version = nuclio_version_config
+
+
+def test_mock_invoke():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    mlrun.new_project("x", save=False)
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # disable config
+    mlrun.mlconf.mock_nuclio_deployment = "1"
+
+    # test mock deployment is working
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test that it tries real endpoint when turned off
+    with pytest.raises(Exception):
+        mlrun.deploy_function(fn, dashboard="bad-address")
+        fn.invoke("/v2/models/my/infer", testdata, mock=False)
+
+    # set the mock through the config
+    fn._set_as_mock(False)
+    mlrun.mlconf.mock_nuclio_deployment = ""
+    resp = fn.invoke("/v2/models/my/infer", testdata, mock=True)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # return config valued
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config

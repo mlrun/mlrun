@@ -14,7 +14,7 @@
 import sys
 import tempfile
 from base64 import b64encode
-from os import getenv, path, remove
+from os import path, remove
 
 import dask.dataframe as dd
 import fsspec
@@ -24,7 +24,6 @@ import requests
 import urllib3
 
 import mlrun.errors
-from mlrun.secrets import SecretsStore
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
@@ -43,7 +42,7 @@ class FileStats:
 
 
 class DataStore:
-    def __init__(self, parent, name, kind, endpoint=""):
+    def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
         self._parent = parent
         self.kind = kind
         self.name = name
@@ -53,6 +52,7 @@ class DataStore:
         self.options = {}
         self.from_spec = False
         self._filesystem = None
+        self._secrets = secrets or {}
 
     @property
     def is_structured(self):
@@ -80,11 +80,8 @@ class DataStore:
 
     def _get_secret_or_env(self, key, default=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
-        return (
-            self._secret(key)
-            or getenv(key)
-            or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
-            or default
+        return mlrun.get_secret_or_env(
+            key, secret_provider=self._get_secret, default=default
         )
 
     def get_storage_options(self):
@@ -100,8 +97,11 @@ class DataStore:
             return f"{self.subpath}/{key}"
         return key
 
-    def _secret(self, key):
+    def _get_parent_secret(self, key):
         return self._parent.secret(self.secret_pfx + key)
+
+    def _get_secret(self, key: str, default=None):
+        return self._secrets.get(key, default) or self._get_parent_secret(key)
 
     @property
     def url(self):
@@ -330,6 +330,10 @@ class DataItem:
         """
         self._store.put(self._path, data, append=append)
 
+    def delete(self):
+        """delete the object from the datastore"""
+        self._store.rm(self._path)
+
     def upload(self, src_path):
         """upload the source file (src_path)
 
@@ -483,8 +487,8 @@ def http_upload(url, file_path, headers=None, auth=None):
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets)
         self.auth = None
 
     def get_filesystem(self, silent=True):

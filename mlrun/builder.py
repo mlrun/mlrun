@@ -36,10 +36,12 @@ IMAGE_NAME_ENRICH_REGISTRY_PREFIX = "."
 def make_dockerfile(
     base_image,
     commands=None,
-    src_dir=None,
+    source=None,
     requirements=None,
     workdir="/mlrun",
     extra="",
+    user_unix_id=None,
+    enriched_group_id=None,
 ):
     dock = f"FROM {base_image}\n"
 
@@ -51,10 +53,27 @@ def make_dockerfile(
     for build_arg_key, build_arg_value in build_args.items():
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
-    if src_dir:
+    if source:
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"WORKDIR {workdir}\n"
-        dock += f"ADD {src_dir} {workdir}\n"
+        # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
+        if source.endswith(".zip"):
+            stage1 = f"""
+            FROM {base_image} AS extractor
+            RUN apt-get update -qqy && apt install --assume-yes unzip
+            RUN mkdir -p /source
+            COPY {source} /source
+            RUN cd /source && unzip {source} && rm {source}
+            """
+            dock = stage1 + "\n" + dock
+
+            dock += f"COPY --from=extractor /source/ {workdir}\n"
+        else:
+            dock += f"ADD {source} {workdir}\n"
+
+        if user_unix_id is not None and enriched_group_id is not None:
+            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+
         dock += f"ENV PYTHONPATH {workdir}\n"
     if requirements:
         dock += f"RUN python -m pip install -r {requirements}\n"
@@ -62,7 +81,7 @@ def make_dockerfile(
         dock += "".join([f"RUN {command}\n" for command in commands])
     if extra:
         dock += extra
-    print(dock)
+    logger.debug("Resolved dockerfile", dockfile_contents=dock)
     return dock
 
 
@@ -91,8 +110,22 @@ def make_kaniko_pod(
     # set kaniko's spec attributes from the runtime spec
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
+        if attribute == "service_account":
+            from mlrun.api.api.utils import resolve_project_default_service_account
+
+            (
+                allowed_service_accounts,
+                default_service_account,
+            ) = resolve_project_default_service_account(project)
+            if attr_value:
+                runtime_spec.validate_service_account(allowed_service_accounts)
+            else:
+                attr_value = default_service_account
+
+        if not attr_value:
+            continue
+
+        extra_runtime_spec[attribute] = attr_value
 
     if not dockertext and not dockerfile:
         raise ValueError("docker file or text must be specified")
@@ -277,8 +310,9 @@ def build_image(
     verbose=False,
     builder_env=None,
     client_version=None,
-    runtime_spec=None,
+    runtime=None,
 ):
+    runtime_spec = runtime.spec if runtime else None
     builder_env = builder_env or {}
     image_target, secret_name = _resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
@@ -307,7 +341,6 @@ def build_image(
 
     context = "/context"
     to_mount = False
-    src_dir = "."
     v3io = (
         source.startswith("v3io://") or source.startswith("v3ios://")
         if source
@@ -321,30 +354,50 @@ def build_image(
     builder_env = _generate_builder_env(project, builder_env)
 
     parsed_url = urlparse(source)
-    if inline_code:
+    source_to_copy = None
+    source_dir_to_mount = None
+    if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
+
     elif source and "://" in source and not v3io:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
             fragment = parsed_url.fragment or ""
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
+
+        # set remote source as kaniko's build context and copy it
         context = source
-    elif source:
+        source_to_copy = "."
+
+    else:
         if v3io:
             source = parsed_url.path
             to_mount = True
-        if source.endswith(".tar.gz"):
-            source, src_dir = path.split(source)
-    else:
-        src_dir = None
+            source_dir_to_mount, source_to_copy = path.split(source)
+        else:
+            source_to_copy = source
+
+    user_unix_id = None
+    enriched_group_id = None
+    if (
+        mlrun.mlconf.function.spec.security_context.enrichment_mode
+        != mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
+    ):
+        from mlrun.api.api.utils import ensure_function_security_context
+
+        ensure_function_security_context(runtime, auth_info)
+        user_unix_id = runtime.spec.security_context.run_as_user
+        enriched_group_id = runtime.spec.security_context.run_as_group
 
     dock = make_dockerfile(
         base_image,
         commands,
-        src_dir=src_dir,
+        source=source_to_copy,
         requirements=requirements_path,
         extra=extra,
+        user_unix_id=user_unix_id,
+        enriched_group_id=enriched_group_id,
     )
 
     kpod = make_kaniko_pod(
@@ -365,7 +418,7 @@ def build_image(
 
     if to_mount:
         kpod.mount_v3io(
-            remote=source,
+            remote=source_dir_to_mount,
             mount_path="/context",
             access_key=access_key,
             user=username,
@@ -390,6 +443,7 @@ def get_kaniko_spec_attributes_from_runtime():
         "affinity",
         "tolerations",
         "priority_class_name",
+        "service_account",
     ]
 
 
@@ -473,15 +527,19 @@ def build_runtime(
     logger.info(f"building image ({build.image})")
 
     name = normalize_name(f"mlrun-build-{runtime.metadata.name}")
-    base_image = enrich_image_url(
-        build.base_image or config.default_base_image, client_version
+    base_image: str = (
+        build.base_image or runtime.spec.image or config.default_base_image
+    )
+    enriched_base_image = enrich_image_url(
+        base_image,
+        client_version,
     )
 
     status = build_image(
         auth_info,
         project,
-        build.image,
-        base_image=base_image,
+        image_target=build.image,
+        base_image=enriched_base_image,
         commands=build.commands,
         namespace=namespace,
         # inline_code=inline,
@@ -495,17 +553,23 @@ def build_runtime(
         verbose=runtime.verbose,
         builder_env=builder_env,
         client_version=client_version,
-        runtime_spec=runtime.spec,
+        runtime=runtime,
     )
     runtime.status.build_pod = None
     if status == "skipped":
-        runtime.spec.image = base_image
+        # using enriched base image for the runtime spec image, because this will be the image that the function will
+        # run with
+        runtime.spec.image = enriched_base_image
         runtime.status.state = mlrun.api.schemas.FunctionState.ready
         return True
 
     if status.startswith("build:"):
         runtime.status.state = mlrun.api.schemas.FunctionState.deploying
         runtime.status.build_pod = status[6:]
+        # using the base_image, and not the enriched one so we won't have the client version in the image, useful for
+        # exports and other cases where we don't want to have the client version in the image, but rather enriched on
+        # API level
+        runtime.spec.build.base_image = base_image
         return False
 
     logger.info(f"build completed with {status}")

@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import importlib.util
 import json
 import os
@@ -459,7 +473,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         Save the handled model at the given output path.
 
         :param output_path:  The full path to the directory to save the handled model at. If not given, the context
-                             stored will be used to save the model in the defaulted artifacts location.
+                             stored will be used to save the model in the default artifacts location.
 
         :return The saved model artifacts dictionary if context is available and None otherwise.
 
@@ -503,8 +517,8 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
         :param model_name: The name to give to the converted ONNX model. If not given the default name will be the
                            stored model name with the suffix '_onnx'.
-        :param optimize:   Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model. Defaulted
-                           to True.
+        :param optimize:   Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model. Default:
+                           True.
 
         :return: The converted ONNX model (onnx.ModelProto).
         """

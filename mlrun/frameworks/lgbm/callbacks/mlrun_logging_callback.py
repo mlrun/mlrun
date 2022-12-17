@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import List
 
 import mlrun
@@ -39,7 +53,7 @@ class MLRunLoggingCallback(LoggingCallback):
                                         the `params` dictionary.
         :param logging_frequency:       Per how many iterations to write the logs to MLRun (create the plots and log
                                         them and the results to MLRun). Two low frequency may slow the training time.
-                                        Defaulted to 100.
+                                        Default: 100.
         """
         super(MLRunLoggingCallback, self).__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,

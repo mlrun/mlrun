@@ -1,14 +1,12 @@
 (datastore)=
 # Data stores
 
+A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguazio v3io, etc.).
+
 **In this section**
 - [Shared data stores](#shared-data-stores)
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
-   - [v3io](#v3io)
-   - [S3](#s3)
-   - [Azure Blob storage](#azure-blob-storage)
-   - [Google cloud storage](#google-cloud-storage)
-
+   
 ## Shared data stores
 
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
@@ -17,7 +15,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file`
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
-* **az** &mdash; Azure Blob storage, format: `az://<bucket>/path/to/file`
+* **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
@@ -86,6 +84,13 @@ authenticate, it is used in several use-cases, such as resolving paths to the ho
   parameters
 * `S3_ENDPOINT_URL` &mdash; the S3 endpoint to use. If not specified, it defaults to AWS. For example, to access 
   a storage bucket in Wasabi storage, use `S3_ENDPOINT_URL = "https://s3.wasabisys.com"`
+* `MLRUN_AWS_ROLE_ARN` &mdash; [IAM role to assume](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-api.html). 
+  Connect to AWS using the secret key and access key, and assume the role whose ARN is provided. The 
+  ARN must be of the format `arn:aws:iam::<account-of-role-to-assume>:role/<name-of-role>`
+* `AWS_PROFILE` &mdash; name of credentials profile from a local AWS credentials file. 
+  When using a profile, the authentication secrets (if defined) are ignored, and credentials are retrieved from the 
+  file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
+  example)
 
 ### Azure Blob storage
 The Azure Blob storage can utilize several methods of authentication. Each requires a different set of parameters as listed
@@ -95,8 +100,14 @@ here:
 |-----------------------|------------|
 | [Connection string](https://docs.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string) | `AZURE_STORAGE_CONNECTION_STRING` |
 | [SAS token](https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview#sas-token) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_SAS_TOKEN` |
-| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_ACCOUNT_KEY` |
+| [Account key](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_KEY` |
 | [Service principal with a client secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) | `AZURE_STORAGE_ACCOUNT_NAME`<br/>`AZURE_STORAGE_CLIENT_ID`<br/>`AZURE_STORAGE_CLIENT_SECRET`<br/>`AZURE_STORAGE_TENANT_ID` |
+
+```{note}
+The `AZURE_STORAGE_CONNECTION_STRING` configuration uses the `BlobServiceClient` to access objects. This has
+limited functionality and cannot be used to access Azure Datalake storage objects. In this case use one of the other 
+authentication methods that use the `fsspec` mechanism. 
+```
 
 ### Google cloud storage
 * `GOOGLE_APPLICATION_CREDENTIALS` &mdash; path to the application credentials to use (in the form of a JSON file). This can

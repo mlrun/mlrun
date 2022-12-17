@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
@@ -44,17 +45,17 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import (
-    RunNotifications,
-    is_ipython,
-    is_legacy_artifact,
-    is_relative_path,
-    logger,
-    update_in,
-)
+from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
-from .operations import build_function, deploy_function, run_function
+from ..utils.notifications import CustomNotificationPusher, NotificationTypes
+from .operations import (
+    BuildStatus,
+    DeployStatus,
+    build_function,
+    deploy_function,
+    run_function,
+)
 from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
@@ -88,7 +89,7 @@ def init_repo(context, url, init_git):
 
 def new_project(
     name,
-    context=None,
+    context: str = "./",
     init_git: bool = False,
     user_project: bool = False,
     remote: str = None,
@@ -97,6 +98,7 @@ def new_project(
     description: str = None,
     subpath: str = None,
     save: bool = True,
+    overwrite: bool = False,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -133,6 +135,8 @@ def new_project(
     :param description:  text describing the project
     :param subpath:      project subpath (relative to the context dir)
     :param save:         whether to save the created project in the DB
+    :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
+                         if project with name exists
 
     :returns: project object
     """
@@ -166,15 +170,35 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
-    mlrun.mlconf.default_project = project.metadata.name
-    pipeline_context.set(project)
+
+    _set_as_current_default_project(project)
+
     if save and mlrun.mlconf.dbpath:
-        project.save()
+        if overwrite:
+            logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+            _delete_project_from_db(
+                name, secrets, mlrun.api.schemas.DeletionStrategy.cascade
+            )
+
+        try:
+            project.save(store=False)
+        except mlrun.errors.MLRunConflictError as exc:
+            raise mlrun.errors.MLRunConflictError(
+                f"Project with name {name} already exists. "
+                "Use overwrite=True to overwrite the existing project."
+            ) from exc
+        logger.info(
+            f"Created and saved project {name}",
+            from_template=from_template,
+            overwrite=overwrite,
+            context=context,
+            save=save,
+        )
     return project
 
 
 def load_project(
-    context: str,
+    context: str = "./",
     url: str = None,
     name: str = None,
     secrets: dict = None,
@@ -188,8 +212,10 @@ def load_project(
 
     example::
 
-        # load the project and run the 'main' workflow
-        project = load_project("./", "git://github.com/mlrun/project-demo.git")
+        # Load the project and run the 'main' workflow.
+        # When using git as the url source the context directory must be an empty or
+        # non-existent folder as the git repo will be cloned there
+        project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
     :param context:      project local directory path
@@ -197,6 +223,8 @@ def load_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
                          <project-name>
+                         The git project should include the project yaml file.
+                         If the project yaml file is in a sub-directory, must specify the sub-directory.
     :param name:         project name
     :param secrets:      key:secret dict or SecretsStore used to download sources
     :param init_git:     if True, will git init the context dir
@@ -207,25 +235,26 @@ def load_project(
 
     :returns: project object
     """
+    if not context:
+        raise ValueError("valid context (local dir path) must be provided")
 
     secrets = secrets or {}
     repo = None
     project = None
     name = _add_username_to_project_name_if_needed(name, user_project)
-    if not context:
-        raise ValueError("valid context (local dir path) must be provided")
 
     from_db = False
     if url:
         url = str(url)  # to support path objects
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
+            project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
-            clone_tgz(url, context, secrets)
+            clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
-            clone_zip(url, context, secrets)
+            clone_zip(url, context, secrets, clone)
         else:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
@@ -254,14 +283,15 @@ def load_project(
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
-    mlrun.mlconf.default_project = project.metadata.name
-    pipeline_context.set(project)
+
+    _set_as_current_default_project(project)
+
     return project
 
 
 def get_or_create_project(
     name: str,
-    context: str,
+    context: str = "./",
     url: str = None,
     secrets: dict = None,
     init_git=False,
@@ -281,7 +311,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (Default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -294,7 +324,7 @@ def get_or_create_project(
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
-
+    context = context or "./"
     try:
         # load project from the DB
         project = load_project(
@@ -306,7 +336,8 @@ def get_or_create_project(
             subpath=subpath,
             clone=clone,
             user_project=user_project,
-            save=save,
+            # only loading project from db so no need to save it
+            save=False,
         )
         logger.info(f"loaded project {name} from MLRun DB")
         return project
@@ -398,6 +429,11 @@ def _load_project_from_db(url, secrets, user_project=False):
         url.replace("db://", ""), user_project
     )
     return db.get_project(project_name)
+
+
+def _delete_project_from_db(project_name, secrets, deletion_strategy):
+    db = mlrun.db.get_run_db(secrets=secrets)
+    return db.delete_project(project_name, deletion_strategy=deletion_strategy)
 
 
 def _load_project_file(url, name="", secrets=None):
@@ -711,6 +747,23 @@ class ProjectSpec(ModelObj):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
 
+    def is_remote(self) -> bool:
+        """
+        Checks if the source of the project is remote.
+        A remote project can be considered as one of the following:
+            * GitHub project e.g., git://github.com/mlrun/project-demo.git
+            * Archive project e.g., "v3io:///projects/my-project/my-project.zip
+              (Archiving a project can be done by `project.export`)
+        """
+        source = self.source
+        if not source or source.startswith(".") or source.startswith("/"):
+            return False
+        return (
+            source.startswith("git://")
+            or source.endswith(".tar.gz")
+            or source.endswith(".zip")
+        )
+
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -759,7 +812,13 @@ class MlrunProject(ModelObj):
         self._initialized = False
         self._secrets = SecretsStore()
         self._artifact_manager = None
-        self._notifiers = RunNotifications(with_slack=True)
+        self._notifiers = CustomNotificationPusher(
+            [
+                NotificationTypes.slack,
+                NotificationTypes.console,
+                NotificationTypes.ipython,
+            ]
+        )
 
     @property
     def metadata(self) -> ProjectMetadata:
@@ -1157,8 +1216,8 @@ class MlrunProject(ModelObj):
                 artifact = dict_to_artifact(artifact_dict)
                 if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
-                    artifact.spec.src_path = path.join(
-                        self.spec.get_code_path(), artifact.spec.src_path
+                    artifact.src_path = path.join(
+                        self.spec.get_code_path(), artifact.src_path
                     )
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
@@ -1231,7 +1290,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         item = am.log_artifact(
             producer,
@@ -1259,7 +1318,7 @@ class MlrunProject(ModelObj):
         labels=None,
         format="",
         preview=None,
-        stats=False,
+        stats=None,
         target_path="",
         extra_data=None,
         label_column: str = None,
@@ -1282,9 +1341,10 @@ class MlrunProject(ModelObj):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
+        :param local_path:    path to the local dataframe file that exists locally.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param artifact_path: target artifact path (when not using the default).
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
@@ -1463,7 +1523,7 @@ class MlrunProject(ModelObj):
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 
-        return self.log_artifact(artifact, artifact_path=artifact_path)
+        return self.log_artifact(artifact, artifact_path=artifact_path, upload=False)
 
     def reload(self, sync=False, context=None) -> "MlrunProject":
         """reload the project and function objects from the project yaml/specs
@@ -1497,6 +1557,7 @@ class MlrunProject(ModelObj):
         image: str = None,
         handler=None,
         with_repo: bool = None,
+        tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
     ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
@@ -1525,6 +1586,7 @@ class MlrunProject(ModelObj):
                           the function object/yaml
         :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo: add (clone) the current repo to the build source
+        :tag:             function version tag (none for 'latest', can only be set with .py/.ipynb files)
         :param requirements:    list of python packages or pip requirements file path
 
         :returns: project object
@@ -1555,6 +1617,7 @@ class MlrunProject(ModelObj):
                 "image": image,
                 "handler": handler,
                 "with_repo": with_repo,
+                "tag": tag,
                 "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
@@ -1602,14 +1665,20 @@ class MlrunProject(ModelObj):
         return self.get_function(key, sync)
 
     def get_function(
-        self, key, sync=True, enrich=False, ignore_cache=False
+        self,
+        key,
+        sync=False,
+        enrich=False,
+        ignore_cache=False,
+        copy_function=True,
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param key:   name of key for search
-        :param sync:  will reload/reinit the function
+        :param sync:  will reload/reinit the function from the project spec
         :param enrich: add project info/config/source info to the function object
         :param ignore_cache: read the function object from the DB (ignore the local cache)
+        :param copy_function: return a copy of the function object
 
         :returns: function object
         """
@@ -1622,7 +1691,7 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         if enrich:
-            return enrich_function_object(self, function)
+            return enrich_function_object(self, function, copy_function=copy_function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
@@ -1852,10 +1921,17 @@ class MlrunProject(ModelObj):
 
     def _enrich_artifact_path_with_workflow_uid(self):
         artifact_path = self.spec.artifact_path or mlrun.mlconf.artifact_path
-        if not mlrun.mlconf.enrich_artifact_path_with_workflow_id:
-            return artifact_path
+
         workflow_uid_string = "{{workflow.uid}}"
-        if workflow_uid_string in artifact_path:
+        if (
+            not mlrun.mlconf.enrich_artifact_path_with_workflow_id
+            # no need to add workflow.uid to the artifact path for uniqueness,
+            # this is already being handled by generating
+            # the artifact target path from the artifact content hash ( body / file etc...)
+            or mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
+            # if the artifact path already contains workflow.uid, no need to add it again
+            or workflow_uid_string in artifact_path
+        ):
             return artifact_path
 
         # join paths and replace "\" with "/" (in case of windows clients)
@@ -2002,6 +2078,26 @@ class MlrunProject(ModelObj):
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
 
+    def get_run_status(
+        self,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: CustomNotificationPusher = None,
+    ):
+        warnings.warn(
+            "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "
+            "Use `timeout` parameter in `project.run()` method instead",
+            PendingDeprecationWarning,
+        )
+        return run._engine.get_run_status(
+            project=self,
+            run=run,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            notifiers=notifiers,
+        )
+
     def clear_context(self):
         """delete all files and clear the context dir"""
         if (
@@ -2011,14 +2107,25 @@ class MlrunProject(ModelObj):
         ):
             shutil.rmtree(self.spec.context)
 
-    def save(self, filepath=None):
+    def save(self, filepath=None, store=True):
+        """export project to yaml file and save project in database
+
+        :store: if True, allow updating in case project already exists
+        """
         self.export(filepath)
-        self.save_to_db()
+        self.save_to_db(store)
         return self
 
-    def save_to_db(self):
+    def save_to_db(self, store=True):
+        """save project to database
+
+        :store: if True, allow updating in case project already exists
+        """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        db.store_project(self.metadata.name, self.to_dict())
+        if store:
+            return db.store_project(self.metadata.name, self.to_dict())
+
+        return db.create_project(self.to_dict())
 
     def export(self, filepath=None, include_files: str = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)
@@ -2086,6 +2193,8 @@ class MlrunProject(ModelObj):
         verbose: bool = None,
         selector: str = None,
         auto_build: bool = None,
+        schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        artifact_path: str = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2118,6 +2227,11 @@ class MlrunProject(ModelObj):
         :param verbose:         add verbose prints/logs
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
+        :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
+                                (which will be converted to the class using its `from_crontab` constructor),
+                                see this link for help:
+                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+        :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp
         """
@@ -2139,6 +2253,8 @@ class MlrunProject(ModelObj):
             selector=selector,
             project_object=self,
             auto_build=auto_build,
+            schedule=schedule,
+            artifact_path=artifact_path,
         )
 
     def build_function(
@@ -2150,9 +2266,11 @@ class MlrunProject(ModelObj):
         base_image=None,
         commands: list = None,
         secret_name="",
+        requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,
-    ):
+        overwrite_build_params: bool = False,
+    ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
         :param function:        name of the function (in the project) or function object
@@ -2162,9 +2280,12 @@ class MlrunProject(ModelObj):
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
+        :param requirements:    list of python packages or pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
+         add to existing parameters
         """
         return build_function(
             function,
@@ -2174,9 +2295,11 @@ class MlrunProject(ModelObj):
             base_image=base_image,
             commands=commands,
             secret_name=secret_name,
+            requirements=requirements,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
+            overwrite_build_params=overwrite_build_params,
         )
 
     def deploy_function(
@@ -2188,16 +2311,18 @@ class MlrunProject(ModelObj):
         tag: str = None,
         verbose: bool = None,
         builder_env: dict = None,
-    ):
+        mock: bool = None,
+    ) -> typing.Union[DeployStatus, kfp.dsl.ContainerOp]:
         """deploy real-time (nuclio based) functions
 
-        :param function:   name of the function (in the project) or function object
-        :param dashboard:  url of the remote Nuclio dashboard (when not local)
-        :param models:     list of model items
-        :param env:        dict of extra environment variables
-        :param tag:        extra version tag
-        :param verbose     add verbose prints/logs
-        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param function:    name of the function (in the project) or function object
+        :param dashboard:   url of the remote Nuclio dashboard (when not local)
+        :param models:      list of model items
+        :param env:         dict of extra environment variables
+        :param tag:         extra version tag
+        :param verbose:     add verbose prints/logs
+        :param builder_env: env vars dict for source archive config/credentials e.g. `builder_env={"GIT_TOKEN": token}`
+        :param mock:        deploy mock server vs a real Nuclio function (for local simulations)
         """
         return deploy_function(
             function,
@@ -2208,6 +2333,7 @@ class MlrunProject(ModelObj):
             verbose=verbose,
             builder_env=builder_env,
             project_object=self,
+            mock=mock,
         )
 
     def get_artifact(self, key, tag=None, iter=None):
@@ -2397,6 +2523,11 @@ class MlrunProject(ModelObj):
             last_update_time_to=last_update_time_to,
             **kwargs,
         )
+
+
+def _set_as_current_default_project(project: MlrunProject):
+    mlrun.mlconf.default_project = project.metadata.name
+    pipeline_context.set(project)
 
 
 class MlrunProjectLegacy(ModelObj):
@@ -2666,6 +2797,7 @@ def _init_function_from_dict(f, project):
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
     requirements = f.get("requirements", None)
+    tag = f.get("tag", None)
 
     in_context = False
     has_module = _has_module(handler, kind)
@@ -2684,15 +2816,21 @@ def _init_function_from_dict(f, project):
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
     elif not url and has_module:
-        func = new_function(name, image=image, kind=kind or "job", handler=handler)
+        func = new_function(
+            name, image=image, kind=kind or "job", handler=handler, tag=tag
+        )
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+        if tag:
+            raise ValueError(
+                "function with db:// or hub:// url or .yaml file, does not support tag value "
+            )
         func = import_function(url)
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
         # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
-            name, filename=url, image=image, kind=kind, handler=handler
+            name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
     elif url.endswith(".py"):
         if not image and kind != "local":
@@ -2707,10 +2845,16 @@ def _init_function_from_dict(f, project):
                 image=image,
                 kind=kind or "job",
                 handler=handler,
+                tag=tag,
             )
         else:
             func = code_to_function(
-                name, filename=url, image=image, kind=kind or "job", handler=handler
+                name,
+                filename=url,
+                image=image,
+                kind=kind or "job",
+                handler=handler,
+                tag=tag,
             )
     else:
         raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")

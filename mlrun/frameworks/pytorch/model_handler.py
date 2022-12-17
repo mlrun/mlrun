@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 from typing import Dict, List, Tuple, Type, Union
 
@@ -160,7 +174,7 @@ class PyTorchModelHandler(DLModelHandler):
         Save the handled model at the given output path.
 
         :param output_path: The full path to the directory to save the handled model at. If not given, the context
-                            stored will be used to save the model in the defaulted location.
+                            stored will be used to save the model in the default location.
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
 
@@ -235,30 +249,30 @@ class PyTorchModelHandler(DLModelHandler):
         :param model_name:          The name to give to the converted ONNX model. If not given the default name will be
                                     the stored model name with the suffix '_onnx'.
         :param optimize:            Whether to optimize the ONNX model using 'onnxoptimizer' before saving the model.
-                                    Defaulted to True.
+                                    Default: True.
         :param input_sample:        A torch.Tensor with the shape and data type of the expected input to the model. Can
                                     be passed as a tuple if the model expects multiple input tensors.
         :param input_layers_names:  List of names to assign to the input nodes of the graph in order. All of the other
                                     parameters (inner layers) can be set as well by passing additional names in the
                                     list. The order is by the order of the parameters in the model. If None, the inputs
-                                    will be read from the handler's inputs. If its also None, it is defaulted to:
+                                    will be read from the handler's inputs. If it's also None, the default is:
                                     "input_0", "input_1", ...
         :param output_layers_names: List of names to assign to the output nodes of the graph in order. If None, the
-                                    outputs will be read from the handler's outputs. If its also None, it is defaulted
-                                    to: "output_0" (for multiple outputs, this parameter must be provided).
+                                    outputs will be read from the handler's outputs. If it's also None, the default
+                                    is: "output_0" (for multiple outputs, this parameter must be provided).
         :param dynamic_axes:        If part of the input / output shape is dynamic, like (batch_size, 3, 32, 32) you can
                                     specify it by giving a dynamic axis to the input / output layer by its name as
                                     follows: {
                                         "input layer name": {0: "batch_size"},
                                         "output layer name": {0: "batch_size"},
                                     }
-                                    If provided, the 'is_batched' flag will be ignored. Defaulted to None.
+                                    If provided, the 'is_batched' flag will be ignored. Default: None.
         :param is_batched:          Whether to include a batch size as the first axis in every input and output layer.
-                                    Defaulted to True. Will be ignored if 'dynamic_axes' is provided.
+                                    Default: True. Will be ignored if 'dynamic_axes' is provided.
         :param output_path:         In order to save the ONNX model, pass here the output directory. The model file will
-                                    be named with the model name given. Defaulted to None (not saving).
+                                    be named with the model name given. Default: None (not saving).
         :param log:                 In order to log the ONNX model, pass True. If None, the model will be logged if this
-                                    handler has a MLRun context set. Defaulted to None.
+                                    handler has a MLRun context set. Default: None.
 
         :return: The converted ONNX model (onnx.ModelProto).
 

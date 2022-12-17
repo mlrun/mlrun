@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from typing import Any, Dict, List, Tuple, Union
 
@@ -56,20 +70,20 @@ def train(
     :param scheduler_step_frequency:    The frequency in which to step the given scheduler. Can be equal to one of the
                                         strings 'epoch' (for at the end of every epoch) and 'batch' (for at the end of
                                         every batch), or an integer that specify per how many iterations to step or a
-                                        float percentage (0.0 < x < 1.0) for per x / iterations to step. Defaulted to
+                                        float percentage (0.0 < x < 1.0) for per x / iterations to step. Default:
                                         'epoch'.
-    :param epochs:                      Amount of epochs to perform. Defaulted to a single epoch.
+    :param epochs:                      Amount of epochs to perform. Default: a single epoch.
     :param training_iterations:         Amount of iterations (batches) to perform on each epoch's training. If 'None'
                                         the entire training set will be used.
     :param validation_iterations:       Amount of iterations (batches) to perform on each epoch's validation. If 'None'
                                         the entire validation set will be used.
     :param callbacks_list:              The callbacks to use on this run.
-    :param use_cuda:                    Whether or not to use cuda. Only relevant if cuda is available. Defaulted to
+    :param use_cuda:                    Whether or not to use cuda. Only relevant if cuda is available. Default:
                                         True.
-    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_horovod:                 Whether or not to use horovod - a distributed training framework. Default:
                                         False.
-    :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Defaulted
-                                        to True. IF True, the custom objects are not optional.
+    :param auto_log:                    Whether or not to apply auto-logging (to both MLRun and Tensorboard). Default:
+                                        True. IF True, the custom objects are not optional.
     :param model_name:                  The model name to use for storing the model artifact. If not given, the model's
                                         class name will be used.
     :param modules_map:                 A dictionary of all the modules required for loading the model. Each key is a
@@ -219,10 +233,10 @@ def evaluate(
     :param iterations:               Amount of iterations (batches) to perform on the dataset. If 'None' the entire
                                      dataset will be used.
     :param callbacks_list:           The callbacks to use on this run.
-    :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Defaulted to True.
-    :param use_horovod:              Whether or not to use horovod - a distributed training framework. Defaulted to
+    :param use_cuda:                 Whether or not to use cuda. Only relevant if cuda is available. Default: True.
+    :param use_horovod:              Whether or not to use horovod - a distributed training framework. Default:
                                      False.
-    :param auto_log:                 Whether or not to apply auto-logging to MLRun. Defaulted to True.
+    :param auto_log:                 Whether or not to apply auto-logging to MLRun. Default: True.
     :param model_name:               The model name to use for storing the model artifact. If not given, the model's
                                      class name will be used.
     :param modules_map:              A dictionary of all the modules required for loading the model. Each key is a path

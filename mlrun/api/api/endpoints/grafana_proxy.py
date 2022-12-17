@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import json
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, Union
@@ -132,7 +146,7 @@ def grafana_list_endpoints(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-    endpoint_list = mlrun.api.crud.ModelEndpoints().list_endpoints(
+    endpoint_list = mlrun.api.crud.ModelEndpoints().list_model_endpoints(
         auth_info=auth_info,
         project=project,
         model=model,
@@ -215,7 +229,7 @@ def grafana_individual_feature_analysis(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -276,7 +290,7 @@ def grafana_overall_feature_analysis(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -325,7 +339,7 @@ def grafana_incoming_features(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info, project=project, endpoint_id=endpoint_id
     )
 

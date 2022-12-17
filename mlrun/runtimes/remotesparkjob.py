@@ -15,6 +15,9 @@ import re
 import typing
 from subprocess import run
 
+import kubernetes.client
+
+import mlrun.errors
 from mlrun.config import config
 
 from ..model import RunObject
@@ -143,6 +146,18 @@ class RemoteSparkRuntime(KubejobRuntime):
                     v3io_config_configmap=spark_service + "-submit",
                 )
             )
+
+    def with_security_context(
+        self, security_context: kubernetes.client.V1SecurityContext
+    ):
+        """
+        With security context is not supported for spark runtime.
+        Driver / Executor processes run with uid / gid 1000 as long as security context is not defined.
+        If in the future we want to support setting security context it will work only from spark version 3.2 onwards.
+        """
+        raise mlrun.errors.MLRunInvalidArgumentTypeError(
+            "with_security_context is not supported with remote spark"
+        )
 
     @property
     def _resolve_default_base_image(self):

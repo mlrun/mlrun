@@ -13,7 +13,7 @@
 # limitations under the License.
 import copy
 from datetime import datetime
-from typing import List, Union
+from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -99,6 +99,7 @@ def get_offline_features(
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
+    query: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -111,7 +112,7 @@ def get_offline_features(
     "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
     for time alignment you can use the verb "floor" e.g. "now -1d floor 1H" will align the time to the last hour
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
-
+    Another option to filter the data is by the `query` argument - can be seen in the example.
     example::
 
         features = [
@@ -122,7 +123,7 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time"
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
@@ -144,6 +145,7 @@ def get_offline_features(
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
+    :param query:          The query string used to filter rows
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -165,6 +167,7 @@ def get_offline_features(
             run_config=run_config,
             drop_columns=drop_columns,
             with_indexes=with_indexes,
+            query=query,
         )
 
     start_time = str_to_timestamp(start_time)
@@ -187,6 +190,7 @@ def get_offline_features(
         end_time=end_time,
         with_indexes=with_indexes,
         update_stats=update_stats,
+        query=query,
     )
 
 
@@ -200,9 +204,12 @@ def get_online_feature_service(
     """initialize and return online feature vector service api,
     returns :py:class:`~mlrun.feature_store.OnlineVectorService`
 
-    There are two ways to use the function
-    1. As context manager
-        example::
+    :**usage**:
+        There are two ways to use the function:
+
+        1. As context manager
+
+            Example::
 
                 with get_online_feature_service(vector_uri) as svc:
                     resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
@@ -210,51 +217,55 @@ def get_online_feature_service(
                     resp = svc.get([{"ticker": "AAPL"}], as_list=True)
                     print(resp)
 
-            example with imputing::
+            Example with imputing::
 
                 with get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0)) as svc:
                     resp = svc.get([{"id": "C123487"}])
 
-    2. as simple function, note that in that option you need to close the session.
-        example::
+        2. as simple function, note that in that option you need to close the session.
 
-            svc = get_online_feature_service(vector_uri)
-            try:
-                resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
-                print(resp)
-                resp = svc.get([{"ticker": "AAPL"}], as_list=True)
-                print(resp)
+            Example::
 
-            finally:
-                svc.close()
+                svc = get_online_feature_service(vector_uri)
+                try:
+                    resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
+                    print(resp)
+                    resp = svc.get([{"ticker": "AAPL"}], as_list=True)
+                    print(resp)
 
+                finally:
+                    svc.close()
 
-        example with imputing::
+            Example with imputing::
 
-            svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
-            try:
-                resp = svc.get([{"id": "C123487"}])
-            except Exception as e:
-                handling exception...
-            finally:
-                svc.close()
-
+                svc = get_online_feature_service(vector_uri, impute_policy={"*": "$mean", "amount": 0))
+                try:
+                    resp = svc.get([{"id": "C123487"}])
+                except Exception as e:
+                    handling exception...
+                finally:
+                    svc.close()
 
     :param feature_vector:    feature vector uri or FeatureVector object. passing feature vector obj requires update
-                              permissions
+                            permissions
     :param run_config:        function and/or run configuration for remote jobs/services
     :param impute_policy:     a dict with `impute_policy` per feature, the dict key is the feature name and the dict
-                              value indicate which value will be used in case the feature is NaN/empty, the replaced
-                              value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
-                              values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
+                            value indicate which value will be used in case the feature is NaN/empty, the replaced
+                            value can be fixed number for constants or $mean, $max, $min, $std, $count for statistical
+                            values. "*" is used to specify the default for all features, example: `{"*": "$mean"}`
     :param fixed_window_type: determines how to query the fixed window values which were previously inserted by ingest
-    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param update_stats:      update features statistics from the requested feature sets on the vector. Default: False.
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
     feature_vector = _features_to_vector_and_check_permissions(
         feature_vector, update_stats
     )
+
+    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
+    if impute_policy and not feature_vector.status.stats:
+        update_stats = True
+
     graph, index_columns = init_feature_vector_graph(
         feature_vector, fixed_window_type, update_stats=update_stats
     )
@@ -300,7 +311,7 @@ def ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> pd.DataFrame:
+) -> Optional[pd.DataFrame]:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -343,8 +354,8 @@ def ingest(
                           For remote spark ingestion, this should contain the remote spark service name
     :param overwrite:     delete the targets' data prior to ingestion
                           (default: True for non scheduled ingest - deletes the targets that are about to be ingested.
-                                    False for scheduled ingest - does not delete the target)
-
+                          False for scheduled ingest - does not delete the target)
+    :return:              if return_df is True, a dataframe will be returned based on the graph
     """
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
@@ -373,6 +384,7 @@ def ingest(
             "feature set and source must be specified"
         )
 
+    # This flow may happen both on client side (user provides run config) and server side (through the ingest API)
     if run_config:
         if isinstance(source, pd.DataFrame):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -387,9 +399,10 @@ def ingest(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
-        return run_ingestion_job(
-            name, featureset, run_config, source.schedule, spark_context
-        )
+        schedule = source.schedule
+        if schedule == "mock":
+            schedule = None
+        return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
@@ -499,11 +512,12 @@ def ingest(
             spark_context,
             featureset,
             source,
-            targets,
+            targets_to_ingest,
             infer_options=infer_options,
             mlrun_context=mlrun_context,
             namespace=namespace,
             overwrite=overwrite,
+            return_df=return_df,
         )
 
     if isinstance(source, str):
@@ -522,7 +536,8 @@ def ingest(
     infer_stats = InferOptions.get_common_options(
         infer_options, InferOptions.all_stats()
     )
-    return_df = return_df or infer_stats != InferOptions.Null
+    # Check if dataframe is already calculated (for feature set graph):
+    calculate_df = return_df or infer_stats != InferOptions.Null
     featureset.save()
 
     df = init_featureset_graph(
@@ -530,7 +545,7 @@ def ingest(
         featureset,
         namespace,
         targets=targets_to_ingest,
-        return_df=return_df,
+        return_df=calculate_df,
     )
     if not InferOptions.get_common_options(
         infer_stats, InferOptions.Index
@@ -551,8 +566,8 @@ def ingest(
                 target.last_written = source.start_time
 
     _post_ingestion(mlrun_context, featureset, spark_context)
-
-    return df
+    if return_df:
+        return df
 
 
 def preview(
@@ -588,6 +603,12 @@ def preview(
     :param verbose:        verbose log
     :param sample_size:    num of rows to sample from the dataset (for large datasets)
     """
+    # preview reads the source as a pandas df, which is not fully compatible with spark
+    if featureset.spec.engine == "spark":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "preview with spark engine is not supported"
+        )
+
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
         featureset.spec.timestamp_key = timestamp_key
@@ -749,6 +770,7 @@ def _ingest_with_spark(
     mlrun_context=None,
     namespace=None,
     overwrite=None,
+    return_df=None,
 ):
     created_spark_context = False
     try:
@@ -780,16 +802,14 @@ def _ingest_with_spark(
 
         key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
-        if not targets:
-            if not featureset.spec.targets:
-                featureset.set_targets()
-            targets = featureset.spec.targets
-            targets = [get_target_driver(target, featureset) for target in targets]
+        targets = targets or featureset.spec.targets
 
         targets_to_ingest = copy.deepcopy(targets)
         featureset.update_targets_for_ingest(targets_to_ingest, overwrite=overwrite)
 
         for target in targets_to_ingest or []:
+            if type(target) is DataTargetBase:
+                target = get_target_driver(target, featureset)
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(
@@ -864,7 +884,8 @@ def _ingest_with_spark(
             spark.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             df = None
-    return df
+    if return_df:
+        return df
 
 
 def _post_ingestion(context, featureset, spark=None):

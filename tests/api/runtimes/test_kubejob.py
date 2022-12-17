@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import base64
 import json
 import os
@@ -231,6 +245,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
 
+    def test_set_annotation(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.with_annotations({"annotation-key": "annotation-value"})
+        self.execute_function(runtime)
+
+        pod = self._get_pod_creation_args()
+        assert pod.metadata.annotations.get("annotation-key") == "annotation-value"
+
     def test_run_with_security_context(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 
@@ -439,6 +461,151 @@ def my_func(context):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)
         expected_commands = ["python -m pip install faker python-dotenv"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+    def test_with_commands(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.with_commands(["pip install pandas", "pip install numpy"])
+        expected_commands = ["pip install pandas", "pip install numpy"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+        runtime.with_commands(["pip install scikit-learn"])
+        expected_commands = [
+            "pip install pandas",
+            "pip install numpy",
+            "pip install scikit-learn",
+        ]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+        runtime.with_commands(["pip install tensorflow", "pip install pandas"])
+        expected_commands = [
+            "pip install pandas",
+            "pip install numpy",
+            "pip install scikit-learn",
+            "pip install tensorflow",
+        ]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+        runtime.with_commands(
+            ["pip install tensorflow", "pip install pandas"], overwrite=True
+        )
+        expected_commands = ["pip install tensorflow", "pip install pandas"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+
+    def test_build_config(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.build_config(
+            base_image="mlrun/mlrun", commands=["python -m pip install pandas"]
+        )
+        expected_commands = ["python -m pip install pandas"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+        assert runtime.spec.build.base_image == "mlrun/mlrun"
+
+        runtime.build_config(commands=["python -m pip install numpy"])
+        expected_commands = [
+            "python -m pip install pandas",
+            "python -m pip install numpy",
+        ]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+
+        runtime.build_config(
+            commands=["python -m pip install scikit-learn"], overwrite=True
+        )
+        expected_commands = ["python -m pip install scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+        runtime.build_config(requirements=["pandas", "numpy"])
+        expected_commands = [
+            "python -m pip install scikit-learn",
+            "python -m pip install pandas numpy",
+        ]
+        print(runtime.spec.build.commands)
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=False,
+            )
+            == {}
+        )
+
+        runtime.build_config(requirements=["scikit-learn"], overwrite=True)
+        expected_commands = ["python -m pip install scikit-learn"]
+        assert (
+            deepdiff.DeepDiff(
+                expected_commands,
+                runtime.spec.build.commands,
+                ignore_order=True,
+            )
+            == {}
+        )
+
+    def test_build_config_with_images(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.build_config(base_image="mlrun/mlrun", image="target/mlrun")
+        assert runtime.spec.build.base_image == "mlrun/mlrun"
+        assert runtime.spec.build.image == "target/mlrun"
+
+        runtime = self._generate_runtime()
+        runtime.build_config(image="target/mlrun")
+        assert runtime.spec.build.image == "target/mlrun"
+
+    @staticmethod
+    def _assert_build_commands(expected_commands, runtime):
         assert (
             deepdiff.DeepDiff(
                 expected_commands,

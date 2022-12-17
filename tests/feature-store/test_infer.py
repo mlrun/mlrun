@@ -1,6 +1,19 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import unittest.mock
 
-import deepdiff
 import pandas as pd
 import pytest
 
@@ -80,30 +93,6 @@ def test_infer_from_df():
         "max",
         "hist",
     ], "wrong stats result"
-
-
-def test_backwards_compatibility_step_vs_state():
-    quotes_set = fs.FeatureSet("post-aggregation", entities=[fs.Entity("ticker")])
-    agg_step = quotes_set.add_aggregation("ask", ["sum", "max"], "1h", "10m")
-    agg_step.to("MyMap", "somemap1", field="multi1", multiplier=3)
-    quotes_set.set_targets(
-        targets=[ParquetTarget("parquet1", after_state="somemap1")],
-        with_defaults=False,
-    )
-
-    feature_set_dict = quotes_set.to_dict()
-    # Make sure we're backwards compatible
-    feature_set_dict["spec"]["graph"]["states"] = feature_set_dict["spec"]["graph"].pop(
-        "steps"
-    )
-    feature_set_dict["spec"]["targets"][0]["after_state"] = feature_set_dict["spec"][
-        "targets"
-    ][0].pop("after_step")
-
-    from_dict_feature_set = fs.FeatureSet.from_dict(feature_set_dict)
-    assert (
-        deepdiff.DeepDiff(from_dict_feature_set.to_dict(), quotes_set.to_dict()) == {}
-    )
 
 
 def test_target_no_time_column():

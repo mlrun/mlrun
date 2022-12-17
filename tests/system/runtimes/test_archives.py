@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import tempfile
 
@@ -36,6 +50,7 @@ need_private_git = pytest.mark.skipif(
 class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     project_name = "git-tests"
+    custom_project_names_to_delete = []
 
     def custom_setup(self):
         self.remote_code_dir = f"v3io:///projects/{self.project_name}/code/"
@@ -48,9 +63,13 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
                 }
             )
 
+    def custom_teardown(self):
+        for name in self.custom_project_names_to_delete:
+            self._delete_test_project(name)
+
     def _upload_code_to_cluster(self):
         if not self.uploaded_code:
-            for file in ["source_archive.tar.gz", "handler.py"]:
+            for file in ["source_archive.tar.gz", "source_archive.zip", "handler.py"]:
                 source_path = str(self.assets_path / file)
                 mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
         self.uploaded_code = True
@@ -63,14 +82,14 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             command=command,
         )
 
-    @pytest.mark.parametrize("source", ["git", "tar"])
+    @pytest.mark.parametrize("artifact_format", ["git", "tar.gz", "zip"])
     @pytest.mark.parametrize("codepath", codepaths)
-    def test_local_archive(self, source, codepath):
+    def test_local_archive(self, artifact_format, codepath):
         workdir, module = codepath
         source = (
             f"{git_uri}#main"
-            if source == "git"
-            else str(self.assets_path / "source_archive.tar.gz")
+            if artifact_format == "git"
+            else str(self.assets_path / f"source_archive.{artifact_format}")
         )
         fn = self._new_function("local")
         fn.with_source_archive(
@@ -170,11 +189,12 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.enterprise
     @pytest.mark.parametrize("load_mode", ["run", "build"])
-    def test_job_tar(self, load_mode):
+    @pytest.mark.parametrize("compression_format", ["zip", "tar.gz"])
+    def test_job_compressed(self, load_mode, compression_format):
         self._upload_code_to_cluster()
-        fn = self._new_function("job", f"{load_mode}-tar")
+        fn = self._new_function("job", f"{load_mode}-compressed")
         fn.with_source_archive(
-            self.remote_code_dir + "source_archive.tar.gz",
+            self.remote_code_dir + f"source_archive.{compression_format}",
             handler="rootfn.job_handler",
             pull_at_runtime=load_mode == "run",
         )
@@ -198,14 +218,16 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert "tag=" in resp.decode()
 
     def test_job_project(self):
-        project_name = "git-proj-job1"
-        project = mlrun.new_project(project_name, user_project=True)
+        project = mlrun.new_project("git-proj-job1", user_project=True)
+
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
         project.save()
         project.set_source(f"{git_uri}#main", True)  # , workdir="gtst")
         project.set_function(
             name="myjob",
             handler="rootfn.job_handler",
-            image="mlrun/mlrun",
+            image=base_image,
             kind="job",
             with_repo=True,
         )
@@ -213,17 +235,18 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         run = project.run_function("myjob")
         assert run.state() == "completed"
         assert run.output("tag")
-        self._delete_test_project(project_name)
 
     def test_nuclio_project(self):
-        project_name = "git-proj-nuc"
-        project = mlrun.new_project(project_name, user_project=True)
+        project = mlrun.new_project("git-proj-nuc", user_project=True)
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+
         project.save()
         project.set_source(f"{git_uri}#main")
         project.set_function(
             name="mynuclio",
             handler="rootfn:nuclio_handler",
-            image="mlrun/mlrun",
+            image=base_image,
             kind="nuclio",
             with_repo=True,
         )
@@ -231,19 +254,19 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         deployment = project.deploy_function("mynuclio")
         resp = deployment.function.invoke("")
         assert "tag=" in resp.decode()
-        self._delete_test_project(project_name)
 
     def test_project_subdir(self):
-        project_name = "git-proj2"
-
         # load project into a tmp dir, look for the project.yaml in the subpath
         project = mlrun.load_project(
             tempfile.mkdtemp(),
             f"{git_uri}#main",
-            project_name,
+            name="git-proj2",
             user_project=True,
             subpath="subdir",
         )
+        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        self.custom_project_names_to_delete.append(project.name)
+
         project.save()
         # run job locally (from cloned source)
         run = project.run_function("myjob", local=True)
@@ -260,5 +283,3 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         deployment = project.deploy_function("mynuclio")
         resp = deployment.function.invoke("")
         assert "tag=" in resp.decode()
-
-        self._delete_test_project(project_name)

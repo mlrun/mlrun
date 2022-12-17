@@ -1,5 +1,20 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import asyncio
 import concurrent.futures
+import time
 import traceback
 import uuid
 
@@ -108,6 +123,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
         request.scope
     )
+    start_time = time.perf_counter_ns()
     if not any(
         silent_logging_path in path_with_query_string
         for silent_logging_path in silent_logging_paths
@@ -137,6 +153,8 @@ async def log_request_response(request: fastapi.Request, call_next):
         )
         raise
     else:
+        # convert from nano seconds to milliseconds
+        elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
         if not any(
             silent_logging_path in path_with_query_string
             for silent_logging_path in silent_logging_paths
@@ -145,6 +163,7 @@ async def log_request_response(request: fastapi.Request, call_next):
                 "Sending response",
                 status_code=response.status_code,
                 request_id=request_id,
+                elapsed_time=elapsed_time_in_ms,
                 uri=path_with_query_string,
                 method=request.method,
             )
@@ -344,6 +363,7 @@ def main():
         port=config.httpdb.port,
         debug=config.httpdb.debug,
         access_log=False,
+        timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
     )
 
 

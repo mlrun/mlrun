@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
@@ -18,8 +32,8 @@ class ONNXModelServer(V2ModelServer):
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx,
-        name: str,
+        context: mlrun.MLClientCtx = None,
+        name: str = None,
         model: onnx.ModelProto = None,
         model_path: str = None,
         model_name: str = None,
@@ -30,7 +44,7 @@ class ONNXModelServer(V2ModelServer):
         """
         Initialize a serving class for an onnx.ModelProto model.
 
-        :param context:             The mlrun context to work with.
+        :param context:             For internal use (passed in init).
         :param name:                The model name to be served.
         :param model:               Model to handle or None in case a loading parameters were supplied.
         :param model_path:          Path to the model's directory to load it from. The onnx file must start with the
@@ -58,7 +72,7 @@ class ONNXModelServer(V2ModelServer):
                                         ),
                                         'CPUExecutionProvider'
                                     ]
-                                    Defaulted to None - will prefer CUDA Execution Provider over CPU Execution Provider.
+                                    Default: None - will prefer CUDA Execution Provider over CPU Execution Provider.
         :param protocol:            -
         :param class_args:          -
         """
@@ -71,30 +85,34 @@ class ONNXModelServer(V2ModelServer):
             **class_args,
         )
 
-        # Set up a model handler:
-        self._model_handler = ONNXModelHandler(
-            model_name=model_name,
-            model_path=model_path,
-            model=model,
-            context=self.context,
-        )
+        # Store the model name:
+        self.model_name = model_name
 
         # Set the execution providers (default will prefer CUDA Execution Provider over CPU Execution Provider):
-        self._execution_providers = (
+        self.execution_providers = (
             ["CUDAExecutionProvider", "CPUExecutionProvider"]
             if execution_providers is None
             else execution_providers
         )
 
         # Prepare inference parameters:
-        self._inference_session = None  # type: onnxruntime.InferenceSession
-        self._input_layers = None  # type: List[str]
-        self._output_layers = None  # type: List[str]
+        self._model_handler: ONNXModelHandler = None
+        self._inference_session: onnxruntime.InferenceSession = None
+        self._input_layers: List[str] = None
+        self._output_layers: List[str] = None
 
     def load(self):
         """
         Use the model handler to get the model file path and initialize an ONNX run time inference session.
         """
+        # Set up a model handler:
+        self._model_handler = ONNXModelHandler(
+            model_name=self.model_name,
+            model_path=self.model_path,
+            model=self.model,
+            context=self.context,
+        )
+
         # Load the model:
         if self._model_handler.model is None:
             self._model_handler.load()
@@ -103,7 +121,7 @@ class ONNXModelServer(V2ModelServer):
         # initialize the onnx run time session:
         self._inference_session = onnxruntime.InferenceSession(
             onnx._serialize(self._model_handler.model),
-            providers=self._execution_providers,
+            providers=self.execution_providers,
         )
 
         # Get the input layers names:

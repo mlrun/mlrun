@@ -27,12 +27,8 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.api.schemas
-from mlrun.utils import (
-    RunNotifications,
-    logger,
-    new_pipe_meta,
-    parse_versioned_object_uri,
-)
+import mlrun.utils.notifications
+from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -240,13 +236,50 @@ class _PipelineContext:
 pipeline_context = _PipelineContext()
 
 
-def _set_priority_class_name_on_kfp_pod(kfp_pod_template, function):
-    if kfp_pod_template.get("container") and kfp_pod_template.get("name").startswith(
-        function.metadata.name
+def _set_function_attribute_on_kfp_pod(
+    kfp_pod_template, function, pod_template_key, function_spec_key
+):
+    try:
+        if kfp_pod_template.get("name").startswith(function.metadata.name):
+            attribute_value = getattr(function.spec, function_spec_key, None)
+            if attribute_value:
+                kfp_pod_template[pod_template_key] = attribute_value
+    except Exception as err:
+        kfp_pod_name = kfp_pod_template.get("name")
+        logger.warning(
+            f"Unable to set function attribute on kfp pod {kfp_pod_name}",
+            function_spec_key=function_spec_key,
+            pod_template_key=pod_template_key,
+            error=str(err),
+        )
+
+
+def _enrich_kfp_pod_security_context(kfp_pod_template, function):
+    if (
+        mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind)
+        or mlrun.mlconf.function.spec.security_context.enrichment_mode
+        == mlrun.api.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
-        priority_class_name = getattr(function.spec, "priority_class_name", None)
-        if priority_class_name:
-            kfp_pod_template["PriorityClassName"] = priority_class_name
+        return
+
+    # ensure kfp pod user id is not None or 0 (root)
+    if not mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Kubeflow pipeline pod user id is invalid: "
+            f"{mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id}, "
+            f"it must be an integer greater than 0. "
+            f"See mlrun.config.function.spec.security_context.pipelines.kfp_pod_user_unix_id for more details."
+        )
+
+    kfp_pod_user_unix_id = int(
+        mlrun.mlconf.function.spec.security_context.pipelines.kfp_pod_user_unix_id
+    )
+    kfp_pod_template["SecurityContext"] = {
+        "runAsUser": kfp_pod_user_unix_id,
+        "runAsGroup": mlrun.mlconf.get_security_context_enrichment_group_id(
+            kfp_pod_user_unix_id
+        ),
+    }
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -291,15 +324,18 @@ def _create_enriched_mlrun_workflow(
                 for function_obj in functions:
                     # we condition within each function since the comparison between the function and
                     # the kfp pod may change depending on the attribute type.
-                    try:
-                        _set_priority_class_name_on_kfp_pod(
-                            kfp_step_template, function_obj
-                        )
-                    except Exception as err:
-                        kfp_pod_name = kfp_step_template.get("name")
-                        logger.warning(
-                            f"Unable to enrich kfp pod {kfp_pod_name}", error=str(err)
-                        )
+                    _set_function_attribute_on_kfp_pod(
+                        kfp_step_template,
+                        function_obj,
+                        "PriorityClassName",
+                        "priority_class_name",
+                    )
+                    _enrich_kfp_pod_security_context(
+                        kfp_step_template,
+                        function_obj,
+                    )
+    except mlrun.errors.MLRunInvalidArgumentError:
+        raise
     except Exception as err:
         logger.debug("Something in the enrichment of kfp pods failed", error=str(err))
     return workflow
@@ -452,7 +488,7 @@ class _PipelineRunner(abc.ABC):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -506,7 +542,7 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             ttl=workflow_spec.ttl,
         )
-        project.notifiers.push_start_message(
+        project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
             id,
@@ -547,7 +583,7 @@ class _KFPRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -578,7 +614,7 @@ class _KFPRunner(_PipelineRunner):
             text += f", state={state}"
 
         notifiers = notifiers or project.notifiers
-        notifiers.push(text, runs)
+        notifiers.push(text, "info", runs)
 
         if raise_error:
             raise raise_error
@@ -612,7 +648,9 @@ class _LocalRunner(_PipelineRunner):
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         pipeline_context.workflow_artifact_path = artifact_path
-        project.notifiers.push_start_message(project.metadata.name, id=workflow_id)
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name, pipeline_id=workflow_id
+        )
         try:
             workflow_handler(**workflow_spec.args)
             state = mlrun.run.RunStatuses.succeeded
@@ -620,11 +658,11 @@ class _LocalRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}"
+                f"Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
-        project.notifiers.push_run_results(
+        project.notifiers.push_pipeline_run_results(
             pipeline_context.runs_map.values(), state=state
         )
         pipeline_context.clear()
@@ -648,7 +686,7 @@ class _LocalRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -672,6 +710,12 @@ class _RemoteRunner(_PipelineRunner):
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
+
+        if workflow_spec.schedule and not project.spec.is_remote():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Workflow scheduling can only be performed by a remote project."
+                f"The project's source: {project.spec.source} is not a remote one e.g., git."
+            )
 
         try:
             # Creating the load project and workflow running function:
@@ -716,6 +760,7 @@ class _RemoteRunner(_PipelineRunner):
                 runspec=runspec,
                 local=False,
                 schedule=workflow_spec.schedule,
+                artifact_path=artifact_path,
             )
             if workflow_spec.schedule:
                 return
@@ -731,7 +776,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}"
+                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}", "error"
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
@@ -742,7 +787,7 @@ class _RemoteRunner(_PipelineRunner):
                 state=state,
             )
 
-        project.notifiers.push_start_message(
+        project.notifiers.push_pipeline_start_message(
             project.metadata.name,
         )
         pipeline_context.clear()
@@ -771,7 +816,7 @@ class _RemoteRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: RunNotifications = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60

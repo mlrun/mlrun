@@ -55,7 +55,7 @@ _sparkjob_template = {
         "mode": "cluster",
         "image": "",
         "mainApplicationFile": "",
-        "sparkVersion": "2.4.5",
+        "sparkVersion": "3.1.2",
         "restartPolicy": {
             "type": "OnFailure",
             "onFailureRetries": 0,
@@ -703,27 +703,57 @@ with ctx:
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
-    def with_executor_requests(self, mem=None, cpu=None):
-        """set executor pod required cpu/memory/gpu resources"""
-        self.spec._verify_and_set_requests("executor_resources", mem, cpu)
+    def with_executor_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
+        """
+        set executor pod required cpu/memory/gpu resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("executor_resources", mem, cpu, patch=patch)
 
-    def with_executor_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        """set executor pod limits"""
+    def with_executor_limits(
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set executor pod limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
         # in spark operator there is only use of mem passed through requests,
         # limits is set to the same value so passing mem=None
         self.spec._verify_and_set_limits(
-            "executor_resources", None, cpu, gpus, gpu_type
+            "executor_resources", None, cpu, gpus, gpu_type, patch=patch
         )
 
-    def with_driver_requests(self, mem=None, cpu=None):
-        """set driver pod required cpu/memory/gpu resources"""
-        self.spec._verify_and_set_requests("driver_resources", mem, cpu)
+    def with_driver_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
+        """
+        set driver pod required cpu/memory/gpu resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("driver_resources", mem, cpu, patch=patch)
 
-    def with_driver_limits(self, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        """set driver pod cpu limits"""
+    def with_driver_limits(
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set driver pod cpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
         # in spark operator there is only use of mem passed through requests,
         # limits is set to the same value so passing mem=None
-        self.spec._verify_and_set_limits("driver_resources", None, cpu, gpus, gpu_type)
+        self.spec._verify_and_set_limits(
+            "driver_resources", None, cpu, gpus, gpu_type, patch=patch
+        )
 
     def with_restart_policy(
         self,
@@ -803,11 +833,16 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                     .replace("Z", "+00:00")
                 )
             else:
-                completion_time = datetime.fromisoformat(
-                    crd_object.get("status", {})
-                    .get("lastSubmissionAttemptTime")
-                    .replace("Z", "+00:00")
+                last_submission_attempt_time = crd_object.get("status", {}).get(
+                    "lastSubmissionAttemptTime"
                 )
+                if last_submission_attempt_time:
+                    last_submission_attempt_time = last_submission_attempt_time.replace(
+                        "Z", "+00:00"
+                    )
+                    completion_time = datetime.fromisoformat(
+                        last_submission_attempt_time
+                    )
         return in_terminal_state, completion_time, desired_run_state
 
     def _update_ui_url(

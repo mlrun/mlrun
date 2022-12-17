@@ -1,3 +1,18 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
@@ -98,6 +113,33 @@ class FileDB(DBInterface):
             self.db.del_runs, name, project, labels, state, days_ago
         )
 
+    def overwrite_artifacts_with_tag(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        raise NotImplementedError()
+
+    def append_tag_to_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        raise NotImplementedError()
+
+    def delete_tag_from_artifacts(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[schemas.ArtifactIdentifier],
+    ):
+        raise NotImplementedError()
+
     def store_artifact(
         self,
         session,
@@ -130,6 +172,8 @@ class FileDB(DBInterface):
         category: schemas.ArtifactCategories = None,
         iter: int = None,
         best_iteration: bool = False,
+        as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until
@@ -390,7 +434,7 @@ class FileDB(DBInterface):
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, session, project):
+    def list_artifact_tags(self, session, project, category):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
 
     def create_schedule(
@@ -403,6 +447,7 @@ class FileDB(DBInterface):
         cron_trigger: schemas.ScheduleCronTrigger,
         concurrency_limit: int,
         labels: Dict = None,
+        next_run_time: datetime.datetime = None,
     ):
         raise NotImplementedError()
 
@@ -416,6 +461,7 @@ class FileDB(DBInterface):
         labels: Dict = None,
         last_run_uri: str = None,
         concurrency_limit: int = None,
+        next_run_time: datetime.datetime = None,
     ):
         raise NotImplementedError()
 

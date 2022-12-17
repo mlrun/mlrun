@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import typing
 import unittest.mock
 from datetime import datetime, timezone
@@ -353,7 +367,12 @@ class TestRuntimeHandlerBase:
         expected_pod_names: List[str], expected_pod_namespace: str = None
     ):
         calls = [
-            unittest.mock.call(expected_pod_name, expected_pod_namespace)
+            unittest.mock.call(
+                expected_pod_name,
+                expected_pod_namespace,
+                grace_period_seconds=0,
+                propagation_policy="Background",
+            )
             for expected_pod_name in expected_pod_names
         ]
         if not expected_pod_names:

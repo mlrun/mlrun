@@ -312,6 +312,76 @@ class SQLDB(RunDBInterface):
             self.db.list_artifact_tags, self.session, project
         )
 
+    def tag_objects(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+        replace: bool = False,
+    ):
+        import mlrun.api.crud
+
+        if replace:
+            return self._transform_db_error(
+                mlrun.api.crud.Tags().overwrite_object_tags_with_tag,
+                self.session,
+                project,
+                tag_name,
+                tag_objects,
+            )
+
+        return self._transform_db_error(
+            mlrun.api.crud.Tags().append_tag_to_objects,
+            self.session,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def delete_objects_tag(
+        self,
+        project: str,
+        tag_name: str,
+        tag_objects: mlrun.api.schemas.TagObjects,
+    ):
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Tags().delete_tag_from_objects,
+            self.session,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
+    def tag_artifacts(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+        replace: bool = False,
+    ):
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+
+        return self._transform_db_error(
+            self.db.tag_objects, project, tag_name, tag_objects, replace
+        )
+
+    def delete_artifacts_tags(
+        self,
+        artifacts,
+        project: str,
+        tag_name: str,
+    ):
+        tag_objects = self._resolve_artifacts_to_tag_objects(artifacts)
+
+        return self._transform_db_error(
+            self.db.delete_objects_tag,
+            project,
+            tag_name,
+            tag_objects,
+        )
+
     def store_schedule(self, data):
         return self._transform_db_error(self.db.store_schedule, self.session, data)
 
@@ -349,7 +419,13 @@ class SQLDB(RunDBInterface):
     def get_project(
         self, name: str = None, project_id: int = None
     ) -> mlrun.api.schemas.Project:
-        raise NotImplementedError()
+        import mlrun.api.crud
+
+        return self._transform_db_error(
+            mlrun.api.crud.Projects().get_project,
+            self.session,
+            name=name,
+        )
 
     def list_projects(
         self,
@@ -692,17 +768,18 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key=None,
     ):
         raise NotImplementedError()
 
-    def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key=None
+    def delete_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
     ):
         raise NotImplementedError()
 
@@ -715,7 +792,6 @@ class SQLDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key=None,
     ):
         raise NotImplementedError()
 
@@ -727,7 +803,14 @@ class SQLDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        access_key=None,
+    ):
+        raise NotImplementedError()
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
     ):
         raise NotImplementedError()
 

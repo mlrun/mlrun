@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import os
 import pathlib
 import sys
@@ -30,21 +44,33 @@ class TestMLRunSystem:
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
-    def setup_method(self, method):
-        self._logger = logger
-        self._logger.info(
-            f"Setting up test {self.__class__.__name__}::{method.__name__}"
-        )
-        self._test_env = {}
-        self._old_env = {}
-        self._setup_env(self._get_env_from_file())
+    _logger = logger
 
-        self._run_db = get_run_db()
+    _test_env = {}
+    _old_env = {}
+
+    @classmethod
+    def setup_class(cls):
+        env = cls._get_env_from_file()
+        cls._test_env.update(env)
+        cls._setup_env(cls._get_env_from_file())
+        cls._run_db = get_run_db()
+        cls.custom_setup_class()
 
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure
         # it in mlconf.
-        mlconf.dbpath = self._test_env["MLRUN_DBPATH"]
+        mlconf.dbpath = cls._test_env["MLRUN_DBPATH"]
+
+    @classmethod
+    def custom_setup_class(cls):
+        pass
+
+    def setup_method(self, method):
+        logger.info(f"Setting up test {self.__class__.__name__}::{method.__name__}")
+
+        self._setup_env(self._get_env_from_file())
+        self._run_db = get_run_db()
 
         if not self._skip_set_environment():
             set_environment(project=self.project_name)
@@ -52,7 +78,7 @@ class TestMLRunSystem:
 
         self.custom_setup()
 
-        self._logger.info(
+        logger.info(
             f"Finished setting up test {self.__class__.__name__}::{method.__name__}"
         )
 
@@ -68,11 +94,9 @@ class TestMLRunSystem:
             )
 
     def teardown_method(self, method):
-        self._logger.info(
-            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
-        )
+        logger.info(f"Tearing down test {self.__class__.__name__}::{method.__name__}")
 
-        self._logger.debug("Removing test data from database")
+        logger.debug("Removing test data from database")
         if self._should_clean_resources():
             fsets = self._run_db.list_feature_sets()
             if fsets:
@@ -83,16 +107,23 @@ class TestMLRunSystem:
 
         self.custom_teardown()
 
-        self._teardown_env()
-
-        self._logger.info(
+        logger.info(
             f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
         )
+
+    @classmethod
+    def teardown_class(cls):
+        cls.custom_teardown_class()
+        cls._teardown_env()
 
     def custom_setup(self):
         pass
 
     def custom_teardown(self):
+        pass
+
+    @classmethod
+    def custom_teardown_class(cls):
         pass
 
     @staticmethod
@@ -134,6 +165,13 @@ class TestMLRunSystem:
                     return False
             return True
 
+    @classmethod
+    def get_assets_path(cls):
+        return (
+            pathlib.Path(sys.modules[cls.__module__].__file__).absolute().parent
+            / "assets"
+        )
+
     @property
     def assets_path(self):
         return (
@@ -146,26 +184,28 @@ class TestMLRunSystem:
         with cls.env_file_path.open() as f:
             return yaml.safe_load(f)
 
-    def _setup_env(self, env: dict):
-        self._logger.debug("Setting up test environment")
-        self._test_env.update(env)
+    @classmethod
+    def _setup_env(cls, env: dict):
+        logger.debug("Setting up test environment")
+        cls._test_env.update(env)
 
         # save old env vars for returning them on teardown
         for env_var, value in env.items():
             if env_var in os.environ:
-                self._old_env[env_var] = os.environ[env_var]
+                cls._old_env[env_var] = os.environ[env_var]
 
             if value:
                 os.environ[env_var] = value
         # reload the config so changes to the env vars will take affect
         mlrun.config.config.reload()
 
-    def _teardown_env(self):
-        self._logger.debug("Tearing down test environment")
-        for env_var in self._test_env:
+    @classmethod
+    def _teardown_env(cls):
+        logger.debug("Tearing down test environment")
+        for env_var in cls._test_env:
             if env_var in os.environ:
                 del os.environ[env_var]
-        os.environ.update(self._old_env)
+        os.environ.update(cls._old_env)
         # reload the config so changes to the env vars will take affect
         mlrun.config.config.reload()
 
@@ -190,7 +230,7 @@ class TestMLRunSystem:
         data_stores: list = None,
         scrape_metrics: bool = None,
     ):
-        self._logger.debug("Verifying run spec", spec=run_spec)
+        logger.debug("Verifying run spec", spec=run_spec)
         if parameters:
             assert run_spec["parameters"] == parameters
         if inputs:
@@ -217,7 +257,7 @@ class TestMLRunSystem:
         labels: dict = None,
         iteration: int = None,
     ):
-        self._logger.debug("Verifying run metadata", spec=run_metadata)
+        logger.debug("Verifying run metadata", spec=run_metadata)
         if uid:
             assert run_metadata["uid"] == uid
         if name:
@@ -243,7 +283,7 @@ class TestMLRunSystem:
         best_iteration: int = None,
         iteration_results: bool = False,
     ):
-        self._logger.debug("Verifying run outputs", spec=run_outputs)
+        logger.debug("Verifying run outputs", spec=run_outputs)
         assert run_outputs["model"].startswith(str(output_path))
         assert run_outputs["html_result"].startswith(str(output_path))
         assert run_outputs["chart"].startswith(str(output_path))

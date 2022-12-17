@@ -81,13 +81,12 @@ extras_require = {
         "boto3~=1.9, <1.17.107",
         "botocore>=1.20.106,<1.20.107",
         "aiobotocore~=1.4.0",
-        "aioitertools<0.9",
         "s3fs~=2021.8.1",
     ],
     "azure-blob-storage": [
         "msrest~=0.6.21",
-        "azure-storage-blob~=12.0",
-        "azure-core<1.23",
+        "azure-core~=1.24",
+        "azure-storage-blob~=12.13",
         "adlfs~=2021.8.1",
     ],
     "azure-key-vault": ["azure-identity~=1.5", "azure-keyvault-secrets~=4.2"],
@@ -96,16 +95,34 @@ extras_require = {
         "bokeh~=2.4, >=2.4.2",
     ],
     "plotly": ["plotly~=5.4"],
+    # google-cloud is mainly used for QA, that is why we are not including it in complete
+    "google-cloud": [
+        # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
+        "google-cloud-storage~=1.20",
+        # because of storey which isn't compatible with google-cloud-bigquery >3.2, conflicting grpcio
+        # google-cloud-bigquery 3.3.0 has grpcio >= 1.47.0, < 2.0dev while storey 1.2.2 has grpcio<1.42 and >1.34.0
+        "google-cloud-bigquery[pandas]~=3.2",
+        "google-cloud~=0.34",
+    ],
     "google-cloud-storage": ["gcsfs~=2021.8.1"],
-    "google-cloud-bigquery": ["google-cloud-bigquery~=3.0"],
+    "google-cloud-bigquery": ["google-cloud-bigquery[pandas]~=3.2"],
     "kafka": ["kafka-python~=2.0"],
+    "redis": ["redis~=4.3"],
 }
 extras_require["complete"] = sorted(
     {
         requirement
         for extra_key, requirement_list in extras_require.items()
         for requirement in requirement_list
-        if extra_key != "bokeh"
+        # see above why we are excluding google-cloud
+        if extra_key not in ["bokeh", "google-cloud"]
+    }
+)
+extras_require["all"] = sorted(
+    {
+        requirement
+        for extra_key, requirement_list in extras_require.items()
+        for requirement in requirement_list
     }
 )
 extras_require["api"] = api_deps
@@ -129,7 +146,9 @@ setup(
         "mlrun.api",
         "mlrun.api.api",
         "mlrun.api.api.endpoints",
+        "mlrun.api.api.endpoints.internal",
         "mlrun.api.crud",
+        "mlrun.api.crud.model_monitoring",
         "mlrun.api.db",
         "mlrun.api.db.filedb",
         "mlrun.api.db.sqldb",
@@ -150,6 +169,7 @@ setup(
         "mlrun.artifacts",
         "mlrun.data_types",
         "mlrun.datastore",
+        "mlrun.datastore.wasbfs",
         "mlrun.db",
         "mlrun.feature_store",
         "mlrun.feature_store.retrieval",
@@ -161,6 +181,7 @@ setup(
         "mlrun.frameworks._ml_common.loggers",
         "mlrun.frameworks._ml_common.plans",
         "mlrun.frameworks.auto_mlrun",
+        "mlrun.frameworks.huggingface",
         "mlrun.frameworks.lgbm",
         "mlrun.frameworks.lgbm.callbacks",
         "mlrun.frameworks.lgbm.mlrun_interfaces",
@@ -180,6 +201,8 @@ setup(
         "mlrun.runtimes.sparkjob",
         "mlrun.serving",
         "mlrun.utils",
+        "mlrun.utils.notifications",
+        "mlrun.utils.notifications.notification",
         "mlrun.utils.version",
     ],
     install_requires=install_requires,

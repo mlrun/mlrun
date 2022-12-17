@@ -1,4 +1,20 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import http
+import json
+import typing
 import unittest.mock
 from http import HTTPStatus
 
@@ -21,6 +37,7 @@ from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
 
 ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+DEFAULT_FUNCTION_OUTPUT_PATH = "/some/fictive/path/to/make/everybody/happy"
 
 
 def test_submit_job_failure_function_not_found(db: Session, client: TestClient) -> None:
@@ -160,6 +177,71 @@ def test_submit_job_ensure_function_has_auth_set(
         ),
     }
     _assert_pod_env_vars(pod_create_mock, expected_env_vars)
+
+
+def test_submit_job_with_output_path_enrichment(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
+) -> None:
+    project_name = "proj-with-artifact-path"
+    project_artifact_path = f"/{project_name}"
+    tests.api.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
+    function = mlrun.new_function(
+        name="test-function",
+        project=project_name,
+        tag="latest",
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    # set default artifact path
+    mlconf.artifact_path = "/some-path"
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=False
+    )
+
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    # expected to get enriched with the project artifact path
+    _assert_pod_output_path(pod_create_mock, project_artifact_path)
+
+    # create project without default artifact path
+    project_name = "proj-without-artifact-path"
+    tests.api.api.utils.create_project(client, project_name)
+    function = mlrun.new_function(
+        name="test-function",
+        project=project_name,
+        tag="latest",
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    # set default artifact path
+    mlconf.artifact_path = "/some-path"
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=False
+    )
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    # project doesn't have default artifact path, expected to get enriched with the default artifact path
+    _assert_pod_output_path(pod_create_mock, mlconf.artifact_path)
+
+    function = mlrun.new_function(
+        name="test-function-with-output-path",
+        project=project_name,
+        tag="latest",
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    # create task with output_path, expected to be used
+    submit_job_body = _create_submit_job_body(
+        function, project_name, with_output_path=True
+    )
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp.status_code == http.HTTPStatus.OK.value
+
+    _assert_pod_output_path(pod_create_mock, DEFAULT_FUNCTION_OUTPUT_PATH)
 
 
 def test_submit_job_service_accounts(
@@ -321,14 +403,63 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         assert response.json() == expected_response
 
 
-def _create_submit_job_body(function, project):
-    return {
+@pytest.mark.parametrize(
+    "task_name,parameters,hyperparameters",
+    [
+        ("param-pos", {"x": 2**63 + 1}, None),
+        ("param-neg", {"x": -(2**63 + 1)}, None),
+        ("hyperparam-pos", None, {"x": [1, 2**63 + 1]}),
+        ("hyperparam-neg", None, {"x": [1, -(2**63 + 1)]}),
+    ],
+)
+def test_submit_job_failure_params_exceed_int64(
+    db: Session,
+    client: TestClient,
+    pod_create_mock,
+    task_name: str,
+    parameters: typing.Dict[str, int],
+    hyperparameters: typing.Dict[str, typing.List[int]],
+) -> None:
+    project_name = "params-exceed-int64"
+    project_artifact_path = f"/{project_name}"
+    tests.api.api.utils.create_project(
+        client, project_name, artifact_path=project_artifact_path
+    )
+    function = mlrun.new_function(
+        name="test-function",
+        project=project_name,
+        tag="latest",
+        kind="job",
+        image="mlrun/mlrun",
+    )
+    submit_job_body = _create_submit_job_body(function, project_name)
+    submit_job_body["task"]["metadata"]["name"] = task_name
+    if parameters:
+        submit_job_body["task"]["spec"]["parameters"] = parameters
+    if hyperparameters:
+        submit_job_body["task"]["spec"]["hyperparams"] = hyperparameters
+    resp = client.post("submit_job", json=submit_job_body)
+
+    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+    assert "exceeds int64" in resp.json()["detail"]["reason"]
+
+    resp = client.get("runs", params={"project": project_name})
+    # assert the run wasn't saved to the DB
+    assert len(resp.json()["runs"]) == 0
+
+
+def _create_submit_job_body(function, project, with_output_path=True):
+    body = {
         "task": {
-            "spec": {"output_path": "/some/fictive/path/to/make/everybody/happy"},
+            "spec": {},
             "metadata": {"name": "task1", "project": project},
         },
         "function": function.to_dict(),
     }
+    if with_output_path:
+        body["task"]["spec"]["output_path"] = DEFAULT_FUNCTION_OUTPUT_PATH
+
+    return body
 
 
 def _create_submit_job_body_with_schedule(function, project):
@@ -338,7 +469,14 @@ def _create_submit_job_body_with_schedule(function, project):
 
 
 def _assert_pod_env_vars(pod_create_mock, expected_env_vars):
-    pod_create_mock.assert_called_once()
+    pod_env_dict = _get_pod_env_vars_as_dict(pod_create_mock)
+    for key, value in expected_env_vars.items():
+        assert pod_env_dict[key] == value
+
+
+def _get_pod_env_vars_as_dict(pod_create_mock, assert_called=True):
+    if assert_called:
+        pod_create_mock.assert_called_once()
     args, _ = pod_create_mock.call_args
     pod_env = args[0].spec.containers[0].env
     pod_env_dict = {}
@@ -353,8 +491,15 @@ def _assert_pod_env_vars(pod_create_mock, expected_env_vars):
                 value_from.secret_key_ref.name,
                 value_from.secret_key_ref.key,
             )
-    for key, value in expected_env_vars.items():
-        assert pod_env_dict[key] == value
+    return pod_env_dict
+
+
+def _assert_pod_output_path(pod_create_mock, expected_output_path):
+    pod_env_dict = _get_pod_env_vars_as_dict(pod_create_mock, assert_called=False)
+    pod_mlrun_exec_config: dict = json.loads(
+        pod_env_dict["MLRUN_EXEC_CONFIG"],
+    )
+    assert pod_mlrun_exec_config["spec"]["output_path"] == expected_output_path
 
 
 def _assert_pod_service_account(pod_create_mock, expected_service_account):

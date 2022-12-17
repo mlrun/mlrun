@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
@@ -23,6 +37,7 @@ class SparkFeatureMerger(BaseMerger):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        query=None,
     ):
         from pyspark.sql import SparkSession
         from pyspark.sql.functions import col
@@ -55,7 +70,7 @@ class SparkFeatureMerger(BaseMerger):
             ):
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.path,
+                    target.get_target_path(),
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
@@ -63,7 +78,7 @@ class SparkFeatureMerger(BaseMerger):
             else:
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.path,
+                    target.get_target_path(),
                     time_field=entity_timestamp_column,
                 )
 
@@ -80,6 +95,7 @@ class SparkFeatureMerger(BaseMerger):
             # select requested columns and rename with alias where needed
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             dfs.append(df)
+            del df
 
         # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
@@ -87,6 +103,10 @@ class SparkFeatureMerger(BaseMerger):
 
         # join the feature data frames
         self.merge(entity_rows, entity_timestamp_column, feature_sets, dfs)
+
+        # filter joined data frame by the query param
+        if query:
+            self._result_df = self._result_df.filter(query)
 
         self._result_df = self._result_df.drop(*self._drop_columns)
 
@@ -97,6 +117,9 @@ class SparkFeatureMerger(BaseMerger):
 
         self._write_to_target()
         return OfflineVectorResponse(self)
+
+    def _unpersist_df(self, df):
+        df.unpersist()
 
     def _asof_join(
         self,
@@ -202,7 +225,8 @@ class SparkFeatureMerger(BaseMerger):
     def get_df(self, to_pandas=True):
         if to_pandas:
             if self._pandas_df is None:
-                self._pandas_df = self._set_indexes(self._result_df.toPandas())
+                self._pandas_df = self._result_df.toPandas()
+                self._set_indexes(self._pandas_df)
             return self._pandas_df
 
         return self._result_df

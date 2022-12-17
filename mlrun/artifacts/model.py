@@ -42,6 +42,7 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_vector",
         "feature_weights",
         "feature_stats",
+        "model_target_file",
     ]
 
     def __init__(
@@ -65,6 +66,7 @@ class ModelArtifactSpec(ArtifactSpec):
         feature_vector=None,
         feature_weights=None,
         feature_stats=None,
+        model_target_file=None,
     ):
         super().__init__(
             src_path,
@@ -87,6 +89,7 @@ class ModelArtifactSpec(ArtifactSpec):
         self.feature_vector = feature_vector
         self.feature_weights = feature_weights
         self.feature_stats = feature_stats
+        self.model_target_file = model_target_file
 
     @property
     def inputs(self) -> List[Feature]:
@@ -358,6 +361,30 @@ class ModelArtifact(Artifact):
         )
         self.spec.feature_weights = feature_weights
 
+    @property
+    def model_target_file(self):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_weights instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        return self.spec.model_target_file
+
+    @model_target_file.setter
+    def model_target_file(self, model_target_file):
+        """This is a property of the spec, look there for documentation
+        leaving here for backwards compatibility with users code that used ArtifactLegacy"""
+        warnings.warn(
+            "This is a property of the spec, use artifact.spec.feature_weights instead"
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
+            # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
+            PendingDeprecationWarning,
+        )
+        self.spec.model_target_file = model_target_file
+
     def infer_from_df(self, df, label_columns=None, with_stats=True, num_bins=None):
         """infer inputs, outputs, and stats from provided df (training set)
 
@@ -392,29 +419,87 @@ class ModelArtifact(Artifact):
         if not self.spec.model_file:
             raise ValueError("model_file attr must be specified")
 
-        for key, item in self.spec.extra_data.items():
-            if hasattr(item, "target_path"):
-                self.spec.extra_data[key] = item.target_path
+        super(ModelArtifact, self).before_log()
+
         if self.spec.framework:
             self.metadata.labels = self.metadata.labels or {}
             self.metadata.labels["framework"] = self.spec.framework
 
-    def upload(self):
-
-        target_model_path = path.join(self.spec.target_path, self.spec.model_file)
+    def upload(self, artifact_path: str = None):
+        """
+        internal, upload to target store
+        :param artifact_path: required only for when generating target_path from artifact hash
+        """
+        # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True and the user
+        # didn't pass target_path explicitly, then target_path will be calculated right before uploading the artifact
+        # using `resolve_<body/file>_target_hash_path`
+        target_model_path = (
+            path.join(self.spec.target_path, self.spec.model_file)
+            if self.spec.target_path
+            else None
+        )
         body = self.spec.get_body()
         if body:
-            self._upload_body(body, target=target_model_path)
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_body_target_hash_path(
+                    body=body, artifact_path=artifact_path
+                )
+            self._upload_body(
+                body, target=target_model_path, artifact_path=artifact_path
+            )
         else:
             src_model_path = _get_src_path(self, self.spec.model_file)
             if not path.isfile(src_model_path):
                 raise ValueError(f"model file {src_model_path} not found")
-            self._upload_file(src_model_path, target=target_model_path)
 
-        upload_extra_data(self, self.spec.extra_data)
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_file_target_hash_path(
+                    source_path=src_model_path, artifact_path=artifact_path
+                )
 
-        spec_path = path.join(self.spec.target_path, model_spec_filename)
-        store_manager.object(url=spec_path).put(self.to_yaml())
+            self._upload_file(
+                src_model_path,
+                target_path=target_model_path,
+                artifact_path=artifact_path,
+            )
+
+        upload_extra_data(
+            artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
+        )
+
+        spec_body = self.to_yaml()
+        spec_target_path = None
+
+        if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
+
+            # resolving target_path for the model spec
+            _, spec_target_path = self.resolve_body_target_hash_path(
+                body=spec_body, artifact_path=artifact_path
+            )
+
+            # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True, then target_path will be
+            # will point to the artifact path which is where the model and all its extra data are stored
+            self.spec.target_path = (
+                artifact_path + "/"
+                if not artifact_path.endswith("/")
+                else artifact_path
+            )
+            # unlike in extra_data, which stores for each key the path to the file, in target_path we store the
+            # target path dir, and because we generated the target path of the model from the artifact hash,
+            # the model_file doesn't represent the actual target file name of the model, so we need to update it
+            self.spec.model_target_file = target_model_path.split("/")[-1]
+
+        spec_target_path = spec_target_path or path.join(
+            self.spec.target_path, model_spec_filename
+        )
+        store_manager.object(url=spec_target_path).put(spec_body)
+        self.spec.extra_data[model_spec_filename] = spec_target_path
 
     def _get_file_body(self):
         body = self.spec.get_body()
@@ -446,6 +531,7 @@ class LegacyModelArtifact(LegacyArtifact):
         "feature_vector",
         "feature_weights",
         "feature_stats",
+        "model_target_file",
     ]
     kind = "model"
     _store_prefix = StorePrefix.Model
@@ -466,6 +552,7 @@ class LegacyModelArtifact(LegacyArtifact):
         feature_vector=None,
         feature_weights=None,
         extra_data=None,
+        model_target_file=None,
         **kwargs,
     ):
 
@@ -484,6 +571,7 @@ class LegacyModelArtifact(LegacyArtifact):
         self.feature_vector = feature_vector
         self.feature_weights = feature_weights
         self.feature_stats = None
+        self.model_target_file = model_target_file
 
     @property
     def inputs(self) -> List[Feature]:
@@ -535,7 +623,7 @@ class LegacyModelArtifact(LegacyArtifact):
         if not self.model_file:
             raise ValueError("model_file attr must be specified")
 
-        super(ModelArtifact, self).before_log()
+        super(LegacyModelArtifact, self).before_log()
 
         if self.framework:
             self.labels = self.labels or {}
@@ -598,7 +686,11 @@ def get_model(model_dir, suffix=""):
         model_spec, target = store_manager.get_store_artifact(model_dir)
         if not model_spec or model_spec.kind != "model":
             raise ValueError(f"store artifact ({model_dir}) is not model kind")
-        model_file = _get_file_path(target, model_spec.model_file)
+        # in case model_target_file is specified, use it, because that means that the actual model target path
+        # in the store is different than the local model_file it was generated from
+        model_file = _get_file_path(
+            target, model_spec.model_target_file or model_spec.model_file
+        )
         extra_dataitems = _get_extra(target, model_spec.extra_data)
 
     elif model_dir.lower().endswith(".yaml"):

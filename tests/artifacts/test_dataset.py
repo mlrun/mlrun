@@ -1,8 +1,24 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pathlib
 
+import dask.dataframe as dd
 import numpy
 import pandas
 import pandas.io.json
+import pytest
 
 import mlrun.artifacts.dataset
 import tests.conftest
@@ -85,6 +101,133 @@ def test_dataset_upload_with_src_path_filling_hash():
     artifact.src_path = src_path
     artifact.upload()
     assert artifact.hash is not None
+
+
+def assets_path():
+    return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+def test_resolve_dataset_hash_path():
+    for test_case in [
+        {
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame({"x": [1, 2]}),
+                format="csv",
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
+            "expected_error": None,
+        },
+        {
+            # generates incremental values dataframe
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame(
+                    numpy.broadcast_to(numpy.arange(1, 300 + 1)[:, None], (300, 100))
+                ),
+                format="parquet",
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2",
+            "expected_file_target": "v3io://just/regular/path/f039fcf3a8b4bd6805b2bec0c6db96c2189eb9e2.parquet",
+            "expected_error": None,
+        },
+        {
+            # without format
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame({"x": [1, 2]}),
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_error": None,
+        },
+        {
+            # without artifact_path, expected to fail
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=pandas.DataFrame({"x": [1, 2]}),
+            ),
+            "artifact_path": None,
+            "expected_hash": None,
+            "expected_file_target": None,
+            "expected_error": mlrun.errors.MLRunInvalidArgumentError,
+        },
+        # tests dask dataframe
+        {
+            "artifact": mlrun.artifacts.dataset.DatasetArtifact(
+                df=dd.from_pandas(pandas.DataFrame({"x": [1, 2]}), npartitions=1),
+                format="csv",
+            ),
+            "artifact_path": "v3io://just/regular/path",
+            "expected_hash": "0d1c62a76b705b34bb70f355162f83402f3640e3",
+            "expected_file_target": "v3io://just/regular/path/0d1c62a76b705b34bb70f355162f83402f3640e3.csv",
+            "expected_error": None,
+        },
+    ]:
+        artifact = test_case.get("artifact")
+        artifact_path = test_case.get("artifact_path")
+        expected_error: mlrun.errors.MLRunBaseError = test_case.get(
+            "expected_error", None
+        )
+        if expected_error:
+            with pytest.raises(expected_error):
+                artifact.resolve_dataframe_target_hash_path(
+                    dataframe=artifact.df, artifact_path=artifact_path
+                )
+            break
+        dataset_hash, target_path = artifact.resolve_dataframe_target_hash_path(
+            dataframe=artifact.df, artifact_path=artifact_path
+        )
+        assert test_case.get("expected_hash") == dataset_hash
+        assert test_case.get("expected_file_target") == target_path
+
+
+def test_dataset_stats():
+    raw_data = {
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+        "age": [42, 52, 36, 24, 73],
+        "testScore": [25, 94, 57, 62, 70],
+    }
+    df = pandas.DataFrame(
+        raw_data, columns=["first_name", "last_name", "age", "testScore"]
+    )
+    for test_case in [
+        {
+            # status is not set
+            "df": df,
+            "stats": None,
+            "expected_none_status_stats": False,
+        },
+        {
+            # status is set to True
+            "df": df,
+            "stats": True,
+            "expected_none_status_stats": False,
+        },
+        {
+            # status is set to False
+            "df": df,
+            "stats": False,
+            "expected_none_status_stats": True,
+        },
+        {
+            # status is not set and df is very large
+            "df": pandas.DataFrame(
+                raw_data, columns=[f"column-title-{i}" for i in range(200)]
+            ),
+            "stats": None,
+            "expected_none_status_stats": True,
+        },
+    ]:
+        dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
+            df=test_case.get("df"), stats=test_case.get("stats")
+        )
+
+        if test_case["expected_none_status_stats"]:
+            assert dataset_artifact.status.stats is None
+        else:
+            assert dataset_artifact.status.stats is not None
 
 
 def _generate_dataset_artifact(format_):

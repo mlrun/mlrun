@@ -1,3 +1,17 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import builtins
 import collections
 import json
@@ -78,13 +92,14 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "kfp": {"~=1.8.0"},
+        "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "aioitertools": {"<0.9"},
-        "storey": {"~=1.1.5"},
+        "storey": {"~=1.2.4"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        "typing-extensions": {">=3.10.0,<4"},
+        "typing-extensions": {">=3.10.0,<5"},
+        "sphinx": {"~=4.3.0"},
+        "google-cloud": {"~=0.34"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -109,11 +124,12 @@ def test_requirement_specifiers_convention():
         "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
         "boto3": {"~=1.9, <1.17.107"},
-        "azure-core": {"<1.23"},
-        "azure-storage-blob": {"~=12.0, <12.7.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=1,<7"},
+        "pyarrow": {">=3,<7"},
         "nbclassic": {">=0.2.8"},
+        "protobuf": {">=3.20.2, <4"},
+        "pandas": {"~=1.2, <1.5.0"},
+        "importlib_metadata": {">=3.6"},
     }
 
     for (
@@ -248,11 +264,7 @@ def _import_extras_requirements():
     setuptools.setup = original_setup
     builtins.open = original_open
 
-    ignored_extras = [
-        "api",
-        "complete",
-        "complete-api",
-    ]
+    ignored_extras = ["api", "complete", "complete-api", "all", "google-cloud"]
 
     extras_requirements = []
     for extra_name, extra_requirements in setup.extras_require.items():

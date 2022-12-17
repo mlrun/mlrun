@@ -1,5 +1,5 @@
 name: Installation Issue
-description: Report issues installing the MLRun Kit on your system
+description: Report issues installing MLRun CE on your system
 title: "[Installation]: "
 
 body:
@@ -33,6 +33,7 @@ body:
       options:
         - Docker
         - Kubernetes
+        - CloudFormation
     validations:
       required: true
   - type: dropdown
@@ -44,6 +45,7 @@ body:
       options:
         - N/A - Docker
         - Kubernetes for Docker Desktop
+        - EKS
         - Minikube
         - KinD
         - MicroK8s
@@ -55,10 +57,10 @@ body:
   - type: input
     id: helm_chart_version
     attributes:
-      label: MLRun Kit Version
+      label: MLRun CE Version
       description: >
-        Docker install: Please provide the version of the MLRun Kit with the full output of ``docker ps | grep mlrun | awk '{print $2}'``.<br />
-        K8s install: Please provide the version of the MLRun Helm chart with the full output of ``helm search repo v3io-stable | grep mlrun-kit | awk '{print $2}'``.
+        Docker install: Please provide the version of MLRun with the full output of ``docker ps | grep mlrun | awk '{print $2}'``.<br />
+        K8s install: Please provide the version of the MLRun CE Helm chart with the full output of ``helm search repo mlrun-ce | grep mlrun/mlrun-ce | awk '{print $2}'``.
     validations:
       required: true
   - type: textarea

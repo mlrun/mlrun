@@ -696,50 +696,30 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
-    @classmethod
-    def run(
-        cls,
-        project,
-        workflow_spec: WorkflowSpec,
-        name=None,
-        workflow_handler=None,
-        secrets=None,
-        artifact_path=None,
-        namespace=None,
-        source=None,
-    ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
-        runner_name = f"workflow-runner-{workflow_name}"
-        run_id = None
-
-        # If the user provided a source we want to load the project from the source
-        # (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
-        save, current_source = (
-            (False, source) if source else (True, project.spec.source)
-        )
-        if "://" not in current_source:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"remote workflows can only be performed by a project with remote source,"
-                f"the given source '{current_source}' is not remote"
-            )
-
+    @staticmethod
+    def _prepare_load_and_run_function(
+        source,
+        project_name,
+        save,
+        workflow_name,
+        workflow_spec,
+        artifact_path,
+        workflow_handler,
+        namespace,
+    ):
         # Creating the load project and workflow running function:
         load_and_run_fn = mlrun.new_function(
-            name=runner_name,
-            project=project.name,
+            name=f"workflow-runner-{workflow_name}",
+            project=project_name,
             kind="job",
             image=mlrun.mlconf.default_base_image,
         )
-        msg = "executing workflow "
-        if workflow_spec.schedule:
-            msg += "scheduling "
-        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
         runspec = mlrun.RunObject.from_dict(
             {
                 "spec": {
                     "parameters": {
-                        "url": current_source,
-                        "project_name": project.name,
+                        "url": source,
+                        "project_name": project_name,
                         "save": save,
                         "workflow_name": workflow_name or workflow_spec.name,
                         "workflow_path": workflow_spec.path,
@@ -759,6 +739,46 @@ class _RemoteRunner(_PipelineRunner):
         runspec = runspec.set_label("job-type", "workflow-runner").set_label(
             "workflow", workflow_name
         )
+        return load_and_run_fn, runspec
+
+    @classmethod
+    def run(
+        cls,
+        project,
+        workflow_spec: WorkflowSpec,
+        name=None,
+        workflow_handler=None,
+        secrets=None,
+        artifact_path=None,
+        namespace=None,
+        source=None,
+    ) -> typing.Optional[_PipelineRunStatus]:
+        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
+
+        run_id = None
+
+        # If the user provided a source we want to load the project from the source
+        # (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
+        save, current_source = (
+            (False, source) if source else (True, project.spec.source)
+        )
+        if "://" not in current_source:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"remote workflows can only be performed by a project with remote source,"
+                f"the given source '{current_source}' is not remote"
+            )
+
+        load_and_run_fn, runspec = cls._prepare_load_and_run_function(
+            source=current_source,
+            project_name=project.name,
+            save=save,
+            workflow_name=workflow_name,
+            workflow_spec=workflow_spec,
+            artifact_path=artifact_path,
+            workflow_handler=workflow_handler,
+            namespace=namespace,
+        )
+
         if workflow_spec.schedule:
             is_scheduled = True
             schedule_name = runspec.spec.parameters.get("workflow_name")
@@ -790,7 +810,9 @@ class _RemoteRunner(_PipelineRunner):
         msg = "executing workflow "
         if workflow_spec.schedule:
             msg += "scheduling "
-        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
+        logger.info(
+            f"{msg}'{load_and_run_fn.metadata.name}' remotely with {workflow_spec.engine} engine"
+        )
 
         try:
             run = load_and_run_fn.run(
@@ -899,6 +921,32 @@ def load_and_run(
     engine: str = None,
     local: bool = None,
 ):
+    """
+    Auxiliary function that the RemoteRunner run once or run every schedule.
+    This function loads a project from a given remote source and then runs the workflow.
+
+    :param context:             mlrun context.
+    :param url:                 remote url that represents the project's source.
+                                See 'mlrun.load_project()' for details
+    :param project_name:        project name
+    :param init_git:            if True, will git init the context dir
+    :param subpath:             project subpath (within the archive)
+    :param clone:               if True, always clone (delete any existing content)
+    :param save:                whether to save the created project and artifact in the DB
+    :param workflow_name:       name of the workflow
+    :param workflow_path:       url to a workflow file, if not a project workflow
+    :param workflow_arguments:  kubeflow pipelines arguments (parameters)
+    :param artifact_path:       target path/url for workflow artifacts, the string
+                                '{{workflow.uid}}' will be replaced by workflow id
+    :param workflow_handler:    workflow function handler (for running workflow function directly)
+    :param namespace:           kubernetes namespace if other than default
+    :param sync:                force functions sync before run
+    :param dirty:               allow running the workflow when the git repo is dirty
+    :param ttl:                 pipeline ttl in secs (after that the pods will be removed)
+    :param engine:              workflow engine running the workflow.
+                                supported values are 'kfp' (default) or 'local'
+    :param local:               run local pipeline with local functions (set local=True in function.run())
+    """
     project = mlrun.load_project(
         context=f"./{project_name}",
         url=url,

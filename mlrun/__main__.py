@@ -1080,11 +1080,17 @@ def project(
                     timeout=timeout,
                     overwrite=overwrite_schedule,
                 )
+            # In this way we are updating only the conflict error that is relevant to schedules
             except mlrun.errors.MLRunConflictError as error:
-                # In this way we are updating only the conflict error that is relevant to schedules
-                raise mlrun.errors.MLRunConflictError(
-                    str(error).replace("overwrite = True", "--overwrite-schedule")
-                )
+                if error.args:
+                    # error.args is a tuple, so need to convert to list for changing its value.
+                    args_list = list(error.args)
+                    args_list[0] = args_list[0].replace(
+                        "overwrite = True", "--overwrite-schedule"
+                    )
+                    error.args = tuple(args_list)
+                raise error
+
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {exc}"

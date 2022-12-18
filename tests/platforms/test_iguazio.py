@@ -422,3 +422,13 @@ def test_mount_v3io_extended():
                 )
                 == {}
             )
+
+
+def test_is_iguazio_session_cookie():
+    assert (
+        mlrun.platforms.is_iguazio_session_cookie(
+            "j%3A%7B%22sid%22%3A%20%22946b0749-5c40-4837-a4ac-341d295bfaf7%22%7D"
+        )
+        is True
+    )
+    assert mlrun.platforms.is_iguazio_session_cookie("dummy") is False

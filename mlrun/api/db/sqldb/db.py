@@ -3094,7 +3094,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_notification_record_to_schema(
-        notification_record: Notification
+        notification_record: Notification,
     ) -> mlrun.model.Notification:
         return mlrun.model.Notification(
             kind=notification_record.kind,
@@ -3542,7 +3542,5 @@ class SQLDB(DBInterface):
 
         return [
             self._transform_notification_record_to_schema(notification)
-            for notification in self._query(
-                session, Notification, run=run.id
-            ).all()
+            for notification in self._query(session, Notification, run=run.id).all()
         ]

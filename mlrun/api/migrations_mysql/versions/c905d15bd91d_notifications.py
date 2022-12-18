@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""notification config
+"""notifications
 
 Revision ID: c905d15bd91d
 Revises: ee041e8fdaa0

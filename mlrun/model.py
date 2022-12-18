@@ -607,9 +607,7 @@ class RunSpec(ModelObj):
     @notifications.setter
     def notifications(self, notifications):
         if isinstance(notifications, list):
-            self._notifications = ObjectList.from_list(
-                Notification, notifications
-            )
+            self._notifications = ObjectList.from_list(Notification, notifications)
         elif isinstance(notifications, ObjectList):
             self._notifications = notifications
         else:

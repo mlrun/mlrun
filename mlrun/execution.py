@@ -289,9 +289,7 @@ class MLClientCtx(object):
             self.artifact_path = spec.get(run_keys.output_path, self.artifact_path)
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
-            self._notifications = spec.get(
-                "notifications", self._notifications
-            )
+            self._notifications = spec.get("notifications", self._notifications)
 
         self._init_dbs(rundb)
 

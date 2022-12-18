@@ -185,9 +185,7 @@ with warnings.catch_warnings():
 
     class Notification(Base, BaseModel):
         __tablename__ = "notifications"
-        __table_args__ = (
-            UniqueConstraint("name", "run", name="_notifications_uc"),
-        )
+        __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
 
         id = Column(Integer, primary_key=True)
         project = Column(String(255, collation=SQLCollationUtil.collation()))
@@ -241,9 +239,7 @@ with warnings.catch_warnings():
         start_time = Column(TIMESTAMP)
         updated = Column(TIMESTAMP, default=datetime.utcnow)
         labels = relationship(Label)
-        notifications = relationship(
-            Notification, cascade="all, delete-orphan"
-        )
+        notifications = relationship(Notification, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}/{self.iteration}"

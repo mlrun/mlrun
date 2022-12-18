@@ -185,6 +185,7 @@ class NotificationPusher(object):
             project,
         )
 
+
 class CustomNotificationPusher(object):
     def __init__(self, notification_types: typing.List[str] = None):
         self._notifications = {

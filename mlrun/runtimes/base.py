@@ -724,9 +724,7 @@ class BaseRuntime(ModelObj):
                 runspec.spec.output_path, runspec.metadata.project
             )
 
-        runspec.spec.notifications = (
-            notifications or runspec.spec.notifications or []
-        )
+        runspec.spec.notifications = notifications or runspec.spec.notifications or []
         return runspec
 
     def _submit_job(self, runspec, schedule, db, watch):
@@ -951,9 +949,7 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _save_or_fire_notifications(
-        self, runobj: RunObject, local: bool = False
-    ):
+    def _save_or_fire_notifications(self, runobj: RunObject, local: bool = False):
         if not runobj.spec.notifications:
             return
 

@@ -431,6 +431,10 @@ default_config = {
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
+        # map file data items starting with virtual path to the real path, used when consumers have different mounts
+        # e.g. Windows client (on host) and Linux container (Jupyter, Nuclio..) need to access the same files/artifacts
+        # need to map container path to host windows paths, e.g. "\data::c:\\mlrun_data" ("::" used as splitter)
+        "virtual_to_real_path": "",
     },
     "default_function_pod_resources": {
         "requests": {"cpu": None, "memory": None, "gpu": None},

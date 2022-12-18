@@ -203,4 +203,5 @@ class StoreManager:
         )
         if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
-        return store, subpath
+        # in file stores in windows path like c:\a\b the drive letter is dropped from the path, so we return the url
+        return store, url if store.kind == "file" else subpath

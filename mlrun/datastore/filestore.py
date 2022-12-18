@@ -17,6 +17,8 @@ from shutil import copyfile
 
 import fsspec
 
+import mlrun
+
 from .base import DataStore, FileStats
 
 
@@ -24,11 +26,20 @@ class FileStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, "file", endpoint, secrets=secrets)
 
+        self._virtual_path, self._real_path = None, None
+        if mlrun.mlconf.storage.virtual_to_real_path:
+            split = mlrun.mlconf.storage.virtual_to_real_path.split("::")
+            self._virtual_path = split[0].strip().rstrip("/").rstrip("\\")
+            self._real_path = split[1].strip().rstrip("/").rstrip("\\")
+
     @property
     def url(self):
         return self.subpath
 
-    def _join(self, key):
+    def _join(self, key: str):
+        if self._virtual_path and not self.subpath:
+            if key.startswith(self._virtual_path):
+                key = path.join(self._real_path, key[len(self._virtual_path) + 1 :])
         return path.join(self.subpath, key)
 
     def get_filesystem(self, silent=True):
@@ -76,7 +87,7 @@ class FileStore(DataStore):
         return FileStats(size=s.st_size, modified=s.st_mtime)
 
     def listdir(self, key):
-        return listdir(key)
+        return listdir(self._join(key))
 
     def _ensure_directory(self, dir_to_create):
         # We retry the makedirs because it can fail if another process is creating the same dir

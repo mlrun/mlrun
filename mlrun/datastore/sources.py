@@ -617,12 +617,15 @@ class DataFrameSource:
     Reads data frame as input source for a flow.
 
     :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
+    :parameter time_field: DEPRECATED.
     :parameter context: MLRun context. Defaults to None
     """
 
     support_storey = True
 
-    def __init__(self, df, key_field=None, context=None, iterator=False):
+    def __init__(
+        self, df, key_field=None, time_field=None, context=None, iterator=False
+    ):
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]

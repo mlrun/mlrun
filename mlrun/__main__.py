@@ -19,7 +19,7 @@ import socket
 import traceback
 from ast import literal_eval
 from base64 import b64decode, b64encode
-from os import environ, path
+from os import environ, path, remove
 from pprint import pprint
 from subprocess import Popen
 from sys import executable
@@ -64,13 +64,26 @@ from .utils.version import Version
 pd.set_option("mode.chained_assignment", None)
 
 
+def validate_base_argument(ctx, param, value):
+    if value and value.startswith("-"):
+        raise click.BadParameter(
+            f"{param.human_readable_name} ({value}) cannot start with '-', ensure the command options are typed "
+            f"correctly. Preferably use '--' to separate options and arguments "
+            f"e.g. 'mlrun run --option1 --option2 -- {param.make_metavar()} [--arg1|arg1] [--arg2|arg2]'",
+            ctx=ctx,
+            param=param,
+        )
+
+    return value
+
+
 @click.group()
 def main():
     pass
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("url", type=str, required=False)
+@click.argument("url", type=str, required=False, callback=validate_base_argument)
 @click.option(
     "--param",
     "-p",
@@ -399,7 +412,7 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("func_url", type=str, required=False)
+@click.argument("func_url", type=str, required=False, callback=validate_base_argument)
 @click.option("--name", help="function name")
 @click.option("--project", help="project name")
 @click.option("--tag", default="", help="function tag")
@@ -472,12 +485,14 @@ def build(
             print("Runtime:")
             pprint(runtime)
         func = new_function(runtime=runtime)
-    elif func_url.startswith("db://"):
-        func_url = func_url[5:]
-        func = import_function(func_url)
+
     elif func_url:
-        func_url = "function.yaml" if func_url == "." else func_url
+        if func_url.startswith("db://"):
+            func_url = func_url[5:]
+        elif func_url == ".":
+            func_url = "function.yaml"
         func = import_function(func_url)
+
     else:
         print("please specify the function path or url")
         exit(1)
@@ -555,7 +570,7 @@ def build(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("spec", type=str, required=False)
+@click.argument("spec", type=str, required=False, callback=validate_base_argument)
 @click.option("--source", "-s", default="", help="location/url of the source")
 @click.option(
     "--func-url",
@@ -657,7 +672,7 @@ def deploy(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("pod", type=str)
+@click.argument("pod", type=str, callback=validate_base_argument)
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option(
     "--timeout", "-t", default=600, show_default=True, help="timeout in seconds"
@@ -671,8 +686,14 @@ def watch(pod, namespace, timeout):
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.argument("kind", type=str)
-@click.argument("name", type=str, default="", required=False)
+@click.argument("kind", type=str, callback=validate_base_argument)
+@click.argument(
+    "name",
+    type=str,
+    default="",
+    required=False,
+    callback=validate_base_argument,
+)
 @click.option("--selector", "-s", default="", help="label selector")
 @click.option("--namespace", "-n", help="kubernetes namespace")
 @click.option("--uid", help="unique ID")
@@ -771,11 +792,30 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 @click.option("--verbose", is_flag=True, help="verbose log")
 @click.option("--background", "-b", is_flag=True, help="run in background process")
 @click.option("--artifact-path", "-a", help="default artifact path")
-def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact_path):
+@click.option(
+    "--update-env",
+    default="",
+    is_flag=False,
+    flag_value=mlrun.config.default_env_file,
+    help=f"update the specified mlrun .env file (if TEXT not provided defaults to {mlrun.config.default_env_file})",
+)
+def db(
+    port,
+    dirpath,
+    dsn,
+    logs_path,
+    data_volume,
+    verbose,
+    background,
+    artifact_path,
+    update_env,
+):
     """Run HTTP api/database server"""
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
-    env.pop("MLRUN_ENV_FILE", None)
+    env["MLRUN_IGNORE_ENV_FILE"] = "true"
+    env["MLRUN_DBPATH"] = ""
+
     if port is not None:
         env["MLRUN_httpdb__port"] = str(port)
     if dirpath is not None:
@@ -790,7 +830,12 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
         env["MLRUN_HTTPDB__DATA_VOLUME"] = data_volume
     if verbose:
         env["MLRUN_LOG_LEVEL"] = "DEBUG"
-    if artifact_path:
+    if artifact_path or "MLRUN_ARTIFACT_PATH" not in env:
+        if not artifact_path:
+            artifact_path = (
+                env.get("MLRUN_HTTPDB__DATA_VOLUME", "./artifacts").rstrip("/")
+                + "/{{project}}"
+            )
         env["MLRUN_ARTIFACT_PATH"] = path.realpath(path.expanduser(artifact_path))
 
     env["MLRUN_IS_API_SERVER"] = "true"
@@ -803,6 +848,7 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
         p.mkdir(parents=True, exist_ok=True)
 
     cmd = [executable, "-m", "mlrun.api.main"]
+    pid = None
     if background:
         print("Starting MLRun API service in the background...")
         child = Popen(
@@ -812,15 +858,27 @@ def db(port, dirpath, dsn, logs_path, data_volume, verbose, background, artifact
             stderr=open("mlrun-stderr.log", "w"),
             start_new_session=True,
         )
+        pid = child.pid
         print(
-            f"background pid: {child.pid}, logs written to mlrun-stdout.log and mlrun-stderr.log\n"
-            f"use: kill {child.pid}, to stop the mlrun service process (in linux/mac)"
+            f"background pid: {pid}, logs written to mlrun-stdout.log and mlrun-stderr.log, use:\n"
+            f"`kill {pid}` (linux/mac) or `taskkill /pid {pid} /t /f` (windows), to kill the mlrun service process"
         )
     else:
         child = Popen(cmd, env=env)
         returncode = child.wait()
         if returncode != 0:
             raise SystemExit(returncode)
+    if update_env:
+        # update mlrun client env file with the API path, so client will use the new DB
+        # update and PID, allow killing the correct process in a config script
+        filename = path.expanduser(update_env)
+        dotenv.set_key(
+            filename, "MLRUN_DBPATH", f"http://localhost:{port or 8080}", quote_mode=""
+        )
+        dotenv.set_key(filename, "MLRUN_MOCK_NUCLIO_DEPLOYMENT", "auto", quote_mode="")
+        if pid:
+            dotenv.set_key(filename, "MLRUN_SERVICE_PID", str(pid), quote_mode="")
+        print(f"updated configuration in {update_env} .env file")
 
 
 @main.command()
@@ -1038,7 +1096,7 @@ def project(
         proj.sync_functions(save=True)
 
 
-def validate_kind(ctx, param, value):
+def validate_runtime_kind(ctx, param, value):
     possible_kinds = RuntimeKinds.runtime_with_handlers()
     if value is not None and value not in possible_kinds:
         raise click.BadParameter(
@@ -1048,7 +1106,7 @@ def validate_kind(ctx, param, value):
 
 
 @main.command()
-@click.argument("kind", callback=validate_kind, default=None, required=False)
+@click.argument("kind", callback=validate_runtime_kind, default=None, required=False)
 @click.argument("object_id", metavar="id", type=str, default=None, required=False)
 @click.option("--api", help="api service url")
 @click.option("--label-selector", "-ls", default="", help="label selector")
@@ -1155,6 +1213,7 @@ def show_or_set_config(
         get (default) - list the local or remote configuration
                         (can specify the remote api + credentials or an env_file)
         set           - set configuration parameters in mlrun default or specified .env file
+        clear         - delete the default or specified config .env file
 
     \b
     Examples:
@@ -1209,6 +1268,17 @@ def show_or_set_config(
                 f"to use the {env_file} .env file add the following to your development environment:\n"
                 f"MLRUN_ENV_FILE={env_file}"
             )
+
+    elif op == "clear":
+        filename = path.expanduser(env_file or mlrun.config.default_env_file)
+        if not path.isfile(filename):
+            print(f".env file {filename} not found")
+        else:
+            print(f"deleting .env file {filename}")
+            remove(filename)
+
+    else:
+        print(f"Error, unsupported config option {op}")
 
 
 def fill_params(params, params_dict=None):

@@ -902,7 +902,7 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
-    def to_dict(self, fields=None, exclude=None, strip=False):
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
         struct = super().to_dict(fields, exclude, strip=strip)
         api = k8s_client.ApiClient()
         struct = api.sanitize_for_serialization(struct)

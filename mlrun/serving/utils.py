@@ -43,7 +43,7 @@ def _update_result_body(result_path, event_body, result):
 class StepToDict:
     """auto serialization of graph steps to a python dictionary"""
 
-    def to_dict(self, fields=None, exclude=None):
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
         """convert the step object to a python dictionary"""
         fields = fields or getattr(self, "_dict_fields", None)
         if not fields:
@@ -95,5 +95,5 @@ class RouterToDict(StepToDict):
 
     _STEP_KIND = "router"
 
-    def to_dict(self, fields=None, exclude=None):
-        return super().to_dict(exclude=["routes"])
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+        return super().to_dict(exclude=["routes"], strip=strip)

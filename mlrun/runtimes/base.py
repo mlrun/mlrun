@@ -1204,7 +1204,7 @@ class BaseRuntime(ModelObj):
         hash_key = hash_key if versioned else None
         return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
 
-    def to_dict(self, fields=None, exclude=None, strip=False):
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
         struct = super().to_dict(fields, exclude=exclude, strip=strip)
         if strip:
             if "status" in struct:

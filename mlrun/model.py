@@ -165,8 +165,8 @@ class ObjectDict:
         self._children[key] = child
         return child
 
-    def to_dict(self):
-        return {k: v.to_dict() for k, v in self._children.items()}
+    def to_dict(self, strip: bool = False):
+        return {k: v.to_dict(strip=strip) for k, v in self._children.items()}
 
     @classmethod
     def from_dict(cls, classes_map: dict, children=None, default_kind=""):
@@ -243,9 +243,9 @@ class ObjectList:
     def __delitem__(self, key):
         del self._children[key]
 
-    def to_dict(self):
+    def to_dict(self, strip: bool = False):
         # method used by ModelObj class to serialize the object to nested dict
-        return [t.to_dict() for t in self._children.values()]
+        return [t.to_dict(strip=strip) for t in self._children.values()]
 
     @classmethod
     def from_list(cls, child_class, children=None):

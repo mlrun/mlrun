@@ -69,15 +69,18 @@ class BaseSourceDriver(DataSource):
     def to_dataframe(self):
         return mlrun.store_manager.object(url=self.path).as_df()
 
-    def filter_df_start_end_time(self, df):
+    def filter_df_start_end_time(self, df, time_field):
+        # give priority to source time_field over the feature set's timestamp_key
+        if self.time_field:
+            time_field = self.time_field
+
         if self.start_time or self.end_time:
             self.start_time = (
                 datetime.min if self.start_time is None else self.start_time
             )
             self.end_time = datetime.max if self.end_time is None else self.end_time
             df = df.filter(
-                (df[self.time_field] > self.start_time)
-                & (df[self.time_field] <= self.end_time)
+                (df[time_field] > self.start_time) & (df[time_field] <= self.end_time)
             )
         return df
 

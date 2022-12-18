@@ -128,7 +128,7 @@ class ArtifactManager:
 
     def log_artifact(
         self,
-        producer: typing.Optional["ArtifactProducer", "mlrun.MLClientCtx"],
+        producer: typing.List["ArtifactProducer", "mlrun.MLClientCtx"],
         item: Artifact,
         body=None,
         target_path="",

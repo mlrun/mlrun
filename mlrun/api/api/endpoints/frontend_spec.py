@@ -33,7 +33,6 @@ router = fastapi.APIRouter()
 @router.get(
     "/frontend-spec",
     response_model=mlrun.api.schemas.FrontendSpec,
-    description="Get frontend spec",
 )
 def get_frontend_spec(
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(

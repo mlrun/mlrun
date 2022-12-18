@@ -765,7 +765,7 @@ class _RemoteRunner(_PipelineRunner):
         if "://" not in current_source:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"remote workflows can only be performed by a project with remote source,"
-                f"the given source '{current_source}' is not remote"
+                f" the given source '{current_source}' is not remote"
             )
 
         load_and_run_fn, runspec = cls._prepare_load_and_run_function(

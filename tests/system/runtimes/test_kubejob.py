@@ -124,6 +124,20 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function.spec.args = args
         run = function.run()
         assert run.status.results["some-arg-by-handler"] == args[1]
+        assert run.status.results["my-args"] == [
+            "/usr/local/bin/mlrun",
+            "run",
+            "--name",
+            "function-with-args-handler",
+            "--from-env",
+            "--handler",
+            "handler",
+            "--origin-file",
+            code_path,
+            "*",
+            "--some-arg",
+            "a-value-123",
+        ]
 
     def test_function_with_args(self):
         code_path = str(self.assets_path / "function_with_args.py")
@@ -139,8 +153,12 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         args = ["--some-arg", "a-value-123"]
         function.spec.args = args
         run = function.run()
-        print(run.to_yaml())
         assert run.status.results["some-arg-by-main"] == args[1]
+        assert run.status.results["my-args"] == [
+            "function_with_args.py",
+            "--some-arg",
+            "a-value-123",
+        ]
 
     def test_class_handler(self):
         code_path = str(self.assets_path / "kubejob_function.py")

@@ -14,11 +14,11 @@
 #
 
 import argparse
+import sys
 
 from mlrun import get_or_create_ctx
 
 parser = argparse.ArgumentParser()
-
 parser.add_argument("--some-arg")
 
 
@@ -27,6 +27,7 @@ def handler(context):
     flags, unknown = parser.parse_known_args()
     some_arg = flags.some_arg
     context.log_result("some-arg-by-handler", some_arg)
+    context.log_result("my-args", sys.argv)
 
 
 if __name__ == "__main__":
@@ -36,3 +37,4 @@ if __name__ == "__main__":
     job_name = "function-with-args"
     context = get_or_create_ctx(job_name)
     context.log_result("some-arg-by-main", some_arg)
+    context.log_result("my-args", sys.argv)

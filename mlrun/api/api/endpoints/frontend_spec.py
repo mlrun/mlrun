@@ -45,7 +45,7 @@ def get_frontend_spec(
 ):
     jobs_dashboard_url = None
     session = auth_info.session or session
-    if session and (not auth_info.session and is_iguazio_session_cookie(session)):
+    if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()

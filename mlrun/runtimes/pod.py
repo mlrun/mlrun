@@ -106,7 +106,7 @@ class KubeResourceSpec(FunctionSpec):
     ]
     _fields_to_strip = [
         "volumes",
-        "volume_mounts"
+        "volume_mounts",
         "resources",
         "replicas",
         "image_pull_policy",

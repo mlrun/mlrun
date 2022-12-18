@@ -578,7 +578,7 @@ def is_iguazio_session_cookie(session_cookie: str) -> bool:
         if not unqouted_cookie.startswith("j:"):
             return is_iguazio_session(session_cookie)
         return json.loads(unqouted_cookie[2:])["sid"] is not None
-    except:
+    except Exception:
         return False
 
 

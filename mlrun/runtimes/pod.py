@@ -104,6 +104,22 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
     ]
+    _fields_to_strip = [
+        "volumes",
+        "volume_mounts"
+        "resources",
+        "replicas",
+        "image_pull_policy",
+        # "service_account",
+        # "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "priority_class_name",
+        "tolerations",
+        "preemption_mode",
+        "security_context",
+    ]
 
     def __init__(
         self,
@@ -247,12 +263,14 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    def to_dict(self, fields=None, exclude=None):
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
         exclude = exclude or []
-        _exclude = ["affinity", "tolerations", "security_context"]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
+        _exclude_for_k8s_serialization = ["affinity", "tolerations", "security_context"]
+        struct = super().to_dict(
+            fields, exclude=list(set(exclude + _exclude_for_k8s_serialization))
+        )
         api = k8s_client.ApiClient()
-        for field in _exclude:
+        for field in _exclude_for_k8s_serialization:
             if field not in exclude:
                 struct[field] = api.sanitize_for_serialization(getattr(self, field))
         return struct

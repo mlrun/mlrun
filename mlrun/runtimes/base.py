@@ -1205,7 +1205,7 @@ class BaseRuntime(ModelObj):
         return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
 
     def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude=exclude)
+        struct = super().to_dict(fields, exclude=exclude, strip=strip)
         if strip:
             if "status" in struct:
                 del struct["status"]

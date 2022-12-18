@@ -161,7 +161,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
 
-    def to_dict(self, fields=None, exclude=None):
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
         exclude = exclude or []
         _exclude = [
             "affinity",

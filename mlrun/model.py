@@ -56,7 +56,7 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields=None, exclude=None):
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
         """convert the object to a python dictionary"""
         struct = {}
         fields = fields or self._dict_fields
@@ -67,7 +67,16 @@ class ModelObj:
                 val = getattr(self, t, None)
                 if val is not None and not (isinstance(val, dict) and not val):
                     if hasattr(val, "to_dict"):
-                        val = val.to_dict()
+                        # try:
+                        val = val.to_dict(strip=strip)
+                        # except TypeError as err:
+                        #     if "unexpected keyword argument 'strip'" in str(err):
+                        #         logger.debug(
+                        #             f"to_dict() of {val} doesn't support strip"
+                        #         )
+                        #         val = val.to_dict()
+                        #     else:
+                        #         raise err
                         if val:
                             struct[t] = val
                     else:
@@ -508,8 +517,8 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
 
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["handler"])
+    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+        struct = super().to_dict(fields, exclude=["handler"], strip=strip)
         if self.handler and isinstance(self.handler, str):
             struct["handler"] = self.handler
         return struct

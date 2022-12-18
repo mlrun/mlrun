@@ -611,7 +611,7 @@ class RunSpec(ModelObj):
         elif isinstance(notifications, ObjectList):
             self._notifications = notifications
         else:
-            raise ValueError(f"Notifications must be a list")
+            raise ValueError("Notifications must be a list")
 
 
 class RunStatus(ModelObj):

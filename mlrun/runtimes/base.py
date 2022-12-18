@@ -351,7 +351,7 @@ class BaseRuntime(ModelObj):
         run = self._create_run_object(runspec)
 
         if local:
-            return self._run_local(
+            result = self._run_local(
                 run,
                 schedule,
                 local_code_path,

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 from os.path import isdir
 
 import mlrun.config
@@ -127,8 +128,8 @@ class ArtifactManager:
 
     def log_artifact(
         self,
-        producer,
-        item,
+        producer: typing.Optional["ArtifactProducer", "mlrun.MLClientCtx"],
+        item: Artifact,
         body=None,
         target_path="",
         tag="",
@@ -141,6 +142,23 @@ class ArtifactManager:
         db_key=None,
         **kwargs,
     ) -> Artifact:
+        """
+
+        :param producer:
+        :param item:
+        :param body:
+        :param target_path:
+        :param tag:
+        :param viewer:
+        :param local_path:
+        :param artifact_path:
+        :param format:
+        :param upload:
+        :param labels:
+        :param db_key:
+        :param kwargs:
+        :return:
+        """
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
@@ -236,6 +254,14 @@ class ArtifactManager:
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
     def _log_to_db(self, key, project, sources, item, tag=None):
+        """
+        log artifact to db
+        :param key: Identifying key of the artifact.
+        :param project: Project that the artifact belongs to.
+        :param sources: List of artifact sources ( Mainly passed from the producer.items ).
+        :param item: The actual artifact to store.
+        :param tag: The name of the Tag of the artifact.
+        """
         if self.artifact_db:
             item.updated = None
             if sources:

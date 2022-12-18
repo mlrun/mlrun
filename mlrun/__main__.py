@@ -345,6 +345,11 @@ def run(
         with open(url_file, "w") as fp:
             fp.write(code)
 
+    # at this point the url placeholder is resolved to the actual url file
+    if url == "*":
+        print("command/url '*' placeholder is not allowed when code is not from env")
+        exit(1)
+
     if url:
         if not name and not runtime:
             name = path.splitext(path.basename(url))[0]

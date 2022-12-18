@@ -451,7 +451,7 @@ def resolve_mlrun_install_command(mlrun_version_specifier=None, client_version=N
     unstable_versions = ["unstable", "0.0.0+unstable"]
     unstable_mlrun_version_specifier = (
         f"{config.package_path}[complete] @ git+"
-        f"https://github.com/AlonMaor14/mlrun@spark_run_args_with_set_func"
+        f"https://github.com/mlrun/mlrun@development"
     )
     if not mlrun_version_specifier:
         if config.httpdb.builder.mlrun_version_specifier:

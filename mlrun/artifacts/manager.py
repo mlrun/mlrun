@@ -143,21 +143,27 @@ class ArtifactManager:
         **kwargs,
     ) -> Artifact:
         """
-
-        :param producer:
-        :param item:
-        :param body:
-        :param target_path:
-        :param tag:
-        :param viewer:
-        :param local_path:
-        :param artifact_path:
-        :param format:
-        :param upload:
-        :param labels:
-        :param db_key:
-        :param kwargs:
-        :return:
+        Log an artifact to the DB and upload it to the artifact store.
+        :param producer: The producer of the artifact, the producer depends from where the artifact is being logged.
+        :param item: The artifact to log.
+        :param body: The body of the artifact.
+        :param target_path: The target path of the artifact. (cannot be a relative path)
+                            If not provided, the artifact will be stored in the default artifact path.
+                            If provided and is a remote path (e.g. s3://bucket/path), no artifact will be uploaded
+                            as it already exists.
+        :param tag: The tag of the artifact.
+        :param viewer: Kubeflow viewer type
+        :param local_path: The local path of the artifact. If remote path is provided then the artifact won't be
+                            uploaded and this parameter will be used as the target path.
+        :param artifact_path: The path to store the artifact.
+         If not provided, the artifact will be stored in the default artifact path.
+        :param format: The format of the artifact. (e.g. csv, json, html, etc.)
+        :param upload: Whether to upload the artifact or not.
+        :param labels: Labels to add to the artifact.
+        :param db_key: The key to use when logging the artifact to the DB.
+        If not provided, will generate a key based on the producer name and the artifact key.
+        :param kwargs: Arguments to pass to the artifact class.
+        :return: The logged artifact.
         """
         if isinstance(item, str):
             key = item

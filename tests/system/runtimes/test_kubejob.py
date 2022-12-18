@@ -108,6 +108,40 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.status.results["project_param"] == project_param
         assert run.status.results["param1"] == local_param
 
+    def test_function_handler_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        args = ["--some-arg", "a-value-123"]
+        function.spec.args = args
+        run = function.run()
+        assert run.status.results["some-arg-by-handler"] == args[1]
+
+    def test_function_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        args = ["--some-arg", "a-value-123"]
+        function.spec.args = args
+        run = function.run()
+        print(run.to_yaml())
+        assert run.status.results["some-arg-by-main"] == args[1]
+
     def test_class_handler(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         cases = [

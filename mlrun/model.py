@@ -372,8 +372,8 @@ class ImageBuilder(ModelObj):
         self._source = source
 
 
-class NotificationConfig(ModelObj):
-    """Notification Config specification"""
+class Notification(ModelObj):
+    """Notification specification"""
 
     def __init__(
         self,
@@ -384,6 +384,8 @@ class NotificationConfig(ModelObj):
         when=None,
         condition=None,
         params=None,
+        status=None,
+        sent_time=None,
     ):
         self.kind = kind
         self.name = name
@@ -392,6 +394,8 @@ class NotificationConfig(ModelObj):
         self.when = when
         self.condition = condition
         self.params = params or {}
+        self.status = status
+        self.sent_time = sent_time
 
 
 class RunMetadata(ModelObj):
@@ -508,7 +512,7 @@ class RunSpec(ModelObj):
         scrape_metrics=None,
         hyper_param_options=None,
         allow_empty_resources=None,
-        notification_configs=None,
+        notifications=None,
     ):
 
         self._hyper_param_options = None
@@ -530,7 +534,7 @@ class RunSpec(ModelObj):
         self.verbose = verbose
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
-        self._notification_configs = notification_configs or []
+        self._notifications = notifications or []
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -597,19 +601,19 @@ class RunSpec(ModelObj):
         return ""
 
     @property
-    def notification_configs(self):
-        return self._notification_configs
+    def notifications(self):
+        return self._notifications
 
-    @notification_configs.setter
-    def notification_configs(self, notification_configs):
-        if isinstance(notification_configs, list):
-            self._notification_configs = ObjectList.from_list(
-                NotificationConfig, notification_configs
+    @notifications.setter
+    def notifications(self, notifications):
+        if isinstance(notifications, list):
+            self._notifications = ObjectList.from_list(
+                Notification, notifications
             )
-        elif isinstance(notification_configs, ObjectList):
-            self._notification_configs = notification_configs
+        elif isinstance(notifications, ObjectList):
+            self._notifications = notifications
         else:
-            raise ValueError(f"Notification Configs must be a list")
+            raise ValueError(f"Notifications must be a list")
 
 
 class RunStatus(ModelObj):

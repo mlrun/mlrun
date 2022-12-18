@@ -85,6 +85,7 @@ class DBInterface(ABC):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        join_notifications: bool = False,
     ):
         pass
 
@@ -549,10 +550,10 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_notification_configs(
+    def store_notifications(
         self,
         session,
-        notification_config_models: typing.List[mlrun.model.NotificationConfig],
+        notification_models: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
         iter: int = 0,
@@ -560,11 +561,11 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_notification_configs(
+    def list_notifications(
         self,
         session,
         run_uid: str,
         project: str,
         iter: int = 0,
-    ) -> typing.List[mlrun.model.NotificationConfig]:
+    ) -> typing.List[mlrun.model.Notification]:
         pass

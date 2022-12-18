@@ -24,10 +24,12 @@ import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
+import mlrun.api.db.base
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
 import mlrun.errors
 import mlrun.utils
+import mlrun.utils.notifications
 import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
@@ -311,16 +313,18 @@ async def _align_worker_state_with_chief_state(
 
 
 def _monitor_runs():
+    db = get_db()
     db_session = create_session()
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(get_db(), db_session)
+                runtime_handler.monitor_runs(db, db_session)
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
                 )
+        _push_run_notifications(db, db_session)
     finally:
         close_session(db_session)
 
@@ -338,6 +342,15 @@ def _cleanup_runtimes():
                 )
     finally:
         close_session(db_session)
+
+
+def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+    runs = db.list_runs(
+        db_session,
+        states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        join_notifications=True,
+    )
+    mlrun.utils.notifications.NotificationPusher(runs).push()
 
 
 def main():

@@ -194,14 +194,14 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
 
 
 def apply_enrichment_and_validation_on_task(
-    task, mask_notification_config_params: bool = True
+    task, mask_notification_params: bool = True
 ):
-    if mask_notification_config_params:
+    if mask_notification_params:
         # Masking notification config params from the task object
-        mask_notification_config_params_on_task(task)
+        mask_notification_params_on_task(task)
 
 
-def mask_notification_config_params_on_task(task):
+def mask_notification_params_on_task(task):
     k8s = mlrun.api.utils.singletons.k8s.get_k8s()
     if not k8s:
         logger.warning(
@@ -209,16 +209,16 @@ def mask_notification_config_params_on_task(task):
         )
         return
 
-    notification_configs = task.get("spec", {}).get("notification_configs", [])
-    if notification_configs:
-        for notification_config in notification_configs:
-            params = notification_config.get("params", {})
+    notifications = task.get("spec", {}).get("notifications", [])
+    if notifications:
+        for notification in notifications:
+            params = notification.get("params", {})
             if "secret" not in params:
 
                 # unique secret name per notification config
                 secret_name = f"notification-{str(uuid.uuid4())}"
                 k8s.store_secrets(secret_name, params)
-                notification_config["params"] = {"secret": secret_name}
+                notification["params"] = {"secret": secret_name}
 
 
 def apply_enrichment_and_validation_on_function(

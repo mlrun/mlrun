@@ -26,27 +26,29 @@ import mlrun.utils.notifications
 @pytest.mark.parametrize(
     "when,condition,run_state,expected",
     [
-        (["success"], "", "success", True),
+        (["success"], "", "completed", True),
         (["success"], "", "error", False),
-        (["success"], "True", "success", True),
-        (["success"], "False", "success", False),
-        (["failure"], "", "success", False),
+        (["success"], "True", "completed", True),
+        (["success"], "False", "completed", False),
+        (["failure"], "", "completed", False),
         (["failure"], "", "error", True),
-        (["success", "failure"], "", "success", True),
+        (["success", "failure"], "", "completed", True),
         (["success", "failure"], "", "error", True),
-        (["success", "failure"], "True", "success", True),
+        (["success", "failure"], "True", "completed", True),
         (["success", "failure"], "True", "error", True),
-        (["success", "failure"], "False", "success", False),
+        (["success", "failure"], "False", "completed", False),
         (["success", "failure"], "False", "error", True),
     ],
 )
 def test_notification_should_notify(when, condition, run_state, expected):
-    run = {"status": {"state": run_state}}
-    notification_config = {"when": when, "condition": condition}
+    run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
+    notification = mlrun.model.Notification.from_dict(
+        {"when": when, "condition": condition, "status": "pending"}
+    )
 
     assert (
         mlrun.utils.notifications.notification_pusher.NotificationPusher._should_notify(
-            run, notification_config
+            run, notification
         )
         == expected
     )

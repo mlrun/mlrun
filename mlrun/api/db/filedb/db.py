@@ -83,6 +83,7 @@ class FileDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        join_notifications: bool = False,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -103,6 +104,7 @@ class FileDB(DBInterface):
             partition_sort_by,
             partition_order,
             max_partitions,
+            join_notifications,
         )
 
     def del_run(self, session, uid, project="", iter=0):
@@ -491,17 +493,17 @@ class FileDB(DBInterface):
         except RunDBError as exc:
             raise DBError(exc.args)
 
-    def store_notification_configs(
+    def store_notifications(
         self,
         session,
-        notification_config_models,
+        notification_models,
         run_uid: str,
         project: str,
         iter: int = 0,
     ):
         raise NotImplementedError()
 
-    def list_notification_configs(
+    def list_notifications(
         self,
         session,
         run_uid: str,

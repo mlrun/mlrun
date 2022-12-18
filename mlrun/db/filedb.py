@@ -149,6 +149,7 @@ class FileRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        join_notifications: bool = False,
     ):
         if partition_by is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(

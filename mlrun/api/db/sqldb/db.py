@@ -55,7 +55,7 @@ from mlrun.api.db.sqldb.models import (
     Function,
     Log,
     MarketplaceSource,
-    NotificationConfig,
+    Notification,
     Project,
     Run,
     Schedule,
@@ -254,6 +254,7 @@ class SQLDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        join_notifications: bool = False,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -295,9 +296,21 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
+        if join_notifications:
+            query = query.join(Notification, Run.id == Notification.run)
+
         runs = RunList()
         for run in query:
-            runs.append(run.struct)
+            run_struct = run.struct
+            if join_notifications:
+                notifications = [
+                    self._transform_notification_record_to_schema(
+                        notification
+                    ).to_dict()
+                    for notification in run.notifications
+                ]
+                run_struct["spec"]["notifications"] = notifications
+            runs.append(run_struct)
 
         return runs
 
@@ -2668,11 +2681,11 @@ class SQLDB(DBInterface):
         finally:
             pass
 
-    def _get_notification_config(self, session, run_id, name):
+    def _get_notification(self, session, run_id, name):
         try:
             resp = self._query(
                 session,
-                NotificationConfig,
+                Notification,
                 run=run_id,
                 name=name,
             ).one_or_none()
@@ -3079,6 +3092,22 @@ class SQLDB(DBInterface):
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)
 
+    @staticmethod
+    def _transform_notification_record_to_schema(
+        notification_record: Notification
+    ) -> mlrun.model.Notification:
+        return mlrun.model.Notification(
+            kind=notification_record.kind,
+            name=notification_record.name,
+            message=notification_record.message,
+            severity=notification_record.severity,
+            when=notification_record.when,
+            condition=notification_record.condition,
+            params=notification_record.params,
+            status=notification_record.status,
+            sent_time=notification_record.sent_time,
+        )
+
     def _move_and_reorder_table_items(
         self, session, moved_object, move_to=None, move_from=None
     ):
@@ -3455,10 +3484,10 @@ class SQLDB(DBInterface):
             return True
         return False
 
-    def store_notification_configs(
+    def store_notifications(
         self,
         session,
-        notification_config_models: typing.List[mlrun.model.NotificationConfig],
+        notification_models: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
         iter: int = 0,
@@ -3469,53 +3498,51 @@ class SQLDB(DBInterface):
                 f"Run not found: uid={run_uid}, project={project}, iter={iter}"
             )
 
-        notification_configs = []
-        for notification_config_model in notification_config_models:
-            notification_config = self._get_notification_config(
-                session, run_uid, notification_config_model.name
+        notifications = []
+        for notification_model in notification_models:
+            notification = self._get_notification(
+                session, run_uid, notification_model.name
             )
-            if not notification_config:
-                notification_config = NotificationConfig(
-                    name=notification_config_model.name, run=run.id, project=project
+            if not notification:
+                notification = Notification(
+                    name=notification_model.name, run=run.id, project=project
                 )
 
-            notification_config.kind = notification_config_model.kind
-            notification_config.message = notification_config_model.message
-            notification_config.severity = notification_config_model.severity
-            notification_config.when = ",".join(notification_config_model.when)
-            notification_config.condition = notification_config_model.condition
+            notification.kind = notification_model.kind
+            notification.message = notification_model.message
+            notification.severity = notification_model.severity
+            notification.when = ",".join(notification_model.when)
+            notification.condition = notification_model.condition
+            notification.status = "pending"
 
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-            if k8s:
+            if k8s and "secret" not in notification.params:
                 # store params as secret
-                secret_name = f"notification-{run_uid}-{notification_config.name}"
-                secret_data = notification_config_model.params
+                secret_name = f"notification-{run_uid}-{notification.name}"
+                secret_data = notification_model.params
                 k8s.store_secrets(secret_name, secret_data)
-                notification_config.params = {"secret": secret_name}
+                notification.params = {"secret": secret_name}
             else:
-                logger.warn(
-                    "K8s not available, not storing notification params as secret"
-                )
-                notification_config.params = notification_config_model.params
+                notification.params = notification_model.params
 
-            notification_configs.append(notification_config)
+            notifications.append(notification)
 
-        self._upsert(session, notification_configs)
+        self._upsert(session, notifications)
 
-    def list_notification_configs(
+    def list_notifications(
         self,
         session,
         run_uid: str,
         project: str = "",
         iter: int = 0,
-    ) -> typing.List[mlrun.model.NotificationConfig]:
+    ) -> typing.List[mlrun.model.Notification]:
         run = self._get_run(session, run_uid, project, iter)
         if not run:
             return []
 
         return [
-            mlrun.model.NotificationConfig.from_dict(notification_config.to_dict())
-            for notification_config in self._query(
-                session, NotificationConfig, run=run.id
+            self._transform_notification_record_to_schema(notification)
+            for notification in self._query(
+                session, Notification, run=run.id
             ).all()
         ]

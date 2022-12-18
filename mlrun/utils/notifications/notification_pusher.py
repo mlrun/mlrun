@@ -14,9 +14,13 @@
 
 import ast
 import asyncio
+import datetime
 import os
 import typing
 
+import sqlalchemy.orm
+
+import mlrun.api.db.base
 import mlrun.api.utils.singletons.k8s
 import mlrun.lists
 import mlrun.model
@@ -41,18 +45,27 @@ class NotificationPusher(object):
             if isinstance(run, dict):
                 run = mlrun.model.RunObject.from_dict(run)
 
-            for notification_config in run.spec.notification_configs:
-                if self._should_notify(run, notification_config):
-                    self._notification_data.append((run, notification_config))
+            for notification in run.spec.notifications:
+                if self._should_notify(run, notification):
+                    self._notification_data.append((run, notification))
 
-    def push(self):
+    def push(
+        self,
+        db: mlrun.api.db.base.DBInterface,
+        db_session: sqlalchemy.orm.Session,
+        local: bool = False,
+    ):
         async def _push():
             tasks = []
             for notification_data in self._notification_data:
                 tasks.append(
                     self._send_notification(
                         self._load_notification(notification_data[1]),
-                        *notification_data,
+                        notification_data[0],
+                        notification_data[1],
+                        db,
+                        db_session,
+                        local,
                     )
                 )
             await asyncio.gather(*tasks)
@@ -66,11 +79,15 @@ class NotificationPusher(object):
     @staticmethod
     def _should_notify(
         run: mlrun.model.RunObject,
-        notification_config: mlrun.model.NotificationConfig,
+        notification: mlrun.model.Notification,
     ) -> bool:
-        when_states = notification_config.when
-        condition = notification_config.condition
+        when_states = notification.when
+        condition = notification.condition
         run_state = run.state()
+
+        # if the notification isn't pending, don't send it
+        if notification.status != "pending":
+            return False
 
         # if at least one condition is met, notify
         for when_state in when_states:
@@ -84,9 +101,9 @@ class NotificationPusher(object):
         return False
 
     def _load_notification(
-        self, notification_config: mlrun.model.NotificationConfig
+        self, notification: mlrun.model.Notification
     ) -> NotificationBase:
-        params = notification_config.params or {}
+        params = notification.params or {}
         params_secret = params.get("secret", "")
         if params_secret:
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()
@@ -96,9 +113,9 @@ class NotificationPusher(object):
                 )
             params = k8s.load_secret(params_secret)
 
-        name = notification_config.name
+        name = notification.name
         notification_type = NotificationTypes(
-            notification_config.kind or NotificationTypes.console
+            notification.kind or NotificationTypes.console
         )
         notification_key = name or notification_type
         if notification_key not in self._notifications:
@@ -114,15 +131,59 @@ class NotificationPusher(object):
         self,
         notification: NotificationBase,
         run: mlrun.model.RunObject,
-        notification_config: mlrun.model.NotificationConfig,
+        notification_model: mlrun.model.Notification,
+        db: mlrun.api.db.base.DBInterface,
+        db_session: sqlalchemy.orm.Session,
+        local: bool = False,
     ):
         message = self.messages.get(run.state(), "")
-        severity = notification_config.severity or NotificationSeverity.INFO
-        if asyncio.iscoroutinefunction(notification.send):
-            await notification.send(message, severity, [run.to_dict()])
-        else:
-            notification.send(message, severity, [run.to_dict()])
+        severity = notification.severity or NotificationSeverity.INFO
+        try:
+            if asyncio.iscoroutinefunction(notification.send):
+                await notification.send(message, severity, [run.to_dict()])
+            else:
+                notification.send(message, severity, [run.to_dict()])
 
+            if not local:
+                self._update_notification_status(
+                    db,
+                    db_session,
+                    run.metadata.uid,
+                    run.metadata.project,
+                    notification_model,
+                    status="sent",
+                    sent_time=datetime.datetime.now(),
+                )
+        except Exception as exc:
+            if not local:
+                self._update_notification_status(
+                    db,
+                    db_session,
+                    run.metadata.uid,
+                    run.metadata.project,
+                    notification_model,
+                    status="error",
+                )
+            raise exc
+
+    def _update_notification_status(
+        self,
+        db: mlrun.api.db.base.DBInterface,
+        db_session: sqlalchemy.orm.Session,
+        run_uid: str,
+        project: str,
+        notification: mlrun.model.Notification,
+        status: str = None,
+        sent_time: datetime.datetime = None,
+    ):
+        notification.status = status or notification.status
+        notification.sent_time = sent_time or notification.sent_time
+        db.store_notifications(
+            db_session,
+            [notification],
+            run_uid,
+            project,
+        )
 
 class CustomNotificationPusher(object):
     def __init__(self, notification_types: typing.List[str] = None):

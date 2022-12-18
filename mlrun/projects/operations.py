@@ -72,7 +72,7 @@ def run_function(
     auto_build: bool = None,
     schedule: Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
     artifact_path: str = None,
-    notification_configs: List[mlrun.model.NotificationConfig] = None,
+    notifications: List[mlrun.model.Notification] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -135,7 +135,7 @@ def run_function(
                             see this link for help:
                             https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
-    :param notification_configs: list of notification configurations to send when the run is completed
+    :param notifications: list of notifications to send when the run is completed
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -179,7 +179,7 @@ def run_function(
             or artifact_path,
             auto_build=auto_build,
             schedule=schedule,
-            notification_configs=notification_configs,
+            notifications=notifications,
         )
         if run_result:
             run_result._notified = False

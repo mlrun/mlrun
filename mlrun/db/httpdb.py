@@ -540,6 +540,7 @@ class HTTPRunDB(RunDBInterface):
         partition_sort_by: Union[schemas.SortField, str] = None,
         partition_order: Union[schemas.OrderType, str] = schemas.OrderType.desc,
         max_partitions: int = 0,
+        join_notifications: bool = False,
     ) -> RunList:
         """Retrieve a list of runs, filtered by various options.
         Example::
@@ -573,6 +574,8 @@ class HTTPRunDB(RunDBInterface):
         :param partition_order: Order of sorting within partitions - `asc` or `desc`. Default is `desc`.
         :param max_partitions: Maximal number of partitions to include in the result. Default is `0` which means no
             limit.
+        :param join_notifications: Whether to join the notification to the result. Default is
+            `False`.
         """
 
         project = project or config.default_project
@@ -588,6 +591,7 @@ class HTTPRunDB(RunDBInterface):
             "start_time_to": datetime_to_iso(start_time_to),
             "last_update_time_from": datetime_to_iso(last_update_time_from),
             "last_update_time_to": datetime_to_iso(last_update_time_to),
+            "join_notifications": join_notifications,
         }
 
         if partition_by:

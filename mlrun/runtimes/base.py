@@ -308,7 +308,7 @@ class BaseRuntime(ModelObj):
         local=False,
         local_code_path=None,
         auto_build=None,
-        notification_configs: List[mlrun.model.NotificationConfig] = None,
+        notifications: List[mlrun.model.Notification] = None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -337,7 +337,7 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-        :param notification_configs: list of notification configurations to fire when the run is completed
+        :param notifications: list of notifications to fire when the run is completed
 
         :return: run context object (RunObject) with run metadata, results and status
         """
@@ -362,9 +362,9 @@ class BaseRuntime(ModelObj):
                 params,
                 inputs,
                 artifact_path,
-                notification_configs=notification_configs,
+                notifications=notifications,
             )
-            self._save_or_fire_notification_configs(result, local)
+            self._save_or_fire_notifications(result, local)
             return result
 
         run = self._enrich_run(
@@ -381,7 +381,7 @@ class BaseRuntime(ModelObj):
             out_path,
             artifact_path,
             workdir,
-            notification_configs,
+            notifications,
         )
 
         if is_local(run.spec.output_path):
@@ -475,7 +475,7 @@ class BaseRuntime(ModelObj):
                 last_err = err
                 result = self._update_run_state(task=run, err=err)
 
-        self._save_or_fire_notification_configs(run, local)
+        self._save_or_fire_notifications(run, local)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -572,7 +572,7 @@ class BaseRuntime(ModelObj):
         params,
         inputs,
         artifact_path,
-        notification_configs: List[mlrun.model.NotificationConfig] = None,
+        notifications: List[mlrun.model.Notification] = None,
     ):
         if schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -597,7 +597,7 @@ class BaseRuntime(ModelObj):
             artifact_path=artifact_path,
             mode=self.spec.mode,
             allow_empty_resources=self.spec.allow_empty_resources,
-            notification_configs=notification_configs,
+            notifications=notifications,
         )
 
     def _create_run_object(self, runspec):
@@ -631,7 +631,7 @@ class BaseRuntime(ModelObj):
         out_path,
         artifact_path,
         workdir,
-        notification_configs: List[mlrun.model.NotificationConfig] = None,
+        notifications: List[mlrun.model.Notification] = None,
     ):
         runspec.spec.handler = (
             handler or runspec.spec.handler or self.spec.default_handler or ""
@@ -724,8 +724,8 @@ class BaseRuntime(ModelObj):
                 runspec.spec.output_path, runspec.metadata.project
             )
 
-        runspec.spec.notification_configs = (
-            notification_configs or runspec.spec.notification_configs or []
+        runspec.spec.notifications = (
+            notifications or runspec.spec.notifications or []
         )
         return runspec
 
@@ -951,10 +951,10 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _save_or_fire_notification_configs(
+    def _save_or_fire_notifications(
         self, runobj: RunObject, local: bool = False
     ):
-        if not runobj.spec.notification_configs:
+        if not runobj.spec.notifications:
             return
 
         # If the run is remote, and we are in the SDK, we let the api deal with the notifications
@@ -972,9 +972,9 @@ class BaseRuntime(ModelObj):
             # configs to the DB, for the run monitor to later pick up and fire.
             db = mlrun.api.utils.singletons.db.get_db()
             session = mlrun.api.db.sqldb.session.create_session()
-            db.store_notification_configs(
+            db.store_notifications(
                 session,
-                runobj.spec.notification_configs,
+                runobj.spec.notifications,
                 runobj.metadata.uid,
                 runobj.metadata.project,
                 runobj.metadata.iteration,
@@ -2211,7 +2211,6 @@ class BaseRuntimeHandler(ABC):
         )
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
-            mlrun.utils.notifications.NotificationPusher([run]).push()
 
     def _build_list_resources_response(
         self,

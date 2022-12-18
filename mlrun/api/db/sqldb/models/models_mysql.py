@@ -183,10 +183,10 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
-    class NotificationConfig(Base, BaseModel):
-        __tablename__ = "notification_configs"
+    class Notification(Base, BaseModel):
+        __tablename__ = "notifications"
         __table_args__ = (
-            UniqueConstraint("name", "run", name="_notification_configs_uc"),
+            UniqueConstraint("name", "run", name="_notifications_uc"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -211,6 +211,13 @@ with warnings.catch_warnings():
         )
         params = Column("params", JSON)
         run = Column(Integer, ForeignKey("runs.id"))
+        sent_time = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            nullable=True,
+        )
+        status = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
 
     class Run(Base, HasStruct):
         __tablename__ = "runs"
@@ -238,8 +245,8 @@ with warnings.catch_warnings():
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
-        notification_configs = relationship(
-            NotificationConfig, cascade="all, delete-orphan"
+        notifications = relationship(
+            Notification, cascade="all, delete-orphan"
         )
 
         def get_identifier_string(self) -> str:

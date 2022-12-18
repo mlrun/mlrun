@@ -179,12 +179,12 @@ Workflows
 ## v1.0.6
 
 ### Closed issues
-- Import from mlrun (1.0.4) fails with "ImportError: cannot import name dataclass_transform" (ML-2552)
+- Import from mlrun fails with "ImportError: cannot import name dataclass_transform" (ML-2552)
    Workaround for previous releases:
    Install `pip install pydantic==1.9.2` after `align_mlrun.sh`. 
    [View in Git](https://github.com/mlrun/mlrun/pull/).
 - MLRun FeatureSet was not not enriching with security context when running from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/
-- Mlrun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set 
+- MlRun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set 
    request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/).
    
 ### See more
@@ -205,17 +205,15 @@ Workflows
 ## v1.0.4
 
 ### New and updated features
-Bump storey to 1.0.6 [1.0.x], #2041, @gtopper
-Add typing-extensions explictly, #2036, @Hedingber
-Add vulnerability check to CI and fix vulnerabilities [Backport 1.0.x], #2028, @Hedingber
-UI: Features & enhancement
+- Bump storey to 1.0.6.
+- Add typing-extensions explictly.
+- Add vulnerability check to CI and fix vulnerabilities.
 
 ### Closed issues
 - Limit Azure transitive dependency to avoid new bug. [View in Git](https://github.com/mlrun/mlrun/pull/2034).
 - Images: Fix GPU image to have new signing keys. [View in Git](https://github.com/mlrun/mlrun/pull/2030).
 - Spark: Allow mounting v3io on driver but not executors. <Backport 1.0.x> [View in Git](https://github.com/mlrun/mlrun/pull/2023).
-- Tests: Send only string headers to align to new requests limitation #2039  [View in Git](https://github.com/mlrun/mlrun/pull/2038).
-- UI: Bug fixes
+- Tests: Send only string headers to align to new requests limitation  [View in Git](https://github.com/mlrun/mlrun/pull/2039).
 
 
 ### See more
@@ -225,11 +223,13 @@ UI: Features & enhancement
 ## v1.0.3
 
 ### New and updated features
+- Jupyter Image: Relax `artifact_path` settings and add README notebook. [View in Git](https://github.com/mlrun/mlrun/pull/2011).
+- Images: Fix security vulnerabilities. [View in Git](https://github.com/mlrun/mlrun/pull/1997).
 
-- Images: Fix security vulnerabilities
-- Jupyter Image: Relax artifact_path settings and add README notebook
-- API: Fix projects leader to sync enrichment to followers
-- Projects: Fixes and usability improvements for working with 
+### Closed issues
+
+- API: Fix projects leader to sync enrichment to followers. [View in Git](https://github.com/mlrun/mlrun/pull/2009).
+- Projects: Fixes and usability improvements for working with archives. [View in Git](https://github.com/mlrun/mlrun/pull/2006).
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.3)
@@ -239,14 +239,16 @@ UI: Features & enhancement
 
 ### New and updated features
 
-- Frameworks: Fix to logging the target columns in favor of model monitoring
-- Projects: Fix/support archives with project run/build/deploy methods
-- Runtimes: Add java options spark job parameters
-- Runtimes: Fix jobs stuck in non-terminal state after node drain/preemption
-- Spark: Allow setting executor and driver core parameter in spark operator
-- API: Block unauthorized paths on files endpoints
-- Requirements: Fix ImportError on ingest to Azure
-- Documentation: New quick start guide and update docker install section
+- Runtimes: Add java options spark job parameters. [View in Git](https://github.com/mlrun/mlrun/pull/1968).
+- Spark: Allow setting executor and driver core parameter in spark operator. [View in Git](https://github.com/mlrun/mlrun/pull/1973).
+- API: Block unauthorized paths on files endpoints. [View in Git](https://github.com/mlrun/mlrun/pull/1967).
+- Documentation: New quick start guide and update docker install section. [View in Git](https://github.com/mlrun/mlrun/pull/1948).
+
+### Closed issues
+- Frameworks: Fix to logging the target columns in favor of model monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/1929).
+- Projects: Fix/support archives with project run/build/deploy methods. [View in Git](https://github.com/mlrun/mlrun/pull/1966).
+- Runtimes: Fix jobs stuck in non-terminal state after node drain/preemption. [View in Git](https://github.com/mlrun/mlrun/pull/1964).
+- Requirements: Fix ImportError on ingest to Azure. [View in Git](https://github.com/mlrun/mlrun/pull/1949).
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.2)
@@ -266,7 +268,7 @@ UI: Features & enhancement
 
 #### Projects
 - Setting owner and members are in a dedicated Project Settings section.
-- The Project Monitoring report has a new tile named Consumer groups (v3io streams) that shows the total number
+- The **Project Monitoring** report has a new tile named **Consumer groups (v3io streams)** that shows the total number
    of consumer groups, with drill-down capabilities for more details.
 
 
@@ -275,7 +277,7 @@ UI: Features & enhancement
 - Supports configuring CPU, GPU, and memory default limits for user jobs.
 
 #### Graph
-- A new tab under Projects | Models named Real-time pipelines that displays the real time pipeline graph, 
+- A new tab under **Projects | Models** named **Real-time pipelines **that displays the real time pipeline graph, 
    with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Closed issues

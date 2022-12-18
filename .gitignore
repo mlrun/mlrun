@@ -27,3 +27,4 @@ tests/system/env.yml
 # pyenv file for working with several python versions
 .python-version
 *.bak
+colab/01-mlrun-basics-colab.ipynb

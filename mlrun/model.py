@@ -38,6 +38,8 @@ RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 class ModelObj:
     _dict_fields = []
+    _fields_to_strip = []
+    _fields_to_exclude_for_serialization = []
 
     @staticmethod
     def _verify_list(param, name):
@@ -56,32 +58,37 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """convert the object to a python dictionary"""
         struct = {}
         fields = fields or self._dict_fields
+        fields_to_exclude = exclude or []
+        if strip:
+            fields_to_exclude += self._fields_to_strip
+        fields_to_exclude += self._fields_to_exclude_for_serialization
+
         if not fields:
             fields = list(inspect.signature(self.__init__).parameters.keys())
         for t in fields:
-            if not exclude or t not in exclude:
+            if not fields_to_exclude or t not in fields_to_exclude:
                 val = getattr(self, t, None)
                 if val is not None and not (isinstance(val, dict) and not val):
                     if hasattr(val, "to_dict"):
-                        # try:
                         val = val.to_dict(strip=strip)
-                        # except TypeError as err:
-                        #     if "unexpected keyword argument 'strip'" in str(err):
-                        #         logger.debug(
-                        #             f"to_dict() of {val} doesn't support strip"
-                        #         )
-                        #         val = val.to_dict()
-                        #     else:
-                        #         raise err
                         if val:
                             struct[t] = val
                     else:
                         struct[t] = val
+
+        for field_to_serialize in self._fields_to_exclude_for_serialization:
+            if field_to_serialize not in fields_to_exclude:
+                struct[field_to_serialize] = self._serialize_field(
+                    field_name=field_to_serialize
+                )
         return struct
+
+    def _serialize_field(self, field_name: str = None):
+        return getattr(self, field_name, None)
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
@@ -109,13 +116,13 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self) -> str:
+    def to_yaml(self, strip: bool = False) -> str:
         """convert the object to yaml"""
-        return dict_to_yaml(self.to_dict())
+        return dict_to_yaml(self.to_dict(strip=strip))
 
-    def to_json(self):
+    def to_json(self, strip: bool = False) -> str:
         """convert the object to json"""
-        return dict_to_json(self.to_dict())
+        return dict_to_json(self.to_dict(strip=strip))
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
@@ -290,6 +297,18 @@ class Credentials(ModelObj):
 
 
 class BaseMetadata(ModelObj):
+    _fields_to_strip = [
+        # "tag", # should tag be removed as well?
+        "hash",
+        "namespace",
+        "project",
+        "labels",
+        "annotations",
+        "categories",  # should categories be removed as well?
+        "updated",
+        "credentials",
+    ]
+
     def __init__(
         self,
         name=None,
@@ -322,6 +341,12 @@ class BaseMetadata(ModelObj):
     @credentials.setter
     def credentials(self, credentials):
         self._credentials = self._verify_dict(credentials, "credentials", Credentials)
+
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+        fields_to_exclude = exclude or []
+        if strip and not fields_to_exclude:
+            fields_to_exclude = self._fields_to_strip
+        return super().to_dict(fields, exclude=fields_to_exclude, strip=strip)
 
 
 class ImageBuilder(ModelObj):
@@ -476,6 +501,13 @@ class HyperParamOptions(ModelObj):
 class RunSpec(ModelObj):
     """Run specification"""
 
+    _fields_to_exclude_for_serialization = (
+        ModelObj._fields_to_exclude_for_serialization
+        + [
+            "handler",
+        ]
+    )
+
     def __init__(
         self,
         parameters=None,
@@ -517,11 +549,18 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         struct = super().to_dict(fields, exclude=["handler"], strip=strip)
         if self.handler and isinstance(self.handler, str):
             struct["handler"] = self.handler
         return struct
+
+    def _serialize_field(self, field_name: str = None) -> str:
+        if field_name == "handler":
+            if self.handler and isinstance(self.handler, str):
+                return self.handler
+            return None
+        return super()._serialize_field(field_name)
 
     def is_hyper_job(self):
         param_file = self.param_file or self.hyper_param_options.param_file

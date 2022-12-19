@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import inspect
 import os
 import typing
@@ -104,14 +105,14 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
     ]
-    _fields_to_strip = [
+    _fields_to_strip = FunctionSpec._fields_to_strip + [
         "volumes",
         "volume_mounts",
         "resources",
         "replicas",
         "image_pull_policy",
-        # "service_account",
-        # "image_pull_secret",
+        "service_account",
+        "image_pull_secret",
         "node_name",
         "node_selector",
         "affinity",
@@ -120,6 +121,15 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
     ]
+    _fields_to_exclude_for_k8s_serialization = [
+        "affinity",
+        "tolerations",
+        "security_context",
+    ]
+    _fields_to_exclude_for_serialization = (
+        FunctionSpec._fields_to_exclude_for_serialization
+        + copy.copy(_fields_to_exclude_for_k8s_serialization)
+    )
 
     def __init__(
         self,
@@ -193,6 +203,7 @@ class KubeResourceSpec(FunctionSpec):
         self.security_context = (
             security_context or mlrun.mlconf.get_default_function_security_context()
         )
+        self._k8s_api_client = None
 
     @property
     def volumes(self) -> list:
@@ -263,17 +274,16 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
-        exclude = exclude or []
-        _exclude_for_k8s_serialization = ["affinity", "tolerations", "security_context"]
-        struct = super().to_dict(
-            fields, exclude=list(set(exclude + _exclude_for_k8s_serialization))
-        )
-        api = k8s_client.ApiClient()
-        for field in _exclude_for_k8s_serialization:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
+    @property
+    def _k8s_api(self):
+        if self._k8s_api_client is None:
+            self._k8s_api_client = k8s_client.ApiClient()
+        return self._k8s_api_client
+
+    def _serialize_field(self, field_name: str = None) -> str:
+        if field_name in self._fields_to_exclude_for_k8s_serialization:
+            return self._k8s_api.sanitize_for_serialization(getattr(self, field_name))
+        return super()._serialize_field(field_name)
 
     def update_vols_and_mounts(
         self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
@@ -902,20 +912,11 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         struct = super().to_dict(fields, exclude, strip=strip)
-        api = k8s_client.ApiClient()
-        struct = api.sanitize_for_serialization(struct)
+        struct = self.spec._k8s_api.sanitize_for_serialization(struct)
         if strip:
             spec = struct["spec"]
-            for attr in [
-                "volumes",
-                "volume_mounts",
-                "driver_volume_mounts",
-                "executor_volume_mounts",
-            ]:
-                if attr in spec:
-                    del spec[attr]
             if "env" in spec and spec["env"]:
                 for ev in spec["env"]:
                     if ev["name"].startswith("V3IO_"):

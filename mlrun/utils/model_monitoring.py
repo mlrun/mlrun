@@ -193,10 +193,11 @@ class TrackingPolicy(mlrun.model.ModelObj):
             )
         return new_obj
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         struct = super().to_dict(
             fields,
             exclude=[model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS],
+            strip=strip,
         )
         if self.default_batch_intervals:
             struct[

@@ -96,6 +96,7 @@ class FunctionStatus(ModelObj):
 
 class FunctionSpec(ModelObj):
     _dict_fields = spec_fields
+    _fields_to_strip = []
 
     def __init__(
         self,
@@ -149,6 +150,7 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _is_remote = False
     _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
+    _fields_to_strip = ModelObj._fields_to_strip + ["status"]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -1203,13 +1205,6 @@ class BaseRuntime(ModelObj):
         )
         hash_key = hash_key if versioned else None
         return "db://" + self._function_uri(hash_key=hash_key, tag=tag)
-
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
-        struct = super().to_dict(fields, exclude=exclude, strip=strip)
-        if strip:
-            if "status" in struct:
-                del struct["status"]
-        return struct
 
     def doc(self):
         print("function:", self.metadata.name)

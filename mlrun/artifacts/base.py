@@ -61,7 +61,7 @@ class ArtifactMetadata(ModelObj):
     def base_dict(self):
         return super().to_dict()
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """return long dict form of the artifact"""
         return super().to_dict(
             self._dict_fields + self._extra_fields, exclude=exclude, strip=strip
@@ -120,7 +120,7 @@ class ArtifactSpec(ModelObj):
     def base_dict(self):
         return super().to_dict()
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """return long dict form of the artifact"""
         return super().to_dict(
             self._dict_fields + self._extra_fields, exclude=exclude, strip=strip
@@ -1095,7 +1095,7 @@ class LegacyArtifact(ModelObj):
         """return short dict form of the artifact"""
         return super().to_dict()
 
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
+    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         """return long dict form of the artifact"""
         return super().to_dict(
             self._dict_fields

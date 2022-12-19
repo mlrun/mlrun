@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import copy
 import typing
 
 import kubernetes.client
@@ -44,6 +44,33 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "driver_cores",
         "executor_cores",
     ]
+    _fields_to_strip = AbstractSparkJobSpec._fields_to_strip + [
+        "driver_node_selector",
+        "executor_node_selector",
+        "driver_tolerations",
+        "executor_tolerations",
+        "driver_affinity",
+        "executor_affinity",
+        "driver_volume_mounts",
+        "executor_volume_mounts",
+        "driver_cores",
+        "executor_cores",
+    ]
+    _fields_to_exclude_for_k8s_serialization = (
+        AbstractSparkJobSpec._fields_to_exclude_for_k8s_serialization
+        + [
+            "driver_node_selector",
+            "executor_node_selector",
+            "executor_affinity",
+            "executor_tolerations",
+            "driver_affinity",
+            "driver_tolerations",
+        ]
+    )
+    _fields_to_exclude_for_serialization = (
+        AbstractSparkJobSpec._fields_to_exclude_for_serialization
+        + copy.copy(_fields_to_exclude_for_k8s_serialization)
+    )
 
     def __init__(
         self,
@@ -160,24 +187,6 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         self.executor_java_options = executor_java_options
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
-
-    def to_dict(self, fields=None, exclude=None, strip: bool = False):
-        exclude = exclude or []
-        _exclude = [
-            "affinity",
-            "tolerations",
-            "security_context",
-            "executor_affinity",
-            "executor_tolerations",
-            "driver_affinity",
-            "driver_tolerations",
-        ]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-        api = kubernetes.client.ApiClient()
-        for field in _exclude:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
 
     @property
     def executor_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:

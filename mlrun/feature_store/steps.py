@@ -47,12 +47,16 @@ class MLRunStep(MapClass):
         This method defines the do method of this class according to the first event type.
         """
         engine = get_engine(event)
-        if engine == "pandas":
-            self.do = self._do_pandas
-        elif engine == "spark":
-            self.do = self._do_spark
-        else:
-            self.do = self._do_storey
+        engine_to_do_method = {
+            "pandas": self._do_pandas,
+            "spark": self._do_spark,
+            "storey": self._do_storey,
+        }
+        self.do = engine_to_do_method.get(engine, None)
+        if self.do is None:
+            raise mlrun.errors.InvalidArgummentError(
+                f"Unrecognized engine: {engine}. Available engines are: pandas, spark and storey"
+            )
 
         return self.do(event)
 
@@ -215,7 +219,7 @@ class MapValues(StepToDict, MLRunStep):
             elif feature_map:
                 # create and apply simple map
                 df[self._get_feature_name(feature)] = event[feature].map(
-                    lambda x: feature_map[x] if x in feature_map else x
+                    lambda x: feature_map.get(x, x)
                 )
 
         if self.with_original_features:
@@ -470,7 +474,7 @@ class DateExtractor(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col
         self.parts = parts
-        self.spark_dict_str = {
+        self.fstore_date_format_to_spark_date_format = {
             "day_of_year": "DD",
             "day_of_month": "dd",
             "dayofyear": "DD",
@@ -525,13 +529,16 @@ class DateExtractor(StepToDict, MLRunStep):
         from pyspark.sql.functions import date_format
 
         for part in self.parts:
-            if part in self.spark_dict_str:
+            if part in self.fstore_date_format_to_spark_date_format:
                 event = event.withColumn(
                     self._get_key_name(part, self.timestamp_col),
-                    date_format(self.timestamp_col, self.spark_dict_str[part]),
+                    date_format(
+                        self.timestamp_col,
+                        self.fstore_date_format_to_spark_date_format[part],
+                    ),
                 )
             else:
-                raise RuntimeError(
+                raise mlrun.errors.MLRunRuntimeError(
                     f"OneHotEncoder with spark engine isn't support {part} param"
                 )
         return event

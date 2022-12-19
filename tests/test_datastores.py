@@ -335,14 +335,16 @@ def test_fsspec():
         assert fs.open(tmpdir + "/1x.txt", "r").read() == "123", "wrong file content"
 
 
-@pytest.mark.parametrize("virtual_path", ["/dummy/path", "c:\\dummy\\path"])
-def test_virtual_to_real_map(virtual_path):
+@pytest.mark.parametrize(
+    "virtual_path", ["/dummy/path", "c:\\dummy\\path", "/dummy/path/"]
+)
+def test_item_to_real_path_map(virtual_path):
     # test that the virtual dir (/dummy/path) is replaced with a real dir
-    virtual_to_real_map = mlrun.mlconf.storage.virtual_to_real_path
+    item_to_real_path = mlrun.mlconf.storage.item_to_real_path
 
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
-        mlrun.mlconf.storage.virtual_to_real_path = f"{virtual_path}::{tmpdir}"
+        mlrun.mlconf.storage.item_to_real_path = f"{virtual_path}::{tmpdir}"
 
         data = mlrun.run.get_dataitem(f"{virtual_path}/test1.txt")
         data.put("abc")
@@ -350,4 +352,4 @@ def test_virtual_to_real_map(virtual_path):
         assert data.stat().size == 3, "got wrong file size"
         assert os.path.isfile(os.path.join(tmpdir, "test1.txt"))
 
-    mlrun.mlconf.storage.virtual_to_real_path = virtual_to_real_map
+    mlrun.mlconf.storage.item_to_real_path = item_to_real_path

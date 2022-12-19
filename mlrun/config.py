@@ -434,7 +434,7 @@ default_config = {
         # map file data items starting with virtual path to the real path, used when consumers have different mounts
         # e.g. Windows client (on host) and Linux container (Jupyter, Nuclio..) need to access the same files/artifacts
         # need to map container path to host windows paths, e.g. "\data::c:\\mlrun_data" ("::" used as splitter)
-        "virtual_to_real_path": "",
+        "item_to_real_path": "",
     },
     "default_function_pod_resources": {
         "requests": {"cpu": None, "memory": None, "gpu": None},

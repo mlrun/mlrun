@@ -26,10 +26,12 @@ class FileStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, "file", endpoint, secrets=secrets)
 
-        self._virtual_path, self._real_path = None, None
-        if mlrun.mlconf.storage.virtual_to_real_path:
-            split = mlrun.mlconf.storage.virtual_to_real_path.split("::")
-            self._virtual_path = split[0].strip().rstrip("/").rstrip("\\")
+        self._item_path, self._real_path = None, None
+        if mlrun.mlconf.storage.item_to_real_path:
+            # map item path prefix with real (local) path prefix e.g.:
+            # item_to_real_path="\data::c:\\mlrun_data" replace \data\x.csv with c:\\mlrun_data\x.csv
+            split = mlrun.mlconf.storage.item_to_real_path.split("::")
+            self._item_path = split[0].strip()
             self._real_path = split[1].strip().rstrip("/").rstrip("\\")
 
     @property
@@ -37,9 +39,12 @@ class FileStore(DataStore):
         return self.subpath
 
     def _join(self, key: str):
-        if self._virtual_path and not self.subpath:
-            if key.startswith(self._virtual_path):
-                key = path.join(self._real_path, key[len(self._virtual_path) + 1 :])
+        if self._item_path and not self.subpath:
+            if key.startswith(self._item_path):
+                suffix = key[len(self._item_path) :]
+                if suffix[0] in ["/", "\\"]:
+                    suffix = suffix[1:]
+                key = path.join(self._real_path, suffix)
         return path.join(self.subpath, key)
 
     def get_filesystem(self, silent=True):

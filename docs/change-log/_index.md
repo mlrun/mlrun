@@ -15,7 +15,11 @@
 ## v1.2.1
 
 ### Closed issues
-- 
+- Running pipeline after load_project - error message is Cmd('git') failed due to: exit code(129) (https://jira.iguazeng.com/browse/ML-2972)
+- spark missing gcs jars (https://jira.iguazeng.com/browse/ML-2900)
+- log_dataset local_path does not take effect (https://jira.iguazeng.com/browse/ML-2900)
+- scheduling workflow does not have secrets attributes (https://jira.iguazeng.com/browse/ML-2895)
+- Scheduled Jobs are triggered at +1 day (as translated by "normal" cron string) (https://jira.iguazeng.com/browse/ML-2878)
 
 
 

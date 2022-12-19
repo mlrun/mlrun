@@ -478,6 +478,9 @@ class DateExtractor(StepToDict, MLRunStep):
             "month": "MM",
             "year": "yyyy",
             "quarter": "Q",
+            "hour": "hh",
+            "minute": "mm",
+            "second": "ss",
         }
 
     def _get_key_name(self, part: str, timestamp_col: str):

@@ -343,9 +343,9 @@ def get_or_create_project(
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        spec_path = path.join(context, subpath or "", "old-project.yaml")
+        spec_path = path.join(context, subpath or "", "project.yaml")
         if url or path.isfile(spec_path):
-            # load project from archive or local old-project.yaml
+            # load project from archive or local project.yaml
             project = load_project(
                 context,
                 url,
@@ -382,7 +382,7 @@ def get_or_create_project(
 
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
-    fpath = path.join(context, subpath_str, "old-project.yaml")
+    fpath = path.join(context, subpath_str, "project.yaml")
     if path.isfile(fpath):
         with open(fpath) as fp:
             data = fp.read()
@@ -1088,7 +1088,7 @@ class MlrunProject(ModelObj):
 
         :param name:          name of the workflow
         :param workflow_path: url/path for the workflow file
-        :param embed:         add the workflow code into the old-project.yaml
+        :param embed:         add the workflow code into the project.yaml
         :param engine:        workflow processing engine ("kfp" or "local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
@@ -1752,7 +1752,7 @@ class MlrunProject(ModelObj):
         self.save()
 
         add = add or []
-        add.append("old-project.yaml")
+        add.append("project.yaml")
         repo.index.add(add)
         if update:
             repo.git.add(update=True)
@@ -2127,7 +2127,7 @@ class MlrunProject(ModelObj):
         return db.create_project(self.to_dict())
 
     def export(self, filepath=None, include_files: str = None):
-        """save the project object into a yaml file or zip archive (default to old-project.yaml)
+        """save the project object into a yaml file or zip archive (default to project.yaml)
 
         By default the project object is exported to a yaml file, when the filepath suffix is '.zip'
         the project context dir (code files) are also copied into the zip, the archive path can include
@@ -2140,12 +2140,12 @@ class MlrunProject(ModelObj):
         archive_code = filepath and str(filepath).endswith(".zip")
         if not filepath or archive_code:
             project_file_path = path.join(
-                self.spec.context, self.spec.subpath or "", "old-project.yaml"
+                self.spec.context, self.spec.subpath or "", "project.yaml"
             )
         project_dir = pathlib.Path(project_file_path).parent
         project_dir.mkdir(parents=True, exist_ok=True)
         with open(project_file_path, "w") as fp:
-            fp.write(self.to_yaml(strip=True))
+            fp.write(self.to_yaml())
 
         if archive_code:
             files_filter = include_files or "**"
@@ -2780,9 +2780,9 @@ class MlrunProjectLegacy(ModelObj):
 
     # needed for tests
     def save(self, filepath=None):
-        """save the project object into a file (default to old-project.yaml)"""
+        """save the project object into a file (default to project.yaml)"""
         filepath = filepath or path.join(
-            self.context, self.subpath or "", "old-project.yaml"
+            self.context, self.subpath or "", "project.yaml"
         )
         with open(filepath, "w") as fp:
             fp.write(self.to_yaml())

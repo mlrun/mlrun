@@ -1,6 +1,7 @@
 (change-log)=
 # Change log
 - [v1.2.1](#v1-2-1)
+- [v1.1.3](#1-1-3)
 - [v1.0.6](#v1-0-6)
 - [v1.0.5](#v1-0-5)
 - [v1.0.4](#v1-0-4)
@@ -98,11 +99,13 @@ The new behavior can be enabled using a feature flag configured in the API.
 
 ## v1.1.3
 
-See [Closed issues](#closed-issues).
+### Closed issues
+- CLI project pipeline improvements in timeout and overwrite schedule. [View in Git](https://github.com/mlrun/mlrun/pull/2691).
+- The CLI supports overwriting the schedule when creating scheduling workflow. [View in Git](https://github.com/mlrun/mlrun/pull/2651).
 
 ### See more
-- [MLRun change log in GitHub]()
-- [UI change log in GitHub]()
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.3)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.3)
 
 ## v1.1.2
 

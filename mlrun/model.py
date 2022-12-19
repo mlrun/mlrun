@@ -76,18 +76,25 @@ class ModelObj:
         fields_to_exclude = self._resolve_fields_to_exclude(exclude, strip)
         resolved_fields = set(fields) - set(fields_to_exclude)
 
-        for t in resolved_fields:
-            val = getattr(self, t, None)
+        for field in resolved_fields:
+            field_value = getattr(self, field, None)
             # no need to save None values and empty dicts
-            if val is not None and not (isinstance(val, dict) and not val):
-                if hasattr(val, "to_dict"):
-                    val = val.to_dict(strip=strip)
-                    if val:
-                        struct[t] = val
+            if field_value is not None and not (
+                isinstance(field_value, dict) and not field_value
+            ):
+                if hasattr(field_value, "to_dict"):
+                    field_value = field_value.to_dict(strip=strip)
+                    if field_value:
+                        struct[field] = field_value
                 else:
-                    struct[t] = val
+                    struct[field] = field_value
 
-        for field_to_serialize in self._fields_to_exclude_for_serialization:
+        # if field is in field_to_exclude_for_serialization is also in the fields_to_exclude list,
+        # then no need to iterate over it
+        fields_to_serialize = set(self._fields_to_exclude_for_serialization) - set(
+            fields_to_exclude
+        )
+        for field_to_serialize in fields_to_serialize:
             if field_to_serialize not in fields_to_exclude:
                 struct[field_to_serialize] = self._serialize_field(
                     field_name=field_to_serialize

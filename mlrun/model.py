@@ -58,27 +58,34 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
-        """convert the object to a python dictionary"""
+    def to_dict(
+        self, fields: list = None, exclude: list = None, strip: bool = False
+    ) -> dict:
+        """
+        convert the object to a dict
+        :param fields:  A list of fields to include in the dictionary. If not provided, the default value is taken
+        from `self._dict_fields` or from the object __init__ params.
+        :param exclude: A list of fields to exclude from the dictionary. If not provided, the default value is an
+         empty list and the object's `_fields_to_exclude_for_serialization` attribute is appended to it.
+        :param strip:  If True, the object's `_fields_to_strip` attribute is appended to the exclude list.
+        :return: A dictionary representation of the object.
+        """
         struct = {}
-        fields = fields or self._dict_fields
-        fields_to_exclude = exclude or []
-        if strip:
-            fields_to_exclude += self._fields_to_strip
-        fields_to_exclude += self._fields_to_exclude_for_serialization
 
-        if not fields:
-            fields = list(inspect.signature(self.__init__).parameters.keys())
-        for t in fields:
-            if not fields_to_exclude or t not in fields_to_exclude:
-                val = getattr(self, t, None)
-                if val is not None and not (isinstance(val, dict) and not val):
-                    if hasattr(val, "to_dict"):
-                        val = val.to_dict(strip=strip)
-                        if val:
-                            struct[t] = val
-                    else:
+        fields = self._resolve_fields(fields)
+        fields_to_exclude = self._resolve_fields_to_exclude(exclude, strip)
+        resolved_fields = set(fields) - set(fields_to_exclude)
+
+        for t in resolved_fields:
+            val = getattr(self, t, None)
+            # no need to save None values and empty dicts
+            if val is not None and not (isinstance(val, dict) and not val):
+                if hasattr(val, "to_dict"):
+                    val = val.to_dict(strip=strip)
+                    if val:
                         struct[t] = val
+                else:
+                    struct[t] = val
 
         for field_to_serialize in self._fields_to_exclude_for_serialization:
             if field_to_serialize not in fields_to_exclude:
@@ -86,6 +93,36 @@ class ModelObj:
                     field_name=field_to_serialize
                 )
         return struct
+
+    def _resolve_fields(self, fields: list = None) -> list:
+        """
+        Resolve fields to be used in to_dict method.
+        If fields is None, use `_dict_fields` attribute of the object.
+        If fields is None and `_dict_fields` is empty, use the object's __init__ parameters.
+        :param fields: List of fields to iterate over.
+        :return: List of fields to iterate over.
+        """
+        return (
+            fields
+            or self._dict_fields
+            or list(inspect.signature(self.__init__).parameters.keys())
+        )
+
+    def _resolve_fields_to_exclude(
+        self, exclude: list = None, strip: bool = False
+    ) -> list:
+        """
+        Resolve fields to be excluded in to_dict method.
+        By default, will take the provided exclude list and append the fields_to_exclude_for_serialization
+        If strip is True, will appends the object's `_fields_to_strip` attribute to the exclude list.
+        :param exclude:
+        :return:
+        """
+        fields_to_exclude = exclude or []
+        if strip:
+            fields_to_exclude += self._fields_to_strip
+        fields_to_exclude += self._fields_to_exclude_for_serialization
+        return fields_to_exclude
 
     def _serialize_field(self, field_name: str = None):
         return getattr(self, field_name, None)

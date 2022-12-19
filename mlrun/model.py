@@ -20,7 +20,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from os import environ, path
+from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun

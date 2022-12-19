@@ -108,6 +108,88 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.status.results["project_param"] == project_param
         assert run.status.results["param1"] == local_param
 
+    def test_function_handler_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        args = ["--some-arg", "a-value-123"]
+        function.spec.args = args
+        run = function.run()
+        assert run.status.results["some-arg-by-handler"] == args[1]
+        assert run.status.results["my-args"] == [
+            "/usr/local/bin/mlrun",
+            "run",
+            "--name",
+            "function-with-args-handler",
+            "--from-env",
+            "--handler",
+            "handler",
+            "--origin-file",
+            code_path,
+            "*",
+            "--some-arg",
+            "a-value-123",
+        ]
+
+    def test_function_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="job",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+        args = ["--some-arg", "a-value-123"]
+        function.spec.args = args
+        run = function.run()
+        assert run.status.results["some-arg-by-main"] == args[1]
+        assert run.status.results["my-args"] == [
+            "function_with_args.py",
+            "--some-arg",
+            "a-value-123",
+        ]
+
+    def test_new_function_with_args(self):
+        code_path = str(self.assets_path / "function_with_args.py")
+        project = mlrun.get_or_create_project(self.project_name, self.results_path)
+        art = project.log_artifact(
+            "my_code_artifact", local_path=code_path, format="py"
+        )
+
+        function = mlrun.new_function(
+            name="new-function-with-args",
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+            source=art.get_target_path(),
+            command="my_code_artifact.py --another-one 123",
+        )
+
+        args = ["--some-arg", "val-with-artifact"]
+        function.spec.args = args
+        function.deploy()
+        run = function.run()
+        assert run.status.results["some-arg-by-main"] == args[1]
+        assert run.status.results["another-one"] == "123"
+        assert run.status.results["my-args"] == [
+            "my_code_artifact.py",
+            "--another-one",
+            "123",
+            "--some-arg",
+            "val-with-artifact",
+        ]
+
     def test_class_handler(self):
         code_path = str(self.assets_path / "kubejob_function.py")
         cases = [

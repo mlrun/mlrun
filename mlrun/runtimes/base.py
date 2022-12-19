@@ -819,9 +819,16 @@ class BaseRuntime(ModelObj):
 
             if command:
                 args += [command]
-            command = "mlrun"
+
             if self.spec.args:
+                if not command:
+                    # * is a placeholder for the url argument in the run CLI command,
+                    # where the code is passed in the `MLRUN_EXEC_CODE` meaning there is no "actual" file to execute
+                    # until the run command will create that file from the env param.
+                    args += ["*"]
                 args = args + self.spec.args
+
+            command = "mlrun"
         else:
             command = command.format(**runobj.spec.parameters)
             if self.spec.args:

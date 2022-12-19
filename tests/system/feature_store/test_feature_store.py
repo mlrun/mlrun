@@ -690,6 +690,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",  # TODO: delete this deprecated parameter once it's removed
         )
         resp = fs.ingest(measurements, source)
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(

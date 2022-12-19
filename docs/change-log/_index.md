@@ -26,8 +26,7 @@
 - Support GitHub fine grained tokens.
 
 #### Documentation
-- Restructured, and new content
-
+- Restructured, and new content.
 
 #### Feature store
 - Support Redis as an online feature set for storey engine only. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).)
@@ -52,10 +51,10 @@
 
 
 #### Models
-- The Labels in the **Models > Overview** tab can be edited
+- The Labels in the **Models > Overview** tab can be edited.
 
 #### Third party integrations
-- Supports Confluent Kafka (Tech Preview)
+- Supports Confluent Kafka (Tech Preview).
 
 #### Internal
 - Refactor artifacts endpoints to follow the MLRun convention of `/projects/<project>/artifacts/...`. (The previous API will be deprecated in a future release.)
@@ -84,6 +83,7 @@ The new behavior can be enabled using a feature flag configured in the API.
 - Scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
 - Can now delete a model via tag. [View in Git](https://github.com/mlrun/mlrun/pull/2433).
 
+**Candidates in 1.2.1**
 - Running pipeline after load_project - error message is Cmd('git') failed due to: exit code(129) (https://jira.iguazeng.com/browse/ML-2972)
 - spark missing gcs jars (https://jira.iguazeng.com/browse/ML-2900)
 - log_dataset local_path does not take effect (https://jira.iguazeng.com/browse/ML-2900)
@@ -109,8 +109,8 @@ See [Closed issues](#closed-issues).
 ### New and updated features
 
 **V3IO**
-- v3io-py bumped to 0.5.19
-- v3io-fs bumped to 0.1.15
+- v3io-py bumped to 0.5.19.
+- v3io-fs bumped to 0.1.15.
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.2)
@@ -121,10 +121,10 @@ See [Closed issues](#closed-issues).
 ### New and updated features
 
 #### API
-- Supports workflow scheduling 
+- Supports workflow scheduling.
 
 #### UI
-- Projects: Supports editing model labels
+- Projects: Supports editing model labels.
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.1)
@@ -140,30 +140,29 @@ See [Closed issues](#closed-issues).
    - v1.1.0 cannot run on top of 3.0.x.
    - For Iguazio v <3.5.0 number of workers set to 1 by default. To change this number, contact support (helm-chart change required).
    - Multi-instance is not supported for MLrun running on SQLite.
--  Supports pipeline scheduling  
-   
-   
-   
+-  Supports pipeline scheduling.
+      
 #### Feature store
-- Supports S3, Azure, GCS targets when using Spark as an engine for the feature store
-- Snowflake as datasource has a connector ID: `iguazio_platform`
+- Supports S3, Azure, GCS targets when using Spark as an engine for the feature store.
+- Snowflake as datasource has a connector ID: `iguazio_platform`.
 - You can add a time-based filter condition when running `get_offline_feature` with a given vector. 
 
 
 #### UI
-Projects
+
 - The Projects home page now has three tiles, Data, Jobs and Workflows, Deployment, that guide you through key capabilities of Iguazio, and provide quick access to common tasks.
-- The Projects | Jobs | Monitor Jobs tab now displays the Spark UI URL.
+- The **Projects | Jobs | Monitor Jobs** tab now displays the Spark UI URL.
 - The information of the Drift Analysis tab is now displayed in the Model Overview.
 - If there is an error, the error messages are now displayed in the Projects | Jobs | Monitor jobs tab.
-Workflows
+
+#### Workflows
 - The steps in Workflows are color-coded to identify their status: blue=running; green=completed; red=error.
 
 #### Storey
 - MLRun can write to parquet with flexible schema per batch for ParquetTarget: useful for inconsistent or unknown schema.
 
 #### Documentation
-- Added Azure and S3 examples to {ref}`Ingesting features with Spark <ingest-features-with-spark>`
+- Added Azure and S3 examples to {ref}`Ingesting features with Spark <ingest-features-with-spark>`.
 
 ### Closed issues
 
@@ -274,7 +273,7 @@ Workflows
 - Supports configuring CPU, GPU, and memory default limits for user jobs.
 
 #### Graph
-- A new tab under **Projects | Models** named **Real-time pipelines **that displays the real time pipeline graph, 
+- A new tab under **Projects | Models** named **Real-time pipelines** that displays the real time pipeline graph, 
    with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Closed issues

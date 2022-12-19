@@ -147,7 +147,7 @@ class HTTPRunDB(RunDBInterface):
         :param method: REST method (POST, GET, PUT...)
         :param path: Path to endpoint executed, for example ``"projects"``
         :param error: Error to return if API invocation fails
-        :param params:  TBD.
+        :param params: Rest parameters, passed as a dictionary: ``{"<param-name>": <"param-value">}``
         :param body: Payload to be passed in the call. If using JSON objects, prefer using the ``json`` param
         :param json: JSON payload to be passed in the call
         :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``

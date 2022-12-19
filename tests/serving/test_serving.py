@@ -328,8 +328,8 @@ def test_v2_get_modelmeta():
     assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
     assert resp["inputs"][0]["value_type"] == "float"
 
-    # test versioned model m3 metadata
-    resp = server.test("/v2/models/m3/versions/v2", method="GET")
+    # test versioned model m3 metadata + get method not explicit
+    resp = server.test("/v2/models/m3/versions/v2")
     assert (
         resp["name"] == "m3" and resp["version"] == "v2"
     ), f"wrong get model meta response {resp}"

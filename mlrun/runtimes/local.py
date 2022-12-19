@@ -322,7 +322,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             except Exception as exc:
                 # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
                 # by the caller and will set the state to error ( in `update_run_state` )
-                context.set_state(error=str(exc), commit=True)
+                context.set_state(error=traceback.format_exc(), commit=True)
                 raise RunError(
                     "failed on pre-loading / post-running of the function"
                 ) from exc
@@ -442,9 +442,9 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 os.chdir(cwd)
             val = handler(**kwargs)
             context.set_state("completed", commit=False)
-        except Exception as exc:
-            err = str(exc)
-            logger.error(traceback.format_exc())
+        except Exception:
+            err = traceback.format_exc()
+            logger.error(err)
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 

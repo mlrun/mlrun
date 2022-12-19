@@ -359,10 +359,8 @@ class ImageBuilder(ModelObj):
     @source.setter
     def source(self, source):
         if source and not (
-            source.endswith(".tar.gz")
-            or source.endswith(".zip")
-            or source.startswith("git://")
-            or source.startswith("v3io://")
+            source.startswith("git://")
+            # broad check for file extension because we support many file types locally and remotely
             or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):

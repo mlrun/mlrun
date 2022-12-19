@@ -884,7 +884,6 @@ def _ingest_with_spark(
     finally:
         if created_spark_context:
             spark.stop()
-            spark.sparkContext.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             df = None
     if return_df:

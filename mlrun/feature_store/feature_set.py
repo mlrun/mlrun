@@ -777,7 +777,7 @@ class FeatureSet(ModelObj):
             validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
                 BaseStep(
-                    target.kind,
+                    f"{target.kind}/{target.name}",
                     after=target.after_step or default_final_step,
                     shape="cylinder",
                 )

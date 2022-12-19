@@ -26,7 +26,7 @@ import mlrun
 from tests.conftest import examples_path, out_path, tests_root_directory
 
 
-def exec_main(op, args, cwd=examples_path):
+def exec_main(op, args, cwd=examples_path, raise_on_error=True):
     cmd = [executable, "-m", "mlrun", op]
     if args:
         cmd += args
@@ -35,13 +35,17 @@ def exec_main(op, args, cwd=examples_path):
         print(out.stderr.decode("utf-8"), file=stderr)
         print(out.stdout.decode("utf-8"), file=stderr)
         print(traceback.format_exc())
-        raise Exception(out.stderr.decode("utf-8"))
+        if raise_on_error:
+            raise Exception(out.stderr.decode("utf-8"))
+        else:
+            return out.stderr.decode("utf-8")
+
     return out.stdout.decode("utf-8")
 
 
-def exec_run(cmd, args, test):
+def exec_run(cmd, args, test, raise_on_error=True):
     args = args + ["--name", test, "--dump", cmd]
-    return exec_main("run", args)
+    return exec_main("run", args, raise_on_error=raise_on_error)
 
 
 def compose_param_list(params: dict, flag="-p"):
@@ -106,6 +110,67 @@ def test_main_run_args():
     state, log = db.get_log("123457")
     print(log)
     assert str(log).find(", -x, aaa") != -1, "params not detected in argv"
+
+
+@pytest.mark.parametrize(
+    "op,args,raise_on_error,expected_output",
+    [
+        # bad flag before command
+        [
+            "run",
+            [
+                "--bad-flag",
+                "--name",
+                "test_main_run_basic",
+                "--dump",
+                f"{examples_path}/training.py",
+            ],
+            False,
+            "Error: Invalid value for '[URL]': URL (--bad-flag) cannot start with '-', "
+            "ensure the command options are typed correctly. Preferably use '--' to separate options and "
+            "arguments e.g. 'mlrun run --option1 --option2 -- [URL] [--arg1|arg1] [--arg2|arg2]'",
+        ],
+        # bad flag with no command
+        [
+            "run",
+            ["--name", "test_main_run_basic", "--bad-flag"],
+            False,
+            "Error: Invalid value for '[URL]': URL (--bad-flag) cannot start with '-', "
+            "ensure the command options are typed correctly. Preferably use '--' to separate options and "
+            "arguments e.g. 'mlrun run --option1 --option2 -- [URL] [--arg1|arg1] [--arg2|arg2]'",
+        ],
+        # bad flag after -- separator
+        [
+            "run",
+            ["--name", "test_main_run_basic", "--", "-notaflag"],
+            False,
+            "Error: Invalid value for '[URL]': URL (-notaflag) cannot start with '-', "
+            "ensure the command options are typed correctly. Preferably use '--' to separate options and "
+            "arguments e.g. 'mlrun run --option1 --option2 -- [URL] [--arg1|arg1] [--arg2|arg2]'",
+        ],
+        # correct command with -- separator
+        [
+            "run",
+            [
+                "--name",
+                "test_main_run_basic",
+                "--",
+                f"{examples_path}/training.py",
+                "--some-arg",
+            ],
+            True,
+            "status=completed",
+        ],
+    ],
+)
+def test_main_run_args_validation(op, args, raise_on_error, expected_output):
+    out = exec_main(
+        op,
+        args,
+        raise_on_error=raise_on_error,
+    )
+    print(out)
+    assert out.find(expected_output) != -1, out
 
 
 code = """

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import inspect
 import os
 import typing
@@ -137,7 +136,7 @@ class KubeResourceSpec(FunctionSpec):
     ]
     _fields_to_exclude_for_serialization = (
         FunctionSpec._fields_to_exclude_for_serialization
-        + copy.copy(_fields_to_exclude_for_k8s_serialization)
+        + _fields_to_exclude_for_k8s_serialization
     )
     _fields_to_exclude_for_enrichment = (
         FunctionSpec._fields_to_exclude_for_enrichment
@@ -948,20 +947,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    # def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
-    #     struct = super().to_dict(fields, exclude, strip=strip)
-    #     api = k8s_client.ApiClient()
-    #     struct = api.sanitize_for_serialization(struct)
-    #     if strip:
-    #         spec = struct["spec"]
-    #         if "env" in spec and spec["env"]:
-    #             for ev in spec["env"]:
-    #                 if ev["name"].startswith("V3IO_"):
-    #                     ev["value"] = ""
-    #         # Reset this, since mounts and env variables were cleared.
-    #         spec["disable_auto_mount"] = False
-    #     return struct
 
     def apply(self, modify):
         """

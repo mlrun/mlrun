@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import copy
 import typing
 
 import kubernetes.client
@@ -71,7 +70,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
     )
     _fields_to_exclude_for_serialization = (
         AbstractSparkJobSpec._fields_to_exclude_for_serialization
-        + copy.copy(_fields_to_exclude_for_k8s_serialization)
+        + _fields_to_exclude_for_k8s_serialization
     )
 
     def __init__(

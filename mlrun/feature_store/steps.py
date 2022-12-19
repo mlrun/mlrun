@@ -215,7 +215,7 @@ class MapValues(StepToDict, MLRunStep):
             elif feature_map:
                 # create and apply simple map
                 df[self._get_feature_name(feature)] = event[feature].map(
-                    lambda x: feature_map[x]
+                    lambda x: feature_map[x] if x in feature_map else x
                 )
 
         if self.with_original_features:
@@ -367,11 +367,13 @@ class OneHotEncoder(StepToDict, MLRunStep):
 
         for key, values in self.mapping.items():
             key_ = key
-            if dict(event.dtypes)[key] == 'string':
-                event = StringIndexerModel.from_labels(values, inputCol=key, outputCol=f'{key}_').transform(event)
-                key_ = f'{key}_'
+            if dict(event.dtypes)[key] == "string":
+                event = StringIndexerModel.from_labels(
+                    values, inputCol=key, outputCol=f"{key}_"
+                ).transform(event)
+                key_ = f"{key}_"
             else:
-                if dict(event.dtypes)[key] == 'boolean':
+                if dict(event.dtypes)[key] == "boolean":
                     event = event.withColumn(key, event[key].cast(IntegerType()))
                 column_map = {values[i]: i for i in range(len(values))}
                 event = event.na.replace(column_map, subset=key)
@@ -381,10 +383,14 @@ class OneHotEncoder(StepToDict, MLRunStep):
                 .transform(event)
             )
             event = event.select("*", vector_to_array(f"{key_}_").alias(f"{key_}__"))
-            cols_expanded = [(F.col(f'{key_}__')[i]).cast(IntegerType()).alias(f'{key_}__[{i}]')
-                             for i in range(len(values))]
+            cols_expanded = [
+                (F.col(f"{key_}__")[i]).cast(IntegerType()).alias(f"{key_}__[{i}]")
+                for i in range(len(values))
+            ]
             i = np.where(np.array(event.columns) == key)[0][0]
-            event = event.select(*event.columns[:i], *cols_expanded, *event.columns[i+1:])
+            event = event.select(
+                *event.columns[:i], *cols_expanded, *event.columns[i + 1 :]
+            )
             for i, val in enumerate(values):
                 event = event.withColumnRenamed(
                     f"{key_}__[{i}]", f"{key}_{self._sanitized_category(val)}"
@@ -464,6 +470,15 @@ class DateExtractor(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         self.timestamp_col = timestamp_col
         self.parts = parts
+        self.spark_dict_str = {
+            "day_of_year": "DD",
+            "day_of_month": "dd",
+            "dayofyear": "DD",
+            "dayofmonth": "dd",
+            "month": "MM",
+            "year": "yyyy",
+            "quarter": "Q",
+        }
 
     def _get_key_name(self, part: str, timestamp_col: str):
         timestamp_col = timestamp_col if timestamp_col else "timestamp"
@@ -504,17 +519,19 @@ class DateExtractor(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-        timestamp_col = self.timestamp_col or "timestamp"
-        columns = event.columns + [
-            self._get_key_name(part, self.timestamp_col) for part in self.parts
-        ]
-        rdd2 = event.rdd.map(
-            lambda x: (
-                *[x[col] for col in event.columns],
-                *[getattr(pd.Timestamp(x[timestamp_col]), part) for part in self.parts],
-            )
-        )
-        return rdd2.toDF(columns)
+        from pyspark.sql.functions import date_format
+
+        for part in self.parts:
+            if part in self.spark_dict_str:
+                event = event.withColumn(
+                    self._get_key_name(part, self.timestamp_col),
+                    date_format(self.timestamp_col, self.spark_dict_str[part]),
+                )
+            else:
+                raise RuntimeError(
+                    f"OneHotEncoder with spark engine isn't support {part} param"
+                )
+        return event
 
 
 class SetEventMetadata(MapClass):

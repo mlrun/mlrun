@@ -725,6 +725,7 @@ class FeatureSet(ModelObj):
                     after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
+                    time_field=self.spec.timestamp_key,
                     aggregates=[aggregation],
                     table=".",
                     **class_args,

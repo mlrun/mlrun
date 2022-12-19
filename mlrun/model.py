@@ -130,33 +130,8 @@ class ModelObj:
             or list(inspect.signature(self.__init__).parameters.keys())
         )
 
-    def _resolve_fields_to_exclude(
-        self, exclude: list = None, strip: bool = False
-    ) -> (list, list):
-        """
-        Resolve fields to be excluded in to_dict method.
-        By default, will take the provided exclude list and append the _fields_to_exclude_for_serialization and
-        _fields_to_exclude_for_enrichment.
-        If strip is True, will appends the object's `_fields_to_strip` attribute to the exclude list.
-        :param exclude: List of fields to exclude.
-        :return: A tuple of two lists. The first list is the fields to exclude that user provided with enriched fields
-        if strip is True. The second list is the fields to exclude that are class specific and are excluded from
-        the to_dict method and then used afterwards with specific enrichment / serialization.
-        """
-        fields_to_exclude = exclude or []
-        if strip:
-            fields_to_exclude += self._fields_to_strip
-
-        fields_to_exclude_for_class_enrichments = []
-        fields_to_exclude_for_class_enrichments += (
-            self._fields_to_exclude_for_serialization
-        )
-        fields_to_exclude_for_class_enrichments += (
-            self._fields_to_exclude_for_enrichment
-        )
-        return fields_to_exclude, fields_to_exclude_for_class_enrichments
-
-    def _is_valid_field_value(self, field_value) -> bool:
+    @staticmethod
+    def _is_valid_field_value(field_value) -> bool:
         """
         no need to save None values and empty dicts
         """

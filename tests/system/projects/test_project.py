@@ -103,25 +103,6 @@ class TestProject(TestMLRunSystem):
         proj.save()
         return proj
 
-    def test_project_to_yaml_exclude_attributes(self):
-        project_name = "project6"
-        self.custom_project_names_to_delete.append(project_name)
-
-        project = self._create_project(project_name)
-        project_yaml = project.to_yaml()
-        print(project_yaml)
-        project.sync_functions(save=True)
-        print(project_yaml)
-        func1 = project.get_function("train")
-        print(func1.to_yaml())
-        set_func = project.set_function(func1, "train2")
-        print(set_func.to_yaml())
-        print(project.spec.functions)
-        project.sync_functions(save=True)
-        print(project_yaml)
-        project.save()
-        print(project_yaml)
-
     def test_project_persists_function_changes(self):
         func_name = "build-func"
         commands = [

@@ -360,7 +360,7 @@ class ImageBuilder(ModelObj):
     def source(self, source):
         if source and not (
             source.startswith("git://")
-            # broad check for file extension because we support many file types locally and remotely
+            # lenient check for file extension because we support many file types locally and remotely
             or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):

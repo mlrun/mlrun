@@ -14,18 +14,20 @@
 
 import ast
 import asyncio
+import base64
 import datetime
 import os
 import typing
 
-import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.db.base
+import mlrun.api.db.session
 import mlrun.api.utils.singletons.k8s
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
+from mlrun.utils import logger
 
 from .notification import NotificationBase, NotificationSeverity, NotificationTypes
 
@@ -53,7 +55,6 @@ class NotificationPusher(object):
     def push(
         self,
         db: mlrun.api.db.base.DBInterface = None,
-        db_session: sqlalchemy.orm.Session = None,
         local: bool = False,
     ):
         async def _push():
@@ -61,16 +62,18 @@ class NotificationPusher(object):
             for notification_data in self._notification_data:
                 tasks.append(
                     self._send_notification(
-                        self._load_notification(notification_data[1]),
+                        self._load_notification(*notification_data),
                         notification_data[0],
                         notification_data[1],
                         db,
-                        db_session,
                         local,
                     )
                 )
             await asyncio.gather(*tasks)
 
+        logger.debug(
+            "Pushing notifications", notifications_amount=len(self._notification_data)
+        )
         main_event_loop = asyncio.get_event_loop()
         if main_event_loop.is_running():
             asyncio.run_coroutine_threadsafe(_push(), main_event_loop)
@@ -93,16 +96,15 @@ class NotificationPusher(object):
         # if at least one condition is met, notify
         for when_state in when_states:
             if (
-                when_state == "success"
-                and run_state == "completed"
+                when_state == run_state == "completed"
                 and (not condition or ast.literal_eval(condition))
-            ) or (when_state == "failure" and run_state == "error"):
+            ) or when_state == run_state == "error":
                 return True
 
         return False
 
     def _load_notification(
-        self, notification: mlrun.model.Notification
+        self, run: mlrun.model.RunObject, notification: mlrun.model.Notification
     ) -> NotificationBase:
         params = notification.params or {}
         params_secret = params.get("secret", "")
@@ -112,13 +114,18 @@ class NotificationPusher(object):
                 raise mlrun.errors.MLRunRuntimeError(
                     "Not running in k8s environment, cannot load notification params secret"
                 )
-            params = k8s.load_secret(params_secret)
+            encoded_params = k8s.load_secret(params_secret)
+            params = {}
+            for key, value in encoded_params.items():
+                if isinstance(value, str):
+                    value = value.encode("utf-8")
+                params[key] = base64.decodebytes(value).decode("utf-8")
 
         name = notification.name
         notification_type = NotificationTypes(
             notification.kind or NotificationTypes.console
         )
-        notification_key = name or notification_type
+        notification_key = f"{run.metadata.uid}-{name or notification_type}"
         if notification_key not in self._notifications:
             self._notifications[
                 notification_key
@@ -126,6 +133,9 @@ class NotificationPusher(object):
         else:
             self._notifications[notification_key].load_notification(params)
 
+        logger.debug(
+            "Loaded notification", notification=self._notifications[notification_key]
+        )
         return self._notifications[notification_key]
 
     async def _send_notification(
@@ -134,11 +144,15 @@ class NotificationPusher(object):
         run: mlrun.model.RunObject,
         notification_model: mlrun.model.Notification,
         db: mlrun.api.db.base.DBInterface,
-        db_session: sqlalchemy.orm.Session,
         local: bool = False,
     ):
         message = self.messages.get(run.state(), "")
         severity = notification_model.severity or NotificationSeverity.INFO
+        logger.debug(
+            "Sending notification",
+            notification=notification_model.to_dict(),
+            run_uid=run.metadata.uid,
+        )
         try:
             if asyncio.iscoroutinefunction(notification.send):
                 await notification.send(message, severity, [run.to_dict()])
@@ -148,7 +162,6 @@ class NotificationPusher(object):
             if not local:
                 await self._update_notification_status(
                     db,
-                    db_session,
                     run.metadata.uid,
                     run.metadata.project,
                     notification_model,
@@ -159,7 +172,6 @@ class NotificationPusher(object):
             if not local:
                 await self._update_notification_status(
                     db,
-                    db_session,
                     run.metadata.uid,
                     run.metadata.project,
                     notification_model,
@@ -170,13 +182,13 @@ class NotificationPusher(object):
     @staticmethod
     async def _update_notification_status(
         db: mlrun.api.db.base.DBInterface,
-        db_session: sqlalchemy.orm.Session,
         run_uid: str,
         project: str,
         notification: mlrun.model.Notification,
         status: str = None,
         sent_time: datetime.datetime = None,
     ):
+        db_session = mlrun.api.db.session.create_session()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
         await run_in_threadpool(

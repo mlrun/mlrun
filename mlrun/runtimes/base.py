@@ -951,6 +951,9 @@ class BaseRuntime(ModelObj):
 
     def _save_or_fire_notifications(self, runobj: RunObject, local: bool = False):
         if not runobj.spec.notifications:
+            logger.debug(
+                "No notifications to send for run", run_uid=runobj.metadata.uid
+            )
             return
 
         # If the run is remote, and we are in the SDK, we let the api deal with the notifications

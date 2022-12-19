@@ -3101,7 +3101,7 @@ class SQLDB(DBInterface):
             name=notification_record.name,
             message=notification_record.message,
             severity=notification_record.severity,
-            when=notification_record.when,
+            when=notification_record.when.split(","),
             condition=notification_record.condition,
             params=notification_record.params,
             status=notification_record.status,
@@ -3500,10 +3500,12 @@ class SQLDB(DBInterface):
 
         notifications = []
         for notification_model in notification_models:
+            new_notification = False
             notification = self._get_notification(
-                session, run_uid, notification_model.name
+                session, run.id, notification_model.name
             )
             if not notification:
+                new_notification = True
                 notification = Notification(
                     name=notification_model.name, run=run.id, project=project
                 )
@@ -3527,6 +3529,12 @@ class SQLDB(DBInterface):
             else:
                 notification.params = notification_model.params
 
+            logger.debug(
+                f"Storing {'new' if new_notification else 'existing'} notification",
+                notification_name=notification.name,
+                run_uid=run_uid,
+                project=project,
+            )
             notifications.append(notification)
 
         self._upsert(session, notifications)

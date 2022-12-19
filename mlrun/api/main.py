@@ -347,10 +347,12 @@ def _cleanup_runtimes():
 def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
     runs = db.list_runs(
         db_session,
+        project="*",
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
         join_notifications=True,
     )
-    mlrun.utils.notifications.NotificationPusher(runs).push(db, db_session)
+    logger.debug("Checking for run notifications", runs_amount=len(runs))
+    mlrun.utils.notifications.NotificationPusher(runs).push(db)
 
 
 def main():

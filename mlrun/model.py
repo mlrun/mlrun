@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import pathlib
 import re
 import time
 import warnings
@@ -361,7 +362,8 @@ class ImageBuilder(ModelObj):
             source.endswith(".tar.gz")
             or source.endswith(".zip")
             or source.startswith("git://")
-            or path.isfile(source)
+            or source.startswith("v3io://")
+            or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

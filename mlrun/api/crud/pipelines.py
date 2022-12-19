@@ -69,7 +69,7 @@ class Pipelines(
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=page_size or mlrun.api.schemas.PipelinesPagination.max_page_size,
-                    filter=filter_  # if page_token == "" else "",
+                    filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
                 page_token = response.next_page_token

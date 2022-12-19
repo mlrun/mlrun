@@ -3516,7 +3516,9 @@ class SQLDB(DBInterface):
             notification.status = "pending"
 
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-            if k8s and "secret" not in notification.params:
+            if k8s and not (
+                notification_model.params and "secret" in notification_model.params
+            ):
                 # store params as secret
                 secret_name = f"notification-{run_uid}-{notification.name}"
                 secret_data = notification_model.params

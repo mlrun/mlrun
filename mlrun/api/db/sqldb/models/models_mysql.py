@@ -209,6 +209,12 @@ with warnings.catch_warnings():
         )
         params = Column("params", JSON)
         run = Column(Integer, ForeignKey("runs.id"))
+
+        # TODO: Separate table for notification state.
+        #   Currently, we are only supporting one notification being sent per DB row (either on completion or on error).
+        #   In the future, we might want to support multiple notifications per DB row, and we might want to support on
+        #   start, therefore we need to separate the state from the notification itself (e.g. this table can be  table
+        #   with notification_id, state, when, last_sent, etc.). This will require some refactoring in the code.
         sent_time = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             nullable=True,

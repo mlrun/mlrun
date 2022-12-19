@@ -301,6 +301,8 @@ The new behavior can be enabled using a feature flag configured in the API.
 | 1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | 1.0.0 |
 | 2637 | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | 1.1.0 |
 | 2407 | Kafka ingestion service on empty feature set returns an error. | Ingest a sample of the data manually, which creates the schema for the feature set and allow the ingestion service to accept new reocrds. | 1.1.0 |
+| 2972 | Column names cannot include a `.`                             | 1.0.0|
+\ 1584 \ Columns names cannot start with either `t_` or `aggr_`.                | 0.9|
 
 ## Limitations
 

@@ -15,6 +15,7 @@
 import inspect
 import re
 import time
+import typing
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
@@ -40,6 +41,7 @@ class ModelObj:
     _dict_fields = []
     _fields_to_strip = []
     _fields_to_exclude_for_serialization = []
+    _fields_to_exclude_for_enrichment = []
 
     @staticmethod
     def _verify_list(param, name):
@@ -73,32 +75,45 @@ class ModelObj:
         struct = {}
 
         fields = self._resolve_fields(fields)
-        fields_to_exclude = self._resolve_fields_to_exclude(exclude, strip)
-        resolved_fields = set(fields) - set(fields_to_exclude)
+        fields_to_exclude = exclude or []
+        if strip:
+            fields_to_exclude += self._fields_to_strip
 
-        for field in resolved_fields:
+        fields_to_save = (
+            set(fields)
+            - set(fields_to_exclude)
+            - set(self._fields_to_exclude_for_serialization)
+            - set(self._fields_to_exclude_for_enrichment)
+        )
+
+        for field in fields_to_save:
             field_value = getattr(self, field, None)
-            # no need to save None values and empty dicts
-            if field_value is not None and not (
-                isinstance(field_value, dict) and not field_value
-            ):
+            if self._is_valid_field_value(field_value):
                 if hasattr(field_value, "to_dict"):
                     field_value = field_value.to_dict(strip=strip)
-                    if field_value:
+                    if self._is_valid_field_value(field_value):
                         struct[field] = field_value
                 else:
                     struct[field] = field_value
 
+        # if field is in _fields_to_exclude_for_enrichment is also in the fields_to_exclude list, it means that the user
+        # explicitly excluded it from the serialization, so we won't enrich it.
+        fields_to_enrich = list(
+            set(self._fields_to_exclude_for_enrichment) - set(fields_to_exclude)
+        )
+        self._resolve_field_by_method(
+            struct, self._enrich_field, fields_to_enrich, strip
+        )
+
         # if field is in field_to_exclude_for_serialization is also in the fields_to_exclude list,
         # then no need to iterate over it
-        fields_to_serialize = set(self._fields_to_exclude_for_serialization) - set(
-            fields_to_exclude
+        fields_to_serialize = list(
+            set(self._fields_to_exclude_for_serialization) - set(fields_to_exclude)
         )
-        for field_to_serialize in fields_to_serialize:
-            if field_to_serialize not in fields_to_exclude:
-                struct[field_to_serialize] = self._serialize_field(
-                    field_name=field_to_serialize
-                )
+        self._resolve_field_by_method(
+            struct, self._serialize_field, fields_to_serialize, strip
+        )
+
         return struct
 
     def _resolve_fields(self, fields: list = None) -> list:
@@ -117,21 +132,57 @@ class ModelObj:
 
     def _resolve_fields_to_exclude(
         self, exclude: list = None, strip: bool = False
-    ) -> list:
+    ) -> (list, list):
         """
         Resolve fields to be excluded in to_dict method.
-        By default, will take the provided exclude list and append the fields_to_exclude_for_serialization
+        By default, will take the provided exclude list and append the _fields_to_exclude_for_serialization and
+        _fields_to_exclude_for_enrichment.
         If strip is True, will appends the object's `_fields_to_strip` attribute to the exclude list.
-        :param exclude:
-        :return:
+        :param exclude: List of fields to exclude.
+        :return: A tuple of two lists. The first list is the fields to exclude that user provided with enriched fields
+        if strip is True. The second list is the fields to exclude that are class specific and are excluded from
+        the to_dict method and then used afterwards with specific enrichment / serialization.
         """
         fields_to_exclude = exclude or []
         if strip:
             fields_to_exclude += self._fields_to_strip
-        fields_to_exclude += self._fields_to_exclude_for_serialization
-        return fields_to_exclude
 
-    def _serialize_field(self, field_name: str = None):
+        fields_to_exclude_for_class_enrichments = []
+        fields_to_exclude_for_class_enrichments += (
+            self._fields_to_exclude_for_serialization
+        )
+        fields_to_exclude_for_class_enrichments += (
+            self._fields_to_exclude_for_enrichment
+        )
+        return fields_to_exclude, fields_to_exclude_for_class_enrichments
+
+    def _is_valid_field_value(self, field_value) -> bool:
+        """
+        no need to save None values and empty dicts
+        """
+        return field_value is not None and not (
+            isinstance(field_value, dict) and not field_value
+        )
+
+    def _resolve_field_by_method(
+        self,
+        struct: dict,
+        method: typing.Callable,
+        fields: typing.Union[list, set] = None,
+        strip: bool = False,
+    ) -> dict:
+        for field_name in fields:
+            field_value = method(field_name, strip=strip)
+            if self._is_valid_field_value(field_value):
+                struct[field_name] = field_value
+        return struct
+
+    def _serialize_field(
+        self, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        return getattr(self, field_name, None)
+
+    def _enrich_field(self, field_name: str = None, strip: bool = False) -> typing.Any:
         return getattr(self, field_name, None)
 
     @classmethod
@@ -599,7 +650,7 @@ class RunSpec(ModelObj):
             struct["handler"] = self.handler
         return struct
 
-    def _serialize_field(self, field_name: str = None) -> str:
+    def _serialize_field(self, field_name: str = None, strip: bool = False) -> str:
         if field_name == "handler":
             if self.handler and isinstance(self.handler, str):
                 return self.handler

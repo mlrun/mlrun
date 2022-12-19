@@ -130,6 +130,12 @@ class KubeResourceSpec(FunctionSpec):
         FunctionSpec._fields_to_exclude_for_serialization
         + copy.copy(_fields_to_exclude_for_k8s_serialization)
     )
+    _fields_to_exclude_for_enrichment = (
+        FunctionSpec._fields_to_exclude_for_enrichment
+        + [
+            "env",
+        ]
+    )
 
     def __init__(
         self,
@@ -273,11 +279,25 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    def _serialize_field(self, field_name: str = None) -> str:
+    def _serialize_field(
+        self, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
         api = k8s_client.ApiClient()
         if field_name in self._fields_to_exclude_for_k8s_serialization:
             return api.sanitize_for_serialization(getattr(self, field_name))
         return super()._serialize_field(field_name)
+
+    def _enrich_field(self, field_name: str = None, strip: bool = False) -> typing.Any:
+        k8s_api = k8s_client.ApiClient()
+        if strip:
+            if field_name == "env" and getattr(self, field_name):
+                envs = getattr(self, field_name)
+                serialized_envs = k8s_api.sanitize_for_serialization(envs)
+                for env in serialized_envs:
+                    if env["name"].startswith("V3IO_"):
+                        env["value"] = ""
+                return serialized_envs
+        return super()._enrich_field(field_name, strip)
 
     def update_vols_and_mounts(
         self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"

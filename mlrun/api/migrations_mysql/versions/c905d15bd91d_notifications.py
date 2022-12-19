@@ -50,7 +50,9 @@ def upgrade():
         sa.Column("params", sa.JSON(), nullable=True),
         sa.Column("run", sa.Integer(), nullable=True),
         sa.Column("sent_time", sa.TIMESTAMP(), nullable=True),
-        sa.Column("status", sa.String(length=255, collation="utf8_bin"), nullable=False),
+        sa.Column(
+            "status", sa.String(length=255, collation="utf8_bin"), nullable=False
+        ),
         sa.ForeignKeyConstraint(
             ["run"],
             ["runs.id"],

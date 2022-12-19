@@ -350,7 +350,7 @@ def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
         join_notifications=True,
     )
-    mlrun.utils.notifications.NotificationPusher(runs).push()
+    mlrun.utils.notifications.NotificationPusher(runs).push(db, db_session)
 
 
 def main():

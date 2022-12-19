@@ -19,6 +19,7 @@ import os
 import typing
 
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.db.base
 import mlrun.api.utils.singletons.k8s
@@ -51,8 +52,8 @@ class NotificationPusher(object):
 
     def push(
         self,
-        db: mlrun.api.db.base.DBInterface,
-        db_session: sqlalchemy.orm.Session,
+        db: mlrun.api.db.base.DBInterface = None,
+        db_session: sqlalchemy.orm.Session = None,
         local: bool = False,
     ):
         async def _push():
@@ -137,7 +138,7 @@ class NotificationPusher(object):
         local: bool = False,
     ):
         message = self.messages.get(run.state(), "")
-        severity = notification.severity or NotificationSeverity.INFO
+        severity = notification_model.severity or NotificationSeverity.INFO
         try:
             if asyncio.iscoroutinefunction(notification.send):
                 await notification.send(message, severity, [run.to_dict()])
@@ -145,7 +146,7 @@ class NotificationPusher(object):
                 notification.send(message, severity, [run.to_dict()])
 
             if not local:
-                self._update_notification_status(
+                await self._update_notification_status(
                     db,
                     db_session,
                     run.metadata.uid,
@@ -156,7 +157,7 @@ class NotificationPusher(object):
                 )
         except Exception as exc:
             if not local:
-                self._update_notification_status(
+                await self._update_notification_status(
                     db,
                     db_session,
                     run.metadata.uid,
@@ -166,8 +167,8 @@ class NotificationPusher(object):
                 )
             raise exc
 
-    def _update_notification_status(
-        self,
+    @staticmethod
+    async def _update_notification_status(
         db: mlrun.api.db.base.DBInterface,
         db_session: sqlalchemy.orm.Session,
         run_uid: str,
@@ -178,7 +179,8 @@ class NotificationPusher(object):
     ):
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
-        db.store_notifications(
+        await run_in_threadpool(
+            db.store_notifications,
             db_session,
             [notification],
             run_uid,

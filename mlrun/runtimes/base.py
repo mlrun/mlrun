@@ -960,7 +960,7 @@ class BaseRuntime(ModelObj):
 
             # If the run is local, we can assume that watch=True, therefore this code runs
             # once the run is completed, and we can just fire the notifications.
-            mlrun.utils.notifications.NotificationPusher([runobj]).push()
+            mlrun.utils.notifications.NotificationPusher([runobj]).push(local=True)
 
         elif self._is_api_server:
 

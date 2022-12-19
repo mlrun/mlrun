@@ -113,7 +113,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         mlrun.get_or_create_project(self.project_name, self.results_path)
 
         function = mlrun.code_to_function(
-            name="function-handler-with-args",
+            name="function-with-args",
             kind="job",
             handler="handler",
             project=self.project_name,
@@ -173,7 +173,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             project=self.project_name,
             image="mlrun/mlrun",
             source=art.get_target_path(),
-            command="function_with_args.py",
+            command="my_code_artifact.py --another-one 123",
         )
 
         args = ["--some-arg", "val-with-artifact"]
@@ -181,8 +181,11 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         function.deploy()
         run = function.run()
         assert run.status.results["some-arg-by-main"] == args[1]
+        assert run.status.results["another-one"] == "123"
         assert run.status.results["my-args"] == [
             "my_code_artifact.py",
+            "--another-one",
+            "123",
             "--some-arg",
             "val-with-artifact",
         ]

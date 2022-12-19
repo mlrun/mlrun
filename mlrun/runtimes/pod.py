@@ -203,7 +203,6 @@ class KubeResourceSpec(FunctionSpec):
         self.security_context = (
             security_context or mlrun.mlconf.get_default_function_security_context()
         )
-        self._k8s_api_client = None
 
     @property
     def volumes(self) -> list:
@@ -274,15 +273,10 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    @property
-    def _k8s_api(self):
-        if self._k8s_api_client is None:
-            self._k8s_api_client = k8s_client.ApiClient()
-        return self._k8s_api_client
-
     def _serialize_field(self, field_name: str = None) -> str:
+        api = k8s_client.ApiClient()
         if field_name in self._fields_to_exclude_for_k8s_serialization:
-            return self._k8s_api.sanitize_for_serialization(getattr(self, field_name))
+            return api.sanitize_for_serialization(getattr(self, field_name))
         return super()._serialize_field(field_name)
 
     def update_vols_and_mounts(
@@ -914,7 +908,8 @@ class KubeResource(BaseRuntime):
 
     def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
         struct = super().to_dict(fields, exclude, strip=strip)
-        struct = self.spec._k8s_api.sanitize_for_serialization(struct)
+        api = k8s_client.ApiClient()
+        struct = api.sanitize_for_serialization(struct)
         if strip:
             spec = struct["spec"]
             if "env" in spec and spec["env"]:

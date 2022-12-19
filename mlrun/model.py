@@ -67,6 +67,7 @@ class ModelObj:
         convert the object to a dict
         :param fields:  A list of fields to include in the dictionary. If not provided, the default value is taken
         from `self._dict_fields` or from the object __init__ params.
+        First we run over the fields and serialize them, then we run over the fields and enrich them.
         :param exclude: A list of fields to exclude from the dictionary. If not provided, the default value is an
          empty list and the object's `_fields_to_exclude_for_serialization` attribute is appended to it.
         :param strip:  If True, the object's `_fields_to_strip` attribute is appended to the exclude list.
@@ -96,15 +97,6 @@ class ModelObj:
                 else:
                     struct[field] = field_value
 
-        # if field is in _fields_to_exclude_for_enrichment is also in the fields_to_exclude list, it means that the user
-        # explicitly excluded it from the serialization, so we won't enrich it.
-        fields_to_enrich = list(
-            set(self._fields_to_exclude_for_enrichment) - set(fields_to_exclude)
-        )
-        self._resolve_field_by_method(
-            struct, self._enrich_field, fields_to_enrich, strip
-        )
-
         # if field is in field_to_exclude_for_serialization is also in the fields_to_exclude list,
         # then no need to iterate over it
         fields_to_serialize = list(
@@ -114,6 +106,16 @@ class ModelObj:
             struct, self._serialize_field, fields_to_serialize, strip
         )
 
+        # if field is in _fields_to_exclude_for_enrichment is also in the fields_to_exclude list, it means that the user
+        # explicitly excluded it from the serialization, so we won't enrich it.
+        fields_to_enrich = list(
+            set(self._fields_to_exclude_for_enrichment) - set(fields_to_exclude)
+        )
+        self._resolve_field_by_method(
+            struct, self._enrich_field, fields_to_enrich, strip
+        )
+
+        self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
         return struct
 
     def _resolve_fields(self, fields: list = None) -> list:
@@ -147,18 +149,27 @@ class ModelObj:
         strip: bool = False,
     ) -> dict:
         for field_name in fields:
-            field_value = method(field_name, strip=strip)
+            field_value = method(struct=struct, field_name=field_name, strip=strip)
             if self._is_valid_field_value(field_value):
                 struct[field_name] = field_value
         return struct
 
     def _serialize_field(
-        self, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: str = None, strip: bool = False
     ) -> typing.Any:
+        # we pull the field from self and not from struct because it was excluded from the struct
         return getattr(self, field_name, None)
 
-    def _enrich_field(self, field_name: str = None, strip: bool = False) -> typing.Any:
-        return getattr(self, field_name, None)
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        # we first try to pull from struct because the field might been already serialized and if not, we pull from self
+        return struct.get(field_name, None) or getattr(self, field_name, None)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ) -> dict:
+        return struct
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
@@ -625,12 +636,15 @@ class RunSpec(ModelObj):
             struct["handler"] = self.handler
         return struct
 
-    def _serialize_field(self, field_name: str = None, strip: bool = False) -> str:
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> str:
+        # we pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":
             if self.handler and isinstance(self.handler, str):
                 return self.handler
             return None
-        return super()._serialize_field(field_name)
+        return super()._serialize_field(struct, field_name, strip)
 
     def is_hyper_job(self):
         param_file = self.param_file or self.hyper_param_options.param_file

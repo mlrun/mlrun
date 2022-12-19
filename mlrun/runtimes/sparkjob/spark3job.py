@@ -59,6 +59,8 @@ class Spark3JobSpec(AbstractSparkJobSpec):
     _fields_to_exclude_for_k8s_serialization = (
         AbstractSparkJobSpec._fields_to_exclude_for_k8s_serialization
         + [
+            "driver_volume_mounts",
+            "executor_volume_mounts",
             "driver_node_selector",
             "executor_node_selector",
             "executor_affinity",

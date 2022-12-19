@@ -40,17 +40,53 @@ def context():
 
 def test_sync_functions():
     project_name = "project-name"
+    project_name1 = "project-name1"
     project = mlrun.new_project(project_name, save=False)
+    project1 = mlrun.new_project(project_name1, save=False)
     project.set_function("hub://describe", "describe")
+    describe_func = mlrun.import_function("hub://describe")
+    project1.set_function(describe_func, "describe")
     project_function_object = project.spec._function_objects
+    project1_file_path = pathlib.Path(tests.conftest.results) / "project1.yaml"
     project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    print(project1.spec.functions)
     project.export(str(project_file_path))
+    project1.export(str(project1_file_path))
     imported_project = mlrun.load_project("./", str(project_file_path), save=False)
     assert imported_project.spec._function_objects == {}
     imported_project.sync_functions()
     _assert_project_function_objects(imported_project, project_function_object)
 
     fn = project.get_function("describe")
+    # print(fn.to_yaml())
+    assert fn.metadata.name == "describe", "func did not return"
+
+    # test that functions can be fetched from the DB (w/o set_function)
+    mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+    fn = project.get_function("train")
+    assert fn.metadata.name == "train", "train func did not return"
+
+
+def test_sync_functions_1():
+    project_name = "project-name"
+    project_name1 = "project-name1"
+    project = mlrun.new_project(project_name, save=False)
+    project1 = mlrun.new_project(project_name1, save=False)
+    project.set_function("hub://describe", "describe")
+    describe_func = mlrun.import_function("hub://describe")
+    project.set_function(describe_func, "describe")
+    project_function_object = project.spec._function_objects
+    project1_file_path = pathlib.Path(tests.conftest.results) / "project1.yaml"
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    project.export(str(project_file_path))
+    project1.export(str(project1_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert imported_project.spec._function_objects == {}
+    imported_project.sync_functions()
+    _assert_project_function_objects(imported_project, project_function_object)
+
+    fn = project.get_function("describe")
+    # print(fn.to_yaml())
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)

@@ -193,6 +193,34 @@ def test_resource_enrichment_in_resource_spec_initialization():
     )
 
 
+def test_to_dict():
+    volume_mount = kubernetes.client.V1VolumeMount(
+        mount_path="some-path", name="volume-name"
+    )
+    function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
+    # for sanitization
+    function.spec.volume_mounts = [volume_mount]
+    # for enrichment
+    function.set_env(name="V3IO_ACCESS_KEY", value="123")
+    # for apply enrichment before to_dict completion
+    function.spec.disable_auto_mount = True
+
+    function_dict = function.to_dict()
+    assert function_dict["spec"]["volume_mounts"][0]["mountPath"] == "some-path"
+    assert function_dict["spec"]["env"][0]["name"] == "V3IO_ACCESS_KEY"
+    assert function_dict["spec"]["env"][0]["value"] == "123"
+    assert function_dict["spec"]["disable_auto_mount"] is True
+
+    stripped_function_dict = function.to_dict(strip=True)
+    assert "volume_mounts" not in stripped_function_dict["spec"]
+    assert stripped_function_dict["spec"]["env"][0]["name"] == "V3IO_ACCESS_KEY"
+    assert stripped_function_dict["spec"]["env"][0]["value"] == ""
+    assert stripped_function_dict["spec"]["disable_auto_mount"] is False
+
+    excluded_function_dict = function.to_dict(exclude=["spec"])
+    assert "spec" not in excluded_function_dict
+
+
 def test_volume_mounts_addition():
     volume_mount = kubernetes.client.V1VolumeMount(
         mount_path="some-path", name="volume-name"

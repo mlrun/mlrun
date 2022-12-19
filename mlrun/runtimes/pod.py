@@ -122,6 +122,15 @@ class KubeResourceSpec(FunctionSpec):
         "security_context",
     ]
     _fields_to_exclude_for_k8s_serialization = [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "env",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
         "affinity",
         "tolerations",
         "security_context",
@@ -280,24 +289,38 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     def _serialize_field(
-        self, field_name: str = None, strip: bool = False
+        self, struct: dict, field_name: str = None, strip: bool = False
     ) -> typing.Any:
-        api = k8s_client.ApiClient()
+        # we pull the field from self and not from struct because it was excluded from the struct
         if field_name in self._fields_to_exclude_for_k8s_serialization:
-            return api.sanitize_for_serialization(getattr(self, field_name))
-        return super()._serialize_field(field_name)
+            k8s_api = k8s_client.ApiClient()
+            return k8s_api.sanitize_for_serialization(getattr(self, field_name))
+        return super()._serialize_field(struct, field_name, strip)
 
-    def _enrich_field(self, field_name: str = None, strip: bool = False) -> typing.Any:
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
         k8s_api = k8s_client.ApiClient()
         if strip:
-            if field_name == "env" and getattr(self, field_name):
-                envs = getattr(self, field_name)
-                serialized_envs = k8s_api.sanitize_for_serialization(envs)
-                for env in serialized_envs:
-                    if env["name"].startswith("V3IO_"):
-                        env["value"] = ""
-                return serialized_envs
-        return super()._enrich_field(field_name, strip)
+            if field_name == "env":
+                # we first try to pull from struct because the field might been already serialized and if not,
+                # we pull from self
+                envs = struct.get(field_name, None) or getattr(self, field_name, None)
+                if envs:
+                    serialized_envs = k8s_api.sanitize_for_serialization(envs)
+                    for env in serialized_envs:
+                        if env["name"].startswith("V3IO_"):
+                            env["value"] = ""
+                    return serialized_envs
+        return super()._enrich_field(struct=struct, field_name=field_name, strip=strip)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ):
+        if strip:
+            # Reset this, since mounts and env variables were cleared.
+            struct["disable_auto_mount"] = False
+        return super()._apply_enrichment_before_to_dict_completion(struct, strip)
 
     def update_vols_and_mounts(
         self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
@@ -926,19 +949,19 @@ class KubeResource(BaseRuntime):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
 
-    def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
-        struct = super().to_dict(fields, exclude, strip=strip)
-        api = k8s_client.ApiClient()
-        struct = api.sanitize_for_serialization(struct)
-        if strip:
-            spec = struct["spec"]
-            if "env" in spec and spec["env"]:
-                for ev in spec["env"]:
-                    if ev["name"].startswith("V3IO_"):
-                        ev["value"] = ""
-            # Reset this, since mounts and env variables were cleared.
-            spec["disable_auto_mount"] = False
-        return struct
+    # def to_dict(self, fields: list = None, exclude: list = None, strip: bool = False):
+    #     struct = super().to_dict(fields, exclude, strip=strip)
+    #     api = k8s_client.ApiClient()
+    #     struct = api.sanitize_for_serialization(struct)
+    #     if strip:
+    #         spec = struct["spec"]
+    #         if "env" in spec and spec["env"]:
+    #             for ev in spec["env"]:
+    #                 if ev["name"].startswith("V3IO_"):
+    #                     ev["value"] = ""
+    #         # Reset this, since mounts and env variables were cleared.
+    #         spec["disable_auto_mount"] = False
+    #     return struct
 
     def apply(self, modify):
         """

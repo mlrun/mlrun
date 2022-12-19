@@ -13,6 +13,7 @@
 # limitations under the License.
 import json
 import os
+import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
@@ -131,33 +132,31 @@ class CSVSource(BaseSourceDriver):
         parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
-        self._parse_dates = parse_dates
-
-    def to_step(self, key_field=None, time_field=None, context=None):
-        import storey
-
-        # give priority to source time_field over feature set
-        # this only matters for augmenting the parse_dates and is only here for backward compatibility
-        if self.time_field:
-            time_field = self.time_field
-
-        attributes = self.attributes or {}
-        if context:
-            attributes["context"] = context
-        parse_dates = self._parse_dates
         if time_field is not None:
+            warnings.warn(
+                "CSVSource's time_field parameter is deprecated, use parse_dates instead",
+                PendingDeprecationWarning,
+            )
             if parse_dates is None:
                 parse_dates = [time_field]
             elif time_field not in parse_dates:
                 parse_dates = copy(parse_dates)
                 parse_dates.append(time_field)
+        self._parse_dates = parse_dates
+
+    def to_step(self, key_field=None, time_field=None, context=None):
+        import storey
+
+        attributes = self.attributes or {}
+        if context:
+            attributes["context"] = context
         return storey.CSVSource(
             paths=self.path,
             header=True,
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=self._get_store().get_storage_options(),
-            parse_dates=parse_dates,
+            parse_dates=self._parse_dates,
             **attributes,
         )
 
@@ -275,10 +274,6 @@ class ParquetSource(BaseSourceDriver):
     ):
         import storey
 
-        # give priority to source time_field over the feature set's timestamp_key
-        if self.time_field:
-            time_field = self.time_field
-
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
@@ -288,7 +283,7 @@ class ParquetSource(BaseSourceDriver):
             storage_options=self._get_store().get_storage_options(),
             end_filter=self.end_time,
             start_filter=self.start_time,
-            filter_column=time_field,
+            filter_column=self.time_field or time_field,
             **attributes,
         )
 
@@ -626,6 +621,12 @@ class DataFrameSource:
     def __init__(
         self, df, key_field=None, time_field=None, context=None, iterator=False
     ):
+        if time_field:
+            warnings.warn(
+                "DataFrameSource's time_field parameter is deprecated and has no effect",
+                PendingDeprecationWarning,
+            )
+
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]

@@ -43,7 +43,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "driver_cores",
         "executor_cores",
     ]
-    _fields_to_strip = AbstractSparkJobSpec._fields_to_strip + [
+    _default_fields_to_strip = AbstractSparkJobSpec._default_fields_to_strip + [
         "driver_node_selector",
         "executor_node_selector",
         "driver_tolerations",
@@ -55,22 +55,18 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         "driver_cores",
         "executor_cores",
     ]
-    _fields_to_exclude_for_k8s_serialization = (
-        AbstractSparkJobSpec._fields_to_exclude_for_k8s_serialization
-        + [
-            "driver_volume_mounts",
-            "executor_volume_mounts",
-            "driver_node_selector",
-            "executor_node_selector",
-            "executor_affinity",
-            "executor_tolerations",
-            "driver_affinity",
-            "driver_tolerations",
-        ]
-    )
-    _fields_to_exclude_for_serialization = (
-        AbstractSparkJobSpec._fields_to_exclude_for_serialization
-        + _fields_to_exclude_for_k8s_serialization
+    _k8s_fields_to_serialize = AbstractSparkJobSpec._k8s_fields_to_serialize + [
+        "driver_volume_mounts",
+        "executor_volume_mounts",
+        "driver_node_selector",
+        "executor_node_selector",
+        "executor_affinity",
+        "executor_tolerations",
+        "driver_affinity",
+        "driver_tolerations",
+    ]
+    _fields_to_serialize = (
+        AbstractSparkJobSpec._fields_to_serialize + _k8s_fields_to_serialize
     )
 
     def __init__(

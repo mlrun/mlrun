@@ -104,7 +104,7 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
     ]
-    _fields_to_strip = FunctionSpec._fields_to_strip + [
+    _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
         "volume_mounts",
         "resources",
@@ -120,7 +120,7 @@ class KubeResourceSpec(FunctionSpec):
         "preemption_mode",
         "security_context",
     ]
-    _fields_to_exclude_for_k8s_serialization = [
+    _k8s_fields_to_serialize = [
         "volumes",
         "volume_mounts",
         "resources",
@@ -134,16 +134,10 @@ class KubeResourceSpec(FunctionSpec):
         "tolerations",
         "security_context",
     ]
-    _fields_to_exclude_for_serialization = (
-        FunctionSpec._fields_to_exclude_for_serialization
-        + _fields_to_exclude_for_k8s_serialization
-    )
-    _fields_to_exclude_for_enrichment = (
-        FunctionSpec._fields_to_exclude_for_enrichment
-        + [
-            "env",
-        ]
-    )
+    _fields_to_serialize = FunctionSpec._fields_to_serialize + _k8s_fields_to_serialize
+    _fields_to_enrich = FunctionSpec._fields_to_enrich + [
+        "env",  # removing sensitive data from env
+    ]
 
     def __init__(
         self,
@@ -290,9 +284,12 @@ class KubeResourceSpec(FunctionSpec):
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
     ) -> typing.Any:
-        # we pull the field from self and not from struct because it was excluded from the struct
-        if field_name in self._fields_to_exclude_for_k8s_serialization:
-            k8s_api = k8s_client.ApiClient()
+        """
+        Serialize a field to a dict, list, or primitive type.
+        If field_name is in _k8s_fields_to_serialize, we will apply k8s serialization
+        """
+        k8s_api = k8s_client.ApiClient()
+        if field_name in self._k8s_fields_to_serialize:
             return k8s_api.sanitize_for_serialization(getattr(self, field_name))
         return super()._serialize_field(struct, field_name, strip)
 

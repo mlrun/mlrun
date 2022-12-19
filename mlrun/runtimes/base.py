@@ -96,7 +96,7 @@ class FunctionStatus(ModelObj):
 
 class FunctionSpec(ModelObj):
     _dict_fields = spec_fields
-    _fields_to_strip = []
+    _default_fields_to_strip = []
 
     def __init__(
         self,
@@ -150,7 +150,10 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _is_remote = False
     _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
-    _fields_to_strip = ModelObj._fields_to_strip + ["status"]
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + [
+        "status",  # when stripping, we don't want to leave the status in the function as it describes the state rather
+        # than configuration
+    ]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None

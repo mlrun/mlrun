@@ -227,6 +227,11 @@ def test_ensemble_get_metadata_of_models():
     expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
 
+    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/m1")
+    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
 
 def test_ensemble_infer():
     def run_model(url, expected):

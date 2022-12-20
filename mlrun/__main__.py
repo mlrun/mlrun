@@ -1065,8 +1065,8 @@ def project(
         try:
             try:
                 proj.run(
-                    run,
-                    workflow_path,
+                    name=run,
+                    workflow_path=workflow_path,
                     arguments=args,
                     artifact_path=artifact_path,
                     namespace=namespace,

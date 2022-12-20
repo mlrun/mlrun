@@ -394,10 +394,36 @@ def enrich_function_object(
     return f
 
 
+def set_source_if_remote(project, workflow_spec: WorkflowSpec, source: str):
+    """
+    Setting source to the project for making sure that the code in the jobs is up to date.
+    :param project:         project object (mlrun.projects.MlrunProject)
+    :param workflow_spec:   the relevant workflow of the project to run
+    :param source:          the source that contains the project
+    """
+    if source and not workflow_spec.run_local:
+        logger.info(f"Setting project source: {source}")
+        project.set_source(source)
+
+
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, project, workflow=None, state=""):
+    def __init__(
+        self,
+        run_id: str,
+        engine: "_PipelineRunner",
+        project: "mlrun.projects.MlrunProject",
+        workflow: WorkflowSpec = None,
+        state: str = "",
+    ):
+        """
+        :param run_id:      unique id of the pipeline run
+        :param engine:      pipeline runner
+        :param project:     mlrun project
+        :param workflow:    workflow with spec on how to run the pipeline
+        :param state:       the current state of the pipeline run
+        """
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
@@ -529,8 +555,9 @@ class _KFPRunner(_PipelineRunner):
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
+
         if source and not workflow_spec.run_local:
-            logger.info(f"setting project source: {source}")
+            logger.info(f"Setting project source: {source}")
             project.set_source(source)
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -647,7 +674,7 @@ class _LocalRunner(_PipelineRunner):
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
         if source and not workflow_spec.run_local:
-            logger.info(f"setting project source: {source}")
+            logger.info(f"Setting project source: {source}")
             project.set_source(source)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
@@ -698,44 +725,56 @@ class _RemoteRunner(_PipelineRunner):
 
     @staticmethod
     def _prepare_load_and_run_function(
-        source,
-        project_name,
-        save,
-        workflow_name,
-        workflow_spec,
-        artifact_path,
-        workflow_handler,
-        namespace,
-    ):
+        source: str,
+        project_name: str,
+        save: bool,
+        workflow_name: str,
+        workflow_spec: WorkflowSpec,
+        artifact_path: str,
+        workflow_handler: str,
+        namespace: str,
+    ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, mlrun.RunObject]:
+        """
+        Helper function for creating the runspec of the load and run function.
+        For internal use only.
+        :param source:              The source of the project.
+        :param project_name:        project name
+        :param save:                either to save the project in the DB
+        :param workflow_name:       workflow name
+        :param workflow_spec:       workflow to run
+        :param artifact_path:       path to store artifacts
+        :param workflow_handler:    workflow function handler (for running workflow function directly)
+        :param namespace:           kubernetes namespace if other than default
+        :return:
+        """
         # Creating the load project and workflow running function:
         load_and_run_fn = mlrun.new_function(
-            name=f"workflow-runner-{workflow_name}",
+            name=mlrun.mlconf.default_workflow_runner_name.format(workflow_name),
             project=project_name,
             kind="job",
             image=mlrun.mlconf.default_base_image,
         )
-        runspec = mlrun.RunObject.from_dict(
-            {
-                "spec": {
-                    "parameters": {
-                        "url": source,
-                        "project_name": project_name,
-                        "save": save,
-                        "workflow_name": workflow_name or workflow_spec.name,
-                        "workflow_path": workflow_spec.path,
-                        "workflow_arguments": workflow_spec.args,
-                        "artifact_path": artifact_path,
-                        "workflow_handler": workflow_handler or workflow_spec.handler,
-                        "namespace": namespace,
-                        "ttl": workflow_spec.ttl,
-                        "engine": workflow_spec.engine,
-                        "local": workflow_spec.run_local,
-                    },
-                    "handler": "mlrun.projects.load_and_run",
+        runspec = mlrun.RunObject(
+            spec=mlrun.model.RunSpec(
+                parameters={
+                    "url": source,
+                    "project_name": project_name,
+                    "save": save,
+                    "workflow_name": workflow_name or workflow_spec.name,
+                    "workflow_path": workflow_spec.path,
+                    "workflow_arguments": workflow_spec.args,
+                    "artifact_path": artifact_path,
+                    "workflow_handler": workflow_handler or workflow_spec.handler,
+                    "namespace": namespace,
+                    "ttl": workflow_spec.ttl,
+                    "engine": workflow_spec.engine,
+                    "local": workflow_spec.run_local,
                 },
-                "metadata": {"name": workflow_name},
-            }
+                handler="mlrun.projects.load_and_run",
+            ),
+            metadata=mlrun.model.RunMetadata(name=workflow_name),
         )
+
         runspec = runspec.set_label("job-type", "workflow-runner").set_label(
             "workflow", workflow_name
         )
@@ -807,11 +846,11 @@ class _RemoteRunner(_PipelineRunner):
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
         inner_engine = get_workflow_engine(workflow_spec.engine)
 
-        msg = "executing workflow "
+        msg = "executing workflow"
         if workflow_spec.schedule:
-            msg += "scheduling "
+            msg += " scheduling"
         logger.info(
-            f"{msg}'{load_and_run_fn.metadata.name}' remotely with {workflow_spec.engine} engine"
+            f"{msg} '{load_and_run_fn.metadata.name}' remotely with {workflow_spec.engine} engine"
         )
 
         try:

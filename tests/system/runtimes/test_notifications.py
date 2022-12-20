@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import datetime
-
 import mlrun
 import tests.system.base
 
@@ -24,7 +22,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
     project_name = "notifications-test"
 
     def test_run_notifications(self):
-        error_notification_name = "slack-shoul-fail"
+        error_notification_name = "slack-should-fail"
         success_notification_name = "console-should-succeed"
 
         def _assert_notifications():

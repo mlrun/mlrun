@@ -3565,10 +3565,10 @@ class SQLDB(DBInterface):
     def delete_notifications(
         self,
         session,
-        name: str=None,
-        run_uid: str=None,
-        project: str=None,
-        commit:bool=True,
+        name: str = None,
+        run_uid: str = None,
+        project: str = None,
+        commit: bool = True,
     ):
         run_id = None
         if run_uid:

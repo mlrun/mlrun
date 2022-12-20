@@ -26,6 +26,12 @@ class NotificationSeverity(enum.Enum):
     ERROR = "error"
 
 
+class NotificationStatus(enum.Enum):
+    PENDING = "pending"
+    SENT = "sent"
+    ERROR = "error"
+
+
 class NotificationBase:
     def __init__(
         self,

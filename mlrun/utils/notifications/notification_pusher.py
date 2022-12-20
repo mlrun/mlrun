@@ -29,7 +29,12 @@ import mlrun.model
 import mlrun.utils.helpers
 from mlrun.utils import logger
 
-from .notification import NotificationBase, NotificationSeverity, NotificationTypes
+from .notification import (
+    NotificationBase,
+    NotificationSeverity,
+    NotificationStatus,
+    NotificationTypes,
+)
 
 
 class NotificationPusher(object):
@@ -90,7 +95,7 @@ class NotificationPusher(object):
         run_state = run.state()
 
         # if the notification isn't pending, don't send it
-        if notification.status != "pending":
+        if notification.status and notification.status != NotificationStatus.PENDING:
             return False
 
         # if at least one condition is met, notify
@@ -165,8 +170,8 @@ class NotificationPusher(object):
                     run.metadata.uid,
                     run.metadata.project,
                     notification_model,
-                    status="sent",
-                    sent_time=datetime.datetime.now(),
+                    status=NotificationStatus.SENT.value,
+                    sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
         except Exception as exc:
             if not local:
@@ -175,7 +180,7 @@ class NotificationPusher(object):
                     run.metadata.uid,
                     run.metadata.project,
                     notification_model,
-                    status="error",
+                    status=NotificationStatus.ERROR.value,
                 )
             raise exc
 

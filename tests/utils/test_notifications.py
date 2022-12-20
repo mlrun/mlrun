@@ -24,26 +24,44 @@ import mlrun.utils.notifications
 
 
 @pytest.mark.parametrize(
-    "when,condition,run_state,expected",
+    "when,condition,run_state,notification_previously_sent,expected",
     [
-        (["success"], "", "completed", True),
-        (["success"], "", "error", False),
-        (["success"], "True", "completed", True),
-        (["success"], "False", "completed", False),
-        (["failure"], "", "completed", False),
-        (["failure"], "", "error", True),
-        (["success", "failure"], "", "completed", True),
-        (["success", "failure"], "", "error", True),
-        (["success", "failure"], "True", "completed", True),
-        (["success", "failure"], "True", "error", True),
-        (["success", "failure"], "False", "completed", False),
-        (["success", "failure"], "False", "error", True),
+        (["completed"], "", "completed", False, True),
+        (["completed"], "", "completed", True, False),
+        (["completed"], "", "error", False, False),
+        (["completed"], "", "error", True, False),
+        (["completed"], "True", "completed", False, True),
+        (["completed"], "True", "completed", True, False),
+        (["completed"], "False", "completed", False, False),
+        (["completed"], "False", "completed", True, False),
+        (["error"], "", "completed", False, False),
+        (["error"], "", "completed", True, False),
+        (["error"], "", "error", False, True),
+        (["error"], "", "error", True, False),
+        (["completed", "error"], "", "completed", False, True),
+        (["completed", "error"], "", "completed", True, False),
+        (["completed", "error"], "", "error", False, True),
+        (["completed", "error"], "", "error", True, False),
+        (["completed", "error"], "True", "completed", False, True),
+        (["completed", "error"], "True", "completed", True, False),
+        (["completed", "error"], "True", "error", False, True),
+        (["completed", "error"], "True", "error", True, False),
+        (["completed", "error"], "False", "completed", False, False),
+        (["completed", "error"], "False", "completed", True, False),
+        (["completed", "error"], "False", "error", False, True),
+        (["completed", "error"], "False", "error", True, False),
     ],
 )
-def test_notification_should_notify(when, condition, run_state, expected):
+def test_notification_should_notify(
+    when, condition, run_state, notification_previously_sent, expected
+):
     run = mlrun.model.RunObject.from_dict({"status": {"state": run_state}})
     notification = mlrun.model.Notification.from_dict(
-        {"when": when, "condition": condition, "status": "pending"}
+        {
+            "when": when,
+            "condition": condition,
+            "status": "pending" if not notification_previously_sent else "sent",
+        }
     )
 
     assert (

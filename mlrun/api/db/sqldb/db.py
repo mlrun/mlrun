@@ -1609,6 +1609,10 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
         runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
+        notifications = self._find_notifications(session, project=name)
+        self._verify_empty_list_of_project_related_resources(
+            name, notifications, "notifications"
+        )
         schedules = self.list_schedules(session, project=name)
         self._verify_empty_list_of_project_related_resources(
             name, schedules, "schedules"
@@ -1629,6 +1633,7 @@ class SQLDB(DBInterface):
     def delete_project_related_resources(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
+        self.delete_notifications(session, project=name)
         self.del_runs(session, project=name)
         self.delete_schedules(session, name)
         self._delete_functions(session, name)
@@ -2681,14 +2686,13 @@ class SQLDB(DBInterface):
         finally:
             pass
 
-    def _get_notification(self, session, run_id, name):
+    def _list_run_notification(self, session, run_id):
         try:
             resp = self._query(
                 session,
                 Notification,
                 run=run_id,
-                name=name,
-            ).one_or_none()
+            )
             return resp
         finally:
             pass
@@ -2755,6 +2759,13 @@ class SQLDB(DBInterface):
             project = None
         query = self._query(session, Run, uid=uid, project=project)
         return self._add_labels_filter(session, query, Run, labels)
+
+    def _find_notifications(
+        self, session, name: str = None, run_id: int = None, project: str = None
+    ):
+        return self._query(
+            session, Notification, name=name, run=run_id, project=project
+        )
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
@@ -3498,12 +3509,14 @@ class SQLDB(DBInterface):
                 f"Run not found: uid={run_uid}, project={project}, iter={iter}"
             )
 
+        run_notifications = {
+            notification.name: notification
+            for notification in self._find_notifications(session, run_id=run.id)
+        }
         notifications = []
         for notification_model in notification_models:
             new_notification = False
-            notification = self._get_notification(
-                session, run.id, notification_model.name
-            )
+            notification = run_notifications.get(notification_model.name, None)
             if not notification:
                 new_notification = True
                 notification = Notification(
@@ -3515,10 +3528,11 @@ class SQLDB(DBInterface):
             notification.severity = notification_model.severity
             notification.when = ",".join(notification_model.when)
             notification.condition = notification_model.condition
-            notification.status = "pending"
+            notification.status = notification_model.status or "pending"
+            notification.sent_time = notification_model.sent_time
 
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-            if k8s and not (
+            if k8s.running_inside_kubernetes_cluster and not (
                 notification_model.params and "secret" in notification_model.params
             ):
                 # store params as secret
@@ -3554,3 +3568,40 @@ class SQLDB(DBInterface):
             self._transform_notification_record_to_schema(notification)
             for notification in self._query(session, Notification, run=run.id).all()
         ]
+
+    def delete_notifications(
+        self,
+        session,
+        name=None,
+        run_uid=None,
+        project=None,
+        commit=True,
+    ):
+        run_id = None
+        if run_uid:
+            run = self._get_run(session, run_uid, project, iter)
+            if not run:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Run not found: uid={run_uid}, project={project}, iter={iter}"
+                )
+            run_id = run.id
+
+        project = project or config.default_project
+        if project == "*":
+            project = None
+
+        k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+
+        query = self._find_notifications(session, name, run_id, project)
+        for notification in query:
+            if (
+                notification.params
+                and "secret" in notification.params
+                and k8s.running_inside_kubernetes_cluster
+            ):
+                k8s.delete_secrets(notification.params["secret"], None)
+
+            notification.delete()
+
+        if commit:
+            session.commit()

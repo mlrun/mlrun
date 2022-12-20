@@ -708,7 +708,7 @@ class VotingEnsemble(BaseModelRouter):
         request : dict
             Event body.
         method  : str
-            Event method
+            Event method.
         Returns
         -------
         dict

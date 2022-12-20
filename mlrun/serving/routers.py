@@ -609,7 +609,7 @@ class VotingEnsemble(BaseModelRouter):
                     "inputs": [],
                     "outputs": [],
                 }
-                for _, route in self.routes.items():
+                for route in self.routes.values():
                     response_random_route = route.run(copy.copy(event))
                     if (
                         response_random_route.body["inputs"] != []

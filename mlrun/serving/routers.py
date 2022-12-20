@@ -243,6 +243,11 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
+HTTP_METHOD_WITH_BODY = ["POST", "PUT", "PATCH"]
+HTTP_METHOD_WITHOUT_BODY = ["GET", "HEAD", "CONNECT", "OPTIONS", "TRACE"]
+HTTP_METHOD_MAY_HAVE_BODY = ["DELETE"]
+
+
 class VotingEnsemble(BaseModelRouter):
     def __init__(
         self,
@@ -582,11 +587,10 @@ class VotingEnsemble(BaseModelRouter):
             return event
         else:
             # Verify we use the V2 protocol
-            if event.method != "GET":
-                request = self.validate(event.body)
+            request = self.validate(event.body, event.method)
 
             # If this is a Router Operation
-            if name == self.name and event.method != "GET":
+            if name == self.name and event.method == "POST":
                 predictions = self._parallel_run(event)
                 votes = self._apply_logic(predictions)
                 # Format the prediction response like the regular
@@ -701,14 +705,15 @@ class VotingEnsemble(BaseModelRouter):
             )
         return results
 
-    def validate(self, request):
+    def validate(self, request, method):
         """Validate the event body (after preprocessing)
 
         Parameters
         ----------
         request : dict
             Event body.
-
+        method  : str
+            Event method
         Returns
         -------
         dict
@@ -721,7 +726,10 @@ class VotingEnsemble(BaseModelRouter):
         Exception
             `inputs` should be of type List
         """
-        if self.protocol == "v2":
+        if self.protocol == "v2" and (
+            method in HTTP_METHOD_WITH_BODY
+            or (request and method in HTTP_METHOD_MAY_HAVE_BODY)
+        ):
             if "inputs" not in request:
                 raise Exception('Expected key "inputs" in request body')
 

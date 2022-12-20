@@ -734,7 +734,7 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str,
         workflow_handler: str,
         namespace: str,
-    ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, mlrun.RunObject]:
+    ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, "mlrun.RunObject"]:
         """
         Helper function for creating the runspec of the load and run function.
         For internal use only.

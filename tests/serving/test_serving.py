@@ -54,7 +54,11 @@ router_object.routes = generate_test_routes("ModelTestingClass")
 
 ensemble_object = RouterStep(
     class_name="mlrun.serving.routers.VotingEnsemble",
-    class_args={"vote_type": "regression", "prediction_col_name": "predictions"},
+    class_args={
+        "vote_type": "regression",
+        "prediction_col_name": "predictions",
+        "format_response_with_col_name_flag": True,
+    },
 )
 ensemble_object.routes = generate_test_routes("EnsembleModelTestingClass")
 

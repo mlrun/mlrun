@@ -41,15 +41,6 @@ from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
 
-class ExecutorTypes:
-    thread = "thread"
-    process = "process"
-
-    @staticmethod
-    def all():
-        return [ExecutorTypes.thread, ExecutorTypes.process]
-
-
 class BaseModelRouter(RouterToDict):
     """base model router class"""
 
@@ -225,7 +216,16 @@ class ParallelRunnerModes(str, Enum):
     """Supported parallel running modes for VotingEnsemble"""
 
     array = "array"
+    process = "process"
     thread = "thread"
+
+    @staticmethod
+    def all():
+        return [
+            ParallelRunnerModes.thread,
+            ParallelRunnerModes.process,
+            ParallelRunnerModes.array,
+        ]
 
 
 class VotingTypes(str, Enum):
@@ -243,7 +243,105 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-class VotingEnsemble(BaseModelRouter):
+class _ParallelRunInterface(RouterToDict):
+    def __init__(self, executor_type):
+        if executor_type and executor_type not in ParallelRunnerModes.all():
+            raise ValueError(
+                f"executor_type must be one of {' | '.join(ParallelRunnerModes.all())}"
+            )
+        self.executor_type = executor_type
+        self._pool = None
+
+    def _init_pool(self):
+        if self._pool is None:
+            if self.executor_type == ParallelRunnerModes.process:
+                # init the context and route on the worker side (cannot be pickeled)
+                server = self.context.server.to_dict()
+                routes = {}
+                for key, route in self.routes.items():
+                    step = copy.copy(route)
+                    step.context = None
+                    step._parent = None
+                    if step._object:
+                        step._object.context = None
+                    routes[key] = step
+                executor_class = concurrent.futures.ProcessPoolExecutor
+                self._pool = executor_class(
+                    max_workers=len(self.routes),
+                    initializer=_ParallelRunInterface.init_pool,
+                    initargs=(
+                        server,
+                        routes,
+                    ),
+                )
+            elif self.executor_type == ParallelRunnerModes.thread:
+                executor_class = concurrent.futures.ThreadPoolExecutor
+                self._pool = executor_class(max_workers=len(self.routes))
+
+        return self._pool
+
+    def _shutdown_pool(self):
+        if self._pool is not None:
+            self._pool.shutdown()
+            self._pool = None
+
+    def _parallel_run(self, event):
+        results = {}
+        if self.executor_type == ParallelRunnerModes.array:
+            results = {
+                model_name: model.run(copy.copy(event)).body
+                for model_name, model in self.routes.items()
+            }
+            return results
+        futures = []
+        executor = self._init_pool()
+        for route in self.routes.keys():
+            if self.executor_type == ParallelRunnerModes.process:
+                future = executor.submit(
+                    _ParallelRunInterface._wrap_step, route, copy.copy(event)
+                )
+            elif self.executor_type == ParallelRunnerModes.thread:
+                step = self.routes[route]
+                future = executor.submit(
+                    _ParallelRunInterface._wrap_method,
+                    route,
+                    step.run,
+                    copy.copy(event),
+                )
+
+            futures.append(future)
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                key, result = future.result()
+                results[key] = result.body
+            except Exception as exc:
+                logger.error(traceback.format_exc())
+                print(f"child route generated an exception: {exc}")
+        self.context.logger.debug(f"Collected results from children: {results}")
+        return results
+
+    @staticmethod
+    def init_pool(server_spec, routes):
+        server = mlrun.serving.GraphServer.from_dict(server_spec)
+        server.init_states(None, None)
+        global local_routes
+        for route in routes.values():
+            route.context = server.context
+            if route._object:
+                route._object.context = server.context
+        local_routes = routes
+
+    @staticmethod
+    def _wrap_step(route, event):
+        return route, local_routes[route].run(event)
+
+    @staticmethod
+    def _wrap_method(route, handler, event):
+        return route, handler(event)
+
+
+class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
     def __init__(
         self,
         context=None,
@@ -253,7 +351,7 @@ class VotingEnsemble(BaseModelRouter):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type=None,
-        executor_type=None,
+        executor_type: ParallelRunnerModes = ParallelRunnerModes.thread,
         prediction_col_name=None,
         **kwargs,
     ):
@@ -338,13 +436,13 @@ class VotingEnsemble(BaseModelRouter):
                               by default, `prediction`
         :param kwargs:        extra arguments
         """
-        super().__init__(
-            context, name, routes, protocol, url_prefix, health_prefix, **kwargs
+        BaseModelRouter.__init__(
+            self, context, name, routes, protocol, url_prefix, health_prefix, **kwargs
         )
+        _ParallelRunInterface.__init__(self, executor_type)
         self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
-        self.executor_type = executor_type
         self._model_logger = (
             _ModelLogPusher(self, context)
             if context and context.stream.enabled
@@ -353,7 +451,9 @@ class VotingEnsemble(BaseModelRouter):
         self.version = kwargs.get("version", "v1")
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
-        self.format_response_with_col_name_flag = False
+        self.format_response_with_col_name_flag = kwargs.get(
+            "format_response_with_col_name_flag", False
+        )
         self.model_endpoint_uid = None
 
     def post_init(self, mode="sync"):
@@ -530,9 +630,12 @@ class VotingEnsemble(BaseModelRouter):
         """
 
         # Flatten predictions by sample instead of by model as received
+        num_of_events = len(
+            [*predictions.values()][0]["outputs"][self.prediction_col_name]
+        )
         flattened_predictions = [
-            [predictions[j][i] for j in range(len(predictions))]
-            for i in range(len(predictions[0]))
+            [v["outputs"][self.prediction_col_name][i] for k, v in predictions.items()]
+            for i in range(num_of_events)
         ]
 
         return self.logic(flattened_predictions)
@@ -641,46 +744,6 @@ class VotingEnsemble(BaseModelRouter):
                 f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist "
                 f"in the model's response ({response.keys()})"
             )
-
-    def _parallel_run(self, event, mode: str = ParallelRunnerModes.thread):
-        """Executes the processing logic in parallel
-
-        Args:
-            event (nuclio.Event): Incoming event after router preprocessing
-            mode (str, optional): Parallel processing method. Defaults to "thread".
-
-        Returns:
-            dict[str, nuclio.Event]: {model_name: model_response} for selected all models the registry
-        """
-        if mode == ParallelRunnerModes.array:
-            results = {
-                model_name: model.run(copy.copy(event))
-                for model_name, model in self.routes.items()
-            }
-        elif mode == ParallelRunnerModes.thread:
-            pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(self.routes))
-            with pool as executor:
-                results = []
-                futures = [
-                    executor.submit(self.routes[model].run, copy.copy(event))
-                    for model in self.routes.keys()
-                ]
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        results.append(future.result())
-                    except Exception as exc:
-                        print(f"child route generated an exception: {exc}")
-                results = [
-                    self.extract_results_from_response(event.body["outputs"])
-                    for event in results
-                ]
-                self.context.logger.debug(f"Collected results from models: {results}")
-        else:
-            raise ValueError(
-                f"{mode} is not a supported parallel run mode, please select from "
-                f"{[mode.value for mode in list(ParallelRunnerModes)]}"
-            )
-        return results
 
     def validate(self, request):
         """Validate the event body (after preprocessing)
@@ -1038,14 +1101,14 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         return event
 
 
-class ParallelRun(BaseModelRouter):
+class ParallelRun(BaseModelRouter, _ParallelRunInterface):
     def __init__(
         self,
         context=None,
         name: str = None,
         routes=None,
         extend_event=None,
-        executor_type: ExecutorTypes = None,
+        executor_type: ParallelRunnerModes = None,
         **kwargs,
     ):
         """Process multiple steps (child routes) in parallel and merge the results
@@ -1088,49 +1151,10 @@ class ParallelRun(BaseModelRouter):
                                 - int prediction type: classification
         :param kwargs:        extra arguments
         """
-        super().__init__(context, name, routes, **kwargs)
+        BaseModelRouter.__init__(self, context, name, routes, **kwargs)
+        _ParallelRunInterface.__init__(self, executor_type)
         self.name = name or "ParallelRun"
-        if executor_type and executor_type not in ExecutorTypes.all():
-            raise ValueError(
-                f"executor_type must be one of {' | '.join(ExecutorTypes.all())}"
-            )
-        self.executor_type = executor_type
         self.extend_event = extend_event
-
-        self._pool = None
-
-    def _init_pool(self):
-        if self._pool is None:
-            if self.executor_type == ExecutorTypes.process:
-                # init the context and route on the worker side (cannot be pickeled)
-                server = self.context.server.to_dict()
-                routes = {}
-                for key, route in self.routes.items():
-                    step = copy.copy(route)
-                    step.context = None
-                    step._parent = None
-                    if step._object:
-                        step._object.context = None
-                    routes[key] = step
-                executor_class = concurrent.futures.ProcessPoolExecutor
-                self._pool = executor_class(
-                    max_workers=len(self.routes),
-                    initializer=init_pool,
-                    initargs=(
-                        server,
-                        routes,
-                    ),
-                )
-            else:
-                executor_class = concurrent.futures.ThreadPoolExecutor
-                self._pool = executor_class(max_workers=len(self.routes))
-
-        return self._pool
-
-    def _shutdown_pool(self):
-        if self._pool is not None:
-            self._pool.shutdown()
-            self._pool = None
 
     def merger(self, body, results):
         """Merging logic
@@ -1170,47 +1194,3 @@ class ParallelRun(BaseModelRouter):
             self._result_path, original_body, response.body if response else None
         )
         return event
-
-    def _parallel_run(self, event):
-        futures = []
-        results = {}
-        executor = self._init_pool()
-        for route in self.routes.keys():
-            if self.executor_type == ExecutorTypes.process:
-                future = executor.submit(_wrap_step, route, copy.copy(event))
-            else:
-                step = self.routes[route]
-                future = executor.submit(
-                    _wrap_method, route, step.run, copy.copy(event)
-                )
-
-            futures.append(future)
-
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                key, result = future.result()
-                results[key] = result.body
-            except Exception as exc:
-                logger.error(traceback.format_exc())
-                print(f"child route generated an exception: {exc}")
-        self.context.logger.debug(f"Collected results from children: {results}")
-        return results
-
-
-def init_pool(server_spec, routes):
-    server = mlrun.serving.GraphServer.from_dict(server_spec)
-    server.init_states(None, None)
-    global local_routes
-    for route in routes.values():
-        route.context = server.context
-        if route._object:
-            route._object.context = server.context
-    local_routes = routes
-
-
-def _wrap_step(route, event):
-    return route, local_routes[route].run(event)
-
-
-def _wrap_method(route, handler, event):
-    return route, handler(event)

@@ -243,11 +243,6 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-HTTP_METHOD_WITH_BODY = ["POST", "PUT", "PATCH"]
-HTTP_METHOD_WITHOUT_BODY = ["GET", "HEAD", "CONNECT", "OPTIONS", "TRACE"]
-HTTP_METHOD_MAY_HAVE_BODY = ["DELETE"]
-
-
 class VotingEnsemble(BaseModelRouter):
     def __init__(
         self,
@@ -726,10 +721,7 @@ class VotingEnsemble(BaseModelRouter):
         Exception
             `inputs` should be of type List
         """
-        if self.protocol == "v2" and (
-            method in HTTP_METHOD_WITH_BODY
-            or (request and method in HTTP_METHOD_MAY_HAVE_BODY)
-        ):
+        if self.protocol == "v2" and method == "POST":
             if "inputs" not in request:
                 raise Exception('Expected key "inputs" in request body')
 

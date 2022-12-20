@@ -239,10 +239,8 @@ class V2ModelServer(StepToDict):
         if event_body and isinstance(event_body, dict):
             op = op or event_body.get("operation")
             event_id = event_body.get("id", event_id)
-        if not op and event.method != "GET" and event_body:
+        if not op and event.method != "GET":
             op = "infer"
-        elif not op and not event.method and not event_body:
-            event.method = "GET"
 
         if op == "predict" or op == "infer":
             # predict operation

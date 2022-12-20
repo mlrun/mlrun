@@ -582,10 +582,11 @@ class VotingEnsemble(BaseModelRouter):
             return event
         else:
             # Verify we use the V2 protocol
-            request = self.validate(event.body)
+            if event.method != "GET":
+                request = self.validate(event.body)
 
             # If this is a Router Operation
-            if name == self.name:
+            if name == self.name and event.method != "GET":
                 predictions = self._parallel_run(event)
                 votes = self._apply_logic(predictions)
                 # Format the prediction response like the regular
@@ -600,6 +601,19 @@ class VotingEnsemble(BaseModelRouter):
                 }
                 if self.version:
                     response_body["model_version"] = self.version
+                response.body = response_body
+            elif name == self.name and event.method == "GET":
+                response = copy.copy(event)
+                response_body = {
+                    "name": self.name,
+                    "version": self.version or "",
+                    "inputs": [],
+                    "outputs": [],
+                }
+                if len(self.routes) != 0:
+                    response_random_route = [*self.routes.values()][0].run(event)
+                    response_body["inputs"] = response_random_route.body["inputs"]
+                    response_body["outputs"] = response_random_route.body["outputs"]
                 response.body = response_body
             # A specific model event
             else:

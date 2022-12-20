@@ -203,6 +203,31 @@ def test_ensemble_get_models():
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
 
+def test_ensemble_get_metadata_of_models():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology(
+        "router",
+        mlrun.serving.routers.VotingEnsemble(
+            vote_type="regression", prediction_col_name="predictions"
+        ),
+    )
+    graph.routes = generate_test_routes("EnsembleModelTestingClass")
+    server = fn.to_mock_server()
+    logger.info(f"flow: {graph.to_yaml()}")
+    resp = server.test("/v2/models/m1")
+    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    resp = server.test("/v2/models/m3/versions/v2")
+    expected = {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    resp = server.test("/v2/models/VotingEnsemble")
+    print(resp)
+    expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+
 def test_ensemble_infer():
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"

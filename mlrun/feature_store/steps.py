@@ -237,16 +237,16 @@ class MapValues(StepToDict, MLRunStep):
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     otherwise = ""
-                    if f"{column}_" in event.columns:
-                        otherwise = event[f"{column}_"]
+                    new_column_name = self._get_feature_name(column)
+                    if new_column_name in event.columns:
+                        otherwise = event[new_column_name]
                     event = event.withColumn(
-                        f"{column}_",
+                        new_column_name,
                         when(
                             (event[column] < max_val) & (event[column] > min_val),
                             lit(val),
                         ).otherwise(otherwise),
                     )
-                event = event.drop(column).withColumnRenamed(f"{column}_", column)
 
         if not self.with_original_features:
             event = event.select([*self.mapping.keys()])

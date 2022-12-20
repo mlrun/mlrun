@@ -3605,7 +3605,7 @@ class SQLDB(DBInterface):
             ):
                 k8s.delete_secrets(notification.params["secret"], None)
 
-            notification.delete()
+            session.delete(notification)
 
         if commit:
             session.commit()

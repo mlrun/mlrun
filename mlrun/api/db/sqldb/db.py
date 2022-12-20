@@ -2687,17 +2687,6 @@ class SQLDB(DBInterface):
         finally:
             pass
 
-    def _list_run_notification(self, session, run_id):
-        try:
-            resp = self._query(
-                session,
-                Notification,
-                run=run_id,
-            )
-            return resp
-        finally:
-            pass
-
     def _delete_empty_labels(self, session, cls):
         session.query(cls).filter(cls.parent == NULL).delete()
         session.commit()
@@ -3576,10 +3565,10 @@ class SQLDB(DBInterface):
     def delete_notifications(
         self,
         session,
-        name=None,
-        run_uid=None,
-        project=None,
-        commit=True,
+        name: str=None,
+        run_uid: str=None,
+        project: str=None,
+        commit:bool=True,
     ):
         run_id = None
         if run_uid:

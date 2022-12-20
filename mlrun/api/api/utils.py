@@ -203,7 +203,7 @@ def apply_enrichment_and_validation_on_task(
 
 def mask_notification_params_on_task(task):
     k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-    if not k8s:
+    if not k8s.running_inside_kubernetes_cluster:
         logger.warning(
             "Kubernetes cluster unavailable, skipping masking notification config params"
         )

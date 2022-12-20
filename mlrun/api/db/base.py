@@ -569,3 +569,13 @@ class DBInterface(ABC):
         iter: int = 0,
     ) -> typing.List[mlrun.model.Notification]:
         pass
+
+    def delete_notifications(
+            self,
+            session,
+            name: str = None,
+            run_uid: str = None,
+            project: str = None,
+            commit: bool = True,
+    ):
+        pass

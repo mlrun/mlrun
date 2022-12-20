@@ -511,3 +511,13 @@ class FileDB(DBInterface):
         iter: int = 0,
     ):
         raise NotImplementedError()
+
+    def delete_notifications(
+            self,
+            session,
+            name: str = None,
+            run_uid: str = None,
+            project: str = None,
+            commit: bool = True,
+    ):
+        raise NotImplementedError()

@@ -2755,7 +2755,7 @@ class SQLDB(DBInterface):
     ):
         return self._query(
             session, Notification, name=name, run=run_id, project=project
-        )
+        ).all()
 
     def _latest_uid_filter(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)

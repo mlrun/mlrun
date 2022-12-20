@@ -611,12 +611,9 @@ class VotingEnsemble(BaseModelRouter):
                 }
                 for route in self.routes.values():
                     response_random_route = route.run(copy.copy(event))
-                    if (
-                        response_random_route.body["inputs"] != []
-                        and response_random_route.body["outputs"] != []
-                    ):
-                        response_body["inputs"] = response_random_route.body["inputs"]
-                        response_body["outputs"] = response_random_route.body["outputs"]
+                    response_body["inputs"] = response_body["inputs"] or response_random_route.body["inputs"]
+                    response_body["outputs"] = response_body["outputs"] or response_random_route.body["outputs"]
+                    if response_body["inputs"] and response_body["outputs"]:
                         break
                 response.body = response_body
             # A specific model event

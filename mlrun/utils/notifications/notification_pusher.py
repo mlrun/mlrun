@@ -114,26 +114,12 @@ class NotificationPusher(object):
     def _load_notification(
         self, run: mlrun.model.RunObject, notification: mlrun.model.Notification
     ) -> NotificationBase:
-        params = notification.params or {}
-        params_secret = params.get("secret", "")
-        if params_secret:
-            k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-            if not k8s:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "Not running in k8s environment, cannot load notification params secret"
-                )
-            encoded_params = k8s.load_secret(params_secret)
-            params = {}
-            for key, value in encoded_params.items():
-                if isinstance(value, str):
-                    value = value.encode("utf-8")
-                params[key] = base64.decodebytes(value).decode("utf-8")
-
         name = notification.name
         notification_type = NotificationTypes(
             notification.kind or NotificationTypes.console
         )
         notification_key = f"{run.metadata.uid}-{name or notification_type}"
+        params = self._load_notification_params(notification)
         if notification_key not in self._notifications:
             self._notifications[
                 notification_key
@@ -145,6 +131,28 @@ class NotificationPusher(object):
             "Loaded notification", notification=self._notifications[notification_key]
         )
         return self._notifications[notification_key]
+
+    @staticmethod
+    def _load_notification_params(notification: mlrun.model.Notification) -> dict:
+        params = notification.params or {}
+        params_secret = params.get("secret", "")
+        if not params_secret:
+            return params
+
+        k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+        if not k8s:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Not running in k8s environment, cannot load notification params secret"
+            )
+
+        encoded_params = k8s.load_secret(params_secret)
+        params = {}
+        if encoded_params:
+            for key, value in encoded_params.items():
+                if isinstance(value, str):
+                    value = value.encode("utf-8")
+                params[key] = base64.decodebytes(value).decode("utf-8")
+        return params
 
     async def _send_notification(
         self,

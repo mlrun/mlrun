@@ -95,7 +95,10 @@ class NotificationPusher(object):
         run_state = run.state()
 
         # if the notification isn't pending, don't send it
-        if notification.status and notification.status != NotificationStatus.PENDING:
+        if (
+            notification.status
+            and notification.status != NotificationStatus.PENDING.value
+        ):
             return False
 
         # if at least one condition is met, notify

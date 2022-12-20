@@ -34,6 +34,7 @@ import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.model
+import mlrun.utils.notifications
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.helpers import (
@@ -3528,7 +3529,10 @@ class SQLDB(DBInterface):
             notification.severity = notification_model.severity
             notification.when = ",".join(notification_model.when)
             notification.condition = notification_model.condition
-            notification.status = notification_model.status or "pending"
+            notification.status = (
+                notification_model.status
+                or mlrun.utils.notifications.NotificationStatus.PENDING.value
+            )
             notification.sent_time = notification_model.sent_time
 
             k8s = mlrun.api.utils.singletons.k8s.get_k8s()

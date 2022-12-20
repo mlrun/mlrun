@@ -1,6 +1,7 @@
 (change-log)=
 # Change log
 - [v1.2.1](#v1-2-1)
+- [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
 - [v1.0.6](#v1-0-6)
 - [v1.0.5](#v1-0-5)
@@ -13,6 +14,20 @@
 - [Deprecations](#deprecations)
 
 ## v1.2.1
+
+## Closed issues
+- Running pipeline after load_project - error message is Cmd('git') failed due to: exit code(129) (https://jira.iguazeng.com/browse/ML-2972)
+- spark missing gcs jars (https://jira.iguazeng.com/browse/ML-2948)
+- log_dataset local_path does not take effect (https://jira.iguazeng.com/browse/ML-2900)
+- scheduling workflow does not have secrets attributes (https://jira.iguazeng.com/browse/ML-2895)
+- Scheduled Jobs are triggered at +1 day (as translated by "normal" cron string) (https://jira.iguazeng.com/browse/ML-2878)
+
+### See more
+- [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.1)
+- [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.1)
+
+
+## v1.2.0
 
 ### New and updated features
 
@@ -31,7 +46,6 @@
 
 #### Feature store
 - Support Redis as an online feature set for storey engine only. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).)
-- Support GCP objects as a data source for the feature store.
 - Fully support ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
    - Support DataFrame with multi-index.
    - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
@@ -84,12 +98,6 @@ The new behavior can be enabled using a feature flag configured in the API.
 - Scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
 - Can now delete a model via tag. [View in Git](https://github.com/mlrun/mlrun/pull/2433).
 
-**Candidates in 1.2.1**
-- Running pipeline after load_project - error message is Cmd('git') failed due to: exit code(129) (https://jira.iguazeng.com/browse/ML-2972)
-- spark missing gcs jars (https://jira.iguazeng.com/browse/ML-2900)
-- log_dataset local_path does not take effect (https://jira.iguazeng.com/browse/ML-2900)
-- scheduling workflow does not have secrets attributes (https://jira.iguazeng.com/browse/ML-2895)
-- Scheduled Jobs are triggered at +1 day (as translated by "normal" cron string) (https://jira.iguazeng.com/browse/ML-2878)
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.0)

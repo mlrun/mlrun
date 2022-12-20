@@ -16,6 +16,8 @@ import datetime
 import os
 from sys import executable
 
+import pytest
+
 import mlrun
 import tests.system.base
 
@@ -160,6 +162,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "a-value-123",
         ]
 
+    @pytest.mark.enterprise
     def test_new_function_with_args(self):
         code_path = str(self.assets_path / "function_with_args.py")
         project = mlrun.get_or_create_project(self.project_name, self.results_path)

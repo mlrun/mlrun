@@ -394,7 +394,9 @@ def enrich_function_object(
     return f
 
 
-def set_source_if_remote(project, workflow_spec: WorkflowSpec, source: str):
+def set_source_if_remote(
+    project: "mlrun.projects.MlrunProject", workflow_spec: WorkflowSpec, source: str
+):
     """
     Setting source to the project for making sure that the code in the jobs is up to date.
     :param project:         project object (mlrun.projects.MlrunProject)
@@ -555,10 +557,9 @@ class _KFPRunner(_PipelineRunner):
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
-
-        if source and not workflow_spec.run_local:
-            logger.info(f"Setting project source: {source}")
-            project.set_source(source)
+        set_source_if_remote(
+            project=project, workflow_spec=workflow_spec, source=source
+        )
         namespace = namespace or config.namespace
         id = run_pipeline(
             workflow_handler,
@@ -673,9 +674,9 @@ class _LocalRunner(_PipelineRunner):
         # When using KFP, it would do this replacement. When running locally, we need to take care of it.
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
-        if source and not workflow_spec.run_local:
-            logger.info(f"Setting project source: {source}")
-            project.set_source(source)
+        set_source_if_remote(
+            project=project, workflow_spec=workflow_spec, source=source
+        )
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id

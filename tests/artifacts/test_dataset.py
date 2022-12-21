@@ -182,6 +182,54 @@ def test_resolve_dataset_hash_path():
         assert test_case.get("expected_file_target") == target_path
 
 
+def test_dataset_stats():
+    raw_data = {
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+        "age": [42, 52, 36, 24, 73],
+        "testScore": [25, 94, 57, 62, 70],
+    }
+    df = pandas.DataFrame(
+        raw_data, columns=["first_name", "last_name", "age", "testScore"]
+    )
+    for test_case in [
+        {
+            # status is not set
+            "df": df,
+            "stats": None,
+            "expected_none_status_stats": False,
+        },
+        {
+            # status is set to True
+            "df": df,
+            "stats": True,
+            "expected_none_status_stats": False,
+        },
+        {
+            # status is set to False
+            "df": df,
+            "stats": False,
+            "expected_none_status_stats": True,
+        },
+        {
+            # status is not set and df is very large
+            "df": pandas.DataFrame(
+                raw_data, columns=[f"column-title-{i}" for i in range(200)]
+            ),
+            "stats": None,
+            "expected_none_status_stats": True,
+        },
+    ]:
+        dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
+            df=test_case.get("df"), stats=test_case.get("stats")
+        )
+
+        if test_case["expected_none_status_stats"]:
+            assert dataset_artifact.status.stats is None
+        else:
+            assert dataset_artifact.status.stats is not None
+
+
 def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"

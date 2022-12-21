@@ -272,7 +272,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             set_paths(os.path.realpath("."))
 
         if (
-            runobj.metadata.labels["kind"] == RemoteSparkRuntime.kind
+            runobj.metadata.labels.get("kind") == RemoteSparkRuntime.kind
             and environ["MLRUN_SPARK_CLIENT_IGZ_SPARK"] == "true"
         ):
             from mlrun.runtimes.remotesparkjob import igz_spark_pre_hook
@@ -305,11 +305,27 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 tmp=tmp,
                 host=socket.gethostname(),
             )
-            fn = self._get_handler(handler, context)
-            global_context.set(context)
-            sout, serr = exec_from_params(fn, runobj, context)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
-            return context.to_dict()
+            try:
+                fn = self._get_handler(handler, context)
+                global_context.set(context)
+                sout, serr = exec_from_params(fn, runobj, context)
+                log_std(
+                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
+                )
+                return context.to_dict()
+            # if RunError was raised it means that the error was raised as part of running the function
+            # ( meaning the state was already updated to error ) therefore we just re-raise the error
+            except RunError as err:
+                raise err
+            # this exception handling is for the case where we fail on pre-loading or post-running the function
+            # and the state was not updated to error yet, therefore we update the state to error and raise as RunError
+            except Exception as exc:
+                # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
+                # by the caller and will set the state to error ( in `update_run_state` )
+                context.set_state(error=str(exc), commit=True)
+                raise RunError(
+                    "failed on pre-loading / post-running of the function"
+                ) from exc
 
         else:
             command = self.spec.command
@@ -381,6 +397,7 @@ def run_exec(cmd, args, env=None, cwd=None):
     out = ""
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
+    print("running:", cmd)
     process = Popen(cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd)
     while True:
         nextline = process.stdout.readline()

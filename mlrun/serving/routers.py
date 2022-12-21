@@ -25,6 +25,7 @@ from numpy.core.fromnumeric import mean
 
 import mlrun
 import mlrun.utils.model_monitoring
+from mlrun.errors import error_to_string
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 from ..api.schemas import (
@@ -117,7 +118,7 @@ class BaseModelRouter(RouterToDict):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
             else:
-                raise ValueError(f"Unrecognized request format: {exc}")
+                raise ValueError("Unrecognized request format") from exc
 
         return parsed_event
 
@@ -669,7 +670,9 @@ class VotingEnsemble(BaseModelRouter):
                     try:
                         results.append(future.result())
                     except Exception as exc:
-                        print(f"child route generated an exception: {exc}")
+                        print(
+                            f"child route generated an exception: {error_to_string(exc)}"
+                        )
                 results = [
                     self.extract_results_from_response(event.body["outputs"])
                     for event in results
@@ -1192,7 +1195,7 @@ class ParallelRun(BaseModelRouter):
                 results[key] = result.body
             except Exception as exc:
                 logger.error(traceback.format_exc())
-                print(f"child route generated an exception: {exc}")
+                print(f"child route generated an exception: {error_to_string(exc)}")
         self.context.logger.debug(f"Collected results from children: {results}")
         return results
 

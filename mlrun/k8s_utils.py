@@ -26,6 +26,7 @@ import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
+from .errors import error_to_string
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 
@@ -92,7 +93,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list pods: {exc}")
+            logger.error(f"failed to list pods: {error_to_string(exc)}")
             raise exc
 
         items = []
@@ -123,15 +124,15 @@ class K8sHelper:
                     logger.error(
                         "failed to create pod after max retries",
                         retry_count=retry_count,
-                        exc=str(exc),
+                        exc=error_to_string(exc),
                         pod=pod,
                     )
                     raise exc
 
-                logger.error("failed to create pod", exc=str(exc), pod=pod)
+                logger.error("failed to create pod", exc=error_to_string(exc), pod=pod)
 
                 # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
-                if "gke-resource-quotas" in str(exc):
+                if "gke-resource-quotas" in error_to_string(exc):
                     logger.warning(
                         "failed to create pod due to gke resource error, "
                         f"sleeping {retry_interval} seconds and retrying"
@@ -157,7 +158,9 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if pod is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete pod: {exc}", pod_name=name)
+                logger.error(
+                    f"failed to delete pod: {error_to_string(exc)}", pod_name=name
+                )
                 raise exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
@@ -168,7 +171,7 @@ class K8sHelper:
             return api_response
         except ApiException as exc:
             if exc.status != 404:
-                logger.error(f"failed to get pod: {exc}")
+                logger.error(f"failed to get pod: {error_to_string(exc)}")
                 raise exc
             else:
                 if raise_on_not_found:
@@ -200,7 +203,7 @@ class K8sHelper:
             # ignore error if crd is already removed
             if exc.status != 404:
                 logger.error(
-                    f"failed to delete crd: {exc}",
+                    f"failed to delete crd: {error_to_string(exc)}",
                     crd_name=name,
                     crd_group=crd_group,
                     crd_version=crd_version,
@@ -214,7 +217,7 @@ class K8sHelper:
                 name=name, namespace=self.resolve_namespace(namespace)
             )
         except ApiException as exc:
-            logger.error(f"failed to get pod logs: {exc}")
+            logger.error(f"failed to get pod logs: {error_to_string(exc)}")
             raise exc
 
         return resp
@@ -248,7 +251,7 @@ class K8sHelper:
                 if status != "pending":
                     logger.warning(f"pod state in loop is {status}")
             except ApiException as exc:
-                logger.error(f"failed waiting for pod: {str(exc)}\n")
+                logger.error(f"failed waiting for pod: {error_to_string(exc)}\n")
                 return "error"
         outputs = self.v1api.read_namespaced_pod_log(
             name=pod_name, namespace=namespace, follow=True, _preload_content=False
@@ -286,7 +289,7 @@ class K8sHelper:
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
         except ApiException as exc:
-            logger.error(f"failed to create configmap: {exc}")
+            logger.error(f"failed to create configmap: {error_to_string(exc)}")
             raise exc
 
         logger.info(f"ConfigMap {resp.metadata.name} created")
@@ -305,7 +308,7 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if ConfigMap is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete ConfigMap: {exc}")
+                logger.error(f"failed to delete ConfigMap: {error_to_string(exc)}")
             raise exc
 
     def list_cfgmap(self, namespace=None, selector=""):
@@ -314,7 +317,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list ConfigMaps: {exc}")
+            logger.error(f"failed to list ConfigMaps: {error_to_string(exc)}")
             raise exc
 
         items = []
@@ -378,7 +381,7 @@ class K8sHelper:
             )
             return api_response
         except ApiException as exc:
-            logger.error(f"failed to create service account: {exc}")
+            logger.error(f"failed to create service account: {error_to_string(exc)}")
             raise exc
 
     def get_project_vault_secret_name(
@@ -393,7 +396,9 @@ class K8sHelper:
         except ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
             if exc.status != 404:
-                logger.error(f"failed to retrieve service accounts: {exc}")
+                logger.error(
+                    f"failed to retrieve service accounts: {error_to_string(exc)}"
+                )
                 raise exc
             return None
 
@@ -477,7 +482,7 @@ class K8sHelper:
         except ApiException as exc:
             # If secret doesn't exist, we'll simply create it
             if exc.status != 404:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
+                logger.error(f"failed to retrieve k8s secret: {error_to_string(exc)}")
                 raise exc
             k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
@@ -511,7 +516,7 @@ class K8sHelper:
             if exc.status == 404:
                 return
             else:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
+                logger.error(f"failed to retrieve k8s secret: {error_to_string(exc)}")
                 raise exc
 
         if not secrets:

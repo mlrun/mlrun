@@ -34,6 +34,7 @@ from mlrun.api import schemas
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
+from mlrun.errors import error_to_string
 from mlrun.model import RunObject
 from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
@@ -711,7 +712,7 @@ class Scheduler:
             except Exception as exc:
                 logger.warn(
                     "Failed rescheduling job. Continuing",
-                    exc=str(exc),
+                    exc=error_to_string(exc),
                     traceback=traceback.format_exc(),
                     db_schedule=db_schedule,
                 )

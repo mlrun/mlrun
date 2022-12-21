@@ -24,6 +24,7 @@ import requests
 import urllib3
 
 import mlrun.errors
+from mlrun.errors import error_to_string
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
@@ -452,7 +453,7 @@ def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {error_to_string(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -463,7 +464,7 @@ def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {error_to_string(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -476,7 +477,7 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {error_to_string(exc)}")
 
     mlrun.errors.raise_for_status(response)
 

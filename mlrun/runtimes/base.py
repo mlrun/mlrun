@@ -41,6 +41,7 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
+from ..errors import error_to_string
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import mlrun_op, write_kfpmeta
@@ -720,12 +721,14 @@ class BaseRuntime(ModelObj):
                 logger.info(f"task scheduled, {resp}")
                 return
         except Exception as err:
-            logger.error(f"got remote run err, {err}")
+            logger.error(f"got remote run err, {error_to_string(err)}")
             result = None
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = self._update_run_state(task=runspec, err=err)
+                result = self._update_run_state(
+                    task=runspec, err=mlrun.error_to_string(err)
+                )
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
 
         if resp:
@@ -865,8 +868,9 @@ class BaseRuntime(ModelObj):
 
             except RunError as err:
                 task.status.state = "error"
-                task.status.error = str(err)
-                resp = self._update_run_state(task=task, err=err)
+                error_string = error_to_string(err)
+                task.status.error = error_string
+                resp = self._update_run_state(task=task, err=error_string)
                 num_errors += 1
                 if num_errors > generator.max_errors:
                     logger.error("too many errors, stopping iterations!")
@@ -923,10 +927,10 @@ class BaseRuntime(ModelObj):
             updates["status.state"] = "error"
             update_in(resp, "status.state", "error")
             if err:
-                update_in(resp, "status.error", str(err))
+                update_in(resp, "status.error", error_to_string(err))
             err = get_in(resp, "status.error")
             if err:
-                updates["status.error"] = str(err)
+                updates["status.error"] = error_to_string(err)
         elif not was_none and last_state != "completed":
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "completed"
@@ -1448,7 +1452,7 @@ class BaseRuntimeHandler(ABC):
                     "Failed monitoring runtime resource. Continuing",
                     runtime_resource_name=runtime_resource["metadata"]["name"],
                     namespace=namespace,
-                    exc=str(exc),
+                    exc=error_to_string(exc),
                     traceback=traceback.format_exc(),
                 )
         for project, runs in project_run_uid_map.items():
@@ -1474,7 +1478,7 @@ class BaseRuntimeHandler(ABC):
                             run_uid=run_uid,
                             run=run,
                             project=project,
-                            exc=str(exc),
+                            exc=error_to_string(exc),
                             traceback=traceback.format_exc(),
                         )
 
@@ -1994,7 +1998,7 @@ class BaseRuntimeHandler(ABC):
                             # Don't prevent the deletion for failure in the pre deletion run actions
                             logger.warning(
                                 "Failure in crd object run pre-deletion actions. Continuing",
-                                exc=str(exc),
+                                exc=error_to_string(exc),
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
@@ -2010,7 +2014,7 @@ class BaseRuntimeHandler(ABC):
                     exc = traceback.format_exc()
                     crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
-                        f"Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing"
+                        f"Cleanup failed processing CRD object {crd_object_name}: {error_to_string(exc)}. Continuing"
                     )
         self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
         return deleted_crds

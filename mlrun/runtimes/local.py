@@ -34,6 +34,7 @@ from nuclio import Event
 import mlrun
 from mlrun.lists import RunList
 
+from ..errors import error_to_string
 from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
@@ -83,7 +84,7 @@ class ParallelRunner:
                 log_std(self._db_conn, runobj, sout, serr, skip=self.is_child)
                 resp = self._update_run_state(resp)
             except RunError as err:
-                resp = self._update_run_state(resp, err=str(err))
+                resp = self._update_run_state(resp, err=error_to_string(err))
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
@@ -322,7 +323,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             except Exception as exc:
                 # set_state here is mainly for sanity, as we will raise RunError which is expected to be handled
                 # by the caller and will set the state to error ( in `update_run_state` )
-                context.set_state(error=str(exc), commit=True)
+                context.set_state(error=error_to_string(exc), commit=True)
                 raise RunError(
                     "failed on pre-loading / post-running of the function"
                 ) from exc
@@ -443,7 +444,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             val = handler(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
-            err = str(exc)
+            err = error_to_string(exc)
             logger.error(traceback.format_exc())
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)

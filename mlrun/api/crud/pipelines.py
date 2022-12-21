@@ -29,6 +29,7 @@ import mlrun.errors
 import mlrun.kfpops
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.errors import error_to_string
 from mlrun.utils import logger
 
 
@@ -130,7 +131,7 @@ class Pipelines(
 
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed getting kfp run: {exc}"
+                f"Failed getting kfp run: {error_to_string(exc)}"
             ) from exc
 
         return run
@@ -185,9 +186,11 @@ class Pipelines(
             logger.warning(
                 "Failed creating pipeline",
                 traceback=traceback.format_exc(),
-                exc=str(exc),
+                exc=error_to_string(exc),
             )
-            raise mlrun.errors.MLRunBadRequestError(f"Failed creating pipeline: {exc}")
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Failed creating pipeline: {error_to_string(exc)}"
+            )
         finally:
             pipeline_file.close()
 

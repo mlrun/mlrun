@@ -19,6 +19,7 @@ import requests.adapters
 import urllib3.util.retry
 
 from ..config import config
+from ..errors import error_to_string
 from . import logger
 
 
@@ -91,7 +92,8 @@ class HTTPSessionWithRetry(requests.Session):
                     self._log_exception(
                         "warning",
                         exc,
-                        f"{method} {url} request failed, http retries disabled, raising exception: {exc}",
+                        f"{method} {url} request failed, http retries disabled,"
+                        f" raising exception: {error_to_string(exc)}",
                         retry_count,
                     )
                     raise exc
@@ -100,7 +102,8 @@ class HTTPSessionWithRetry(requests.Session):
                     self._log_exception(
                         "warning",
                         exc,
-                        f"{method} {url} request failed, max retries reached, raising exception: {exc}",
+                        f"{method} {url} request failed, max retries reached,"
+                        f" raising exception: {error_to_string(exc)}",
                         retry_count,
                     )
                     raise exc
@@ -114,7 +117,8 @@ class HTTPSessionWithRetry(requests.Session):
                     self._log_exception(
                         "warning",
                         exc,
-                        f"{method} {url} request failed on non-retryable exception, raising exception: {exc}",
+                        f"{method} {url} request failed on non-retryable exception,"
+                        f" raising exception: {error_to_string(exc)}",
                         retry_count,
                     )
                     raise exc
@@ -143,7 +147,7 @@ class HTTPSessionWithRetry(requests.Session):
         getattr(logger, level)(
             message,
             exception_type=type(exc),
-            exception_message=str(exc),
+            exception_message=error_to_string(exc),
             retry_interval=self.retry_backoff_factor,
             retry_count=retry_count,
             max_retries=self.max_retries,

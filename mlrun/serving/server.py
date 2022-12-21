@@ -25,6 +25,7 @@ from typing import Optional, Union
 
 import mlrun
 from mlrun.config import config
+from mlrun.errors import error_to_string
 from mlrun.secrets import SecretsStore
 
 from ..datastore import get_stream_pusher
@@ -253,7 +254,7 @@ class GraphServer(ModelObj):
             except (json.decoder.JSONDecodeError, UnicodeDecodeError) as exc:
                 if event.content_type in ["json", "application/json"]:
                     # if its json type and didnt load, raise exception
-                    message = f"failed to json decode event, {exc}"
+                    message = f"failed to json decode event, {error_to_string(exc)}"
                     context.logger.error(message)
                     server_context.push_error(event, message, source="_handler")
                     return context.Response(
@@ -262,7 +263,7 @@ class GraphServer(ModelObj):
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
-            message = f"{exc.__class__.__name__}: {exc}"
+            message = f"{exc.__class__.__name__}: {error_to_string(exc)}"
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")

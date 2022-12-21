@@ -28,6 +28,7 @@ import mlrun.builder
 import mlrun.utils.regex
 from mlrun.api.utils.clients import nuclio
 from mlrun.db import get_run_db
+from mlrun.errors import error_to_string
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes.constants import MPIJobCRDVersions
@@ -136,7 +137,9 @@ def resolve_nuclio_version():
                 nuclio_client = nuclio.Client()
                 nuclio_version = nuclio_client.get_dashboard_version()
             except Exception as exc:
-                logger.warning("Failed to resolve nuclio version", exc=str(exc))
+                logger.warning(
+                    "Failed to resolve nuclio version", exc=error_to_string(exc)
+                )
 
         cached_nuclio_version = nuclio_version
 
@@ -175,7 +178,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
             project = runobj.metadata.project or ""
             db.store_log(uid, project, out.encode(), append=True)
     if err:
-        logger.error(f"exec error - {err}")
+        logger.error(f"exec error - {error_to_string(err)}")
         print(err, file=stderr)
         if not silent:
             raise RunError(err)
@@ -251,7 +254,9 @@ def results_to_iter(results, runspec, execution):
             if state == "error":
                 failed += 1
                 err = get_in(task, ["status", "error"], "")
-                logger.error(f"error in task  {execution.uid}:{id} - {err}")
+                logger.error(
+                    f"error in task  {execution.uid}:{id} - {error_to_string(err)}"
+                )
             elif state != "completed":
                 running += 1
 
@@ -314,7 +319,7 @@ def log_iter_artifacts(execution, df, header):
             local_path="parallel_coordinates.html",
         )
     except Exception as exc:
-        logger.warning(f"failed to log iter artifacts, {exc}")
+        logger.warning(f"failed to log iter artifacts, {error_to_string(exc)}")
 
 
 def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:

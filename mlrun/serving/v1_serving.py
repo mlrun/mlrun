@@ -24,6 +24,7 @@ from urllib.request import urlopen
 import nuclio
 
 import mlrun
+from mlrun.errors import error_to_string
 from mlrun.platforms.iguazio import OutputStream
 from mlrun.runtimes import RemoteRuntime
 
@@ -245,7 +246,7 @@ class HTTPHandler:
                 parsed_event["instances"].append(sample)
                 parsed_event["content_type"] = event.content_type
             else:
-                raise Exception(f"Unrecognized request format: {exc}")
+                raise Exception("Unrecognized request format") from exc
 
         return parsed_event
 
@@ -339,7 +340,7 @@ class ExplainHandler(HTTPHandler):
             body = json.loads(event.body)
         except json.decoder.JSONDecodeError as exc:
             return context.Response(
-                body=f"Unrecognized request format: {exc}",
+                body=f"Unrecognized request format: {error_to_string(exc)}",
                 content_type="text/plain",
                 status_code=400,
             )

@@ -19,6 +19,7 @@ import typing
 from kubernetes import client
 
 from mlrun.config import config
+from mlrun.errors import error_to_string
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
@@ -217,8 +218,8 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             logger.info(f"MpiJob {name} created")
             return resp
         except client.rest.ApiException as exc:
-            logger.error(f"Exception when creating MPIJob: {exc}")
-            raise RunError(f"Exception when creating MPIJob: {exc}")
+            logger.error(f"Exception when creating MPIJob: {error_to_string(exc)}")
+            raise RunError("Exception when creating MPIJob") from exc
 
     def delete_job(self, name, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -233,7 +234,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             deletion_status = get_in(resp, "status", "unknown")
             logger.info(f"del status: {deletion_status}")
         except client.rest.ApiException as exc:
-            print(f"Exception when deleting MPIJob: {exc}")
+            print(f"Exception when deleting MPIJob: {error_to_string(exc)}")
 
     def list_jobs(self, namespace=None, selector="", show=True):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -250,7 +251,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 label_selector=selector,
             )
         except client.exceptions.ApiException as exc:
-            print(f"Exception when reading MPIJob: {exc}")
+            print(f"Exception when reading MPIJob: {error_to_string(exc)}")
             return items
 
         if resp:
@@ -268,7 +269,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
         except client.exceptions.ApiException as exc:
-            print(f"Exception when reading MPIJob: {exc}")
+            print(f"Exception when reading MPIJob: {error_to_string(exc)}")
             return None
         return resp
 

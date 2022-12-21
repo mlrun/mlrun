@@ -160,6 +160,23 @@ def verify_field_regex(
     return True
 
 
+def validate_tag_name(tag_name: str, raise_on_failure: bool = True) -> bool:
+    """
+    This function is used to validate a tag name for invalid characters using field regex.
+    if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
+    otherwise, it returns False
+    """
+    try:
+        mlrun.utils.helpers.verify_field_regex(
+            "artifact.metadata.tag", tag_name, mlrun.utils.regex.tag_name
+        )
+    except mlrun.errors.MLRunInvalidArgumentError:
+        if raise_on_failure:
+            raise
+        return False
+    return True
+
+
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):

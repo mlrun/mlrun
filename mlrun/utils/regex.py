@@ -30,7 +30,7 @@ dns_1123_label = [
     r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
 ]
 
-tag_name = r"^[^!@$%^&*()_+#]+$"
+tag_name = [r"^[^!@$%^&*()_+#]+$"]
 
 # DNS 1035 - used by k8s for services services
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L220

@@ -18,7 +18,6 @@ import typing
 import uuid
 
 import fastapi.testclient
-import pytest
 import sqlalchemy.orm
 
 import mlrun.api.schemas
@@ -244,38 +243,45 @@ class TestArtifactTags:
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         """
-        test
-        # is there a wat to use here parameterized?
+        This tests the following scenarios: adding an invalid tag to an existing project,
+        and attempting to create a project with an invalid tag. and ensure that both fail
         """
 
         self._create_project(client)
-        tag = "tag1"
-        new_tag = "tag$%^#"
+        valid_tag_name = "valid-tag"
+        invalid_tag_name = "tag$%^#"
         artifact1_labels = {"artifact_name": "artifact1"}
+        artifact2_labels = {"artifact_name": "artifact2"}
 
-        # which error and status code?
-        with pytest.raises(RuntimeError):
-            _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
-                client, tag=tag, uid="latest", labels=artifact1_labels
-            )
-            response = self._append_artifact_tag(
-                client=client,
-                tag=new_tag,
-                identifiers=[
-                    mlrun.api.schemas.ArtifactIdentifier(
-                        key=artifact1_key, uid=artifact1_uid
-                    ),
-                ],
-            )
-            assert response.status_code == http.HTTPStatus.OK.value
-
-        response_body = self._list_artifacts_and_assert(
-            client, tag=tag, expected_number_of_artifacts=1
+        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+            client,
+            tag=invalid_tag_name,
+            uid="latest",
+            labels=artifact1_labels,
+            expected_status_code=http.HTTPStatus.BAD_REQUEST.value,
         )
-        assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
-        response_body = self._list_artifacts_and_assert(
-            client, tag=new_tag, expected_number_of_artifacts=0
+        _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
+            client, tag=valid_tag_name, uid="latest", labels=artifact2_labels
+        )
+
+        response = self._append_artifact_tag(
+            client=client,
+            tag=invalid_tag_name,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(
+                    key=artifact1_key, uid=artifact1_uid
+                ),
+            ],
+        )
+        assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
+
+        self._list_artifacts_and_assert(
+            client, tag=invalid_tag_name, expected_number_of_artifacts=0
+        )
+
+        self._list_artifacts_and_assert(
+            client, tag=valid_tag_name, expected_number_of_artifacts=1
         )
 
     def test_append_artifact_tags_by_uid_identifier(
@@ -604,6 +610,7 @@ class TestArtifactTags:
         data: dict = None,
         labels: dict = None,
         kind: str = "artifact",
+        expected_status_code: int = http.HTTPStatus.OK.value,
     ):
         uid = uid or str(uuid.uuid4())
         key = key or str(uuid.uuid4())
@@ -625,5 +632,5 @@ class TestArtifactTags:
             ),
             data=json.dumps(data),
         )
-        assert response.status_code == http.HTTPStatus.OK.value
+        assert response.status_code == expected_status_code
         return response, project, name, uid, key, tag, data

@@ -15,6 +15,8 @@
 import pathlib
 import typing
 import unittest.mock
+from abc import ABCMeta
+from contextlib import nullcontext as does_not_raise
 
 import pytest
 
@@ -143,13 +145,16 @@ def assets_path():
 
 
 @pytest.mark.parametrize(
-    "artifact,expected_hash,expected_target_path,artifact_path,generate_target_path",
+    "artifact,expected_hash,expected_target_path,artifact_path,generate_target_path,tag,raises,is_logged_artifact",
     [
         (
             mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
             "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
             "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
             "v3io://just/regular/path",
+            True,
+            "",
+            does_not_raise(),
             True,
         ),
         (
@@ -160,6 +165,9 @@ def assets_path():
             "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3.parquet",
             "v3io://just/regular/path",
             True,
+            "",
+            does_not_raise(),
+            True,
         ),
         (
             mlrun.artifacts.Artifact(
@@ -169,12 +177,18 @@ def assets_path():
             None,
             "v3io://just/regular/path",
             True,
+            "",
+            does_not_raise(),
+            True,
         ),
         (
             mlrun.artifacts.Artifact(key="some-artifact", body=b"asdasdasdasdas"),
             None,
             None,
             "v3io://just/regular/path",
+            True,
+            "",
+            does_not_raise(),
             True,
         ),
         (
@@ -185,6 +199,9 @@ def assets_path():
             "v3io://just/regular/path/4697a8195a0e8ef4e1ee3119268337c8e0afabfc.csv",
             "v3io://just/regular/path",
             True,
+            "",
+            does_not_raise(),
+            True,
         ),
         (
             mlrun.artifacts.Artifact(
@@ -193,6 +210,9 @@ def assets_path():
             None,
             None,
             "v3io://just/regular/path",
+            True,
+            "",
+            does_not_raise(),
             True,
         ),
         (
@@ -203,6 +223,9 @@ def assets_path():
             "v3io://just/regular/path/test/0/some-artifact.csv",
             "v3io://just/regular/path",
             False,
+            "",
+            does_not_raise(),
+            True,
         ),
         (
             mlrun.artifacts.Artifact(
@@ -211,6 +234,30 @@ def assets_path():
             None,
             "v3io://just/regular/path/test/0/some-artifact.parquet",
             "v3io://just/regular/path",
+            False,
+            "",
+            does_not_raise(),
+            True,
+        ),
+        (
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path",
+            True,
+            "valid-tag-name",
+            does_not_raise(),
+            True,
+        ),
+        (
+            # test log_artifact fails when given an invalid tag, and the artifact is not logged
+            mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
+            "2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "v3io://just/regular/path/2fc62a05b53733eb876e50f74b8fe35c809f05c3",
+            "/tmp/",
+            True,
+            "tag_name_invalid!@#",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
             False,
         ),
     ],
@@ -221,6 +268,9 @@ def test_log_artifact(
     expected_target_path: str,
     artifact_path: str,
     generate_target_path: bool,
+    tag: str,
+    raises: typing.Union[ABCMeta, ValueError],
+    is_logged_artifact: bool,
     monkeypatch,
 ):
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
@@ -238,9 +288,12 @@ def test_log_artifact(
         lambda *args, **kwargs: unittest.mock.Mock(),
     )
 
-    logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
-        artifact, artifact_path=artifact_path
-    )
+    with raises:
+        logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
+            artifact,
+            artifact_path=artifact_path,
+            tag=tag,
+        )
 
     if not expected_hash and generate_target_path:
         if artifact.get_body():
@@ -251,16 +304,16 @@ def test_log_artifact(
             expected_hash = mlrun.utils.calculate_local_file_hash(
                 artifact.spec.src_path
             )
+    if is_logged_artifact:
+        if artifact.spec.format:
+            assert logged_artifact.target_path.endswith(f".{artifact.spec.format}")
 
-    if artifact.spec.format:
-        assert logged_artifact.target_path.endswith(f".{artifact.spec.format}")
+        if expected_target_path:
+            assert expected_target_path == logged_artifact.target_path
 
-    if expected_target_path:
-        assert expected_target_path == logged_artifact.target_path
-
-    if expected_hash:
-        assert expected_hash == logged_artifact.metadata.hash
-        assert expected_hash in logged_artifact.target_path
+        if expected_hash:
+            assert expected_hash == logged_artifact.metadata.hash
+            assert expected_hash in logged_artifact.target_path
 
 
 @pytest.mark.parametrize(

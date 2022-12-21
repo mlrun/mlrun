@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -31,6 +32,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     str_to_timestamp,
+    validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -173,6 +175,43 @@ def test_extend_hub_uri():
             expected_output = case["expected_output"]
             output, _ = extend_hub_uri_if_needed(input_uri)
             assert expected_output == output
+
+
+def test_validate_tag_name():
+    cases = [
+        {
+            "tag_name": "tag_name",
+            "raise": True,
+            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        },
+        {
+            "tag_name": "tag_with_char!@#",
+            "raise": True,
+            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        },
+        {
+            "tag_name": "tag^name",
+            "raise": True,
+            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        },
+        {
+            "tag_name": "(tagname)",
+            "raise": True,
+            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        },
+        {
+            "tag_name": "tagname%",
+            "raise": True,
+            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        },
+        {"tag_name": "tagname2.0", "raise": True, "excpected": does_not_raise()},
+        {"tag_name": "tag-name2", "raise": True, "excpected": does_not_raise()},
+        {"tag_name": "tag", "raise": True, "excpected": does_not_raise()},
+        {"tag_name": "tag NAME", "raise": True, "excpected": does_not_raise()},
+    ]
+    for case in cases:
+        with case["excpected"]:
+            validate_tag_name(case["tag_name"], raise_on_failure=case["raise"])
 
 
 def test_enrich_image():

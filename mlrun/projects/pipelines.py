@@ -29,10 +29,10 @@ import mlrun
 import mlrun.api.schemas
 from mlrun.utils import (
     RunNotifications,
+    get_ui_url,
     logger,
     new_pipe_meta,
     parse_versioned_object_uri,
-    get_ui_url,
 )
 
 from ..config import config

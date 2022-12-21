@@ -264,6 +264,33 @@ def test_get_endpoint_features_function():
     assert len(features) == 3
 
 
+def test_generating_tsdb_paths():
+    """Validate that the TSDB paths for the _ModelEndpointKVStore object are created as expected. These paths are
+    usually important when the user call the delete project API and as a result the TSDB resources should be deleted"""
+
+    # Initialize endpoint store target object
+    endpoint_target = (
+        mlrun.api.crud.model_monitoring.model_endpoint_store._ModelEndpointKVStore(
+            project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+        )
+    )
+
+    # Generating the required tsdb paths
+    tsdb_path, filtered_path = endpoint_target._generate_tsdb_paths()
+
+    # Validate the expected results based on the full path to the TSDB events directory
+    full_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+        project=TEST_PROJECT,
+        kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+    )
+
+    # TSDB short path that should point to the main directory
+    assert tsdb_path == full_path[: len(tsdb_path)]
+
+    # Filtered path that should point to the events directory without container and schema
+    assert filtered_path == full_path[-len(filtered_path) + 1:] + "/"
+
+
 def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
     return mlrun.api.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
 

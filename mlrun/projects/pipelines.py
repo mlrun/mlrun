@@ -32,6 +32,7 @@ from mlrun.utils import (
     logger,
     new_pipe_meta,
     parse_versioned_object_uri,
+    get_ui_url,
 )
 
 from ..config import config
@@ -720,7 +721,7 @@ class _RemoteRunner(_PipelineRunner):
             name=runner_name,
             project=project.name,
             kind="job",
-            image=mlrun.mlconf.default_base_image,
+            image=mlrun.mlconf.default_workflow_runner_image,
         )
 
         runspec = mlrun.RunObject.from_dict(
@@ -912,15 +913,26 @@ def load_and_run(
     engine: str = None,
     local: bool = None,
 ):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    try:
+        project = mlrun.load_project(
+            context=f"./{project_name}",
+            url=url,
+            name=project_name,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+        )
+    except Exception as error:
+        # Notifying to slack in case of scheduling:
+        slack = RunNotifications(with_slack=True)
+        url = get_ui_url(project_name, context.uid)
+        link = f"<{url}|*view workflow job details*>"
+        message = (
+            f":x: Project {project_name} workflow {workflow_name}"
+            f" failed to run scheduling workflow remotely!\n{link}"
+        )
+        slack.push(message=message)
+        raise error
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")

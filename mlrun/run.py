@@ -1528,7 +1528,7 @@ class OutputsLogger:
                 pass
             except ImportError:
                 logger.warn(
-                    "bokeh installation is ignored. if needed, "
+                    "Bokeh installation is ignored. If needed, "
                     "make sure you have the required version with `pip install mlrun[bokeh]`"
                 )
                 pass
@@ -1842,7 +1842,7 @@ class ContextHandler:
             pass
         except ImportError:
             logger.warn(
-                "bokeh installation is ignored. if needed, "
+                "Bokeh installation is ignored. If needed, "
                 "make sure you have the required version with `pip install mlrun[bokeh]`"
             )
             pass

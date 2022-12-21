@@ -391,9 +391,9 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
-    artifact_2_tag_2 = "artifact_tag_two_again"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
+    artifact_2_tag_2 = "artifact-tag-two-again"
 
     db.store_artifact(
         db_session,

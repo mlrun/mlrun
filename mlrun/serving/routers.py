@@ -705,11 +705,13 @@ class VotingEnsemble(BaseModelRouter):
     def validate(self, request: dict, method: str):
         """
         Validate the event body (after preprocessing)
+
         :param request: Event body.
         :param method: Event method.
+
         :return: The given Event body (request).
-        :raise: Exception `inputs` key not found in `request`
-                Exception `inputs` should be of type List
+
+        :raise Exception: If validation failed.
         """
         if self.protocol == "v2" and method == "POST":
             if "inputs" not in request:

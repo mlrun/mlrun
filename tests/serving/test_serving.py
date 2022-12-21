@@ -236,7 +236,7 @@ def test_ensemble_get_metadata_of_models():
 def test_ensemble_infer():
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
-        event = MockEvent(testdata, path=url)
+        event = MockEvent(testdata, path=url, method="POST")
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
         assert data["outputs"] == {

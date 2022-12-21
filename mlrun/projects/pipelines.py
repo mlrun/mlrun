@@ -929,8 +929,8 @@ def load_and_run(
         url = get_ui_url(project_name, context.uid)
         link = f"<{url}|*view workflow job details*>"
         message = (
-            f":x: Project {project_name} workflow {workflow_name}"
-            f" failed to run scheduling workflow remotely!\nerror: ```{error}```\n{link}"
+            f":x: Failed to run scheduled workflow {workflow_name} in Project {project_name} !"
+            f"\nerror: ```{error}```\n{link}"
         )
         slack.push(message=message)
         raise error

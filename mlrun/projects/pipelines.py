@@ -923,6 +923,7 @@ def load_and_run(
             clone=clone,
         )
     except Exception as error:
+        # TODO: change this to the new notifications, once they are merged
         # Notifying to slack in case of scheduling:
         slack = RunNotifications(with_slack=True)
         url = get_ui_url(project_name, context.uid)

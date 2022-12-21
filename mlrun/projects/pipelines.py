@@ -929,7 +929,7 @@ def load_and_run(
         link = f"<{url}|*view workflow job details*>"
         message = (
             f":x: Project {project_name} workflow {workflow_name}"
-            f" failed to run scheduling workflow remotely!\n{link}"
+            f" failed to run scheduling workflow remotely!\nerror: {error}\n{link}"
         )
         slack.push(message=message)
         raise error

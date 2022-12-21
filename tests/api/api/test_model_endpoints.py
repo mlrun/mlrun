@@ -288,7 +288,7 @@ def test_generating_tsdb_paths():
     assert tsdb_path == full_path[: len(tsdb_path)]
 
     # Filtered path that should point to the events directory without container and schema
-    assert filtered_path == full_path[-len(filtered_path) + 1:] + "/"
+    assert filtered_path == full_path[-len(filtered_path) + 1 :] + "/"
 
 
 def _get_auth_info() -> mlrun.api.schemas.AuthInfo:

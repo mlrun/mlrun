@@ -49,7 +49,7 @@ In the `tests/system/` directory exist test suites to run against a running syst
 ### Adding System Tests
 To add new system tests, all that is required is to create a test suite class which inherits the `TestMLRunSystem`
 class from `tests.system.base`. In addition, a special `skip` annotation must be added to the suite, so it won't run 
-if the `env.yml` isn't filled. If the test can only run on a full iguazio system and not on an MLRun Kit instance, add
+if the `env.yml` isn't filled. If the test can only run on a full iguazio system and not on an MLRun community edition instance, add
 the `enterprise` marker under the `skip` annotation or on the test method itself. If the `enterprise` marker is added
 to a specific test method, the `skip` annotation must be added above it in addition to the annotation over the test 
 suite. This is because enterprise tests and open source tests require different env vars to be set in the `env.yml`.

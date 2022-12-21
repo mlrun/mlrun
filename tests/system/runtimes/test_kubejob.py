@@ -16,6 +16,8 @@ import datetime
 import os
 from sys import executable
 
+import pytest
+
 import mlrun
 import tests.system.base
 
@@ -160,7 +162,13 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "a-value-123",
         ]
 
+    @pytest.mark.enterprise
     def test_new_function_with_args(self):
+        """
+        skip this test on ce because it requires uploading artifacts to target store
+        we don't allow uploading to s3 from tests and we only allow downloading compressed files from remote sources
+        here we upload the python code file to v3io
+        """
         code_path = str(self.assets_path / "function_with_args.py")
         project = mlrun.get_or_create_project(self.project_name, self.results_path)
         art = project.log_artifact(

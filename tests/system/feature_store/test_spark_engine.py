@@ -782,7 +782,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fs.RunConfig(local=False),
             )
 
-    def test_get_offline_features_with_filter(self):
+    # ML-3092
+    def test_get_offline_features_with_filter_and_indexes(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
             "measurements",
@@ -808,20 +809,20 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         my_fv = fs.FeatureVector(
             fv_name,
             features,
-            description="my feature vector",
         )
+        my_fv.spec.with_indexes = True
         my_fv.save()
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
-        fs.get_offline_features(
+        resp = fs.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            engine="spark",
             run_config=fs.RunConfig(local=False),
         )
-        df_res = target.as_df()
-        df = source.to_dataframe()
-        expected_df = df[df["bad"] == 7][["bad", "department"]]
-        expected_df.reset_index(drop=True, inplace=True)
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
 
-        assert df_res.equals(expected_df)
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)

@@ -45,6 +45,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
 ARG MLRUN_PIP_VERSION=22.3.0
 ARG MLRUN_PYTHON_VERSION=3.9.13
 ARG TENSORFLOW_VERSION=2.9.0
+ARG OMPI_VERSION=4.1.4
 
 ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
 
@@ -68,7 +69,7 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         rapids=22.10 \
         tensorflow=${TENSORFLOW_VERSION} \
         torchvision=0.14 \
-        openmpi-mpicc=4.1.4 \
+        openmpi-mpicc=${OMPI_VERSION} \
     && conda clean -aqy
 
 ARG HOROVOD_VERSION=0.25.0

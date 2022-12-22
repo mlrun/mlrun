@@ -1,37 +1,23 @@
 [
   {
-    "image-name":"mlrun",
-    "python-version":"3.9.13",
-    "include-version-suffix":false
+    "image-name":"mlrun"
   },
   {
-    "image-name":"api",
-    "python-version":"3.9.13",
-    "include-version-suffix":false
+    "image-name":"api"
   },
   {
-    "image-name":"base",
-    "python-version":"3.9.13",
-    "include-version-suffix":false
+    "image-name":"base"
   },
   {
-    "image-name":"models",
-    "python-version":"3.9.13",
-    "include-version-suffix":false
+    "image-name":"models"
   },
   {
-    "image-name":"models-gpu",
-    "python-version":"3.9.13",
-    "include-version-suffix":false
+    "image-name":"models-gpu"
   },
   {
-    "image-name":"jupyter",
-    "python-version":"3.9.13",
-    "include-version-suffix":false
+    "image-name":"jupyter"
   },
   {
-    "image-name": "test",
-    "python-version": "3.9.13",
-    "include-version-suffix":false
+    "image-name": "test"
   }
 ]

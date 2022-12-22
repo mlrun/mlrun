@@ -56,7 +56,7 @@ jobs:
           matrix=$(jq --arg skipImages "$skipImages" 'map(. | select(",\(."image-name")," | inside($skipImages)|not))' ./.github/workflows/build-workflow-matrix.json)
           echo ::set-output name=matrix::{\"include\":$(echo $matrix)}
   build-images:
-    name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
+    name: Build and push image - ${{ matrix.image-name }}
     runs-on: ubuntu-latest
     needs: matrix_prep
 
@@ -127,8 +127,6 @@ jobs:
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
-            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-version-suffix }} \
             make push-${{ matrix.image-name }}; \
           done;
 
@@ -146,8 +144,6 @@ jobs:
             MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
             MLRUN_VERSION=unstable \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-version-suffix }} \
             make push-${{ matrix.image-name }}; \
           done;
     - name: Pull cache, build and push test image
@@ -161,6 +157,4 @@ jobs:
         MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
-        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-version-suffix }} \
         make push-${{ matrix.image-name }}

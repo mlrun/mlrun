@@ -22,6 +22,9 @@ ARG OMPI_VERSION=4.1.4
 RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
     conda clean -aqy
 
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
 # pytorch caused cuda download, this guarantees cpu version:
 RUN python -m pip install torch==1.13.0+cpu torchvision==0.14.0+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html

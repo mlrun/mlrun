@@ -71,6 +71,9 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         openmpi-mpicc=${OMPI_VERSION} \
     && conda clean -aqy
 
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
 ARG HOROVOD_VERSION=0.25.0
 
 RUN HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \

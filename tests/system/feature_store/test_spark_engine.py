@@ -819,6 +819,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
         source_df = source.to_dataframe()
+        source_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
 
         assert resp_df.equals(target_df)

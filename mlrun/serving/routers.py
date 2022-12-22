@@ -621,18 +621,6 @@ class VotingEnsemble(BaseModelRouter):
                     if response_body["inputs"] and response_body["outputs"]:
                         break
                 response.body = response_body
-            elif (
-                name == self.name
-                and event.method == "GET"
-                and subpath == OperationTypes.explain.name
-            ):
-                response = copy.copy(event)
-                response_body = {
-                    "name": self.name,
-                    "version": self.version or "",
-                    "routes": list(self.routes.keys()),
-                }
-                response.body = response_body
             # A specific model event
             else:
                 response = route.run(event)

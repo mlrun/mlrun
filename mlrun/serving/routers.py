@@ -244,15 +244,29 @@ class OperationTypes(str, Enum):
 
 
 class _ParallelRunInterface(RouterToDict):
-    def __init__(self, executor_type):
+    def __init__(self, executor_type: Union[ParallelRunnerModes, str]):
+        """
+        Interface for execute parallel runners
+
+        :param executor_type: The desired way for execute parallen run.
+                              Have 3 option :
+                              * array - running one by one
+                              * process - running in separated process
+                              * thread - running in separated threads
+        """
         if executor_type and executor_type not in ParallelRunnerModes.all():
             raise ValueError(
                 f"executor_type must be one of {' | '.join(ParallelRunnerModes.all())}"
             )
-        self.executor_type = executor_type
+        self.executor_type = ParallelRunnerModes(executor_type)
         self._pool = None
 
     def _init_pool(self):
+        """
+        Initial the pool according to self.executor_type and returns it.
+
+        :return: The initialed pool
+        """
         if self._pool is None:
             if self.executor_type == ParallelRunnerModes.process:
                 # init the context and route on the worker side (cannot be pickeled)
@@ -281,11 +295,21 @@ class _ParallelRunInterface(RouterToDict):
         return self._pool
 
     def _shutdown_pool(self):
+        """
+        Shutdowns the pool and updated self._pool to None
+        """
         if self._pool is not None:
             self._pool.shutdown()
             self._pool = None
 
-    def _parallel_run(self, event):
+    def _parallel_run(self, event: dict):
+        """
+        Execute parallel run
+
+        :param event: event to run in parallel
+
+        :return: All the results of the runs
+        """
         results = {}
         if self.executor_type == ParallelRunnerModes.array:
             results = {

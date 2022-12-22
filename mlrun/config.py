@@ -459,6 +459,7 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
+    "default_workflow_runner_image": "mlrun/mlrun",
 }
 
 _is_running_as_api = None

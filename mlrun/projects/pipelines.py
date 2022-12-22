@@ -28,7 +28,7 @@ from kfp.compiler import compiler
 import mlrun
 import mlrun.api.schemas
 import mlrun.utils.notifications
-from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
+from mlrun.utils import get_ui_url, logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -723,7 +723,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image=mlrun.mlconf.default_base_image,
+                image=mlrun.mlconf.default_workflow_runner_image,
             )
             msg = "executing workflow "
             if workflow_spec.schedule:
@@ -747,6 +747,7 @@ class _RemoteRunner(_PipelineRunner):
                             "ttl": workflow_spec.ttl,
                             "engine": workflow_spec.engine,
                             "local": workflow_spec.run_local,
+                            "schedule": workflow_spec.schedule,
                         },
                         "handler": "mlrun.projects.load_and_run",
                     },
@@ -891,15 +892,33 @@ def load_and_run(
     ttl: int = None,
     engine: str = None,
     local: bool = None,
+    schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
 ):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
+    try:
+        project = mlrun.load_project(
+            context=f"./{project_name}",
+            url=url,
+            name=project_name,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+        )
+    except Exception as error:
+        if schedule:
+            # Notifying slack:
+            slack_notifier = mlrun.utils.notifications.SlackNotification()
+            url = get_ui_url(project_name, context.uid)
+            link = f"<{url}|*view workflow job details*>"
+            message = (
+                f":x: Failed to run scheduled workflow {workflow_name} in Project {project_name} !\n"
+                f"error: ```{error}```\n{link}"
+            )
+            slack_notifier.send(
+                message=message,
+                severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
+            )
+        raise error
+
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
     workflow_log_message = workflow_name or workflow_path

@@ -122,7 +122,7 @@ class CustomNotificationPusher(object):
 
         # get notification's inverse dependencies, and only send the notification if
         # none of its inverse dependencies are being sent
-        inverse_dependencies = notification_type.inverse_dependencies()
+        inverse_dependencies = NotificationTypes(notification_type).inverse_dependencies()
         for inverse_dependency in inverse_dependencies:
             inverse_dependency_notification = self._notifications.get(
                 inverse_dependency

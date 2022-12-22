@@ -644,13 +644,19 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         # Flatten predictions by sample instead of by model as received
         num_of_events = len(
             [*predictions.values()][0]["outputs"][self.prediction_col_name]
+            if self.format_response_with_col_name_flag
+            else [*predictions.values()][0]["outputs"]
         )
         flattened_predictions = []
         weights = []
         for i in range(num_of_events):
             event_pred = []
             for model_name, v in predictions.items():
-                event_pred.append(v["outputs"][self.prediction_col_name][i])
+                event_pred.append(
+                    v["outputs"][self.prediction_col_name][i]
+                    if self.format_response_with_col_name_flag
+                    else v["outputs"][i]
+                )
                 if i == 0:
                     weights.append(self._weights[model_name])
             flattened_predictions.append(event_pred)

@@ -905,7 +905,9 @@ def load_and_run(
         )
     except Exception as error:
         if schedule:
-            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher()
+            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
+                ["slack"]
+            )
             url = get_ui_url(project_name, context.uid)
             link = f"<{url}|*view workflow job details*>"
             message = (

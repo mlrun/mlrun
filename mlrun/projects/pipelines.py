@@ -723,7 +723,7 @@ class _RemoteRunner(_PipelineRunner):
                 name=runner_name,
                 project=project.name,
                 kind="job",
-                image=mlrun.mlconf.default_workflow_runner_image,
+                image=mlrun.mlconf.default_base_image,
             )
             msg = "executing workflow "
             if workflow_spec.schedule:

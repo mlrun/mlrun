@@ -21,13 +21,8 @@
   },
   {
     "image-name":"models-gpu",
-    "python-version":"3.7.13",
-    "include-version-suffix":false
-  },
-    {
-    "image-name":"models-gpu-py39",
     "python-version":"3.9.13",
-    "include-version-suffix":true
+    "include-version-suffix":false
   },
   {
     "image-name":"jupyter",

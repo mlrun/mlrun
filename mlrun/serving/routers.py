@@ -22,7 +22,6 @@ from typing import Dict, List, Union
 
 import numpy
 import numpy as np
-from numpy.core.fromnumeric import mean
 
 import mlrun
 import mlrun.utils.model_monitoring

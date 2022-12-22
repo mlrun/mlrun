@@ -118,4 +118,82 @@ Currently, this can only be done by one of the maintainers, the process is:
 2. Go to the [build action](https://github.com/mlrun/mlrun/actions?query=workflow%3ABuild) and trigger it for the branch 
 (leave all options default)
 3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger 
-it for the branch, change "Take tested code from action REF" to `true`   
+it for the branch, change "Take tested code from action REF" to `true`
+
+## Migrating to Python 3.9
+MLRun moved to Python 3.9 from 1.3.0.  
+If you are working on MLRun 1.2.x or earlier, check the section below of managing multiple venvs.
+### Installing Python 3.9
+If you already have Python 3.9 installed, you can skip this part.
+
+#### MacOS:
+1. Install pyenv
+    ```shell script
+    brew update
+    brew install pyenv
+    ```
+2. Install Python 3.9
+    ```shell script
+    pyenv install 3.9.13
+    ```
+3. Make pyenv expose the python interpreter by default (make sure you have .zshrc)
+   ```shell script
+   echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n eval "$(pyenv init -)"\nfi' >> ~/.zshrc
+   ```
+4. Set python default to 3.9 (for this session only)
+     ```shell script
+    pyenv shell 3.9.13
+    ```
+   Or set default to 3.9 permanently
+     ```shell script
+    pyenv global 3.9.13
+    ```
+5. Sanity test, it should yield 3.9.13
+    ```shell script
+    python3 -V
+    ```
+#### Linux:
+1. Download compressed Python 3.9 package
+    ```shell script
+    wget https://www.python.org/ftp/python/3.9.13/Python-3.9.13.tgz
+    ```
+2. Extract Python 3.9 package
+    ```shell script
+   tar -xvf Python-3.9.7.tgz
+    ```
+3. Install Python 3.9
+    ```shell script
+    cd Python-3.9.7/
+   
+   # configure with oprimizations
+    ./configure --enable-optimizations
+   
+   # start the building process
+   make
+   
+   # install the python 3.9 binaries
+   sudo make altinstall
+    ```
+4. Ensure python3 points to python 3.9.x
+    ```shell script
+   sudo update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.9 1
+   sudo update-alternatives --set python3 /usr/local/bin/python3.9
+    ```
+5. Sanity test, it should yield 3.9.x
+    ```shell script
+    python3 -V
+    ``` 
+6. You may clean up the downloaded tgz and move the extracted folder to a more permanent location
+    ```shell script
+    cd ..
+    mv Python-3.9.7 <new location>
+    rm Python-3.9.7.tgz
+    ```
+### Creating a new Python 3.9 venv in PyCharm
+1. In PyCharm, delete the existing venv folder se we can create a new one.
+2. Go to Preferences => Python Interpreter.
+3. Click the gear icon and select "Add".
+4. Select "Virtualenv Environment" => New Environment.
+5. Select "Base Interpreter" and select the Python 3.9 interpreter. If you don't see it, click the 3 dots icon and look for (or use `which python3` to find the path).
+6. Press OK and wait for the venv to be created.
+7. Start a new terminal in your pycharm and use `make install-requirements` to install the requirements in the new venv.

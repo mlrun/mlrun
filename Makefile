@@ -311,7 +311,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
 
-
 .PHONY: push-models-gpu
 push-models-gpu: models-gpu ## Push models gpu docker image
 	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)

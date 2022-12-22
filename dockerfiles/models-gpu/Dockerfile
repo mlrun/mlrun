@@ -98,6 +98,6 @@ RUN python -m pip install \
     -r models-image-requirements.txt \
     -r models-gpu-image-requirements.txt
 
-COPY py39 .
+COPY . .
 
 RUN python -m pip install .[complete]

@@ -19,7 +19,7 @@ import fsspec
 from azure.storage.blob import BlobServiceClient
 
 import mlrun.errors
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 
 from .base import DataStore, FileStats
 
@@ -47,7 +47,7 @@ class AzureBlobStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"Azure adlfs not installed, run pip install adlfs, {error_to_string(exc)}"
+                    f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
                 )
             return None
         self._filesystem = fsspec.filesystem(self.kind, **self.get_storage_options())

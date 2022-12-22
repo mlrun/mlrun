@@ -35,7 +35,7 @@ import mlrun.artifacts
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 from mlrun.utils import is_legacy_artifact, logger
 
 
@@ -570,7 +570,7 @@ def _resolve_current_data_version(
         ):
             logger.info(
                 "Data version table does not exist, assuming prior version",
-                exc=error_to_string(exc),
+                exc=err_to_str(exc),
                 data_version_prior_to_table_addition=data_version_prior_to_table_addition,
             )
             return data_version_prior_to_table_addition

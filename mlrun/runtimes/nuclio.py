@@ -17,7 +17,7 @@ import os
 import socket
 
 from ..db import get_or_set_dburl
-from ..errors import error_to_string
+from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..model import RunTemplate
 from ..serving.server import v2_serving_init
@@ -87,6 +87,6 @@ def nuclio_jobs_handler(context, event):
         if val:
             ctx.log_result("return", val)
     except Exception as exc:
-        err = error_to_string(exc)
+        err = err_to_str(exc)
         ctx.set_state(error=err)
     return ctx.to_json()

@@ -1,26 +1,26 @@
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 
 
 def test_error_none():
-    assert error_to_string(None) == ""
+    assert err_to_str(None) == ""
 
 
 def test_error_is_already_string():
-    assert error_to_string("this is already a string") == "this is already a string"
+    assert err_to_str("this is already a string") == "this is already a string"
 
 
 def test_error_single():
     try:
         raise Exception("a")
     except Exception as ex:
-        assert error_to_string(ex) == "a"
+        assert err_to_str(ex) == "a"
 
 
 def test_error_chain_n2():
     try:
         raise Exception("b") from Exception("a")
     except Exception as ex:
-        assert error_to_string(ex) == "b, caused by: a"
+        assert err_to_str(ex) == "b, caused by: a"
 
 
 def test_error_chain_n3():
@@ -30,7 +30,7 @@ def test_error_chain_n3():
         b.__cause__ = a
         raise Exception("c") from b
     except Exception as ex:
-        assert error_to_string(ex) == "c, caused by: b, caused by: a"
+        assert err_to_str(ex) == "c, caused by: b, caused by: a"
 
 
 def test_error_circular_chain():
@@ -38,4 +38,4 @@ def test_error_circular_chain():
     b = Exception("b")
     a.__cause__ = b
     b.__cause__ = a
-    assert error_to_string(b) == "b, caused by: a"
+    assert err_to_str(b) == "b, caused by: a"

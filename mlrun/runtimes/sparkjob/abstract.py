@@ -26,7 +26,7 @@ import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
 from mlrun.db import get_run_db
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
@@ -611,9 +611,7 @@ with ctx:
             return resp
         except ApiException as exc:
             crd = f"{AbstractSparkRuntime.group}/{AbstractSparkRuntime.version}/{AbstractSparkRuntime.plural}"
-            logger.error(
-                f"Exception when creating SparkJob ({crd}): {error_to_string(exc)}"
-            )
+            logger.error(f"Exception when creating SparkJob ({crd}): {err_to_str(exc)}")
             raise RunError("Exception when creating SparkJob") from exc
 
     def get_job(self, name, namespace=None):
@@ -628,7 +626,7 @@ with ctx:
                 name,
             )
         except ApiException as exc:
-            print(f"Exception when reading SparkJob: {error_to_string(exc)}")
+            print(f"Exception when reading SparkJob: {err_to_str(exc)}")
         return resp
 
     def _update_igz_jars(self, deps):

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
@@ -154,7 +154,7 @@ class StoreManager:
                 data_store_secrets=secrets,
             )
         except Exception as exc:
-            raise OSError(f"artifact {url} not found, {error_to_string(exc)}")
+            raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
         target = resource.get_target_path()
         # the allow_empty.. flag allows us to have functions which dont depend on having targets e.g. a function
         # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist

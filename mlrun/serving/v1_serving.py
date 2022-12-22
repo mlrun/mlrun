@@ -24,7 +24,7 @@ from urllib.request import urlopen
 import nuclio
 
 import mlrun
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 from mlrun.platforms.iguazio import OutputStream
 from mlrun.runtimes import RemoteRuntime
 
@@ -340,7 +340,7 @@ class ExplainHandler(HTTPHandler):
             body = json.loads(event.body)
         except json.decoder.JSONDecodeError as exc:
             return context.Response(
-                body=f"Unrecognized request format: {error_to_string(exc)}",
+                body=f"Unrecognized request format: {err_to_str(exc)}",
                 content_type="text/plain",
                 status_code=400,
             )

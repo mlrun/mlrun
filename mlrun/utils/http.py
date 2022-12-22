@@ -19,7 +19,7 @@ import requests.adapters
 import urllib3.util.retry
 
 from ..config import config
-from ..errors import error_to_string
+from ..errors import err_to_str
 from . import logger
 
 
@@ -93,7 +93,7 @@ class HTTPSessionWithRetry(requests.Session):
                         "warning",
                         exc,
                         f"{method} {url} request failed, http retries disabled,"
-                        f" raising exception: {error_to_string(exc)}",
+                        f" raising exception: {err_to_str(exc)}",
                         retry_count,
                     )
                     raise exc
@@ -103,7 +103,7 @@ class HTTPSessionWithRetry(requests.Session):
                         "warning",
                         exc,
                         f"{method} {url} request failed, max retries reached,"
-                        f" raising exception: {error_to_string(exc)}",
+                        f" raising exception: {err_to_str(exc)}",
                         retry_count,
                     )
                     raise exc
@@ -118,7 +118,7 @@ class HTTPSessionWithRetry(requests.Session):
                         "warning",
                         exc,
                         f"{method} {url} request failed on non-retryable exception,"
-                        f" raising exception: {error_to_string(exc)}",
+                        f" raising exception: {err_to_str(exc)}",
                         retry_count,
                     )
                     raise exc
@@ -147,7 +147,7 @@ class HTTPSessionWithRetry(requests.Session):
         getattr(logger, level)(
             message,
             exception_type=type(exc),
-            exception_message=error_to_string(exc),
+            exception_message=err_to_str(exc),
             retry_interval=self.retry_backoff_factor,
             retry_count=retry_count,
             max_retries=self.max_retries,

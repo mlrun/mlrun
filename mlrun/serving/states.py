@@ -24,7 +24,7 @@ from typing import Union
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url
-from ..errors import MLRunInvalidArgumentError, error_to_string
+from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, get_function
@@ -173,7 +173,7 @@ class BaseStep(ModelObj):
 
     def _log_error(self, event, err, **kwargs):
         """on failure log (for sync mode)"""
-        error_message = error_to_string(err)
+        error_message = err_to_str(err)
         self.context.logger.error(
             f"step {self.name} got error {error_message} when processing an event:\n {event.body}"
         )
@@ -186,7 +186,7 @@ class BaseStep(ModelObj):
     def _call_error_handler(self, event, err, **kwargs):
         """call the error handler if exist"""
         if self._on_error_handler:
-            event.error = error_to_string(err)
+            event.error = err_to_str(err)
             event.origin_state = self.fullname
             return self._on_error_handler(event)
 

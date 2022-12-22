@@ -28,7 +28,7 @@ from kfp.compiler import compiler
 import mlrun
 import mlrun.api.schemas
 import mlrun.utils.notifications
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
@@ -251,7 +251,7 @@ def _set_function_attribute_on_kfp_pod(
             f"Unable to set function attribute on kfp pod {kfp_pod_name}",
             function_spec_key=function_spec_key,
             pod_template_key=pod_template_key,
-            error=error_to_string(err),
+            error=err_to_str(err),
         )
 
 
@@ -315,7 +315,7 @@ def _create_enriched_mlrun_workflow(
             except Exception as err:
                 logger.debug(
                     "Unable to retrieve project functions, not enriching workflow with mlrun",
-                    error=error_to_string(err),
+                    error=err_to_str(err),
                 )
                 return workflow
 
@@ -339,7 +339,7 @@ def _create_enriched_mlrun_workflow(
         raise
     except Exception as err:
         logger.debug(
-            "Something in the enrichment of kfp pods failed", error=error_to_string(err)
+            "Something in the enrichment of kfp pods failed", error=err_to_str(err)
         )
     return workflow
 

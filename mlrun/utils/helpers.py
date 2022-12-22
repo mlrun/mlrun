@@ -36,7 +36,7 @@ from yaml.representer import RepresenterError
 import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 
 from ..config import config
 from .logger import create_logger
@@ -791,7 +791,7 @@ def retry_until_successful(
                 if logger is not None and verbose:
                     logger.debug(
                         f"Operation not yet successful, Retrying in {next_interval} seconds."
-                        f" exc: {error_to_string(exc)}"
+                        f" exc: {err_to_str(exc)}"
                     )
 
                 time.sleep(next_interval)

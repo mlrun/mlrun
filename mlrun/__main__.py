@@ -36,7 +36,7 @@ import mlrun
 from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
-from .errors import error_to_string
+from .errors import err_to_str
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
@@ -413,7 +413,7 @@ def run(
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print(f"runtime error: {error_to_string(err)}")
+        print(f"runtime error: {err_to_str(err)}")
         exit(1)
 
 
@@ -554,7 +554,7 @@ def build(
                 with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
             )
         except Exception as err:
-            print(f"deploy error, {error_to_string(err)}")
+            print(f"deploy error, {err_to_str(err)}")
             exit(1)
 
         state = func.status.state
@@ -667,7 +667,7 @@ def deploy(
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
-        print(f"deploy error: {error_to_string(err)}")
+        print(f"deploy error: {err_to_str(err)}")
         exit(1)
 
     print(f"function deployed, address={addr}")
@@ -1088,7 +1088,7 @@ def project(
             )
         except Exception as exc:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {error_to_string(exc)}"
+            message = f"failed to run pipeline, {err_to_str(exc)}"
             had_error = True
             print(message)
 
@@ -1361,7 +1361,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
                 function.spec.command = command
             runtime = function.to_dict()
     except Exception as exc:
-        logger.error(f"function {func_url} not found, {error_to_string(exc)}")
+        logger.error(f"function {func_url} not found, {err_to_str(exc)}")
         return None
 
     if not runtime:

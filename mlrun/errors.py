@@ -75,7 +75,7 @@ def raise_for_status(response: requests.Response, message: str = None):
     try:
         response.raise_for_status()
     except requests.HTTPError as exc:
-        error_message = error_to_string(exc)
+        error_message = err_to_str(exc)
         if message:
             error_message = f"{error_message}: {message}"
         try:
@@ -97,7 +97,7 @@ def raise_for_status_code(status_code: int, message: str = None):
         raise MLRunHTTPError(message)
 
 
-def error_to_string(err):
+def err_to_str(err):
     if not err:
         return ""
 

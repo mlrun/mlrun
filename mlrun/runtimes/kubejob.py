@@ -25,7 +25,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..builder import build_runtime
 from ..db import RunDBError
-from ..errors import error_to_string
+from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
@@ -367,7 +367,7 @@ class KubejobRuntime(KubeResource):
         try:
             pod_name, namespace = k8s.create_pod(pod)
         except ApiException as exc:
-            raise RunError(error_to_string(exc))
+            raise RunError(err_to_str(exc))
 
         if pod_name and self.kfp:
             writer = AsyncLogWriter(self._db_conn, runobj)

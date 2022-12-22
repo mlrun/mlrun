@@ -61,7 +61,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
 )
 from mlrun.config import config
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
@@ -109,7 +109,7 @@ def retry_on_conflict(function):
                     exc, conflict_messages
                 ):
                     logger.warning(
-                        "Got conflict error from DB. Retrying", err=error_to_string(exc)
+                        "Got conflict error from DB. Retrying", err=err_to_str(exc)
                     )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Got conflict error from DB"
@@ -2644,7 +2644,7 @@ class SQLDB(DBInterface):
             except SQLAlchemyError as err:
                 session.rollback()
                 raise mlrun.errors.MLRunConflictError(
-                    f"add user: {error_to_string(err)}"
+                    f"add user: {err_to_str(err)}"
                 ) from err
         return users
 
@@ -2696,7 +2696,7 @@ class SQLDB(DBInterface):
                         "Failed committing changes, database is locked"
                     ) from err
                 logger.warning(
-                    "Failed committing changes to DB", cls=cls, err=error_to_string(err)
+                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
                 )
                 if not ignore:
                     identifiers = ",".join(

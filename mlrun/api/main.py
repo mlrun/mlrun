@@ -45,7 +45,7 @@ from mlrun.api.utils.singletons.project_member import (
 )
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
@@ -270,7 +270,7 @@ async def _synchronize_with_chief_clusterization_spec():
     except Exception as exc:
         logger.debug(
             "Failed receiving clusterization spec",
-            exc=error_to_string(exc),
+            exc=err_to_str(exc),
             traceback=traceback.format_exc(),
         )
     else:
@@ -321,7 +321,7 @@ def _monitor_runs():
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring",
-                    exc=error_to_string(exc),
+                    exc=err_to_str(exc),
                     kind=kind,
                 )
     finally:
@@ -338,7 +338,7 @@ def _cleanup_runtimes():
             except Exception as exc:
                 logger.warning(
                     "Failed deleting resources. Ignoring",
-                    exc=error_to_string(exc),
+                    exc=err_to_str(exc),
                     kind=kind,
                 )
     finally:

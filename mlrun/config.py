@@ -38,7 +38,7 @@ import semver
 import yaml
 
 import mlrun.errors
-from mlrun.errors import error_to_string
+from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -520,7 +520,7 @@ class Config:
                         if not skip_errors:
                             raise exc
                         print(
-                            f"Warning, failed to set config key {key}={value}, {error_to_string(exc)}"
+                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
                         )
 
     def dump_yaml(self, stream=None):

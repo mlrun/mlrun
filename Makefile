@@ -305,11 +305,18 @@ models-gpu: update-version-file ## Build models-gpu docker image
 		--file dockerfiles/models-gpu/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
+		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) .
+
+
+.PHONY: push-models-gpu
+push-models-gpu: models-gpu ## Push models gpu docker image
+	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
+	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
+
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter$(MLRUN_PYTHON_VERSION_SUFFIX):$(MLRUN_DOCKER_TAG)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)

@@ -13,7 +13,7 @@
 # limitations under the License.
 ARG CUDA_VER=11.7.0
 
-FROM quay.io/mlrun/cuda:11.7.0-base-ubuntu20.04
+FROM quay.io/mlrun/cuda:${CUDA_VER}-base-ubuntu20.04
 
 # need to be redeclared since used in the from
 ARG CUDA_VER
@@ -45,7 +45,6 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
 ARG MLRUN_PIP_VERSION=22.3.0
 ARG MLRUN_PYTHON_VERSION=3.9.13
 ARG TENSORFLOW_VERSION=2.9.0
-
 
 ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
 

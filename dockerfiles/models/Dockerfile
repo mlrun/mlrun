@@ -32,7 +32,7 @@ ARG TENSORFLOW_VERSION=2.9.0
 RUN python -m pip install -U intel-tensorflow~=${TENSORFLOW_VERSION} mxnet
 
 ARG HOROVOD_VERSION=0.25.0
-RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1  \
+RUN HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1  \
     python -m pip install horovod~=${HOROVOD_VERSION} && \
     horovodrun --check-build
 

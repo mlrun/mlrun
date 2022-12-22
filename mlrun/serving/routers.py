@@ -601,7 +601,7 @@ class VotingEnsemble(BaseModelRouter):
                 if self.version:
                     response_body["model_version"] = self.version
                 response.body = response_body
-            elif name == self.name and event.method == "GET":
+            elif name == self.name and event.method == "GET" and not subpath:
                 response = copy.copy(event)
                 response_body = {
                     "name": self.name,
@@ -620,6 +620,18 @@ class VotingEnsemble(BaseModelRouter):
                     )
                     if response_body["inputs"] and response_body["outputs"]:
                         break
+                response.body = response_body
+            elif (
+                name == self.name
+                and event.method == "GET"
+                and subpath == OperationTypes.explain.name
+            ):
+                response = copy.copy(event)
+                response_body = {
+                    "name": self.name,
+                    "version": self.version or "",
+                    "routes": list(self.routes.keys()),
+                }
                 response.body = response_body
             # A specific model event
             else:
@@ -713,7 +725,7 @@ class VotingEnsemble(BaseModelRouter):
 
         :raise Exception: If validation failed.
         """
-        if self.protocol == "v2" and method == "POST":
+        if self.protocol == "v2" and method != "GET":
             if "inputs" not in request:
                 raise Exception('Expected key "inputs" in request body')
 

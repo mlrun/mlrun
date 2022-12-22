@@ -227,6 +227,15 @@ def test_ensemble_get_metadata_of_models():
     expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
 
+    resp = server.test("/v2/models/VotingEnsemble/explain")
+    print(resp)
+    expected = {
+        "name": "VotingEnsemble",
+        "version": "v1",
+        "routes": ["m1", "m2", "m3:v1", "m3:v2"],
+    }
+    assert resp == expected, f"wrong get models response {resp}"
+
     mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
     resp = fn.invoke("/v2/models/m1")
     expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}

@@ -123,7 +123,7 @@ Usage: logs [OPTIONS] uid
 Example:  `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started-admin`
 
 | Flag  | Description  |
-| ---------------------------- | ----------- |
+| ------------ | ----------- |
 | -p, &minus;&minus;project TEXT | Project name |
 | &minus;&minus;offset INTEGER  | Retrieve partial log, get up to size bytes starting at the offset from beginning of log |
 | &minus;&minus;db TEXT         | API service url |
@@ -140,15 +140,15 @@ Usage: mlrun project [OPTIONS] [CONTEXT]
 Example:  `mlrun project -r workflow.py .`
 
 
-| Flag &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;   | Description |
-| ------------------------------------------------------------------------------------------------------------------------- | ----------- |     
+| Flag    | Description   |
+| ---------- | ---------- |     
 | -n, &minus;&minus;name TEXT          | Project name |
 | -u, &minus;&minus;url  TEXT          | Remote git or archive url of the project |
 | -r, &minus;&minus;run  TEXT          | Run workflow name of .py file |
 | -a, &minus;&minus;arguments TEXT     | Kubeflow pipeline arguments name and value tuples (with -r flag), e.g. -a x=6 
 | -p, &minus;&minus;artifact_path TEXT | Target path/url for workflow artifacts.  The string `{{workflow.uid}}` is replaced by workflow id 
-| -x, &minus;&minus;param  TEXT         | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text' |
-| -s, &minus;&minus;secrets TEXT        | Secrets file=<filename> or env=ENV_KEY1,.. |
+| -x, &minus;&minus;param  TEXT        | mlrun project parameter name and value tuples, e.g. -p x=37 -p y='text' |
+| -s, &minus;&minus;secrets TEXT       | Secrets file=<filename> or env=ENV_KEY1,.. |
 | &minus;&minus;namespace TEXT         | k8s namespace |
 | &minus;&minus;db TEXT                | API service url |
 | &minus;&minus;init_git               | For new projects init git the context dir |
@@ -159,8 +159,10 @@ Example:  `mlrun project -r workflow.py .`
 | &minus;&minus;git_repo TEXT          | git repo (org/repo) for git comments |
 | &minus;&minus;git_issue INTEGER      | git issue number for git comments |
 | &minus;&minus;handler TEXT           | Workflow function handler name |
-| &minus;&minus;engine TEXT             | Workflow engine (kfp/local) |
+| &minus;&minus;engine TEXT            | Workflow engine (kfp/local) |
 | &minus;&minus;local                  | Try to run workflow functions locally |
+| &minus;&minus;schedule               | To create a schedule, define a standard crontab expression string. To use the pre-defined workflow's schedule: `set --schedule 'true'`. [See cron details](https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron). |
+
 
 <a id="cli-cmd-run"></a>
 ### `run` 
@@ -243,7 +245,7 @@ spec:
   image: .mlrun/func-default-remote-demo-ps-latest
   image_pull_policy: Always
   build:
-    base_image: mlrun/mlrun:1.0.6
+    base_image: mlrun/mlrun:1.2.0
     source: git://github.com/mlrun/mlrun
 ```
 
@@ -273,7 +275,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.0.6
+    base_image: mlrun/mlrun:1.2.0
     source: git://github.com/mlrun/ci-demo.git
 ```
 
@@ -301,7 +303,7 @@ spec:
   image_pull_policy: Always
   build:
     commands: []
-    base_image: mlrun/mlrun:1.0.6
+    base_image: mlrun/mlrun:1.2.0
 ```
 
 Next, run the following MLRun CLI command to build the function; replace the `<...>` placeholders to match your configuration:

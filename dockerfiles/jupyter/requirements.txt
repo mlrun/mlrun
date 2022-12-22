@@ -6,7 +6,7 @@ scikit-plot~=0.3.7
 xgboost~=1.1
 graphviz~=0.20.0
 python-dotenv~=0.17.0
-nuclio-jupyter[jupyter-server]~=0.9.4
+nuclio-jupyter[jupyter-server]~=0.9.6
 nbclassic>=0.2.8
 # added to tackle security vulnerablities
 notebook~=6.4

@@ -13,6 +13,7 @@
 # limitations under the License.
 import json
 import os
+import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
@@ -69,15 +70,18 @@ class BaseSourceDriver(DataSource):
     def to_dataframe(self):
         return mlrun.store_manager.object(url=self.path).as_df()
 
-    def filter_df_start_end_time(self, df):
+    def filter_df_start_end_time(self, df, time_field):
+        # give priority to source time_field over the feature set's timestamp_key
+        if self.time_field:
+            time_field = self.time_field
+
         if self.start_time or self.end_time:
             self.start_time = (
                 datetime.min if self.start_time is None else self.start_time
             )
             self.end_time = datetime.max if self.end_time is None else self.end_time
             df = df.filter(
-                (df[self.time_field] > self.start_time)
-                & (df[self.time_field] <= self.end_time)
+                (df[time_field] > self.start_time) & (df[time_field] <= self.end_time)
             )
         return df
 
@@ -105,14 +109,11 @@ class CSVSource(BaseSourceDriver):
     :parameter path: path to CSV file
     :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
         (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
-    :parameter time_field: the CSV field to be parsed as the timestamp for events. May be an int (field index) or
-        string (field name) if with_header is True. Defaults to None (no timestamp field). The field will be parsed
-        from isoformat (ISO-8601 as defined in datetime.fromisoformat()). In case the format is not isoformat,
-        timestamp_format (as defined in datetime.strptime()) should be passed in attributes.
+    :parameter time_field: DEPRECATED. Use parse_dates to parse timestamps.
     :parameter schedule: string to configure scheduling of the ingestion job.
     :parameter attributes: additional parameters to pass to storey. For example:
         attributes={"timestamp_format": '%Y%m%d%H'}
-    :parameter parse_dates: Optional. List of columns (names or integers, other than time_field) that will be
+    :parameter parse_dates: Optional. List of columns (names or integers) that will be
         attempted to parse as date column.
     """
 
@@ -131,6 +132,16 @@ class CSVSource(BaseSourceDriver):
         parse_dates: Optional[Union[List[int], List[str]]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
+        if time_field is not None:
+            warnings.warn(
+                "CSVSource's time_field parameter is deprecated, use parse_dates instead",
+                PendingDeprecationWarning,
+            )
+            if parse_dates is None:
+                parse_dates = [time_field]
+            elif time_field not in parse_dates:
+                parse_dates = copy(parse_dates)
+                parse_dates.append(time_field)
         self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):
@@ -144,7 +155,6 @@ class CSVSource(BaseSourceDriver):
             header=True,
             build_dict=True,
             key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
             parse_dates=self._parse_dates,
             **attributes,
@@ -163,11 +173,7 @@ class CSVSource(BaseSourceDriver):
 
         df = session.read.load(**self.get_spark_options())
         for col_name, col_type in df.dtypes:
-            if (
-                col_name == self.time_field
-                or self._parse_dates
-                and col_name in self._parse_dates
-            ):
+            if self._parse_dates and col_name in self._parse_dates:
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)
@@ -193,13 +199,12 @@ class ParquetSource(BaseSourceDriver):
     :parameter name: name of the source
     :parameter path: path to Parquet file or directory
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter time_field: Optional. Feature set's timestamp_key will be used if None. The results will be filtered
+         by this column and start_filter & end_filter.
     :parameter start_filter: datetime. If not None, the results will be filtered by partitions and
          'filter_column' > start_filter. Default is None
     :parameter end_filter: datetime. If not None, the results will be filtered by partitions
          'filter_column' <= end_filter. Default is None
-    :parameter filter_column: Optional. if not None, the results will be filtered by this column and
-         start_filter & end_filter
     :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
@@ -275,7 +280,6 @@ class ParquetSource(BaseSourceDriver):
         return storey.ParquetSource(
             paths=self.path,
             key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
             storage_options=self._get_store().get_storage_options(),
             end_filter=self.end_time,
             start_filter=self.start_time,
@@ -320,7 +324,7 @@ class BigQuerySource(BaseSourceDriver):
                                         must be set to a dataset where the GCP user has table creation permission
     :parameter chunksize: number of rows per chunk (default large single chunk)
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter time_field: the column to be used for time filtering. Defaults to the feature set's timestamp_key.
     :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
@@ -501,7 +505,7 @@ class SnowflakeSource(BaseSourceDriver):
 
     :parameter name: source name
     :parameter key_field: the column to be used as the key for events. Can be a list of keys.
-    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter time_field: the column to be used for time filtering. Defaults to the feature set's timestamp_key.
     :parameter schedule: string to configure scheduling of the ingestion job. For example `'*/30 * * * *'` will
          cause the job to run every 30 minutes
     :parameter start_time: filters out data before this time
@@ -608,7 +612,7 @@ class DataFrameSource:
     Reads data frame as input source for a flow.
 
     :parameter key_field: the column to be used as the key for events. Can be a list of keys. Defaults to None
-    :parameter time_field: the column to be parsed as the timestamp for events. Defaults to None
+    :parameter time_field: DEPRECATED.
     :parameter context: MLRun context. Defaults to None
     """
 
@@ -617,12 +621,17 @@ class DataFrameSource:
     def __init__(
         self, df, key_field=None, time_field=None, context=None, iterator=False
     ):
+        if time_field:
+            warnings.warn(
+                "DataFrameSource's time_field parameter is deprecated and has no effect",
+                PendingDeprecationWarning,
+            )
+
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]
         else:
             self.key_field = key_field
-        self.time_field = time_field
         self.context = context
         self.iterator = iterator
 
@@ -632,7 +641,6 @@ class DataFrameSource:
         return storey.DataframeSource(
             dfs=self._df,
             key_field=self.key_field or key_field,
-            time_field=self.time_field or time_field,
             context=self.context or context,
         )
 
@@ -684,7 +692,6 @@ class OnlineSource(BaseSourceDriver):
         src_class = source_class(
             context=context,
             key_field=self.key_field,
-            time_field=self.time_field,
             full_event=True,
             **source_args,
         )
@@ -811,6 +818,11 @@ class KafkaSource(OnlineSource):
         if sasl:
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
+
+    def to_dataframe(self):
+        raise mlrun.MLRunInvalidArgumentError(
+            "KafkaSource does not support batch processing"
+        )
 
     def add_nuclio_trigger(self, function):
         extra_attributes = copy(self.attributes)

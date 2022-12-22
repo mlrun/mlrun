@@ -403,7 +403,15 @@ def my_func(context):
         runtime.with_code(body=expected_code)
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_code=expected_code)
+        self._assert_pod_creation_config(
+            expected_code=expected_code,
+            expected_args=[
+                "run",
+                "--name",
+                "test-function",
+                "--from-env",
+            ],
+        )
 
     def test_set_env(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -447,6 +455,23 @@ def my_func(context):
         with pytest.raises(ValueError) as excinfo:
             runtime.with_code()
         assert "please specify" in str(excinfo.value)
+
+    def test_run_with_args(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.spec.args = ["--arg1", "value1"]
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_args=[
+                "run",
+                "--name",
+                "test-function",
+                "--from-env",
+                "*",
+                "--arg1",
+                "value1",
+            ],
+        )
 
     def test_set_label(self, db: Session, client: TestClient):
         task = self._generate_task()

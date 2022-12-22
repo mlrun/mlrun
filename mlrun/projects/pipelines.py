@@ -905,7 +905,7 @@ def load_and_run(
         )
     except Exception as error:
         if schedule:
-            slack_notifier = mlrun.utils.notifications.SlackNotification()
+            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher()
             url = get_ui_url(project_name, context.uid)
             link = f"<{url}|*view workflow job details*>"
             message = (
@@ -914,10 +914,11 @@ def load_and_run(
             )
             # Sending Slack Notification without losing the original error:
             try:
-                slack_notifier.send(
+                notification_pusher.push(
                     message=message,
                     severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
                 )
+
             except Exception as exc:
                 logger.error("Failed to send slack notification", exc=exc)
 

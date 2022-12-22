@@ -240,7 +240,7 @@ class OperationTypes(str, Enum):
 
     infer = "infer"
     predict = "predict"
-    explain = "routes"
+    explain = "explain"
 
 
 class _ParallelRunInterface(RouterToDict):

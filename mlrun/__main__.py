@@ -1037,7 +1037,7 @@ def project(
         proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
-        proj._secrets = secret_store = SecretsStore.from_list(secrets)
+        secret_store = SecretsStore.from_list(secrets)
         # TODO: check if we still need to set proj._secrets if we use proj.set_secrets(secrets)
         proj._secrets = secret_store
         proj.set_secrets(secret_store._secrets)

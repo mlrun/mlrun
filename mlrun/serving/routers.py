@@ -18,9 +18,10 @@ import json
 import traceback
 from enum import Enum
 from io import BytesIO
-from typing import Union
+from typing import Dict, List, Union
 
 import numpy
+import numpy as np
 from numpy.core.fromnumeric import mean
 
 import mlrun
@@ -240,7 +241,7 @@ class OperationTypes(str, Enum):
 
     infer = "infer"
     predict = "predict"
-    explain = "explain"
+    explain = "routes"
 
 
 class _ParallelRunInterface(RouterToDict):
@@ -350,7 +351,8 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         protocol: str = None,
         url_prefix: str = None,
         health_prefix: str = None,
-        vote_type=None,
+        vote_type: str = None,
+        weights: Union[List[float], Dict[str, float]] = None,
         executor_type: ParallelRunnerModes = ParallelRunnerModes.thread,
         prediction_col_name=None,
         **kwargs,
@@ -443,6 +445,7 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
+        self.weights = weights
         self._model_logger = (
             _ModelLogPusher(self, context)
             if context and context.stream.enabled
@@ -466,6 +469,8 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
 
         if not self.context.is_mock or self.context.server.track_models:
             self.model_endpoint_uid = _init_endpoint_record(server, self)
+
+        self._update_weights(self.weights)
 
     def _resolve_route(self, body, urlpath):
         """Resolves the appropriate model to send the event to.
@@ -552,35 +557,48 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
             )
         return model, None, subpath
 
-    def _max_vote(self, all_predictions):
-        """Returns most predicted class for each event
-
-        Args:
-            all_predictions (List[List[Int]]): The predictions from all models, per event
-
-        Returns:
-            List[Int]: The most predicted class by all models, per event
+    def _majority_vote(self, all_predictions: List[List[int]], weights: List[float]):
         """
-        return [
-            max(predictions, key=predictions.count) for predictions in all_predictions
-        ]
+        Returns most predicted class for each event
 
-    def _mean_vote(self, all_predictions):
-        """Returns mean of the predictions
+        :param all_predictions: The predictions from all models, per event
+        :param weights: models weights in the prediction order
 
-        Args:
-            all_predictions (List[List[float]]): The predictions from all models, per event
-
-        Returns:
-            List[Float]: The mean of predictions from all models, per event
+        :return: A list with the most predicted class by all models, per event
         """
-        return [mean(predictions) for predictions in all_predictions]
+        all_predictions = np.array(all_predictions)
+        one_hot_representation = np.transpose(
+            (np.arange(all_predictions.max() + 1) == all_predictions[..., None]).astype(
+                int
+            ),
+            (0, 2, 1),
+        )
+        weighted_res = one_hot_representation @ weights
+        return np.argmax(weighted_res, axis=1).tolist()
+
+    def _mean_vote(self, all_predictions: List[List[float]], weights: List[float]):
+        """
+        Returns weighted mean of the predictions
+
+        :param all_predictions: The predictions from all models, per event
+        :param weights: models weights in the prediction order
+
+        :return: A list of the mean of predictions from all models, per event
+        """
+        return (np.array(all_predictions) @ weights).tolist()
 
     def _is_int(self, value):
         return float(value).is_integer()
 
-    def logic(self, predictions):
-        self.context.logger.debug(f"Applying logic to {predictions}")
+    def logic(self, predictions: List[List[Union[int, float]]], weights: List[float]):
+        """
+        Returns the final prediction of all the models after applying the desire logic
+
+        :param predictions: The predictions from all models, per event
+        :param weights: models weights in the prediction order
+
+        :return: List of the resulting voted predictions
+        """
         # Infer voting type if not given (Classification or recommendation) (once)
         if not self.vote_flag:
             # Are we dealing with an All-Int predictions
@@ -602,43 +620,43 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
 
             # set flag to not infer this again
             self.vote_flag = True
-
         # Apply voting logic
         if self.vote_type == VotingTypes.classification:
             int_predictions = [
                 list(map(int, sample_predictions)) for sample_predictions in predictions
             ]
-            votes = self._max_vote(int_predictions)
+            self.context.logger.debug(f"Applying max logic vote on {predictions}")
+            votes = self._majority_vote(int_predictions, weights)
         else:
-            votes = self._mean_vote(predictions)
+            self.context.logger.debug(f"Applying majority logic vote on {predictions}")
+            votes = self._mean_vote(predictions, weights)
 
         return votes
 
-    def _apply_logic(self, predictions):
-        """Reduces a list of k predictions from n models to k predictions according to voting logic
+    def _apply_logic(self, predictions: dict):
+        """
+        Reduces a list of k predictions from n models to k predictions according to voting logic
 
-        Parameters
-        ----------
-        predictions : List[List]
-            A list of sample predictions by models
-            e.g. predictions[model][prediction]
+        :param predictions: A list of sample predictions by models e.g. predictions[model][prediction]
 
-        Returns
-        -------
-        List
-            List of the resulting voted predictions
+        :return: List of the resulting voted predictions
         """
 
         # Flatten predictions by sample instead of by model as received
         num_of_events = len(
             [*predictions.values()][0]["outputs"][self.prediction_col_name]
         )
-        flattened_predictions = [
-            [v["outputs"][self.prediction_col_name][i] for k, v in predictions.items()]
-            for i in range(num_of_events)
-        ]
+        flattened_predictions = []
+        weights = []
+        for i in range(num_of_events):
+            event_pred = []
+            for model_name, v in predictions.items():
+                event_pred.append(v["outputs"][self.prediction_col_name][i])
+                if i == 0:
+                    weights.append(self._weights[model_name])
+            flattened_predictions.append(event_pred)
 
-        return self.logic(flattened_predictions)
+        return self.logic(flattened_predictions, np.array(weights))
 
     def do_event(self, event, *args, **kwargs):
         """Handles incoming requests.
@@ -678,7 +696,10 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         if not name and route is None:
             # Return model list
             setattr(event, "terminated", True)
-            event.body = {"models": list(self.routes.keys()) + [self.name]}
+            event.body = {
+                "models": list(self.routes.keys()) + [self.name],
+                "weights": self.weights,
+            }
             event.body = _update_result_body(
                 self._result_path, original_body, event.body
             )
@@ -772,6 +793,37 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
             if not isinstance(request["inputs"], list):
                 raise Exception('Expected "inputs" to be a list')
         return request
+
+    def _normalize_weights(self, weights_dict: Dict[str, float]):
+        """
+        Normalized all the weights such that abs(weights_sum - 1.0) <= 0.001
+        and adding 0 weight to all the routes that doesn't appear in the dict.
+        If weights_dict is None the function returns equal weights to all the routes.
+
+        :param weights_dict: weights dictionary {<model_name>: <wight>}
+
+        :return: Normalized weights dictionary
+        """
+        if weights_dict is None:
+            num_of_models = len([*self.routes.keys()])
+            return dict(zip([*self.routes.keys()], [1 / num_of_models] * num_of_models))
+        weights_values = [*weights_dict.values()]
+        weights_sum = np.sum(weights_values)
+        if abs(weights_sum - 1.0) <= 0.001:
+            return weights_dict
+        new_weights_values = (np.array([*weights_dict.values()]) / weights_sum).tolist()
+        return dict(zip([*weights_dict.keys()], new_weights_values))
+
+    def _update_weights(self, weights_dict):
+        """
+        Updated self._weights
+
+        :param weights_dict: weights dictionary {<model_name>: <wight>}
+        """
+        self._weights = self._normalize_weights(weights_dict)
+        for model in self.routes.keys():
+            if model not in self._weights.keys():
+                self._weights[model] = 0
 
 
 def _init_endpoint_record(

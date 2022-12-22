@@ -21,6 +21,8 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
 
+import mlrun.utils.helpers
+
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url
@@ -456,6 +458,30 @@ class TaskStep(BaseStep):
                 raise exc
             event.terminated = True
         return event
+
+    def update_class_args(self, argument_name, argument, validator):
+        """
+
+        :param argument_name:
+        :param argument:
+        :param validator:
+        :return:
+        """
+        if validator is None:
+            self.class_args[argument_name] = argument
+            return
+        if self.class_name is None:
+            raise MLRunInvalidArgumentError("self.class_name must be specified")
+        cls_ = mlrun.utils.helpers.create_class(self.class_name)
+        if not hasattr(cls_, validator):
+            raise MLRunInvalidArgumentError(
+                f"{self.class_name} don't have method call {validator}"
+            )
+        cls_obj = cls_(**self.class_args)
+        updater_func = getattr(cls_obj, validator)
+        updater_func(argument)
+        struct = cls_obj.to_dict()
+        self.class_args = struct["class_args"]
 
 
 class RouterStep(TaskStep):

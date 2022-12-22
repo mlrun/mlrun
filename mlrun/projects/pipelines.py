@@ -29,6 +29,7 @@ import mlrun
 import mlrun.api.schemas
 from mlrun.utils import (
     RunNotifications,
+    get_ui_url,
     logger,
     new_pipe_meta,
     parse_versioned_object_uri,
@@ -912,15 +913,27 @@ def load_and_run(
     engine: str = None,
     local: bool = None,
 ):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    try:
+        project = mlrun.load_project(
+            context=f"./{project_name}",
+            url=url,
+            name=project_name,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+        )
+    except Exception as error:
+        # TODO: change this to the new notifications, once they are merged
+        # Notifying to slack in case of scheduling:
+        slack = RunNotifications(with_slack=True)
+        url = get_ui_url(project_name, context.uid)
+        link = f"<{url}|*view workflow job details*>"
+        message = (
+            f":x: Failed to run scheduled workflow {workflow_name} in Project {project_name} !"
+            f"\nerror: ```{error}```\n{link}"
+        )
+        slack.push(message=message)
+        raise error
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")

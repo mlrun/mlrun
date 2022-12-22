@@ -726,9 +726,7 @@ class BaseRuntime(ModelObj):
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = self._update_run_state(
-                    task=runspec, err=mlrun.error_to_string(err)
-                )
+                result = self._update_run_state(task=runspec, err=err_to_str(err))
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
 
         if resp:

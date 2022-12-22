@@ -31,6 +31,7 @@ class ClientSpec(
             mpijob_crd_version=mpijob_crd_version,
             ui_url=config.resolve_ui_url(),
             artifact_path=config.artifact_path,
+            default_feature_store_data_prefix=config.feature_store.data_prefixes.default,
             spark_app_image=config.spark_app_image,
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
@@ -87,6 +88,7 @@ class ClientSpec(
             force_run_local=self._get_config_value_if_not_default("force_run_local"),
             function=self._get_config_value_if_not_default("function"),
             ce_mode=config.ce.mode,
+            ce_version=config.ce.version,
             logs=self._get_config_value_if_not_default("httpdb.logs"),
         )
 

@@ -68,30 +68,13 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         rapids=22.10 \
         tensorflow=2.9 \
         torchvision=0.14 \
+        openmpi-mpicc=4.1.4 \
     && conda clean -aqy
-
-ARG OMPI=4.1.4
-
-# Install Open MPI
-RUN mkdir /tmp/openmpi && \
-    cd /tmp/openmpi && \
-    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
-    tar zxf openmpi-${OMPI}.tar.gz && \
-    cd openmpi-${OMPI} && \
-    ./configure --enable-orterun-prefix-by-default && \
-    make -j`nproc` all && \
-    make install && \
-    ldconfig && \
-    rm -rf /tmp/openmpi
-
-ENV OMPI_ALLOW_RUN_AS_ROOT=1
-ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 ARG HOROVOD_VERSION=0.25.0
 
-# explixitly install mpich from conda-forge since the default channel gets a dummy build
-# https://github.com/conda-forge/mpich-feedstock/issues/55#issuecomment-851260130
-RUN conda install -c deepmodeling horovod=${HOROVOD_VERSION} conda-forge::mpich && \
+RUN HOROVOD_GPU_OPERATIONS=NCCL HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+        python -m pip install horovod~=${HOROVOD_VERSION} && \
     horovodrun --check-build
 
 WORKDIR /mlrun

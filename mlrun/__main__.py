@@ -950,7 +950,9 @@ def project(
         proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
-        proj._secrets = SecretsStore.from_list(secrets)
+        secret_store = SecretsStore.from_list(secrets)
+        proj._secrets = secret_store
+        proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())
 
     if run:

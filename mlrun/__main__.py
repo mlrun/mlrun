@@ -951,7 +951,7 @@ def project(
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         secret_store = SecretsStore.from_list(secrets)
-        #TODO: check if we still need to set proj._secrets if we use proj.set_secrets(secrets)
+        # TODO: check if we still need to set proj._secrets if we use proj.set_secrets(secrets)
         proj._secrets = secret_store
         proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())

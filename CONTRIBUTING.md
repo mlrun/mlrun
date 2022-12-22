@@ -122,11 +122,10 @@ it for the branch, change "Take tested code from action REF" to `true`
 
 ## Migrating to Python 3.9
 MLRun moved to Python 3.9 from 1.3.0.  
-If you are working on MLRun 1.2.x or earlier, check the section below of managing multiple venvs.
-### Installing Python 3.9
+If you are working on MLRun 1.2.x or earlier, you will need to switch between python 3.9 and python 3.7 interpreters.
+### Installing Python 3.9 on MacOS
 If you already have Python 3.9 installed, you can skip this part.
 
-#### MacOS:
 1. Install pyenv
     ```shell script
     brew update
@@ -151,43 +150,6 @@ If you already have Python 3.9 installed, you can skip this part.
 5. Sanity test, it should yield 3.9.13
     ```shell script
     python3 -V
-    ```
-#### Linux:
-1. Download compressed Python 3.9 package
-    ```shell script
-    wget https://www.python.org/ftp/python/3.9.13/Python-3.9.13.tgz
-    ```
-2. Extract Python 3.9 package
-    ```shell script
-   tar -xvf Python-3.9.7.tgz
-    ```
-3. Install Python 3.9
-    ```shell script
-    cd Python-3.9.7/
-   
-   # configure with oprimizations
-    ./configure --enable-optimizations
-   
-   # start the building process
-   make
-   
-   # install the python 3.9 binaries
-   sudo make altinstall
-    ```
-4. Ensure python3 points to python 3.9.x
-    ```shell script
-   sudo update-alternatives --install /usr/bin/python3 python3 /usr/local/bin/python3.9 1
-   sudo update-alternatives --set python3 /usr/local/bin/python3.9
-    ```
-5. Sanity test, it should yield 3.9.x
-    ```shell script
-    python3 -V
-    ``` 
-6. You may clean up the downloaded tgz and move the extracted folder to a more permanent location
-    ```shell script
-    cd ..
-    mv Python-3.9.7 <new location>
-    rm Python-3.9.7.tgz
     ```
 ### Creating a new Python 3.9 venv in PyCharm
 1. In PyCharm, delete the existing venv folder se we can create a new one.

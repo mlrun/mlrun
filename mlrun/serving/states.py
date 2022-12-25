@@ -21,8 +21,6 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
 
-import mlrun.utils.helpers
-
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url

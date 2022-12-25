@@ -15,6 +15,7 @@
 import concurrent
 import copy
 import json
+import logging
 import traceback
 from enum import Enum
 from io import BytesIO
@@ -212,6 +213,15 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
+class ExecutorTypes:
+    thread = "thread"
+    process = "process"
+
+    @staticmethod
+    def all():
+        return [ExecutorTypes.thread, ExecutorTypes.process]
+
+
 class ParallelRunnerModes(str, Enum):
     """Supported parallel running modes for VotingEnsemble"""
 
@@ -244,7 +254,9 @@ class OperationTypes(str, Enum):
 
 
 class _ParallelRunInterface(RouterToDict):
-    def __init__(self, executor_type: Union[ParallelRunnerModes, str], **kwargs):
+    def __init__(
+        self, executor_type: Union[ParallelRunnerModes, ExecutorTypes, str], **kwargs
+    ):
         """
         Interface for execute parallel runners
 
@@ -254,6 +266,14 @@ class _ParallelRunInterface(RouterToDict):
                               * process - running in separated process
                               * thread - running in separated threads
         """
+        if isinstance(executor_type, ExecutorTypes):
+            executor_type = str(executor_type)
+            logger.warn(
+                "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead"
+                "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+                # TODO: In 1.5.0 do changes
+                PendingDeprecationWarning,
+            )
         self.executor_type = ParallelRunnerModes(executor_type)
         self._pool: Union[
             concurrent.futures.ProcessPoolExecutor,

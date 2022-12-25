@@ -242,6 +242,7 @@ def test_ensemble_get_models():
     #           "weights": None}
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
+
 def test_ensemble_get_metadata_of_models():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology(
@@ -270,9 +271,9 @@ def test_ensemble_get_metadata_of_models():
     resp = fn.invoke("/v2/models/m1")
     expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
     assert resp == expected, f"wrong get models response {resp}"
-    
- 
- def test_ensemble_change_weights():
+
+
+def test_ensemble_change_weights():
     models = ["m1", "m2", "m3:v1", "m3:v2"]
     weights = [1, 1, 1, 1]
     fn = mlrun.new_function("tests", kind="serving")

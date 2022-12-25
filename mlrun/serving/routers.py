@@ -585,7 +585,7 @@ class VotingEnsemble(BaseModelRouter):
             request = self.validate(event.body, event.method)
 
             # If this is a Router Operation
-            if name == self.name and event.method == "POST":
+            if name == self.name and event.method != "GET":
                 predictions = self._parallel_run(event)
                 votes = self._apply_logic(predictions)
                 # Format the prediction response like the regular

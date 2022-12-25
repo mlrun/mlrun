@@ -857,9 +857,8 @@ class BaseRuntime(ModelObj):
                     break
 
             except RunError as err:
-                err = "".join(traceback.format_exception(err))
                 task.status.state = "error"
-                task.status.error = err
+                task.status.error = str(err)
                 resp = self._update_run_state(task=task, err=err)
                 num_errors += 1
                 if num_errors > generator.max_errors:
@@ -891,8 +890,6 @@ class BaseRuntime(ModelObj):
         task: RunObject = None,
         err=None,
     ) -> dict:
-        if err and not isinstance(err, str):
-            err = "".join(traceback.format_exception(err))
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -919,10 +916,10 @@ class BaseRuntime(ModelObj):
             updates["status.state"] = "error"
             update_in(resp, "status.state", "error")
             if err:
-                update_in(resp, "status.error", err)
+                update_in(resp, "status.error", str(err))
             err = get_in(resp, "status.error")
             if err:
-                updates["status.error"] = err
+                updates["status.error"] = str(err)
         elif not was_none and last_state != "completed":
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "completed"
@@ -1991,7 +1988,6 @@ class BaseRuntimeHandler(ABC):
                             logger.warning(
                                 "Failure in crd object run pre-deletion actions. Continuing",
                                 exc=str(exc),
-                                traceback=traceback.format_exc(),
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 

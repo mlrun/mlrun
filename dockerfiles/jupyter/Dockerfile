@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM jupyter/scipy-notebook:python-3.8.8
+
+ARG MLRUN_PYTHON_VERSION=3.9.13
+
+FROM quay.io/mlrun/jupyter-scipy-notebook:python-${MLRUN_PYTHON_VERSION}
 
 USER root
 RUN apt-get update && \

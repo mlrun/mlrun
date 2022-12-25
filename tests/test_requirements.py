@@ -99,7 +99,8 @@ def test_requirement_specifiers_convention():
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
-        "google-cloud": {"~=0.34"},
+        "transformers": {"~=4.11.3"},
+        "click": {"~=8.0.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -115,7 +116,6 @@ def test_requirement_specifiers_convention():
         "gcsfs": {"~=2021.8.1"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
-        "click": {"~=8.0.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.25.4, <1.27"},
@@ -130,6 +130,7 @@ def test_requirement_specifiers_convention():
         "protobuf": {">=3.20.2, <4"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
+        "scikit-learn": {"~=1.0, <1.2"},
     }
 
     for (

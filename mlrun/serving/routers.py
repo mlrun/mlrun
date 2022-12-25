@@ -268,8 +268,7 @@ class _ParallelRunInterface(RouterToDict):
         if isinstance(executor_type, ExecutorTypes):
             executor_type = str(executor_type)
             logger.warn(
-                "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead"
-                "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+                "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
                 # TODO: In 1.5.0 do changes
                 PendingDeprecationWarning,
             )
@@ -648,7 +647,7 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         return (np.array(all_predictions) @ weights).tolist()
 
     def _is_int(self, value):
-        return value % 1 == 0
+        return float(value).is_integer()
 
     def logic(self, predictions: List[List[Union[int, float]]], weights: List[float]):
         """
@@ -702,15 +701,19 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         :return: List of the resulting voted predictions
         """
         flattened_predictions = np.array(
-            list(map(self._extract_pred, predictions.values()))
+            list(
+                map(
+                    lambda dictionary: (
+                        dictionary["outputs"][self.prediction_col_name]
+                        if self.format_response_with_col_name_flag
+                        else dictionary["outputs"]
+                    ),
+                    predictions.values(),
+                )
+            )
         ).T
         weights = [self._weights[model_name] for model_name in predictions.keys()]
         return self.logic(flattened_predictions, np.array(weights))
-
-    def _extract_pred(self, dictionary: dict):
-        if self.format_response_with_col_name_flag:
-            return dictionary["outputs"][self.prediction_col_name]
-        return dictionary["outputs"]
 
     def do_event(self, event, *args, **kwargs):
         """Handles incoming requests.

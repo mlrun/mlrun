@@ -582,10 +582,10 @@ class VotingEnsemble(BaseModelRouter):
             return event
         else:
             # Verify we use the V2 protocol
-            request = self.validate(event.body)
+            request = self.validate(event.body, event.method)
 
             # If this is a Router Operation
-            if name == self.name:
+            if name == self.name and event.method != "GET":
                 predictions = self._parallel_run(event)
                 votes = self._apply_logic(predictions)
                 # Format the prediction response like the regular
@@ -600,6 +600,26 @@ class VotingEnsemble(BaseModelRouter):
                 }
                 if self.version:
                     response_body["model_version"] = self.version
+                response.body = response_body
+            elif name == self.name and event.method == "GET" and not subpath:
+                response = copy.copy(event)
+                response_body = {
+                    "name": self.name,
+                    "version": self.version or "",
+                    "inputs": [],
+                    "outputs": [],
+                }
+                for route in self.routes.values():
+                    response_random_route = route.run(copy.copy(event))
+                    response_body["inputs"] = (
+                        response_body["inputs"] or response_random_route.body["inputs"]
+                    )
+                    response_body["outputs"] = (
+                        response_body["outputs"]
+                        or response_random_route.body["outputs"]
+                    )
+                    if response_body["inputs"] and response_body["outputs"]:
+                        break
                 response.body = response_body
             # A specific model event
             else:
@@ -682,27 +702,18 @@ class VotingEnsemble(BaseModelRouter):
             )
         return results
 
-    def validate(self, request):
-        """Validate the event body (after preprocessing)
-
-        Parameters
-        ----------
-        request : dict
-            Event body.
-
-        Returns
-        -------
-        dict
-            Event body after validation
-
-        Raises
-        ------
-        Exception
-            `inputs` key not found in `request`
-        Exception
-            `inputs` should be of type List
+    def validate(self, request: dict, method: str):
         """
-        if self.protocol == "v2":
+        Validate the event body (after preprocessing)
+
+        :param request: Event body.
+        :param method: Event method.
+
+        :return: The given Event body (request).
+
+        :raise Exception: If validation failed.
+        """
+        if self.protocol == "v2" and method != "GET":
             if "inputs" not in request:
                 raise Exception('Expected key "inputs" in request body')
 

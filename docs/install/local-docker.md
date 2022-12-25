@@ -64,7 +64,7 @@ mkdir $SHARED_DIR -p
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface).
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
 ````{tab-item} Windows (cmd)
@@ -75,7 +75,7 @@ mkdir %SHARED_DIR%
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `ipconfig` shell command (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 ````{tab-item} Powershell
@@ -86,7 +86,7 @@ mkdir $Env:SHARED_DIR
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 `````
@@ -120,7 +120,7 @@ mkdir -p $SHARED_DIR
 docker-compose -f compose.with-jupyter.yaml up
 ```
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
 ````{tab-item} Windows (cmd)
@@ -131,7 +131,7 @@ mkdir %SHARED_DIR%
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `ipconfig` shell command (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 ````{tab-item} Powershell
@@ -142,7 +142,7 @@ mkdir $Env:SHARED_DIR
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 `````

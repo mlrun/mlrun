@@ -1526,6 +1526,11 @@ class OutputsLogger:
                     artifact = BokehArtifact(key=key, figure=obj)
             except ModuleNotFoundError:
                 pass
+            except ImportError:
+                logger.warn(
+                    "Bokeh installation is ignored. If needed, "
+                    "make sure you have the required version with `pip install mlrun[bokeh]`"
+                )
 
         # Log the artifact:
         if artifact is None:
@@ -1834,6 +1839,11 @@ class ContextHandler:
             ] = ArtifactType.PLOT
         except ModuleNotFoundError:
             pass
+        except ImportError:
+            logger.warn(
+                "Bokeh installation is ignored. If needed, "
+                "make sure you have the required version with `pip install mlrun[bokeh]`"
+            )
 
     @classmethod
     def _init_outputs_logging_map(cls):

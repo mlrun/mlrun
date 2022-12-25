@@ -1013,7 +1013,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
 
-    def test_ingest_with_steps_mapval(self):
+    @pytest.mark.parametrize("with_original_features", [True, False])
+    def test_ingest_with_steps_mapval(self, with_original_features):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
@@ -1030,7 +1031,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
                     "hr_is_error": {"false": "0", "true": "1"},
                 },
-                # with_original_features=with_original,
+                with_original_features=with_original_features,
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
@@ -1055,7 +1056,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
                     "hr_is_error": {"false": "0", "true": "1"},
                 },
-                # with_original_features=with_original,
+                with_original_features=with_original_features,
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
@@ -1068,7 +1069,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_storey = measurements.get_target_path(name="csv")
         read_and_assert(csv_path_spark, csv_path_storey)
 
-    def test_ingest_with_steps_extractor(self):
+    @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
+    def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
@@ -1082,7 +1084,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(
             DateExtractor(
                 parts=["day_of_year"],
-                timestamp_col="timestamp",
+                timestamp_col=timestamp_col,
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
@@ -1104,7 +1106,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements.graph.to(
             DateExtractor(
                 parts=["day_of_year"],
-                timestamp_col="timestamp",
+                timestamp_col=timestamp_col,
             )
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())

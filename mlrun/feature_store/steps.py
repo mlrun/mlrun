@@ -227,11 +227,13 @@ class MapValues(StepToDict, MLRunStep):
         return df
 
     def _do_spark(self, event):
-        from pyspark.sql.functions import lit, when
+        from pyspark.sql.functions import lit, when, col, create_map
+        from itertools import chain
 
         for column, column_map in self.mapping.items():
             if "ranges" not in column_map:
-                event = event.na.replace(column_map, subset=column)
+                mapping_expr = create_map([lit(x) for x in chain(*self.mapping.items())])
+                event = event.withColumn(column, mapping_expr.getItem(col(self._get_feature_name(column))))
             else:
                 for val, val_range in column_map["ranges"].items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
@@ -249,7 +251,7 @@ class MapValues(StepToDict, MLRunStep):
                     )
 
         if not self.with_original_features:
-            event = event.select([*self.mapping.keys()])
+            event = event.select([self._get_feature_name(column) for column in self.mapping.keys()])
 
         return event
 
@@ -298,7 +300,7 @@ class Imputer(StepToDict, MLRunStep):
             val = self.mapping.get(feature, self.default_value)
             if val is not None:
                 event = event.na.fill(val, feature)
-                # for future use
+                # for future use - for now sparks=storey=pandas
                 # from pyspark.ml.feature import Imputer
                 # imputer = Imputer(inputCols=[feature], outputCols=[feature]).setStrategy(val)
                 # event = imputer.fit(event).transform(event)
@@ -539,7 +541,7 @@ class DateExtractor(StepToDict, MLRunStep):
                 )
             else:
                 raise mlrun.errors.MLRunRuntimeError(
-                    f"OneHotEncoder with spark engine isn't support {part} param"
+                     f"DateExtractor with spark engine doesn't support {part} param"
                 )
         return event
 

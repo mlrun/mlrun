@@ -130,7 +130,6 @@ def test_requirement_specifiers_convention():
         "protobuf": {">=3.20.2, <4"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
-        "scikit-learn": {"~=1.0, <1.2"},
     }
 
     for (

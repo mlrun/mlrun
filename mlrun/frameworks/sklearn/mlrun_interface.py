@@ -40,7 +40,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         # A producer instance for logging this model's training / evaluation artifacts:
         "_producer": None,  # type: MLProducer
         # An estimator instance for logging this model's training / evaluation metrics results:
-        "_estimator": None,  # type: Estimator
+        "_mlrun_estimator": None,  # type: Estimator
         # The test set (For validation post training or evaluation post prediction):
         "_x_test": None,  # type: SKLearnTypes.DatasetType
         "_y_test": None,  # type: SKLearnTypes.DatasetType
@@ -86,7 +86,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         # Setup a default producer and estimator:
         if obj._producer is None:
             obj._producer = MLProducer()
-            obj._estimator = Estimator()
+            obj._mlrun_estimator = Estimator()
 
     @classmethod
     def mlrun_fit(cls):
@@ -186,17 +186,17 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
                 else model_handler.context
             )
         self._producer.set_context(context=context)
-        self._estimator.set_context(context=context)
+        self._mlrun_estimator.set_context(context=context)
         self._model_handler.set_context(context=context)
 
         # Set the logging attributes:
         self._producer.set_plans(plans=plans)
-        self._estimator.set_metrics(metrics=metrics)
+        self._mlrun_estimator.set_metrics(metrics=metrics)
 
         # Validate that if the prediction probabilities are required, this model has the 'predict_proba' method:
         if (
             self._producer.is_probabilities_required()
-            or self._estimator.is_probabilities_required()
+            or self._mlrun_estimator.is_probabilities_required()
         ) and not hasattr(self, "predict_proba"):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Some of the metrics and or artifacts required to be calculated and produced require prediction "
@@ -256,7 +256,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
                 self._model_handler.set_sample_set(sample_set=sample_set)
             # Log the model:
             self._model_handler.log(
-                metrics=self._estimator.results,
+                metrics=self._mlrun_estimator.results,
                 artifacts=self._producer.artifacts,
             )
             self._model_handler.context.commit(completed=False)
@@ -270,7 +270,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         """
         # This function is only called for evaluation, then set the mode to the producer and estimator:
         self._producer.set_mode(mode=LoggingMode.EVALUATION)
-        self._estimator.set_mode(mode=LoggingMode.EVALUATION)
+        self._mlrun_estimator.set_mode(mode=LoggingMode.EVALUATION)
 
         # Produce and log all the artifacts pre prediction:
         self._producer.produce_stage(
@@ -304,14 +304,14 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         )
 
         # Calculate and log the metrics results:
-        self._estimator.estimate(
+        self._mlrun_estimator.estimate(
             y_true=y, y_pred=y_pred, is_probabilities=is_predict_proba
         )
 
         # If some metrics and / or plans require probabilities, run 'predict_proba':
         if not is_predict_proba and (
             self._producer.is_probabilities_required()
-            or self._estimator.is_probabilities_required()
+            or self._mlrun_estimator.is_probabilities_required()
         ):
             y_pred_proba = self.predict_proba(x)
             self._producer.produce_stage(
@@ -322,7 +322,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
                 y=y,
                 y_pred=y_pred_proba,
             )
-            self._estimator.estimate(
+            self._mlrun_estimator.estimate(
                 y_true=y, y_pred=y_pred_proba, is_probabilities=True
             )
 
@@ -333,7 +333,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
         # Update the model with the testing artifacts and results:
         if self._model_handler is not None:
             self._model_handler.update(
-                metrics=self._estimator.results,
+                metrics=self._mlrun_estimator.results,
                 artifacts=self._producer.artifacts,
             )
             self._model_handler.context.commit(completed=False)

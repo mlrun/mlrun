@@ -622,12 +622,17 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         :return: A list with the most predicted class by all models, per event
         """
         all_predictions = np.array(all_predictions)
+        # Create 3d matrix (n,c,m) - m the number of models,
+        # c the number of classes and n the number of samples
         one_hot_representation = np.transpose(
             (np.arange(all_predictions.max() + 1) == all_predictions[..., None]).astype(
                 int
             ),
             (0, 2, 1),
         )
+        # Each 2d matrix multiply by the weights, and
+        # we get matrix (n,c) such that each row
+        # represent the prediction to each sample.
         weighted_res = one_hot_representation @ weights
         return np.argmax(weighted_res, axis=1).tolist()
 
@@ -696,28 +701,16 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
 
         :return: List of the resulting voted predictions
         """
-
-        # Flatten predictions by sample instead of by model as received
-        num_of_events = len(
-            [*predictions.values()][0]["outputs"][self.prediction_col_name]
-            if self.format_response_with_col_name_flag
-            else [*predictions.values()][0]["outputs"]
-        )
-        flattened_predictions = []
-        weights = []
-        for i in range(num_of_events):
-            event_pred = []
-            for model_name, v in predictions.items():
-                event_pred.append(
-                    v["outputs"][self.prediction_col_name][i]
-                    if self.format_response_with_col_name_flag
-                    else v["outputs"][i]
-                )
-                if i == 0:
-                    weights.append(self._weights[model_name])
-            flattened_predictions.append(event_pred)
-
+        flattened_predictions = np.array(
+            list(map(self._extract_pred, predictions.values()))
+        ).T
+        weights = [self._weights[model_name] for model_name in predictions.keys()]
         return self.logic(flattened_predictions, np.array(weights))
+
+    def _extract_pred(self, dictionary: dict):
+        if self.format_response_with_col_name_flag:
+            return dictionary["outputs"][self.prediction_col_name]
+        return dictionary["outputs"]
 
     def do_event(self, event, *args, **kwargs):
         """Handles incoming requests.

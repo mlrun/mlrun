@@ -371,7 +371,7 @@ class _ParallelRunInterface(RouterToDict):
         return route, handler(event)
 
 
-class VotingEnsemble(_ParallelRunInterface, BaseModelRouter):
+class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
     def __init__(
         self,
         context=None,
@@ -476,16 +476,10 @@ class VotingEnsemble(_ParallelRunInterface, BaseModelRouter):
                               by default, `prediction`
         :param kwargs:        extra arguments
         """
-        super(VotingEnsemble, self).__init__(
-            executor_type=executor_type,
-            context=context,
-            name=name,
-            routes=routes,
-            protocol=protocol,
-            url_prefix=url_prefix,
-            health_prefix=health_prefix,
-            **kwargs,
+        BaseModelRouter.__init__(
+            self, context, name, routes, protocol, url_prefix, health_prefix, **kwargs
         )
+        _ParallelRunInterface.__init__(self, executor_type)
         self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
@@ -1201,7 +1195,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         return event
 
 
-class ParallelRun(_ParallelRunInterface, BaseModelRouter):
+class ParallelRun(BaseModelRouter, _ParallelRunInterface):
     def __init__(
         self,
         context=None,
@@ -1251,13 +1245,8 @@ class ParallelRun(_ParallelRunInterface, BaseModelRouter):
                                 - int prediction type: classification
         :param kwargs:        extra arguments
         """
-        super(ParallelRun, self).__init__(
-            context=context,
-            name=name,
-            routes=routes,
-            executor_type=executor_type,
-            **kwargs,
-        )
+        BaseModelRouter.__init__(self, context, name, routes, **kwargs)
+        _ParallelRunInterface.__init__(self, executor_type)
         self.name = name or "ParallelRun"
         self.extend_event = extend_event
 

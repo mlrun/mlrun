@@ -18,9 +18,8 @@ import os
 
 import pytest
 import requests
-
-from _pytest.reports import TestReport
 from _pytest.python import Function
+from _pytest.reports import TestReport
 from _pytest.runner import CallInfo
 
 

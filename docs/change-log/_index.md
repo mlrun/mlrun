@@ -22,6 +22,45 @@
 - scheduling workflow does not have secrets attributes (https://jira.iguazeng.com/browse/ML-2895)
 - Scheduled Jobs are triggered at +1 day (as translated by "normal" cron string) (https://jira.iguazeng.com/browse/ML-2878)
 
+## Upcoming deprecations
+
+Starting with v1.3.0, and continuing in subsequent releases, obsolete functions will be removed.
+The following MLRun APIs have been deprecated since at least v1.0.0. Until now, they have not been removed from the code, but a warning appears if you attempt to use then. 
+These frunctions will be removed from the v1.3.0 code:
+
+- Deprecated since MLRun 0.7.0:
+   - All the following project property values should be read via `project.spec`. These values should not be set directly.
+      - artifact_path
+      - source
+      - context
+      - mountdir
+      - params
+      - description
+      - functions
+      - workflows
+      - artifacts
+   - Project.func() – users should use project.get_function()
+   - Project.create_vault_secrets() – users should use project.set_secrets()
+- Deprecated since MLRun 0.8.0
+   - mount_path parameter in mount_v3io() should not be used. volume_mounts parameter should be used.
+- Deprecated since MLRun 1.0.0
+   - All the following DatasetArtifact property values should be read via `column_metadata.spec`. These values should not be set directly.
+      - column_metadata
+      - schema
+      - header
+      - preview
+      - stats
+   - All the following ModelArtifact property values should be read via ModelArtifact.spec. These values should not be set directly.
+      - inputs
+      - outputs
+      - model_file
+      - parameters
+      - metrics
+      - feature_stats
+      - feature_vector
+      - feature_weights
+      - model_target_file
+
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.1)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.1)

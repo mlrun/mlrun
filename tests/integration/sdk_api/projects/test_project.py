@@ -84,7 +84,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
                 artifact_key,
                 artifact,
                 "some_uid",
-                tag="some_tag",
+                tag="some-tag",
                 project=project.metadata.name,
             )
 

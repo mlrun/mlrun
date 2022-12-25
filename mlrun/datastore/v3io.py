@@ -41,8 +41,8 @@ ONE_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
 
         self.headers = None

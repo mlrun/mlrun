@@ -9,12 +9,13 @@ pytest-httpserver~=1.0
 requests-mock~=1.8
 httpx~=0.22.0
 # needed for system tests
-matplotlib~=3.0
-graphviz~=0.16.0
+matplotlib~=3.5
+graphviz~=0.20.0
 nuclio-sdk~=0.3.0
 isort~=5.7
+avro~=1.11
 # needed for mlutils tests
-scikit-learn~=1.0
+scikit-learn~=1.0, <1.2
 # needed for frameworks tests
 lightgbm~=3.0
 xgboost~=1.1

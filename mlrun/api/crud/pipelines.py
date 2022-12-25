@@ -66,10 +66,13 @@ class Pipelines(
         if project != "*":
             run_dicts = []
             while page_token is not None:
+                # kfp doesn't allow us to pass both a page_token and the filter. When we have a token from previous
+                # call, we will strip out the filter and use the token to continue (the token contains the details of
+                # the filter that was used to create it)
                 response = kfp_client._run_api.list_runs(
                     page_token=page_token,
                     page_size=mlrun.api.schemas.PipelinesPagination.max_page_size,
-                    filter=filter_,
+                    filter=filter_ if page_token == "" else "",
                 )
                 run_dicts.extend([run.to_dict() for run in response.runs or []])
                 page_token = response.next_page_token

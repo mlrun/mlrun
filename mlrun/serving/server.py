@@ -21,7 +21,6 @@ import socket
 import sys
 import traceback
 import uuid
-from datetime import datetime, timezone
 from typing import Optional, Union
 
 import mlrun
@@ -218,6 +217,8 @@ class GraphServer(ModelObj):
             raise MLRunInvalidArgumentError(
                 "no models or steps were set, use function.set_topology() and add steps"
             )
+        if not method:
+            method = "POST" if body else "GET"
         event = MockEvent(
             body=body,
             path=path,
@@ -251,7 +252,7 @@ class GraphServer(ModelObj):
             try:
                 body = json.loads(event.body)
                 event.body = body
-            except json.decoder.JSONDecodeError as exc:
+            except (json.decoder.JSONDecodeError, UnicodeDecodeError) as exc:
                 if event.content_type in ["json", "application/json"]:
                     # if its json type and didnt load, raise exception
                     message = f"failed to json decode event, {exc}"
@@ -387,7 +388,6 @@ class MockEvent(object):
         self.id = event_id or uuid.uuid4().hex
         self.key = ""
         self.body = body
-        self.time = get_event_time(time) or datetime.now(timezone.utc)
 
         # optional
         self.headers = headers or {}
@@ -528,17 +528,3 @@ def format_error(server, context, source, event, message, args):
         "message": message,
         "args": args,
     }
-
-
-def get_event_time(time):
-    # init the event time from time, date, or str (similar to storey)
-    if time is not None and not isinstance(time, datetime):
-        if isinstance(time, str):
-            time = datetime.fromisoformat(time)
-        elif isinstance(time, int):
-            time = datetime.utcfromtimestamp(time)
-        else:
-            raise TypeError(
-                f"Event time parameter must be a datetime, string, or int. Got {type(time)} instead."
-            )
-    return time

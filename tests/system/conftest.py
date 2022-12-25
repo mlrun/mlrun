@@ -29,7 +29,7 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     result: TestReport = outcome.get_result()
 
     try:
-        post_report_to_slack(result, os.getenv("MLRUN_TEST_SLACK_WEBHOOK_URL"))
+        post_report_to_slack(result, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL"))
     except Exception as exc:
         print(f"Failed to post test report to slack: {exc}")
 

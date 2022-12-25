@@ -244,28 +244,34 @@ class OperationTypes(str, Enum):
 
 
 class _ParallelRunInterface(RouterToDict):
-    def __init__(self, executor_type: Union[ParallelRunnerModes, str]):
+    def __init__(self, executor_type: Union[ParallelRunnerModes, str], **kwargs):
         """
         Interface for execute parallel runners
 
-        :param executor_type: The desired way for execute parallen run.
+        :param executor_type: The desired way for execute parallel run.
                               Have 3 option :
                               * array - running one by one
                               * process - running in separated process
                               * thread - running in separated threads
         """
-        if executor_type and executor_type not in ParallelRunnerModes.all():
-            raise ValueError(
-                f"executor_type must be one of {' | '.join(ParallelRunnerModes.all())}"
-            )
         self.executor_type = ParallelRunnerModes(executor_type)
-        self._pool = None
+        self._pool: Union[
+            concurrent.futures.ProcessPoolExecutor,
+            concurrent.futures.ThreadPoolExecutor,
+        ] = None
+        super().__init__(**kwargs)
 
-    def _init_pool(self):
+    def _init_pool(
+        self,
+    ) -> Union[
+        concurrent.futures.ProcessPoolExecutor, concurrent.futures.ThreadPoolExecutor
+    ]:
         """
-        Initial the pool according to self.executor_type and returns it.
 
-        :return: The initialed pool
+        Get the tasks pool of this runner. If the pool is `None`,
+        a new pool will be initialized according to `executor_type`.
+
+        :return: The tasks pool
         """
         if self._pool is None:
             if self.executor_type == ParallelRunnerModes.process:
@@ -365,7 +371,7 @@ class _ParallelRunInterface(RouterToDict):
         return route, handler(event)
 
 
-class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
+class VotingEnsemble(_ParallelRunInterface, BaseModelRouter):
     def __init__(
         self,
         context=None,
@@ -375,9 +381,10 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         url_prefix: str = None,
         health_prefix: str = None,
         vote_type: str = None,
-        weights: Union[List[float], Dict[str, float]] = None,
+        weights: Dict[str, float] = None,
         executor_type: ParallelRunnerModes = ParallelRunnerModes.thread,
-        prediction_col_name=None,
+        format_response_with_col_name_flag: bool = False,
+        prediction_col_name: str = "prediction",
         **kwargs,
     ):
         """Voting Ensemble
@@ -453,7 +460,15 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
                               by default will try to self-deduct upon the first event:
                               - float prediction type: regression
                               - int prediction type: classification
+        :param weights        A dictionary ({"<model_name>": <model_weight>}) that specified each model weight,
+                              if there is a model that didn't appear in the dictionary his
+                              weight will be count as a zero. None means that all the models have the same weight.
         :param executor_type: Parallelism mechanism, out of `ParallelRunnerModes`, by default `threads`
+        :param format_response_with_col_name_flag: If this flag is True the model's responses output format is
+                                                     `{id: <id>, model_name: <name>, outputs:
+                                                     {..., prediction: [<predictions>], ...}}`
+                                                   Else
+                                                      `{id: <id>, model_name: <name>, outputs: [<predictions>]}`
         :param prediction_col_name: The dict key for the predictions column in the model's responses output.
                               Example: If the model returns
                               `{id: <id>, model_name: <name>, outputs: {..., prediction: [<predictions>], ...}}`
@@ -461,10 +476,16 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
                               by default, `prediction`
         :param kwargs:        extra arguments
         """
-        BaseModelRouter.__init__(
-            self, context, name, routes, protocol, url_prefix, health_prefix, **kwargs
+        super(VotingEnsemble, self).__init__(
+            executor_type=executor_type,
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            **kwargs,
         )
-        _ParallelRunInterface.__init__(self, executor_type)
         self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
@@ -477,9 +498,7 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         self.version = kwargs.get("version", "v1")
         self.log_router = True
         self.prediction_col_name = prediction_col_name or "prediction"
-        self.format_response_with_col_name_flag = kwargs.get(
-            "format_response_with_col_name_flag", False
-        )
+        self.format_response_with_col_name_flag = format_response_with_col_name_flag
         self.model_endpoint_uid = None
 
     def post_init(self, mode="sync"):
@@ -611,7 +630,7 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         return (np.array(all_predictions) @ weights).tolist()
 
     def _is_int(self, value):
-        return float(value).is_integer()
+        return value % 1 == 0
 
     def logic(self, predictions: List[List[Union[int, float]]], weights: List[float]):
         """
@@ -834,14 +853,14 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
         :return: Normalized weights dictionary
         """
         if weights_dict is None:
-            num_of_models = len([*self.routes.keys()])
-            return dict(zip([*self.routes.keys()], [1 / num_of_models] * num_of_models))
+            num_of_models = len(self.routes)
+            return dict(zip(self.routes.keys(), [1 / num_of_models] * num_of_models))
         weights_values = [*weights_dict.values()]
         weights_sum = np.sum(weights_values)
-        if abs(weights_sum - 1.0) <= 0.001:
+        if 1.0 - weights_sum <= 1e-5:
             return weights_dict
-        new_weights_values = (np.array([*weights_dict.values()]) / weights_sum).tolist()
-        return dict(zip([*weights_dict.keys()], new_weights_values))
+        new_weights_values = (np.array(weights_dict.values()) / weights_sum).tolist()
+        return dict(zip(weights_dict.keys(), new_weights_values))
 
     def _update_weights(self, weights_dict):
         """
@@ -1182,7 +1201,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
         return event
 
 
-class ParallelRun(BaseModelRouter, _ParallelRunInterface):
+class ParallelRun(_ParallelRunInterface, BaseModelRouter):
     def __init__(
         self,
         context=None,
@@ -1232,8 +1251,13 @@ class ParallelRun(BaseModelRouter, _ParallelRunInterface):
                                 - int prediction type: classification
         :param kwargs:        extra arguments
         """
-        BaseModelRouter.__init__(self, context, name, routes, **kwargs)
-        _ParallelRunInterface.__init__(self, executor_type)
+        super(ParallelRun, self).__init__(
+            context=context,
+            name=name,
+            routes=routes,
+            executor_type=executor_type,
+            **kwargs,
+        )
         self.name = name or "ParallelRun"
         self.extend_event = extend_event
 

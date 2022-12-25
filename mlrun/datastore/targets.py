@@ -861,6 +861,7 @@ class ParquetTarget(BaseStoreTarget):
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
+            time_field=timestamp_key,
             storage_options=self.storage_options
             or self._get_store().get_storage_options(),
             max_events=self.max_events,

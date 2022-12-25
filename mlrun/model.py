@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import inspect
+import pathlib
 import re
 import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from os import environ, path
+from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
@@ -358,10 +359,9 @@ class ImageBuilder(ModelObj):
     @source.setter
     def source(self, source):
         if source and not (
-            source.endswith(".tar.gz")
-            or source.endswith(".zip")
-            or source.startswith("git://")
-            or path.isfile(source)
+            source.startswith("git://")
+            # lenient check for file extension because we support many file types locally and remotely
+            or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

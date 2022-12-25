@@ -252,7 +252,7 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-class _ParallelRunInterface(RouterToDict):
+class _ParallelRunInterface:
     def __init__(
         self, executor_type: Union[ParallelRunnerModes, ExecutorTypes, str], **kwargs
     ):

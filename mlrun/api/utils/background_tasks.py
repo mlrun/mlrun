@@ -18,7 +18,6 @@ import traceback
 import typing
 import uuid
 
-import anyio
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm

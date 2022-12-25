@@ -267,10 +267,7 @@ def test_ensemble_change_weights():
         "m3:v2": 1,
     }, f"wrong weights in get models response {resp}"
     # change weights
-    fn.spec.graph.update_class_args(
-        "weights", dict(zip(models, [0.1, 0.2, 0.3, 0.4])), None
-    )
-
+    fn.spec.graph.class_args['weights'] = dict(zip(models, [0.1, 0.2, 0.3, 0.4]))
     server = fn.to_mock_server()
     resp = server.test("/v2/models/")
     # expected: {"models": ["m1", "m2", "m3:v1", "m3:v2", "VotingEnsemble"],

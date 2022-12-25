@@ -559,7 +559,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code (using black and isort)
 	@echo "Running black fmt..."
-	python -m black . --exclude=venv*
+	python -m black . --extend-exclude=venv*
 	python -m isort . --skip-glob=venv*
 
 .PHONY: lint
@@ -568,7 +568,7 @@ lint: flake8 fmt-check ## Run lint on the code
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)
 	@echo "Running black+isort fmt check..."
-	python -m black --check --diff . --exclude=venv*
+	python -m black --check --diff . --extend-exclude=venv*
 	python -m isort --check --diff . --skip-glob=venv*
 
 .PHONY: flake8

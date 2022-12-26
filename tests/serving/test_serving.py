@@ -203,10 +203,40 @@ def test_ensemble_get_models():
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
 
+def test_ensemble_get_metadata_of_models():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology(
+        "router",
+        mlrun.serving.routers.VotingEnsemble(
+            vote_type="regression", prediction_col_name="predictions"
+        ),
+    )
+    graph.routes = generate_test_routes("EnsembleModelTestingClass")
+    server = fn.to_mock_server()
+    logger.info(f"flow: {graph.to_yaml()}")
+    resp = server.test("/v2/models/m1")
+    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    resp = server.test("/v2/models/m3/versions/v2")
+    expected = {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    resp = server.test("/v2/models/VotingEnsemble")
+    print(resp)
+    expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/m1")
+    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+
 def test_ensemble_infer():
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
-        event = MockEvent(testdata, path=url)
+        event = MockEvent(testdata, path=url, method="POST")
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
         assert data["outputs"] == {
@@ -328,8 +358,8 @@ def test_v2_get_modelmeta():
     assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
     assert resp["inputs"][0]["value_type"] == "float"
 
-    # test versioned model m3 metadata
-    resp = server.test("/v2/models/m3/versions/v2", method="GET")
+    # test versioned model m3 metadata + get method not explicit
+    resp = server.test("/v2/models/m3/versions/v2")
     assert (
         resp["name"] == "m3" and resp["version"] == "v2"
     ), f"wrong get model meta response {resp}"

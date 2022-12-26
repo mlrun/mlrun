@@ -277,8 +277,8 @@ class HTTPRunDB(RunDBInterface):
                 "artifact_path"
             )
             config.feature_store.data_prefixes.default = (
-                config.feature_store.data_prefixes.default
-                or server_cfg.get("default_feature_store_data_prefix")
+                config.feature_store.data_prefixes
+                or server_cfg.get("feature_store_data_prefixes")
             )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"

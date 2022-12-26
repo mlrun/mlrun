@@ -28,7 +28,7 @@ class ClientSpec(pydantic.BaseModel):
     mpijob_crd_version: typing.Optional[str]
     ui_url: typing.Optional[str]
     artifact_path: typing.Optional[str]
-    default_feature_store_data_prefix: typing.Optional[str]
+    feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
     spark_app_image: typing.Optional[str]
     spark_app_image_tag: typing.Optional[str]
     spark_history_server_path: typing.Optional[str]

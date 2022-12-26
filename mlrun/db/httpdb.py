@@ -276,7 +276,7 @@ class HTTPRunDB(RunDBInterface):
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
-            config.feature_store.data_prefixes.default = (
+            config.feature_store.data_prefixes = (
                 config.feature_store.data_prefixes
                 or server_cfg.get("feature_store_data_prefixes")
             )

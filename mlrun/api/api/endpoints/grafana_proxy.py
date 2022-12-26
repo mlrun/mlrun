@@ -146,7 +146,7 @@ def grafana_list_endpoints(
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
-    endpoint_list = mlrun.api.crud.ModelEndpoints().list_endpoints(
+    endpoint_list = mlrun.api.crud.ModelEndpoints().list_model_endpoints(
         auth_info=auth_info,
         project=project,
         model=model,
@@ -229,7 +229,7 @@ def grafana_individual_feature_analysis(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -290,7 +290,7 @@ def grafana_overall_feature_analysis(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -339,7 +339,7 @@ def grafana_incoming_features(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_endpoint(
+    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
         auth_info=auth_info, project=project, endpoint_id=endpoint_id
     )
 

@@ -28,7 +28,8 @@ from kfp.compiler import compiler
 import mlrun
 import mlrun.api.schemas
 import mlrun.utils.notifications
-from mlrun.utils import logger, new_pipe_meta, parse_versioned_object_uri
+from mlrun.errors import err_to_str
+from mlrun.utils import get_ui_url, logger, new_pipe_meta, parse_versioned_object_uri
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -250,7 +251,7 @@ def _set_function_attribute_on_kfp_pod(
             f"Unable to set function attribute on kfp pod {kfp_pod_name}",
             function_spec_key=function_spec_key,
             pod_template_key=pod_template_key,
-            error=str(err),
+            error=err_to_str(err),
         )
 
 
@@ -314,7 +315,7 @@ def _create_enriched_mlrun_workflow(
             except Exception as err:
                 logger.debug(
                     "Unable to retrieve project functions, not enriching workflow with mlrun",
-                    error=str(err),
+                    error=err_to_str(err),
                 )
                 return workflow
 
@@ -337,7 +338,9 @@ def _create_enriched_mlrun_workflow(
     except mlrun.errors.MLRunInvalidArgumentError:
         raise
     except Exception as err:
-        logger.debug("Something in the enrichment of kfp pods failed", error=str(err))
+        logger.debug(
+            "Something in the enrichment of kfp pods failed", error=err_to_str(err)
+        )
     return workflow
 
 
@@ -708,6 +711,12 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         workflow_id = None
 
+        if workflow_spec.schedule and not project.spec.is_remote():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Workflow scheduling can only be performed by a remote project."
+                f"The project's source: {project.spec.source} is not a remote one e.g., git."
+            )
+
         try:
             run_db = mlrun.get_run_db()
             msg = "executing workflow "
@@ -847,15 +856,40 @@ def load_and_run(
     engine: str = None,
     local: bool = None,
     load_only: bool = False,
+    schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
 ):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
+    try:
+        project = mlrun.load_project(
+            context=f"./{project_name}",
+            url=url,
+            name=project_name,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+        )
+    except Exception as error:
+        if schedule:
+            notification_pusher = mlrun.utils.notifications.CustomNotificationPusher(
+                ["slack"]
+            )
+            url = get_ui_url(project_name, context.uid)
+            link = f"<{url}|*view workflow job details*>"
+            message = (
+                f":x: Failed to run scheduled workflow {workflow_name} in Project {project_name} !\n"
+                f"error: ```{error}```\n{link}"
+            )
+            # Sending Slack Notification without losing the original error:
+            try:
+                notification_pusher.push(
+                    message=message,
+                    severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
+                )
+
+            except Exception as exc:
+                logger.error("Failed to send slack notification", exc=exc)
+
+        raise error
+
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
     if load_only:

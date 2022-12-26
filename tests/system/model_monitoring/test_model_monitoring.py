@@ -54,10 +54,12 @@ class TestModelMonitoringAPI(TestMLRunSystem):
     project_name = "model-monitor-sys-test4"
 
     def test_clear_endpoint(self):
+        """Validates the process of create and delete a basic model endpoint"""
+
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
 
-        db.create_or_patch_model_endpoint(
+        db.create_model_endpoint(
             endpoint.metadata.project, endpoint.metadata.uid, endpoint
         )
 
@@ -67,9 +69,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         assert endpoint_response
         assert endpoint_response.metadata.uid == endpoint.metadata.uid
 
-        db.delete_model_endpoint_record(
-            endpoint.metadata.project, endpoint.metadata.uid
-        )
+        db.delete_model_endpoint(endpoint.metadata.project, endpoint.metadata.uid)
 
         # test for existence with "underlying layers" functions
         with pytest.raises(MLRunNotFoundError):
@@ -78,33 +78,58 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             )
 
     def test_store_endpoint_update_existing(self):
+        """Validates the process of create and update a basic model endpoint"""
+
         endpoint = self._mock_random_endpoint()
         db = mlrun.get_run_db()
 
-        db.create_or_patch_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
+        db.create_model_endpoint(
+            project=endpoint.metadata.project,
+            endpoint_id=endpoint.metadata.uid,
+            model_endpoint=endpoint,
         )
 
         endpoint_before_update = db.get_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid
+            project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
         )
 
         assert endpoint_before_update.status.state is None
 
         updated_state = "testing...testing...1 2 1 2"
-        endpoint_before_update.status.state = updated_state
+        drift_status = "DRIFT_DETECTED"
+        current_stats = {
+            "tvd_sum": 2.2,
+            "tvd_mean": 0.5,
+            "hellinger_sum": 3.6,
+            "hellinger_mean": 0.9,
+            "kld_sum": 24.2,
+            "kld_mean": 6.0,
+            "f1": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.4},
+            "f2": {"tvd": 0.5, "hellinger": 1.0, "kld": 6.5},
+        }
 
-        db.create_or_patch_model_endpoint(
-            endpoint_before_update.metadata.project,
-            endpoint_before_update.metadata.uid,
-            endpoint_before_update,
+        # {"drift_status": "POSSIBLE_DRIFT", "state": "new_state"}
+
+        # Create attributes dictionary according to the required format
+        attributes = {
+            "state": updated_state,
+            "drift_status": drift_status,
+            "current_stats": json.dumps(current_stats),
+        }
+
+        db.patch_model_endpoint(
+            project=endpoint_before_update.metadata.project,
+            endpoint_id=endpoint_before_update.metadata.uid,
+            attributes=attributes,
         )
 
         endpoint_after_update = db.get_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid
+            project=endpoint.metadata.project, endpoint_id=endpoint.metadata.uid
         )
 
         assert endpoint_after_update.status.state == updated_state
+        assert endpoint_after_update.status.drift_status == drift_status
+        assert endpoint_after_update.status.current_stats == current_stats
 
     def test_list_endpoints_on_empty_project(self):
         endpoints_out = mlrun.get_run_db().list_model_endpoints(self.project_name)
@@ -119,7 +144,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         ]
 
         for endpoint in endpoints_in:
-            db.create_or_patch_model_endpoint(
+            db.create_model_endpoint(
                 endpoint.metadata.project, endpoint.metadata.uid, endpoint
             )
 
@@ -148,7 +173,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             if i < 4:
                 endpoint_details.metadata.labels = {"filtermex": "1", "filtermey": "2"}
 
-            db.create_or_patch_model_endpoint(
+            db.create_model_endpoint(
                 endpoint_details.metadata.project,
                 endpoint_details.metadata.uid,
                 endpoint_details,
@@ -554,6 +579,18 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         # Deploy the serving function
         serving_fn.deploy()
 
+        # Validate that the model monitoring batch access key is replaced with an internal secret
+        batch_function = mlrun.get_run_db().get_function(
+            name="model-monitoring-batch", project=self.project_name
+        )
+        batch_access_key = batch_function["metadata"]["credentials"]["access_key"]
+        auth_secret = mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=""
+        )
+        assert batch_access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix + auth_secret
+        )
+
         # Validate a single endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
         assert len(endpoints_list.endpoints) == 1
@@ -613,6 +650,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
                 function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
                 model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
                 model_class="classifier",
+                active=True,
             ),
             status=ModelEndpointStatus(state=state),
         )

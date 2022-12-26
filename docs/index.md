@@ -9,6 +9,8 @@ Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Ins
 
 This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks) and presents the [**MLRun core components**](#core-components).
 
+See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
+
 ```
 
 
@@ -47,6 +49,7 @@ This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks) and p
 ```
 
 ````
+`````
 
 The [**MLOps development workflow**](./mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -121,7 +124,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring & drift detection <./tutorial/05-model-monitoring.html>`
 
-`````
+
 
 <a id="core-components"></a>
 ## MLRun core components
@@ -198,4 +201,5 @@ MLRun includes the following major components:
 :maxdepth: 1
 
 architecture
+ecosystem
 ```

@@ -28,7 +28,7 @@ import semver
 import mlrun
 import mlrun.projects
 from mlrun.api import schemas
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..api.schemas import ModelEndpoint
 from ..artifacts import Artifact
@@ -208,7 +208,7 @@ class HTTPRunDB(RunDBInterface):
                 method, url, timeout=timeout, verify=False, **kw
             )
         except requests.RequestException as exc:
-            error = f"{str(exc)}: {error}" if error else str(exc)
+            error = f"{err_to_str(exc)}: {error}" if error else err_to_str(exc)
             raise mlrun.errors.MLRunRuntimeError(error) from exc
 
         if not response.ok:
@@ -375,7 +375,7 @@ class HTTPRunDB(RunDBInterface):
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
-                exc=str(exc),
+                exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
         return self
@@ -1177,8 +1177,8 @@ class HTTPRunDB(RunDBInterface):
                 req["builder_env"] = builder_env
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
-            logger.error(f"error submitting build task: {err}")
-            raise OSError(f"error: cannot submit build, {err}")
+            logger.error(f"error submitting build task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit build, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1222,8 +1222,8 @@ class HTTPRunDB(RunDBInterface):
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
-            logger.error(f"error getting build status: {err}")
-            raise OSError(f"error: cannot get build status, {err}")
+            logger.error(f"error getting build status: {err_to_str(err)}")
+            raise OSError(f"error: cannot get build status, {err_to_str(err)}")
 
         if not resp.ok:
             logger.warning(f"failed resp, {resp.text}")
@@ -1268,8 +1268,8 @@ class HTTPRunDB(RunDBInterface):
                 timeout=int(config.submit_timeout) or 60,
             )
         except OSError as err:
-            logger.error(f"error starting function: {err}")
-            raise OSError(f"error: cannot start function, {err}")
+            logger.error(f"error starting function: {err_to_str(err)}")
+            raise OSError(f"error: cannot start function, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1313,8 +1313,8 @@ class HTTPRunDB(RunDBInterface):
             req = {"kind": kind, "selector": selector, "project": project, "name": name}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
-            logger.error(f"error starting function: {err}")
-            raise OSError(f"error: cannot start function, {err}")
+            logger.error(f"error starting function: {err_to_str(err)}")
+            raise OSError(f"error: cannot start function, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1341,8 +1341,8 @@ class HTTPRunDB(RunDBInterface):
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
         except OSError as err:
-            logger.error(f"error submitting task: {err}")
-            raise OSError(f"error: cannot submit task, {err}")
+            logger.error(f"error submitting task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit task, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1414,8 +1414,8 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err}")
+            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
+            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1499,8 +1499,8 @@ class HTTPRunDB(RunDBInterface):
                 timeout=timeout,
             )
         except OSError as err:
-            logger.error(f"error cannot get pipeline: {err}")
-            raise OSError(f"error: cannot get pipeline, {err}")
+            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
+            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")

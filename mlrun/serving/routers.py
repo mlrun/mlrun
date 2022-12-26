@@ -25,6 +25,7 @@ import numpy as np
 
 import mlrun
 import mlrun.utils.model_monitoring
+from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 from ..api.schemas import (
@@ -108,7 +109,7 @@ class BaseModelRouter(RouterToDict):
                 sample = BytesIO(event.body)
                 parsed_event[self.inputs_key] = [sample]
             else:
-                raise ValueError(f"Unrecognized request format: {exc}")
+                raise ValueError("Unrecognized request format") from exc
 
         return parsed_event
 
@@ -842,7 +843,7 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
                 f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist "
                 f"in the model's response ({response.keys()})"
             )
-
+    
     def validate(self, request: dict, method: str):
         """
         Validate the event body (after preprocessing)

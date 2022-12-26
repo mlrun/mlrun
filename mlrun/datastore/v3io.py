@@ -83,8 +83,8 @@ class V3ioStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"v3iofs or storey not installed, run pip install storey, {exc}"
-                )
+                    "v3iofs or storey not installed, run pip install storey"
+                ) from exc
             return None
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem

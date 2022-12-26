@@ -35,6 +35,7 @@ from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
+from ..errors import err_to_str
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
@@ -863,7 +864,9 @@ class RemoteRuntime(KubeResource):
             logger.info("invoking function", method=method, path=path)
             resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
-            raise OSError(f"error: cannot run function at url {path}, {err}")
+            raise OSError(
+                f"error: cannot run function at url {path}, {err_to_str(err)}"
+            )
         if not resp.ok:
             raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
@@ -901,7 +904,7 @@ class RemoteRuntime(KubeResource):
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
-            logger.error(f"error invoking function: {err}")
+            logger.error(f"error invoking function: {err_to_str(err)}")
             raise OSError(f"error: cannot run function at url {command}")
 
         if not resp.ok:

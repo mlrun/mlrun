@@ -70,7 +70,6 @@ jobs:
     - uses: actions/checkout@v3
 
     # since github-actions gives us 14G only, and fills it up with some garbage
-    # we will free up some space for us (~20GB)
     - name: Freeing up disk space
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"

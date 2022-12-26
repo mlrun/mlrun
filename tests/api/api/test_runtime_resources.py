@@ -83,9 +83,7 @@ def test_list_runtimes_resources_group_by_job(
     )
     response = client.get(
         "projects/*/runtime-resources",
-        params={
-            "group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job.value
-        },
+        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
     )
     body = response.json()
     expected_body = {
@@ -203,17 +201,13 @@ def test_list_runtime_resources_no_resources(
     assert body == []
     response = client.get(
         "projects/*/runtime-resources",
-        params={
-            "group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job.value
-        },
+        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.job},
     )
     body = response.json()
     assert body == {}
     response = client.get(
         "projects/*/runtime-resources",
-        params={
-            "group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project.value
-        },
+        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
     assert body == {}
@@ -757,9 +751,7 @@ def _mock_opa_filter_and_assert_list_response(
     )
     response = client.get(
         "projects/*/runtime-resources",
-        params={
-            "group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project.value
-        },
+        params={"group-by": mlrun.api.schemas.ListRuntimeResourcesGroupByField.project},
     )
     body = response.json()
     expected_body = (

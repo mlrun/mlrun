@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 import typing
 
 import pydantic
+
+from mlrun.api.utils.helpers import StrEnum
 
 
 class ClusterizationSpec(pydantic.BaseModel):
@@ -23,6 +24,6 @@ class ClusterizationSpec(pydantic.BaseModel):
     chief_version: typing.Optional[str]
 
 
-class WaitForChiefToReachOnlineStateFeatureFlag(str, enum.Enum):
+class WaitForChiefToReachOnlineStateFeatureFlag(StrEnum):
     enabled = "enabled"
     disabled = "disabled"

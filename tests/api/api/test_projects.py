@@ -687,7 +687,7 @@ def test_list_projects_leader_format(
     # list in leader format
     response = client.get(
         "projects",
-        params={"format": mlrun.api.schemas.ProjectsFormat.leader.value},
+        params={"format": mlrun.api.schemas.ProjectsFormat.leader},
         headers={
             mlrun.api.schemas.HeaderNames.projects_role: mlrun.mlconf.httpdb.projects.leader
         },
@@ -736,7 +736,7 @@ def test_projects_crud(
     project_patch = {
         "spec": {
             "description": "lemon",
-            "desired_state": mlrun.api.schemas.ProjectState.archived.value,
+            "desired_state": mlrun.api.schemas.ProjectState.archived,
         }
     }
     response = client.patch(f"projects/{name1}", json=project_patch)
@@ -782,7 +782,7 @@ def test_projects_crud(
 
     # list - full
     response = client.get(
-        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full.value}
+        "projects", params={"format": mlrun.api.schemas.ProjectsFormat.full}
     )
     projects_output = mlrun.api.schemas.ProjectsOutput(**response.json())
     expected = [project_1, project_2]
@@ -832,7 +832,7 @@ def test_projects_crud(
 
     # list - names only - filter by state
     _list_project_names_and_assert(
-        client, [name1], params={"state": mlrun.api.schemas.ProjectState.archived.value}
+        client, [name1], params={"state": mlrun.api.schemas.ProjectState.archived}
     )
 
     # add function to project 1
@@ -1225,7 +1225,7 @@ def _list_project_names_and_assert(
     client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
 ):
     params = params or {}
-    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only.value
+    params["format"] = mlrun.api.schemas.ProjectsFormat.name_only
     # list - names only - filter by state
     response = client.get(
         "projects",

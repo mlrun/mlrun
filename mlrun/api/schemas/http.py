@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
+from mlrun.api.utils.helpers import StrEnum
 
 
-class HTTPSessionRetryMode(str, enum.Enum):
+class HTTPSessionRetryMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"

@@ -13,10 +13,11 @@
 # limitations under the License.
 #
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Extra
+
+from mlrun.api.utils.helpers import StrEnum
 
 
 class ObjectMetadata(BaseModel):
@@ -68,7 +69,7 @@ class ObjectRecord(BaseModel):
         orm_mode = True
 
 
-class ObjectKind(str, Enum):
+class ObjectKind(StrEnum):
     project = "project"
     feature_set = "FeatureSet"
     background_task = "BackgroundTask"

@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.api.utils.helpers import StrEnum
 from mlrun.utils.model_monitoring import EndpointType, create_model_endpoint_id
 
 
@@ -36,7 +36,7 @@ class ModelEndpointMetadata(BaseModel):
         extra = Extra.allow
 
 
-class ModelMonitoringMode(str, enum.Enum):
+class ModelMonitoringMode(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 

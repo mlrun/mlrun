@@ -12,32 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 import typing
 
 import pydantic
 
+from mlrun.api.utils.helpers import StrEnum
+
 from .k8s import Resources
 
 
-class ProjectMembershipFeatureFlag(str, enum.Enum):
+class ProjectMembershipFeatureFlag(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class PreemptionNodesFeatureFlag(str, enum.Enum):
+class PreemptionNodesFeatureFlag(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class AuthenticationFeatureFlag(str, enum.Enum):
+class AuthenticationFeatureFlag(StrEnum):
     none = "none"
     basic = "basic"
     bearer = "bearer"
     iguazio = "iguazio"
 
 
-class NuclioStreamsFeatureFlag(str, enum.Enum):
+class NuclioStreamsFeatureFlag(StrEnum):
     enabled = "enabled"
     disabled = "disabled"
 

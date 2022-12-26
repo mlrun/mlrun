@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -20,6 +19,7 @@ from pydantic import BaseModel, Extra, Field
 
 import mlrun.errors
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+from mlrun.api.utils.helpers import StrEnum
 from mlrun.config import config
 
 
@@ -37,7 +37,7 @@ class MarketplaceObjectMetadata(BaseModel):
 
 
 # Currently only functions are supported. Will add more in the future.
-class MarketplaceSourceType(str, enum.Enum):
+class MarketplaceSourceType(StrEnum):
     functions = "functions"
 
 

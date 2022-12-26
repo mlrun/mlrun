@@ -231,7 +231,7 @@ class MapValues(StepToDict, MLRunStep):
         from itertools import chain
 
         for column, column_map in self.mapping.items():
-            new_column_name = self._get_feature_name(column) if self.with_original_features else column
+            new_column_name = self._get_feature_name(column)
             if "ranges" not in column_map:
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
                 event = event.withColumn(new_column_name, mapping_expr.getItem(col(column)))
@@ -366,42 +366,52 @@ class OneHotEncoder(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-        import pyspark.sql.functions as F
-        from pyspark.ml.feature import OneHotEncoder, StringIndexerModel
-        from pyspark.ml.functions import vector_to_array
-        from pyspark.sql.types import IntegerType
+        # import pyspark.sql.functions as F
+        # from pyspark.ml.feature import OneHotEncoder, StringIndexerModel
+        # from pyspark.ml.functions import vector_to_array
+        # from pyspark.sql.types import IntegerType
+        from pyspark.sql.functions import lit, when
 
         for key, values in self.mapping.items():
-            key_ = key
-            if dict(event.dtypes)[key] == "string":
-                event = StringIndexerModel.from_labels(
-                    values, inputCol=key, outputCol=f"{key}_"
-                ).transform(event)
-                key_ = f"{key}_"
-            else:
-                if dict(event.dtypes)[key] == "boolean":
-                    event = event.withColumn(key, event[key].cast(IntegerType()))
-                column_map = {values[i]: i for i in range(len(values))}
-                event = event.na.replace(column_map, subset=key)
-            event = (
-                OneHotEncoder(inputCols=[key_], outputCols=[f"{key_}_"], dropLast=False)
-                .fit(event)
-                .transform(event)
-            )
-            event = event.select("*", vector_to_array(f"{key_}_").alias(f"{key_}__"))
-            cols_expanded = [
-                (F.col(f"{key_}__")[i]).cast(IntegerType()).alias(f"{key_}__[{i}]")
-                for i in range(len(values))
-            ]
-            i = np.where(np.array(event.columns) == key)[0][0]
-            event = event.select(
-                *event.columns[:i], *cols_expanded, *event.columns[i + 1 :]
-            )
-            for i, val in enumerate(values):
-                event = event.withColumnRenamed(
-                    f"{key_}__[{i}]", f"{key}_{self._sanitized_category(val)}"
+            for val in values:
+                event = event.withColumn(
+                    f"{key}_{self._sanitized_category(val)}",
+                    when(
+                        (event[key] == val),
+                        lit(1),
+                    ).otherwise(lit(0)),
                 )
-            event = event.drop(key_, f"{key_}_", f"{key_}__")
+        event = event.drop(*self.mapping.keys())
+            # key_ = key
+            # if dict(event.dtypes)[key] == "string":
+            #     event = StringIndexerModel.from_labels(
+            #         values, inputCol=key, outputCol=f"{key}_"
+            #     ).transform(event)
+            #     key_ = f"{key}_"
+            # else:
+            #     if dict(event.dtypes)[key] == "boolean":
+            #         event = event.withColumn(key, event[key].cast(IntegerType()))
+            #     column_map = {values[i]: i for i in range(len(values))}
+            #     event = event.na.replace(column_map, subset=key)
+            # event = (
+            #     OneHotEncoder(inputCols=[key_], outputCols=[f"{key_}_"], dropLast=False)
+            #     .fit(event)
+            #     .transform(event)
+            # )
+            # event = event.select("*", vector_to_array(f"{key_}_").alias(f"{key_}__"))
+            # cols_expanded = [
+            #     (F.col(f"{key_}__")[i]).cast(IntegerType()).alias(f"{key_}__[{i}]")
+            #     for i in range(len(values))
+            # ]
+            # i = np.where(np.array(event.columns) == key)[0][0]
+            # event = event.select(
+            #     *event.columns[:i], *cols_expanded, *event.columns[i + 1 :]
+            # )
+            # for i, val in enumerate(values):
+            #     event = event.withColumnRenamed(
+            #         f"{key_}__[{i}]", f"{key}_{self._sanitized_category(val)}"
+            #     )
+            # event = event.drop(key_, f"{key_}_", f"{key_}__")
 
         return event
 

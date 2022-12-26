@@ -1021,7 +1021,7 @@ def load_and_run(
                 logger.error("Failed to send slack notification", exc=exc)
 
         raise error
-    
+
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
     workflow_log_message = workflow_name or workflow_path

@@ -370,7 +370,9 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
 @pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
 @pytest.mark.parametrize("set_index_before", [True, False, 0])
 @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
-def test_pandas_step_data_extractor(rundb_mock, entities, set_index_before, timestamp_col):
+def test_pandas_step_data_extractor(
+    rundb_mock, entities, set_index_before, timestamp_col
+):
     data, _ = get_data()
     data_to_ingest = data.copy()
     if set_index_before or len(entities) == 1:

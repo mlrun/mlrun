@@ -855,7 +855,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-
         assert df_res.equals(expected_df)
 
     def test_ingest_with_steps_drop_features(self):
@@ -952,7 +951,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             MapValues(
                 mapping={
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
-                    "hr_is_error": {"false": "0", "true": "1"},
+                    "hr_is_error": {False: "0", True: "1"},
                 },
                 with_original_features=with_original_features,
             )
@@ -977,7 +976,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             MapValues(
                 mapping={
                     "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
-                    "hr_is_error": {"false": "0", "true": "1"},
+                    "hr_is_error": {False: "0", True: "1"},
                 },
                 with_original_features=with_original_features,
             )

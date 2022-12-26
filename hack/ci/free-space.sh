@@ -33,7 +33,7 @@ sudo rm --recursive --force \
     /usr/share/miniconda \
     /usr/share/swift \
     /opt/ghc \
-    "/usr/local/share/boost" \
+    /usr/local/share/boost \
     "$AGENT_TOOLSDIRECTORY"
 
 # remove large packages

@@ -245,7 +245,7 @@ class MapValues(StepToDict, MLRunStep):
                     event = event.withColumn(
                         new_column_name,
                         when(
-                            (event[column] < max_val) & (event[column] > min_val),
+                            (event[column] < max_val) & (event[column] >= min_val),
                             lit(val),
                         ).otherwise(otherwise),
                     )

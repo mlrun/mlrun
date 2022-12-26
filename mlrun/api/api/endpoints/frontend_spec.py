@@ -81,9 +81,9 @@ def get_frontend_spec(
         default_artifact_path=config.artifact_path,
         default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
         default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
-        feature_store_data_prefixes=config.feature_store.default_prefixes,
-        ce_mode=config.httpdb.ce_mode,
-        ce_version=config.httpdb.ce_version,
+        feature_store_data_prefixes=config.feature_store.data_prefixes.to_dict(),
+        ce_mode=config.ce.mode,
+        ce_version=config.ce.version,
     )
 
 

@@ -843,7 +843,7 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
                 f"The given `prediction_col_name` ({self.prediction_col_name}) does not exist "
                 f"in the model's response ({response.keys()})"
             )
-    
+
     def validate(self, request: dict, method: str):
         """
         Validate the event body (after preprocessing)

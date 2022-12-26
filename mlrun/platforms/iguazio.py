@@ -29,6 +29,7 @@ import v3io
 
 import mlrun.errors
 from mlrun.config import config as mlconf
+from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json
 
 _cached_control_session = None
@@ -548,7 +549,7 @@ def create_control_session(url, username, password):
     try:
         auth = session.post(f"{url}/api/sessions", verify=False)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     if not auth.ok:
         raise OSError(f"failed to create session: {url}, {auth.text}")

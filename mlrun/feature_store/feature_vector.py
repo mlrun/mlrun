@@ -566,7 +566,7 @@ class FixedWindowType(Enum):
         try:
             from storey import FixedWindowType as QueryByKeyFixedWindowType
         except ImportError as exc:
-            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+            raise ImportError("storey not installed, use pip install storey") from exc
         if self == FixedWindowType.LastClosedWindow:
             return QueryByKeyFixedWindowType.LastClosedWindow
         elif self == FixedWindowType.CurrentOpenWindow:

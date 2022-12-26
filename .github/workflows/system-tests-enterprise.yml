@@ -200,6 +200,7 @@ jobs:
           "${{ steps.computed_params.outputs.iguazio_version }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \
@@ -247,6 +248,7 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \

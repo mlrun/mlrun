@@ -101,8 +101,8 @@ class S3Store(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"AWS s3fs not installed, run pip install s3fs, {exc}"
-                )
+                    "AWS s3fs not installed, run pip install s3fs"
+                ) from exc
             return None
         self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
         return self._filesystem
@@ -176,7 +176,7 @@ def parse_s3_bucket_and_key(s3_path):
         key = "/".join(path_parts)
     except Exception as exc:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"failed to parse s3 bucket and key. {exc}"
-        )
+            "failed to parse s3 bucket and key"
+        ) from exc
 
     return bucket, key

@@ -22,6 +22,7 @@ from kfp import dsl
 from kubernetes import client as k8s_client
 
 import mlrun
+from mlrun.errors import err_to_str
 
 from .config import config
 from .db import get_or_set_dburl, get_run_db
@@ -791,7 +792,7 @@ def show_kfp_run(run, clear_output=False):
             )
             IPython.display.display(html, dag)
         except Exception as exc:
-            logger.warning(f"failed to plot graph, {exc}")
+            logger.warning(f"failed to plot graph, {err_to_str(exc)}")
 
 
 def add_default_function_resources(

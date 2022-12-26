@@ -203,10 +203,40 @@ def test_ensemble_get_models():
     assert len(resp["models"]) == 5, f"wrong get models response {resp}"
 
 
+def test_ensemble_get_metadata_of_models():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology(
+        "router",
+        mlrun.serving.routers.VotingEnsemble(
+            vote_type="regression", prediction_col_name="predictions"
+        ),
+    )
+    graph.routes = generate_test_routes("EnsembleModelTestingClass")
+    server = fn.to_mock_server()
+    logger.info(f"flow: {graph.to_yaml()}")
+    resp = server.test("/v2/models/m1")
+    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    resp = server.test("/v2/models/m3/versions/v2")
+    expected = {"name": "m3", "version": "v2", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    resp = server.test("/v2/models/VotingEnsemble")
+    print(resp)
+    expected = {"name": "VotingEnsemble", "version": "v1", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+    mlrun.deploy_function(fn, dashboard="bad-address", mock=True)
+    resp = fn.invoke("/v2/models/m1")
+    expected = {"name": "m1", "version": "", "inputs": [], "outputs": []}
+    assert resp == expected, f"wrong get models response {resp}"
+
+
 def test_ensemble_infer():
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
-        event = MockEvent(testdata, path=url)
+        event = MockEvent(testdata, path=url, method="POST")
         resp = context.mlrun_handler(context, event)
         data = json.loads(resp.body)
         assert data["outputs"] == {
@@ -328,8 +358,8 @@ def test_v2_get_modelmeta():
     assert len(resp["inputs"]) == 4 and len(resp["outputs"]) == 1
     assert resp["inputs"][0]["value_type"] == "float"
 
-    # test versioned model m3 metadata
-    resp = server.test("/v2/models/m3/versions/v2", method="GET")
+    # test versioned model m3 metadata + get method not explicit
+    resp = server.test("/v2/models/m3/versions/v2")
     assert (
         resp["name"] == "m3" and resp["version"] == "v2"
     ), f"wrong get model meta response {resp}"
@@ -495,3 +525,31 @@ def test_mock_deploy():
     # return config valued
     mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config
     mlrun.mlconf.nuclio_version = nuclio_version_config
+
+
+def test_mock_invoke():
+    mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
+    mlrun.new_project("x", save=False)
+    fn = mlrun.new_function("tests", kind="serving")
+    fn.add_model("my", ".", class_name=ModelTestingClass(multiplier=100))
+
+    # disable config
+    mlrun.mlconf.mock_nuclio_deployment = "1"
+
+    # test mock deployment is working
+    resp = fn.invoke("/v2/models/my/infer", testdata)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # test that it tries real endpoint when turned off
+    with pytest.raises(Exception):
+        mlrun.deploy_function(fn, dashboard="bad-address")
+        fn.invoke("/v2/models/my/infer", testdata, mock=False)
+
+    # set the mock through the config
+    fn._set_as_mock(False)
+    mlrun.mlconf.mock_nuclio_deployment = ""
+    resp = fn.invoke("/v2/models/my/infer", testdata, mock=True)
+    assert resp["outputs"] == 5 * 100, f"wrong data response {resp}"
+
+    # return config valued
+    mlrun.mlconf.mock_nuclio_deployment = mock_nuclio_config

@@ -211,8 +211,7 @@ class Marketplace(metaclass=mlrun.utils.singleton.Singleton):
             )
 
         if url.endswith("/"):
-            stores = store_manager.set(credentials)
-            obj = stores.object(url=url)
+            obj = store_manager.object(url=url, secrets=credentials)
             listdir = obj.listdir()
             return {
                 "listdir": listdir,

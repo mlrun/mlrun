@@ -1223,6 +1223,7 @@ def test_get_obj_path(db: Session, client: TestClient):
         },
         {
             "path": "gcs://bucket/and/path",
+            "allowed_paths": "s3://",
             "expect_error": True,
         },
         {
@@ -1298,7 +1299,7 @@ def _generate_original_function(
     volumes=None,
     volume_mounts=None,
 ):
-    function_name = "function_name"
+    function_name = "function-name"
     project = "some-project"
     function_tag = "function_tag"
     original_function = {

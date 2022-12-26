@@ -717,12 +717,15 @@ class FeatureSet(ModelObj):
         else:
             class_args = {}
             self._aggregations[aggregation["name"]] = aggregation
+            if before is None and after is None:
+                after = previous_step
             if not self.spec.engine or self.spec.engine == "storey":
                 step = graph.add_step(
                     name=step_name,
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
+                    time_field=self.spec.timestamp_key,
                     aggregates=[aggregation],
                     table=".",
                     **class_args,
@@ -738,7 +741,7 @@ class FeatureSet(ModelObj):
                     key_columns=key_columns,
                     time_column=self.spec.timestamp_key,
                     aggregates=[aggregation],
-                    after=after or previous_step,
+                    after=after,
                     before=before,
                     class_name="mlrun.feature_store.feature_set.SparkAggregateByKey",
                     **class_args,
@@ -775,7 +778,7 @@ class FeatureSet(ModelObj):
             validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
                 BaseStep(
-                    target.kind,
+                    f"{target.kind}/{target.name}",
                     after=target.after_step or default_final_step,
                     shape="cylinder",
                 )

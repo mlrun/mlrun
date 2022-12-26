@@ -101,8 +101,9 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        for notification in self._notifications.values():
-            notification.send(message, severity, runs, custom_html)
+        for notification_type, notification in self._notifications.items():
+            if self.should_send_notification(notification_type):
+                notification.send(message, severity, runs, custom_html)
 
     def add_notification(
         self, notification_type: str, params: typing.Dict[str, str] = None
@@ -113,6 +114,28 @@ class CustomNotificationPusher(object):
             self._notifications[notification_type] = NotificationTypes(
                 notification_type
             ).get_notification()(params)
+
+    def should_send_notification(self, notification_type):
+        notification = self._notifications.get(notification_type)
+        if not notification or not notification.active:
+            return False
+
+        # get notification's inverse dependencies, and only send the notification if
+        # none of its inverse dependencies are being sent
+        inverse_dependencies = NotificationTypes(
+            notification_type
+        ).inverse_dependencies()
+        for inverse_dependency in inverse_dependencies:
+            inverse_dependency_notification = self._notifications.get(
+                inverse_dependency
+            )
+            if (
+                inverse_dependency_notification
+                and inverse_dependency_notification.active
+            ):
+                return False
+
+        return True
 
     def push_pipeline_start_message(
         self,

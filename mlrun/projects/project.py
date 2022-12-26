@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
@@ -88,7 +89,7 @@ def init_repo(context, url, init_git):
 
 def new_project(
     name,
-    context=None,
+    context: str = "./",
     init_git: bool = False,
     user_project: bool = False,
     remote: str = None,
@@ -197,7 +198,7 @@ def new_project(
 
 
 def load_project(
-    context: str,
+    context: str = "./",
     url: str = None,
     name: str = None,
     secrets: dict = None,
@@ -234,19 +235,20 @@ def load_project(
 
     :returns: project object
     """
+    if not context:
+        raise ValueError("valid context (local dir path) must be provided")
 
     secrets = secrets or {}
     repo = None
     project = None
     name = _add_username_to_project_name_if_needed(name, user_project)
-    if not context:
-        raise ValueError("valid context (local dir path) must be provided")
 
     from_db = False
     if url:
         url = str(url)  # to support path objects
         if url.endswith(".yaml"):
             project = _load_project_file(url, name, secrets)
+            project.spec.context = context
         elif url.startswith("git://"):
             url, repo = clone_git(url, context, secrets, clone)
         elif url.endswith(".tar.gz"):
@@ -289,7 +291,7 @@ def load_project(
 
 def get_or_create_project(
     name: str,
-    context: str,
+    context: str = "./",
     url: str = None,
     secrets: dict = None,
     init_git=False,
@@ -309,7 +311,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (Default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -322,7 +324,7 @@ def get_or_create_project(
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
-
+    context = context or "./"
     try:
         # load project from the DB
         project = load_project(
@@ -438,7 +440,7 @@ def _load_project_file(url, name="", secrets=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(f"cant find project file at {url}, {exc}")
+        raise FileNotFoundError(f"cant find project file at {url}") from exc
     struct = yaml.load(obj, Loader=yaml.FullLoader)
     return _project_instance_from_struct(struct, name)
 
@@ -744,6 +746,23 @@ class ProjectSpec(ModelObj):
     def get_code_path(self):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
+
+    def is_remote(self) -> bool:
+        """
+        Checks if the source of the project is remote.
+        A remote project can be considered as one of the following:
+            * GitHub project e.g., git://github.com/mlrun/project-demo.git
+            * Archive project e.g., "v3io:///projects/my-project/my-project.zip
+              (Archiving a project can be done by `project.export`)
+        """
+        source = self.source
+        if not source or source.startswith(".") or source.startswith("/"):
+            return False
+        return (
+            source.startswith("git://")
+            or source.endswith(".tar.gz")
+            or source.endswith(".zip")
+        )
 
 
 class ProjectStatus(ModelObj):
@@ -1197,8 +1216,8 @@ class MlrunProject(ModelObj):
                 artifact = dict_to_artifact(artifact_dict)
                 if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
-                    artifact.spec.src_path = path.join(
-                        self.spec.get_code_path(), artifact.spec.src_path
+                    artifact.src_path = path.join(
+                        self.spec.get_code_path(), artifact.src_path
                     )
                 artifact_manager.log_artifact(
                     producer, artifact, artifact_path=artifact_path
@@ -1271,7 +1290,7 @@ class MlrunProject(ModelObj):
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         item = am.log_artifact(
             producer,
@@ -1299,7 +1318,7 @@ class MlrunProject(ModelObj):
         labels=None,
         format="",
         preview=None,
-        stats=False,
+        stats=None,
         target_path="",
         extra_data=None,
         label_column: str = None,
@@ -1322,9 +1341,10 @@ class MlrunProject(ModelObj):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
+        :param local_path:    path to the local dataframe file that exists locally.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param artifact_path: target artifact path (when not using the default).
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
@@ -1645,14 +1665,20 @@ class MlrunProject(ModelObj):
         return self.get_function(key, sync)
 
     def get_function(
-        self, key, sync=True, enrich=False, ignore_cache=False
+        self,
+        key,
+        sync=False,
+        enrich=False,
+        ignore_cache=False,
+        copy_function=True,
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
         :param key:   name of key for search
-        :param sync:  will reload/reinit the function
+        :param sync:  will reload/reinit the function from the project spec
         :param enrich: add project info/config/source info to the function object
         :param ignore_cache: read the function object from the DB (ignore the local cache)
+        :param copy_function: return a copy of the function object
 
         :returns: function object
         """
@@ -1665,7 +1691,7 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         if enrich:
-            return enrich_function_object(self, function)
+            return enrich_function_object(self, function, copy_function=copy_function)
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
@@ -2243,6 +2269,7 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         mlrun_version_specifier=None,
         builder_env: dict = None,
+        overwrite_build_params: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2257,6 +2284,8 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                                 e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
+         add to existing parameters
         """
         return build_function(
             function,
@@ -2270,6 +2299,7 @@ class MlrunProject(ModelObj):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             project_object=self,
+            overwrite_build_params=overwrite_build_params,
         )
 
     def deploy_function(

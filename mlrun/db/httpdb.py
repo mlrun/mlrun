@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import os
 import tempfile
 import time
 import traceback
@@ -29,7 +28,7 @@ import semver
 import mlrun
 import mlrun.projects
 from mlrun.api import schemas
-from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..api.schemas import ModelEndpoint
 from ..artifacts import Artifact
@@ -209,7 +208,7 @@ class HTTPRunDB(RunDBInterface):
                 method, url, timeout=timeout, verify=False, **kw
             )
         except requests.RequestException as exc:
-            error = f"{str(exc)}: {error}" if error else str(exc)
+            error = f"{err_to_str(exc)}: {error}" if error else err_to_str(exc)
             raise mlrun.errors.MLRunRuntimeError(error) from exc
 
         if not response.ok:
@@ -371,11 +370,12 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("force_run_local") or config.force_run_local
             )
             config.function = server_cfg.get("function") or config.function
+            config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
 
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
-                exc=str(exc),
+                exc=err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
         return self
@@ -443,18 +443,26 @@ class HTTPRunDB(RunDBInterface):
             nil_resp = 0
             while state in ["pending", "running"]:
                 offset += len(text)
+                # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
+                # TODO: refactor this to use a conditional backoff mechanism
                 if nil_resp < 3:
-                    time.sleep(3)
+                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
                 else:
-                    time.sleep(10)
+                    time.sleep(
+                        int(
+                            mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                        )
+                    )
                 state, text = self.get_log(uid, project, offset=offset)
                 if text:
                     nil_resp = 0
                     print(text.decode(), end="")
                 else:
                     nil_resp += 1
+        else:
+            offset += len(text)
 
-        return state
+        return state, offset
 
     def store_run(self, struct, uid, project="", iter=0):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
@@ -749,13 +757,19 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/artifacts"
         self.api_call("DELETE", endpoint_path, error, params=params)
 
-    def list_artifact_tags(self, project=None) -> List[str]:
+    def list_artifact_tags(
+        self,
+        project=None,
+        category: Union[str, schemas.ArtifactCategories] = None,
+    ) -> List[str]:
         """Return a list of all the tags assigned to artifacts in the scope of the given project."""
 
         project = project or config.default_project
         error_message = f"Failed listing artifact tags. project={project}"
+        params = {"category": category} if category else {}
+
         response = self.api_call(
-            "GET", f"projects/{project}/artifact-tags", error_message
+            "GET", f"projects/{project}/artifact-tags", error_message, params=params
         )
         return response.json()["tags"]
 
@@ -1163,8 +1177,8 @@ class HTTPRunDB(RunDBInterface):
                 req["builder_env"] = builder_env
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
-            logger.error(f"error submitting build task: {err}")
-            raise OSError(f"error: cannot submit build, {err}")
+            logger.error(f"error submitting build task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit build, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1208,8 +1222,8 @@ class HTTPRunDB(RunDBInterface):
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
-            logger.error(f"error getting build status: {err}")
-            raise OSError(f"error: cannot get build status, {err}")
+            logger.error(f"error getting build status: {err_to_str(err)}")
+            raise OSError(f"error: cannot get build status, {err_to_str(err)}")
 
         if not resp.ok:
             logger.warning(f"failed resp, {resp.text}")
@@ -1254,8 +1268,8 @@ class HTTPRunDB(RunDBInterface):
                 timeout=int(config.submit_timeout) or 60,
             )
         except OSError as err:
-            logger.error(f"error starting function: {err}")
-            raise OSError(f"error: cannot start function, {err}")
+            logger.error(f"error starting function: {err_to_str(err)}")
+            raise OSError(f"error: cannot start function, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1299,8 +1313,8 @@ class HTTPRunDB(RunDBInterface):
             req = {"kind": kind, "selector": selector, "project": project, "name": name}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
-            logger.error(f"error starting function: {err}")
-            raise OSError(f"error: cannot start function, {err}")
+            logger.error(f"error starting function: {err_to_str(err)}")
+            raise OSError(f"error: cannot start function, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1327,8 +1341,8 @@ class HTTPRunDB(RunDBInterface):
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
         except OSError as err:
-            logger.error(f"error submitting task: {err}")
-            raise OSError(f"error: cannot submit task, {err}")
+            logger.error(f"error submitting task: {err_to_str(err)}")
+            raise OSError(f"error: cannot submit task, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1400,8 +1414,8 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err}")
+            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
+            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1485,8 +1499,8 @@ class HTTPRunDB(RunDBInterface):
                 timeout=timeout,
             )
         except OSError as err:
-            logger.error(f"error cannot get pipeline: {err}")
-            raise OSError(f"error: cannot get pipeline, {err}")
+            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
+            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -2524,61 +2538,43 @@ class HTTPRunDB(RunDBInterface):
             )
         return True
 
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key: Optional[str] = None,
     ):
         """
-        Creates or updates a KV record with the given model_endpoint record
+        Creates a DB record with the given model_endpoint record.
 
-        :param project: The name of the project
-        :param endpoint_id: The id of the endpoint
-        :param model_endpoint: An object representing the model endpoint
-        :param access_key: V3IO access key, when None, will be look for in environ
+        :param project: The name of the project.
+        :param endpoint_id: The id of the endpoint.
+        :param model_endpoint: An object representing the model endpoint.
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="PUT",
+            method="POST",
             path=path,
             body=model_endpoint.json(),
-            headers={"X-V3io-Access-Key": access_key},
         )
 
-    def delete_model_endpoint_record(
+    def delete_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
-        access_key: Optional[str] = None,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
-        :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="DELETE",
             path=path,
-            headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2590,7 +2586,6 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key: Optional[str] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
     ) -> schemas.ModelEndpointList:
@@ -2612,18 +2607,17 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
             (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics
-        :param end: The end time of the metrics
-        :param access_key: V3IO access key, when None, will be look for in environ
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
+                                 days), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
+                                 days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints"
         response = self.api_call(
@@ -2639,7 +2633,6 @@ class HTTPRunDB(RunDBInterface):
                 "top-level": top_level,
                 "uid": uids,
             },
-            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -2651,7 +2644,6 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-        access_key: Optional[str] = None,
     ) -> schemas.ModelEndpoint:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
@@ -2659,18 +2651,15 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics
-        :param end: The end time of the metrics
+        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
+                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
+                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
+                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
             the output of the resulting object
-        :param access_key: V3IO access key, when None, will be look for in environ
         """
-        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
-        if not access_key:
-            raise MLRunInvalidArgumentError(
-                "access_key must be initialized, either by passing it as an argument or by populating a "
-                "V3IO_ACCESS_KEY environment parameter"
-            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
@@ -2682,9 +2671,51 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
-            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
+
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
+    ):
+        """
+        Updates model endpoint with provided attributes.
+
+        :param project: The name of the project.
+        :param endpoint_id: The id of the endpoint.
+        :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
+                           of this dictionary should exist in the target table. The values should be
+                           from type string or from a valid numerical type such as int or float. More details
+                           about the model endpoint available attributes can be found under
+                           :py:class:`~mlrun.api.schemas.ModelEndpoint`.
+
+                           Example::
+
+                                # Generate current stats for two features
+                                current_stats = {'tvd_sum': 2.2,
+                                                 'tvd_mean': 0.5,
+                                                 'hellinger_sum': 3.6,
+                                                 'hellinger_mean': 0.9,
+                                                 'kld_sum': 24.2,
+                                                 'kld_mean': 6.0,
+                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+
+                                # Create attributes dictionary according to the required format
+                                attributes = {`current_stats`: json.dumps(current_stats),
+                                              `drift_status`: "DRIFT_DETECTED"}
+
+        """
+
+        attributes = {"attributes": _as_json(attributes)}
+        path = f"projects/{project}/model-endpoints/{endpoint_id}"
+        self.api_call(
+            method="PATCH",
+            path=path,
+            params=attributes,
+        )
 
     def create_marketplace_source(
         self, source: Union[dict, schemas.IndexedMarketplaceSource]
@@ -2692,12 +2723,13 @@ class HTTPRunDB(RunDBInterface):
         """
         Add a new marketplace source.
 
-        MLRun maintains an ordered list of marketplace sources ("sources"). Each source has its details registered and
-        its order within the list. When creating a new source, the special order ``-1`` can be used to mark this source
-        as last in the list. However, once the source is in the MLRun list, its order will always be ``>0``.
+        MLRun maintains an ordered list of marketplace sources (“sources”) Each source has
+        its details registered and its order within the list. When creating a new source, the special order ``-1``
+        can be used to mark this source as last in the list. However, once the source is in the MLRun list,
+        its order will always be ``>0``.
 
-        The global marketplace source always exists in the list, and is always the last source (``order = -1``).
-        It cannot be modified nor can it be moved to another order in the list.
+        The global marketplace source always exists in the list, and is always the last source
+        (``order = -1``). It cannot be modified nor can it be moved to another order in the list.
 
         The source object may contain credentials which are needed to access the datastore where the source is stored.
         These credentials are not kept in the MLRun DB, but are stored inside a kubernetes secret object maintained by
@@ -2811,8 +2843,9 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Filter items according to their channel. For example ``development``.
         :param version: Filter items according to their version.
         :param tag: Filter items based on tag.
-        :param force_refresh: Make the server fetch the catalog from the actual marketplace source, rather than rely
-            on cached information which may exist from previous get requests. For example, if the source was re-built,
+        :param force_refresh: Make the server fetch the catalog from the actual marketplace source,
+            rather than rely on cached information which may exist from previous get requests. For example,
+            if the source was re-built,
             this will make the server get the updated information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceCatalog` object, which is essentially a list
             of :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem` entries.
@@ -2844,7 +2877,8 @@ class HTTPRunDB(RunDBInterface):
         :param channel: Get the item from the specified channel. Default is ``development``.
         :param version: Get a specific version of the item. Default is ``None``.
         :param tag: Get a specific version of the item identified by tag. Default is ``latest``.
-        :param force_refresh: Make the server fetch the information from the actual marketplace source, rather than
+        :param force_refresh: Make the server fetch the information from the actual marketplace
+            source, rather than
             rely on cached information. Default is ``False``.
         :returns: :py:class:`~mlrun.api.schemas.marketplace.MarketplaceItem`.
         """

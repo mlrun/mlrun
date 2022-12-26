@@ -261,6 +261,11 @@ def get_online_feature_service(
     feature_vector = _features_to_vector_and_check_permissions(
         feature_vector, update_stats
     )
+
+    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
+    if impute_policy and not feature_vector.status.stats:
+        update_stats = True
+
     graph, index_columns = init_feature_vector_graph(
         feature_vector, fixed_window_type, update_stats=update_stats
     )
@@ -394,9 +399,10 @@ def ingest(
             featureset, source, targets, run_config.parameters, infer_options, overwrite
         )
         name = f"{featureset.metadata.name}_ingest"
-        return run_ingestion_job(
-            name, featureset, run_config, source.schedule, spark_context
-        )
+        schedule = source.schedule
+        if schedule == "mock":
+            schedule = None
+        return run_ingestion_job(name, featureset, run_config, schedule, spark_context)
 
     if mlrun_context:
         # extract ingestion parameters from mlrun context
@@ -789,7 +795,7 @@ def _ingest_with_spark(
             df = source
         else:
             df = source.to_spark_df(spark)
-            df = source.filter_df_start_end_time(df)
+            df = source.filter_df_start_end_time(df, featureset.spec.timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         _infer_from_static_df(df, featureset, options=infer_options)

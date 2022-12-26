@@ -38,9 +38,10 @@ from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
 from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
-from ..config import config
+from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
+from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import mlrun_op, write_kfpmeta
@@ -343,9 +344,11 @@ class BaseRuntime(ModelObj):
 
         self._enrich_function()
 
+        run = self._create_run_object(runspec)
+
         if local:
             return self._run_local(
-                runspec,
+                run,
                 schedule,
                 local_code_path,
                 project,
@@ -356,8 +359,6 @@ class BaseRuntime(ModelObj):
                 inputs,
                 artifact_path,
             )
-
-        run = self._create_run_object(runspec)
 
         run = self._enrich_run(
             run,
@@ -418,17 +419,33 @@ class BaseRuntime(ModelObj):
             )
 
         execution = MLClientCtx.from_dict(
-            run.to_dict(), db, autocommit=False, is_api=self._is_api_server
+            run.to_dict(),
+            db,
+            autocommit=False,
+            is_api=self._is_api_server,
+            update_db=False,
         )
-        self._pre_run(run, execution)  # hook for runtime specific prep
+
+        self._verify_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
-        task_generator = None
-        if not self._is_nested:
-            task_generator = get_generator(run.spec, execution)
+        task_generator = get_generator(run.spec, execution)
+        if task_generator:
+            # verify valid task parameters
+            tasks = task_generator.generate(run)
+            for task in tasks:
+                self._verify_run_params(task.spec.parameters)
+
+        # post verifications, update execution in db and run pre run hooks
+        execution.commit(completed=False)
+        self._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None
-        if task_generator:
+        # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
+        # So while in the API, we consider the hyper-run as a single run, and then in the runtime itself when the
+        # runtime is now a local runtime and therefore `self._is_nested == False`, we run each task as a separate run by
+        # using the task generator
+        if task_generator and not self._is_nested:
             # multiple runs (based on hyper params or params file)
             runner = self._run_many
             if hasattr(self, "_parallel_run_many") and task_generator.use_parallel():
@@ -485,21 +502,22 @@ class BaseRuntime(ModelObj):
                     f"<b> > to track results use the .show() or .logs() methods {ui_url}</b>"
                 )
             )
-        elif not self.is_child:
-            ui_url = get_ui_url(project, uid)
-            ui_url = f"\nor click {ui_url} for UI" if ui_url else ""
+        elif not (self.is_child and is_running_as_api()):
             project_flag = f"-p {project}" if project else ""
-            print(
-                f"to track results use the CLI:\n"
-                f"info: mlrun get run {uid} {project_flag}\nlogs: mlrun logs {uid} {project_flag}{ui_url}"
+            info_cmd = f"mlrun get run {uid} {project_flag}"
+            logs_cmd = f"mlrun logs {uid} {project_flag}"
+            logger.info(
+                "To track results use the CLI", info_cmd=info_cmd, logs_cmd=logs_cmd
             )
-
+            ui_url = get_ui_url(project, uid)
+            if ui_url:
+                logger.info("Or click for UI", ui_url=ui_url)
         if result:
             run = RunObject.from_dict(result)
             logger.info(f"run executed, status={run.status.state}")
             if run.status.state == "error":
                 if self._is_remote and not self.is_child:
-                    print(f"runtime error: {run.status.error}")
+                    logger.error(f"runtime error: {run.status.error}")
                 raise RunError(run.status.error)
             return run
 
@@ -667,7 +685,7 @@ class BaseRuntime(ModelObj):
                         or mlrun.pipeline_context.workflow_artifact_path
                     )
 
-                if not runspec.spec.output_path:
+                if not runspec.spec.output_path and self._get_db():
                     try:
                         # not passing or loading the DB before the enrichment on purpose, because we want to enrich the
                         # spec first as get_db() depends on it
@@ -703,20 +721,44 @@ class BaseRuntime(ModelObj):
                 logger.info(f"task scheduled, {resp}")
                 return
         except Exception as err:
-            logger.error(f"got remote run err, {err}")
+            logger.error(f"got remote run err, {err_to_str(err)}")
             result = None
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = self._update_run_state(task=runspec, err=err)
+                result = self._update_run_state(task=runspec, err=err_to_str(err))
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
 
         if resp:
             txt = get_in(resp, "status.status_text")
             if txt:
                 logger.info(txt)
+        # watch is None only in scenario where we run from pipeline step, in this case we don't want to watch the run
+        # logs too frequently but rather just pull the state of the run from the DB and pull the logs every x seconds
+        # which ideally greater than the pull state interval, this reduces unnecessary load on the API server, as
+        # running a pipeline is mostly not an interactive process which means the logs pulling doesn't need to be pulled
+        # in real time
+        if (
+            watch is None
+            and self.kfp
+            and config.httpdb.logs.pipelines.pull_state.mode == "enabled"
+        ):
+            state_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_state_interval
+            )
+            logs_interval = int(
+                config.httpdb.logs.pipelines.pull_state.pull_logs_interval
+            )
 
-        if watch or self.kfp:
+            runspec.wait_for_completion(
+                show_logs=True,
+                sleep=state_interval,
+                logs_interval=logs_interval,
+                raise_on_failure=False,
+            )
+            resp = self._get_db_run(runspec)
+
+        elif watch or self.kfp:
             runspec.logs(True, self._get_db())
             resp = self._get_db_run(runspec)
 
@@ -778,9 +820,16 @@ class BaseRuntime(ModelObj):
 
             if command:
                 args += [command]
-            command = "mlrun"
+
             if self.spec.args:
+                if not command:
+                    # * is a placeholder for the url argument in the run CLI command,
+                    # where the code is passed in the `MLRUN_EXEC_CODE` meaning there is no "actual" file to execute
+                    # until the run command will create that file from the env param.
+                    args += ["*"]
                 args = args + self.spec.args
+
+            command = "mlrun"
         else:
             command = command.format(**runobj.spec.parameters)
             if self.spec.args:
@@ -817,8 +866,9 @@ class BaseRuntime(ModelObj):
 
             except RunError as err:
                 task.status.state = "error"
-                task.status.error = str(err)
-                resp = self._update_run_state(task=task, err=err)
+                error_string = err_to_str(err)
+                task.status.error = error_string
+                resp = self._update_run_state(task=task, err=error_string)
                 num_errors += 1
                 if num_errors > generator.max_errors:
                     logger.error("too many errors, stopping iterations!")
@@ -875,10 +925,10 @@ class BaseRuntime(ModelObj):
             updates["status.state"] = "error"
             update_in(resp, "status.state", "error")
             if err:
-                update_in(resp, "status.error", str(err))
+                update_in(resp, "status.error", err_to_str(err))
             err = get_in(resp, "status.error")
             if err:
-                updates["status.error"] = str(err)
+                updates["status.error"] = err_to_str(err)
         elif not was_none and last_state != "completed":
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "completed"
@@ -1029,23 +1079,67 @@ class BaseRuntime(ModelObj):
             update_function_entry_points(self, body)
         return self
 
-    def with_requirements(self, requirements: Union[str, List[str]]):
+    def with_requirements(
+        self,
+        requirements: Union[str, List[str]],
+        overwrite: bool = False,
+        verify_base_image: bool = True,
+    ):
         """add package requirements from file or list to build spec.
 
         :param requirements:  python requirements file path or list of packages
-
+        :param overwrite:     overwrite existing requirements
+        :param verify_base_image:  verify that the base image is configured
         :return: function object
         """
         if isinstance(requirements, str):
             with open(requirements, "r") as fp:
                 requirements = fp.read().splitlines()
-        commands = self.spec.build.commands or []
+        commands = self.spec.build.commands or [] if not overwrite else []
         new_command = "python -m pip install " + " ".join(requirements)
         # make sure we dont append the same line twice
         if new_command not in commands:
             commands.append(new_command)
         self.spec.build.commands = commands
-        self.verify_base_image()
+        if verify_base_image:
+            self.verify_base_image()
+        return self
+
+    def with_commands(
+        self,
+        commands: List[str],
+        overwrite: bool = False,
+        verify_base_image: bool = True,
+    ):
+        """add commands to build spec.
+
+        :param commands:  list of commands to run during build
+
+        :return: function object
+        """
+        if not isinstance(commands, list):
+            raise ValueError("commands must be a string list")
+        if not self.spec.build.commands or overwrite:
+            self.spec.build.commands = commands
+        else:
+            # add commands to existing build commands
+            for command in commands:
+                if command not in self.spec.build.commands:
+                    self.spec.build.commands.append(command)
+            # using list(set(x)) won't retain order,
+            # solution inspired from https://stackoverflow.com/a/17016257/8116661
+            self.spec.build.commands = list(dict.fromkeys(self.spec.build.commands))
+        if verify_base_image:
+            self.verify_base_image()
+        return self
+
+    def clean_build_params(self):
+        # when using `with_requirements` we also execute `verify_base_image` which adds the base image and cleans the
+        # spec.image, so we need to restore the image back
+        if self.spec.build.base_image and not self.spec.image:
+            self.spec.image = self.spec.build.base_image
+
+        self.spec.build = {}
         return self
 
     def verify_base_image(self):
@@ -1075,6 +1169,20 @@ class BaseRuntime(ModelObj):
             # when the function require build use the image as the base_image for the build
             self.spec.build.base_image = image
             self.spec.image = ""
+
+    def _verify_run_params(self, parameters: typing.Dict[str, typing.Any]):
+        for param_name, param_value in parameters.items():
+
+            if isinstance(param_value, dict):
+                # if the parameter is a dict, we might have some nested parameters,
+                # in this case we need to verify them as well recursively
+                self._verify_run_params(param_value)
+
+            # verify that integer parameters don't exceed a int64
+            if isinstance(param_value, int) and abs(param_value) >= 2**63:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"parameter {param_name} value {param_value} exceeds int64"
+                )
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)
@@ -1342,7 +1450,7 @@ class BaseRuntimeHandler(ABC):
                     "Failed monitoring runtime resource. Continuing",
                     runtime_resource_name=runtime_resource["metadata"]["name"],
                     namespace=namespace,
-                    exc=str(exc),
+                    exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
         for project, runs in project_run_uid_map.items():
@@ -1368,7 +1476,7 @@ class BaseRuntimeHandler(ABC):
                             run_uid=run_uid,
                             run=run,
                             project=project,
-                            exc=str(exc),
+                            exc=err_to_str(exc),
                             traceback=traceback.format_exc(),
                         )
 
@@ -1816,7 +1924,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                self._delete_pod(namespace, pod)
+                get_k8s_helper().delete_pod(pod.metadata.name, namespace)
                 deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(
@@ -1888,19 +1996,23 @@ class BaseRuntimeHandler(ABC):
                             # Don't prevent the deletion for failure in the pre deletion run actions
                             logger.warning(
                                 "Failure in crd object run pre-deletion actions. Continuing",
-                                exc=str(exc),
+                                exc=err_to_str(exc),
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    self._delete_crd(
-                        namespace, crd_group, crd_version, crd_plural, crd_object
+                    get_k8s_helper().delete_crd(
+                        crd_object["metadata"]["name"],
+                        crd_group,
+                        crd_version,
+                        crd_plural,
+                        namespace,
                     )
                     deleted_crds.append(crd_object)
                 except Exception:
                     exc = traceback.format_exc()
                     crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
-                        f"Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing"
+                        f"Cleanup failed processing CRD object {crd_object_name}: {err_to_str(exc)}. Continuing"
                     )
         self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
         return deleted_crds
@@ -2297,40 +2409,6 @@ class BaseRuntimeHandler(ABC):
             .get("mlrun/name", "no-name")
         )
         return project, uid, name
-
-    @staticmethod
-    def _delete_crd(namespace, crd_group, crd_version, crd_plural, crd_object):
-        k8s_helper = get_k8s_helper()
-        name = crd_object["metadata"]["name"]
-        try:
-            k8s_helper.crdapi.delete_namespaced_custom_object(
-                crd_group,
-                crd_version,
-                namespace,
-                crd_plural,
-                name,
-            )
-            logger.info(
-                "Deleted crd object",
-                name=name,
-                namespace=namespace,
-                crd_plural=crd_plural,
-            )
-        except ApiException as exc:
-            # ignore error if crd object is already removed
-            if exc.status != 404:
-                raise
-
-    @staticmethod
-    def _delete_pod(namespace, pod):
-        k8s_helper = get_k8s_helper()
-        try:
-            k8s_helper.v1api.delete_namespaced_pod(pod.metadata.name, namespace)
-            logger.info("Deleted pod", pod=pod.metadata.name)
-        except ApiException as exc:
-            # ignore error if pod is already removed
-            if exc.status != 404:
-                raise
 
     @staticmethod
     def _build_pod_resources(pods) -> List[mlrun.api.schemas.RuntimeResource]:

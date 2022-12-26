@@ -95,7 +95,7 @@ referenced from the {py:class}`~mlrun.feature_store.FeatureSet` object by using 
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
 list of existing functions). The transformations are also accessible directly from the `storey` module.
 
-See the [built-in steps](./serving/available-steps.html).
+See the [built-in steps](../serving/available-steps.html).
 
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 

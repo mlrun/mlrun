@@ -36,7 +36,11 @@ def _get_engine_and_function(function, project=None):
                     "function name (str) can only be used in a project context, you must create, "
                     "load or get a project first or provide function object instead of its name"
                 )
-            function = project.get_function(function, sync=False, enrich=True)
+            # we don't want to use a copy of the function object, we want to use the actual object
+            # so changes on it will be reflected in the project and will persist for future use of the function
+            function = project.get_function(
+                function, sync=False, enrich=True, copy_function=False
+            )
     elif project:
         # if a user provide the function object we enrich in-place so build, deploy, etc.
         # will update the original function object status/image, and not the copy (may fail fn.run())
@@ -211,6 +215,7 @@ def build_function(
     mlrun_version_specifier=None,
     builder_env: dict = None,
     project_object=None,
+    overwrite_build_params: bool = False,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
@@ -228,21 +233,21 @@ def build_function(
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
                             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+    :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
+     to existing parameters
     """
     engine, function = _get_engine_and_function(function, project_object)
-    if requirements:
-        function.with_requirements(requirements)
-    if commands and function.spec.build.commands:
-        # add commands to existing build commands
-        for command in commands:
-            if command not in function.spec.build.commands:
-                function.spec.build.commands.append(command)
-
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
             "cannot build use deploy_function()"
         )
     if engine == "kfp":
+        if overwrite_build_params:
+            function.spec.build.commands = None
+        if requirements:
+            function.with_requirements(requirements)
+        if commands:
+            function.with_commands(commands)
         return function.deploy_step(
             image=image,
             base_image=base_image,
@@ -253,7 +258,12 @@ def build_function(
         )
     else:
         function.build_config(
-            image=image, base_image=base_image, commands=commands, secret=secret_name
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret_name,
+            requirements=requirements,
+            overwrite=overwrite_build_params,
         )
         ready = function.deploy(
             watch=True,
@@ -321,12 +331,11 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
-        if mock_nuclio and mock_nuclio == "auto":
-            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
-        mock = True if mock_nuclio and mock is None else mock
+        mock = mlrun.mlconf.use_nuclio_mock(mock)
         function._set_as_mock(mock)
         if mock:
+            # make sure the latest ver is saved in the DB (same as in function.deploy())
+            function.save()
             return DeployStatus(
                 state="ready",
                 outputs={"endpoint": "Mock", "name": function.metadata.name},

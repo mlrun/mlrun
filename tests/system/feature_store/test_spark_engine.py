@@ -17,7 +17,6 @@ import pathlib
 import sys
 import uuid
 from datetime import datetime
-from time import sleep
 
 import fsspec
 import pandas as pd
@@ -40,6 +39,7 @@ from mlrun.feature_store.steps import (
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
+from tests.system.feature_store.expected_stats import expected_stats
 
 
 def read_and_assert(csv_path_spark, csv_path_storey):
@@ -170,94 +170,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert measurements.status.targets[0].run_id is not None
 
         stats_df = measurements.get_stats_table()
-        expexted_result = {
-            "count": {
-                "bad": 190.0,
-                "department": 190.0,
-                "hr": 190.0,
-                "is_in_bed": 190.0,
-                "movements": 190.0,
-                "patient_id": 190.0,
-                "room": 190.0,
-                "rr": 190.0,
-                "spo2": 190.0,
-                "turn_count": 190.0,
-            },
-            "mean": {
-                "bad": 49.10526315789474,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 3.6203568596815643,
-                "patient_id": float("nan"),
-                "room": 1.4947368421052631,
-                "rr": 24.68421052631579,
-                "spo2": 98.77894736842106,
-                "turn_count": 1.3398340922970073,
-            },
-            "std": {
-                "bad": 30.111424007351214,
-                "department": float("nan"),
-                "hr": 0.0,
-                "is_in_bed": 0.0,
-                "movements": 3.2840955409124373,
-                "patient_id": float("nan"),
-                "room": 0.5012932314788251,
-                "rr": 2.499791135803136,
-                "spo2": 1.749853795062193,
-                "turn_count": 1.2704837468566184,
-            },
-            "min": {
-                "bad": 4.0,
-                "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 0.0,
-                "patient_id": "025-79-2727",
-                "room": 1.0,
-                "rr": 5.0,
-                "spo2": 85.0,
-                "turn_count": 0.0,
-            },
-            "25%": {
-                "bad": 17.0,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 0.18989211159466102,
-                "patient_id": float("nan"),
-                "room": 1.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 0.0,
-            },
-            "75%": {
-                "bad": 76.0,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 6.010198369762724,
-                "patient_id": float("nan"),
-                "room": 2.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 2.951729964062169,
-            },
-            "max": {
-                "bad": 95.0,
-                "department": "4685f09b-51cc-48c9-b8e5-32e3175d4759",
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 10.0,
-                "patient_id": "838-21-8151",
-                "room": 2.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 3.0,
-            },
-        }
-        expected_df = pd.DataFrame(expexted_result)
-        assert stats_df.drop("hist", axis=1).equals(expected_df)
+        expected_stats_df = pd.DataFrame(expected_stats)
+        print(f"stats_df: {stats_df.to_json()}")
+        print(f"expected_stats_df: {expected_stats_df.to_json()}")
+        assert stats_df.equals(expected_stats_df)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"
@@ -265,12 +181,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements = fs.FeatureSet(
             name,
             entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
             engine="spark",
         )
         # Added to test that we can ingest a column named "summary"
         measurements.graph.to(name="rename_column", handler="rename_column")
         source = CSVSource(
-            "mycsv", path=self.get_remote_csv_source_path(), time_field="timestamp"
+            "mycsv",
+            path=self.get_remote_csv_source_path(),
         )
         filename = str(
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
@@ -372,6 +290,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey.sort_index(axis=1)
         )
 
+    # tests that data is filtered by time in scheduled jobs
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
@@ -391,10 +310,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/3 * * * *"
-
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet",
+            path=path,
+            schedule="mock",  # to enable filtering by time
         )
 
         feature_set = fs.FeatureSet(
@@ -429,9 +348,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every third minute and it can take ~150 seconds to finish.
-        time_till_next_run = 180 - now.second - 60 * (now.minute % 3)
-        sleep(time_till_next_run + 150)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -455,7 +371,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ).to_parquet(path=path)
 
-            sleep(180)
+            fs.ingest(
+                feature_set,
+                source,
+                run_config=fs.RunConfig(local=False),
+                targets=targets,
+                spark_context=self.spark_service,
+            )
+
             resp = svc.get(
                 [
                     {"first_name": "yosi"},
@@ -501,11 +424,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
 
         data_set = fs.FeatureSet(
             f"{name}_storey",
             entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -593,7 +517,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
         name_spark = f"{name}_spark"
 
         data_set = fs.FeatureSet(
@@ -673,7 +597,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -736,7 +659,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -786,7 +708,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -891,7 +812,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fs.RunConfig(local=False),
             )
 
-    def test_get_offline_features_with_filter(self):
+    # ML-3092
+    def test_get_offline_features_with_filter_and_indexes(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
             "measurements",
@@ -907,31 +829,32 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
-
         fv_name = "measurements-fv"
         features = [
             "measurements.bad",
             "measurements.department",
         ]
-
         my_fv = fs.FeatureVector(
             fv_name,
             features,
-            description="my feature vector",
         )
+        my_fv.spec.with_indexes = True
         my_fv.save()
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
-        fs.get_offline_features(
+        resp = fs.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            engine="spark",
             run_config=fs.RunConfig(local=False),
         )
-        df_res = target.as_df()
-        df = source.to_dataframe()
-        expected_df = df[df["bad"] == 7][["bad", "department"]]
-        expected_df.reset_index(drop=True, inplace=True)
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        source_df.set_index(key, drop=True, inplace=True)
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)
+
 
         assert df_res.equals(expected_df)
 

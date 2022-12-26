@@ -8,7 +8,7 @@ with the CI systems.
 - Support various Pipeline/CI engines (Kubeflow, GitHub, Gitlab, Jenkins)
 - Track & version code, data, params, results with minimal effort
 - Elastic scaling of each step
-- Extensive function marketplace
+- Extensive Function Hub
 
 MLRun workflows can run inside the CI system. The most common method is to use the CLI command  `mlrun project` to load the project 
 and run a workflow as part of a code update (e.g. pull request, etc.). The pipeline tasks are executed on the Kubernetes cluster, which is orchestrated by MLRun.
@@ -120,7 +120,7 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'mlrun/mlrun:1.0.6'
+                    image 'mlrun/mlrun:1.2.0'
                 }
             }
             steps {

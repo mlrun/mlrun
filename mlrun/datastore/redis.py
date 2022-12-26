@@ -28,14 +28,8 @@ class RedisStore(DataStore):
     - key and value sizes are limited to 512MB
     """
 
-    def __init__(
-        self,
-        parent,
-        schema,
-        name,
-        endpoint="",
-    ):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.headers = None
 
         self.endpoint = self.endpoint or mlrun.mlconf.redis.url

@@ -69,7 +69,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     def _upload_code_to_cluster(self):
         if not self.uploaded_code:
-            for file in ["source_archive.tar.gz", "handler.py"]:
+            for file in ["source_archive.tar.gz", "source_archive.zip", "handler.py"]:
                 source_path = str(self.assets_path / file)
                 mlrun.get_dataitem(self.remote_code_dir + file).upload(source_path)
         self.uploaded_code = True
@@ -82,14 +82,14 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             command=command,
         )
 
-    @pytest.mark.parametrize("source", ["git", "tar"])
+    @pytest.mark.parametrize("artifact_format", ["git", "tar.gz", "zip"])
     @pytest.mark.parametrize("codepath", codepaths)
-    def test_local_archive(self, source, codepath):
+    def test_local_archive(self, artifact_format, codepath):
         workdir, module = codepath
         source = (
             f"{git_uri}#main"
-            if source == "git"
-            else str(self.assets_path / "source_archive.tar.gz")
+            if artifact_format == "git"
+            else str(self.assets_path / f"source_archive.{artifact_format}")
         )
         fn = self._new_function("local")
         fn.with_source_archive(
@@ -189,11 +189,12 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.enterprise
     @pytest.mark.parametrize("load_mode", ["run", "build"])
-    def test_job_tar(self, load_mode):
+    @pytest.mark.parametrize("compression_format", ["zip", "tar.gz"])
+    def test_job_compressed(self, load_mode, compression_format):
         self._upload_code_to_cluster()
-        fn = self._new_function("job", f"{load_mode}-tar")
+        fn = self._new_function("job", f"{load_mode}-compressed")
         fn.with_source_archive(
-            self.remote_code_dir + "source_archive.tar.gz",
+            self.remote_code_dir + f"source_archive.{compression_format}",
             handler="rootfn.job_handler",
             pull_at_runtime=load_mode == "run",
         )

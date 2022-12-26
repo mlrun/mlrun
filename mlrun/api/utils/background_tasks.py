@@ -18,6 +18,7 @@ import traceback
 import typing
 import uuid
 
+import anyio
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
@@ -150,10 +151,21 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     @mlrun.api.utils.helpers.ensure_running_on_chief
     async def background_task_wrapper(self, name: str, function, *args, **kwargs):
         try:
-            if asyncio.iscoroutinefunction(function):
-                await function(*args, **kwargs)
-            else:
-                await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
+
+            # In the current fastapi version, there is a bug in the starlette package it uses for the background tasks.
+            # The bug causes the task to be cancelled if the client's http connection is closed before the task is done.
+            # The bug is fixed in the latest version of starlette & fastapi. We will upgrade in 1.3.0, but until then we
+            # will use this workaround to prevent the task from being cancelled all together.
+            # See https://github.com/encode/starlette/issues/1438
+            # and https://github.com/tiangolo/fastapi/issues/5606
+            # TODO: remove this workaround when upgrading to fastapi 0.87.0
+            with anyio.CancelScope(shield=True):
+                if asyncio.iscoroutinefunction(function):
+                    await function(*args, **kwargs)
+                else:
+                    await fastapi.concurrency.run_in_threadpool(
+                        function, *args, **kwargs
+                    )
         except Exception:
             logger.warning(
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"

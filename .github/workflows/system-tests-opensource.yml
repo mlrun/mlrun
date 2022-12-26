@@ -77,10 +77,9 @@ jobs:
           -r dockerfiles/mlrun-api/requirements.txt -r extras-requirements.txt && pip install -e .
 
     # since github-actions gives us 14G only, and fills it up with some garbage
-    # we will free up some space for us (~2GB)
+    # we will free up some space for us (~20GB)
     - name: Freeing up disk space
       run: |
-        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.

@@ -47,7 +47,7 @@ from mlrun.api.schemas import SecretProviderName, SecretsData
 from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
-from mlrun.errors import MLRunRuntimeError
+from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
@@ -514,7 +514,10 @@ def _build_function(
         fn = new_function(runtime=function)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
     try:
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
@@ -587,7 +590,10 @@ def _build_function(
         logger.info("Fn:\n %s", fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
     return fn, ready
 
 
@@ -637,7 +643,10 @@ def _start_function(
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:
             logger.error(traceback.format_exc())
-            log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+            log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=f"runtime error: {err_to_str(err)}",
+            )
     finally:
         mlrun.api.db.session.close_session(db_session)
 
@@ -678,7 +687,10 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
         logger.info("status: %s", resp)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
 
 
 def _create_model_monitoring_stream(project: str):

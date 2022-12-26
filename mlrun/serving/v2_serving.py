@@ -133,7 +133,7 @@ class V2ModelServer(StepToDict):
         except Exception as exc:
             self.error = exc
             self.context.logger.error(traceback.format_exc())
-            raise RuntimeError(f"failed to load model {self.name}, {exc}")
+            raise RuntimeError(f"failed to load model {self.name}") from exc
         self.ready = True
         self.context.logger.info(f"model {self.name} was loaded")
 

@@ -61,6 +61,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
 )
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
@@ -107,7 +108,9 @@ def retry_on_conflict(function):
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
-                    logger.warning("Got conflict error from DB. Retrying", err=str(exc))
+                    logger.warning(
+                        "Got conflict error from DB. Retrying", err=err_to_str(exc)
+                    )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Got conflict error from DB"
                     ) from exc
@@ -2640,7 +2643,9 @@ class SQLDB(DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                raise mlrun.errors.MLRunConflictError(f"add user: {err}") from err
+                raise mlrun.errors.MLRunConflictError(
+                    f"add user: {err_to_str(err)}"
+                ) from err
         return users
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
@@ -2690,7 +2695,9 @@ class SQLDB(DBInterface):
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
                     ) from err
-                logger.warning("Failed committing changes to DB", cls=cls, err=str(err))
+                logger.warning(
+                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                )
                 if not ignore:
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects

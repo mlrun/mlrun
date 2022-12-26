@@ -25,7 +25,6 @@ import numpy as np
 
 import mlrun
 import mlrun.utils.model_monitoring
-from mlrun.errors import err_to_str
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
 
 from ..api.schemas import (

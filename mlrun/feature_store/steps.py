@@ -219,7 +219,7 @@ class MapValues(StepToDict, MLRunStep):
             elif feature_map:
                 # create and apply simple map
                 df[self._get_feature_name(feature)] = event[feature].map(
-                    lambda x: feature_map.get(x, x)
+                    lambda x: feature_map.get(x, None)
                 )
 
         if self.with_original_features:
@@ -231,15 +231,15 @@ class MapValues(StepToDict, MLRunStep):
         from itertools import chain
 
         for column, column_map in self.mapping.items():
+            new_column_name = self._get_feature_name(column) if self.with_original_features else column
             if "ranges" not in column_map:
-                mapping_expr = create_map([lit(x) for x in chain(*self.mapping.items())])
-                event = event.withColumn(column, mapping_expr.getItem(col(self._get_feature_name(column))))
+                mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
+                event = event.withColumn(new_column_name, mapping_expr.getItem(col(column)))
             else:
                 for val, val_range in column_map["ranges"].items():
                     min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
                     max_val = val_range[1] if val_range[1] != "inf" else np.inf
                     otherwise = ""
-                    new_column_name = self._get_feature_name(column)
                     if new_column_name in event.columns:
                         otherwise = event[new_column_name]
                     event = event.withColumn(
@@ -251,7 +251,7 @@ class MapValues(StepToDict, MLRunStep):
                     )
 
         if not self.with_original_features:
-            event = event.select(self.mapping.keys())
+            event = event.select(*self.mapping.keys())
 
         return event
 

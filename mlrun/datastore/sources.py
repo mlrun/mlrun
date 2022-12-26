@@ -129,7 +129,7 @@ class CSVSource(BaseSourceDriver):
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,
-        parse_dates: Optional[Union[List[int], List[str]]] = None,
+        parse_dates: Union[None, int, str, List[int], List[str]] = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field, schedule)
         if time_field is not None:
@@ -137,6 +137,9 @@ class CSVSource(BaseSourceDriver):
                 "CSVSource's time_field parameter is deprecated, use parse_dates instead",
                 PendingDeprecationWarning,
             )
+            if isinstance(parse_dates, (int, str)):
+                parse_dates = [parse_dates]
+
             if parse_dates is None:
                 parse_dates = [time_field]
             elif time_field not in parse_dates:
@@ -150,13 +153,18 @@ class CSVSource(BaseSourceDriver):
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
+
+        parse_dates = self._parse_dates or []
+        if time_field and time_field not in parse_dates:
+            parse_dates.append(time_field)
+
         return storey.CSVSource(
             paths=self.path,
             header=True,
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=self._get_store().get_storage_options(),
-            parse_dates=self._parse_dates,
+            parse_dates=parse_dates,
             **attributes,
         )
 

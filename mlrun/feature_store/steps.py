@@ -251,7 +251,7 @@ class MapValues(StepToDict, MLRunStep):
                     )
 
         if not self.with_original_features:
-            event = event.select([self._get_feature_name(column) for column in self.mapping.keys()])
+            event = event.select(self.mapping.keys())
 
         return event
 

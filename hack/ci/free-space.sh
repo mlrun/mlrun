@@ -22,7 +22,19 @@ print_free_space() {
 print_free_space
 
 # clean unneeded os packages and misc
-sudo apt-get remove --yes '^dotnet-.*' 'php.*' azure-cli google-cloud-sdk google-chrome-stable firefox powershell
+sudo apt-get remove --yes \
+  '^dotnet-.*' \
+  'php.*' \
+  '^ghc-8.*' \
+  '^llvm-.*' \
+  azure-cli \
+  google-cloud-sdk \
+  google-chrome-stable \
+  firefox \
+  powershell \
+  monodoc-http \
+  mono-devel
+
 sudo apt-get autoremove --yes
 sudo apt clean
 
@@ -35,15 +47,6 @@ sudo rm --recursive --force \
     /opt/ghc \
     /usr/local/share/boost \
     "$AGENT_TOOLSDIRECTORY"
-
-# remove large packages
-sudo apt-get remove -y '^ghc-8.*'
-sudo apt-get remove -y '^dotnet-.*'
-sudo apt-get remove -y '^llvm-.*'
-sudo apt-get remove -y 'php.*'
-sudo apt-get remove -y azure-cli google-cloud-sdk hhvm google-chrome-stable firefox powershell mono-devel
-sudo apt-get autoremove -y
-sudo apt-get clean
 
 # clean unneeded docker images
 docker system prune --all --force

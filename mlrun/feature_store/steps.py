@@ -474,7 +474,7 @@ class DateExtractor(StepToDict, MLRunStep):
                               by default "timestamp"
         """
         super().__init__(**kwargs)
-        self.timestamp_col = timestamp_col
+        self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
         self.fstore_date_format_to_spark_date_format = {
             "day_of_year": "DD",
@@ -489,21 +489,17 @@ class DateExtractor(StepToDict, MLRunStep):
             "second": "ss",
         }
 
-    def _get_key_name(self, part: str, timestamp_col: str):
-        timestamp_col = timestamp_col if timestamp_col else "timestamp"
-        return f"{timestamp_col}_{part}"
+    def _get_key_name(self, part: str):
+        return f"{self.timestamp_col}_{part}"
 
     def _extract_timestamp(self, event):
         # Extract timestamp
-        if self.timestamp_col is None:
-            timestamp = event["timestamp"]
-        else:
-            try:
-                timestamp = event[self.timestamp_col]
-            except KeyError:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{self.timestamp_col} does not exist in the event"
-                )
+        try:
+            timestamp = event[self.timestamp_col]
+        except KeyError:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{self.timestamp_col} does not exist in the event"
+            )
         return timestamp
 
     def _do_storey(self, event):
@@ -514,7 +510,7 @@ class DateExtractor(StepToDict, MLRunStep):
             # Extract part
             extracted_part = getattr(timestamp, part)
             # Add to event
-            event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+            event[self._get_key_name(part)] = extracted_part
         return event
 
     def _do_pandas(self, event):
@@ -522,7 +518,7 @@ class DateExtractor(StepToDict, MLRunStep):
         # Extract specified parts
         for part in self.parts:
             # Extract part and add it to event
-            event[self._get_key_name(part, self.timestamp_col)] = timestamp.map(
+            event[self._get_key_name(part)] = timestamp.map(
                 lambda x: getattr(pd.Timestamp(x), part)
             )
         return event
@@ -533,7 +529,7 @@ class DateExtractor(StepToDict, MLRunStep):
         for part in self.parts:
             if part in self.fstore_date_format_to_spark_date_format:
                 event = event.withColumn(
-                    self._get_key_name(part, self.timestamp_col),
+                    self._get_key_name(part),
                     date_format(
                         self.timestamp_col,
                         self.fstore_date_format_to_spark_date_format[part],

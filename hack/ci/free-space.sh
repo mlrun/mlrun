@@ -22,11 +22,11 @@ print_free_space() {
 print_free_space
 
 # clean unneeded os packages and misc
-sudo apt-get remove --yes \
-  '^dotnet-.*' \
-  'php.*' \
-  '^ghc-8.*' \
-  '^llvm-.*' \
+sudo apt-get remove -y '^ghc-8.*'
+sudo apt-get remove -y '^dotnet-.*'
+sudo apt-get remove -y '^llvm-.*'
+sudo apt-get remove -y 'php.*'
+sudo apt-get remove -y \
   azure-cli \
   google-cloud-sdk \
   google-chrome-stable \

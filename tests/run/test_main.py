@@ -38,7 +38,8 @@ def exec_main(op, args, cwd=examples_path, raise_on_error=True):
         if raise_on_error:
             raise Exception(out.stderr.decode("utf-8"))
         else:
-            return out.stderr.decode("utf-8")
+            # return out so that we can check the error message on stdout and stderr
+            return out
 
     return out.stdout.decode("utf-8")
 
@@ -112,6 +113,111 @@ def test_main_run_args():
     assert str(log).find(", -x, aaa") != -1, "params not detected in argv"
 
 
+def test_main_run_args_with_url_placeholder_missing_env():
+    args = [
+        "--name",
+        "test_main_run_args_with_url_placeholder_missing_env",
+        "--dump",
+        "*",
+        "--arg1",
+        "value1",
+        "--arg2",
+        "value2",
+    ]
+    out = exec_main(
+        "run",
+        args,
+        raise_on_error=False,
+    )
+    out_stdout = out.stdout.decode("utf-8")
+    print(out)
+    assert (
+        out_stdout.find(
+            "command/url '*' placeholder is not allowed when code is not from env"
+        )
+        != -1
+    ), out
+
+
+def test_main_run_args_with_url_placeholder_from_env():
+    os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
+    args = [
+        "--name",
+        "test_main_run_args_with_url_placeholder_from_env",
+        "--uid",
+        "123456789",
+        "--from-env",
+        "--dump",
+        "*",
+        "--arg1",
+        "value1",
+        "--arg2",
+        "value2",
+    ]
+    exec_main(
+        "run",
+        args,
+        raise_on_error=True,
+    )
+    db = mlrun.get_run_db()
+    _run = db.read_run("123456789")
+    print(_run)
+    assert _run["status"]["results"]["my_args"] == [
+        "main.py",
+        "--arg1",
+        "value1",
+        "--arg2",
+        "value2",
+    ]
+    assert _run["status"]["state"] == "completed"
+
+    args = [
+        "--name",
+        "test_main_run_args_with_url_placeholder_with_origin_file",
+        "--uid",
+        "987654321",
+        "--from-env",
+        "--dump",
+        "*",
+        "--origin-file",
+        "my_file.py",
+        "--arg3",
+        "value3",
+    ]
+    exec_main(
+        "run",
+        args,
+        raise_on_error=True,
+    )
+    db = mlrun.get_run_db()
+    _run = db.read_run("987654321")
+    print(_run)
+    assert _run["status"]["results"]["my_args"] == ["my_file.py", "--arg3", "value3"]
+    assert _run["status"]["state"] == "completed"
+
+
+def test_main_with_url_placeholder():
+    os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
+    args = [
+        "--name",
+        "test_main_with_url_placeholder",
+        "--uid",
+        "123456789",
+        "--from-env",
+        "*",
+    ]
+    exec_main(
+        "run",
+        args,
+        raise_on_error=True,
+    )
+    db = mlrun.get_run_db()
+    _run = db.read_run("123456789")
+    print(_run)
+    assert _run["status"]["results"]["my_args"] == ["main.py"]
+    assert _run["status"]["state"] == "completed"
+
+
 @pytest.mark.parametrize(
     "op,args,raise_on_error,expected_output",
     [
@@ -169,7 +275,9 @@ def test_main_run_args_validation(op, args, raise_on_error, expected_output):
         args,
         raise_on_error=raise_on_error,
     )
-    print(out)
+    if not raise_on_error:
+        out = out.stderr.decode("utf-8")
+
     assert out.find(expected_output) != -1, out
 
 

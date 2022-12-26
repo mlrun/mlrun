@@ -1107,8 +1107,6 @@ def project(
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {err_to_str(exc)}"
-            had_error = True
-            print(message)
             proj.notifiers.push(message, "error")
             exit(1)
 

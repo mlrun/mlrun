@@ -42,7 +42,7 @@ class LocalFeatureMerger(BaseMerger):
         keys = []
         all_columns = list()
 
-        fs_link_list = self.create_linked_relation_list(
+        fs_link_list = self._create_linked_relation_list(
             feature_set_objects, feature_set_fields
         )
 

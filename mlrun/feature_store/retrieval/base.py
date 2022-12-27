@@ -265,41 +265,113 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
-    def _parse_relations(self, feature_set_objects, feature_set_fields):
-        """This method parse all feature set relations to a format such as self._relations if self._relations is None,
-        and when check if each relation as entity included"""
-        if self._relation == {}:
-            for name, _ in feature_set_fields.items():
-                feature_set = feature_set_objects[name]
-                fs_relations = feature_set.spec.relations
-                for other_fs, relation in fs_relations.items():
-                    if (
-                        f"{name}:{other_fs}" not in self._relation
-                        or f"{other_fs}:{name}" not in self._relation
-                    ):
-                        self._relation[f"{name}:{other_fs}"] = relation
+    class _Node:
+        def __init__(self, name: str, order: int, data=None):
+            self.name = name
+            self.data = data
+            self.order = order
+            self.next = None
 
-        # check all relations are included entities
-        for relation_name, relation in self._relation.items():
-            first_fs, second_fs = relation_name.split(":")
-            first_entities, second_entities = (
-                feature_set_objects[first_fs].spec.entities.keys(),
-                feature_set_objects[second_fs].spec.entities.keys(),
-            )
-            for key, val in relation.items():
-                if key not in first_entities and val not in second_entities:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Relation have to include entities therefore "
-                        f"the relation {key}:{val} between {first_fs} to "
-                        f"{second_fs} is not valid"
-                    )
+        def __repr__(self):
+            return self.name
 
-    def create_linked_relation_list(self, feature_set_objects, feature_set_fields):
+        def __eq__(self, other):
+            return self.name == other.name
+
+    class _LinkedList:
+        def __init__(self):
+            self.head = None
+            self.len = 0
+
+        def __repr__(self):
+            node = self.head
+            nodes = []
+            while node is not None:
+                nodes.append(node.name)
+                node = node.next
+            nodes.append("None")
+            return " -> ".join(nodes)
+
+        def __iter__(self):
+            node = self.head
+            while node is not None:
+                yield node
+                node = node.next
+
+        def add_first(self, node):
+            node.next = self.head
+            self.head = node
+            self.len += 1
+            if self.head is None:
+                self.head = node
+
+        def add_last(self, node):
+            if self.head is None:
+                self.head = node
+                return
+            for current_node in self:
+                pass
+            current_node.next = node
+            self.len += 1
+
+        def add_after(self, target_node_name: str, new_node):
+            if self.head is None:
+                raise Exception("List is empty")
+
+            for node in self:
+                if node.name == target_node_name:
+                    new_node.next = node.next
+                    node.next = new_node
+                    self.len += 1
+                    return
+
+            raise Exception("Node with data '%s' not found" % target_node_name)
+
+        def find_node(self, target_node_name: str):
+            if self.head is None:
+                return None
+
+            for node in self:
+                if node.name == target_node_name:
+                    return node
+
+        def concat(self, other, data_attributes: List[str]):
+            other_iter = other.__iter__()
+            other_head = other_iter.__next__()
+            node = self.find_node(other_head.name)
+            if node is None:
+                return
+            for atr in data_attributes:
+                node.data[atr] += other_head.data[atr]
+            for other_node in other_iter:
+                if self.find_node(other_node.name) is None:
+                    while node is not None and other_node.order > node.order:
+                        node = node.next
+                    if node:
+                        self.add_after(node.name, other_node)
+                    else:
+                        self.add_last(other_node)
+                    node = other_node
+
+    @staticmethod
+    def _create_linked_relation_list(feature_set_objects, feature_set_fields):
         relation_linked_lists = []
-        for name, _ in feature_set_fields.items():
-            feature_set = feature_set_objects[name]
-            relations = LinkedList()
-            main_node = Node(
+        feature_set_entity_list_dict = {
+            name: feature_set_objects[name].spec.entities
+            for name in feature_set_fields.keys()
+        }
+        entity_relation_val_list = {
+            name: list(feature_set_objects[name].spec.relations.values())
+            for name in feature_set_fields.keys()
+        }
+        entity_relation_key_list = {
+            name: list(feature_set_objects[name].spec.relations.keys())
+            for name in feature_set_fields.keys()
+        }
+
+        def _create_relation(name: str, order):
+            relations = BaseMerger._LinkedList()
+            main_node = BaseMerger._Node(
                 name,
                 data={
                     "left_keys": [],
@@ -307,153 +379,97 @@ class BaseMerger(abc.ABC):
                     "save_cols": [],
                     "save_index": [],
                 },
+                order=order,
             )
             relations.add_first(main_node)
+            return relations
 
-            # build list of relation and index match for each feature set
-            for name_in, _ in feature_set_fields.items():
-                if name_in == name:
-                    continue
-                feature_set_in_entity_list = feature_set_objects[name_in].spec.entities
-                feature_set_in_entity_list_names = [*feature_set_in_entity_list.keys()]
-                entity_relation_list = [*feature_set.spec.relations.values()]
-                col_relation_list = [*feature_set.spec.relations.keys()]
-                curr_col_relation_list = []
-                relation_wise = True
-                for ent in feature_set_in_entity_list:
-                    # checking if feature_set have relation with feature_set_in
-                    if ent not in entity_relation_list:
-                        relation_wise = False
-                        break
-                    curr_col_relation_list.append(
+        def _finish_relation(name_in: str, name_in_order, relations, head_order):
+            name_head = relations.head.name
+            if name_head == name_in:
+                return None
+
+            feature_set_in_entity_list = feature_set_entity_list_dict[name_in]
+            feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
+            entity_relation_list = entity_relation_val_list[name_head]
+            col_relation_list = entity_relation_key_list[name_head]
+            curr_col_relation_list = list(
+                map(
+                    lambda ent: (
                         col_relation_list[entity_relation_list.index(ent)]
-                    )
-                if relation_wise:
-                    # add to the link list feature set according to the defined relation
-                    relations.add_last(
-                        Node(
-                            name_in,
-                            data={
-                                "left_keys": curr_col_relation_list,
-                                "right_keys": feature_set_in_entity_list_names,
-                                "save_cols": [],
-                                "save_index": [],
-                            },
-                        )
-                    )
-                    main_node.data["save_cols"].append(*curr_col_relation_list)
-                elif sorted(feature_set_in_entity_list_names) == sorted(
-                    feature_set.spec.entities.keys()
-                ):
-                    # add to the link list feature set according to indexes match
-                    keys = feature_set_in_entity_list_names
-                    relations.add_last(
-                        Node(
-                            name_in,
-                            data={
-                                "left_keys": keys,
-                                "right_keys": keys,
-                                "save_cols": [],
-                                "save_index": keys,
-                            },
-                        )
-                    )
-                    main_node.data["save_index"] = keys
+                        if ent in entity_relation_list
+                        else False
+                    ),
+                    feature_set_in_entity_list,
+                )
+            )
 
-            relation_linked_lists.append(relations)
+            # checking if feature_set have relation with feature_set_in
+            relation_wise = all(curr_col_relation_list)
+
+            if relation_wise:
+                # add to the link list feature set according to the defined relation
+                relations.add_last(
+                    BaseMerger._Node(
+                        name_in,
+                        data={
+                            "left_keys": curr_col_relation_list,
+                            "right_keys": feature_set_in_entity_list_names,
+                            "save_cols": [],
+                            "save_index": [],
+                        },
+                        order=name_in_order,
+                    )
+                )
+                relations.head.data["save_cols"].append(*curr_col_relation_list)
+            elif name_in_order > head_order and sorted(
+                feature_set_in_entity_list_names
+            ) == sorted(feature_set_entity_list_dict[name_head].keys()):
+                # add to the link list feature set according to indexes match
+                keys = feature_set_in_entity_list_names
+                relations.add_last(
+                    BaseMerger._Node(
+                        name_in,
+                        data={
+                            "left_keys": keys,
+                            "right_keys": keys,
+                            "save_cols": [],
+                            "save_index": keys,
+                        },
+                        order=name_in_order,
+                    )
+                )
+                relations.head.data["save_index"] = keys
+            else:
+                return None
+            return relations
+
+        list(
+            map(
+                lambda func: relation_linked_lists.extend(
+                    map(func, enumerate(feature_set_fields.keys()))
+                ),
+                map(
+                    lambda arg: lambda arg_2: _finish_relation(
+                        arg[1], arg[0], _create_relation(arg_2[1], arg_2[0]), arg_2[0]
+                    ),
+                    enumerate(feature_set_fields.keys()),
+                ),
+            )
+        )
+
+        # filter None from relation_linked_lists
+        relation_linked_lists = list(
+            filter(lambda item: item is not None, relation_linked_lists)
+        )
 
         # concat all the link lists to one, for the merging process
         link_list_iter = relation_linked_lists.__iter__()
         return_relation = link_list_iter.__next__()
         for relation_list in link_list_iter:
-            return_relation.concat(relation_list, ["save_cols"])
+            if relation_list is not None:
+                return_relation.concat(relation_list, ["save_cols"])
         if return_relation.len != len(feature_set_objects):
             raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
         return return_relation
-
-
-class Node:
-    def __init__(self, name: str, data=None):
-        self.name = name
-        self.data = data
-        self.next = None
-
-    def __repr__(self):
-        return self.name
-
-    def __eq__(self, other):
-        return self.name == other.name
-
-
-class LinkedList:
-    def __init__(self):
-        self.head = None
-        self.len = 0
-
-    def __repr__(self):
-        node = self.head
-        nodes = []
-        while node is not None:
-            nodes.append(node.name)
-            node = node.next
-        nodes.append("None")
-        return " -> ".join(nodes)
-
-    def __iter__(self):
-        node = self.head
-        while node is not None:
-            yield node
-            node = node.next
-
-    def add_first(self, node: Node):
-        node.next = self.head
-        self.head = node
-        self.len += 1
-        if self.head is None:
-            self.head = node
-
-    def add_last(self, node: Node):
-        if self.head is None:
-            self.head = node
-            return
-        for current_node in self:
-            pass
-        current_node.next = node
-        self.len += 1
-
-    def add_after(self, target_node_name: str, new_node: Node):
-        if self.head is None:
-            raise Exception("List is empty")
-
-        for node in self:
-            if node.name == target_node_name:
-                new_node.next = node.next
-                node.next = new_node
-                self.len += 1
-                return
-
-        raise Exception("Node with data '%s' not found" % target_node_name)
-
-    def find_node(self, target_node_name: str):
-        if self.head is None:
-            return None
-
-        for node in self:
-            if node.name == target_node_name:
-                return node
-
-    def concat(self, other, data_attributes: List[str]):
-        other_iter = other.__iter__()
-        other_head = other_iter.__next__()
-        node = self.find_node(other_head.name)
-        for atr in data_attributes:
-            node.data[atr] = other_head.data[atr]
-        if node is None:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Can't join those {other_head.name} and {self.head.name} feature sets"
-            )
-        for other_node in other_iter:
-            if self.find_node(other_node.name) is None:
-                self.add_after(node.name, other_node)
-                node = other_node

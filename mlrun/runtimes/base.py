@@ -786,7 +786,7 @@ class BaseRuntime(ModelObj):
         # more status code handling can be added here if needed
         if error.response.status_code == http.HTTPStatus.BAD_REQUEST.value:
             raise mlrun.errors.MLRunBadRequestError(
-                "bad request", body=error.response.text
+                f"Bad request to mlrun api: {error.response.text}"
             )
 
     def _store_function(self, runspec, meta, db):

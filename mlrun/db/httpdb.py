@@ -265,6 +265,7 @@ class HTTPRunDB(RunDBInterface):
                     " CE mode don't match"
                 )
             config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
+            config.ce.release = server_cfg.get("ce_version") or config.ce.release
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")
@@ -274,6 +275,10 @@ class HTTPRunDB(RunDBInterface):
             config.ui.url = config.resolve_ui_url() or server_cfg.get("ui_url")
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
+            )
+            config.feature_store.data_prefixes = (
+                config.feature_store.data_prefixes
+                or server_cfg.get("feature_store_data_prefixes")
             )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"

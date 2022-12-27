@@ -145,7 +145,7 @@ def assets_path():
 
 
 @pytest.mark.parametrize(
-    "artifact,expected_hash,expected_target_path,artifact_path,generate_target_path,tag,raises,is_logged_artifact",
+    "artifact,expected_hash,expected_target_path,artifact_path,generate_target_path,tag,expectation,artifact_is_logged",
     [
         (
             mlrun.artifacts.Artifact(key="some-artifact", body="asdasdasdasdas"),
@@ -269,8 +269,8 @@ def test_log_artifact(
     artifact_path: str,
     generate_target_path: bool,
     tag: str,
-    raises: typing.Union[ABCMeta, ValueError],
-    is_logged_artifact: bool,
+    expectation: typing.Any,
+    artifact_is_logged: bool,
     monkeypatch,
 ):
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
@@ -288,7 +288,7 @@ def test_log_artifact(
         lambda *args, **kwargs: unittest.mock.Mock(),
     )
 
-    with raises:
+    with expectation:
         logged_artifact = mlrun.get_or_create_ctx("test").log_artifact(
             artifact,
             artifact_path=artifact_path,
@@ -304,7 +304,7 @@ def test_log_artifact(
             expected_hash = mlrun.utils.calculate_local_file_hash(
                 artifact.spec.src_path
             )
-    if is_logged_artifact:
+    if artifact_is_logged:
         if artifact.spec.format:
             assert logged_artifact.target_path.endswith(f".{artifact.spec.format}")
 

@@ -533,7 +533,7 @@ class SQLDB(DBInterface):
 
             # we want to ensure that the tag is valid before storing,
             # if it isn't, MLRunInvalidArgumentError will be raised
-            validate_tag_name(tag)
+            validate_tag_name(tag, "artifact.metadata.tag")
             self.tag_artifacts(session, [art], project, tag)
             # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
             # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
@@ -1227,7 +1227,7 @@ class SQLDB(DBInterface):
             )
             tag = query.one_or_none()
             if not tag:
-                validate_tag_name(tag_name=name)
+                validate_tag_name(tag_name=name, field_name="artifact.metadata.tag")
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
             self._upsert(session, [tag], ignore=True)

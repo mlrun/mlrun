@@ -50,93 +50,95 @@ def test_retry_until_successful_fatal_failure():
         )
 
 
-def test_run_name_regex():
-    cases = [
-        {"value": "asd", "valid": True},
-        {"value": "Asd", "valid": True},
-        {"value": "AsA", "valid": True},
-        {"value": "As-123_2.8A", "valid": True},
-        {"value": "1As-123_2.8A5", "valid": True},
-        {
-            "value": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
-            "valid": True,
-        },
-        {
+@pytest.mark.parametrize(
+    "value, valid",
+    [
+        ("asd", True),
+        ("Asd", True),
+        ("AsA", True),
+        ("As-123_2.8A", True),
+        ("1As-123_2.8A5", True),
+        (
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
+            True,
+        ),
+        (
             # Invalid because the first letter is -
-            "value": "-As-123_2.8A",
-            "valid": False,
-        },
-        {
+            "-As-123_2.8A",
+            False,
+        ),
+        (
             # Invalid because the last letter is .
-            "value": "As-123_2.8A.",
-            "valid": False,
-        },
-        {
+            "As-123_2.8A.",
+            False,
+        ),
+        (
             # Invalid because $ is not allowed
-            "value": "As-123_2.8A$a",
-            "valid": False,
-        },
-        {
+            "As-123_2.8A$a",
+            False,
+        ),
+        (
             # Invalid because it's more then 63 characters
-            "value": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
-            "valid": False,
-        },
-    ]
-    for case in cases:
-        try:
-            verify_field_regex("test_field", case["value"], mlrun.utils.regex.run_name)
-        except Exception:
-            if case["valid"]:
-                raise
-        else:
-            if not case["valid"]:
-                raise
+            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            False,
+        ),
+    ],
+)
+def test_run_name_regex(value, valid):
+    try:
+        verify_field_regex("test_field", value, mlrun.utils.regex.run_name)
+    except Exception:
+        if valid:
+            raise
+    else:
+        if not valid:
+            raise
 
 
-def test_spark_job_name_regex():
-    cases = [
-        {"value": "asd", "valid": True},
-        {"value": "asdlnasd-123123-asd", "valid": True},
+@pytest.mark.parametrize(
+    "value,valid",
+    [
+        ("asd", True),
+        ("asdlnasd-123123-asd", True),
         # DNS-1035
-        {"value": "t012312-asdasd", "valid": True},
-        {
+        ("t012312-asdasd", True),
+        (
             # Starts with alphanumeric number
-            "value": "012312-asdasd",
-            "valid": False,
-        },
-        {"value": "As-123_2.8A", "valid": False},
-        {"value": "1As-123_2.8A5", "valid": False},
-        {
+            "012312-asdasd",
+            False,
+        ),
+        ("As-123_2.8A", False),
+        ("1As-123_2.8A5", False),
+        (
             # Invalid because the first letter is -
-            "value": "-As-123_2.8A",
-            "valid": False,
-        },
-        {
+            "-As-123_2.8A",
+            False,
+        ),
+        (
             # Invalid because the last letter is .
-            "value": "As-123_2.8A.",
-            "valid": False,
-        },
-        {
+            "As-123_2.8A.",
+            False,
+        ),
+        (
             # Invalid because $ is not allowed
-            "value": "As-123_2.8A$a",
-            "valid": False,
-        },
+            "As-123_2.8A$a",
+            False,
+        ),
         # sprakjob length 29
-        {"value": "asdnoinasoidas-asdaskdlnaskdl", "valid": True},
-        {"value": "asdnoinasoidas-asdaskdlnaskdl2", "valid": False},
-    ]
-    for case in cases:
-        try:
-            verify_field_regex(
-                "test_field", case["value"], mlrun.utils.regex.sparkjob_name
-            )
-        except Exception as exc:
-            print(exc)
-            if case["valid"]:
-                raise
-        else:
-            if not case["valid"]:
-                raise
+        ("asdnoinasoidas-asdaskdlnaskdl", True),
+        ("asdnoinasoidas-asdaskdlnaskdl2", False),
+    ],
+)
+def test_spark_job_name_regex(value, valid):
+    try:
+        verify_field_regex("test_field", value, mlrun.utils.regex.sparkjob_name)
+    except Exception as exc:
+        print(exc)
+        if valid:
+            raise
+    else:
+        if not valid:
+            raise
 
 
 def test_extend_hub_uri():
@@ -177,41 +179,46 @@ def test_extend_hub_uri():
             assert expected_output == output
 
 
-def test_validate_tag_name():
-    cases = [
-        {
-            "tag_name": "tag_name",
-            "raise": True,
-            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        },
-        {
-            "tag_name": "tag_with_char!@#",
-            "raise": True,
-            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        },
-        {
-            "tag_name": "tag^name",
-            "raise": True,
-            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        },
-        {
-            "tag_name": "(tagname)",
-            "raise": True,
-            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        },
-        {
-            "tag_name": "tagname%",
-            "raise": True,
-            "excpected": pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        },
-        {"tag_name": "tagname2.0", "raise": True, "excpected": does_not_raise()},
-        {"tag_name": "tag-name2", "raise": True, "excpected": does_not_raise()},
-        {"tag_name": "tag", "raise": True, "excpected": does_not_raise()},
-        {"tag_name": "tag NAME", "raise": True, "excpected": does_not_raise()},
-    ]
-    for case in cases:
-        with case["excpected"]:
-            validate_tag_name(case["tag_name"], raise_on_failure=case["raise"])
+@pytest.mark.parametrize(
+    "tag_name,raise_on_failure,expected",
+    [
+        (
+            "tag_name",
+            True,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "tag_with_char!@#",
+            True,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "tag^name",
+            True,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "(tagname)",
+            True,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "tagname%",
+            True,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("tagname2.0", True, does_not_raise()),
+        ("tag-name", True, does_not_raise()),
+        ("tag-NAME", True, does_not_raise()),
+    ],
+)
+def test_validate_tag_name(tag_name, raise_on_failure, expected):
+    with expected:
+        validate_tag_name(
+            tag_name,
+            field_name="artifact.metadata,tag",
+            raise_on_failure=raise_on_failure,
+        )
 
 
 def test_enrich_image():
@@ -451,27 +458,29 @@ def test_get_parsed_docker_registry():
         assert case["expected_repository"] == repository
 
 
-def test_parse_store_uri():
-    cases = [
-        {"uri": "store:///123", "expected_output": (StorePrefix.Artifact, "123")},
-        {"uri": "store://xyz", "expected_output": (StorePrefix.Artifact, "xyz")},
-        {
-            "uri": "store://feature-sets/123",
-            "expected_output": (StorePrefix.FeatureSet, "123"),
-        },
-        {
-            "uri": "store://feature-vectors/456",
-            "expected_output": (StorePrefix.FeatureVector, "456"),
-        },
-        {
-            "uri": "store://artifacts/890",
-            "expected_output": (StorePrefix.Artifact, "890"),
-        },
-        {"uri": "xxx://xyz", "expected_output": (None, "")},
-    ]
-    for case in cases:
-        output = parse_store_uri(case["uri"])
-        assert case["expected_output"] == output
+@pytest.mark.parametrize(
+    "uri,expected_output",
+    [
+        ("store:///123", (StorePrefix.Artifact, "123")),
+        ("store://xyz", (StorePrefix.Artifact, "xyz")),
+        (
+            "store://feature-sets/123",
+            (StorePrefix.FeatureSet, "123"),
+        ),
+        (
+            "store://feature-vectors/456",
+            (StorePrefix.FeatureVector, "456"),
+        ),
+        (
+            "store://artifacts/890",
+            (StorePrefix.Artifact, "890"),
+        ),
+        ("xxx://xyz", (None, "")),
+    ],
+)
+def test_parse_store_uri(uri, expected_output):
+    output = parse_store_uri(uri)
+    assert expected_output == output
 
 
 def test_fill_artifact_path_template():

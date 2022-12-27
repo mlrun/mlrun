@@ -209,7 +209,7 @@ class ArtifactManager:
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
             # before uploading the item, we want to ensure that its tags are valid,
             # so that we don't upload something that won't be stored later
-            validate_tag_name(item.metadata.tag)
+            validate_tag_name(item.metadata.tag, "artifact.metadata.tag")
             if is_legacy_artifact(item):
                 item.upload()
             else:

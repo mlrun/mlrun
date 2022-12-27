@@ -1856,7 +1856,7 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()]
         fstore.ingest(fset, df1, targets=targets)
 
-        features = ["overwrite-fs.*"]
+        features = ["overwrite-fstore.*"]
         fvec = fstore.FeatureVector("overwrite-vec", features=features)
 
         csv_path = fset.get_target_path(name="csv")
@@ -3456,41 +3456,41 @@ class TestFeatureStore(TestMLRunSystem):
                 "dask_cluster_uri": dask_cluster.uri,
             }
         # relations according to departments_set relations
-        managers_set_entity = fs.Entity("m_id")
-        managers_set = fs.FeatureSet(
+        managers_set_entity = fstore.Entity("m_id")
+        managers_set = fstore.FeatureSet(
             "managers",
             entities=[managers_set_entity],
         )
         managers_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(managers_set, managers)
+        fstore.ingest(managers_set, managers)
 
-        classes_set_entity = fs.Entity("c_id")
-        classes_set = fs.FeatureSet(
+        classes_set_entity = fstore.Entity("c_id")
+        classes_set = fstore.FeatureSet(
             "classes",
             entities=[classes_set_entity],
         )
         managers_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(classes_set, classes)
+        fstore.ingest(classes_set, classes)
 
-        departments_set_entity = fs.Entity("d_id")
-        departments_set = fs.FeatureSet(
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
             "departments",
             entities=[departments_set_entity],
             relations={"manager_id": managers_set_entity},
         )
         departments_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(departments_set, departments)
+        fstore.ingest(departments_set, departments)
 
-        employees_set_entity = fs.Entity("id")
-        employees_set = fs.FeatureSet(
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
             "employees",
             entities=[employees_set_entity],
             relations={"department_id": departments_set_entity},
         )
         employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(employees_set, employees)
+        fstore.ingest(employees_set, employees)
 
-        mini_employees_set = fs.FeatureSet(
+        mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
             relations={
@@ -3499,16 +3499,16 @@ class TestFeatureStore(TestMLRunSystem):
             },
         )
         mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(mini_employees_set, employees_mini)
+        fstore.ingest(mini_employees_set, employees_mini)
 
         features = ["employees.name as n", "departments.name as n2"]
 
-        vector = fs.FeatureVector(
+        vector = fstore.FeatureVector(
             "employees-vec", features, description="Employees feature vector"
         )
         vector.save()
 
-        resp_1 = fs.get_offline_features(
+        resp_1 = fstore.get_offline_features(
             vector,
             join_type=join_type,
             engine_args=engine_args,
@@ -3523,12 +3523,12 @@ class TestFeatureStore(TestMLRunSystem):
             "managers.name as man_name",
         ]
 
-        vector_2 = fs.FeatureVector(
+        vector_2 = fstore.FeatureVector(
             "man-vec", features, description="Employees feature vector"
         )
         vector_2.save()
 
-        resp_2 = fs.get_offline_features(
+        resp_2 = fstore.get_offline_features(
             vector_2,
             join_type=join_type,
             engine_args=engine_args,
@@ -3539,12 +3539,12 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
-        vector_3 = fs.FeatureVector(
+        vector_3 = fstore.FeatureVector(
             "mini-emp-vec", features, description="Employees feature vector"
         )
         vector_3.save()
 
-        resp_3 = fs.get_offline_features(
+        resp_3 = fstore.get_offline_features(
             vector_3,
             join_type=join_type,
             engine_args=engine_args,
@@ -3560,12 +3560,12 @@ class TestFeatureStore(TestMLRunSystem):
             "classes.name as name_cls",
         ]
 
-        vector_4 = fs.FeatureVector(
+        vector_4 = fstore.FeatureVector(
             "four-vec", features, description="Employees feature vector"
         )
         vector_4.save()
 
-        resp_4 = fs.get_offline_features(
+        resp_4 = fstore.get_offline_features(
             vector_4,
             join_type=join_type,
             engine_args=engine_args,

@@ -170,7 +170,7 @@ class ObjectDict:
         new_obj = cls(classes_map, default_kind)
         for name, child in children.items():
             obj_name = name
-            if hasattr(child, "name"):
+            if hasattr(child, "name") and child.name is not None:
                 obj_name = child.name
             elif isinstance(child, dict) and "name" in child:
                 obj_name = child["name"]

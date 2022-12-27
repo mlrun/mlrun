@@ -343,9 +343,6 @@ def test_submit_job_with_hyper_params_file(
         "authenticate_request",
         lambda *args, **kwargs: auth_info,
     )
-    monkeypatch.setattr(
-        mlrun.MLClientCtx, "get_dataitem", lambda *args, **kwargs: _MockDataItem()
-    )
     orig_get_dataitem = mlrun.MLClientCtx.get_dataitem
     mlrun.MLClientCtx.get_dataitem = unittest.mock.Mock(return_value=_MockDataItem())
 

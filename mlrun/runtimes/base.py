@@ -735,15 +735,6 @@ class BaseRuntime(ModelObj):
                 result = self._update_run_state(task=runspec, err=err)
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
 
-        except Exception as err:
-            logger.error(f"got remote run err, {err}")
-            result = None
-            # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
-            # but there's no run in case of schedule)
-            if not schedule:
-                result = self._update_run_state(task=runspec, err=err)
-            return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
-
         if resp:
             txt = get_in(resp, "status.status_text")
             if txt:

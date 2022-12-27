@@ -40,20 +40,20 @@ def get_engine(first_event):
 class MLRunStep(MapClass):
     def __init__(self, **kwargs):
         """Abstract class for mlrun step.
-        Can be used in pandas/storey feature set ingestion"""
+        Can be used in pandas/storey/spark feature set ingestion"""
         super().__init__(**kwargs)
+        self._engine_to_do_method = {
+            "pandas": self._do_pandas,
+            "spark": self._do_spark,
+            "storey": self._do_storey,
+        }
 
     def do(self, event):
         """
         This method defines the do method of this class according to the first event type.
         """
         engine = get_engine(event)
-        engine_to_do_method = {
-            "pandas": self._do_pandas,
-            "spark": self._do_spark,
-            "storey": self._do_storey,
-        }
-        self.do = engine_to_do_method.get(engine, None)
+        self.do = self._engine_to_do_method.get(engine, None)
         if self.do is None:
             raise mlrun.errors.InvalidArgummentError(
                 f"Unrecognized engine: {engine}. Available engines are: pandas, spark and storey"

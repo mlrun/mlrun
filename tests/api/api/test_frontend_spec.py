@@ -233,14 +233,14 @@ def test_get_frontend_spec_feature_store_data_prefixes(
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (
-            frontend_spec.feature_store_data_prefixes["default"]
-            == feature_store_data_prefix_default
+        frontend_spec.feature_store_data_prefixes["default"]
+        == feature_store_data_prefix_default
     )
     assert (
-            frontend_spec.feature_store_data_prefixes["nosql"]
-            == feature_store_data_prefix_nosql
+        frontend_spec.feature_store_data_prefixes["nosql"]
+        == feature_store_data_prefix_nosql
     )
     assert (
-            frontend_spec.feature_store_data_prefixes["redisnosql"]
-            == feature_store_data_prefix_redisnosql
+        frontend_spec.feature_store_data_prefixes["redisnosql"]
+        == feature_store_data_prefix_redisnosql
     )

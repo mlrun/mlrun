@@ -138,6 +138,10 @@ class KubeResourceSpec(FunctionSpec):
     _fields_to_enrich = FunctionSpec._fields_to_enrich + [
         "env",  # removing sensitive data from env
     ]
+    # _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
+    #     "preemption_mode",  # preemption_mode has a valid value of None there for we want to skip the validation on it
+    #     "affinity"
+    # ]
 
     def __init__(
         self,
@@ -704,8 +708,20 @@ class KubeResourceSpec(FunctionSpec):
             node_selector.node_selector_terms += new_node_selector_terms
 
     def _initialize_affinity(self, affinity_field_name: str):
+        logger.info(
+            "initialize affinity",
+            affinity_field_name=affinity_field_name,
+            value=getattr(self, affinity_field_name),
+            preemption_mode=self._preemption_mode,
+        )
         if not getattr(self, affinity_field_name):
             setattr(self, affinity_field_name, k8s_client.V1Affinity())
+            logger.info(
+                "initialized affinity",
+                affinity_field_name=affinity_field_name,
+                value=getattr(self, affinity_field_name),
+                preemption_mode=self._preemption_mode,
+            )
 
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):

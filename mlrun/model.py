@@ -43,12 +43,17 @@ class ModelObj:
     # _default_fields_to_strip - fields to strip from the object by default if strip=True
     # _fields_to_serialize - fields that will be serialized by the object's _serialize_field method
     # _fields_to_enrich - fields that will be enriched by the object's _enrich_field method
+    # _fields_to_skip_validation - fields that will be ignored by the object's _is_valid_field_value_for_serialization
+    # method
     _default_fields_to_strip = []
     _fields_to_serialize = []
     _fields_to_enrich = []
+    _fields_to_skip_validation = []
 
     @staticmethod
     def _verify_list(param, name):
+        if name == "outputs":
+            print("outputssssssss" + str(param) + str(type(param)))
         if not isinstance(param, list):
             raise ValueError(f"parameter {name} must be a list")
 
@@ -95,16 +100,22 @@ class ModelObj:
         )
 
         # iterating over the fields to save and adding them to the struct
-        for field in fields_to_save:
-            field_value = getattr(self, field, None)
-            if self._is_valid_field_value_for_serialization(field_value):
+        for field_name in fields_to_save:
+            field_value = getattr(self, field_name, None)
+            if self._is_valid_field_value_for_serialization(
+                field_name, field_value, strip
+            ):
                 # if the field value has attribute to_dict, we call it.
+                # if one of the attributes is a third party object that has to_dict method (such as k8s objects), then
+                # add it to the object's _fields_to_serialize attribute and handle it in the _serialize_field method.
                 if hasattr(field_value, "to_dict"):
                     field_value = field_value.to_dict(strip=strip)
-                    if self._is_valid_field_value_for_serialization(field_value):
-                        struct[field] = field_value
+                    if self._is_valid_field_value_for_serialization(
+                        field_name, field_value, strip
+                    ):
+                        struct[field_name] = field_value
                 else:
-                    struct[field] = field_value
+                    struct[field_name] = field_value
 
         # subtracting the fields_to_exclude from the fields_to_serialize because if we want to exclude a field there
         # is no need to serialize it.
@@ -139,13 +150,27 @@ class ModelObj:
             or list(inspect.signature(self.__init__).parameters.keys())
         )
 
-    @staticmethod
-    def _is_valid_field_value_for_serialization(field_value) -> bool:
+    def _is_valid_field_value_for_serialization(
+        self, field_name: str, field_value: str, strip: bool = False
+    ) -> bool:
         """
-        no need to save None values and empty dicts
+        Check if the field value is valid for serialization.
+        If field name is in `_fields_to_skip_validation` attribute, skip validation and return True.
+        If strip is False skip validation and return True.
+        If field value is None or empty dict, then no need to store it.
+        :param field_name: Field name.
+        :param field_value: Field value.
+        :return: True if the field value is valid for serialization, False otherwise.
         """
+        if field_name in self._fields_to_skip_validation:
+            return True
+        # TODO: remove when Runtime initialization will be refactored and enrichment will be moved to BE
+        # if not strip:
+        #     return True
+
         return field_value is not None and not (
-            isinstance(field_value, dict) and not field_value
+            (isinstance(field_value, dict) or isinstance(field_value, list))
+            and not field_value
         )
 
     def _resolve_field_value_by_method(
@@ -157,7 +182,9 @@ class ModelObj:
     ) -> dict:
         for field_name in fields:
             field_value = method(struct=struct, field_name=field_name, strip=strip)
-            if self._is_valid_field_value_for_serialization(field_value):
+            if self._is_valid_field_value_for_serialization(
+                field_name, field_value, strip
+            ):
                 struct[field_name] = field_value
         return struct
 

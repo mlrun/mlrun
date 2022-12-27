@@ -268,6 +268,11 @@ def get_online_feature_service(
     feature_vector = _features_to_vector_and_check_permissions(
         feature_vector, update_stats
     )
+
+    # Impute policies rely on statistics in many cases, so verifying that the fvec has stats in it
+    if impute_policy and not feature_vector.status.stats:
+        update_stats = True
+
     graph, index_columns = init_feature_vector_graph(
         feature_vector, fixed_window_type, update_stats=update_stats
     )
@@ -700,7 +705,7 @@ def deploy_ingestion_service(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fs.deploy_ingestion_service(my_set, source, run_config=config)
+        fstore.deploy_ingestion_service(my_set, source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -797,7 +802,7 @@ def _ingest_with_spark(
             df = source
         else:
             df = source.to_spark_df(spark)
-            df = source.filter_df_start_end_time(df)
+            df = source.filter_df_start_end_time(df, featureset.spec.timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         _infer_from_static_df(df, featureset, options=infer_options)

@@ -17,6 +17,7 @@ import re
 from typing import Dict, List, Optional
 
 from .data_types import ValueType
+from .errors import err_to_str
 from .model import ModelObj
 
 
@@ -146,7 +147,7 @@ class ConvertTypeValidator(BasicTypeValidator):
             except Exception as err:
                 return (
                     False,
-                    {"message": str(err), "type": value_type},
+                    {"message": err_to_str(err), "type": value_type},
                 )
         return ok, args
 
@@ -184,7 +185,7 @@ class RangeTypeValidator(BasicTypeValidator):
             except Exception as err:
                 return (
                     False,
-                    {"message": str(err), "type": value_type},
+                    {"message": err_to_str(err), "type": value_type},
                 )
 
         return ok, args
@@ -317,7 +318,7 @@ class MinMaxValidator(Validator):
             except Exception as err:
                 return (
                     False,
-                    {"message": str(err), "type": self.kind},
+                    {"message": err_to_str(err), "type": self.kind},
                 )
         return ok, args
 
@@ -381,7 +382,7 @@ class MinMaxLenValidator(Validator):
             except Exception as err:
                 return (
                     False,
-                    {"message": str(err), "type": self.kind},
+                    {"message": err_to_str(err), "type": self.kind},
                 )
 
         return ok, args
@@ -433,7 +434,7 @@ class RegexValidator(Validator):
             except Exception as err:
                 return (
                     False,
-                    {"message": str(err), "type": self.kind},
+                    {"message": err_to_str(err), "type": self.kind},
                 )
         return ok, args
 

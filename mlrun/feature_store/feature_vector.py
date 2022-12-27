@@ -177,7 +177,7 @@ class FeatureVector(ModelObj):
             df = fstore.get_offline_features(vector).to_dataframe()
 
             # return an online/real-time feature service
-            svc = fs.get_online_feature_service(vector, impute_policy={"*": "$mean"})
+            svc = fstore.get_online_feature_service(vector, impute_policy={"*": "$mean"})
             resp = svc.get([{"stock": "GOOG"}])
 
         :param name:           List of names of targets to delete (default: delete all ingested targets)
@@ -451,11 +451,11 @@ class OnlineVectorService:
         example::
 
             # accept list of dict, return list of dict
-            svc = fs.get_online_feature_service(vector)
+            svc = fstore.get_online_feature_service(vector)
             resp = svc.get([{"name": "joe"}, {"name": "mike"}])
 
             # accept list of list, return list of list
-            svc = fs.get_online_feature_service(vector, as_list=True)
+            svc = fstore.get_online_feature_service(vector, as_list=True)
             resp = svc.get([["joe"], ["mike"]])
 
         :param entity_rows:  list of list/dict with input entity data/rows
@@ -571,7 +571,7 @@ class FixedWindowType(Enum):
         try:
             from storey import FixedWindowType as QueryByKeyFixedWindowType
         except ImportError as exc:
-            raise ImportError(f"storey not installed, use pip install storey, {exc}")
+            raise ImportError("storey not installed, use pip install storey") from exc
         if self == FixedWindowType.LastClosedWindow:
             return QueryByKeyFixedWindowType.LastClosedWindow
         elif self == FixedWindowType.CurrentOpenWindow:

@@ -13,18 +13,25 @@
 # limitations under the License.
 
 import inspect
+import pathlib
 import re
 import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from os import environ, path
+from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import mlrun
 
-from .utils import dict_to_json, dict_to_yaml, get_artifact_target, is_legacy_artifact
+from .utils import (
+    dict_to_json,
+    dict_to_yaml,
+    get_artifact_target,
+    is_legacy_artifact,
+    logger,
+)
 
 # Changing {run_id} will break and will not be backward compatible.
 RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
@@ -357,10 +364,9 @@ class ImageBuilder(ModelObj):
     @source.setter
     def source(self, source):
         if source and not (
-            source.endswith(".tar.gz")
-            or source.endswith(".zip")
-            or source.startswith("git://")
-            or path.isfile(source)
+            source.startswith("git://")
+            # lenient check for file extension because we support many file types locally and remotely
+            or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -772,8 +778,7 @@ class RunObject(RunTemplate):
 
     def output(self, key):
         """return the value of a specific result or artifact by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         if self.status.results and key in self.status.results:
             return self.status.results.get(key)
         artifact = self._artifact(key)
@@ -793,8 +798,7 @@ class RunObject(RunTemplate):
     def outputs(self):
         """return a dict of outputs, result values and artifact uris"""
         outputs = {}
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         if self.status.results:
             outputs = {k: v for k, v in self.status.results.items()}
         if self.status.artifacts:
@@ -805,14 +809,28 @@ class RunObject(RunTemplate):
 
     def artifact(self, key) -> "mlrun.DataItem":
         """return artifact DataItem by key"""
-        if self.outputs_wait_for_completion:
-            self.wait_for_completion()
+        self._outputs_wait_for_completion()
         artifact = self._artifact(key)
         if artifact:
             uri = get_artifact_target(artifact, self.metadata.project)
             if uri:
                 return mlrun.get_dataitem(uri)
         return None
+
+    def _outputs_wait_for_completion(
+        self,
+        show_logs=False,
+    ):
+        """
+        Wait for the run to complete fetching the run outputs.
+        When running a function with watch=False, and passing the outputs to another function,
+        the outputs will not be available until the run is completed.
+        :param show_logs: default False, avoid spamming unwanted logs of the run when the user asks for outputs
+        """
+        if self.outputs_wait_for_completion:
+            self.wait_for_completion(
+                show_logs=show_logs,
+            )
 
     def _artifact(self, key):
         """return artifact DataItem by key"""
@@ -889,11 +907,19 @@ class RunObject(RunTemplate):
         It pulls the run status from the db every sleep seconds.
         If show_logs is not False and logs_interval is not None, it will print the logs when run reached terminal state
         If show_logs is not False and logs_interval is defined, it will print the logs every logs_interval seconds
+        if show_logs is False it will not print the logs, will still pull the run state until it reaches terminal state
         """
+        # TODO: rename sleep to pull_state_interval
         total_time = 0
         offset = 0
         last_pull_log_time = None
         logs_enabled = show_logs is not False
+        state = self.state()
+        if state not in mlrun.runtimes.constants.RunStates.terminal_states():
+            logger.info(
+                f"run {self.metadata.name} is not completed yet, waiting for it to complete",
+                current_state=state,
+            )
         while True:
             state = self.state()
             if (

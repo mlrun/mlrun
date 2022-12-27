@@ -709,6 +709,7 @@ class FeatureSet(ModelObj):
                     after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
+                    time_field=self.spec.timestamp_key,
                     aggregates=[aggregation],
                     table=".",
                     **class_args,
@@ -761,7 +762,7 @@ class FeatureSet(ModelObj):
             validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
                 BaseStep(
-                    target.kind,
+                    f"{target.kind}/{target.name}",
                     after=target.after_step or default_final_step,
                     shape="cylinder",
                 )

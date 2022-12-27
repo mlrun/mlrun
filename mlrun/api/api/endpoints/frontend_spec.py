@@ -83,7 +83,7 @@ def get_frontend_spec(
         default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
         feature_store_data_prefixes=config.feature_store.data_prefixes.to_dict(),
         ce_mode=config.ce.mode,
-        ce_version=config.ce.version,
+        ce_version=config.ce.release,
     )
 
 

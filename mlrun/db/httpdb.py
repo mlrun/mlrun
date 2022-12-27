@@ -265,7 +265,7 @@ class HTTPRunDB(RunDBInterface):
                     " CE mode don't match"
                 )
             config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
-            config.ce.version = server_cfg.get("ce_version") or config.ce.version
+            config.ce.release = server_cfg.get("ce_version") or config.ce.release
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")

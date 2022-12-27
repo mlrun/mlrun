@@ -309,7 +309,7 @@ class TestArtifactTags:
 
         # make sure the original tag was not deleted
         self._list_artifacts_and_assert(
-            client, tag=valid_tag_name, expected_number_of_artifacts=0
+            client, tag=valid_tag_name, expected_number_of_artifacts=1
         )
 
     def test_delete_artifact_tags_with_invalid_characters(

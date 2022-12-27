@@ -60,7 +60,8 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
     tag = "test_tag_with_characters@#$#%^"
 
     resp = client.post(
-        f"{LEGACY_API_ARTIFACT_PATH}/{PROJECT}/{UID}/{KEY}?tag={TAG}", data="{}"
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data="{}",
     )
     assert resp.status_code == HTTPStatus.OK.value
 

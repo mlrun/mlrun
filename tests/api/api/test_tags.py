@@ -15,6 +15,7 @@
 import http
 import json
 import typing
+import unittest.mock
 import uuid
 
 import fastapi.testclient
@@ -239,19 +240,18 @@ class TestArtifactTags:
         )
         assert response_body["artifacts"][0]["metadata"]["name"] == artifact1_name
 
-    def test_append_artifact_tags_with_charachters(
+    def test_create_and_append_artifact_tags_with_invalid_characters(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
         """
         This tests the following scenarios: adding an invalid tag to an existing project,
-        and attempting to create a project with an invalid tag. and ensure that both fail
+        and attempting to create an artifact with an invalid tag. and ensure that both fail
         """
 
         self._create_project(client)
         valid_tag_name = "valid-tag"
         invalid_tag_name = "tag$%^#"
         artifact1_labels = {"artifact_name": "artifact1"}
-        artifact2_labels = {"artifact_name": "artifact2"}
 
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
             client,
@@ -262,7 +262,7 @@ class TestArtifactTags:
         )
 
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
-            client, tag=valid_tag_name, uid="latest", labels=artifact2_labels
+            client, tag=valid_tag_name, uid="latest", labels=artifact1_labels
         )
 
         response = self._append_artifact_tag(
@@ -282,6 +282,72 @@ class TestArtifactTags:
 
         self._list_artifacts_and_assert(
             client, tag=valid_tag_name, expected_number_of_artifacts=1
+        )
+
+    def test_overwrite_artifact_tags_with_invalid_characters(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        self._create_project(client)
+        valid_tag_name = "valid-tag"
+        invalid_tag_name = "tag$%^#"
+        artifact_labels = {"artifact_name": "artifact"}
+
+        _, _, artifact_name, artifact_uid, artifact_key, _, _ = self._store_artifact(
+            client, tag=valid_tag_name, uid="latest", labels=artifact_labels
+        )
+        response = self._overwrite_artifact_tags(
+            client=client,
+            tag=invalid_tag_name,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(
+                    key=artifact_key, uid=artifact_uid
+                ),
+            ],
+        )
+
+        assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
+
+        # make sure the original tag was not deleted
+        self._list_artifacts_and_assert(
+            client, tag=valid_tag_name, expected_number_of_artifacts=0
+        )
+
+    def test_delete_artifact_tags_with_invalid_characters(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        self._create_project(client)
+        invalid_tag_name = "tag$%^#"
+        artifact_labels = {"artifact_name": "artifact"}
+
+        with unittest.mock.patch(
+            "mlrun.utils.helpers.verify_field_regex",
+            return_value=True,
+        ):
+            (
+                _,
+                _,
+                artifact_name,
+                artifact_uid,
+                artifact_key,
+                _,
+                _,
+            ) = self._store_artifact(
+                client, tag=invalid_tag_name, uid="latest", labels=artifact_labels
+            )
+
+        response = self._delete_artifact_tag(
+            client=client,
+            tag=invalid_tag_name,
+            identifiers=[
+                mlrun.api.schemas.ArtifactIdentifier(
+                    key=artifact_key, uid=artifact_uid
+                ),
+            ],
+        )
+        assert response.status_code == http.HTTPStatus.NO_CONTENT.value
+
+        self._list_artifacts_and_assert(
+            client, tag=invalid_tag_name, expected_number_of_artifacts=0
         )
 
     def test_append_artifact_tags_by_uid_identifier(
@@ -395,6 +461,7 @@ class TestArtifactTags:
         _, _, artifact1_name, artifact1_uid, artifact1_key, _, _ = self._store_artifact(
             client, tag=tag, labels=artifact1_labels
         )
+
         _, _, artifact2_name, artifact2_uid, artifact2_key, _, _ = self._store_artifact(
             client, tag=tag
         )

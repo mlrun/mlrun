@@ -359,6 +359,8 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
     ):
+        # we want to validate the new tag name before deleting the existing tag
+        validate_tag_name(tag_name=tag, field_name="artifact.metadata.tag")
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
@@ -1227,6 +1229,9 @@ class SQLDB(DBInterface):
             )
             tag = query.one_or_none()
             if not tag:
+                # To maintain backwards compatibility,
+                # we validate the tag name only if it does not already exist on the artifact,
+                # we don't want to fail on old tags that were created before the validation was added.
                 validate_tag_name(tag_name=name, field_name="artifact.metadata.tag")
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id

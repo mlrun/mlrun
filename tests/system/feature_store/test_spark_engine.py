@@ -30,10 +30,41 @@ from mlrun import code_to_function, store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.feature_store import FeatureSet
+from mlrun.feature_store.steps import (
+    DateExtractor,
+    DropFeatures,
+    MapValues,
+    OneHotEncoder,
+)
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
+
+
+def read_and_assert(csv_path_spark, csv_path_storey):
+    read_back_df_spark = None
+    file_system = fsspec.filesystem("v3io")
+    for file_entry in file_system.ls(csv_path_spark):
+        filepath = file_entry["name"]
+        if not filepath.endswith("/_SUCCESS"):
+            read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+            break
+    assert read_back_df_spark is not None
+
+    read_back_df_storey = None
+    for file_entry in file_system.ls(csv_path_storey):
+        filepath = file_entry["name"]
+        read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+        break
+    assert read_back_df_storey is not None
+
+    read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+    read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+    assert read_back_df_spark.sort_index(axis=1).equals(
+        read_back_df_storey.sort_index(axis=1)
+    )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -823,6 +854,189 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_df = source.to_dataframe()
         source_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
-
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
+
+    def test_ingest_with_steps_drop_features(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fs.FeatureSet(
+            "measurements_spark",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)
+
+    def test_ingest_with_steps_onehot(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fs.FeatureSet(
+            "measurements_spark",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)
+
+    @pytest.mark.parametrize("with_original_features", [True, False])
+    def test_ingest_with_steps_mapval(self, with_original_features):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fs.FeatureSet(
+            "measurements_spark",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
+                    "hr_is_error": {False: "0", True: "1"},
+                },
+                with_original_features=with_original_features,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
+                    "hr_is_error": {False: "0", True: "1"},
+                },
+                with_original_features=with_original_features,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)
+
+    @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
+    def test_ingest_with_steps_extractor(self, timestamp_col):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fs.FeatureSet(
+            "measurements_spark",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            DateExtractor(
+                parts=["day_of_year"],
+                timestamp_col=timestamp_col,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fs.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fs.FeatureSet(
+            "measurements_storey",
+            entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(
+            DateExtractor(
+                parts=["day_of_year"],
+                timestamp_col=timestamp_col,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fs.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)

@@ -32,30 +32,42 @@ def get_engine(first_event):
         first_event = first_event.body
     if isinstance(first_event, pd.DataFrame):
         return "pandas"
+    if hasattr(first_event, "rdd"):
+        return "spark"
     return "storey"
 
 
 class MLRunStep(MapClass):
     def __init__(self, **kwargs):
         """Abstract class for mlrun step.
-        Can be used in pandas/storey feature set ingestion"""
+        Can be used in pandas/storey/spark feature set ingestion"""
         super().__init__(**kwargs)
+        self._engine_to_do_method = {
+            "pandas": self._do_pandas,
+            "spark": self._do_spark,
+            "storey": self._do_storey,
+        }
 
     def do(self, event):
         """
         This method defines the do method of this class according to the first event type.
         """
         engine = get_engine(event)
-        if engine == "pandas":
-            self.do = self._do_pandas
-        else:
-            self.do = self._do_storey
+        self.do = self._engine_to_do_method.get(engine, None)
+        if self.do is None:
+            raise mlrun.errors.InvalidArgummentError(
+                f"Unrecognized engine: {engine}. Available engines are: pandas, spark and storey"
+            )
+
         return self.do(event)
 
     def _do_pandas(self, event):
         raise NotImplementedError
 
     def _do_storey(self, event):
+        raise NotImplementedError
+
+    def _do_spark(self, event):
         raise NotImplementedError
 
 
@@ -204,12 +216,44 @@ class MapValues(StepToDict, MLRunStep):
             elif feature_map:
                 # create and apply simple map
                 df[self._get_feature_name(feature)] = event[feature].map(
-                    lambda x: feature_map[x]
+                    lambda x: feature_map.get(x, None)
                 )
 
         if self.with_original_features:
             df = pd.concat([event, df], axis=1)
         return df
+
+    def _do_spark(self, event):
+        from itertools import chain
+
+        from pyspark.sql.functions import col, create_map, lit, when
+
+        for column, column_map in self.mapping.items():
+            new_column_name = self._get_feature_name(column)
+            if "ranges" not in column_map:
+                mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
+                event = event.withColumn(
+                    new_column_name, mapping_expr.getItem(col(column))
+                )
+            else:
+                for val, val_range in column_map["ranges"].items():
+                    min_val = val_range[0] if val_range[0] != "-inf" else -np.inf
+                    max_val = val_range[1] if val_range[1] != "inf" else np.inf
+                    otherwise = ""
+                    if new_column_name in event.columns:
+                        otherwise = event[new_column_name]
+                    event = event.withColumn(
+                        new_column_name,
+                        when(
+                            (event[column] < max_val) & (event[column] >= min_val),
+                            lit(val),
+                        ).otherwise(otherwise),
+                    )
+
+        if not self.with_original_features:
+            event = event.select(*self.mapping.keys())
+
+        return event
 
 
 class Imputer(StepToDict, MLRunStep):
@@ -248,6 +292,18 @@ class Imputer(StepToDict, MLRunStep):
             val = self.mapping.get(feature, self.default_value)
             if val is not None:
                 event[feature].fillna(val, inplace=True)
+        return event
+
+    def _do_spark(self, event):
+
+        for feature in event.columns:
+            val = self.mapping.get(feature, self.default_value)
+            if val is not None:
+                event = event.na.fill(val, feature)
+                # for future use - for now sparks=storey=pandas
+                # from pyspark.ml.feature import Imputer
+                # imputer = Imputer(inputCols=[feature], outputCols=[feature]).setStrategy(val)
+                # event = imputer.fit(event).transform(event)
         return event
 
 
@@ -313,6 +369,21 @@ class OneHotEncoder(StepToDict, MLRunStep):
             encoded.rename(columns=col_rename, inplace=True)
             event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
         event.drop(columns=list(self.mapping.keys()), inplace=True)
+        return event
+
+    def _do_spark(self, event):
+        from pyspark.sql.functions import lit, when
+
+        for key, values in self.mapping.items():
+            for val in values:
+                event = event.withColumn(
+                    f"{key}_{self._sanitized_category(val)}",
+                    when(
+                        (event[key] == val),
+                        lit(1),
+                    ).otherwise(lit(0)),
+                )
+        event = event.drop(*self.mapping.keys())
         return event
 
     @staticmethod
@@ -384,24 +455,32 @@ class DateExtractor(StepToDict, MLRunStep):
                               by default "timestamp"
         """
         super().__init__(**kwargs)
-        self.timestamp_col = timestamp_col
+        self.timestamp_col = timestamp_col if timestamp_col else "timestamp"
         self.parts = parts
+        self.fstore_date_format_to_spark_date_format = {
+            "day_of_year": "DD",
+            "day_of_month": "dd",
+            "dayofyear": "DD",
+            "dayofmonth": "dd",
+            "month": "MM",
+            "year": "yyyy",
+            "quarter": "Q",
+            "hour": "hh",
+            "minute": "mm",
+            "second": "ss",
+        }
 
-    def _get_key_name(self, part: str, timestamp_col: str):
-        timestamp_col = timestamp_col if timestamp_col else "timestamp"
-        return f"{timestamp_col}_{part}"
+    def _get_key_name(self, part: str):
+        return f"{self.timestamp_col}_{part}"
 
     def _extract_timestamp(self, event):
         # Extract timestamp
-        if self.timestamp_col is None:
-            timestamp = event["timestamp"]
-        else:
-            try:
-                timestamp = event[self.timestamp_col]
-            except KeyError:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{self.timestamp_col} does not exist in the event"
-                )
+        try:
+            timestamp = event[self.timestamp_col]
+        except KeyError:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"{self.timestamp_col} does not exist in the event"
+            )
         return timestamp
 
     def _do_storey(self, event):
@@ -412,7 +491,7 @@ class DateExtractor(StepToDict, MLRunStep):
             # Extract part
             extracted_part = getattr(timestamp, part)
             # Add to event
-            event[self._get_key_name(part, self.timestamp_col)] = extracted_part
+            event[self._get_key_name(part)] = extracted_part
         return event
 
     def _do_pandas(self, event):
@@ -420,9 +499,27 @@ class DateExtractor(StepToDict, MLRunStep):
         # Extract specified parts
         for part in self.parts:
             # Extract part and add it to event
-            event[self._get_key_name(part, self.timestamp_col)] = timestamp.map(
+            event[self._get_key_name(part)] = timestamp.map(
                 lambda x: getattr(pd.Timestamp(x), part)
             )
+        return event
+
+    def _do_spark(self, event):
+        from pyspark.sql.functions import date_format
+
+        for part in self.parts:
+            if part in self.fstore_date_format_to_spark_date_format:
+                event = event.withColumn(
+                    self._get_key_name(part),
+                    date_format(
+                        self.timestamp_col,
+                        self.fstore_date_format_to_spark_date_format[part],
+                    ),
+                )
+            else:
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"DateExtractor with spark engine doesn't support {part} param"
+                )
         return event
 
 
@@ -533,3 +630,6 @@ class DropFeatures(StepToDict, MLRunStep):
 
     def _do_pandas(self, event):
         return event.drop(columns=self.features)
+
+    def _do_spark(self, event):
+        return event.drop(*self.features)

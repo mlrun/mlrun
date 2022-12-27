@@ -2314,10 +2314,10 @@ class TestFeatureStore(TestMLRunSystem):
         table_url = "v3io:///bigdata/system-test-project/nosql/test_directional_graph"
 
         df = pd.DataFrame({"name": ["ABC", "DEF"], "aug": ["1", "2"]})
-        fset = fs.FeatureSet(
-            name="test_directional_graph", entities=[fs.Entity("name")]
+        fset = fstore.FeatureSet(
+            name="test_directional_graph", entities=[fstore.Entity("name")]
         )
-        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+        fstore.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
         run_id = fset.status.targets[0].run_id
         table_url = f"{table_url}/{run_id}"
         df = pd.DataFrame(
@@ -2328,7 +2328,7 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
-        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset = fstore.FeatureSet("myfset", entities=[Entity("key")])
         fset.set_targets([], with_defaults=False)
 
         fset.graph.to(ChangeKey("_1"), "change1", full_event=True)
@@ -2344,7 +2344,7 @@ class TestFeatureStore(TestMLRunSystem):
             attributes=["aug"],
             inner_join=True,
         )
-        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        df = fstore.ingest(fset, df, targets=[])
         assert df.to_dict() == {
             "foreignkey1": {
                 "mykey1_1": "AB",

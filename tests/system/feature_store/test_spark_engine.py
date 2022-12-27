@@ -862,33 +862,33 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         measurements.graph.to(DropFeatures(features=["bad"]))
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_storey",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
         )
         measurements.graph.to(DropFeatures(features=["bad"]))
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
@@ -901,33 +901,33 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_storey",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
         )
         measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
@@ -941,9 +941,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
@@ -958,18 +958,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_storey",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
         )
         measurements.graph.to(
@@ -983,7 +983,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
@@ -997,9 +997,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
@@ -1011,18 +1011,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_storey",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
         )
         measurements.graph.to(
@@ -1033,7 +1033,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,

@@ -65,3 +65,6 @@ class FrontendSpec(pydantic.BaseModel):
     default_artifact_path: str
     default_function_pod_resources: Resources = Resources()
     default_function_preemption_mode: str
+    feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
+    ce_mode: typing.Optional[str]
+    ce_version: typing.Optional[str]

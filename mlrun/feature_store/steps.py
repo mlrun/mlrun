@@ -362,8 +362,8 @@ class DateExtractor(StepToDict, MLRunStep):
 
             # (taken from the fraud-detection end-to-end feature store demo)
             # Define the Transactions FeatureSet
-            transaction_set = fs.FeatureSet("transactions",
-                                            entities=[fs.Entity("source")],
+            transaction_set = fstore.FeatureSet("transactions",
+                                            entities=[fstore.Entity("source")],
                                             timestamp_key='timestamp',
                                             description="transactions feature set")
 
@@ -508,14 +508,14 @@ class DropFeatures(StepToDict, MLRunStep):
 
         example::
 
-            feature_set = fs.FeatureSet("fs-new",
-                                        entities=[fs.Entity("id")],
+            feature_set = fstore.FeatureSet("fs-new",
+                                        entities=[fstore.Entity("id")],
                                         description="feature set",
                                         engine="pandas",
                                         )
             # Pre-processing grpah steps
             feature_set.graph.to(DropFeatures(features=["age"]))
-            df_pandas = fs.ingest(feature_set, data)
+            df_pandas = fstore.ingest(feature_set, data)
 
         """
         super().__init__(**kwargs)

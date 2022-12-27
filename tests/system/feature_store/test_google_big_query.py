@@ -19,7 +19,7 @@ import typing
 import pandas as pd
 import pytest
 
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.datastore.sources import BigQuerySource
 from mlrun.datastore.targets import ParquetTarget
 from tests.system.base import TestMLRunSystem
@@ -114,13 +114,13 @@ class TestFeatureStoreGoogleBigQuery(TestMLRunSystem):
             )
         ]
         feature_set_name = "taxis"
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             feature_set_name,
-            entities=[fs.Entity("unique_key")],
+            entities=[fstore.Entity("unique_key")],
             timestamp_key="trip_start_timestamp",
             engine="pandas",
         )
-        ingest_df = fs.ingest(feature_set, source, targets, return_df=False)
+        ingest_df = fstore.ingest(feature_set, source, targets, return_df=False)
         assert ingest_df is not None
         assert len(ingest_df) == max_results
         assert ingest_df.dtypes["pickup_latitude"] == "float64"

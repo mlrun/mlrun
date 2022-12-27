@@ -15,7 +15,6 @@
 import pathlib
 import typing
 import unittest.mock
-from abc import ABCMeta
 from contextlib import nullcontext as does_not_raise
 
 import pytest

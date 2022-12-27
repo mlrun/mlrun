@@ -75,6 +75,20 @@ class MyMap(MapClass):
         return event
 
 
+class ChangeKey(MapClass):
+    def __init__(self, suffix, **kwargs):
+        super().__init__(**kwargs)
+        self.suffix = suffix
+
+    def do(self, event):
+        if isinstance(event.key, list):
+            event.key[-1] += self.suffix
+        else:
+            event.key += self.suffix
+
+        return event
+
+
 class IdentityMap(MapClass):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2246,6 +2260,58 @@ class TestFeatureStore(TestMLRunSystem):
             "foreignkey1": {"mykey1": "AB", "mykey2": "DE"},
             "foreignkey2": {"mykey1": "C", "mykey2": "F"},
             "aug": {"mykey1": "1", "mykey2": "2"},
+        }
+
+    # ML-1167
+    def test_directional_graph(self):
+        table_url = "v3io:///bigdata/system-test-project/nosql/test_directional_graph"
+
+        df = pd.DataFrame({"name": ["ABC", "DEF"], "aug": ["1", "2"]})
+        fset = fs.FeatureSet(
+            name="test_directional_graph", entities=[fs.Entity("name")]
+        )
+        fs.ingest(fset, df, targets=[NoSqlTarget(path=table_url)])
+        run_id = fset.status.targets[0].run_id
+        table_url = f"{table_url}/{run_id}"
+        df = pd.DataFrame(
+            {
+                "key": ["mykey1", "mykey2", "mykey3"],
+                "foreignkey1": ["AB", "DE", "GH"],
+                "foreignkey2": ["C", "F", "I"],
+            }
+        )
+
+        fset = fs.FeatureSet("myfset", entities=[Entity("key")])
+        fset.set_targets([], with_defaults=False)
+
+        fset.graph.to(ChangeKey("_1"), "change1", full_event=True)
+        fset.graph.to(ChangeKey("_2"), "change2", full_event=True)
+        fset.graph.final_step = "join"
+
+        fset.graph.add_step(
+            "storey.JoinWithTable",
+            name="join",
+            after=["change1", "change2"],
+            table=table_url,
+            _key_extractor="(event['foreignkey1'] + event['foreignkey2'])",
+            attributes=["aug"],
+            inner_join=True,
+        )
+        df = fs.ingest(fset, df, targets=[], infer_options=fs.InferOptions.default())
+        assert df.to_dict() == {
+            "foreignkey1": {
+                "mykey1_1": "AB",
+                "mykey1_2": "AB",
+                "mykey2_1": "DE",
+                "mykey2_2": "DE",
+            },
+            "foreignkey2": {
+                "mykey1_1": "C",
+                "mykey1_2": "C",
+                "mykey2_1": "F",
+                "mykey2_2": "F",
+            },
+            "aug": {"mykey1_1": "1", "mykey1_2": "1", "mykey2_1": "2", "mykey2_2": "2"},
         }
 
     def test_get_offline_features_with_tag(self):

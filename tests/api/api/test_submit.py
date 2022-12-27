@@ -337,7 +337,7 @@ def test_submit_job_with_hyper_params_file(
     )
 
     # Create test-specific mocks
-    auth_info = mlrun.api.schemas.AuthInfo(username="user", access_key=access_key)
+    auth_info = mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
     monkeypatch.setattr(
         mlrun.api.utils.auth.verifier.AuthVerifier(),
         "authenticate_request",

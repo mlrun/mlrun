@@ -713,8 +713,9 @@ def _submit_run(
                 )
                 .secrets
             )
-            if auth_info.access_key:
-                param_file_secrets["V3IO_ACCESS_KEY"] = auth_info.access_key
+            param_file_secrets["V3IO_ACCESS_KEY"] = (
+                auth_info.data_session or auth_info.access_key
+            )
 
             run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
             run_uid = run.metadata.uid

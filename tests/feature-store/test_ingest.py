@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 import mlrun
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.datastore.targets import DFTarget
 
 
@@ -32,9 +32,9 @@ def test_columns_with_illegal_characters(rundb_mock):
         }
     )
 
-    fset = fs.FeatureSet(
+    fset = fstore.FeatureSet(
         "myset",
-        entities=[fs.Entity("ticker")],
+        entities=[fstore.Entity("ticker")],
     )
     fset._run_db = rundb_mock
 
@@ -42,7 +42,7 @@ def test_columns_with_illegal_characters(rundb_mock):
     fset.save = unittest.mock.Mock()
     fset.purge_targets = unittest.mock.Mock()
 
-    result_df = fs.ingest(fset, df, targets=[DFTarget()])
+    result_df = fstore.ingest(fset, df, targets=[DFTarget()])
     assert list(result_df.columns) == ["bid_accepted", "ask", "with_space"]
 
 
@@ -56,19 +56,19 @@ def test_columns_with_illegal_characters_error():
         }
     )
 
-    fset = fs.FeatureSet(
+    fset = fstore.FeatureSet(
         "myset",
-        entities=[fs.Entity("ticker")],
+        entities=[fstore.Entity("ticker")],
     )
 
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        fs.ingest(fset, df)
+        fstore.ingest(fset, df)
 
 
 def test_set_targets_with_string():
-    fset = fs.FeatureSet(
+    fset = fstore.FeatureSet(
         "myset",
-        entities=[fs.Entity("ticker")],
+        entities=[fstore.Entity("ticker")],
     )
 
     fset.set_targets(["parquet", "nosql"], with_defaults=False)
@@ -95,9 +95,9 @@ def test_set_targets_with_string():
 
 
 def test_return_df(rundb_mock):
-    fset = fs.FeatureSet(
+    fset = fstore.FeatureSet(
         "myset",
-        entities=[fs.Entity("ticker")],
+        entities=[fstore.Entity("ticker")],
     )
 
     df = pd.DataFrame(
@@ -114,10 +114,10 @@ def test_return_df(rundb_mock):
     fset.save = unittest.mock.Mock()
     fset.purge_targets = unittest.mock.Mock()
 
-    result_df = fs.ingest(fset, df, targets=[DFTarget()], return_df=False)
+    result_df = fstore.ingest(fset, df, targets=[DFTarget()], return_df=False)
 
     assert result_df is None
 
-    result_df = fs.ingest(fset, df, targets=[DFTarget()])
+    result_df = fstore.ingest(fset, df, targets=[DFTarget()])
 
     assert isinstance(result_df, pd.DataFrame)

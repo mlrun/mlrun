@@ -1341,9 +1341,15 @@ class HTTPRunDB(RunDBInterface):
                 req["schedule"] = schedule
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
+
+        except requests.HTTPError as err:
+            logger.error(f"error submitting task: {err}")
+            # not creating a new exception here, in order to keep the response and status code in the exception
+            raise
+
         except OSError as err:
             logger.error(f"error submitting task: {err}")
-            raise OSError(f"error: cannot submit task, {err}")
+            raise OSError("error: cannot submit task") from err
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")

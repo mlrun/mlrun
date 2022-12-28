@@ -305,7 +305,7 @@ class TestArtifactTags:
             ],
         )
 
-        assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
+        assert response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
 
         # make sure the original tag was not deleted
         self._list_artifacts_and_assert(

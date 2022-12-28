@@ -176,6 +176,15 @@ def validate_tag_name(
     )
 
 
+def tag_name_regex_as_string() -> str:
+    return (
+        "".join(
+            ["(?={regex})".format(regex=regex) for regex in mlrun.utils.regex.tag_name]
+        )
+        + ".*$"
+    )
+
+
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):

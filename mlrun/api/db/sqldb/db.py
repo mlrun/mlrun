@@ -359,8 +359,6 @@ class SQLDB(DBInterface):
         tag: str,
         identifiers: typing.List[mlrun.api.schemas.ArtifactIdentifier],
     ):
-        # we want to validate the new tag name before deleting the existing tag
-        validate_tag_name(tag_name=tag, field_name="artifact.metadata.tag")
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:

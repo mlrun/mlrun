@@ -74,7 +74,7 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
         },
     )
 
-    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
     # test append invalid tag to artifact's tags
     resp = client.put(

@@ -343,9 +343,6 @@ def test_submit_job_with_hyper_params_file(
         "authenticate_request",
         lambda *args, **kwargs: auth_info,
     )
-    orig_get_dataitem = mlrun.MLClientCtx.get_dataitem
-    mlrun.MLClientCtx.get_dataitem = unittest.mock.Mock(return_value=_MockDataItem())
-
     project_secrets = {"SECRET1": "VALUE1"}
     k8s_secrets_mock.store_project_secrets(project_name, project_secrets)
 
@@ -355,16 +352,17 @@ def test_submit_job_with_hyper_params_file(
     task_spec["selector"] = "max.loss"
     task_spec["strategy"] = "list"
 
-    resp = client.post("submit_job", json=submit_job_body)
-    assert resp.status_code == http.HTTPStatus.OK.value
+    with unittest.mock.patch.object(
+        mlrun.MLClientCtx, "get_dataitem", return_value=_MockDataItem()
+    ) as data_item_mock:
+        resp = client.post("submit_job", json=submit_job_body)
+        assert resp.status_code == http.HTTPStatus.OK.value
 
-    # Validate that secrets were properly passed to get_dataitem
-    project_secrets.update({"V3IO_ACCESS_KEY": access_key})
-    mlrun.MLClientCtx.get_dataitem.assert_called_once_with(
-        task_spec["param_file"], secrets=project_secrets
-    )
-
-    mlrun.MLClientCtx.get_dataitem = orig_get_dataitem
+        # Validate that secrets were properly passed to get_dataitem
+        project_secrets.update({"V3IO_ACCESS_KEY": access_key})
+        data_item_mock.assert_called_once_with(
+            task_spec["param_file"], secrets=project_secrets
+        )
 
 
 def test_redirection_from_worker_to_chief_only_if_schedules_in_job(

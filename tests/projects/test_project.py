@@ -443,6 +443,19 @@ def test_set_func_requirements():
     ]
 
 
+def test_set_function_mask_credentials():
+    project = mlrun.projects.MlrunProject("newproj")
+    describe_func = mlrun.import_function("hub://describe", project=project.name)
+    describe_func.set_env("V3IO_ACCESS_KEY", "1234")
+    describe_func.metadata.credentials.access_key = "some-access-key"
+
+    project.set_function(describe_func, "describe")
+
+    masked_describe_func = project.get_function("describe")
+    assert masked_describe_func.metadata.credentials.access_key is None
+    assert masked_describe_func.get_env("V3IO_ACCESS_KEY") is None
+
+
 def test_set_func_with_tag():
     project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
     project.set_function(

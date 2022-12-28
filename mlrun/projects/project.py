@@ -1629,6 +1629,7 @@ class MlrunProject(ModelObj):
                 raise ValueError(
                     "default handler cannot be set for existing function object"
                 )
+            _mask_credentials_in_function_object(function_object)
             if image:
                 function_object.spec.image = image
             if with_repo:
@@ -2883,6 +2884,23 @@ def _init_function_from_obj(func, project, name=None):
         func.metadata.tag = project.spec.tag
     return name or func.metadata.name, func
 
+
+def _mask_credentials_in_function_object(function):
+    for env in function.spec.env:
+        # if env contain a value and not value_from, this means it wasn't masked then we remove it
+        # if env contain a value_from, this means it was masked then no need to remove it
+        if env.name.startswith("V3IO_") and not env.value_from:
+            env.value = None
+
+    if (
+        function.metadata.credentials
+        and function.metadata.credentials.access_key
+        and not function.metadata.credentials.access_key.startswith(
+            mlrun.model.Credentials.secret_reference_prefix
+        )
+    ):
+        function.metadata.credentials.access_key = None
+    return function
 
 def _init_function_from_dict_legacy(f, project):
     name = f.get("name", "")

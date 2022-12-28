@@ -1067,7 +1067,7 @@ class TestFeatureStore(TestMLRunSystem):
                     current_time - pd.Timedelta(minutes=4),
                     current_time - pd.Timedelta(minutes=5),
                 ],
-                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
+                "first_name": ["moshe", "moshe", "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 2500, 14],
             }
@@ -1075,7 +1075,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -1086,9 +1088,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fstore.preview(
             data_set,
-            data,  # source
+            source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
 
@@ -3268,6 +3269,54 @@ class TestFeatureStore(TestMLRunSystem):
                 fset,
                 source,
             )
+
+    # ML-3099
+    def test_preview_timestamp_key(self):
+        name = f"measurements_{uuid.uuid4()}"
+        base_time = pd.Timestamp(2021, 1, 1)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    base_time,
+                    base_time - pd.Timedelta(minutes=1),
+                    base_time - pd.Timedelta(minutes=2),
+                    base_time - pd.Timedelta(minutes=3),
+                    base_time - pd.Timedelta(minutes=4),
+                    base_time - pd.Timedelta(minutes=5),
+                ],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 2500, 14],
+            }
+        )
+
+        # write to kv
+        data_set = fstore.FeatureSet(
+            name, entities=[Entity("first_name"), Entity("last_name")]
+        )
+
+        data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
+        )
+        res_df = fstore.preview(
+            data_set,
+            source=data,
+            entity_columns=["first_name", "last_name"],
+            timestamp_key="time",
+            options=fstore.InferOptions.default(),
+        )
+        assert res_df.to_dict() == {
+            "bid_max_1h": {("moshe", "cohen"): 2000.0, ("yosi", "levi"): 11.0},
+            "bid_sum_1h": {("moshe", "cohen"): 2000.0, ("yosi", "levi"): 11.0},
+            "time": {
+                ("moshe", "cohen"): pd.Timestamp("2020-12-31 23:56:00"),
+                ("yosi", "levi"): pd.Timestamp("2020-12-31 23:55:00"),
+            },
+            "bid": {("moshe", "cohen"): 2500, ("yosi", "levi"): 14},
+        }
 
 
 def verify_purge(fset, targets):

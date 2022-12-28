@@ -51,94 +51,84 @@ def test_retry_until_successful_fatal_failure():
 
 
 @pytest.mark.parametrize(
-    "value, valid",
+    "value, expected",
     [
-        ("asd", True),
-        ("Asd", True),
-        ("AsA", True),
-        ("As-123_2.8A", True),
-        ("1As-123_2.8A5", True),
+        ("asd", does_not_raise()),
+        ("Asd", does_not_raise()),
+        ("AsA", does_not_raise()),
+        ("As-123_2.8A", does_not_raise()),
+        ("1As-123_2.8A5", does_not_raise()),
         (
             "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
-            True,
+            does_not_raise(),
         ),
         (
             # Invalid because the first letter is -
             "-As-123_2.8A",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             # Invalid because the last letter is .
             "As-123_2.8A.",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             # Invalid because $ is not allowed
             "As-123_2.8A$a",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             # Invalid because it's more then 63 characters
             "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
     ],
 )
-def test_run_name_regex(value, valid):
-    try:
+def test_run_name_regex(value, expected):
+    with expected:
         verify_field_regex("test_field", value, mlrun.utils.regex.run_name)
-    except Exception:
-        if valid:
-            raise
-    else:
-        if not valid:
-            raise
 
 
 @pytest.mark.parametrize(
-    "value,valid",
+    "value,expected",
     [
-        ("asd", True),
-        ("asdlnasd-123123-asd", True),
+        ("asd", does_not_raise()),
+        ("asdlnasd-123123-asd", does_not_raise()),
         # DNS-1035
-        ("t012312-asdasd", True),
+        ("t012312-asdasd", does_not_raise()),
         (
             # Starts with alphanumeric number
             "012312-asdasd",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
-        ("As-123_2.8A", False),
-        ("1As-123_2.8A5", False),
+        ("As-123_2.8A", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+        ("1As-123_2.8A5", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
         (
             # Invalid because the first letter is -
             "-As-123_2.8A",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             # Invalid because the last letter is .
             "As-123_2.8A.",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             # Invalid because $ is not allowed
             "As-123_2.8A$a",
-            False,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         # sprakjob length 29
-        ("asdnoinasoidas-asdaskdlnaskdl", True),
-        ("asdnoinasoidas-asdaskdlnaskdl2", False),
+        ("asdnoinasoidas-asdaskdlnaskdl", does_not_raise()),
+        (
+            "asdnoinasoidas-asdaskdlnaskdl2",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
     ],
 )
-def test_spark_job_name_regex(value, valid):
-    try:
+def test_spark_job_name_regex(value, expected):
+    with expected:
         verify_field_regex("test_field", value, mlrun.utils.regex.sparkjob_name)
-    except Exception as exc:
-        print(exc)
-        if valid:
-            raise
-    else:
-        if not valid:
-            raise
 
 
 def test_extend_hub_uri():
@@ -180,44 +170,38 @@ def test_extend_hub_uri():
 
 
 @pytest.mark.parametrize(
-    "tag_name,raise_on_failure,expected",
+    "tag_name,expected",
     [
         (
             "tag_name",
-            True,
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             "tag_with_char!@#",
-            True,
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             "tag^name",
-            True,
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             "(tagname)",
-            True,
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
         (
             "tagname%",
-            True,
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
-        ("tagname2.0", True, does_not_raise()),
-        ("tag-name", True, does_not_raise()),
-        ("tag-NAME", True, does_not_raise()),
+        ("tagname2.0", does_not_raise()),
+        ("tag-name", does_not_raise()),
+        ("tag-NAME", does_not_raise()),
     ],
 )
-def test_validate_tag_name(tag_name, raise_on_failure, expected):
+def test_validate_tag_name(tag_name, expected):
     with expected:
         validate_tag_name(
             tag_name,
             field_name="artifact.metadata,tag",
-            raise_on_failure=raise_on_failure,
         )
 
 

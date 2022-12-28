@@ -67,6 +67,6 @@ class FrontendSpec(pydantic.BaseModel):
     default_function_preemption_mode: str
     feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
 
-    # ce_mode is deprecated, we will use the full ce config instead
+    # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
     ce_mode: typing.Optional[str]
-    ce: typing.Optional[typing.Dict[str, str]]
+    ce: typing.Optional[dict]

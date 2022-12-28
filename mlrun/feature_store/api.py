@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import warnings
 from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
@@ -597,7 +598,7 @@ def preview(
     :param featureset:     feature set object or uri
     :param source:         source dataframe or csv/parquet file path
     :param entity_columns: list of entity (index) column names
-    :param timestamp_key:  timestamp column name
+    :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
@@ -611,7 +612,15 @@ def preview(
 
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
+        warnings.warn(
+            "preview's timestamp_key parameter is deprecated. Please pass this parameter to FeatureSet instead",
+            # TODO: Remove this API in 1.4.0
+            PendingDeprecationWarning,
+        )
         featureset.spec.timestamp_key = timestamp_key
+        for step in featureset.graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                step.class_args["time_field"] = timestamp_key
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame

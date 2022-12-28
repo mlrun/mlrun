@@ -1067,7 +1067,7 @@ class TestFeatureStore(TestMLRunSystem):
                     current_time - pd.Timedelta(minutes=4),
                     current_time - pd.Timedelta(minutes=5),
                 ],
-                "first_name": ["moshe", "moshe", "yosi", "yosi", "moshe", "yosi"],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
                 "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
                 "bid": [2000, 10, 11, 12, 2500, 14],
             }

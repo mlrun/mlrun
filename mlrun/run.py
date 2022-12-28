@@ -1775,9 +1775,10 @@ class ContextHandler:
                 if len(instructions) > 2:
                     logging_kwargs = instructions[2]
             # Check if the object to log is None (None values are only logged if the artifact type is Result):
-            if obj is None and (
-                artifact_type != ArtifactType.RESULT.value
-                or self._context.results.get(str(key))
+            if (
+                obj is None
+                and artifact_type != ArtifactType.RESULT.value
+                and not self._context.results.get(str(key))
             ):
                 continue
             # Log:

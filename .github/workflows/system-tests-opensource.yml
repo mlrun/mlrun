@@ -74,7 +74,8 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
-          -r dockerfiles/mlrun-api/requirements.txt -r extras-requirements.txt && pip install -e .
+          -r dockerfiles/mlrun-api/requirements.txt -r dev-requirements.txt \
+          -r extras-requirements.txt && pip install -e .
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space

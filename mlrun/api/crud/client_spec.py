@@ -86,8 +86,9 @@ class ClientSpec(
             ),
             force_run_local=self._get_config_value_if_not_default("force_run_local"),
             function=self._get_config_value_if_not_default("function"),
+            # ce_mode is deprecated, we will use the full ce config instead
             ce_mode=config.ce.mode,
-            ce_version=config.ce.release,
+            ce=config.ce.to_dict(),
             logs=self._get_config_value_if_not_default("httpdb.logs"),
             feature_store_data_prefixes=self._get_config_value_if_not_default(
                 "feature_store.data_prefixes"

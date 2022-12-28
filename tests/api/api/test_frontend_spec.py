@@ -206,16 +206,16 @@ def test_get_frontend_spec_ce(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     ce_mode = "some-ce-mode"
-    ce_version = "y.y.y"
+    ce_release = "y.y.y"
     mlrun.mlconf.ce.mode = ce_mode
-    mlrun.mlconf.ce.release = ce_version
+    mlrun.mlconf.ce.release = ce_release
 
     response = client.get("frontend-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
 
-    assert frontend_spec.ce_version == ce_version
-    assert frontend_spec.ce_mode == ce_mode
+    assert frontend_spec.ce["release"] == ce_release
+    assert frontend_spec.ce["mode"] == frontend_spec.ce_mode == ce_mode
 
 
 def test_get_frontend_spec_feature_store_data_prefixes(

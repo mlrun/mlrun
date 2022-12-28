@@ -55,8 +55,10 @@ class ClientSpec(pydantic.BaseModel):
     function: typing.Optional[Function]
     redis_url: typing.Optional[str]
     redis_type: typing.Optional[str]
+
+    # ce_mode is deprecated, we will use the full ce config instead
     ce_mode: typing.Optional[str]
-    ce_version: typing.Optional[str]
+    ce: typing.Optional[typing.Dict[str, str]]
     # not passing them as one object as it possible client user would like to override only one of the params
     calculate_artifact_hash: typing.Optional[str]
     generate_artifact_target_path_from_artifact_hash: typing.Optional[str]

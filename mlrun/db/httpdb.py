@@ -265,8 +265,14 @@ class HTTPRunDB(RunDBInterface):
                     f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
                     " CE mode don't match"
                 )
-            config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
-            config.ce.release = server_cfg.get("ce_version") or config.ce.release
+            config.ce.mode = (
+                server_cfg.get("ce", {}).get("mode")
+                or server_cfg.get("ce_mode")
+                or config.ce.mode
+            )
+            config.ce.release = (
+                server_cfg.get("ce", {}).get("release") or config.ce.release
+            )
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")

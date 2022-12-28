@@ -29,6 +29,7 @@ import mlrun
 import mlrun.api.schemas
 from mlrun.utils import (
     RunNotifications,
+    get_ui_url,
     logger,
     new_pipe_meta,
     parse_versioned_object_uri,
@@ -76,6 +77,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
+        overwrite: bool = None,
     ):
         self.engine = engine
         self.code = code
@@ -88,6 +90,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
+        self.overwrite = overwrite
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -713,45 +716,68 @@ class _RemoteRunner(_PipelineRunner):
         runner_name = f"workflow-runner-{workflow_name}"
         run_id = None
 
-        try:
-            # Creating the load project and workflow running function:
-            load_and_run_fn = mlrun.new_function(
-                name=runner_name,
-                project=project.name,
-                kind="job",
-                image=mlrun.mlconf.default_base_image,
-            )
-            msg = "executing workflow "
-            if workflow_spec.schedule:
-                msg += "scheduling "
-            logger.info(
-                f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
-            )
-            runspec = mlrun.RunObject.from_dict(
-                {
-                    "spec": {
-                        "parameters": {
-                            "url": project.spec.source,
-                            "project_name": project.name,
-                            "workflow_name": workflow_name or workflow_spec.name,
-                            "workflow_path": workflow_spec.path,
-                            "workflow_arguments": workflow_spec.args,
-                            "artifact_path": artifact_path,
-                            "workflow_handler": workflow_handler
-                            or workflow_spec.handler,
-                            "namespace": namespace,
-                            "ttl": workflow_spec.ttl,
-                            "engine": workflow_spec.engine,
-                            "local": workflow_spec.run_local,
-                        },
-                        "handler": "mlrun.projects.load_and_run",
+        # Creating the load project and workflow running function:
+        load_and_run_fn = mlrun.new_function(
+            name=runner_name,
+            project=project.name,
+            kind="job",
+            image=mlrun.mlconf.default_base_image,
+        )
+
+        runspec = mlrun.RunObject.from_dict(
+            {
+                "spec": {
+                    "parameters": {
+                        "url": project.spec.source,
+                        "project_name": project.name,
+                        "workflow_name": workflow_name or workflow_spec.name,
+                        "workflow_path": workflow_spec.path,
+                        "workflow_arguments": workflow_spec.args,
+                        "artifact_path": artifact_path,
+                        "workflow_handler": workflow_handler or workflow_spec.handler,
+                        "namespace": namespace,
+                        "ttl": workflow_spec.ttl,
+                        "engine": workflow_spec.engine,
+                        "local": workflow_spec.run_local,
                     },
-                    "metadata": {"name": workflow_name},
-                }
-            )
-            runspec = runspec.set_label("job-type", "workflow-runner").set_label(
-                "workflow", workflow_name
-            )
+                    "handler": "mlrun.projects.load_and_run",
+                },
+                "metadata": {"name": workflow_name},
+            }
+        )
+        runspec = runspec.set_label("job-type", "workflow-runner").set_label(
+            "workflow", workflow_name
+        )
+        if workflow_spec.schedule:
+            is_scheduled = True
+            schedule_name = runspec.spec.parameters.get("workflow_name")
+            run_db = mlrun.get_run_db()
+
+            try:
+                run_db.get_schedule(project.name, schedule_name)
+            except mlrun.errors.MLRunNotFoundError:
+                is_scheduled = False
+
+            if workflow_spec.overwrite:
+                if is_scheduled:
+                    logger.info(f"Deleting schedule {schedule_name}")
+                    run_db.delete_schedule(project.name, schedule_name)
+                else:
+                    logger.info(
+                        f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
+                    )
+            elif is_scheduled:
+                raise mlrun.errors.MLRunConflictError(
+                    f"There is already a schedule for workflow {schedule_name}."
+                    " If you want to overwrite this schedule use 'overwrite = True'"
+                )
+
+        msg = "executing workflow "
+        if workflow_spec.schedule:
+            msg += "scheduling "
+        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
+
+        try:
             run = load_and_run_fn.run(
                 runspec=runspec,
                 local=False,
@@ -887,15 +913,27 @@ def load_and_run(
     engine: str = None,
     local: bool = None,
 ):
-    project = mlrun.load_project(
-        context=f"./{project_name}",
-        url=url,
-        name=project_name,
-        init_git=init_git,
-        subpath=subpath,
-        clone=clone,
-    )
-    context.logger.info(f"Loaded project {project.name} from remote successfully")
+    try:
+        project = mlrun.load_project(
+            context=f"./{project_name}",
+            url=url,
+            name=project_name,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+        )
+    except Exception as error:
+        # TODO: change this to the new notifications, once they are merged
+        # Notifying to slack in case of scheduling:
+        slack = RunNotifications(with_slack=True)
+        url = get_ui_url(project_name, context.uid)
+        link = f"<{url}|*view workflow job details*>"
+        message = (
+            f":x: Failed to run scheduled workflow {workflow_name} in Project {project_name} !"
+            f"\nerror: ```{error}```\n{link}"
+        )
+        slack.push(message=message)
+        raise error
 
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")

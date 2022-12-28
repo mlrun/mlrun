@@ -18,7 +18,7 @@ k8s_character_limit = [r"^.{0,63}$"]
 
 # k8s label value format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L161
-label_value = [r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$"] + k8s_character_limit
+label_value = k8s_character_limit + [r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$"]
 
 # DNS Subdomain (RFC 1123) - used by k8s for most resource names format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L204
@@ -29,7 +29,7 @@ dns_1123_subdomain = [
 
 # DNS Label (RFC 1123) - used by k8s for resource names format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L183
-dns_1123_label = [r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"] + k8s_character_limit
+dns_1123_label = k8s_character_limit + [r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"]
 
 # DNS 1035 - used by k8s for services services
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L220
@@ -73,6 +73,6 @@ project_name = dns_1123_label
 
 # Special characters are not permitted in tag names because they can be included in the url and cause problems.
 # We only accept letters, capital letters, numbers, dots, and hyphens, with a k8s character limit.
-tag_name = [r"^(([A-Za-z0-9][-A-Za-z0-9.]*)?[A-Za-z0-9])?$"] + k8s_character_limit
+tag_name = k8s_character_limit + [r"^(([A-Za-z0-9][-A-Za-z0-9.]*)?[A-Za-z0-9])?$"]
 
 secret_key = k8s_secret_and_config_map_key

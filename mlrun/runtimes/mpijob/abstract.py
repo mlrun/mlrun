@@ -200,6 +200,12 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
         return None
 
+    def _post_run(self, result, execution: MLClientCtx):
+        # we get the run object from the DB since it might have been updated multiple times by mpi workers
+        # and we want to ensure we have the latest version of it
+        resp = self._get_db_run(result)
+        execution.from_dict(resp)
+
     def _submit_mpijob(self, job, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
 

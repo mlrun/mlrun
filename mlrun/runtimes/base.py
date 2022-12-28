@@ -857,7 +857,7 @@ class BaseRuntime(ModelObj):
     def _pre_run(self, runspec: RunObject, execution):
         pass
 
-    def _post_run(self, results, execution):
+    def _post_run(self, result, execution):
         pass
 
     def _run(self, runobj: RunObject, execution) -> dict:

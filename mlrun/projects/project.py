@@ -1501,7 +1501,7 @@ class MlrunProject(ModelObj):
         elif item_path.endswith(".json"):
             artifact_dict = json.loads(dataitem.get())
             artifact = get_artifact(artifact_dict)
-        elif item_path.endswith(".zip"):
+        elif item_path.endswith(".zip") and dataitem.kind == "file":
             item_file = dataitem.local()
             with tempfile.TemporaryDirectory() as temp_dir:
                 with zipfile.ZipFile(item_file, "r") as zf:
@@ -1516,10 +1516,6 @@ class MlrunProject(ModelObj):
                 return self.log_artifact(
                     artifact, local_path=temp_dir, artifact_path=artifact_path
                 )
-
-            # TODO - unreachable (weak) code (see return)
-            if dataitem.kind != "file":
-                remove(item_file)
         else:
             raise ValueError("unsupported file suffix, use .yaml, .json, or .zip")
 

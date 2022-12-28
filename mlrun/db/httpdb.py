@@ -147,6 +147,7 @@ class HTTPRunDB(RunDBInterface):
         :param method: REST method (POST, GET, PUT...)
         :param path: Path to endpoint executed, for example ``"projects"``
         :param error: Error to return if API invocation fails
+        :param params: Rest parameters, passed as a dictionary: ``{"<param-name>": <"param-value">}``
         :param body: Payload to be passed in the call. If using JSON objects, prefer using the ``json`` param
         :param json: JSON payload to be passed in the call
         :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
@@ -1743,6 +1744,7 @@ class HTTPRunDB(RunDBInterface):
         the function.
 
         :param feature_set: The :py:class:`~mlrun.feature_store.FeatureSet` to store.
+        :param name:    Name of feature set.
         :param project: Name of project this feature-set belongs to.
         :param tag: The ``tag`` of the object to replace in the DB, for example ``latest``.
         :param uid: The ``uid`` of the object to replace in the DB. If using this parameter, the modified object
@@ -1951,6 +1953,7 @@ class HTTPRunDB(RunDBInterface):
         of the function.
 
         :param feature_vector: The :py:class:`~mlrun.feature_store.FeatureVector` to store.
+        :param name:    Name of feature vector.
         :param project: Name of project this feature-vector belongs to.
         :param tag: The ``tag`` of the object to replace in the DB, for example ``latest``.
         :param uid: The ``uid`` of the object to replace in the DB. If using this parameter, the modified object

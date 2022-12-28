@@ -308,6 +308,7 @@ class BaseRuntime(ModelObj):
         local=False,
         local_code_path=None,
         auto_build=None,
+        param_file_secrets: Dict[str, str] = None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -336,7 +337,8 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-
+        :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
+                            These secrets are only used locally and will not be stored anywhere
         :return: run context object (RunObject) with run metadata, results and status
         """
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
@@ -431,7 +433,9 @@ class BaseRuntime(ModelObj):
         self._verify_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
-        task_generator = get_generator(run.spec, execution)
+        task_generator = get_generator(
+            run.spec, execution, param_file_secrets=param_file_secrets
+        )
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)

@@ -3307,15 +3307,32 @@ class TestFeatureStore(TestMLRunSystem):
             timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
-        assert res_df.to_dict() == {
-            "bid_max_1h": {("moshe", "cohen"): 2000.0, ("yosi", "levi"): 11.0},
-            "bid_sum_1h": {("moshe", "cohen"): 2000.0, ("yosi", "levi"): 11.0},
-            "time": {
-                ("moshe", "cohen"): pd.Timestamp("2020-12-31 23:56:00"),
-                ("yosi", "levi"): pd.Timestamp("2020-12-31 23:55:00"),
-            },
-            "bid": {("moshe", "cohen"): 2500, ("yosi", "levi"): 14},
-        }
+        expected_df = pd.DataFrame(
+            [
+                ("moshe", "cohen", 2000.0, 2000.0, base_time, 2000),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=2), 11),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=3), 12),
+                (
+                    "moshe",
+                    "cohen",
+                    2000.0,
+                    2000.0,
+                    base_time - pd.Timedelta(minutes=4),
+                    2500,
+                ),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=5), 14),
+            ],
+            columns=[
+                "first_name",
+                "last_name",
+                "bid_sum_1h",
+                "bid_max_1h",
+                "time",
+                "bid",
+            ],
+        )
+        expected_df.set_index(["first_name", "last_name"], inplace=True)
+        assert res_df.equals(expected_df), f"unexpected result: {res_df}"
 
 
 def verify_purge(fset, targets):

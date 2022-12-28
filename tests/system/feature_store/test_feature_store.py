@@ -2525,7 +2525,6 @@ class TestFeatureStore(TestMLRunSystem):
             featureset=fset,
             source=quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
         )
 
         filename = str(

@@ -46,11 +46,9 @@ def post_report_to_slack(report: TestReport, slack_webhook_url: str):
         "attachments": [
             {
                 "color": "danger",
-                "title": "System test failure details",
                 "fields": [
                     {
-                        "title": "Failure",
-                        "value": f"```{report.longreprtext}```",
+                        "value": f"```{report.longreprtext[-1000:]}```",
                         "short": False,
                     },
                 ],

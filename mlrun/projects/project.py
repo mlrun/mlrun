@@ -43,7 +43,7 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.utils import add_code_metadata
+from ..runtimes.utils import add_code_metadata, get_item_name, set_item_attribute
 from ..secrets import SecretsStore
 from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
@@ -2886,11 +2886,22 @@ def _init_function_from_obj(func, project, name=None):
 
 
 def _mask_credentials_in_function_object(function):
+    env_to_mask = [
+        "V3IO_ACCESS_KEY",
+        "V3IO_USERNAME",
+        "V3IO_PASSWORD",
+        "V3IO_API",
+        "V3IO_FRAMESD",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+    ]
     for env in function.spec.env:
         # if env contain a value and not value_from, this means it wasn't masked then we remove it
         # if env contain a value_from, this means it was masked then no need to remove it
-        if env.name.startswith("V3IO_") and not env.value_from:
-            env.value = None
+        env_name = get_item_name(env, "name")
+        env_value_from = get_item_name(env, "value_from")
+        if env_name in env_to_mask and not env_value_from:
+            set_item_attribute(env, "value", None)
 
     if (
         function.metadata.credentials
@@ -2900,7 +2911,43 @@ def _mask_credentials_in_function_object(function):
         )
     ):
         function.metadata.credentials.access_key = None
+
+    _mask_volumes_in_function_object(function)
+
     return function
+
+
+def _mask_volumes_in_function_object(function):
+    should_remove_v3io_mounts = False
+    volumes = []
+    for volume in function.spec.volumes:
+        if get_item_name(volume, "name") == "v3io":
+            flex_volume = get_item_name(volume, "flexVolume")
+            if flex_volume:
+                # if it has a secret reference, then it was masked then no need to remove it
+                # just remove the plane access key reference
+                if get_item_name(flex_volume, "secretRef"):
+                    if get_item_name(flex_volume, "options"):
+                        # mainly for sanity that we don't leave any access key not masked
+                        options = get_item_name(flex_volume, "options")
+                        if get_item_name(options, "accessKey"):
+                            set_item_attribute(options, "accessKey", None)
+                # if it doesn't has a secret reference, then it wasn't masked then we remove it
+                else:
+                    should_remove_v3io_mounts = True
+                    continue
+        volumes.append(volume)
+
+    function.spec.volumes = volumes
+    if should_remove_v3io_mounts:
+        volume_mounts = []
+        for volume_mount in function.spec.volume_mounts:
+            if get_item_name(volume_mount, "name") == "v3io":
+                continue
+            volume_mounts.append(volume_mount)
+
+        function.spec.volume_mounts = volume_mounts
+
 
 def _init_function_from_dict_legacy(f, project):
     name = f.get("name", "")

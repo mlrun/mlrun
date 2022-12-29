@@ -443,17 +443,64 @@ def test_set_func_requirements():
     ]
 
 
-def test_set_function_mask_credentials():
+def test_set_function_mask_v3io_credentials():
     project = mlrun.projects.MlrunProject("newproj")
-    describe_func = mlrun.import_function("hub://describe", project=project.name)
-    describe_func.set_env("V3IO_ACCESS_KEY", "1234")
-    describe_func.metadata.credentials.access_key = "some-access-key"
+    describe_func1 = mlrun.import_function("hub://describe", project=project.name)
+    v3io_access_key = "v3io-access-key"
+    v3io_username = "v3io-username"
 
-    project.set_function(describe_func, "describe")
+    os.environ["V3IO_ACCESS_KEY"] = v3io_access_key
+    os.environ["V3IO_USERNAME"] = v3io_username
+
+    describe_func1.apply(mlrun.platforms.auto_mount())
+    assert describe_func1.get_env("V3IO_ACCESS_KEY") is not None
+    assert describe_func1.get_env("V3IO_USERNAME") is not None
+    assert describe_func1.spec.volumes[0]["name"] == "v3io"
+    assert (
+        describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"]
+        == v3io_access_key
+    )
+    assert describe_func1.spec.volume_mounts[0]["name"] == "v3io"
+    describe_func1.metadata.credentials.access_key = "some-access-key"
+
+    project.set_function(describe_func1, "describe")
 
     masked_describe_func = project.get_function("describe")
     assert masked_describe_func.metadata.credentials.access_key is None
     assert masked_describe_func.get_env("V3IO_ACCESS_KEY") is None
+    assert masked_describe_func.get_env("V3IO_USERNAME") is None
+    assert masked_describe_func.spec.volumes == []
+    assert masked_describe_func.spec.volume_mounts == []
+
+    secret_name = "v3io-secret"
+    describe_func1 = mlrun.import_function(
+        "hub://describe", project=project.name, new_name="describe1"
+    )
+    describe_func1.apply(mlrun.platforms.mount_v3io(secret=secret_name))
+
+    assert describe_func1.get_env("V3IO_ACCESS_KEY") is None
+    assert describe_func1.get_env("V3IO_USERNAME") is None
+    assert describe_func1.spec.volumes[0]["name"] == "v3io"
+    assert (
+        describe_func1.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+    )
+    assert (
+        describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"]
+        == v3io_access_key
+    )
+
+    project.set_function(describe_func1, "describe1")
+
+    masked_describe1_func = project.get_function("describe1")
+    assert masked_describe1_func.metadata.credentials.access_key is None
+    assert masked_describe1_func.get_env("V3IO_ACCESS_KEY") is None
+    assert masked_describe1_func.get_env("V3IO_USERNAME") is None
+    assert masked_describe1_func.spec.volume_mounts == describe_func1.spec.volume_mounts
+    assert masked_describe1_func.spec.volumes[0]["name"] == "v3io"
+    assert (
+        describe_func1.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+    )
+    assert describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
 
 
 def test_set_func_with_tag():

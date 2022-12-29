@@ -114,7 +114,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
             return_value=(
                 mlrun.api.schemas.AuthInfo(
                     username=None,
-                    session="some-session",
+                    session="946b0749-5c40-4837-a4ac-341d295bfaf7",
                     user_id=None,
                     user_unix_id=0,
                     user_group_ids=[],
@@ -131,7 +131,7 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     assert frontend_spec.jobs_dashboard_url is None
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called_once()
 
-    # happy secnario - grafana url found, verify returned correctly
+    # happy scenario - grafana url found, verify returned correctly
     grafana_url = "some-url.com"
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url = (
         unittest.mock.Mock(return_value=grafana_url)
@@ -150,7 +150,10 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     # now one time with the 3.0 iguazio auth way
     mlrun.mlconf.httpdb.authentication.mode = "none"
     mlrun.api.utils.clients.iguazio.Client().try_get_grafana_service_url.reset_mock()
-    response = client.get("frontend-spec", cookies={"session": "some-session-cookie"})
+    response = client.get(
+        "frontend-spec",
+        cookies={"session": 'j:{"sid":"946b0749-5c40-4837-a4ac-341d295bfaf7"}'},
+    )
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
     assert (
@@ -197,3 +200,47 @@ def test_get_frontend_spec_nuclio_streams(
         assert frontend_spec.feature_flags.nuclio_streams == test_case.get(
             "expected_feature_flag"
         )
+
+
+def test_get_frontend_spec_ce(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    ce_mode = "some-ce-mode"
+    ce_version = "y.y.y"
+    mlrun.mlconf.ce.mode = ce_mode
+    mlrun.mlconf.ce.release = ce_version
+
+    response = client.get("frontend-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+
+    assert frontend_spec.ce_version == ce_version
+    assert frontend_spec.ce_mode == ce_mode
+
+
+def test_get_frontend_spec_feature_store_data_prefixes(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    feature_store_data_prefix_default = "feature-store-data-prefix-default"
+    feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
+    feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
+    mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
+    mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
+    mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
+        feature_store_data_prefix_redisnosql
+    )
+    response = client.get("frontend-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    assert (
+        frontend_spec.feature_store_data_prefixes["default"]
+        == feature_store_data_prefix_default
+    )
+    assert (
+        frontend_spec.feature_store_data_prefixes["nosql"]
+        == feature_store_data_prefix_nosql
+    )
+    assert (
+        frontend_spec.feature_store_data_prefixes["redisnosql"]
+        == feature_store_data_prefix_redisnosql
+    )

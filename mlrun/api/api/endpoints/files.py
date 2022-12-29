@@ -23,6 +23,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
+from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -139,7 +140,7 @@ def _get_files(
 
         body = obj.get(size, offset)
     except FileNotFoundError as exc:
-        log_and_raise(HTTPStatus.NOT_FOUND.value, path=objpath, err=str(exc))
+        log_and_raise(HTTPStatus.NOT_FOUND.value, path=objpath, err=err_to_str(exc))
 
     if body is None:
         log_and_raise(HTTPStatus.NOT_FOUND.value, path=objpath)
@@ -176,7 +177,7 @@ def _get_filestat(
     try:
         stat = store_manager.object(url=path, secrets=secrets).stat()
     except FileNotFoundError as exc:
-        log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=str(exc))
+        log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc))
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:

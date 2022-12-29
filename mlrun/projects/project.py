@@ -357,7 +357,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url} or context"
+            message = f"loaded project {name} from {url or context}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -440,7 +440,7 @@ def _load_project_file(url, name="", secrets=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(f"cant find project file at {url}, {exc}")
+        raise FileNotFoundError(f"cant find project file at {url}") from exc
     struct = yaml.load(obj, Loader=yaml.FullLoader)
     return _project_instance_from_struct(struct, name)
 
@@ -1341,9 +1341,10 @@ class MlrunProject(ModelObj):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
+        :param local_path:    path to the local dataframe file that exists locally.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param artifact_path: target artifact path (when not using the default).
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag

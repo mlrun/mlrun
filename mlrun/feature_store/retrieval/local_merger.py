@@ -78,10 +78,12 @@ class LocalFeatureMerger(BaseMerger):
 
         if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)
-        self._write_to_target()
 
         # check if need to set indices
         self._set_indexes(self._result_df)
+
+        self._write_to_target()
+
         return OfflineVectorResponse(self)
 
     def _asof_join(

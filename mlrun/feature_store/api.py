@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import warnings
 from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
@@ -597,7 +598,7 @@ def preview(
     :param featureset:     feature set object or uri
     :param source:         source dataframe or csv/parquet file path
     :param entity_columns: list of entity (index) column names
-    :param timestamp_key:  timestamp column name
+    :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
@@ -611,7 +612,15 @@ def preview(
 
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
+        warnings.warn(
+            "preview's timestamp_key parameter is deprecated. Please pass this parameter to FeatureSet instead",
+            # TODO: Remove this API in 1.4.0
+            PendingDeprecationWarning,
+        )
         featureset.spec.timestamp_key = timestamp_key
+        for step in featureset.graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                step.class_args["time_field"] = timestamp_key
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
@@ -698,7 +707,7 @@ def deploy_ingestion_service(
         source = HTTPSource()
         func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
         config = RunConfig(function=func)
-        fs.deploy_ingestion_service(my_set, source, run_config=config)
+        fstore.deploy_ingestion_service(my_set, source, run_config=config)
 
     :param featureset:    feature set object or uri
     :param source:        data source object describing the online or offline source
@@ -795,7 +804,7 @@ def _ingest_with_spark(
             df = source
         else:
             df = source.to_spark_df(spark)
-            df = source.filter_df_start_end_time(df)
+            df = source.filter_df_start_end_time(df, featureset.spec.timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         _infer_from_static_df(df, featureset, options=infer_options)
@@ -882,7 +891,6 @@ def _ingest_with_spark(
     finally:
         if created_spark_context:
             spark.stop()
-            spark.sparkContext.stop()
             # We shouldn't return a dataframe that depends on a stopped context
             df = None
     if return_df:
@@ -974,6 +982,7 @@ def get_feature_vector(uri, project=None):
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):
     """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
@@ -996,6 +1005,7 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
 
 def delete_feature_vector(name, project="", tag=None, uid=None):
     """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag

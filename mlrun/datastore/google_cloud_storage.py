@@ -58,8 +58,8 @@ class GoogleCloudStorageStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"Google gcsfs not installed, run pip install gcsfs, {exc}"
-                )
+                    "Google gcsfs not installed, run pip install gcsfs"
+                ) from exc
             return None
 
         self._filesystem = fsspec.filesystem("gcs", **self.get_storage_options())

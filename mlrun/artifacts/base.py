@@ -868,17 +868,6 @@ class DirArtifactSpec(ArtifactSpec):
 class DirArtifact(Artifact):
     kind = "dir"
 
-    _dict_fields = [
-        "key",
-        "kind",
-        "iter",
-        "tree",
-        "src_path",
-        "target_path",
-        "description",
-        "db_key",
-    ]
-
     @property
     def spec(self) -> DirArtifactSpec:
         return self._spec

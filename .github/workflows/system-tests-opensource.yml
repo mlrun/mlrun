@@ -74,13 +74,12 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
-          -r dockerfiles/mlrun-api/requirements.txt -r extras-requirements.txt && pip install -e .
+          -r dockerfiles/mlrun-api/requirements.txt -r dev-requirements.txt \
+          -r extras-requirements.txt && pip install -e .
 
     # since github-actions gives us 14G only, and fills it up with some garbage
-    # we will free up some space for us (~2GB)
     - name: Freeing up disk space
       run: |
-        chmod +x "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
@@ -187,7 +186,6 @@ jobs:
             --debug \
             --wait \
             --timeout 600s \
-            -f https://raw.githubusercontent.com/mlrun/ce/development/charts/mlrun-ce/override-full.yaml \
             --set kube-prometheus-stack.enabled=false \
             --set mlrun.httpDB.dbType="sqlite" \
             --set mlrun.httpDB.dirPath="/mlrun/db" \

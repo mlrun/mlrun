@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import typing
 from os.path import isdir
 
 import mlrun.config
@@ -127,8 +128,8 @@ class ArtifactManager:
 
     def log_artifact(
         self,
-        producer,
-        item,
+        producer: typing.Union["ArtifactProducer", "mlrun.MLClientCtx"],
+        item: Artifact,
         body=None,
         target_path="",
         tag="",
@@ -141,6 +142,29 @@ class ArtifactManager:
         db_key=None,
         **kwargs,
     ) -> Artifact:
+        """
+        Log an artifact to the DB and upload it to the artifact store.
+        :param producer: The producer of the artifact, the producer depends from where the artifact is being logged.
+        :param item: The artifact to log.
+        :param body: The body of the artifact.
+        :param target_path: The target path of the artifact. (cannot be a relative path)
+                            If not provided, the artifact will be stored in the default artifact path.
+                            If provided and is a remote path (e.g. s3://bucket/path), no artifact will be uploaded
+                            as it already exists.
+        :param tag: The tag of the artifact.
+        :param viewer: Kubeflow viewer type
+        :param local_path: The local path of the artifact. If remote path is provided then the artifact won't be
+                            uploaded and this parameter will be used as the target path.
+        :param artifact_path: The path to store the artifact.
+         If not provided, the artifact will be stored in the default artifact path.
+        :param format: The format of the artifact. (e.g. csv, json, html, etc.)
+        :param upload: Whether to upload the artifact or not.
+        :param labels: Labels to add to the artifact.
+        :param db_key: The key to use when logging the artifact to the DB.
+        If not provided, will generate a key based on the producer name and the artifact key.
+        :param kwargs: Arguments to pass to the artifact class.
+        :return: The logged artifact.
+        """
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
@@ -236,6 +260,14 @@ class ArtifactManager:
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
     def _log_to_db(self, key, project, sources, item, tag=None):
+        """
+        log artifact to db
+        :param key: Identifying key of the artifact.
+        :param project: Project that the artifact belongs to.
+        :param sources: List of artifact sources ( Mainly passed from the producer.items ).
+        :param item: The actual artifact to store.
+        :param tag: The name of the Tag of the artifact.
+        """
         if self.artifact_db:
             item.updated = None
             if sources:

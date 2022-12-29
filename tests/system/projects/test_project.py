@@ -633,8 +633,14 @@ class TestProject(TestMLRunSystem):
             schedule.scheduled_object["schedule"] == schedules[1]
         ), "Failed to overwrite existing schedule"
 
+        expected_error_message = (
+            f"There is already a schedule for workflow {workflow_name}."
+            f" If you want to overwrite this schedule use 'overwrite = True'"
+        )
         # submit schedule when one exists without overwrite - fail:
-        with pytest.raises(mlrun.errors.MLRunConflictError):
+        with pytest.raises(
+            mlrun.errors.MLRunConflictError, match=expected_error_message
+        ):
             project.run(
                 workflow_name,
                 schedule=schedules[1],
@@ -658,3 +664,20 @@ class TestProject(TestMLRunSystem):
         assert (
             schedule.scheduled_object["schedule"] == schedules[2]
         ), "Failed to overwrite from CLI"
+
+        # without overwrite schedule from cli:
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--schedule",
+            f"'{schedules[1]}'",
+        ]
+        out = exec_project(args)
+        assert (
+            expected_error_message.replace("overwrite = True", "--overwrite-schedule")
+            in out
+        )

@@ -721,28 +721,27 @@ class _RemoteRunner(_PipelineRunner):
             image=mlrun.mlconf.default_base_image,
         )
 
-        runspec = mlrun.RunObject.from_dict(
-            {
-                "spec": {
-                    "parameters": {
-                        "url": project.spec.source,
-                        "project_name": project.name,
-                        "workflow_name": workflow_name or workflow_spec.name,
-                        "workflow_path": workflow_spec.path,
-                        "workflow_arguments": workflow_spec.args,
-                        "artifact_path": artifact_path,
-                        "workflow_handler": workflow_handler or workflow_spec.handler,
-                        "namespace": namespace,
-                        "ttl": workflow_spec.ttl,
-                        "engine": workflow_spec.engine,
-                        "local": workflow_spec.run_local,
-                        "schedule": workflow_spec.schedule,
-                    },
-                    "handler": "mlrun.projects.load_and_run",
+        runspec = mlrun.RunObject(
+            spec=mlrun.model.RunSpec(
+                parameters={
+                    "url": project.spec.source,
+                    "project_name": project.name,
+                    "workflow_name": workflow_name or workflow_spec.name,
+                    "workflow_path": workflow_spec.path,
+                    "workflow_arguments": workflow_spec.args,
+                    "artifact_path": artifact_path,
+                    "workflow_handler": workflow_handler or workflow_spec.handler,
+                    "namespace": namespace,
+                    "ttl": workflow_spec.ttl,
+                    "engine": workflow_spec.engine,
+                    "local": workflow_spec.run_local,
+                    "schedule": workflow_spec.schedule,
                 },
-                "metadata": {"name": workflow_name},
-            }
+                handler="mlrun.projects.load_and_run",
+            ),
+            metadata=mlrun.model.RunMetadata(name=workflow_name),
         )
+
         runspec = runspec.set_label("job-type", "workflow-runner").set_label(
             "workflow", workflow_name
         )

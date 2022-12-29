@@ -732,7 +732,11 @@ class TestProject(TestMLRunSystem):
         # Creating a local project
         project = self._create_project(name)
         self.custom_project_names_to_delete.append(name)
-
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+        )
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             project.run("main", schedule="*/10 * * * *")
 

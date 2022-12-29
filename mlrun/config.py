@@ -456,6 +456,9 @@ default_config = {
     "ce": {
         # ce mode can be one of: "", lite, full
         "mode": "",
+        # not possible to call this "version" because the Config class has a "version" property
+        # which returns the version from the version.json file
+        "release": "",
     },
     "debug": {
         "expose_internal_api_endpoints": False,

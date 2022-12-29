@@ -811,7 +811,8 @@ class _RemoteRunner(_PipelineRunner):
                 f"remote workflows can only be performed by a project with remote source,"
                 f" the given source '{current_source}' is not remote"
             )
-
+        
+        # Creating the load project and workflow running function:
         load_and_run_fn, runspec = cls._prepare_load_and_run_function(
             source=current_source,
             project_name=project.name,

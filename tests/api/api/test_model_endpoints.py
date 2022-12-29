@@ -352,6 +352,7 @@ def test_sql_target_list_model_endpoints():
     # Generate and write the 2nd model endpoint into the DB table
     mock_endpoint_2 = _mock_random_endpoint()
     mock_endpoint_2.spec.model = "test_model"
+    mock_endpoint_2.metadata.uid = "12345"
     endpoint_target.write_model_endpoint(endpoint=mock_endpoint_2)
 
     # Validate that there are exactly two model endpoints within the DB

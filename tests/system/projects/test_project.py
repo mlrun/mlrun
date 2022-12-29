@@ -639,7 +639,7 @@ class TestProject(TestMLRunSystem):
         )
         # submit schedule when one exists without overwrite - fail:
         with pytest.raises(
-                mlrun.errors.MLRunConflictError, match=expected_error_message
+            mlrun.errors.MLRunConflictError, match=expected_error_message
         ):
             project.run(
                 workflow_name,

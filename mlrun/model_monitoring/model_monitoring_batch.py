@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import v3io
 import v3io.dataplane
+import v3io_frames
 
 import mlrun
 import mlrun.api.schemas
@@ -811,12 +812,19 @@ class BatchProcessor:
                     "hellinger_mean": drift_result["hellinger_mean"],
                 }
 
-                self.frames.write(
-                    backend="tsdb",
-                    table=self.tsdb_path,
-                    dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
-                    index_cols=["timestamp", "endpoint_id", "record_type"],
-                )
+                try:
+                    self.frames.write(
+                        backend="tsdb",
+                        table=self.tsdb_path,
+                        dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
+                        index_cols=["timestamp", "endpoint_id", "record_type"],
+                    )
+                except v3io_frames.errors.Error:
+                    logger.warn(
+                        "No TSDB schema file found at the target path, probably due to not enough model events",
+                        tsdb_path=self.tsdb_path,
+                        endpoint=endpoint_id,
+                    )
 
                 logger.info("Done updating drift measures", endpoint_id=endpoint_id)
 

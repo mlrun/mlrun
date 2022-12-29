@@ -206,9 +206,12 @@ class AsyncModelTestingClass(V2ModelServer):
         return resp
 
 
-def init_ctx(spec=spec, context=None, weights=None):
-    if weights is not None:
-        spec["graph"]["class_args"]["weights"] = weights
+def init_ctx(
+    spec=spec, context=None, extra_class_args=None, extra_class_args_names=None
+):
+    if extra_class_args is not None:
+        for i in range(len(extra_class_args)):
+            spec["graph"]["class_args"][extra_class_args_names[i]] = extra_class_args[i]
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
     context = context or GraphContext()
     nuclio_init_hook(context, globals(), serving_subkind)
@@ -342,40 +345,8 @@ def test_ensemble_infer():
     run_model("", 1250.0)
 
 
-def test_ensemble_infer_classification():
-    def run_model(url, expected):
-        url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
-        event = MockEvent(testdata, path=url)
-        resp = context.mlrun_handler(context, event)
-        data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected]
-        }, f"wrong model response {data['outputs']}"
-
-        event = MockEvent(testdata_2, path=url)
-        resp = context.mlrun_handler(context, event)
-        data = json.loads(resp.body)
-        assert data["outputs"] == {
-            "predictions": [expected] * 2
-        }, f"wrong model response {data['outputs']}"
-
-    context = init_ctx(ensemble_spec_classification)
-
-    # Test normal routes
-    run_model("m1", 1)
-    run_model("m2", 2)
-    run_model("m3/versions/v1", 3)
-    run_model("m3/versions/v2", 4)
-
-    # Test ensemble routes
-    run_model("VotingEnsemble", 1)
-    run_model("", 1)
-
-
-@pytest.mark.parametrize(
-    "ensemble_spec_parm", [ensemble_spec, ensemble_spec_classification]
-)
-def test_ensemble_infer_with_weights(ensemble_spec_parm):
+@pytest.mark.parametrize("executor", mlrun.serving.routers.ParallelRunnerModes.all())
+def test_ensemble_infer_classification(executor):
     def run_model(url, expected):
         url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
         event = MockEvent(testdata, path=url)
@@ -393,7 +364,48 @@ def test_ensemble_infer_with_weights(ensemble_spec_parm):
         }, f"wrong model response {data['outputs']}"
 
     context = init_ctx(
-        ensemble_spec_parm, weights={"m1": 0.1, "m2": 0.2, "m3:v1": 0.3, "m3:v2": 0.4}
+        ensemble_spec_classification,
+        extra_class_args=[executor],
+        extra_class_args_names=["executor_type"],
+    )
+
+    # Test normal routes
+    run_model("m1", 1)
+    run_model("m2", 2)
+    run_model("m3/versions/v1", 3)
+    run_model("m3/versions/v2", 4)
+
+    # Test ensemble routes
+    run_model("VotingEnsemble", 1)
+    run_model("", 1)
+
+
+@pytest.mark.parametrize(
+    "ensemble_spec_parm",
+    [ensemble_spec, ensemble_spec_classification],
+)
+@pytest.mark.parametrize("executor", mlrun.serving.routers.ParallelRunnerModes.all())
+def test_ensemble_infer_with_weights(ensemble_spec_parm, executor):
+    def run_model(url, expected):
+        url = f"/v2/models/{url}/infer" if url else "/v2/models/infer"
+        event = MockEvent(testdata, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected]
+        }, f"wrong model response {data['outputs']}"
+
+        event = MockEvent(testdata_2, path=url)
+        resp = context.mlrun_handler(context, event)
+        data = json.loads(resp.body)
+        assert data["outputs"] == {
+            "predictions": [expected] * 2
+        }, f"wrong model response {data['outputs']}"
+
+    context = init_ctx(
+        ensemble_spec_parm,
+        extra_class_args=[{"m1": 0.1, "m2": 0.2, "m3:v1": 0.3, "m3:v2": 0.4}, executor],
+        extra_class_args_names=["weights", "executor_type"],
     )
 
     # Test ensemble routes

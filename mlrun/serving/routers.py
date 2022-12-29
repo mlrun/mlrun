@@ -16,6 +16,7 @@ import concurrent
 import copy
 import json
 import traceback
+from concurrent.futures import ALL_COMPLETED
 from enum import Enum
 from io import BytesIO
 from typing import Dict, List, Union
@@ -39,6 +40,8 @@ from ..utils.model_monitoring import EndpointType
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
+
+local_routes = {}
 
 
 class BaseModelRouter(RouterToDict):
@@ -307,10 +310,7 @@ class _ParallelRunInterface:
                 self._pool = executor_class(
                     max_workers=len(self.routes),
                     initializer=_ParallelRunInterface.init_pool,
-                    initargs=(
-                        server,
-                        routes,
-                    ),
+                    initargs=(server, routes, id(self)),
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 executor_class = concurrent.futures.ThreadPoolExecutor
@@ -323,6 +323,9 @@ class _ParallelRunInterface:
         Shutdowns the pool and updated self._pool to None
         """
         if self._pool is not None:
+            if self.executor_type == ParallelRunnerModes.process:
+                global local_routes
+                local_routes.pop(id(self))
             self._pool.shutdown()
             self._pool = None
 
@@ -346,7 +349,7 @@ class _ParallelRunInterface:
         for route in self.routes.keys():
             if self.executor_type == ParallelRunnerModes.process:
                 future = executor.submit(
-                    _ParallelRunInterface._wrap_step, route, copy.copy(event)
+                    _ParallelRunInterface._wrap_step, route, id(self), copy.copy(event)
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 step = self.routes[route]
@@ -370,19 +373,25 @@ class _ParallelRunInterface:
         return results
 
     @staticmethod
-    def init_pool(server_spec, routes):
+    def init_pool(server_spec, routes, object_id):
         server = mlrun.serving.GraphServer.from_dict(server_spec)
         server.init_states(None, None)
         global local_routes
+        if object_id in local_routes:
+            return
         for route in routes.values():
             route.context = server.context
             if route._object:
                 route._object.context = server.context
-        local_routes = routes
+        local_routes[object_id] = routes
 
     @staticmethod
-    def _wrap_step(route, event):
-        return route, local_routes[route].run(event)
+    def _wrap_step(route, object_id, event):
+        global local_routes
+        routes = local_routes.get(object_id, None).copy()
+        if routes is None:
+            return None, None
+        return route, routes[route].run(event)
 
     @staticmethod
     def _wrap_method(route, handler, event):
@@ -741,6 +750,8 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
             event.body = _update_result_body(
                 self._result_path, original_body, event.body
             )
+
+            self._shutdown_pool()
             return event
 
         # Extract route information

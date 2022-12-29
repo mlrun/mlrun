@@ -17,7 +17,6 @@ from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
-import pytz
 
 import mlrun
 import mlrun.errors

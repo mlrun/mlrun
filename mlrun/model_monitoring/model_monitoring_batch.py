@@ -821,7 +821,8 @@ class BatchProcessor:
                     )
                 except v3io_frames.errors.Error:
                     logger.warn(
-                        "No TSDB schema file found at the target path, probably due to not enough model events",
+                        "Events were not written to the TSDB: No TSDB schema file found at the target path, "
+                        "probably due to not enough model events",
                         tsdb_path=self.tsdb_path,
                         endpoint=endpoint_id,
                     )

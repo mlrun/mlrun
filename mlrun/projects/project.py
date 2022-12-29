@@ -747,23 +747,6 @@ class ProjectSpec(ModelObj):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
 
-    def is_remote(self) -> bool:
-        """
-        Checks if the source of the project is remote.
-        A remote project can be considered as one of the following:
-            * GitHub project e.g., git://github.com/mlrun/project-demo.git
-            * Archive project e.g., "v3io:///projects/my-project/my-project.zip
-              (Archiving a project can be done by `project.export`)
-        """
-        source = self.source
-        if not source or source.startswith(".") or source.startswith("/"):
-            return False
-        return (
-            source.startswith("git://")
-            or source.endswith(".tar.gz")
-            or source.endswith(".zip")
-        )
-
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -1954,6 +1937,7 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
+        overwrite: bool = False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1982,6 +1966,7 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
         :returns: run id
         """
 
@@ -2021,6 +2006,7 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
+            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2049,12 +2035,16 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
         )
-        run_msg = f"started run workflow {name} "
         # run is None when scheduling
-        if run:
-            run_msg += f"with run id = '{run.run_id}' "
-        run_msg += f"by {workflow_engine.engine} engine"
-        logger.info(run_msg)
+        if (
+            run
+            and run.state != mlrun.run.RunStatuses.failed
+            and not workflow_spec.schedule
+        ):
+            # Failure and schedule messages already logged
+            logger.info(
+                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
+            )
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)

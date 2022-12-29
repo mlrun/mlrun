@@ -73,7 +73,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        overwrite: bool = None,
+        override: bool = None,
     ):
         self.engine = engine
         self.code = code
@@ -86,7 +86,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
-        self.overwrite = overwrite
+        self.override = override
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -397,20 +397,6 @@ def enrich_function_object(
     return f
 
 
-def set_source_if_remote(
-    project: "mlrun.projects.MlrunProject", workflow_spec: WorkflowSpec, source: str
-):
-    """
-    Setting source to the project for making sure that the code in the jobs is up to date.
-    :param project:         project object (mlrun.projects.MlrunProject)
-    :param workflow_spec:   the relevant workflow of the project to run
-    :param source:          the source that contains the project
-    """
-    if source and not workflow_spec.run_local:
-        logger.info(f"Setting project source: {source}")
-        project.set_source(source)
-
-
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
@@ -547,7 +533,7 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def run(
         cls,
-        project,
+        project,  # type: mlrun.projects.MlrunProject
         workflow_spec: WorkflowSpec,
         name=None,
         workflow_handler=None,
@@ -560,9 +546,9 @@ class _KFPRunner(_PipelineRunner):
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
-        set_source_if_remote(
-            project=project, workflow_spec=workflow_spec, source=source
-        )
+        if source:
+            project.set_source(source=source)
+
         namespace = namespace or config.namespace
         id = run_pipeline(
             workflow_handler,
@@ -677,9 +663,8 @@ class _LocalRunner(_PipelineRunner):
         # When using KFP, it would do this replacement. When running locally, we need to take care of it.
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
-        set_source_if_remote(
-            project=project, workflow_spec=workflow_spec, source=source
-        )
+        if source:
+            project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id
@@ -811,7 +796,7 @@ class _RemoteRunner(_PipelineRunner):
                 f"remote workflows can only be performed by a project with remote source,"
                 f" the given source '{current_source}' is not remote"
             )
-        
+
         # Creating the load project and workflow running function:
         load_and_run_fn, runspec = cls._prepare_load_and_run_function(
             source=current_source,
@@ -834,18 +819,18 @@ class _RemoteRunner(_PipelineRunner):
             except mlrun.errors.MLRunNotFoundError:
                 is_scheduled = False
 
-            if workflow_spec.overwrite:
+            if workflow_spec.override:
                 if is_scheduled:
                     logger.info(f"Deleting schedule {schedule_name}")
                     run_db.delete_schedule(project.name, schedule_name)
                 else:
                     logger.info(
-                        f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
+                        f"No schedule by name '{schedule_name}' was found, nothing to override."
                     )
             elif is_scheduled:
                 raise mlrun.errors.MLRunConflictError(
                     f"There is already a schedule for workflow {schedule_name}."
-                    " If you want to overwrite this schedule use 'overwrite = True'"
+                    " If you want to override this schedule use 'override=True' (SDK) or '--override-workflow' (CLI)"
                 )
 
         # The returned engine for this runner is the engine of the workflow.

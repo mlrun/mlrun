@@ -2893,7 +2893,6 @@ def _mask_credentials_in_function_object(function):
         "V3IO_API",
         "V3IO_FRAMESD",
         "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
     ]
     for env in function.spec.env:
         # if env contain a value and not value_from, this means it wasn't masked then we remove it

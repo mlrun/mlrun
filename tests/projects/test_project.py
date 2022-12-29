@@ -503,6 +503,21 @@ def test_set_function_mask_v3io_credentials():
     assert describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
 
 
+def test_set_function_mask_s3_credentials():
+    project = mlrun.projects.MlrunProject("newproj")
+    describe_func = mlrun.import_function("hub://describe", project=project.name)
+    s3_access_key = "s3-access-key"
+
+    os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key
+    describe_func.apply(mlrun.platforms.mount_s3())
+    assert describe_func.get_env("AWS_ACCESS_KEY_ID") is not None
+
+    project.set_function(describe_func, "describe")
+
+    masked_describe_func = project.get_function("describe")
+    assert masked_describe_func.get_env("AWS_ACCESS_KEY_ID") is None
+
+
 def test_set_func_with_tag():
     project = mlrun.projects.MlrunProject("newproj", default_requirements=["pandas"])
     project.set_function(

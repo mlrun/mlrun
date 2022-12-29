@@ -3260,49 +3260,23 @@ class TestFeatureStore(TestMLRunSystem):
         departments = pd.DataFrame(
             {
                 "d_id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                "name": [
-                    "dept1",
-                    "dept2",
-                    "dept3",
-                    "dept4",
-                    "dept5",
-                    "dept6",
-                    "dept7",
-                    "dept8",
-                    "dept9",
-                    "dept10",
-                ],
+                "name": [f"dept{num}" for num in range(1, 11, 1)],
                 "manager_id": [i for i in range(10, 20)],
             }
         )
 
-        employees = pd.DataFrame(
+        employees_with_department = pd.DataFrame(
             {
-                "id": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],
-                "name": [
-                    "name1",
-                    "name2",
-                    "name3",
-                    "name4",
-                    "name5",
-                    "name6",
-                    "name7",
-                    "name8",
-                    "name9",
-                    "name10",
-                ],
+                "id": [num for num in range(100, 1100, 100)],
+                "name": [f"employee{num}" for num in range(100, 1100, 100)],
                 "department_id": [1, 1, 1, 2, 2, 2, 6, 6, 6, 11],
             }
         )
 
-        employees_mini = pd.DataFrame(
+        employees_with_class = pd.DataFrame(
             {
                 "id": [100, 200, 300],
-                "name": [
-                    "name1",
-                    "name2",
-                    "name3",
-                ],
+                "name": [f"employee{num}" for num in range(100, 400, 100)],
                 "department_id": [1, 1, 1],
                 "class_id": [i for i in range(20, 23)],
             }
@@ -3311,41 +3285,19 @@ class TestFeatureStore(TestMLRunSystem):
         classes = pd.DataFrame(
             {
                 "c_id": [i for i in range(20, 40, 2)],
-                "name": [
-                    "class1",
-                    "class2",
-                    "class3",
-                    "class4",
-                    "class5",
-                    "class6",
-                    "class7",
-                    "class8",
-                    "class9",
-                    "class10",
-                ],
+                "name": [f"class{num}" for num in range(20, 40, 2)],
             }
         )
 
         managers = pd.DataFrame(
             {
                 "m_id": [i for i in range(10, 30, 2)],
-                "name": [
-                    "manager1",
-                    "manager2",
-                    "manager3",
-                    "manager4",
-                    "manager5",
-                    "manager6",
-                    "manager7",
-                    "manager8",
-                    "manager9",
-                    "manager10",
-                ],
+                "name": [f"manager{num}" for num in range(10, 30, 2)],
             }
         )
 
-        result = pd.merge(
-            employees,
+        join_employee_department = pd.merge(
+            employees_with_department,
             departments,
             how=join_type,
             left_on=["department_id"],
@@ -3353,8 +3305,8 @@ class TestFeatureStore(TestMLRunSystem):
             suffixes=("_employees", "_departments"),
         )
 
-        result_2 = pd.merge(
-            result,
+        join_employee_managers = pd.merge(
+            join_employee_department,
             managers,
             how=join_type,
             left_on=["manager_id"],
@@ -3362,26 +3314,26 @@ class TestFeatureStore(TestMLRunSystem):
             suffixes=("_manage", "_"),
         )
 
-        result_3 = pd.merge(
-            employees,
-            employees_mini,
+        join_employee_sets = pd.merge(
+            employees_with_department,
+            employees_with_class,
             how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_employees", "_e_mini"),
         )
 
-        result_4_1 = pd.merge(
-            result,
-            employees_mini,
+        _merge_step = pd.merge(
+            join_employee_department,
+            employees_with_class,
             how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_", "_e_mini"),
         )
 
-        result_4 = pd.merge(
-            result_4_1,
+        join_all = pd.merge(
+            _merge_step,
             classes,
             how=join_type,
             left_on=["class_id"],
@@ -3393,11 +3345,11 @@ class TestFeatureStore(TestMLRunSystem):
         col_2 = ["name_employees", "name_departments", "name"]
         col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
         if with_indexes:
-            result_3.set_index(["id"], inplace=True)
+            join_employee_sets.set_index(["id"], inplace=True)
             if engine == "local":
-                result.set_index(["id", "d_id"], inplace=True)
-                result_2.set_index(["id", "d_id", "m_id"], inplace=True)
-                result_4.set_index(["id", "d_id", "c_id"], inplace=True)
+                join_employee_department.set_index(["id", "d_id"], inplace=True)
+                join_employee_managers.set_index(["id", "d_id", "m_id"], inplace=True)
+                join_all.set_index(["id", "d_id", "c_id"], inplace=True)
             else:
                 col_1 = ["id", "name_employees", "d_id", "name_departments"]
                 col_2 = [
@@ -3418,11 +3370,11 @@ class TestFeatureStore(TestMLRunSystem):
                     "name_cls",
                 ]
 
-        result = result[col_1].rename(
+        join_employee_department = join_employee_department[col_1].rename(
             columns={"name_departments": "n2", "name_employees": "n"},
         )
 
-        result_2 = result_2[col_2].rename(
+        join_employee_managers = join_employee_managers[col_2].rename(
             columns={
                 "name_departments": "n2",
                 "name_employees": "n",
@@ -3430,11 +3382,13 @@ class TestFeatureStore(TestMLRunSystem):
             },
         )
 
-        result_3 = result_3[["name_employees", "name_e_mini"]].rename(
+        join_employee_sets = join_employee_sets[
+            ["name_employees", "name_e_mini"]
+        ].rename(
             columns={"name_employees": "n", "name_e_mini": "mini_name"},
         )
 
-        result_4 = result_4[col_4].rename(
+        join_all = join_all[col_4].rename(
             columns={
                 "name_employees": "n",
                 "name_departments": "n2",
@@ -3488,7 +3442,7 @@ class TestFeatureStore(TestMLRunSystem):
             relations={"department_id": departments_set_entity},
         )
         employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fstore.ingest(employees_set, employees)
+        fstore.ingest(employees_set, employees_with_department)
 
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
@@ -3499,7 +3453,7 @@ class TestFeatureStore(TestMLRunSystem):
             },
         )
         mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fstore.ingest(mini_employees_set, employees_mini)
+        fstore.ingest(mini_employees_set, employees_with_class)
 
         features = ["employees.name as n", "departments.name as n2"]
 
@@ -3515,7 +3469,7 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
         )
-        assert_frame_equal(result, resp_1.to_dataframe())
+        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
         features = [
             "employees.name as n",
@@ -3535,7 +3489,7 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
         )
-        assert_frame_equal(result_2, resp_2.to_dataframe())
+        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
@@ -3551,7 +3505,7 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
         )
-        assert_frame_equal(result_3, resp_3.to_dataframe())
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
 
         features = [
             "employees.name as n",
@@ -3572,7 +3526,7 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
             engine=engine,
         )
-        assert_frame_equal(result_4, resp_4.to_dataframe())
+        assert_frame_equal(join_all, resp_4.to_dataframe())
 
     def test_ingest_with_kafka_source_fails(self):
         source = KafkaSource(

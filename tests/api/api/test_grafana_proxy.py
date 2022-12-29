@@ -85,10 +85,11 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointKVStore(
-            project=TEST_PROJECT, access_key=_get_access_key()
-        )
+    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+        value="kv"
+    )
+    endpoint_target = store_type_object.to_endpoint_target(
+        project=TEST_PROJECT, access_key=_get_access_key()
     )
 
     for endpoint in endpoints_in:
@@ -432,10 +433,11 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     # Initialize endpoint store target object
-    endpoint_target = (
-        mlrun.api.crud.model_monitoring.model_endpoint_stores._ModelEndpointKVStore(
-            project=TEST_PROJECT, access_key=_get_access_key()
-        )
+    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+        value="kv"
+    )
+    endpoint_target = store_type_object.to_endpoint_target(
+        project=TEST_PROJECT, access_key=_get_access_key()
     )
 
     for endpoint in endpoints:

@@ -323,7 +323,6 @@
           "id": "reduce",
           "options": {
             "reducers": [
-              "max",
               "sum"
             ]
           }

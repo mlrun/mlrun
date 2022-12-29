@@ -413,7 +413,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
                 EventFieldType.TIMESTAMP,
                 EventFieldType.ENDPOINT_ID,
                 EventFieldType.LABELS,
-                EventFieldType.UNPACKED_LABELS,
                 EventFieldType.FIRST_REQUEST,
                 EventFieldType.LAST_REQUEST,
                 EventFieldType.ERROR_COUNT,
@@ -435,12 +434,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         e[EventFieldType.METRICS] = json.dumps(
             {EventKeyMetrics.GENERIC: generic_metrics}
         )
-
-        # Unpack labels dictionary
-        e = {
-            **e,
-            **e.pop(EventFieldType.UNPACKED_LABELS, {}),
-        }
 
         # Write labels as json string as required by the DB format
         e[EventFieldType.LABELS] = json.dumps(e[EventFieldType.LABELS])
@@ -723,7 +716,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
-        storey_event = storey.Event(body=events, key=endpoint_id, time=timestamp)
+        storey_event = storey.Event(body=events, key=endpoint_id)
         return storey_event
 
     @staticmethod

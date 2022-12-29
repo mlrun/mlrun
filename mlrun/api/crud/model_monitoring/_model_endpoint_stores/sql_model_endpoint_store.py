@@ -446,6 +446,10 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
                 model_monitoring_constants.EventFieldType.MODEL_URI, db.String(255)
             ),
             db.Column(model_monitoring_constants.EventFieldType.STREAM_PATH, db.Text),
+            db.Column(
+                model_monitoring_constants.EventFieldType.ALGORITHM,
+                db.String(255),
+            ),
             db.Column(model_monitoring_constants.EventFieldType.ACTIVE, db.Boolean),
             db.Column(
                 model_monitoring_constants.EventFieldType.MONITORING_MODE,

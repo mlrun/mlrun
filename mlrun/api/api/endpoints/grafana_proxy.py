@@ -305,7 +305,6 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
         GrafanaColumn(text="endpoint_model_class", type="string"),
         GrafanaColumn(text="first_request", type="time"),
         GrafanaColumn(text="last_request", type="time"),
-        GrafanaColumn(text="accuracy", type="number"),
         GrafanaColumn(text="error_count", type="number"),
         GrafanaColumn(text="drift_status", type="number"),
         GrafanaColumn(text="predictions_per_second", type="number"),
@@ -324,7 +323,6 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
             endpoint.spec.model_class,
             endpoint.status.first_request,
             endpoint.status.last_request,
-            endpoint.status.accuracy,
             endpoint.status.error_count,
             endpoint.status.drift_status,
             endpoint.status.metrics[EventKeyMetrics.GENERIC][

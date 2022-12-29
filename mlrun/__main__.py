@@ -1061,8 +1061,6 @@ def project(
             args = fill_params(arguments)
 
         print(f"running workflow {run} file: {workflow_path}")
-        message = ""
-        had_error = False
         gitops = (
             git_issue
             or environ.get("GITHUB_EVENT_PATH")
@@ -1078,31 +1076,37 @@ def project(
                 },
             )
         try:
-            proj.run(
-                run,
-                workflow_path,
-                arguments=args,
-                artifact_path=artifact_path,
-                namespace=namespace,
-                sync=sync,
-                watch=watch,
-                dirty=dirty,
-                workflow_handler=handler,
-                engine=engine,
-                local=local,
-                schedule=schedule,
-                timeout=timeout,
-                overwrite=overwrite_schedule,
-            )
+            try:
+                proj.run(
+                    run,
+                    workflow_path,
+                    arguments=args,
+                    artifact_path=artifact_path,
+                    namespace=namespace,
+                    sync=sync,
+                    watch=watch,
+                    dirty=dirty,
+                    workflow_handler=handler,
+                    engine=engine,
+                    local=local,
+                    schedule=schedule,
+                    timeout=timeout,
+                    overwrite=overwrite_schedule,
+                )
+            except mlrun.errors.MLRunConflictError as error:
+                if error.args:
+                    # error.args is a tuple, so need to convert to list for changing its value.
+                    args_list = list(error.args)
+                    args_list[0] = args_list[0].replace(
+                        "overwrite = True", "--overwrite-schedule"
+                    )
+                    error.args = tuple(args_list)
+                raise error
+
         except Exception as exc:
             print(traceback.format_exc())
             message = f"failed to run pipeline, {err_to_str(exc)}"
-            had_error = True
-            print(message)
-
-        if had_error:
             proj.notifiers.push(message, "error")
-        if had_error:
             exit(1)
 
     elif sync:

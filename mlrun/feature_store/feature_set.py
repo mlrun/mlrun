@@ -23,6 +23,7 @@ import mlrun.api.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
+from ..datastore.sources import BaseSourceDriver, OnlineSource, source_kind_to_driver
 from ..datastore.targets import (
     TargetTypes,
     get_default_targets,
@@ -82,6 +83,7 @@ class FeatureSetSpec(ModelObj):
         analysis=None,
         engine=None,
         output_path=None,
+        is_passthrough=False,
     ):
         """Feature set spec object, defines the feature-set's configuration.
 
@@ -124,6 +126,7 @@ class FeatureSetSpec(ModelObj):
         self.analysis = analysis or {}
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
+        self.is_passthrough = is_passthrough
 
     @property
     def entities(self) -> List[Entity]:
@@ -199,11 +202,20 @@ class FeatureSetSpec(ModelObj):
         return self._source
 
     @source.setter
-    def source(self, source: DataSource):
-        self._source = self._verify_dict(source, "source", DataSource)
+    def source(self, source: Union[BaseSourceDriver, dict]):
+        if isinstance(source, dict):
+            kind = source.get("kind", "")
+            source = source_kind_to_driver[kind].from_dict(source)
+        self._source = source
 
     def require_processing(self):
         return len(self._graph.steps) > 0
+
+    def validate_no_processing_for_passthrough(self):
+        if self.is_passthrough and self.require_processing():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "passthrough fset can not have graph transformations"
+            )
 
 
 class FeatureSetStatus(ModelObj):
@@ -812,6 +824,14 @@ class FeatureSet(ModelObj):
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
+
+        if self.spec.is_passthrough:
+            if not self.spec.source:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "when fset is in passthrough mode, offline data source must be provided"
+                )
+            return self.spec.source.to_dataframe()
+
         target = get_offline_target(self, name=target_name)
         if not target:
             raise mlrun.errors.MLRunNotFoundError(
@@ -866,6 +886,33 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+    def set_passthrough_source(self, source: Union[str, BaseSourceDriver]):
+        """sets the fset to passthrough. must be called before ingestion.
+        create source by provided source path (if str) or provided source object (otherwise)"""
+        if isinstance(source, str):
+            if source.lower().endswith(".csv"):
+                source = mlrun.datastore.sources.CSVSource(path=source)
+            elif source.lower().endswith(".parquet"):
+                source = mlrun.datastore.sources.ParquetSource(path=source)
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "source type not supported, use a supported source class"
+                )
+        if not isinstance(source, BaseSourceDriver):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source must be a valid BaseSourceDriver class"
+            )
+        if isinstance(source, OnlineSource):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source must not be an online source"
+            )
+        self.spec.is_passthrough = True
+        self.spec.source = source
+
+        self.spec.validate_no_processing_for_passthrough()
+
+        self.save()
 
 
 class SparkAggregateByKey(StepToDict):

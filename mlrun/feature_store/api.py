@@ -466,6 +466,8 @@ def ingest(
         )
         return_df = False
 
+    featureset.spec.validate_no_processing_for_passthrough()
+
     namespace = namespace or get_caller_globals()
 
     targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
@@ -641,6 +643,8 @@ def preview(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():

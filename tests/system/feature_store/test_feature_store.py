@@ -894,6 +894,55 @@ class TestFeatureStore(TestMLRunSystem):
         orig_columns.remove("patient_id")
         assert result_columns.sort() == orig_columns.sort()
 
+    def test_passthrough_feature_set(self):
+        name = f"measurements_set_{uuid.uuid4()}"
+        key = "patient_id"
+        measurements_set = fstore.FeatureSet(
+            name, entities=[Entity(key)], timestamp_key="timestamp"
+        )
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+
+        # set fset to passthrough
+        measurements_set.set_passthrough_source(source)
+
+        preview_pd = fstore.preview(
+            measurements_set,
+            source=source,
+        )
+        preview_pd.set_index("patient_id", inplace=True)
+
+        fstore.ingest(measurements_set, source)
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        assert len(measurements_set.status.targets) == 1
+        from mlrun.model import DataTarget
+
+        assert isinstance(
+            measurements_set.status.targets._children["nosql"], DataTarget
+        )
+
+        # verify that get_offline (and preview) equals the source
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        resp = fstore.get_offline_features(
+            vector, entity_timestamp_column="timestamp", with_indexes=True
+        )
+        get_offline_pd = resp.to_dataframe()
+        get_offline_pd["timestamp"] = pd.to_datetime(get_offline_pd["timestamp"])
+
+        expected = source.to_dataframe().set_index("patient_id")
+
+        assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
+        assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
+
+        # assert get_online correctness
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"patient_id": "305-90-1613"}])
+            assert resp[0]["bad"] == 95 and resp[0]["room"] == 2
+
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
         key = "key"

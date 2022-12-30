@@ -41,6 +41,7 @@ from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifa
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
+from ..k8s_utils import sanitize_function_volumes
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata, get_item_name, set_item_attribute
@@ -2895,7 +2896,7 @@ def _mask_credentials_in_function_object(function):
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
     ]
-    # FunctionSpec isn't valid for masking as it doesn't have env attribute
+    # some function spec might not have env (e.g. BaseRuntime) so skip if not exist
     if not hasattr(function, "spec") or not hasattr(function.spec, "env"):
         return function
 
@@ -2925,6 +2926,9 @@ def _mask_volumes_in_function_object(function):
     should_remove_v3io_mounts = False
     v3io_flex_volume_name = None
     volumes = []
+
+    sanitize_function_volumes(function)
+
     for volume in function.spec.volumes:
         flex_volume = get_item_name(volume, "flexVolume")
         if flex_volume and get_item_name(flex_volume, "driver") == "v3io/fuse":

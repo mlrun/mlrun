@@ -155,7 +155,7 @@ class FileRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs partitioning not supported"
             )
-        if uid and isinstance(uid, Iterable):
+        if uid and isinstance(uid, list):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs list with multiple uids not supported"
             )

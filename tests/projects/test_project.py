@@ -476,11 +476,14 @@ def test_set_function_mask_v3io_credentials():
     describe_func1 = mlrun.import_function(
         "hub://describe", project=project.name, new_name="describe1"
     )
-    describe_func1.apply(mlrun.platforms.mount_v3io(secret=secret_name))
+    v3io_volume_name = "flexFuseV3IO"
+    describe_func1.apply(
+        mlrun.platforms.mount_v3io(name=v3io_volume_name, secret=secret_name)
+    )
 
     assert describe_func1.get_env("V3IO_ACCESS_KEY") is None
     assert describe_func1.get_env("V3IO_USERNAME") is None
-    assert describe_func1.spec.volumes[0]["name"] == "v3io"
+    assert describe_func1.spec.volumes[0]["flexVolume"]["driver"] == "v3io/fuse"
     assert (
         describe_func1.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
     )
@@ -496,7 +499,7 @@ def test_set_function_mask_v3io_credentials():
     assert masked_describe1_func.get_env("V3IO_ACCESS_KEY") is None
     assert masked_describe1_func.get_env("V3IO_USERNAME") is None
     assert masked_describe1_func.spec.volume_mounts == describe_func1.spec.volume_mounts
-    assert masked_describe1_func.spec.volumes[0]["name"] == "v3io"
+    assert masked_describe1_func.spec.volumes[0]["name"] == v3io_volume_name
     assert (
         describe_func1.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
     )
@@ -507,15 +510,19 @@ def test_set_function_mask_s3_credentials():
     project = mlrun.projects.MlrunProject("newproj")
     describe_func = mlrun.import_function("hub://describe", project=project.name)
     s3_access_key = "s3-access-key"
+    s3_secret = "s3-secret"
 
     os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key
+    os.environ["AWS_SECRET_ACCESS_KEY"] = s3_secret
     describe_func.apply(mlrun.platforms.mount_s3())
     assert describe_func.get_env("AWS_ACCESS_KEY_ID") is not None
+    assert describe_func.get_env("AWS_SECRET_ACCESS_KEY") is not None
 
     project.set_function(describe_func, "describe")
 
     masked_describe_func = project.get_function("describe")
     assert masked_describe_func.get_env("AWS_ACCESS_KEY_ID") is None
+    assert masked_describe_func.get_env("AWS_SECRET_ACCESS_KEY") is None
 
 
 def test_set_func_with_tag():

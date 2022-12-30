@@ -14,7 +14,6 @@
 
 import json
 import pathlib
-from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from os import listdir, makedirs, path, remove, scandir
 from typing import List, Optional, Union

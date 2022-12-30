@@ -72,7 +72,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
         runs = _list_and_assert_objects(9, project=projects[0], iter=False)
 
-        # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
+        # partitioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
         runs = _list_and_assert_objects(
             3,
             project=projects[0],
@@ -84,7 +84,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         for run in runs:
             assert "first" in run["metadata"]["uid"]
 
-        # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
+        # partitioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
         runs = _list_and_assert_objects(
             3,
             project=projects[0],
@@ -96,7 +96,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         for run in runs:
             assert "third" in run["metadata"]["uid"]
 
-        # partioned list, specific project, 5 row per partition, so 3 names * 5 row = 15
+        # partitioned list, specific project, 5 row per partition, so 3 names * 5 row = 15
         runs = _list_and_assert_objects(
             15,
             project=projects[0],

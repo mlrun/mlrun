@@ -14,6 +14,7 @@
 
 import json
 import pathlib
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from os import listdir, makedirs, path, remove, scandir
 from typing import List, Optional, Union
@@ -133,7 +134,7 @@ class FileRunDB(RunDBInterface):
     def list_runs(
         self,
         name="",
-        uid: Union[str, List[str]] = None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         state="",
@@ -154,7 +155,7 @@ class FileRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs partitioning not supported"
             )
-        if uid and isinstance(uid, list):
+        if uid and isinstance(uid, Iterable):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs list with multiple uids not supported"
             )

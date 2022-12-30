@@ -67,7 +67,7 @@ class FileDB(DBInterface):
         self,
         session,
         name="",
-        uid: Union[str, List[str]] = None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         states=None,

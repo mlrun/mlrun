@@ -530,7 +530,7 @@ class HTTPRunDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid: Union[str, List[str]] = None,
+        uid: Optional[Union[str, List[str]]] = None,
         project=None,
         labels=None,
         state=None,

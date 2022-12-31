@@ -715,6 +715,51 @@ def format_labels(labels):
         return ""
 
 
+def sanitize_function_volumes(function):
+    """
+    to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    :param function: function object
+    :return: function object
+    """
+    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    new_volumes = []
+    k8s_api_client = kubernetes.client.ApiClient()
+
+    # some function spec might not have volumes (e.g. BaseRuntime) so skip if not exist
+    if not hasattr(function, "spec") or not hasattr(function.spec, "volumes"):
+        return function
+
+    for volume in function.spec.volumes:
+        if isinstance(volume, dict):
+            if "flexVolume" in volume:
+                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
+                if not isinstance(volume["flexVolume"], dict):
+                    # sanity
+                    if isinstance(
+                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
+                    ):
+                        volume[
+                            "flexVolume"
+                        ] = k8s_api_client.sanitize_for_serialization(
+                            volume["flexVolume"]
+                        )
+                    else:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
+                        )
+            new_volumes.append(volume)
+        elif isinstance(volume, kubernetes.client.V1Volume):
+            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected volume type: {type(volume)}"
+            )
+    function.spec.volumes = new_volumes
+    return function
+
+
 def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:

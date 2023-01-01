@@ -952,6 +952,8 @@ class BaseRuntime(ModelObj):
                 updates["status.error"] = str(err)
 
         elif not was_none and last_state != "completed":
+            logger.debug("updating run state to completed", kind=kind)
+
             # mpi workers should not set the run as completed, only the launcher
             if kind != "mpijob":
                 updates = {

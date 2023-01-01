@@ -988,6 +988,11 @@ def logs(uid, project, offset, db, watch):
     is_flag=True,
     help="Overwrite a schedule when submitting a new one with the same name.",
 )
+@click.option(
+    "--save-secrets",
+    is_flag=True,
+    help="Save secrets as project secrets.",
+)
 def project(
     context,
     name,
@@ -1014,6 +1019,7 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
+    save_secrets,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1046,9 +1052,9 @@ def project(
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         secret_store = SecretsStore.from_list(secrets)
-        # TODO: check if we still need to set proj._secrets if we use proj.set_secrets(secrets)
         proj._secrets = secret_store
-        proj.set_secrets(secret_store._secrets)
+        if save_secrets:
+            proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())
 
     if run:

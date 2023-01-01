@@ -422,6 +422,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         state, _ = run.logs(watch=True, db=self._get_db())
         resp = self._get_db_run(run)
         last_state = get_in(resp, "status.state", "")
+        logger.info("I'm here")
         if last_state != state:
             updates = {
                 "status.last_update": now_date().isoformat(),
@@ -432,7 +433,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             uid = get_in(resp, "metadata.uid")
             iter = get_in(resp, "metadata.iteration", 0)
 
-            logger.debug(
+            logger.info(
                 "Updating mpijob run state to completed",
                 state=state,
                 last_state=last_state,

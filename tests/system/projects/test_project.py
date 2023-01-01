@@ -743,7 +743,21 @@ class TestProject(TestMLRunSystem):
             original_source,
             name=name,
         )
-        for engine in ["remote", "kfp", "local"]:
+
+        run = project.run(
+            "newflow",
+            engine="local",
+            local=True,
+            source=temporary_source,
+            artifact_path=artifact_path,
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded
+        # Ensuring that the project's source has not changed in the db:
+        project_from_db = self._run_db.get_project(name)
+        assert project_from_db.spec.source == original_source
+        assert project.spec.source == original_source
+
+        for engine in ["remote", "local", "kfp"]:
             project.run(
                 "main",
                 engine=engine,

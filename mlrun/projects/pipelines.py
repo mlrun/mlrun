@@ -403,7 +403,7 @@ class _PipelineRunStatus:
     def __init__(
         self,
         run_id: str,
-        engine: "_PipelineRunner",
+        engine: typing.Type["_PipelineRunner"],
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: str = "",
@@ -533,7 +533,7 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def run(
         cls,
-        project,  # type: mlrun.projects.MlrunProject
+        project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
         name=None,
         workflow_handler=None,
@@ -663,7 +663,9 @@ class _LocalRunner(_PipelineRunner):
         # When using KFP, it would do this replacement. When running locally, we need to take care of it.
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
+        original_source = None
         if source:
+            original_source = project.spec.source
             project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
@@ -684,6 +686,10 @@ class _LocalRunner(_PipelineRunner):
             pipeline_context.runs_map.values(), state=state
         )
         pipeline_context.clear()
+
+        # Setting the source back to the original in the project object
+        if original_source:
+            project.set_source(source=original_source)
         return _PipelineRunStatus(
             workflow_id, cls, project=project, workflow=workflow_spec, state=state
         )
@@ -977,6 +983,7 @@ def load_and_run(
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
+    :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
     """
     try:
         project = mlrun.load_project(

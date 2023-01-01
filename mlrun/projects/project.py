@@ -1766,11 +1766,11 @@ class MlrunProject(ModelObj):
             if not f:
                 raise ValueError(f"function named {name} not found")
             if hasattr(f, "to_dict"):
-                name, func = _init_function_from_obj(f, self)
+                name, func = _init_function_from_obj(f, self, name)
             else:
                 if not isinstance(f, dict):
                     raise ValueError("function must be an object or dict")
-                name, func = _init_function_from_dict(f, self)
+                name, func = _init_function_from_dict(f, self, name)
             func.spec.build.code_origin = origin
             funcs[name] = func
             if save:
@@ -2781,8 +2781,8 @@ class MlrunProjectLegacy(ModelObj):
             fp.write(self.to_yaml())
 
 
-def _init_function_from_dict(f, project):
-    name = f.get("name", "")
+def _init_function_from_dict(f, project, name=None):
+    name = name or f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
     image = f.get("image", None)

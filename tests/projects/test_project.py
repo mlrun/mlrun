@@ -60,6 +60,24 @@ def test_sync_functions():
     assert fn.metadata.name == "train", "train func did not return"
 
 
+def test_sync_functions_with_names_different_than_default():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+
+    describe_func = mlrun.import_function("hub://describe")
+    # set a different name than the default
+    project.set_function(describe_func, "new_describe_func")
+
+    project_function_object = project.spec._function_objects
+    project_function_definition = project.spec._function_definitions
+
+    # sync functions - expected to sync the function objects from the definitions
+    project.sync_functions()
+
+    assert project.spec._function_objects == project_function_object
+    assert project.spec._function_definitions == project_function_definition
+
+
 def test_create_project_from_file_with_legacy_structure():
     project_name = "project-name"
     description = "project description"

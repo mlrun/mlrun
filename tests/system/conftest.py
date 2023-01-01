@@ -14,10 +14,13 @@
 #
 
 
+import collections
 import os
 
 import pytest
 import requests
+from _pytest.config import ExitCode
+from _pytest.main import Session
 from _pytest.python import Function
 from _pytest.reports import TestReport
 from _pytest.runner import CallInfo
@@ -29,12 +32,83 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     result: TestReport = outcome.get_result()
 
     try:
-        post_report_to_slack(result, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL"))
+        post_report_failed_to_slack(
+            result, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
+        )
     except Exception as exc:
         print(f"Failed to post test report to slack: {exc}")
 
 
-def post_report_to_slack(report: TestReport, slack_webhook_url: str):
+def pytest_sessionstart(session):
+
+    # caching test results
+    session.results = collections.defaultdict(TestReport)
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+
+    # cache test call result
+    if report.when == "call":
+        item.session.results[item] = report
+
+
+def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
+    slack_url = os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
+    if slack_url:
+        post_report_session_finish_to_slack(
+            session,
+            exitstatus,
+            slack_url,
+        )
+
+
+def post_report_session_finish_to_slack(
+    session: Session, exitstatus: ExitCode, slack_webhook_url
+):
+    mlrun_version = os.getenv("MLRUN_VERSION", "")
+    mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
+    ttl_tests = session.testscollected
+    ttl_failed_tests = session.testsfailed
+    if exitstatus == ExitCode.OK:
+        text = f"All {ttl_tests} tests passed successfully"
+    else:
+        text = f"{ttl_failed_tests} out of {ttl_tests} tests failed"
+
+    text_prefix = ""
+    if mlrun_system_tests_component:
+        text_prefix += f"{mlrun_system_tests_component}"
+    if mlrun_version:
+        text_prefix += f" (version: {mlrun_version})"
+    if text_prefix:
+        text_prefix = f"[{text_prefix}]"
+        text = f"{text_prefix} {text}"
+
+    text += f" ({','.join(session.config.option.file_or_dir)})"
+
+    data = {"text": text, "attachments": []}
+    for item, test_report in session.results.items():
+        item: Function = item
+        test_report: TestReport = test_report
+        test_failed = test_report.failed
+        data["attachments"].append(
+            {
+                "color": "danger" if test_failed else "good",
+                "fields": [
+                    {
+                        "value": f"{item.nodeid} - {'Failed' if test_failed else 'Passed'}",
+                        "short": False,
+                    }
+                ],
+            }
+        )
+    res = requests.post(slack_webhook_url, json=data)
+    res.raise_for_status()
+
+
+def post_report_failed_to_slack(report: TestReport, slack_webhook_url: str):
     if not report.failed:
         return
 

@@ -317,17 +317,18 @@ def get_or_create_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
     :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will git init the context dir
+    :param init_git:     if True, will excute `git init` on the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current user name to the project name (for db:// prefixes)
+    :param user_project: add the current username to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
     context = context or "./"
     try:
-        # load project from the DB
+        # load project from the DB.
+        # use `name` as `url` as we load the project from the DB
         project = load_project(
             context,
             name,

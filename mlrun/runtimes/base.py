@@ -940,8 +940,10 @@ class BaseRuntime(ModelObj):
         last_state = get_in(resp, "status.state", "")
         kind = get_in(resp, "metadata.labels.kind", "")
         if last_state == "error" or err:
-            updates = {"status.last_update": now_date().isoformat()}
-            updates["status.state"] = "error"
+            updates = {
+                "status.last_update": now_date().isoformat(),
+                "status.state": "error",
+            }
             update_in(resp, "status.state", "error")
             if err:
                 update_in(resp, "status.error", str(err))
@@ -952,9 +954,13 @@ class BaseRuntime(ModelObj):
         elif not was_none and last_state != "completed":
             # mpi workers should not set the run as completed, only the launcher
             if kind != "mpijob":
-                updates = {"status.last_update": now_date().isoformat()}
-                updates["status.state"] = "completed"
+                updates = {
+                    "status.last_update": now_date().isoformat(),
+                    "status.state": "completed",
+                }
                 update_in(resp, "status.state", "completed")
+            else:
+                logger.debug("mpijob worker, not setting run as completed")
 
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")

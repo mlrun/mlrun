@@ -412,7 +412,7 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
 
     def _watch_logs(self, run):
         """
-        With mpijobs we update the run state by monitoring the run (monitor_runs)
+        With mpijobs we update the run state by monitoring the run (mlrun/api/main.py:_monitor_runs)
         If the client is watching the logs, we may get a faster response from the API since the endpoint
         checks the Launcher status if the run object is not in terminal state.
         If we got a terminal state it means that either the monitoring updated the run object in the DB or
@@ -431,4 +431,13 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             project = get_in(resp, "metadata.project")
             uid = get_in(resp, "metadata.uid")
             iter = get_in(resp, "metadata.iteration", 0)
+
+            logger.debug(
+                "Updating mpijob run state to completed",
+                state=state,
+                last_state=last_state,
+                project=project,
+                uid=uid,
+                run_name=run.metadata.name,
+            )
             self._get_db().update_run(updates, uid, project, iter=iter)

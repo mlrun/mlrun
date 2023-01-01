@@ -1373,11 +1373,11 @@ class TestFeatureStore(TestMLRunSystem):
                 NoSqlTarget(),
             ]
 
+        feature_set.set_targets(targets, with_defaults=False)
+
         fstore.ingest(
             feature_set,
             source,
-            run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
-            targets=targets,
         )
 
         features = [f"{name}.*"]
@@ -1407,8 +1407,6 @@ class TestFeatureStore(TestMLRunSystem):
             fstore.ingest(
                 feature_set,
                 source,
-                run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
-                targets=targets,
             )
 
             resp = svc.get(

@@ -434,21 +434,26 @@ def ingest(
         filter_time_string = ""
         if source.schedule:
             featureset.reload(update_spec=False)
-            min_time = datetime.max
-            for target in featureset.status.targets:
-                if target.last_written:
-                    cur_last_written = datetime.fromisoformat(target.last_written)
-                    if cur_last_written < min_time:
-                        min_time = cur_last_written
-            if min_time != datetime.max:
-                source.start_time = min_time
-                time_zone = min_time.tzinfo
-                source.end_time = datetime.now(tz=time_zone)
-                filter_time_string = (
-                    f"Source.start_time for the job is{str(source.start_time)}. "
-                    f"Source.end_time is {str(source.end_time)}"
-                )
 
+    if isinstance(source, DataSource) and source.schedule:
+        min_time = datetime.max
+        for target in targets or featureset.status.targets:
+            if target.last_written:
+                cur_last_written = target.last_written
+                if isinstance(cur_last_written, str):
+                    cur_last_written = datetime.fromisoformat(target.last_written)
+                if cur_last_written < min_time:
+                    min_time = cur_last_written
+        if min_time != datetime.max:
+            source.start_time = min_time
+            time_zone = min_time.tzinfo
+            source.end_time = datetime.now(tz=time_zone)
+            filter_time_string = (
+                f"Source.start_time for the job is{str(source.start_time)}. "
+                f"Source.end_time is {str(source.end_time)}"
+            )
+
+    if mlrun_context:
         mlrun_context.logger.info(
             f"starting ingestion task to {featureset.uri}.{filter_time_string}"
         )

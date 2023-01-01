@@ -300,9 +300,15 @@ class KubeResourceSpec(FunctionSpec):
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
+        ephemeral_storage: str = None,
     ):
         resources = verify_limits(
-            resources_field_name, mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type
+            resources_field_name,
+            mem=mem,
+            cpu=cpu,
+            gpus=gpus,
+            gpu_type=gpu_type,
+            ephemeral_storage=ephemeral_storage,
         )
         if not patch:
             update_in(
@@ -332,8 +338,11 @@ class KubeResourceSpec(FunctionSpec):
         mem: str = None,
         cpu: str = None,
         patch: bool = False,
+        ephemeral_storage: str = None,
     ):
-        resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
+        resources = verify_requests(
+            resources_field_name, mem=mem, cpu=cpu, ephemeral_storage=ephemeral_storage
+        )
         if not patch:
             update_in(
                 getattr(self, resources_field_name),
@@ -355,27 +364,41 @@ class KubeResourceSpec(FunctionSpec):
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
+        ephemeral_storage: str = None,
     ):
         """
-        set pod cpu/memory/gpu limits
+        set pod cpu/memory/gpu/ephemeral_storage limits
         by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
         """
-        self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
+        self._verify_and_set_limits(
+            "resources",
+            mem,
+            cpu,
+            gpus,
+            gpu_type,
+            patch=patch,
+            ephemeral_storage=ephemeral_storage,
+        )
 
-    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_requests(
+        self,
+        mem: str = None,
+        cpu: str = None,
+        patch: bool = False,
+        ephemeral_storage: str = None,
+    ):
         """
-        set requested (desired) pod cpu/memory resources
+        set requested (desired) pod cpu/memory/ephemeral_storage resources
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
-        self._verify_and_set_requests("resources", mem, cpu, patch)
+        self._verify_and_set_requests("resources", mem, cpu, patch, ephemeral_storage)
 
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
     ):
-        resources_types = ["cpu", "memory"]
+        resources_types = ["cpu", "memory", "ephemeral_storage"]
         resource_requirements = ["requests", "limits"]
         default_resources = mlconf.get_default_function_pod_resources()
-
         if resources:
             for resource_requirement in resource_requirements:
                 for resource_type in resources_types:
@@ -383,7 +406,7 @@ class KubeResourceSpec(FunctionSpec):
                         resources.setdefault(resource_requirement, {}).setdefault(
                             resource_type
                         )
-                        is None
+                        is None and resource_type in default_resources[resource_requirement].keys()
                     ):
                         resources[resource_requirement][
                             resource_type
@@ -393,16 +416,20 @@ class KubeResourceSpec(FunctionSpec):
             return resources
         else:
             resources = default_resources
+
         resources["requests"] = verify_requests(
             resources_field_name,
             mem=resources["requests"]["memory"],
             cpu=resources["requests"]["cpu"],
+            ephemeral_storage=resources["requests"].get("ephemeral_storage", None),
         )
         gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
+
         resources["limits"] = verify_limits(
             resources_field_name,
             mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
+            ephemeral_storage=resources["limits"].get("ephemeral_storage", None),
             gpus=gpu_value,
             gpu_type=gpu_type,
         )
@@ -1006,19 +1033,30 @@ class KubeResource(BaseRuntime):
         gpus: int = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
+        ephemeral_storage: str = None,
     ):
         """
-        set pod cpu/memory/gpu limits
+        set pod cpu/memory/gpu/ephemeral_storage limits
         by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
         """
-        self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
+        self.spec.with_limits(
+            mem, cpu, gpus, gpu_type, patch=patch, ephemeral_storage=ephemeral_storage
+        )
 
-    def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
+    def with_requests(
+        self,
+        mem: str = None,
+        cpu: str = None,
+        patch: bool = False,
+        ephemeral_storage: str = None,
+    ):
         """
-        set requested (desired) pod cpu/memory resources
+        set requested (desired) pod cpu/memory/ephemeral_storage resources
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
-        self.spec.with_requests(mem, cpu, patch=patch)
+        self.spec.with_requests(
+            mem, cpu, patch=patch, ephemeral_storage=ephemeral_storage
+        )
 
     def with_node_selection(
         self,

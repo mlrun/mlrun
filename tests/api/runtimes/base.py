@@ -762,20 +762,38 @@ class TestRuntimeBase:
             {
                 # when are not defaults defined
                 "default_function_pod_resources": {
-                    "requests": {"cpu": None, "memory": None, "gpu": None},
-                    "limits": {"cpu": None, "memory": None, "gpu": None},
+                    "requests": {
+                        "cpu": None,
+                        "memory": None,
+                        "gpu": None,
+                        "ephemeral_storage": None,
+                    },
+                    "limits": {
+                        "cpu": None,
+                        "memory": None,
+                        "gpu": None,
+                        "ephemeral_storage": None,
+                    },
                 },
                 "expected_resources": {},
             },
             {
                 # with defaults
                 "default_function_pod_resources": {
-                    "requests": {"cpu": "25m", "memory": "1M"},
-                    "limits": {"cpu": "2", "memory": "1G"},
+                    "requests": {
+                        "cpu": "25m",
+                        "memory": "1M",
+                        "ephemeral_storage": "100M",
+                    },
+                    "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": "100M"},
                 },
                 "expected_resources": {
-                    "requests": {"cpu": "25m", "memory": "1M"},
-                    "limits": {"cpu": "2", "memory": "1G"},
+                    "requests": {
+                        "cpu": "25m",
+                        "memory": "1M",
+                        "ephemeral_storage": "100M",
+                    },
+                    "limits": {"cpu": "2", "memory": "1G", "ephemeral_storage": "100M"},
                 },
             },
         ]:

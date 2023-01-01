@@ -88,7 +88,11 @@ def test_client_spec(
 
     # check default_function_pod_resources when values set
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25m", "memory": "1M", "gpu": ""},
+        "requests": {
+            "cpu": "25m",
+            "memory": "1M",
+            "gpu": "",
+        },
         "limits": {"cpu": "2", "memory": "1G", "gpu": ""},
     }
     response = client.get("client-spec")

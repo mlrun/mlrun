@@ -45,6 +45,12 @@ default_function_pod_resources_request_memory_env_key = (
 default_function_pod_resources_limits_cpu_env_key = (
     f"{default_function_pod_resources_env_key}LIMITS__CPU"
 )
+default_function_pod_resources_limits_ephemeral_storage_env_key = (
+    f"{default_function_pod_resources_env_key}LIMITS__ephemeral_storage"
+)
+default_function_pod_resources_request_ephemeral_storage_env_key = (
+    f"{default_function_pod_resources_env_key}REQUESTS__ephemeral_storage"
+)
 
 
 @pytest.fixture
@@ -187,6 +193,8 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
     requests_cpu = "30mi"
     limits_cpu = "4"
     requests_memory = "1M"
+    requests_ephemeral_storage = "100M"
+    limits_ephemeral_storage = "100M"
     requests_gpu = "2"
     limits_gpu = "2"
     env = {
@@ -195,6 +203,8 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
         default_function_pod_resources_request_memory_env_key: requests_memory,
         default_function_pod_resources_request_gpu_env_key: requests_gpu,
         default_function_pod_resources_limits_gpu_env_key: limits_gpu,
+        default_function_pod_resources_request_ephemeral_storage_env_key: requests_ephemeral_storage,
+        default_function_pod_resources_limits_ephemeral_storage_env_key: limits_ephemeral_storage,
     }
     with patch_env(env):
         mlconf.config.reload()
@@ -207,11 +217,13 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
                     "requests": {
                         "cpu": requests_cpu,
                         "memory": requests_memory,
+                        "ephemeral_storage": requests_ephemeral_storage,
                         "nvidia.com/gpu": requests_gpu,
                     },
                     "limits": {
                         "cpu": limits_cpu,
                         "memory": None,
+                        "ephemeral_storage": limits_ephemeral_storage,
                         "nvidia.com/gpu": limits_gpu,
                     },
                 },
@@ -220,11 +232,16 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
                 "with_gpu_requests": False,
                 "with_gpu_limits": True,
                 "expected_resources": {
-                    "requests": {"cpu": requests_cpu, "memory": requests_memory},
+                    "requests": {
+                        "cpu": requests_cpu,
+                        "memory": requests_memory,
+                        "ephemeral_storage": requests_ephemeral_storage,
+                    },
                     "limits": {
                         "cpu": limits_cpu,
                         "memory": None,
                         "nvidia.com/gpu": limits_gpu,
+                        "ephemeral_storage": limits_ephemeral_storage,
                     },
                 },
             },
@@ -236,10 +253,12 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
                         "cpu": requests_cpu,
                         "memory": requests_memory,
                         "nvidia.com/gpu": requests_gpu,
+                        "ephemeral_storage": requests_ephemeral_storage,
                     },
                     "limits": {
                         "cpu": limits_cpu,
                         "memory": None,
+                        "ephemeral_storage": limits_ephemeral_storage,
                     },
                 },
             },
@@ -247,8 +266,16 @@ def test_with_gpu_option_get_default_function_pod_resources(config):
                 "with_gpu_requests": False,
                 "with_gpu_limits": False,
                 "expected_resources": {
-                    "requests": {"cpu": requests_cpu, "memory": requests_memory},
-                    "limits": {"cpu": limits_cpu, "memory": None},
+                    "requests": {
+                        "cpu": requests_cpu,
+                        "memory": requests_memory,
+                        "ephemeral_storage": requests_ephemeral_storage,
+                    },
+                    "limits": {
+                        "cpu": limits_cpu,
+                        "memory": None,
+                        "ephemeral_storage": requests_ephemeral_storage,
+                    },
                 },
             },
         ]:
@@ -275,12 +302,30 @@ def test_get_default_function_pod_requirement_resources(config):
         default_function_pod_resources_limits_gpu_env_key: limits_gpu,
     }
     expected_resources_without_gpu = {
-        "requests": {"cpu": None, "memory": None},
-        "limits": {"cpu": None, "memory": None},
+        "requests": {
+            "cpu": None,
+            "memory": None,
+            "ephemeral_storage": None,
+        },
+        "limits": {
+            "cpu": None,
+            "memory": None,
+            "ephemeral_storage": None,
+        },
     }
     expected_resources_with_gpu = {
-        "requests": {"cpu": None, "memory": None, "nvidia.com/gpu": requests_gpu},
-        "limits": {"cpu": None, "memory": None, "nvidia.com/gpu": limits_gpu},
+        "requests": {
+            "cpu": None,
+            "memory": None,
+            "nvidia.com/gpu": requests_gpu,
+            "ephemeral_storage": None,
+        },
+        "limits": {
+            "cpu": None,
+            "memory": None,
+            "nvidia.com/gpu": limits_gpu,
+            "ephemeral_storage": None,
+        },
     }
     with patch_env(env):
         mlconf.config.reload()

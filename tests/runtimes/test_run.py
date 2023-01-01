@@ -97,8 +97,18 @@ def test_new_function_with_resources():
         {
             "resources": {"requests": {"cpu": "50mi"}},
             "default_resources": {
-                "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
-                "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+                "requests": {
+                    "cpu": "25mi",
+                    "memory": "1M",
+                    "gpu": None,
+                    "ephemeral_storage": None,
+                },
+                "limits": {
+                    "cpu": "1",
+                    "memory": "1G",
+                    "gpu": None,
+                    "ephemeral_storage": None,
+                },
             },
             "expected_resources": {
                 "requests": {"cpu": "50mi", "memory": "1M"},
@@ -108,8 +118,18 @@ def test_new_function_with_resources():
         {
             "resources": {"requests": {"cpu": "50mi"}},
             "default_resources": {
-                "requests": {"cpu": "25mi", "memory": "1M", "gpu": "1"},
-                "limits": {"cpu": "1", "memory": "1G", "gpu": "1"},
+                "requests": {
+                    "cpu": "25mi",
+                    "memory": "1M",
+                    "gpu": "1",
+                    "ephemeral_storage": None,
+                },
+                "limits": {
+                    "cpu": "1",
+                    "memory": "1G",
+                    "gpu": "1",
+                    "ephemeral_storage": None,
+                },
             },
             "expected_resources": {
                 "requests": {"cpu": "50mi", "memory": "1M"},
@@ -122,8 +142,8 @@ def test_new_function_with_resources():
                 "limits": {"nvidia.com/gpu": "1"},
             },
             "default_resources": {
-                "requests": {"cpu": "25mi", "memory": "1M"},
-                "limits": {"cpu": "1", "memory": "1G"},
+                "requests": {"cpu": "25mi", "memory": "1M", "ephemeral_storage": None},
+                "limits": {"cpu": "1", "memory": "1G", "ephemeral_storage": None},
             },
             "expected_resources": {
                 "requests": {"cpu": "50mi", "memory": "1M"},
@@ -153,8 +173,13 @@ def test_with_requests():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"limits": {"cpu": "20", "memory": "10G"}}
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
-        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+        "requests": {
+            "cpu": "25mi",
+            "memory": "1M",
+            "gpu": None,
+            "ephemeral_storage": None,
+        },
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None, "ephemeral_storage": None},
     }
     function = mlrun.new_function(runtime=runtime)
     function.with_requests(mem="9G", cpu="15")
@@ -178,7 +203,10 @@ def test_with_request_patch():
     function = mlrun.new_function(runtime=runtime)
     function.with_requests(mem="9G", patch=True)
     expected = {
-        "requests": {"cpu": "50mi", "memory": "9G"},
+        "requests": {
+            "cpu": "50mi",
+            "memory": "9G",
+        },
         "limits": {},
     }
     assert (
@@ -208,8 +236,13 @@ def test_with_limits_patch():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
-        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+        "requests": {
+            "cpu": "25mi",
+            "memory": "1M",
+            "gpu": None,
+            "ephemeral_storage": None,
+        },
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None, "ephemeral_storage": None},
     }
     function = mlrun.new_function(runtime=runtime)
     function.with_limits(mem="9G", patch=True)
@@ -245,8 +278,13 @@ def test_with_limits():
     runtime = _get_runtime()
     runtime["spec"]["resources"] = {"requests": {"cpu": "50mi"}}
     mlrun.mlconf.default_function_pod_resources = {
-        "requests": {"cpu": "25mi", "memory": "1M", "gpu": None},
-        "limits": {"cpu": "1", "memory": "1G", "gpu": None},
+        "requests": {
+            "cpu": "25mi",
+            "memory": "1M",
+            "gpu": None,
+            "ephemeral_storage": None,
+        },
+        "limits": {"cpu": "1", "memory": "1G", "gpu": None, "ephemeral_storage": None},
     }
     function = mlrun.new_function(runtime=runtime)
     function.with_limits(mem="9G", cpu="15")

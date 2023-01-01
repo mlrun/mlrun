@@ -96,11 +96,39 @@ class TestKubejobRuntime(TestRuntimeBase):
             cpu=expected_limits["cpu"],
             gpus=expected_limits[gpu_type],
             gpu_type=gpu_type,
+            ephemeral_storage=None,
         )
 
         expected_requests = generate_resources(mem=2, cpu=3)
         runtime.with_requests(
             mem=expected_requests["memory"], cpu=expected_requests["cpu"]
+        )
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_limits=expected_limits, expected_requests=expected_requests
+        )
+
+    def test_run_with_resource_limits_and_requests_with_ephemeral_storage(
+        self, db: Session, client: TestClient
+    ):
+        runtime = self._generate_runtime()
+
+        gpu_type = "test/gpu"
+        expected_limits = generate_resources(2, 4, 4, gpu_type, 10)
+        runtime.with_limits(
+            mem=expected_limits["memory"],
+            cpu=expected_limits["cpu"],
+            gpus=expected_limits[gpu_type],
+            gpu_type=gpu_type,
+            ephemeral_storage=expected_limits["ephemeral_storage"],
+        )
+
+        expected_requests = generate_resources(mem=2, cpu=3, ephemeral_storage=10)
+        runtime.with_requests(
+            mem=expected_requests["memory"],
+            cpu=expected_requests["cpu"],
+            ephemeral_storage=expected_requests["ephemeral_storage"],
         )
 
         self.execute_function(runtime)

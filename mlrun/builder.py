@@ -154,7 +154,9 @@ def make_kaniko_pod(
     )
     resources = {
         "requests": mlrun.runtimes.utils.generate_resources(
-            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+            mem=default_requests.get("memory"),
+            cpu=default_requests.get("cpu"),
+            ephemeral_storage=default_requests.get("ephemeral_storage"),
         )
     }
     kpod = BasePod(

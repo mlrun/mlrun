@@ -24,6 +24,18 @@ from tests.system.base import TestMLRunSystem
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
+class TestStam(TestMLRunSystem):
+    def test_nothing(self):
+        pass
+
+    def test_fail_nothing(self):
+        raise Exception("test_fail_nothing")
+
+    def _skip_set_environment(self):
+        return True
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
 class TestKubernetesProjectSecrets(TestMLRunSystem):
     project_name = "db-system-test-project"
 

@@ -24,6 +24,7 @@ from scipy import interp
 from sklearn import metrics
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import confusion_matrix as sklearn_confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.preprocessing import LabelBinarizer
 
 from ..artifacts import PlotArtifact
@@ -164,7 +165,7 @@ def learning_curves(model):
 
 
 def confusion_matrix(model, xtest, ytest, cmap="Blues"):
-    cmd = metrics.plot_confusion_matrix(
+    cmd = ConfusionMatrixDisplay.from_estimator(
         model,
         xtest,
         ytest,
@@ -452,7 +453,7 @@ def eval_class_model(
 
     # CONFUSION MATRIX
     gcf_clear(plt)
-    cmd = metrics.plot_confusion_matrix(
+    cmd = ConfusionMatrixDisplay.from_estimator(
         model, xtest, ytest, normalize="all", cmap=plt.cm.Blues
     )
     model_metrics["plots"].append(PlotArtifact("confusion-matrix", body=cmd.figure_))
@@ -665,7 +666,7 @@ def eval_model_v2(
             ytest = ytest.values
             unique_labels = np.unique(ytest)
         except Exception as exc:
-            raise Exception("unrecognized data type for ytest") from exc
+            raise Exception(f"unrecognized data type for ytest {exc}")
 
     n_classes = len(unique_labels)
     is_multiclass = True if n_classes > 2 else False
@@ -706,7 +707,7 @@ def eval_model_v2(
     df = pd.DataFrame(data=cm)
     extra_data["confusion matrix table.csv"] = df_blob(df)
 
-    cmd = metrics.plot_confusion_matrix(
+    cmd = ConfusionMatrixDisplay.from_estimator(
         model,
         xtest,
         ytest,

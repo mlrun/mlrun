@@ -38,6 +38,7 @@ import semver
 import yaml
 
 import mlrun.errors
+from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -455,6 +456,9 @@ default_config = {
     "ce": {
         # ce mode can be one of: "", lite, full
         "mode": "",
+        # not possible to call this "version" because the Config class has a "version" property
+        # which returns the version from the version.json file
+        "release": "",
     },
     "debug": {
         "expose_internal_api_endpoints": False,
@@ -518,7 +522,9 @@ class Config:
                     except mlrun.errors.MLRunRuntimeError as exc:
                         if not skip_errors:
                             raise exc
-                        print(f"Warning, failed to set config key {key}={value}, {exc}")
+                        print(
+                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                        )
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)

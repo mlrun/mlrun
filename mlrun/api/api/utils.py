@@ -40,7 +40,8 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
-from mlrun.k8s_utils import get_k8s_helper
+from mlrun.errors import err_to_str
+from mlrun.k8s_utils import get_k8s_helper, sanitize_function_volumes
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
@@ -242,36 +243,8 @@ def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
     """
     get_item_attribute = mlrun.runtimes.utils.get_item_name
     v3io_volume_indices = []
-    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
-    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
-    new_volumes = []
-    k8s_api_client = kubernetes.client.ApiClient()
-    for volume in function.spec.volumes:
-        if isinstance(volume, dict):
-            if "flexVolume" in volume:
-                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
-                if not isinstance(volume["flexVolume"], dict):
-                    # sanity
-                    if isinstance(
-                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
-                    ):
-                        volume[
-                            "flexVolume"
-                        ] = k8s_api_client.sanitize_for_serialization(
-                            volume["flexVolume"]
-                        )
-                    else:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
-                        )
-            new_volumes.append(volume)
-        elif isinstance(volume, kubernetes.client.V1Volume):
-            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unexpected volume type: {type(volume)}"
-            )
-    function.spec.volumes = new_volumes
+
+    sanitize_function_volumes(function)
 
     for index, volume in enumerate(function.spec.volumes):
         if volume.get("flexVolume", {}).get("driver") == "v3io/fuse":
@@ -701,7 +674,22 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
-            run = fn.run(task, watch=False)
+            # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
+            # locally from the mlrun service pod) - include project secrets and the caller's access key
+            param_file_secrets = (
+                mlrun.api.crud.Secrets()
+                .list_project_secrets(
+                    task["metadata"]["project"],
+                    mlrun.api.schemas.SecretProviderName.kubernetes,
+                    allow_secrets_from_k8s=True,
+                )
+                .secrets
+            )
+            param_file_secrets["V3IO_ACCESS_KEY"] = (
+                auth_info.data_session or auth_info.access_key
+            )
+
+            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:
@@ -714,7 +702,10 @@ def _submit_run(
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

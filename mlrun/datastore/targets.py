@@ -490,11 +490,11 @@ class BaseStoreTarget(DataTargetBase):
                         "Format for writing dask dataframe should be CSV or Parquet!"
                     )
             except Exception as exc:
-                raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
+                raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
             target_path = generate_path_with_chunk(self, chunk_id)
-            fs = self._get_store().get_filesystem(False)
-            if fs.protocol == "file":
+            file_system = self._get_store().get_filesystem(False)
+            if file_system.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
@@ -533,7 +533,7 @@ class BaseStoreTarget(DataTargetBase):
                 **kwargs,
             )
             try:
-                return fs.size(target_path)
+                return file_system.size(target_path)
             except Exception:
                 return None
 

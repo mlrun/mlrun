@@ -26,6 +26,7 @@ import mlrun.api.schemas
 import mlrun.errors
 
 from .config import config as mlconfig
+from .errors import err_to_str
 from .platforms.iguazio import v3io_to_vol
 from .utils import logger
 
@@ -92,7 +93,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list pods: {exc}")
+            logger.error(f"failed to list pods: {err_to_str(exc)}")
             raise exc
 
         items = []
@@ -123,15 +124,15 @@ class K8sHelper:
                     logger.error(
                         "failed to create pod after max retries",
                         retry_count=retry_count,
-                        exc=str(exc),
+                        exc=err_to_str(exc),
                         pod=pod,
                     )
                     raise exc
 
-                logger.error("failed to create pod", exc=str(exc), pod=pod)
+                logger.error("failed to create pod", exc=err_to_str(exc), pod=pod)
 
                 # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
-                if "gke-resource-quotas" in str(exc):
+                if "gke-resource-quotas" in err_to_str(exc):
                     logger.warning(
                         "failed to create pod due to gke resource error, "
                         f"sleeping {retry_interval} seconds and retrying"
@@ -157,7 +158,7 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if pod is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete pod: {exc}", pod_name=name)
+                logger.error(f"failed to delete pod: {err_to_str(exc)}", pod_name=name)
                 raise exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
@@ -168,7 +169,7 @@ class K8sHelper:
             return api_response
         except ApiException as exc:
             if exc.status != 404:
-                logger.error(f"failed to get pod: {exc}")
+                logger.error(f"failed to get pod: {err_to_str(exc)}")
                 raise exc
             else:
                 if raise_on_not_found:
@@ -200,7 +201,7 @@ class K8sHelper:
             # ignore error if crd is already removed
             if exc.status != 404:
                 logger.error(
-                    f"failed to delete crd: {exc}",
+                    f"failed to delete crd: {err_to_str(exc)}",
                     crd_name=name,
                     crd_group=crd_group,
                     crd_version=crd_version,
@@ -214,7 +215,7 @@ class K8sHelper:
                 name=name, namespace=self.resolve_namespace(namespace)
             )
         except ApiException as exc:
-            logger.error(f"failed to get pod logs: {exc}")
+            logger.error(f"failed to get pod logs: {err_to_str(exc)}")
             raise exc
 
         return resp
@@ -248,7 +249,7 @@ class K8sHelper:
                 if status != "pending":
                     logger.warning(f"pod state in loop is {status}")
             except ApiException as exc:
-                logger.error(f"failed waiting for pod: {str(exc)}\n")
+                logger.error(f"failed waiting for pod: {err_to_str(exc)}\n")
                 return "error"
         outputs = self.v1api.read_namespaced_pod_log(
             name=pod_name, namespace=namespace, follow=True, _preload_content=False
@@ -286,7 +287,7 @@ class K8sHelper:
         try:
             resp = self.v1api.create_namespaced_config_map(namespace, body)
         except ApiException as exc:
-            logger.error(f"failed to create configmap: {exc}")
+            logger.error(f"failed to create configmap: {err_to_str(exc)}")
             raise exc
 
         logger.info(f"ConfigMap {resp.metadata.name} created")
@@ -305,7 +306,7 @@ class K8sHelper:
         except ApiException as exc:
             # ignore error if ConfigMap is already removed
             if exc.status != 404:
-                logger.error(f"failed to delete ConfigMap: {exc}")
+                logger.error(f"failed to delete ConfigMap: {err_to_str(exc)}")
             raise exc
 
     def list_cfgmap(self, namespace=None, selector=""):
@@ -314,7 +315,7 @@ class K8sHelper:
                 self.resolve_namespace(namespace), watch=False, label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list ConfigMaps: {exc}")
+            logger.error(f"failed to list ConfigMaps: {err_to_str(exc)}")
             raise exc
 
         items = []
@@ -378,7 +379,7 @@ class K8sHelper:
             )
             return api_response
         except ApiException as exc:
-            logger.error(f"failed to create service account: {exc}")
+            logger.error(f"failed to create service account: {err_to_str(exc)}")
             raise exc
 
     def get_project_vault_secret_name(
@@ -393,7 +394,7 @@ class K8sHelper:
         except ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
             if exc.status != 404:
-                logger.error(f"failed to retrieve service accounts: {exc}")
+                logger.error(f"failed to retrieve service accounts: {err_to_str(exc)}")
                 raise exc
             return None
 
@@ -477,7 +478,7 @@ class K8sHelper:
         except ApiException as exc:
             # If secret doesn't exist, we'll simply create it
             if exc.status != 404:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
+                logger.error(f"failed to retrieve k8s secret: {err_to_str(exc)}")
                 raise exc
             k8s_secret = client.V1Secret(type=type_)
             k8s_secret.metadata = client.V1ObjectMeta(
@@ -511,7 +512,7 @@ class K8sHelper:
             if exc.status == 404:
                 return
             else:
-                logger.error(f"failed to retrieve k8s secret: {exc}")
+                logger.error(f"failed to retrieve k8s secret: {err_to_str(exc)}")
                 raise exc
 
         if not secrets:
@@ -741,6 +742,51 @@ def format_labels(labels):
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""
+
+
+def sanitize_function_volumes(function):
+    """
+    to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    :param function: function object
+    :return: function object
+    """
+    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    new_volumes = []
+    k8s_api_client = kubernetes.client.ApiClient()
+
+    # some function spec might not have volumes (e.g. BaseRuntime) so skip if not exist
+    if not hasattr(function, "spec") or not hasattr(function.spec, "volumes"):
+        return function
+
+    for volume in function.spec.volumes:
+        if isinstance(volume, dict):
+            if "flexVolume" in volume:
+                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
+                if not isinstance(volume["flexVolume"], dict):
+                    # sanity
+                    if isinstance(
+                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
+                    ):
+                        volume[
+                            "flexVolume"
+                        ] = k8s_api_client.sanitize_for_serialization(
+                            volume["flexVolume"]
+                        )
+                    else:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
+                        )
+            new_volumes.append(volume)
+        elif isinstance(volume, kubernetes.client.V1Volume):
+            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected volume type: {type(volume)}"
+            )
+    function.spec.volumes = new_volumes
+    return function
 
 
 def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

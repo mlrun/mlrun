@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import getpass
+import http
 import os
 import traceback
 import typing
@@ -26,6 +27,7 @@ from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import IPython
+import requests.exceptions
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -41,6 +43,7 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from ..config import config, is_running_as_api
 from ..datastore import store_manager
 from ..db import RunDBError, get_or_set_dburl, get_run_db
+from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import mlrun_op, write_kfpmeta
@@ -305,6 +308,7 @@ class BaseRuntime(ModelObj):
         local=False,
         local_code_path=None,
         auto_build=None,
+        param_file_secrets: Dict[str, str] = None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -333,7 +337,8 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-
+        :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
+                            These secrets are only used locally and will not be stored anywhere
         :return: run context object (RunObject) with run metadata, results and status
         """
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
@@ -428,7 +433,9 @@ class BaseRuntime(ModelObj):
         self._verify_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
-        task_generator = get_generator(run.spec, execution)
+        task_generator = get_generator(
+            run.spec, execution, param_file_secrets=param_file_secrets
+        )
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)
@@ -719,13 +726,18 @@ class BaseRuntime(ModelObj):
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return
-        except Exception as err:
-            logger.error(f"got remote run err, {err}")
+
+        except (requests.HTTPError, Exception) as err:
+            logger.error(f"got remote run err, {err_to_str(err)}")
+
+            if isinstance(err, requests.HTTPError):
+                self._handle_submit_job_http_error(err)
+
             result = None
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = self._update_run_state(task=runspec, err=err)
+                result = self._update_run_state(task=runspec, err=err_to_str(err))
             return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
 
         if resp:
@@ -762,6 +774,16 @@ class BaseRuntime(ModelObj):
             resp = self._get_db_run(runspec)
 
         return self._wrap_run_result(resp, runspec, schedule=schedule)
+
+    @staticmethod
+    def _handle_submit_job_http_error(error: requests.HTTPError):
+        # if we receive a 400 status code, this means the request was invalid and the run wasn't created in the DB.
+        # so we don't need to update the run state and we can just raise the error.
+        # more status code handling can be added here if needed
+        if error.response.status_code == http.HTTPStatus.BAD_REQUEST.value:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Bad request to mlrun api: {error.response.text}"
+            )
 
     def _store_function(self, runspec, meta, db):
         db_str = "self" if self._is_api_server else self.spec.rundb
@@ -865,8 +887,9 @@ class BaseRuntime(ModelObj):
 
             except RunError as err:
                 task.status.state = "error"
-                task.status.error = str(err)
-                resp = self._update_run_state(task=task, err=err)
+                error_string = err_to_str(err)
+                task.status.error = error_string
+                resp = self._update_run_state(task=task, err=error_string)
                 num_errors += 1
                 if num_errors > generator.max_errors:
                     logger.error("too many errors, stopping iterations!")
@@ -923,10 +946,10 @@ class BaseRuntime(ModelObj):
             updates["status.state"] = "error"
             update_in(resp, "status.state", "error")
             if err:
-                update_in(resp, "status.error", str(err))
+                update_in(resp, "status.error", err_to_str(err))
             err = get_in(resp, "status.error")
             if err:
-                updates["status.error"] = str(err)
+                updates["status.error"] = err_to_str(err)
         elif not was_none and last_state != "completed":
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "completed"
@@ -1448,7 +1471,7 @@ class BaseRuntimeHandler(ABC):
                     "Failed monitoring runtime resource. Continuing",
                     runtime_resource_name=runtime_resource["metadata"]["name"],
                     namespace=namespace,
-                    exc=str(exc),
+                    exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
         for project, runs in project_run_uid_map.items():
@@ -1474,7 +1497,7 @@ class BaseRuntimeHandler(ABC):
                             run_uid=run_uid,
                             run=run,
                             project=project,
-                            exc=str(exc),
+                            exc=err_to_str(exc),
                             traceback=traceback.format_exc(),
                         )
 
@@ -1994,7 +2017,7 @@ class BaseRuntimeHandler(ABC):
                             # Don't prevent the deletion for failure in the pre deletion run actions
                             logger.warning(
                                 "Failure in crd object run pre-deletion actions. Continuing",
-                                exc=str(exc),
+                                exc=err_to_str(exc),
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
@@ -2010,7 +2033,7 @@ class BaseRuntimeHandler(ABC):
                     exc = traceback.format_exc()
                     crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
-                        f"Cleanup failed processing CRD object {crd_object_name}: {exc}. Continuing"
+                        f"Cleanup failed processing CRD object {crd_object_name}: {err_to_str(exc)}. Continuing"
                     )
         self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
         return deleted_crds

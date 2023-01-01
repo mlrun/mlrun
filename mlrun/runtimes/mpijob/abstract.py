@@ -23,8 +23,8 @@ from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
-from mlrun.runtimes.utils import AsyncLogWriter, RunError
-from mlrun.utils import get_in, logger
+from mlrun.runtimes.utils import RunError
+from mlrun.utils import get_in, logger, now_date, update_in
 
 
 class MPIResourceSpec(KubeResourceSpec):
@@ -173,41 +173,17 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
                 execution.set_state("running" if state == "active" else state)
-                if self.kfp:
-                    writer = AsyncLogWriter(self._db_conn, runobj)
-                    status = self._get_k8s().watch(
-                        launcher, meta.namespace, writer=writer
-                    )
-                    logger.info(f"MpiJob {meta.name} finished with state {status}")
-                    if status == "succeeded":
-                        execution.set_state("completed")
-                    else:
-                        execution.set_state(
-                            "error",
-                            f"MpiJob {meta.name} finished with state {status}",
-                        )
-                else:
-                    txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
-                    logger.info(txt)
-                    runobj.status.status_text = txt
+                txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
+                logger.info(txt)
+                runobj.status.status_text = txt
+
             else:
                 pods_phases = self.get_pods(meta.name, meta.namespace)
                 txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
                 logger.warning(txt)
                 runobj.status.status_text = txt
-                if self.kfp:
-                    execution.set_state("error", txt)
 
         return None
-
-    def _post_run(self, result, execution: MLClientCtx):
-        time.sleep(5)
-        logger.info("MpiJob post run", result=result, execution=execution.to_dict())
-        # we get the run object from the DB since it might have been updated multiple times by mpi workers
-        # and we want to ensure we have the latest version of it
-        resp = self._get_db_run(result)
-        logger.info("MpiJob post run", resp=resp.to_dict())
-        result["status"] = resp["status"]
 
     def _submit_mpijob(self, job, namespace=None):
         mpi_group, mpi_version, mpi_plural = self._get_crd_info()
@@ -433,3 +409,25 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
             )
 
         self.spec.mpi_args = args
+
+    def _watch_logs(self, run):
+        """
+        With mpijobs we update the run state by monitoring the run (monitor_runs)
+        If the client is watching the logs, we may get a faster response from the API since the endpoint
+        checks the Launcher status if the run object is not in terminal state.
+        If we got a terminal state it means that either the monitoring updated the run object in the DB or
+        that the launcher returned a terminal state and the object was not updated yet.
+        Therefore, we can update it from here.
+        """
+        state, _ = run.logs(watch=True, db=self._get_db())
+        resp = self._get_db_run(run)
+        if resp.status.state != state:
+            updates = {
+                "status.last_update": now_date().isoformat(),
+                "status.state": "completed",
+            }
+            update_in(resp, "status.state", "completed")
+            project = get_in(resp, "metadata.project")
+            uid = get_in(resp, "metadata.uid")
+            iter = get_in(resp, "metadata.iteration", 0)
+            self._get_db().update_run(updates, uid, project, iter=iter)

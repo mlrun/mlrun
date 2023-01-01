@@ -713,11 +713,11 @@ class BaseRuntime(ModelObj):
             )
         return runspec
 
-    def _submit_job(self, runspec, schedule, db, watch):
+    def _submit_job(self, run, schedule, db, watch):
         if self._secrets:
-            runspec.spec.secret_sources = self._secrets.to_serial()
+            run.spec.secret_sources = self._secrets.to_serial()
         try:
-            resp = db.submit_job(runspec, schedule=schedule)
+            resp = db.submit_job(run, schedule=schedule)
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return
@@ -732,8 +732,8 @@ class BaseRuntime(ModelObj):
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = self._update_run_state(task=runspec, err=err)
-            return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+                result = self._update_run_state(task=run, err=err)
+            return self._wrap_run_result(result, run, schedule=schedule, err=err)
 
         if resp:
             txt = get_in(resp, "status.status_text")
@@ -756,19 +756,22 @@ class BaseRuntime(ModelObj):
                 config.httpdb.logs.pipelines.pull_state.pull_logs_interval
             )
 
-            runspec.wait_for_completion(
+            run.wait_for_completion(
                 show_logs=True,
                 sleep=state_interval,
                 logs_interval=logs_interval,
                 raise_on_failure=False,
             )
-            resp = self._get_db_run(runspec)
+            resp = self._get_db_run(run)
 
         elif watch or self.kfp:
-            runspec.logs(True, self._get_db())
-            resp = self._get_db_run(runspec)
+            self._watch_logs(run)
+            resp = self._get_db_run(run)
 
-        return self._wrap_run_result(resp, runspec, schedule=schedule)
+        return self._wrap_run_result(resp, run, schedule=schedule)
+
+    def _watch_logs(self, run):
+        return run.logs(watch=True, db=self._get_db())
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):
@@ -857,7 +860,7 @@ class BaseRuntime(ModelObj):
     def _pre_run(self, runspec: RunObject, execution):
         pass
 
-    def _post_run(self, result, execution):
+    def _post_run(self, results, execution):
         pass
 
     def _run(self, runobj: RunObject, execution) -> dict:
@@ -935,6 +938,7 @@ class BaseRuntime(ModelObj):
 
         updates = None
         last_state = get_in(resp, "status.state", "")
+        kind = get_in(resp, "metadata.labels.kind", "")
         if last_state == "error" or err:
             updates = {"status.last_update": now_date().isoformat()}
             updates["status.state"] = "error"
@@ -944,10 +948,13 @@ class BaseRuntime(ModelObj):
             err = get_in(resp, "status.error")
             if err:
                 updates["status.error"] = str(err)
+
         elif not was_none and last_state != "completed":
-            updates = {"status.last_update": now_date().isoformat()}
-            updates["status.state"] = "completed"
-            update_in(resp, "status.state", "completed")
+            # mpi workers should not set the run as completed, only the launcher
+            if kind != "mpijob":
+                updates = {"status.last_update": now_date().isoformat()}
+                updates["status.state"] = "completed"
+                update_in(resp, "status.state", "completed")
 
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")

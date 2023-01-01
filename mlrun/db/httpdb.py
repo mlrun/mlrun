@@ -529,7 +529,7 @@ class HTTPRunDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project=None,
         labels=None,
         state=None,
@@ -555,7 +555,7 @@ class HTTPRunDB(RunDBInterface):
 
 
         :param name: Name of the run to retrieve.
-        :param uid: Unique ID of the run.
+        :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.

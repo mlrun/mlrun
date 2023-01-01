@@ -3259,17 +3259,17 @@ class TestFeatureStore(TestMLRunSystem):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
-                "d_id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                "name": [f"dept{num}" for num in range(1, 11, 1)],
-                "manager_id": [i for i in range(10, 20)],
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
             }
         )
 
         employees_with_department = pd.DataFrame(
             {
-                "id": [num for num in range(100, 1100, 100)],
-                "name": [f"employee{num}" for num in range(100, 1100, 100)],
-                "department_id": [1, 1, 1, 2, 2, 2, 6, 6, 6, 11],
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
             }
         )
 
@@ -3277,22 +3277,22 @@ class TestFeatureStore(TestMLRunSystem):
             {
                 "id": [100, 200, 300],
                 "name": [f"employee{num}" for num in range(100, 400, 100)],
-                "department_id": [1, 1, 1],
+                "department_id": [1, 1, 2],
                 "class_id": [i for i in range(20, 23)],
             }
         )
 
         classes = pd.DataFrame(
             {
-                "c_id": [i for i in range(20, 40, 2)],
-                "name": [f"class{num}" for num in range(20, 40, 2)],
+                "c_id": [i for i in range(20, 30, 2)],
+                "name": [f"class{num}" for num in range(20, 30, 2)],
             }
         )
 
         managers = pd.DataFrame(
             {
-                "m_id": [i for i in range(10, 30, 2)],
-                "name": [f"manager{num}" for num in range(10, 30, 2)],
+                "m_id": [i for i in range(10, 20, 2)],
+                "name": [f"manager{num}" for num in range(10, 20, 2)],
             }
         )
 

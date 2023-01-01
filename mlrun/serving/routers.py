@@ -794,9 +794,7 @@ def _init_endpoint_record(
                     children_uids=children_uids,
                 ),
             )
-
             db = mlrun.get_run_db()
-
             db.create_or_patch_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,

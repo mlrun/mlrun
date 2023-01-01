@@ -19,8 +19,8 @@ import pydantic
 import mlrun.api.utils.helpers
 
 
-# Ideally we would want this to be class FunctionState(mlrun.api.utils.helpers.StrEnum) which is the "FastAPI-compatible" way of creating
-# schemas
+# Ideally we would want this to be class FunctionState(mlrun.api.utils.helpers.StrEnum) which is the
+# "FastAPI-compatible" way of creating schemas
 # But, when we save a function to the DB, we pickle the body, which saves the state as an instance of this class (and
 # not just a string), then if for some reason we downgrade to 0.6.4, before we had this class, we fail reading (pickle
 # load) the function from the DB.

@@ -69,7 +69,7 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     kwargs = {}
     if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
         logger.warning(
-            "Could not detect path to API server, Using Deprecated client interface."
+            "Could not detect path to API server, Using Deprecated client interface"
         )
         logger.warning(
             "Please make sure your env variable MLRUN_DB_PATH is configured correctly to point to the API server!"

@@ -1075,7 +1075,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -1086,9 +1088,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fstore.preview(
             data_set,
-            data,  # source
+            source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
 
@@ -2522,7 +2523,6 @@ class TestFeatureStore(TestMLRunSystem):
             featureset=fset,
             source=quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
         )
 
         filename = str(
@@ -3266,6 +3266,71 @@ class TestFeatureStore(TestMLRunSystem):
                 fset,
                 source,
             )
+
+    # ML-3099
+    def test_preview_timestamp_key(self):
+        name = f"measurements_{uuid.uuid4()}"
+        base_time = pd.Timestamp(2021, 1, 1)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    base_time,
+                    base_time - pd.Timedelta(minutes=1),
+                    base_time - pd.Timedelta(minutes=2),
+                    base_time - pd.Timedelta(minutes=3),
+                    base_time - pd.Timedelta(minutes=4),
+                    base_time - pd.Timedelta(minutes=5),
+                ],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 2500, 14],
+            }
+        )
+
+        # write to kv
+        data_set = fstore.FeatureSet(
+            name, entities=[Entity("first_name"), Entity("last_name")]
+        )
+
+        data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
+        )
+        res_df = fstore.preview(
+            data_set,
+            source=data,
+            entity_columns=["first_name", "last_name"],
+            timestamp_key="time",
+            options=fstore.InferOptions.default(),
+        )
+        expected_df = pd.DataFrame(
+            [
+                ("moshe", "cohen", 2000.0, 2000.0, base_time, 2000),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=2), 11),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=3), 12),
+                (
+                    "moshe",
+                    "cohen",
+                    2000.0,
+                    2000.0,
+                    base_time - pd.Timedelta(minutes=4),
+                    2500,
+                ),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=5), 14),
+            ],
+            columns=[
+                "first_name",
+                "last_name",
+                "bid_sum_1h",
+                "bid_max_1h",
+                "time",
+                "bid",
+            ],
+        )
+        expected_df.set_index(["first_name", "last_name"], inplace=True)
+        assert res_df.equals(expected_df), f"unexpected result: {res_df}"
 
 
 def verify_purge(fset, targets):

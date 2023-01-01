@@ -36,6 +36,7 @@ import mlrun
 from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
+from .errors import err_to_str
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
@@ -412,7 +413,7 @@ def run(
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print(f"runtime error: {err}")
+        print(f"runtime error: {err_to_str(err)}")
         exit(1)
 
 
@@ -553,7 +554,7 @@ def build(
                 with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
             )
         except Exception as err:
-            print(f"deploy error, {err}")
+            print(f"deploy error, {err_to_str(err)}")
             exit(1)
 
         state = func.status.state
@@ -666,7 +667,7 @@ def deploy(
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
-        print(f"deploy error: {err}")
+        print(f"deploy error: {err_to_str(err)}")
         exit(1)
 
     print(f"function deployed, address={addr}")
@@ -981,6 +982,12 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+@click.option(
+    "--overwrite-schedule",
+    "-os",
+    is_flag=True,
+    help="Overwrite a schedule when submitting a new one with the same name.",
+)
 def project(
     context,
     name,
@@ -1006,6 +1013,7 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    overwrite_schedule,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1056,8 +1064,6 @@ def project(
             args = fill_params(arguments)
 
         print(f"running workflow {run} file: {workflow_path}")
-        message = ""
-        had_error = False
         gitops = (
             git_issue
             or environ.get("GITHUB_EVENT_PATH")
@@ -1073,30 +1079,37 @@ def project(
                 },
             )
         try:
-            proj.run(
-                run,
-                workflow_path,
-                arguments=args,
-                artifact_path=artifact_path,
-                namespace=namespace,
-                sync=sync,
-                watch=watch,
-                dirty=dirty,
-                workflow_handler=handler,
-                engine=engine,
-                local=local,
-                schedule=schedule,
-                timeout=timeout,
-            )
+            try:
+                proj.run(
+                    run,
+                    workflow_path,
+                    arguments=args,
+                    artifact_path=artifact_path,
+                    namespace=namespace,
+                    sync=sync,
+                    watch=watch,
+                    dirty=dirty,
+                    workflow_handler=handler,
+                    engine=engine,
+                    local=local,
+                    schedule=schedule,
+                    timeout=timeout,
+                    overwrite=overwrite_schedule,
+                )
+            except mlrun.errors.MLRunConflictError as error:
+                if error.args:
+                    # error.args is a tuple, so need to convert to list for changing its value.
+                    args_list = list(error.args)
+                    args_list[0] = args_list[0].replace(
+                        "overwrite = True", "--overwrite-schedule"
+                    )
+                    error.args = tuple(args_list)
+                raise error
+
         except Exception as exc:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {exc}"
-            had_error = True
-            print(message)
-
-        if had_error:
+            message = f"failed to run pipeline, {err_to_str(exc)}"
             proj.notifiers.push(message, "error")
-        if had_error:
             exit(1)
 
     elif sync:
@@ -1363,7 +1376,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
                 function.spec.command = command
             runtime = function.to_dict()
     except Exception as exc:
-        logger.error(f"function {func_url} not found, {exc}")
+        logger.error(f"function {func_url} not found, {err_to_str(exc)}")
         return None
 
     if not runtime:

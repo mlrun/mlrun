@@ -26,19 +26,6 @@ from _pytest.reports import TestReport
 from _pytest.runner import CallInfo
 
 
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
-    outcome = yield
-    result: TestReport = outcome.get_result()
-
-    try:
-        post_report_failed_to_slack(
-            result, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
-        )
-    except Exception as exc:
-        print(f"Failed to post test report to slack: {exc}")
-
-
 def pytest_sessionstart(session):
 
     # caching test results
@@ -46,13 +33,20 @@ def pytest_sessionstart(session):
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_makereport(item, call):
+def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     outcome = yield
-    report = outcome.get_result()
+    report: TestReport = outcome.get_result()
 
     # cache test call result
     if report.when == "call":
         item.session.results[item] = report
+
+    try:
+        post_report_failed_to_slack(
+            report, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
+        )
+    except Exception as exc:
+        print(f"Failed to post test report to slack: {exc}")
 
 
 def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
@@ -70,18 +64,18 @@ def post_report_session_finish_to_slack(
 ):
     mlrun_version = os.getenv("MLRUN_VERSION", "")
     mlrun_system_tests_component = os.getenv("MLRUN_SYSTEM_TESTS_COMPONENT", "")
-    ttl_tests = session.testscollected
-    ttl_failed_tests = session.testsfailed
+    total_executed_tests = session.testscollected
+    total_failed_tests = session.testsfailed
     if exitstatus == ExitCode.OK:
-        text = f"All {ttl_tests} tests passed successfully"
+        text = f"All {total_executed_tests} tests passed successfully"
     else:
-        text = f"{ttl_failed_tests} out of {ttl_tests} tests failed"
+        text = f"{total_failed_tests} out of {total_executed_tests} tests failed"
 
     test_session_info = ""
     if mlrun_system_tests_component:
         test_session_info += f"Component: {mlrun_system_tests_component}"
     else:
-        test_session_info += f"Component: mlrun"
+        test_session_info += "Component: mlrun"
 
     # get mlrun version from envvar or fallback to git commit
     if mlrun_version:
@@ -91,7 +85,7 @@ def post_report_session_finish_to_slack(
             git_commit = os.popen("git rev-parse --short HEAD").read().strip()
             test_session_info += f"\nVersion: {git_commit}"
         except Exception:
-            test_session_info += f"\nVersion: unknown"
+            test_session_info += "\nVersion: unknown"
 
     test_session_info += f"\nPath: {','.join(session.config.option.file_or_dir)}"
     text = f"*{text}*\n{test_session_info}"

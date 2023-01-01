@@ -77,16 +77,24 @@ def post_report_session_finish_to_slack(
     else:
         text = f"{ttl_failed_tests} out of {ttl_tests} tests failed"
 
-    text_prefix = ""
+    test_session_info = ""
     if mlrun_system_tests_component:
-        text_prefix += f"{mlrun_system_tests_component}"
-    if mlrun_version:
-        text_prefix += f" (version: {mlrun_version})"
-    if text_prefix:
-        text_prefix = f"[{text_prefix}]"
-        text = f"{text_prefix} {text}"
+        test_session_info += f"Component: {mlrun_system_tests_component}"
+    else:
+        test_session_info += f"Component: mlrun"
 
-    text += f" ({','.join(session.config.option.file_or_dir)})"
+    # get mlrun version from envvar or fallback to git commit
+    if mlrun_version:
+        test_session_info += f"\nVersion: {mlrun_version}"
+    else:
+        try:
+            git_commit = os.popen("git rev-parse --short HEAD").read().strip()
+            test_session_info += f"\nVersion: {git_commit}"
+        except Exception:
+            test_session_info += f"\nVersion: unknown"
+
+    test_session_info += f"\n{','.join(session.config.option.file_or_dir)}"
+    text = f"*{text}*\n{test_session_info}"
 
     data = {"text": text, "attachments": []}
     for item, test_report in session.results.items():

@@ -14,11 +14,11 @@
 #
 import mergedeep
 
+import mlrun.api.utils.helpers
 import mlrun.errors
-from mlrun.api.utils.helpers import StrEnum
 
 
-class PatchMode(StrEnum):
+class PatchMode(mlrun.api.utils.helpers.StrEnum):
     replace = "replace"
     additive = "additive"
 
@@ -33,7 +33,7 @@ class PatchMode(StrEnum):
             )
 
 
-class DeletionStrategy(StrEnum):
+class DeletionStrategy(mlrun.api.utils.helpers.StrEnum):
     restrict = "restrict"
     restricted = "restricted"
     cascade = "cascade"
@@ -93,7 +93,7 @@ class HeaderNames:
     client_version = f"{headers_prefix}client-version"
 
 
-class FeatureStorePartitionByField(StrEnum):
+class FeatureStorePartitionByField(mlrun.api.utils.helpers.StrEnum):
     name = "name"  # Supported for feature-store objects
 
     def to_partition_by_db_field(self, db_cls):
@@ -105,7 +105,7 @@ class FeatureStorePartitionByField(StrEnum):
             )
 
 
-class RunPartitionByField(StrEnum):
+class RunPartitionByField(mlrun.api.utils.helpers.StrEnum):
     name = "name"  # Supported for runs objects
 
     def to_partition_by_db_field(self, db_cls):
@@ -117,7 +117,7 @@ class RunPartitionByField(StrEnum):
             )
 
 
-class SortField(StrEnum):
+class SortField(mlrun.api.utils.helpers.StrEnum):
     created = "created"
     updated = "updated"
 
@@ -135,7 +135,7 @@ class SortField(StrEnum):
             )
 
 
-class OrderType(StrEnum):
+class OrderType(mlrun.api.utils.helpers.StrEnum):
     asc = "asc"
     desc = "desc"
 

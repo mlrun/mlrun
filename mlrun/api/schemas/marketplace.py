@@ -17,9 +17,9 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Extra, Field
 
+import mlrun.api.utils.helpers
 import mlrun.errors
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.api.utils.helpers import StrEnum
 from mlrun.config import config
 
 
@@ -37,7 +37,7 @@ class MarketplaceObjectMetadata(BaseModel):
 
 
 # Currently only functions are supported. Will add more in the future.
-class MarketplaceSourceType(StrEnum):
+class MarketplaceSourceType(mlrun.api.utils.helpers.StrEnum):
     functions = "functions"
 
 

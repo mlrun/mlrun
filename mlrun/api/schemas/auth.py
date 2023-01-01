@@ -18,17 +18,17 @@ import pydantic
 from nuclio.auth import AuthInfo as NuclioAuthInfo
 from nuclio.auth import AuthKinds as NuclioAuthKinds
 
-from mlrun.api.utils.helpers import StrEnum
+import mlrun.api.utils.helpers
 
 
-class ProjectsRole(StrEnum):
+class ProjectsRole(mlrun.api.utils.helpers.StrEnum):
     iguazio = "iguazio"
     mlrun = "mlrun"
     nuclio = "nuclio"
     nop = "nop"
 
 
-class AuthorizationAction(StrEnum):
+class AuthorizationAction(mlrun.api.utils.helpers.StrEnum):
     read = "read"
     create = "create"
     update = "update"
@@ -39,7 +39,7 @@ class AuthorizationAction(StrEnum):
     store = "store"
 
 
-class AuthorizationResourceTypes(StrEnum):
+class AuthorizationResourceTypes(mlrun.api.utils.helpers.StrEnum):
     project = "project"
     log = "log"
     runtime_resource = "runtime-resource"

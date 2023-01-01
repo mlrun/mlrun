@@ -16,10 +16,10 @@ import typing
 
 import pydantic
 
-from mlrun.api.utils.helpers import StrEnum
+import mlrun.api.utils.helpers
 
 
-class PipelinesFormat(StrEnum):
+class PipelinesFormat(mlrun.api.utils.helpers.StrEnum):
     full = "full"
     metadata_only = "metadata_only"
     summary = "summary"

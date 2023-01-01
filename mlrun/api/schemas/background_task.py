@@ -17,12 +17,12 @@ import typing
 
 import pydantic
 
-from mlrun.api.utils.helpers import StrEnum
+import mlrun.api.utils.helpers
 
 from .object import ObjectKind
 
 
-class BackgroundTaskState(StrEnum):
+class BackgroundTaskState(mlrun.api.utils.helpers.StrEnum):
     succeeded = "succeeded"
     failed = "failed"
     running = "running"

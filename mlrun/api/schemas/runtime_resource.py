@@ -16,10 +16,10 @@ import typing
 
 import pydantic
 
-from mlrun.api.utils.helpers import StrEnum
+import mlrun.api.utils.helpers
 
 
-class ListRuntimeResourcesGroupByField(StrEnum):
+class ListRuntimeResourcesGroupByField(mlrun.api.utils.helpers.StrEnum):
     job = "job"
     project = "project"
 

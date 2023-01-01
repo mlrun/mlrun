@@ -16,7 +16,7 @@ import typing
 
 import pydantic
 
-from mlrun.api.utils.helpers import StrEnum
+import mlrun.api.utils.helpers
 
 
 class ClusterizationSpec(pydantic.BaseModel):
@@ -24,6 +24,6 @@ class ClusterizationSpec(pydantic.BaseModel):
     chief_version: typing.Optional[str]
 
 
-class WaitForChiefToReachOnlineStateFeatureFlag(StrEnum):
+class WaitForChiefToReachOnlineStateFeatureFlag(mlrun.api.utils.helpers.StrEnum):
     enabled = "enabled"
     disabled = "disabled"

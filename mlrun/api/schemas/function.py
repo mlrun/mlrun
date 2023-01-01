@@ -16,10 +16,10 @@ import typing
 
 import pydantic
 
-from mlrun.api.utils.helpers import StrEnum
+import mlrun.api.utils.helpers
 
 
-# Ideally we would want this to be class FunctionState(StrEnum) which is the "FastAPI-compatible" way of creating
+# Ideally we would want this to be class FunctionState(mlrun.api.utils.helpers.StrEnum) which is the "FastAPI-compatible" way of creating
 # schemas
 # But, when we save a function to the DB, we pickle the body, which saves the state as an instance of this class (and
 # not just a string), then if for some reason we downgrade to 0.6.4, before we had this class, we fail reading (pickle
@@ -46,7 +46,7 @@ class FunctionState:
     build = "build"
 
 
-class PreemptionModes(StrEnum):
+class PreemptionModes(mlrun.api.utils.helpers.StrEnum):
     # makes function pods be able to run on preemptible nodes
     allow = "allow"
     # makes the function pods run on preemptible nodes only
@@ -59,7 +59,7 @@ class PreemptionModes(StrEnum):
 
 # used when running in Iguazio (otherwise use disabled mode)
 # populates mlrun.mlconf.function.spec.security_context.enrichment_mode
-class SecurityContextEnrichmentModes(StrEnum):
+class SecurityContextEnrichmentModes(mlrun.api.utils.helpers.StrEnum):
     # always use the user id of the user that triggered the 1st run / created the function
     # NOTE: this mode is incomplete and not fully supported yet
     retain = "retain"

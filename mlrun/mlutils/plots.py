@@ -23,8 +23,8 @@ from scikitplot.metrics import plot_calibration_curve
 from scipy import interp
 from sklearn import metrics
 from sklearn.calibration import calibration_curve
-from sklearn.metrics import confusion_matrix as sklearn_confusion_matrix
 from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix as sklearn_confusion_matrix
 from sklearn.preprocessing import LabelBinarizer
 
 from ..artifacts import PlotArtifact
@@ -666,7 +666,7 @@ def eval_model_v2(
             ytest = ytest.values
             unique_labels = np.unique(ytest)
         except Exception as exc:
-            raise Exception(f"unrecognized data type for ytest {exc}")
+            raise Exception("unrecognized data type for ytest") from exc
 
     n_classes = len(unique_labels)
     is_multiclass = True if n_classes > 2 else False

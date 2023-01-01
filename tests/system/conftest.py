@@ -93,7 +93,7 @@ def post_report_session_finish_to_slack(
         except Exception:
             test_session_info += f"\nVersion: unknown"
 
-    test_session_info += f"\n{','.join(session.config.option.file_or_dir)}"
+    test_session_info += f"\nPath: {','.join(session.config.option.file_or_dir)}"
     text = f"*{text}*\n{test_session_info}"
 
     data = {"text": text, "attachments": []}

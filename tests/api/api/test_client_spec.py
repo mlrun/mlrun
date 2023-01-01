@@ -42,9 +42,9 @@ def test_client_spec(
         json.dumps(node_selector).encode("utf-8")
     )
     ce_mode = "some-ce-mode"
-    ce_version = "y.y.y"
+    ce_release = "y.y.y"
     mlrun.mlconf.ce.mode = ce_mode
-    mlrun.mlconf.ce.release = ce_version
+    mlrun.mlconf.ce.release = ce_release
 
     feature_store_data_prefix_default = "feature-store-data-prefix-default"
     feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
@@ -122,5 +122,5 @@ def test_client_spec(
     assert response_body["feature_store_data_prefixes"]["redisnosql"] == (
         feature_store_data_prefix_redisnosql
     )
-    assert response_body["ce_mode"] == ce_mode
-    assert response_body["ce_version"] == ce_version
+    assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
+    assert response_body["ce"]["release"] == ce_release

@@ -797,7 +797,7 @@ def _init_endpoint_record(
 
             db = mlrun.get_run_db()
 
-            db.create_model_endpoint(
+            db.create_or_patch_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
                 model_endpoint=model_endpoint,
@@ -809,7 +809,7 @@ def _init_endpoint_record(
                     project=project, endpoint_id=model_endpoint
                 )
                 current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
-                db.create_model_endpoint(
+                db.create_or_patch_model_endpoint(
                     project=project,
                     endpoint_id=model_endpoint,
                     model_endpoint=current_endpoint,

@@ -850,9 +850,8 @@ class Scheduler:
             labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
         )
         if len(active_runs) >= schedule_concurrency_limit:
-            message = "Schedule exceeded concurrency limit, skipping this run"
             logger.warn(
-                message,
+                "Schedule exceeded concurrency limit, skipping this run",
                 project=project_name,
                 schedule_name=schedule_name,
                 schedule_concurrency_limit=schedule_concurrency_limit,
@@ -862,7 +861,7 @@ class Scheduler:
                 db_session, schedule_name, project_name
             )
             close_session(db_session)
-            raise mlrun.errors.MLRunConflictError(message)
+            return
 
         # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store
         # credentials to one that does store) enrich them

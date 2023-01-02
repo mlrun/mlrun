@@ -1256,12 +1256,10 @@ async def test_schedule_job_next_run_time(
         concurrency_limit=1,
     )
 
-    response_1 = await scheduler.invoke_schedule(
+    await scheduler.invoke_schedule(
         db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
     )
 
-    # TODO: check why this returns a response (should be None)
-    print(response_1)
     # invocation should have failed due to concurrency limit
     # assert next run time was updated
     schedule = scheduler.get_schedule(

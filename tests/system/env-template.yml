@@ -41,6 +41,3 @@ MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:
 
 # kafka brokers string for kafka tests
 MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:
-
-# slack webhook for sending system test reports
-MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:

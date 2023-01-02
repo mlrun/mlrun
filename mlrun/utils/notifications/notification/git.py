@@ -75,11 +75,7 @@ class GitNotification(NotificationBase):
         """
         if ("CI_PROJECT_ID" in os.environ) or (server and "gitlab" in server):
             gitlab = True
-        token = (
-            token
-            or mlrun.get_secret_or_env("GITHUB_TOKEN")
-            or mlrun.get_secret_or_env("GIT_TOKEN")
-        )
+        token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GIT_TOKEN")
 
         if gitlab:
             server = server or "gitlab.com"

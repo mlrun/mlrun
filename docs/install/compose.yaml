@@ -39,7 +39,7 @@ services:
       - nuclio-platform-config:/etc/nuclio/config
 
   mlrun-api:
-    image: "mlrun/mlrun-api:${TAG:-1.2.0}"
+    image: "mlrun/mlrun-api:${TAG:-1.1.2}"
     ports:
       - "8080:8080"
     environment:
@@ -61,7 +61,7 @@ services:
       - mlrun
 
   mlrun-ui:
-    image: "mlrun/mlrun-ui:${TAG:-1.2.0}"
+    image: "mlrun/mlrun-ui:${TAG:-1.1.2}"
     ports:
       - "8060:8090"
     environment:

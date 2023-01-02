@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from kfp import Client
-from nuclio import build_file, utils
+from nuclio import build_file
 
 import mlrun.api.schemas
 import mlrun.errors
@@ -593,14 +593,11 @@ def new_function(
             )
 
     if not name:
+        # todo: regex check for valid name
         if command and kind not in [RuntimeKinds.remote]:
             name, _ = path.splitext(path.basename(command))
         else:
             name = "mlrun-" + uuid.uuid4().hex[0:6]
-
-    # make sure function name is valid
-    name = utils.normalize_name(name)
-
     runner.metadata.name = name
     runner.metadata.project = (
         runner.metadata.project or project or mlconf.default_project
@@ -1526,11 +1523,6 @@ class OutputsLogger:
                     artifact = BokehArtifact(key=key, figure=obj)
             except ModuleNotFoundError:
                 pass
-            except ImportError:
-                logger.warn(
-                    "Bokeh installation is ignored. If needed, "
-                    "make sure you have the required version with `pip install mlrun[bokeh]`"
-                )
 
         # Log the artifact:
         if artifact is None:
@@ -1839,11 +1831,6 @@ class ContextHandler:
             ] = ArtifactType.PLOT
         except ModuleNotFoundError:
             pass
-        except ImportError:
-            logger.warn(
-                "Bokeh installation is ignored. If needed, "
-                "make sure you have the required version with `pip install mlrun[bokeh]`"
-            )
 
     @classmethod
     def _init_outputs_logging_map(cls):

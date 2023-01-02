@@ -31,8 +31,8 @@ class TFKerasModelServer(V2ModelServer):
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx = None,
-        name: str = None,
+        context: mlrun.MLClientCtx,
+        name: str,
         model: keras.Model = None,
         model_path: str = None,
         model_name: str = None,
@@ -47,7 +47,7 @@ class TFKerasModelServer(V2ModelServer):
         """
         Initialize a serving class for a tf.keras model.
 
-        :param context:                  For internal use (passed in init).
+        :param context:                  The mlrun context to work with.
         :param name:                     The model name to be served.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the model's directory to load it from. The model files must start with
@@ -112,36 +112,25 @@ class TFKerasModelServer(V2ModelServer):
             **class_args,
         )
 
-        # Store the model handler attributes:
-        self.model_name = model_name
-        self.modules_map = modules_map
-        self.custom_objects_map = custom_objects_map
-        self.custom_objects_directory = custom_objects_directory
-        self.model_format = model_format
+        # Set up a model handler:
+        self._model_handler = TFKerasModelHandler(
+            model=model,
+            model_path=model_path,
+            model_name=model_name,
+            modules_map=modules_map,
+            custom_objects_map=custom_objects_map,
+            custom_objects_directory=custom_objects_directory,
+            model_format=model_format,
+            context=self.context,
+        )
 
         # Store additional configurations:
-        self.to_list = to_list
-
-        # Set up a model handler:
-        self._model_handler: TFKerasModelHandler = None
+        self._to_list = to_list
 
     def load(self):
         """
         Use the model handler to load the model.
         """
-        # Initialize the model handler:
-        self._model_handler = TFKerasModelHandler(
-            model=self.model,
-            model_path=self.model_path,
-            model_name=self.model_name,
-            modules_map=self.modules_map,
-            custom_objects_map=self.custom_objects_map,
-            custom_objects_directory=self.custom_objects_directory,
-            model_format=self.model_format,
-            context=self.context,
-        )
-
-        # Load the model:
         if self._model_handler.model is None:
             self._model_handler.load()
         self.model = self._model_handler.model
@@ -163,7 +152,7 @@ class TFKerasModelServer(V2ModelServer):
         prediction = self.model.predict(inputs)
 
         # Return as list if required:
-        return prediction if not self.to_list else prediction.tolist()
+        return prediction if not self._to_list else prediction.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

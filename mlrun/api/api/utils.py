@@ -40,7 +40,6 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
-from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
@@ -715,10 +714,7 @@ def _submit_run(
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
-        )
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

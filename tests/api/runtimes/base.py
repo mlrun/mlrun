@@ -656,7 +656,6 @@ class TestRuntimeBase:
         assert_namespace_env_variable=True,
         expected_labels=None,
         expected_env_from_secrets={},
-        expected_args=None,
     ):
         if assert_create_pod_called:
             create_pod_mock = get_k8s().v1api.create_namespaced_pod
@@ -731,9 +730,6 @@ class TestRuntimeBase:
             assert pod.spec.priority_class_name == expected_priority_class_name
 
         assert pod.spec.containers[0].image == self.image_name
-
-        if expected_args:
-            assert container_spec.args == expected_args
 
     def _assert_container_resources(
         self, container_spec, expected_limits, expected_requests

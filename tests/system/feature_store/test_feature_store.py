@@ -41,7 +41,6 @@ from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
-    KafkaSource,
     ParquetSource,
     StreamSource,
 )
@@ -176,9 +175,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert stocks_set.status.stats["exchange"], "stats not created"
 
     def _ingest_quotes_featureset(self):
-        quotes_set = FeatureSet(
-            "stock-quotes", entities=["ticker"], timestamp_key="time"
-        )
+        quotes_set = FeatureSet("stock-quotes", entities=["ticker"])
 
         flow = quotes_set.graph
         flow.to("MyMap", multiplier=3).to(
@@ -207,6 +204,7 @@ class TestFeatureStore(TestMLRunSystem):
             quotes_set,
             quotes,
             entity_columns=["ticker"],
+            timestamp_key="time",
             options=fs.InferOptions.default(),
         )
         self._logger.info(f"quotes spec: {quotes_set.spec.to_yaml()}")
@@ -690,7 +688,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",  # TODO: delete this deprecated parameter once it's removed
+            time_field="timestamp",
         )
         resp = fs.ingest(measurements, source)
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
@@ -714,7 +712,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         csv_path = tempfile.mktemp(".csv")
         df.to_csv(path_or_buf=csv_path, index=False)
-        source = CSVSource(path=csv_path, parse_dates=["another_time_column"])
+        source = CSVSource(
+            path=csv_path, time_field="time_stamp", parse_dates=["another_time_column"]
+        )
 
         measurements = fs.FeatureSet(
             "fs", entities=[Entity("key")], timestamp_key="time_stamp"
@@ -762,6 +762,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
             start_time=datetime(2020, 12, 1, 17, 33, 15),
             end_time="2020-12-01 17:33:16",
         )
@@ -777,6 +778,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
+            time_field="timestamp",
             start_time=datetime(2022, 12, 1, 17, 33, 15),
             end_time="2022-12-01 17:33:16",
         )
@@ -803,6 +805,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
         )
         measurements.set_targets(
             targets=[
@@ -1300,10 +1303,11 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
         source = ParquetSource(
-            "myparquet",
-            path=path,
-            schedule="mock",
+            "myparquet", path=path, time_field="time", schedule=cron_trigger
         )
 
         feature_set = fs.FeatureSet(
@@ -1336,6 +1340,8 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
+        # ingest starts every round minute.
+        sleep(60 - now.second + 10)
 
         features = [f"{name}.*"]
         vec = fs.FeatureVector("sched_test-vec", features)
@@ -1361,13 +1367,7 @@ class TestFeatureStore(TestMLRunSystem):
             # writing down a remote source
             fs.ingest(data_set, data, targets=[data_target], overwrite=False)
 
-            fs.ingest(
-                feature_set,
-                source,
-                run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
-                targets=targets,
-            )
-
+            sleep(60)
             resp = svc.get(
                 [
                     {"first_name": "yosi"},
@@ -1408,7 +1408,10 @@ class TestFeatureStore(TestMLRunSystem):
 
         path = data_set.status.targets[0].get_path().get_absolute_path()
 
-        source = ParquetSource("myparquet", path=path, schedule="mock")
+        # the job will be scheduled every minute
+        cron_trigger = "*/1 * * * *"
+
+        source = ParquetSource("myparquet", schedule=cron_trigger, path=path)
 
         feature_set = fs.FeatureSet(
             name="overwrite",
@@ -1425,7 +1428,7 @@ class TestFeatureStore(TestMLRunSystem):
             run_config=fs.RunConfig(local=False).apply(mlrun.mount_v3io()),
             targets=targets,
         )
-
+        sleep(60)
         features = ["overwrite.*"]
         vec = fs.FeatureVector("svec", features)
 
@@ -1682,6 +1685,7 @@ class TestFeatureStore(TestMLRunSystem):
             source = CSVSource(
                 "mycsv",
                 path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+                time_field="timestamp",
             )
 
             fs.ingest(
@@ -1958,6 +1962,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=path,
+            time_field="timestamp",
         )
         targets = [
             CSVTarget(),
@@ -1991,6 +1996,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=path,
+            time_field="timestamp",
         )
         targets = [
             CSVTarget(),
@@ -2041,6 +2047,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=path,
+            time_field="timestamp",
         )
         targets = [
             NoSqlTarget(
@@ -2155,11 +2162,9 @@ class TestFeatureStore(TestMLRunSystem):
     def test_stream_source(self):
         # create feature set, ingest sample data and deploy nuclio function with stream source
         fset_name = "a2-stream_test"
-        myset = FeatureSet(
-            f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time"
-        )
+        myset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
         fs.ingest(myset, quotes)
-        source = StreamSource(key_field="ticker")
+        source = StreamSource(key_field="ticker", time_field="time")
         filename = str(
             pathlib.Path(tests.conftest.tests_root_directory)
             / "api"
@@ -2364,8 +2369,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_preview_saves_changes(self):
         name = "update-on-preview"
-        v3io_source = StreamSource(key_field="ticker")
-        fset = fs.FeatureSet(name, entities=[Entity("ticker")], timestamp_key="time")
+        v3io_source = StreamSource(key_field="ticker", time_field="time")
+        fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
         import v3io.dataplane
 
         v3io_client = v3io.dataplane.Client()
@@ -2450,8 +2455,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         fs.get_offline_features(vector)
 
-    @pytest.mark.parametrize("pass_vector_as_uri", [True, False])
-    def test_online_impute(self, pass_vector_as_uri):
+    def test_online_impute(self):
         data = pd.DataFrame(
             {
                 "time_stamp": [
@@ -2483,11 +2487,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         # create vector and online service with imputing policy
         vector = fs.FeatureVector("vectori", features)
-        vector.save()
-
         with fs.get_online_feature_service(
-            vector.uri if pass_vector_as_uri else vector,
-            impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4},
+            vector, impute_policy={"*": "$max", "data_avg_1h": "$mean", "data2": 4}
         ) as svc:
             print(svc.vector.status.to_yaml())
 
@@ -2607,14 +2608,12 @@ class TestFeatureStore(TestMLRunSystem):
         self, targets, feature_set_targets, expected_target_names
     ):
         fset_name = "dis-set"
-        fset = FeatureSet(
-            f"{fset_name}", entities=[Entity("ticker")], timestamp_key="time"
-        )
+        fset = FeatureSet(f"{fset_name}", entities=[Entity("ticker")])
 
         if feature_set_targets:
             fset.set_targets(feature_set_targets, with_defaults=False)
         fs.ingest(fset, quotes)
-        source = StreamSource(key_field="ticker")
+        source = StreamSource(key_field="ticker", time_field="time")
         filename = str(
             pathlib.Path(tests.conftest.tests_root_directory)
             / "api"
@@ -2754,8 +2753,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert df_res_2.equals(expected_df)
 
-    @pytest.mark.parametrize("engine", ["pandas", "storey"])
-    def test_set_event_with_spaces_or_hyphens(self, engine):
+    def test_set_event_with_spaces_or_hyphens(self):
 
         lst_1 = [
             " Private",
@@ -2773,7 +2771,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # Define the corresponding FeatureSet
         data_set = FeatureSet(
-            "test", entities=[Entity("id")], description="feature set", engine=engine
+            "test", entities=[Entity("id")], description="feature set"
         )
 
         data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
@@ -2867,9 +2865,6 @@ class TestFeatureStore(TestMLRunSystem):
             record = next(kafka_consumer)
             assert record.value == expected_record
 
-    @pytest.mark.skipif(
-        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
-    )
     def test_kafka_target_bad_kafka_options(self):
 
         stocks = pd.DataFrame(
@@ -2892,8 +2887,7 @@ class TestFeatureStore(TestMLRunSystem):
             fs.ingest(stocks_set, stocks, [target])
             pytest.fail("Expected a ValueError to be raised")
         except ValueError as ex:
-            if str(ex) != "Not supported codec: invalid value":
-                raise ex
+            assert str(ex) == "Not supported codec: invalid value"
 
     def test_alias_change(self):
         quotes = pd.DataFrame(
@@ -3122,23 +3116,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         assert_frame_equal(expected_stat, actual_stat)
-
-    def test_ingest_with_kafka_source_fails(self):
-        source = KafkaSource(
-            brokers="broker_host:9092",
-            topics="mytopic",
-            group="mygroup",
-            sasl_user="myuser",
-            sasl_pass="mypassword",
-        )
-
-        fset = fs.FeatureSet("myfset", entities=[fs.Entity("entity")])
-
-        with pytest.raises(mlrun.MLRunInvalidArgumentError):
-            fs.ingest(
-                fset,
-                source,
-            )
 
 
 def verify_purge(fset, targets):

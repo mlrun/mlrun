@@ -39,7 +39,7 @@ services:
       - nuclio-platform-config:/etc/nuclio/config
 
   jupyter:
-    image: "mlrun/jupyter:${TAG:-1.2.0}"
+    image: "mlrun/jupyter:${TAG:-1.1.2}"
     ports:
       - "8080:8080"
       - "8888:8888"
@@ -61,7 +61,7 @@ services:
       - mlrun
 
   mlrun-ui:
-    image: "mlrun/mlrun-ui:${TAG:-1.2.0}"
+    image: "mlrun/mlrun-ui:${TAG:-1.1.2}"
     ports:
       - "8060:8090"
     environment:

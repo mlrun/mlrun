@@ -25,7 +25,6 @@ import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
 from mlrun.config import config
-from mlrun.platforms import is_iguazio_session_cookie
 
 router = fastapi.APIRouter()
 
@@ -45,7 +44,7 @@ def get_frontend_spec(
 ):
     jobs_dashboard_url = None
     session = auth_info.session or session
-    if session and is_iguazio_session_cookie(session):
+    if session:
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()

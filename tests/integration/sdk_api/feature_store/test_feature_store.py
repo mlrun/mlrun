@@ -27,8 +27,7 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
         stream_path = f"/{self.project_name}/FeatureStore/{name}/v3ioStream"
 
         v3io_source = StreamSource(
-            path=f"v3io:///projects{stream_path}",
-            key_field="ticker",
+            path=f"v3io:///projects{stream_path}", key_field="ticker", time_field="time"
         )
         fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
 

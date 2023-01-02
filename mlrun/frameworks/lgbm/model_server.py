@@ -31,8 +31,8 @@ class LGBMModelServer(V2ModelServer):
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx = None,
-        name: str = None,
+        context: mlrun.MLClientCtx,
+        name: str,
         model: LGBMTypes.ModelType = None,
         model_path: LGBMTypes.PathType = None,
         model_name: str = None,
@@ -47,7 +47,7 @@ class LGBMModelServer(V2ModelServer):
         """
         Initialize a serving class for a torch model.
 
-        :param context:                  For internal use (passed in init).
+        :param context:                  The mlrun context to work with.
         :param name:                     The name of this server to be initialized.
         :param model:                    Model to handle or None in case a loading parameters were supplied.
         :param model_path:               Path to the model's directory with the saved '.pt' file. The file must start
@@ -109,32 +109,25 @@ class LGBMModelServer(V2ModelServer):
             **class_args,
         )
 
-        self.model_name = model_name
-        self.modules_map = modules_map
-        self.custom_objects_map = custom_objects_map
-        self.custom_objects_directory = custom_objects_directory
-        self.model_format = model_format
-
         # Set up a model handler:
-        self._model_handler: LGBMModelHandler = None
+        self._model_handler = LGBMModelHandler(
+            model_path=model_path,
+            model=model,
+            model_name=model_name,
+            modules_map=modules_map,
+            custom_objects_map=custom_objects_map,
+            custom_objects_directory=custom_objects_directory,
+            context=self.context,
+            model_format=model_format,
+        )
 
         # Store preferences:
-        self.to_list = to_list
+        self._to_list = to_list
 
     def load(self):
         """
         Use the model handler to load the model.
         """
-        self._model_handler = LGBMModelHandler(
-            model_path=self.model_path,
-            model=self.model,
-            model_name=self.model_name,
-            modules_map=self.modules_map,
-            custom_objects_map=self.custom_objects_map,
-            custom_objects_directory=self.custom_objects_directory,
-            context=self.context,
-            model_format=self.model_format,
-        )
         if self._model_handler.model is None:
             self._model_handler.load()
         self.model = self._model_handler.model
@@ -156,7 +149,7 @@ class LGBMModelServer(V2ModelServer):
         predictions = self.model.predict(inputs)
 
         # Return as list if required:
-        return predictions if not self.to_list else predictions.tolist()
+        return predictions if not self._to_list else predictions.tolist()
 
     def explain(self, request: Dict[str, Any]) -> str:
         """

@@ -23,8 +23,8 @@ from .base import DataStore, FileStats, get_range
 
 
 class S3Store(DataStore):
-    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
-        super().__init__(parent, name, schema, endpoint, secrets)
+    def __init__(self, parent, schema, name, endpoint=""):
+        super().__init__(parent, name, schema, endpoint)
         # will be used in case user asks to assume a role and work through fsspec
         self._temp_credentials = None
         region = None
@@ -101,8 +101,8 @@ class S3Store(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    "AWS s3fs not installed, run pip install s3fs"
-                ) from exc
+                    f"AWS s3fs not installed, run pip install s3fs, {exc}"
+                )
             return None
         self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
         return self._filesystem
@@ -176,7 +176,7 @@ def parse_s3_bucket_and_key(s3_path):
         key = "/".join(path_parts)
     except Exception as exc:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "failed to parse s3 bucket and key"
-        ) from exc
+            f"failed to parse s3 bucket and key. {exc}"
+        )
 
     return bucket, key

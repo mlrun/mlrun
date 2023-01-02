@@ -39,7 +39,6 @@ base_spec.spec.inputs = {"infile.txt": str(input_file_path)}
 
 s3_spec = base_spec.copy().with_secrets("file", "secrets.txt")
 s3_spec.spec.inputs = {"infile.txt": "s3://yarons-tests/infile.txt"}
-assets_path = str(pathlib.Path(__file__).parent / "assets")
 
 
 def test_noparams():
@@ -118,13 +117,6 @@ def test_local_runtime():
     spec = tag_test(base_spec, "test_local_runtime")
     result = new_function(command=f"{examples_path}/training.py").run(spec)
     verify_state(result)
-
-
-def test_local_runtime_failure_before_executing_the_function_code():
-    function = new_function(command=f"{assets_path}/fail.py")
-    with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
-        function.run(local=True, handler="handler")
-    assert "failed on pre-loading" in str(exc.value)
 
 
 def test_local_runtime_hyper():

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
 import os
 import pathlib
 import sys
@@ -26,7 +25,7 @@ import mlrun
 from tests.conftest import examples_path, out_path, tests_root_directory
 
 
-def exec_main(op, args, cwd=examples_path, raise_on_error=True):
+def exec_main(op, args, cwd=examples_path):
     cmd = [executable, "-m", "mlrun", op]
     if args:
         cmd += args
@@ -35,18 +34,13 @@ def exec_main(op, args, cwd=examples_path, raise_on_error=True):
         print(out.stderr.decode("utf-8"), file=stderr)
         print(out.stdout.decode("utf-8"), file=stderr)
         print(traceback.format_exc())
-        if raise_on_error:
-            raise Exception(out.stderr.decode("utf-8"))
-        else:
-            # return out so that we can check the error message on stdout and stderr
-            return out
-
+        raise Exception(out.stderr.decode("utf-8"))
     return out.stdout.decode("utf-8")
 
 
-def exec_run(cmd, args, test, raise_on_error=True):
+def exec_run(cmd, args, test):
     args = args + ["--name", test, "--dump", cmd]
-    return exec_main("run", args, raise_on_error=raise_on_error)
+    return exec_main("run", args)
 
 
 def compose_param_list(params: dict, flag="-p"):
@@ -64,28 +58,6 @@ def test_main_run_basic():
     )
     print(out)
     assert out.find("state: completed") != -1, out
-
-
-def test_main_run_wait_for_completion():
-    """
-    Test that the run command waits for the run to complete before returning
-    (mainly sanity as this is expected when running local function)
-    """
-    path = str(pathlib.Path(__file__).absolute().parent / "assets" / "sleep.py")
-    time_to_sleep = 10
-    start_time = datetime.datetime.now()
-    out = exec_run(
-        path,
-        compose_param_list(dict(time_to_sleep=time_to_sleep))
-        + ["--handler", "handler"],
-        "test_main_run_wait_for_completion",
-    )
-    end_time = datetime.datetime.now()
-    print(out)
-    assert out.find("state: completed") != -1, out
-    assert (
-        end_time - start_time
-    ).seconds >= time_to_sleep, "run did not wait for completion"
 
 
 def test_main_run_hyper():
@@ -111,174 +83,6 @@ def test_main_run_args():
     state, log = db.get_log("123457")
     print(log)
     assert str(log).find(", -x, aaa") != -1, "params not detected in argv"
-
-
-def test_main_run_args_with_url_placeholder_missing_env():
-    args = [
-        "--name",
-        "test_main_run_args_with_url_placeholder_missing_env",
-        "--dump",
-        "*",
-        "--arg1",
-        "value1",
-        "--arg2",
-        "value2",
-    ]
-    out = exec_main(
-        "run",
-        args,
-        raise_on_error=False,
-    )
-    out_stdout = out.stdout.decode("utf-8")
-    print(out)
-    assert (
-        out_stdout.find(
-            "command/url '*' placeholder is not allowed when code is not from env"
-        )
-        != -1
-    ), out
-
-
-def test_main_run_args_with_url_placeholder_from_env():
-    os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
-    args = [
-        "--name",
-        "test_main_run_args_with_url_placeholder_from_env",
-        "--uid",
-        "123456789",
-        "--from-env",
-        "--dump",
-        "*",
-        "--arg1",
-        "value1",
-        "--arg2",
-        "value2",
-    ]
-    exec_main(
-        "run",
-        args,
-        raise_on_error=True,
-    )
-    db = mlrun.get_run_db()
-    _run = db.read_run("123456789")
-    print(_run)
-    assert _run["status"]["results"]["my_args"] == [
-        "main.py",
-        "--arg1",
-        "value1",
-        "--arg2",
-        "value2",
-    ]
-    assert _run["status"]["state"] == "completed"
-
-    args = [
-        "--name",
-        "test_main_run_args_with_url_placeholder_with_origin_file",
-        "--uid",
-        "987654321",
-        "--from-env",
-        "--dump",
-        "*",
-        "--origin-file",
-        "my_file.py",
-        "--arg3",
-        "value3",
-    ]
-    exec_main(
-        "run",
-        args,
-        raise_on_error=True,
-    )
-    db = mlrun.get_run_db()
-    _run = db.read_run("987654321")
-    print(_run)
-    assert _run["status"]["results"]["my_args"] == ["my_file.py", "--arg3", "value3"]
-    assert _run["status"]["state"] == "completed"
-
-
-def test_main_with_url_placeholder():
-    os.environ["MLRUN_EXEC_CODE"] = b64encode(code.encode("utf-8")).decode("utf-8")
-    args = [
-        "--name",
-        "test_main_with_url_placeholder",
-        "--uid",
-        "123456789",
-        "--from-env",
-        "*",
-    ]
-    exec_main(
-        "run",
-        args,
-        raise_on_error=True,
-    )
-    db = mlrun.get_run_db()
-    _run = db.read_run("123456789")
-    print(_run)
-    assert _run["status"]["results"]["my_args"] == ["main.py"]
-    assert _run["status"]["state"] == "completed"
-
-
-@pytest.mark.parametrize(
-    "op,args,raise_on_error,expected_output",
-    [
-        # bad flag before command
-        [
-            "run",
-            [
-                "--bad-flag",
-                "--name",
-                "test_main_run_basic",
-                "--dump",
-                f"{examples_path}/training.py",
-            ],
-            False,
-            "Error: Invalid value for '[URL]': URL (--bad-flag) cannot start with '-', "
-            "ensure the command options are typed correctly. Preferably use '--' to separate options and "
-            "arguments e.g. 'mlrun run --option1 --option2 -- [URL] [--arg1|arg1] [--arg2|arg2]'",
-        ],
-        # bad flag with no command
-        [
-            "run",
-            ["--name", "test_main_run_basic", "--bad-flag"],
-            False,
-            "Error: Invalid value for '[URL]': URL (--bad-flag) cannot start with '-', "
-            "ensure the command options are typed correctly. Preferably use '--' to separate options and "
-            "arguments e.g. 'mlrun run --option1 --option2 -- [URL] [--arg1|arg1] [--arg2|arg2]'",
-        ],
-        # bad flag after -- separator
-        [
-            "run",
-            ["--name", "test_main_run_basic", "--", "-notaflag"],
-            False,
-            "Error: Invalid value for '[URL]': URL (-notaflag) cannot start with '-', "
-            "ensure the command options are typed correctly. Preferably use '--' to separate options and "
-            "arguments e.g. 'mlrun run --option1 --option2 -- [URL] [--arg1|arg1] [--arg2|arg2]'",
-        ],
-        # correct command with -- separator
-        [
-            "run",
-            [
-                "--name",
-                "test_main_run_basic",
-                "--",
-                f"{examples_path}/training.py",
-                "--some-arg",
-            ],
-            True,
-            "status=completed",
-        ],
-    ],
-)
-def test_main_run_args_validation(op, args, raise_on_error, expected_output):
-    out = exec_main(
-        op,
-        args,
-        raise_on_error=raise_on_error,
-    )
-    if not raise_on_error:
-        out = out.stderr.decode("utf-8")
-
-    assert out.find(expected_output) != -1, out
 
 
 code = """

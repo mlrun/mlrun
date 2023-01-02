@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
       - name: mlrun-api
-        image: mlrun/mlrun-api:1.2.0
+        image: mlrun/mlrun-api:1.0.6
         env:
         - name: MLRUN_HTTPDB__BUILDER__DOCKER_REGISTRY
           value: "default registry url e.g. index.docker.io/<username>, if repository is not set it will default to mlrun"

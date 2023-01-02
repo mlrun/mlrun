@@ -15,9 +15,8 @@ Using Docker is limited to local, Nuclio, serving runtimes, and local pipelines.
 
 ## Overview
 Use [`docker compose`](https://docs.docker.com/compose/) to install MLRun. It deploys the MLRun service,
-MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. 
-The MLRun service, MLRun UI, Nuclio, and Jupyter, do not have default resources. This means that they are set with the default 
-cluster/namespace resources limits. These can be modified.
+MLRun UI, Nuclio serverless engine, and optionally the Jupyter server. The MLRun service, MLRun UI, Nuclio, and 
+Jupyter, do not have default resources. This means that they are set with the default cluster/namespace resources limits. These can be modified.
 
 There are two installation options:
 - [**Use MLRun with your own client (PyCharm, VSCode, Jupyter)**](#use-mlrun-with-your-own-client)
@@ -64,7 +63,7 @@ mkdir $SHARED_DIR -p
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface).
 ````
 
 ````{tab-item} Windows (cmd)
@@ -75,7 +74,7 @@ mkdir %SHARED_DIR%
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ipconfig` shell command (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 ````{tab-item} Powershell
@@ -86,7 +85,7 @@ mkdir $Env:SHARED_DIR
 docker-compose -f compose.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 `````
@@ -102,7 +101,7 @@ After installing MLRun service, set your client environment to work with the ser
 
 ## Use MLRun with MLRun Jupyter image
 
-For the quickest experience with MLRun you can deploy MLRun with a pre-integrated Jupyter server loaded with various ready-to-use MLRun examples.
+For the quickest experience with MLRun you can deploy MLRun with a pre integrated Jupyter server loaded with various ready-to-use MLRun examples.
 
 **{Download}`[Download here]<./compose.with-jupyter.yaml>`** the `compose.with-jupyter.yaml` file, save it to the working dir and type:
 ````{toggle} show the compose.with-jupyter.yaml file
@@ -120,7 +119,7 @@ mkdir -p $SHARED_DIR
 docker-compose -f compose.with-jupyter.yaml up
 ```
 
-Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
+Your `HOST_IP` address can be found using the `ip addr` or `ifconfig` commands. It is recommended to select an address that does not change dynamically (for example the IP of the bridge interface). 
 ````
 
 ````{tab-item} Windows (cmd)
@@ -131,7 +130,7 @@ mkdir %SHARED_DIR%
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `ipconfig` shell command (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `ipconfig` shell command, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 ````{tab-item} Powershell
@@ -142,7 +141,7 @@ mkdir $Env:SHARED_DIR
 docker-compose -f compose.with-jupyter.yaml up
 ``` 
 
-Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet (do not use `localhost` or `127.0.0.1`). It is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
+Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet, it is recommended to select an address that does not change dynamically (for example the IP of the `vEthernet` interface).
 ````
 
 `````

@@ -331,11 +331,12 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock = mlrun.mlconf.use_nuclio_mock(mock)
+        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
+        if mock_nuclio and mock_nuclio == "auto":
+            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
+        mock = True if mock_nuclio and mock is None else mock
         function._set_as_mock(mock)
         if mock:
-            # make sure the latest ver is saved in the DB (same as in function.deploy())
-            function.save()
             return DeployStatus(
                 state="ready",
                 outputs={"endpoint": "Mock", "name": function.metadata.name},

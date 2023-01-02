@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pathlib
-
 import pandas as pd
 
 import mlrun
@@ -53,15 +51,11 @@ def test_infer():
 
 
 def test_model_update():
-    path = pathlib.Path(__file__).absolute().parent
-    model = ModelArtifact(
-        "my-model", model_dir=str(path / "assets"), model_file="model.pkl"
-    )
-
+    model = ModelArtifact("my-model", model_file="a.pkl")
     target_path = results_dir + "model/"
 
     project = mlrun.new_project("test-proj", save=False)
-    artifact = project.log_artifact(model, upload=True, artifact_path=target_path)
+    artifact = project.log_artifact(model, upload=False, artifact_path=target_path)
 
     artifact_uri = f"store://artifacts/{artifact.project}/{artifact.db_key}"
     updated_model_spec = update_model(
@@ -79,7 +73,7 @@ def test_model_update():
     print(updated_model_spec.to_yaml())
 
     model_path, model, extra_dataitems = get_model(artifact_uri)
-
+    # print(model_spec.to_yaml())
     assert model_path.endswith(f"model/{model.model_file}"), "illegal model path"
     assert model.parameters == {"a": 1}, "wrong parameters"
     assert model.metrics == {"test-b": 2}, "wrong metrics"

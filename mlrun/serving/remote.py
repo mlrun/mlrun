@@ -21,7 +21,6 @@ import storey
 from storey.flow import _ConcurrentJobExecution
 
 import mlrun
-from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 from .utils import (
@@ -192,10 +191,10 @@ class RemoteStep(storey.SendToHttp):
             )
         except requests.exceptions.ReadTimeout as err:
             raise requests.exceptions.ReadTimeout(
-                f"http request to {url} timed out in RemoteStep {self.name}, {err_to_str(err)}"
+                f"http request to {url} timed out in RemoteStep {self.name}, {err}"
             )
         except OSError as err:
-            raise OSError(f"cannot invoke url: {url}, {err_to_str(err)}")
+            raise OSError(f"cannot invoke url: {url}, {err}")
         if not resp.ok:
             raise RuntimeError(f"bad http response {resp.status_code}: {resp.text}")
 

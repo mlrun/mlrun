@@ -30,7 +30,7 @@ class InMemoryStore(DataStore):
     def url(self):
         return "memory://"
 
-    def _get_parent_secret(self, key):
+    def _secret(self, key):
         return None
 
     def _get_item(self, key):

@@ -251,7 +251,6 @@ class MLClientCtx(object):
         host=None,
         log_stream=None,
         is_api=False,
-        update_db=True,
     ):
         """create execution context from dict"""
 
@@ -306,8 +305,7 @@ class MLClientCtx(object):
         if start:
             self._start_time = start
         self._state = "running"
-        if update_db:
-            self._update_db(commit=True)
+        self._update_db(commit=True)
         return self
 
     @property
@@ -469,7 +467,9 @@ class MLClientCtx(object):
 
             access_key = context.get_secret("ACCESS_KEY")
         """
-        return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
+        if self._secrets_manager:
+            return self._secrets_manager.get(key)
+        return None
 
     def _set_input(self, key, url=""):
         if url is None:
@@ -654,7 +654,7 @@ class MLClientCtx(object):
         labels=None,
         format="",
         preview=None,
-        stats=None,
+        stats=False,
         db_key=None,
         target_path="",
         extra_data=None,
@@ -677,9 +677,8 @@ class MLClientCtx(object):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local dataframe file that exists locally.
-                              The given file extension will be used to save the dataframe to a file
-                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param local_path:    path to the local file we upload, will also be use
+                              as the destination subpath (under "artifact_path")
         :param artifact_path: target artifact path (when not using the default)
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`

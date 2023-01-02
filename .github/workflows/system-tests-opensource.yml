@@ -162,36 +162,19 @@ jobs:
         # but this seems to work
         start args: '--addons=registry --insecure-registry="192.168.49.2:5000"'
 
-    - name: Get mlrun ce charts and create namespace
+    - name: Get mlrun kit charts and create namespace
       run: |
-        helm repo add mlrun-ce https://mlrun.github.io/ce
+        helm repo add v3io-stable https://v3io.github.io/helm-charts/stable
         helm repo update
         minikube kubectl -- create namespace ${NAMESPACE}
 
-    - name: Install MLRun CE helm chart
+    - name: Install MLRun Kit helm chart
       run: |
-        # TODO: There are a couple of modifications to the helm chart that we are doing right now:
-        #       1. The grafana prometheus stack is disabled as there are currently no system tests checking its
-        #          functionality. Once the model monitoring feature is complete and we have system tests for it, we
-        #          can enable it. (flags: --set kube-prometheus-stack.enabled=false)
-        #       2. The mlrun DB is set as the old SQLite db. There is a bug in github workers when trying to run a mysql
-        #          server pod in minikube installed on the worker, the mysql pod crashes. There isn't much information
-        #          about this issue online as this isn't how github expect you to use mysql in workflows - the worker
-        #          has a mysql server installed directly on it and should be enabled and used as the DB. So we might
-        #          want in the future to use that instead, unless the mysql will be able to come up without crashing.
-        #          (flags: --set mlrun.httpDB.dbType="sqlite" --set mlrun.httpDB.dirPath="/mlrun/db"
-        #          --set mlrun.httpDB.dsn="sqlite:////mlrun/db/mlrun.db?check_same_thread=false"
-        #          --set mlrun.httpDB.oldDsn="")
         helm --namespace ${NAMESPACE} \
-            install mlrun-ce \
+            install mlrun-kit \
             --debug \
             --wait \
             --timeout 600s \
-            --set kube-prometheus-stack.enabled=false \
-            --set mlrun.httpDB.dbType="sqlite" \
-            --set mlrun.httpDB.dirPath="/mlrun/db" \
-            --set mlrun.httpDB.dsn="sqlite:////mlrun/db/mlrun.db?check_same_thread=false" \
-            --set mlrun.httpDB.oldDsn="" \
             --set global.registry.url=$(minikube ip):5000 \
             --set global.registry.secretName="" \
             --set global.externalHostAddress=$(minikube ip) \
@@ -202,7 +185,7 @@ jobs:
             --set mlrun.ui.image.tag=${{ steps.computed_params.outputs.mlrun_ui_version }} \
             --set mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ steps.computed_params.outputs.mlrun_hash }}" \
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
-            mlrun-ce/mlrun-ce
+            v3io-stable/mlrun-kit
 
     - name: Prepare system tests env
       run: |

@@ -65,7 +65,6 @@ class SystemTestPreparer:
         iguazio_version: str = None,
         spark_service: str = None,
         password: str = None,
-        slack_webhook_url: str = None,
         debug: bool = False,
     ):
         self._logger = logger
@@ -93,7 +92,6 @@ class SystemTestPreparer:
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
-            "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
         }
         if password:
             self._env_config["V3IO_PASSWORD"] = password
@@ -544,7 +542,6 @@ def main():
 @click.argument("iguazio-version", type=str, default=None, required=True)
 @click.argument("spark-service", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
-@click.argument("slack-webhook-url", type=str, default=None, required=False)
 @click.option(
     "--debug",
     "-d",
@@ -570,7 +567,6 @@ def run(
     iguazio_version: str,
     spark_service: str,
     password: str,
-    slack_webhook_url: str,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
@@ -592,7 +588,6 @@ def run(
         iguazio_version,
         spark_service,
         password,
-        slack_webhook_url,
         debug,
     )
     try:
@@ -610,7 +605,6 @@ def run(
 @click.argument("access-key", type=str, required=True)
 @click.argument("spark-service", type=str, required=True)
 @click.argument("password", type=str, default=None, required=False)
-@click.argument("slack-webhook-url", type=str, default=None, required=False)
 @click.option(
     "--debug",
     "-d",
@@ -625,7 +619,6 @@ def env(
     access_key: str,
     spark_service: str,
     password: str,
-    slack_webhook_url: str,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
@@ -647,7 +640,6 @@ def env(
         spark_service=spark_service,
         password=password,
         debug=debug,
-        slack_webhook_url=slack_webhook_url,
     )
     try:
         system_test_preparer.prepare_local_env()

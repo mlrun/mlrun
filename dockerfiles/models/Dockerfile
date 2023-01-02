@@ -16,28 +16,34 @@ ARG MLRUN_BASE_IMAGE=mlrun/ml-base:unstable-core
 
 FROM ${MLRUN_BASE_IMAGE}
 
-ARG OMPI_VERSION=4.1.4
+ARG OMPI=4.1.0
 
 # Install Open MPI
-RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
-    conda clean -aqy
+RUN mkdir /tmp/openmpi && \
+    cd /tmp/openmpi && \
+    curl -o openmpi-${OMPI}.tar.gz https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI}.tar.gz && \
+    tar zxf openmpi-${OMPI}.tar.gz && \
+    cd openmpi-${OMPI} && \
+    ./configure --enable-orterun-prefix-by-default && \
+    make -j`nproc` all && \
+    make install && \
+    ldconfig && \
+    rm -rf /tmp/openmpi
 
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 # pytorch caused cuda download, this guarantees cpu version:
-RUN python -m pip install torch==1.13.0+cpu torchvision==0.14.0+cpu \
+RUN python -m pip install torch==1.7.0+cpu torchvision==0.8.1+cpu \
     -f https://download.pytorch.org/whl/torch_stable.html
 
-ARG TENSORFLOW_VERSION=2.9.0
+ARG TENSORFLOW_VERSION=2.4.1
+# Not using intel-tensorflow cause they have only 2.4.0 and we need 2.4.1
+RUN python -m pip install -U tensorflow~=${TENSORFLOW_VERSION} mxnet
 
-# intel-tensorflow is a slimmer, CPU optimizied distribution of tensorflow by intel
-RUN python -m pip install -U intel-tensorflow~=${TENSORFLOW_VERSION} mxnet
-
-ARG HOROVOD_VERSION=0.25.0
-RUN HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1  \
-    python -m pip install horovod~=${HOROVOD_VERSION} && \
-    horovodrun --check-build
+ARG HOROVOD_VERSION=0.22.1
+RUN HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1 \
+    python -m pip install horovod~=${HOROVOD_VERSION}
 
 # When running mpijob the launcher trigger the worker with something like PATH=/usr/local/bin:$PATH so we need to make
 # sure the python in /usr/local/bin is pointing to the conda env python (which "knows" horovod)

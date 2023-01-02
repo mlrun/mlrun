@@ -11,9 +11,9 @@ The feature set object contains the following information:
 - **Metadata** &mdash; General information which is helpful for search and organization. Examples are project, name, owner, last update, description, labels, etc.
 - **Key attributes** &mdash; Entity (the join key), timestamp key (optional), label column.
 - **Features** &mdash; The list of features along with their schema, metadata, validation policies and statistics.
-- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.). See the [source descriptions](../serving/available-steps.html#sources).
+- **Source** &mdash; The online or offline data source definitions and ingestion policy (file, database, stream, http endpoint, etc.).
 - **Transformation** &mdash; The data transformation pipeline (e.g. aggregation, enrichment etc.).
-- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. See the [target descriptions](../serving/available-steps.html#targets).
+- **Target stores** &mdash; The type (i.e. parquet/csv or key value), location and status for the feature set materialized data. 
 - **Function** &mdash; The type (storey, pandas, spark) and attributes of the data pipeline serverless functions.
 
 **In this section**
@@ -68,7 +68,7 @@ can handle complex workflows and real-time sources.
 
 The results from the transformation pipeline are stored in one or more material targets.  Data for offline 
 access, such as training, is usually stored in Parquet files. Data for online access such as serving is stored 
-in the Iguazio NoSQL DB (`NoSqlTarget`). You can use the default targets or add/replace with additional custom targets.
+in the Iguazio NoSQL DB (` NoSqlTarget`). You can use the default targets or add/replace with additional custom targets. See Target stores(#target-stores).
 
 Graph example (storey engine):
 ```python

@@ -63,7 +63,7 @@ def create_schedule(
             project=project, request=request, json=schedule.dict()
         )
 
-    if schedule.credentials.access_key:
+    if not auth_info.access_key:
         auth_info.access_key = schedule.credentials.access_key
     get_scheduler().create_schedule(
         db_session,
@@ -111,7 +111,7 @@ def update_schedule(
             project=project, name=name, request=request, json=schedule.dict()
         )
 
-    if schedule.credentials.access_key:
+    if not auth_info.access_key:
         auth_info.access_key = schedule.credentials.access_key
     get_scheduler().update_schedule(
         db_session,

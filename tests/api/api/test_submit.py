@@ -14,7 +14,6 @@
 #
 import http
 import json
-import typing
 import unittest.mock
 from http import HTTPStatus
 
@@ -401,51 +400,6 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         response = client.post(endpoint, data=json_body)
         assert response.status_code == expected_status
         assert response.json() == expected_response
-
-
-@pytest.mark.parametrize(
-    "task_name,parameters,hyperparameters",
-    [
-        ("param-pos", {"x": 2**63 + 1}, None),
-        ("param-neg", {"x": -(2**63 + 1)}, None),
-        ("hyperparam-pos", None, {"x": [1, 2**63 + 1]}),
-        ("hyperparam-neg", None, {"x": [1, -(2**63 + 1)]}),
-    ],
-)
-def test_submit_job_failure_params_exceed_int64(
-    db: Session,
-    client: TestClient,
-    pod_create_mock,
-    task_name: str,
-    parameters: typing.Dict[str, int],
-    hyperparameters: typing.Dict[str, typing.List[int]],
-) -> None:
-    project_name = "params-exceed-int64"
-    project_artifact_path = f"/{project_name}"
-    tests.api.api.utils.create_project(
-        client, project_name, artifact_path=project_artifact_path
-    )
-    function = mlrun.new_function(
-        name="test-function",
-        project=project_name,
-        tag="latest",
-        kind="job",
-        image="mlrun/mlrun",
-    )
-    submit_job_body = _create_submit_job_body(function, project_name)
-    submit_job_body["task"]["metadata"]["name"] = task_name
-    if parameters:
-        submit_job_body["task"]["spec"]["parameters"] = parameters
-    if hyperparameters:
-        submit_job_body["task"]["spec"]["hyperparams"] = hyperparameters
-    resp = client.post("submit_job", json=submit_job_body)
-
-    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
-    assert "exceeds int64" in resp.json()["detail"]["reason"]
-
-    resp = client.get("runs", params={"project": project_name})
-    # assert the run wasn't saved to the DB
-    assert len(resp.json()["runs"]) == 0
 
 
 def _create_submit_job_body(function, project, with_output_path=True):

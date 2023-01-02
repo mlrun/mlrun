@@ -1,5 +1,5 @@
 (mlrun-serving-overview)=
-# Real-time serving
+# Real-time deployment
 
 MLRun can produce managed real-time serverless pipelines from various tasks, including MLRun models or standard model files.
 The pipelines use a real-time serverless engine, called Nuclio, which can be deployed anywhere and is capable of delivering intensive data, I/O, and compute workloads.

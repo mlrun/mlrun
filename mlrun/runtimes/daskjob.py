@@ -27,7 +27,6 @@ import mlrun.errors
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
-from mlrun.errors import err_to_str
 from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..config import config
@@ -348,7 +347,7 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
             except OSError as exc:
                 logger.warning(
-                    f"remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
+                    f"remote scheduler at {addr} not ready, will try to restart {exc}"
                 )
 
                 # todo: figure out if test is needed

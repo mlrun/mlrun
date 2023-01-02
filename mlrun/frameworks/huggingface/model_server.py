@@ -31,9 +31,9 @@ class HuggingFaceModelServer(V2ModelServer):
 
     def __init__(
         self,
-        context: mlrun.MLClientCtx = None,
-        name: str = None,
-        task: str = None,
+        context: mlrun.MLClientCtx,
+        name: str,
+        task: str,
         model_path: str = None,
         model_name: str = None,
         model_class: str = None,
@@ -44,9 +44,8 @@ class HuggingFaceModelServer(V2ModelServer):
     ):
         """
         Initialize a serving class for a Hugging face model.
-        :param context:         For internal use (passed in init).
+        :param context:         The mlrun context to work with
         :param name:            The name of this server to be initialized
-        :param task:            The task defining which pipeline will be returned.
         :param model_path:      Not in use. When adding a model pass any string value
         :param model_name:      The model's name in the Hugging Face hub
                                 e.g., `nlptown/bert-base-multilingual-uncased-sentiment`

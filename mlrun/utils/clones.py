@@ -95,7 +95,7 @@ def clone_git(url, context, secrets=None, clone=True):
     secrets = secrets or {}
 
     def get_secret(key):
-        return mlrun.get_secret_or_env(key, secret_provider=secrets)
+        return os.environ.get(key, secrets.get(key))
 
     url_obj = urlparse(url)
     if not context:

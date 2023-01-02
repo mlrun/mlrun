@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import os
 import tempfile
 import time
 import traceback
@@ -28,7 +29,7 @@ import semver
 import mlrun
 import mlrun.projects
 from mlrun.api import schemas
-from mlrun.errors import MLRunInvalidArgumentError, err_to_str
+from mlrun.errors import MLRunInvalidArgumentError
 
 from ..api.schemas import ModelEndpoint
 from ..artifacts import Artifact
@@ -208,7 +209,7 @@ class HTTPRunDB(RunDBInterface):
                 method, url, timeout=timeout, verify=False, **kw
             )
         except requests.RequestException as exc:
-            error = f"{err_to_str(exc)}: {error}" if error else err_to_str(exc)
+            error = f"{str(exc)}: {error}" if error else str(exc)
             raise mlrun.errors.MLRunRuntimeError(error) from exc
 
         if not response.ok:
@@ -375,7 +376,7 @@ class HTTPRunDB(RunDBInterface):
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
-                exc=err_to_str(exc),
+                exc=str(exc),
                 traceback=traceback.format_exc(),
             )
         return self
@@ -1177,8 +1178,8 @@ class HTTPRunDB(RunDBInterface):
                 req["builder_env"] = builder_env
             resp = self.api_call("POST", "build/function", json=req)
         except OSError as err:
-            logger.error(f"error submitting build task: {err_to_str(err)}")
-            raise OSError(f"error: cannot submit build, {err_to_str(err)}")
+            logger.error(f"error submitting build task: {err}")
+            raise OSError(f"error: cannot submit build, {err}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1222,8 +1223,8 @@ class HTTPRunDB(RunDBInterface):
             }
             resp = self.api_call("GET", "build/status", params=params)
         except OSError as err:
-            logger.error(f"error getting build status: {err_to_str(err)}")
-            raise OSError(f"error: cannot get build status, {err_to_str(err)}")
+            logger.error(f"error getting build status: {err}")
+            raise OSError(f"error: cannot get build status, {err}")
 
         if not resp.ok:
             logger.warning(f"failed resp, {resp.text}")
@@ -1268,8 +1269,8 @@ class HTTPRunDB(RunDBInterface):
                 timeout=int(config.submit_timeout) or 60,
             )
         except OSError as err:
-            logger.error(f"error starting function: {err_to_str(err)}")
-            raise OSError(f"error: cannot start function, {err_to_str(err)}")
+            logger.error(f"error starting function: {err}")
+            raise OSError(f"error: cannot start function, {err}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1313,8 +1314,8 @@ class HTTPRunDB(RunDBInterface):
             req = {"kind": kind, "selector": selector, "project": project, "name": name}
             resp = self.api_call("POST", "status/function", json=req)
         except OSError as err:
-            logger.error(f"error starting function: {err_to_str(err)}")
-            raise OSError(f"error: cannot start function, {err_to_str(err)}")
+            logger.error(f"error starting function: {err}")
+            raise OSError(f"error: cannot start function, {err}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1341,8 +1342,8 @@ class HTTPRunDB(RunDBInterface):
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
         except OSError as err:
-            logger.error(f"error submitting task: {err_to_str(err)}")
-            raise OSError(f"error: cannot submit task, {err_to_str(err)}")
+            logger.error(f"error submitting task: {err}")
+            raise OSError(f"error: cannot submit task, {err}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1414,8 +1415,8 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error(f"error cannot submit pipeline: {err}")
+            raise OSError(f"error: cannot cannot submit pipeline, {err}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1499,8 +1500,8 @@ class HTTPRunDB(RunDBInterface):
                 timeout=timeout,
             )
         except OSError as err:
-            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
+            logger.error(f"error cannot get pipeline: {err}")
+            raise OSError(f"error: cannot get pipeline, {err}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -2538,43 +2539,61 @@ class HTTPRunDB(RunDBInterface):
             )
         return True
 
-    def create_model_endpoint(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
+        access_key: Optional[str] = None,
     ):
         """
-        Creates a DB record with the given model_endpoint record.
+        Creates or updates a KV record with the given model_endpoint record
 
-        :param project: The name of the project.
-        :param endpoint_id: The id of the endpoint.
-        :param model_endpoint: An object representing the model endpoint.
+        :param project: The name of the project
+        :param endpoint_id: The id of the endpoint
+        :param model_endpoint: An object representing the model endpoint
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
-            method="POST",
+            method="PUT",
             path=path,
             body=model_endpoint.json(),
+            headers={"X-V3io-Access-Key": access_key},
         )
 
-    def delete_model_endpoint(
+    def delete_model_endpoint_record(
         self,
         project: str,
         endpoint_id: str,
+        access_key: Optional[str] = None,
     ):
         """
         Deletes the KV record of a given model endpoint, project and endpoint_id are used for lookup
 
         :param project: The name of the project
         :param endpoint_id: The id of the endpoint
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="DELETE",
             path=path,
+            headers={"X-V3io-Access-Key": access_key},
         )
 
     def list_model_endpoints(
@@ -2586,6 +2605,7 @@ class HTTPRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
+        access_key: Optional[str] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
     ) -> schemas.ModelEndpointList:
@@ -2607,17 +2627,18 @@ class HTTPRunDB(RunDBInterface):
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
             (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
-                                 days), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
-                                 days), or 0 for the earliest time.
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
+        :param access_key: V3IO access key, when None, will be look for in environ
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
         :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
         """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
 
         path = f"projects/{project}/model-endpoints"
         response = self.api_call(
@@ -2633,6 +2654,7 @@ class HTTPRunDB(RunDBInterface):
                 "top-level": top_level,
                 "uid": uids,
             },
+            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpointList(**response.json())
 
@@ -2644,6 +2666,7 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
+        access_key: Optional[str] = None,
     ) -> schemas.ModelEndpoint:
         """
         Returns a ModelEndpoint object with additional metrics and feature related data.
@@ -2651,15 +2674,18 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param endpoint_id: The id of the model endpoint
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
-        :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
-                      time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                      where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
-        :param end: The end time of the metrics. Can be represented by a string containing an RFC 3339
-                    time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`,
-                    where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
+        :param start: The start time of the metrics
+        :param end: The end time of the metrics
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
             the output of the resulting object
+        :param access_key: V3IO access key, when None, will be look for in environ
         """
+        access_key = access_key or os.environ.get("V3IO_ACCESS_KEY")
+        if not access_key:
+            raise MLRunInvalidArgumentError(
+                "access_key must be initialized, either by passing it as an argument or by populating a "
+                "V3IO_ACCESS_KEY environment parameter"
+            )
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         response = self.api_call(
@@ -2671,51 +2697,9 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
             },
+            headers={"X-V3io-Access-Key": access_key},
         )
         return schemas.ModelEndpoint(**response.json())
-
-    def patch_model_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        attributes: dict,
-    ):
-        """
-        Updates model endpoint with provided attributes.
-
-        :param project: The name of the project.
-        :param endpoint_id: The id of the endpoint.
-        :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. The values should be
-                           from type string or from a valid numerical type such as int or float. More details
-                           about the model endpoint available attributes can be found under
-                           :py:class:`~mlrun.api.schemas.ModelEndpoint`.
-
-                           Example::
-
-                                # Generate current stats for two features
-                                current_stats = {'tvd_sum': 2.2,
-                                                 'tvd_mean': 0.5,
-                                                 'hellinger_sum': 3.6,
-                                                 'hellinger_mean': 0.9,
-                                                 'kld_sum': 24.2,
-                                                 'kld_mean': 6.0,
-                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
-                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
-
-                                # Create attributes dictionary according to the required format
-                                attributes = {`current_stats`: json.dumps(current_stats),
-                                              `drift_status`: "DRIFT_DETECTED"}
-
-        """
-
-        attributes = {"attributes": _as_json(attributes)}
-        path = f"projects/{project}/model-endpoints/{endpoint_id}"
-        self.api_call(
-            method="PATCH",
-            path=path,
-            params=attributes,
-        )
 
     def create_marketplace_source(
         self, source: Union[dict, schemas.IndexedMarketplaceSource]

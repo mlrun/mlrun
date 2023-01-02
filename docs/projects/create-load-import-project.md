@@ -18,8 +18,8 @@ Data-access permissions are given to the original creator of files. If you trans
 
 **In this section**
 - [Creating a new project](#creating-a-new-project)
-- [Get a project from DB (get_or_create_project)](#get-from-db-get-or-create-project)
 - [Load and run projects from context, git or archive](#load-and-run-projects-from-context-git-or-archive)
+- [Get a project from DB or create it (get_or_create_project)](#get-from-db-or-create-get-or-create-project)
 
 ## Creating a new project
 
@@ -96,26 +96,6 @@ Example of creating a new project from a zip template:
 * You can ensure the project name is unique per user by setting the `user_project` parameter to `True`.
 ```
 
-## Get a project from DB (`get_or_create_project`)
-
-If you already have a project saved in the DB and you need to access/use it (for example from a different notebook or file), 
-use the {py:meth}`~mlrun.projects.get_or_create_project` method. It first tries to read the project from the DB, 
-and only if it doesn't exist in the DB it loads/creates it. 
-
-```{admonition} Note
-If you update the project object from different files/notebooks/users, make sure you `.save()` your project after a change, 
-and run `get_or_create_project` to load changes made by others. 
-```
-
-Example:
-
-```python
-    # load project from the DB (if exist) or the source repo
-    project = mlrun.get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
-    project.pull("development")  # pull the latest code from git
-    project.run("main", arguments={'data': data_url})  # run the workflow "main"
-```
-
 ## Load and run projects from context, git or archive
 
 When a project is already created and stored in a git archive you can quickly load and use it with the 
@@ -176,5 +156,23 @@ Options:
   -d, --dirty               allow run with uncommitted git changes
 ```
 
+## Get a project from DB or create it (`get_or_create_project`)
 
+If you already have a project saved in the DB and you need to access/use it (for example from a different notebook or file), 
+use the {py:meth}`~mlrun.projects.get_or_create_project` method. It first tries to read the project from the DB, 
+and only if it doesn't exist in the DB it loads/creates it. 
+
+```{admonition} Note
+If you update the project object from different files/notebooks/users, make sure you `.save()` your project after a change, 
+and run `get_or_create_project` to load changes made by others. 
+```
+
+Example:
+
+```python
+    # load project from the DB (if exist) or the source repo
+    project = mlrun.get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
+    project.pull("development")  # pull the latest code from git
+    project.run("main", arguments={'data': data_url})  # run the workflow "main"
+```
 

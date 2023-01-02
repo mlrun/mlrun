@@ -24,7 +24,7 @@ from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
 from mlrun.runtimes.utils import RunError
-from mlrun.utils import get_in, logger, now_date, update_in
+from mlrun.utils import get_in, logger
 
 
 class MPIResourceSpec(KubeResourceSpec):

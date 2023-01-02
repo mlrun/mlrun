@@ -14,6 +14,8 @@
 #
 import re
 import uuid
+import warnings
+from collections import OrderedDict
 from typing import Any, Dict, List, Union
 
 import numpy as np
@@ -21,7 +23,6 @@ import pandas as pd
 from storey import MapClass
 
 import mlrun.errors
-from mlrun.serving.server import get_event_time
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
 
@@ -91,8 +92,6 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                 if not ok:
                     message = args.pop("message")
                     key_text = f" key={event.key}" if event.key else ""
-                    if event.time:
-                        key_text += f" time={event.time}"
                     print(
                         f"{validator.severity}! {name} {message},{key_text} args={args}"
                     )
@@ -114,8 +113,6 @@ class FeaturesetValidator(StepToDict, MLRunStep):
                         message = args.pop("message")
                 if violations != 0:
                     text = f" column={column}, has {violations} violations"
-                    if event.time:
-                        text += f" time={event.time}"
                     print(
                         f"{validator.severity}! {column} {message},{text} args={all_args}"
                     )
@@ -275,7 +272,8 @@ class OneHotEncoder(StepToDict, MLRunStep):
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         "For OneHotEncoder you must provide int or string mapping list"
                     )
-            mapping[key] = list(set(values))
+            # Use OrderedDict to dedup without losing the original order
+            mapping[key] = list(OrderedDict.fromkeys(values).keys())
 
     def _encode(self, feature: str, value):
         encoding = self.mapping.get(feature, [])
@@ -308,6 +306,11 @@ class OneHotEncoder(StepToDict, MLRunStep):
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
+            col_rename = {
+                name: OneHotEncoder._sanitized_category(name)
+                for name in encoded.columns
+            }
+            encoded.rename(columns=col_rename, inplace=True)
             event = pd.concat([event.loc[:, :key], encoded, event.loc[:, key:]], axis=1)
         event.drop(columns=list(self.mapping.keys()), inplace=True)
         return event
@@ -424,7 +427,7 @@ class DateExtractor(StepToDict, MLRunStep):
 
 
 class SetEventMetadata(MapClass):
-    """Set the event metadata (id, key, timestamp) from the event body"""
+    """Set the event metadata (id and key) from the event body"""
 
     def __init__(
         self,
@@ -434,9 +437,9 @@ class SetEventMetadata(MapClass):
         random_id: bool = None,
         **kwargs,
     ):
-        """Set the event metadata (id, key, timestamp) from the event body
+        """Set the event metadata (id, key) from the event body
 
-        set the event metadata fields (id, key, and time) from the event body data structure
+        set the event metadata fields (id and key) from the event body data structure
         the xx_path attribute defines the key or path to the value in the body dict, "." in the path string
         indicate the value is in a nested dict e.g. `"x.y"` means `{"x": {"y": value}}`
 
@@ -444,25 +447,30 @@ class SetEventMetadata(MapClass):
 
             flow = function.set_topology("flow")
             # build a graph and use the SetEventMetadata step to extract the id, key and path from the event body
-            # ("myid", "mykey" and "mytime" fields), the metadata will be used for following data processing steps
-            # (e.g. feature store ops, time/key aggregations, write to databases/streams, etc.)
-            flow.to(SetEventMetadata(id_path="myid", key_path="mykey", time_path="mytime"))
+            # ("myid" and "mykey" fields), the metadata will be used for following data processing steps
+            # (e.g. feature store ops, key aggregations, write to databases/streams, etc.)
+            flow.to(SetEventMetadata(id_path="myid", key_path="mykey"))
                 .to(...)  # additional steps
 
             server = function.to_mock_server()
-            event = {"myid": "34", "mykey": "123", "mytime": "2022-01-18 15:01"}
+            event = {"myid": "34", "mykey": "123"}
             resp = server.test(body=event)
 
         :param id_path:   path to the id value
         :param key_path:  path to the key value
-        :param time_path: path to the time value (value should be of type str or datetime)
+        :param time_path: DEPRECATED
         :param random_id: if True will set the event.id to a random value
         """
+        if time_path:
+            warnings.warn(
+                "SetEventMetadata's time_path parameter is deprecated and has no effect",
+                PendingDeprecationWarning,
+            )
+
         kwargs["full_event"] = True
         super().__init__(**kwargs)
         self.id_path = id_path
         self.key_path = key_path
-        self.time_path = time_path
         self.random_id = random_id
 
         self._tagging_funcs = []
@@ -483,10 +491,6 @@ class SetEventMetadata(MapClass):
             self._tagging_funcs.append(add_metadata("id", self.id_path))
         if self.key_path:
             self._tagging_funcs.append(add_metadata("key", self.key_path))
-        if self.time_path:
-            self._tagging_funcs.append(
-                add_metadata("time", self.time_path, get_event_time)
-            )
         if self.random_id:
             self._tagging_funcs.append(set_random_id)
 

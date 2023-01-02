@@ -150,12 +150,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         measurements = fs.FeatureSet(
             name,
             entities=[fs.Entity(key)],
+            timestamp_key="timestamp",
             engine="spark",
         )
         # Added to test that we can ingest a column named "summary"
         measurements.graph.to(name="rename_column", handler="rename_column")
         source = CSVSource(
-            "mycsv", path=self.get_remote_csv_source_path(), time_field="timestamp"
+            "mycsv",
+            path=self.get_remote_csv_source_path(),
         )
         filename = str(
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
@@ -280,7 +282,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
             schedule="mock",  # to enable filtering by time
         )
 
@@ -392,11 +393,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
 
         data_set = fs.FeatureSet(
             f"{name}_storey",
             entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -484,7 +486,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
         name_spark = f"{name}_spark"
 
         data_set = fs.FeatureSet(
@@ -564,7 +566,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -627,7 +628,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -677,7 +677,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
         feature_set = fs.FeatureSet(
@@ -782,7 +781,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 run_config=fs.RunConfig(local=False),
             )
 
-    def test_get_offline_features_with_filter(self):
+    # ML-3092
+    def test_get_offline_features_with_filter_and_indexes(self):
         key = "patient_id"
         measurements = fs.FeatureSet(
             "measurements",
@@ -798,30 +798,29 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fs.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
-
         fv_name = "measurements-fv"
         features = [
             "measurements.bad",
             "measurements.department",
         ]
-
         my_fv = fs.FeatureVector(
             fv_name,
             features,
-            description="my feature vector",
         )
+        my_fv.spec.with_indexes = True
         my_fv.save()
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
-        fs.get_offline_features(
+        resp = fs.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            engine="spark",
             run_config=fs.RunConfig(local=False),
         )
-        df_res = target.as_df()
-        df = source.to_dataframe()
-        expected_df = df[df["bad"] == 7][["bad", "department"]]
-        expected_df.reset_index(drop=True, inplace=True)
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        source_df.set_index(key, drop=True, inplace=True)
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
 
-        assert df_res.equals(expected_df)
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)

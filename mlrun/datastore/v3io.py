@@ -41,8 +41,8 @@ ONE_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
 
         self.headers = None
@@ -83,8 +83,8 @@ class V3ioStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"v3iofs or storey not installed, run pip install storey, {exc}"
-                )
+                    "v3iofs or storey not installed, run pip install storey"
+                ) from exc
             return None
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem

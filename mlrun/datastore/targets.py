@@ -490,7 +490,7 @@ class BaseStoreTarget(DataTargetBase):
                         "Format for writing dask dataframe should be CSV or Parquet!"
                     )
             except Exception as exc:
-                raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
+                raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
             target_path = generate_path_with_chunk(self, chunk_id)
             fs = self._get_store().get_filesystem(False)
@@ -524,8 +524,13 @@ class BaseStoreTarget(DataTargetBase):
                     )
                     if unit == time_partitioning_granularity:
                         break
+            storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
-                target_df, fs, target_path, partition_cols=partition_cols, **kwargs
+                target_df,
+                storage_options,
+                target_path,
+                partition_cols=partition_cols,
+                **kwargs,
             )
             try:
                 return fs.size(target_path)
@@ -533,7 +538,7 @@ class BaseStoreTarget(DataTargetBase):
                 return None
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
+    def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -760,10 +765,15 @@ class ParquetTarget(BaseStoreTarget):
             )
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
+    def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
         # In order to save the DataFrame in parquet format, all of the column names must be strings:
         df.columns = [str(column) for column in df.columns.tolist()]
-        df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
+        df.to_parquet(
+            target_path,
+            partition_cols=partition_cols,
+            storage_options=storage_options,
+            **kwargs,
+        )
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -851,6 +861,7 @@ class ParquetTarget(BaseStoreTarget):
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
+            time_field=timestamp_key,
             storage_options=self.storage_options
             or self._get_store().get_storage_options(),
             max_events=self.max_events,
@@ -923,12 +934,11 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
-        with fs.open(target_path, "wb") as fp:
-            # avoid writing the range index unless explicitly specified via kwargs
-            if isinstance(df.index, pd.RangeIndex):
-                kwargs["index"] = kwargs.get("index", False)
-            df.to_csv(fp, **kwargs)
+    def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
+        # avoid writing the range index unless explicitly specified via kwargs
+        if isinstance(df.index, pd.RangeIndex):
+            kwargs["index"] = kwargs.get("index", False)
+        df.to_csv(target_path, storage_options=storage_options, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None

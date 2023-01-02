@@ -26,8 +26,8 @@ from .base import DataStore, FileStats
 
 
 class GoogleCloudStorageStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
         # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
         # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
@@ -58,8 +58,8 @@ class GoogleCloudStorageStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"Google gcsfs not installed, run pip install gcsfs, {exc}"
-                )
+                    "Google gcsfs not installed, run pip install gcsfs"
+                ) from exc
             return None
 
         self._filesystem = fsspec.filesystem("gcs", **self.get_storage_options())

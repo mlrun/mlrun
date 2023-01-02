@@ -25,6 +25,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..builder import build_runtime
 from ..db import RunDBError
+from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
@@ -40,7 +41,7 @@ class KubejobRuntime(KubeResource):
     _is_remote = True
 
     def is_deployed(self):
-        """check if the function is deployed (have a valid container)"""
+        """check if the function is deployed (has a valid container)"""
         if self.spec.image:
             return True
 
@@ -122,9 +123,11 @@ class KubejobRuntime(KubeResource):
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: requirements.txt file to install or list of packages to install
-        :param overwrite:   overwrite existing build configuration
-        - when False we merge the new params with the existing (currently merge is applied to requirements and commands)
-        - when True we replace the existing params with the new ones
+        :param overwrite:  overwrite existing build configuration
+
+           * False: the new params are merged with the existing (currently merge is applied to requirements and
+             commands)
+           * True: the existing params are replaced by the new ones
         :param verify_base_image: verify the base image is set
         """
         if image:
@@ -364,7 +367,7 @@ class KubejobRuntime(KubeResource):
         try:
             pod_name, namespace = k8s.create_pod(pod)
         except ApiException as exc:
-            raise RunError(str(exc))
+            raise RunError(err_to_str(exc))
 
         if pod_name and self.kfp:
             writer = AsyncLogWriter(self._db_conn, runobj)

@@ -517,7 +517,39 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         print("OUT:\n", out)
-        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        assert (
+            out.find("pipeline run finished, state=Succeeded") != -1
+        ), "pipeline failed"
+
+    def test_run_cli_watch_with_timeout(self):
+        name = "run-cli-watch-with-timeout"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # exec the workflow and set a short timeout, should fail
+        args = [
+            "--name",
+            name,
+            "--url",
+            "git://github.com/mlrun/project-demo.git",
+            "--run",
+            "main",
+            "--watch",
+            "--timeout 1",
+            "--ensure-project",
+            project_dir,
+        ]
+        out = exec_project(args)
+
+        print("OUT:\n", out)
+        assert (
+            out.find(
+                "Exception: failed to execute command by the given deadline. last_exception: "
+                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+            )
+            != -1
+        )
 
     def test_submit_workflow_endpoint(self):
         project_name = "submit-wf"
@@ -669,3 +701,11 @@ class TestProject(TestMLRunSystem):
         project.set_secrets(file_path=env_file)
         secrets = db.list_project_secret_keys(name, provider="kubernetes")
         assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
+
+    def test_failed_schedule_workflow_non_remote_project(self):
+        name = "non-remote-fail"
+        project = self._create_project(name)
+        self.custom_project_names_to_delete.append(name)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            project.run("main", schedule="*/10 * * * *")

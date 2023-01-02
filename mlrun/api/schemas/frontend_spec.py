@@ -12,33 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
-
 from .k8s import Resources
 
 
-class ProjectMembershipFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class ProjectMembershipFeatureFlag(str, enum.Enum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class PreemptionNodesFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class PreemptionNodesFeatureFlag(str, enum.Enum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class AuthenticationFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class AuthenticationFeatureFlag(str, enum.Enum):
     none = "none"
     basic = "basic"
     bearer = "bearer"
     iguazio = "iguazio"
 
 
-class NuclioStreamsFeatureFlag(mlrun.api.utils.helpers.StrEnum):
+class NuclioStreamsFeatureFlag(str, enum.Enum):
     enabled = "enabled"
     disabled = "disabled"
 
@@ -66,8 +65,3 @@ class FrontendSpec(pydantic.BaseModel):
     default_artifact_path: str
     default_function_pod_resources: Resources = Resources()
     default_function_preemption_mode: str
-    feature_store_data_prefixes: typing.Optional[typing.Dict[str, str]]
-
-    # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
-    ce_mode: typing.Optional[str]
-    ce: typing.Optional[dict]

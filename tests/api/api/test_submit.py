@@ -19,7 +19,6 @@ import unittest.mock
 from http import HTTPStatus
 
 import fastapi.testclient
-import pandas as pd
 import pytest
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
@@ -304,65 +303,6 @@ def test_submit_job_service_accounts(
     assert resp
     _assert_pod_service_account(pod_create_mock, "some-sa")
     mlconf.function.spec.service_account.default = None
-
-
-class _MockDataItem:
-    def as_df(self):
-        return pd.DataFrame({"key1": [0], "key2": [1]})
-
-
-def test_submit_job_with_hyper_params_file(
-    db: Session,
-    client: TestClient,
-    pod_create_mock,
-    k8s_secrets_mock: K8sSecretsMock,
-    monkeypatch,
-):
-    project_name = "proj-with-hyper-params"
-    project_artifact_path = f"/{project_name}"
-    tests.api.api.utils.create_project(
-        client, project_name, artifact_path=project_artifact_path
-    )
-    function = mlrun.new_function(
-        name="test-function",
-        project=project_name,
-        tag="latest",
-        kind="job",
-        image="mlrun/mlrun",
-    )
-    # set default artifact path
-    mlconf.artifact_path = "/some-path"
-    submit_job_body = _create_submit_job_body(
-        function, project_name, with_output_path=False
-    )
-
-    # Create test-specific mocks
-    auth_info = mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
-    monkeypatch.setattr(
-        mlrun.api.utils.auth.verifier.AuthVerifier(),
-        "authenticate_request",
-        lambda *args, **kwargs: auth_info,
-    )
-    project_secrets = {"SECRET1": "VALUE1"}
-    k8s_secrets_mock.store_project_secrets(project_name, project_secrets)
-
-    # Configure hyper-param related values
-    task_spec = submit_job_body["task"]["spec"]
-    task_spec["param_file"] = "v3io://users/user1"
-    task_spec["selector"] = "max.loss"
-    task_spec["strategy"] = "list"
-
-    with unittest.mock.patch.object(
-        mlrun.MLClientCtx, "get_dataitem", return_value=_MockDataItem()
-    ) as data_item_mock:
-        resp = client.post("submit_job", json=submit_job_body)
-        assert resp.status_code == http.HTTPStatus.OK.value
-
-        # Validate that secrets were properly passed to get_dataitem
-        project_secrets.update({"V3IO_ACCESS_KEY": access_key})
-        data_item_mock.assert_called_once_with(
-            task_spec["param_file"], secrets=project_secrets
-        )
 
 
 def test_redirection_from_worker_to_chief_only_if_schedules_in_job(

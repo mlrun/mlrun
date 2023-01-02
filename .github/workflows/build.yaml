@@ -69,11 +69,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    # since github-actions gives us 14G only, and fills it up with some garbage
+      # since github-actions gives us 14G only, and fills it up with some garbage
+      # we will free up some space for our build process
     - name: Freeing up disk space
       run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-
+        "${GITHUB_WORKSPACE}/hack/ci/free-space.sh"
     - name: Install curl and jq
       run: sudo apt-get install curl jq
     - name: Extract git hash, ref and latest version

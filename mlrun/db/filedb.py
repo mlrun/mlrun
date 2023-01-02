@@ -133,7 +133,7 @@ class FileRunDB(RunDBInterface):
     def list_runs(
         self,
         name="",
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project="",
         labels=None,
         state="",
@@ -154,11 +154,6 @@ class FileRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs partitioning not supported"
             )
-        if uid and isinstance(uid, list):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Runs list with multiple uids not supported"
-            )
-
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()

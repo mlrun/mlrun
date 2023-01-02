@@ -316,7 +316,7 @@ def test_feature_vector_delete(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_vectors", project_name, None, count - 1)
 
-    # Delete the first feature set
+    # Delete the first fs
     response = client.delete(
         f"projects/{project_name}/feature-vectors/feature_vector_0"
     )

@@ -25,7 +25,7 @@ def get_sample(
 ):
     """generate data sample to be split (candidate for mlrun)
 
-    Return features matrix and header (x), and labels (y)
+    Returns features matrix and header (x), and labels (y)
     :param src:    data artifact
     :param sample: sample size from data source, use negative
                    integers to sample randomly, positive to

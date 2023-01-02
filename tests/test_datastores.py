@@ -324,17 +324,15 @@ def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
         store, _ = mlrun.store_manager.get_or_create_store(tmpdir)
-        file_system = store.get_filesystem(False)
+        fs = store.get_filesystem(False)
         with store.open(tmpdir + "/1x.txt", "w") as fp:
             fp.write("123")
         with mlrun.get_dataitem(tmpdir + "/2x.txt").open("w") as fp:
             fp.write("456")
-        files = file_system.ls(tmpdir)
+        files = fs.ls(tmpdir)
         assert len(files) == 2, "2 test files were not written"
         assert files[0].endswith("x.txt"), "wrong file name"
-        assert (
-            file_system.open(tmpdir + "/1x.txt", "r").read() == "123"
-        ), "wrong file content"
+        assert fs.open(tmpdir + "/1x.txt", "r").read() == "123", "wrong file content"
 
 
 @pytest.mark.parametrize(

@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import enum
 import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
 
-
-class ListRuntimeResourcesGroupByField(mlrun.api.utils.helpers.StrEnum):
+class ListRuntimeResourcesGroupByField(str, enum.Enum):
     job = "job"
     project = "project"
 

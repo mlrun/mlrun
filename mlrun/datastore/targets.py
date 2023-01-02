@@ -493,8 +493,8 @@ class BaseStoreTarget(DataTargetBase):
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
             target_path = generate_path_with_chunk(self, chunk_id)
-            file_system = self._get_store().get_filesystem(False)
-            if file_system.protocol == "file":
+            fs = self._get_store().get_filesystem(False)
+            if fs.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
@@ -533,7 +533,7 @@ class BaseStoreTarget(DataTargetBase):
                 **kwargs,
             )
             try:
-                return file_system.size(target_path)
+                return fs.size(target_path)
             except Exception:
                 return None
 

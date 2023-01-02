@@ -200,7 +200,7 @@ class V3ioStore(DataStore):
         """Recursive rm file/folder
         Workaround for v3io-fs not supporting recursive directory removal"""
 
-        file_system = self.get_filesystem()
+        fs = self.get_filesystem()
         if isinstance(path, str):
             path = [path]
         maxdepth = maxdepth if not maxdepth else maxdepth - 1
@@ -209,9 +209,7 @@ class V3ioStore(DataStore):
             _, p = parse_path(p, suffix="")
             p = "/" + p
             if recursive:
-                find_out = file_system.find(
-                    p, maxdepth=maxdepth, withdirs=True, detail=True
-                )
+                find_out = fs.find(p, maxdepth=maxdepth, withdirs=True, detail=True)
                 rec = set(
                     sorted(
                         [
@@ -221,8 +219,8 @@ class V3ioStore(DataStore):
                     )
                 )
                 to_rm |= rec
-            if p not in to_rm and (recursive is False or file_system.exists(p)):
-                p = p + ("/" if file_system.isdir(p) else "")
+            if p not in to_rm and (recursive is False or fs.exists(p)):
+                p = p + ("/" if fs.isdir(p) else "")
                 to_rm.add(p)
         for p in reversed(list(sorted(to_rm))):
-            file_system.rm_file(p)
+            fs.rm_file(p)

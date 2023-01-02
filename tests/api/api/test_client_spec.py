@@ -41,19 +41,6 @@ def test_client_spec(
     mlrun.mlconf.preemptible_nodes.node_selector = base64.b64encode(
         json.dumps(node_selector).encode("utf-8")
     )
-    ce_mode = "some-ce-mode"
-    ce_release = "y.y.y"
-    mlrun.mlconf.ce.mode = ce_mode
-    mlrun.mlconf.ce.release = ce_release
-
-    feature_store_data_prefix_default = "feature-store-data-prefix-default"
-    feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
-    feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
-    mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
-    mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
-    mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
-        feature_store_data_prefix_redisnosql
-    )
 
     tolerations = [
         kubernetes.client.V1Toleration(
@@ -112,15 +99,3 @@ def test_client_spec(
 
     assert response_body["logs"] == mlrun.mlconf.httpdb.logs.to_dict()
     assert response_body["logs"]["pipelines"]["pull_state"]["mode"] == "enabled"
-
-    assert response_body["feature_store_data_prefixes"]["default"] == (
-        feature_store_data_prefix_default
-    )
-    assert response_body["feature_store_data_prefixes"]["nosql"] == (
-        feature_store_data_prefix_nosql
-    )
-    assert response_body["feature_store_data_prefixes"]["redisnosql"] == (
-        feature_store_data_prefix_redisnosql
-    )
-    assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
-    assert response_body["ce"]["release"] == ce_release

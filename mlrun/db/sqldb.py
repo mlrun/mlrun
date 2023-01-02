@@ -113,7 +113,7 @@ class SQLDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project=None,
         labels=None,
         state=None,

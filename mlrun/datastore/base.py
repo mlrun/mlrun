@@ -90,8 +90,8 @@ class DataStore:
         return None
 
     def open(self, filepath, mode):
-        file_system = self.get_filesystem(False)
-        return file_system.open(filepath, mode)
+        fs = self.get_filesystem(False)
+        return fs.open(filepath, mode)
 
     def _join(self, key):
         if self.subpath:
@@ -171,7 +171,7 @@ class DataStore:
                     from storey.utils import find_filters, find_partitions
 
                     filters = []
-                    partitions_time_attributes = find_partitions(url, file_system)
+                    partitions_time_attributes = find_partitions(url, fs)
 
                     find_filters(
                         partitions_time_attributes,
@@ -190,9 +190,9 @@ class DataStore:
         else:
             raise Exception(f"file type unhandled {url}")
 
-        file_system = self.get_filesystem()
-        if file_system:
-            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
+        fs = self.get_filesystem()
+        if fs:
+            if self.supports_isdir() and fs.isdir(url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -201,10 +201,10 @@ class DataStore:
 
                 file = url
                 # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
-                if file_system.protocol != "file":
-                    # If not dir, use file_system.open() to avoid regression when pandas < 1.2 and does not
+                if fs.protocol != "file":
+                    # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
                     # support the storage_options parameter.
-                    file = file_system.open(url)
+                    file = fs.open(url)
 
                 return reader(file, **kwargs)
 

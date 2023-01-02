@@ -45,12 +45,11 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         # Create runs
         projects = ["run-project-1", "run-project-2", "run-project-3"]
         run_names = ["run-name-1", "run-name-2", "run-name-3"]
-        suffixes = ["first", "second", "third"]
         for project in projects:
             project_obj = mlrun.new_project(project)
             project_obj.save()
             for name in run_names:
-                for suffix in suffixes:
+                for suffix in ["first", "second", "third"]:
                     uid = f"{name}-uid-{suffix}"
                     for iteration in range(3):
                         run = {
@@ -72,7 +71,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
         runs = _list_and_assert_objects(9, project=projects[0], iter=False)
 
-        # partitioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
+        # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
         runs = _list_and_assert_objects(
             3,
             project=projects[0],
@@ -84,7 +83,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         for run in runs:
             assert "first" in run["metadata"]["uid"]
 
-        # partitioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
+        # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
         runs = _list_and_assert_objects(
             3,
             project=projects[0],
@@ -96,7 +95,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         for run in runs:
             assert "third" in run["metadata"]["uid"]
 
-        # partitioned list, specific project, 5 row per partition, so 3 names * 5 row = 15
+        # partioned list, specific project, 5 row per partition, so 3 names * 5 row = 15
         runs = _list_and_assert_objects(
             15,
             project=projects[0],
@@ -151,26 +150,6 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             excinfo.value.response.status_code
             == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
         )
-
-        # expecting 3 since we're getting back all iterations for that uid
-        _list_and_assert_objects(
-            3,
-            project=projects[0],
-            uid=f"{run_names[0]}-uid-{suffixes[0]}",
-            iter=True,
-        )
-
-        uid_list = [f"{run_names[0]}-uid-{suffix}" for suffix in suffixes]
-        runs = _list_and_assert_objects(
-            len(uid_list),
-            project=projects[0],
-            uid=uid_list,
-            iter=False,
-        )
-        uid_list = set(uid_list)
-        for run in runs:
-            assert run["metadata"]["uid"] in uid_list
-            uid_list.remove(run["metadata"]["uid"])
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

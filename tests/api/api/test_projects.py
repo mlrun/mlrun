@@ -15,7 +15,6 @@
 import copy
 import datetime
 import http
-import json.decoder
 import os
 import typing
 import unittest.mock
@@ -26,6 +25,7 @@ import deepdiff
 import fastapi.testclient
 import mergedeep
 import pytest
+import simplejson.errors
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -123,7 +123,7 @@ def test_redirection_from_worker_to_chief_delete_project(
             assert response.status_code == expected_status
             try:
                 assert response.json() == expected_response
-            except json.decoder.JSONDecodeError:
+            except simplejson.errors.JSONDecodeError:
                 # NO_CONTENT response doesn't return json serializable response
                 assert response.text == expected_response
 

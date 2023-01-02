@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -67,7 +67,7 @@ class FileDB(DBInterface):
         self,
         session,
         name="",
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project="",
         labels=None,
         states=None,

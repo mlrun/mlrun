@@ -60,7 +60,7 @@ class RunDBInterface(ABC):
     def list_runs(
         self,
         name="",
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project="",
         labels=None,
         state="",

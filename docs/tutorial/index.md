@@ -100,7 +100,7 @@ You can find the different end-to-end demos in the MLRun demos repository: [**gi
 
 ## Cheat sheet
 
-If you already know the basics, use the [cheat sheet](../cheat-sheet.html) as a guide to typical use cases and their flows/SDK.
+If you already know the basics, use the {ref}`cheat-sheet` as a guide to typical use cases and their flows/SDK.
 
 ## Running the demos in Open Source MLRun
 

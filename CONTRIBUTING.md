@@ -76,52 +76,7 @@ please put effort in writing good description
 * **Tests** - we care a lot about tests! if your PR will include good test coverage higher chances it will be merged fast
 
 ## System Tests
-
-As we support additional enterprise features while running MLRun in an Iguazio system, some system tests can only run 
-on an Iguazio system. To support this, we have two types of system tests.
-Using `@pytest.mark.enterprise` markers, we can distinguish between tests that can run on a MLRun Community Edition 
-instance and tests that requires and can only run on a full Iguazio system.
-Any system test which isn't marked with the `@pytest.mark.enterprise` marker can run on MLRun Community Edition which
-incidentally can also be installed locally on a developer machine.
-
 In the `tests/system/` directory exist test suites to run against a running system, in order to test full MLRun flows.
-
-### Setting Up an MLRun Community Edition Instance for System Tests
-
-You can follow the [Install MLRun on Kubernetes](https://docs.mlrun.org/en/latest/install/kubernetes.html) guide to 
-install an instance of MLRun Community Edition on your local machine. Notice the mentioned prerequisites and make sure 
-you have some kubernetes cluster running locally. 
-You can use [minikube](https://minikube.sigs.k8s.io/docs/start/) for this purpose (however this will require an extra step, see below).
-
-### Setting up Test Environment
-
-To run the system tests, you need to set up the `tests/system/env.yml` file. For running the open source system tests,
-the only requirement is to set the `MLRUN_DBPATH` environment variable to the url of the mlrun api service which is installed
-as part of the MLRun Community Edition installation.
-Once the installation is completed, it outputs a list of urls which you can use to access the various services. Similar to:
-
-```
-NOTES:
-You're up and running !
-
-1. Jupyter UI is available at:
-  http://127.0.0.1:30040
-...
-4. MLRun API is exposed externally at:
-  http://127.0.0.1:30070
-...
-Happy MLOPSing !!! :]
-```
-
-Notice the "MLRun API is exposed externally at: http://127.0.0.1:30070" line. This is the url you need to set in the 
-`env.yml` file, as the `MLRUN_DBPATH` value..
-
-If running via minikube, you will first need to run
-```shell
-minikube -n mlrun service mlrun-api
-```
-Which will tunnel the mlrun api service to your local machine. You can then use the url that is outputted by this command
-to set the `MLRUN_DBPATH` environment variable.
 
 ### Adding System Tests
 
@@ -183,13 +138,14 @@ From here, just use the MLRun SDK within the setup/teardown functions and the te
 functionality. The MLRun SDK will work against the live system you configured, and you can write the tests as you would
 any other pytest test.
 
-### You're Done!
+#### Running System Tests Locally
 
-All that's left now is to run whichever open source system tests you want to run. You can run them all by running the 
-command
-```shell
-make test-system-open-source
-```
+>**Note** - Running system tests locally is helpful only when adding new tests, and not when testing
+> regression on new code changes. For that, see the section below.
+1. Ensure you have a running system which is accessible via HTTPS from where you are running the tests.
+2. Fill the `tests/system/env.yml` with the `MLRUN_DBPATH`, `V3IO_API`, `V3IO_FRAMESD`, `V3IO_USERNAME` and 
+   `V3IO_ACCESS_KEY` (at this moment, `V3IO_PASSWORD` isn't required).
+3. Run the system tests by running `make test-system`.
 
 ### Checking system test regression on new code
 

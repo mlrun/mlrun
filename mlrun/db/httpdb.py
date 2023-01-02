@@ -147,7 +147,6 @@ class HTTPRunDB(RunDBInterface):
         :param method: REST method (POST, GET, PUT...)
         :param path: Path to endpoint executed, for example ``"projects"``
         :param error: Error to return if API invocation fails
-        :param params: Rest parameters, passed as a dictionary: ``{"<param-name>": <"param-value">}``
         :param body: Payload to be passed in the call. If using JSON objects, prefer using the ``json`` param
         :param json: JSON payload to be passed in the call
         :param headers: REST headers, passed as a dictionary: ``{"<header-name>": "<header-value>"}``
@@ -265,7 +264,7 @@ class HTTPRunDB(RunDBInterface):
                     f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
                     " CE mode don't match"
                 )
-            config.ce = server_cfg.get("ce") or config.ce
+            config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")
@@ -275,10 +274,6 @@ class HTTPRunDB(RunDBInterface):
             config.ui.url = config.resolve_ui_url() or server_cfg.get("ui_url")
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
-            )
-            config.feature_store.data_prefixes = (
-                config.feature_store.data_prefixes
-                or server_cfg.get("feature_store_data_prefixes")
             )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"
@@ -529,7 +524,7 @@ class HTTPRunDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project=None,
         labels=None,
         state=None,
@@ -555,7 +550,7 @@ class HTTPRunDB(RunDBInterface):
 
 
         :param name: Name of the run to retrieve.
-        :param uid: Unique ID of the run, or a list of run UIDs.
+        :param uid: Unique ID of the run.
         :param project: Project that the runs belongs to.
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
@@ -1345,15 +1340,9 @@ class HTTPRunDB(RunDBInterface):
                 req["schedule"] = schedule
             timeout = (int(config.submit_timeout) or 120) + 20
             resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
-
-        except requests.HTTPError as err:
-            logger.error(f"error submitting task: {err_to_str(err)}")
-            # not creating a new exception here, in order to keep the response and status code in the exception
-            raise
-
         except OSError as err:
             logger.error(f"error submitting task: {err_to_str(err)}")
-            raise OSError("error: cannot submit task") from err
+            raise OSError(f"error: cannot submit task, {err_to_str(err)}")
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -1743,7 +1732,6 @@ class HTTPRunDB(RunDBInterface):
         the function.
 
         :param feature_set: The :py:class:`~mlrun.feature_store.FeatureSet` to store.
-        :param name:    Name of feature set.
         :param project: Name of project this feature-set belongs to.
         :param tag: The ``tag`` of the object to replace in the DB, for example ``latest``.
         :param uid: The ``uid`` of the object to replace in the DB. If using this parameter, the modified object
@@ -1952,7 +1940,6 @@ class HTTPRunDB(RunDBInterface):
         of the function.
 
         :param feature_vector: The :py:class:`~mlrun.feature_store.FeatureVector` to store.
-        :param name:    Name of feature vector.
         :param project: Name of project this feature-vector belongs to.
         :param tag: The ``tag`` of the object to replace in the DB, for example ``latest``.
         :param uid: The ``uid`` of the object to replace in the DB. If using this parameter, the modified object

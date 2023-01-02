@@ -196,8 +196,7 @@ class TestMLRunSystem:
 
             if value:
                 os.environ[env_var] = value
-
-        # reload the config so changes to the env vars will take effect
+        # reload the config so changes to the env vars will take affect
         mlrun.config.config.reload()
 
     @classmethod

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import getpass
-import http
 import os
 import traceback
 import typing
@@ -27,7 +26,6 @@ from os import environ
 from typing import Dict, List, Optional, Tuple, Union
 
 import IPython
-import requests.exceptions
 from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
@@ -308,7 +306,6 @@ class BaseRuntime(ModelObj):
         local=False,
         local_code_path=None,
         auto_build=None,
-        param_file_secrets: Dict[str, str] = None,
     ) -> RunObject:
         """Run a local or remote task.
 
@@ -337,8 +334,7 @@ class BaseRuntime(ModelObj):
         :param local_code_path: path of the code for local runs & debug
         :param auto_build: when set to True and the function require build it will be built on the first
                            function run, use only if you dont plan on changing the build config between runs
-        :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
-                            These secrets are only used locally and will not be stored anywhere
+
         :return: run context object (RunObject) with run metadata, results and status
         """
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
@@ -433,9 +429,7 @@ class BaseRuntime(ModelObj):
         self._verify_run_params(run.spec.parameters)
 
         # create task generator (for child runs) from spec
-        task_generator = get_generator(
-            run.spec, execution, param_file_secrets=param_file_secrets
-        )
+        task_generator = get_generator(run.spec, execution)
         if task_generator:
             # verify valid task parameters
             tasks = task_generator.generate(run)
@@ -726,13 +720,8 @@ class BaseRuntime(ModelObj):
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return
-
-        except (requests.HTTPError, Exception) as err:
+        except Exception as err:
             logger.error(f"got remote run err, {err_to_str(err)}")
-
-            if isinstance(err, requests.HTTPError):
-                self._handle_submit_job_http_error(err)
-
             result = None
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
@@ -774,16 +763,6 @@ class BaseRuntime(ModelObj):
             resp = self._get_db_run(runspec)
 
         return self._wrap_run_result(resp, runspec, schedule=schedule)
-
-    @staticmethod
-    def _handle_submit_job_http_error(error: requests.HTTPError):
-        # if we receive a 400 status code, this means the request was invalid and the run wasn't created in the DB.
-        # so we don't need to update the run state and we can just raise the error.
-        # more status code handling can be added here if needed
-        if error.response.status_code == http.HTTPStatus.BAD_REQUEST.value:
-            raise mlrun.errors.MLRunBadRequestError(
-                f"Bad request to mlrun api: {error.response.text}"
-            )
 
     def _store_function(self, runspec, meta, db):
         db_str = "self" if self._is_api_server else self.spec.rundb

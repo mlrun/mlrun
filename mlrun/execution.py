@@ -191,7 +191,7 @@ class MLClientCtx(object):
             )
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
-    def get_store_resource(self, url, secrets: dict = None):
+    def get_store_resource(self, url):
         """get mlrun data resource (feature set/vector, artifact, item) from url
 
         example::
@@ -201,26 +201,18 @@ class MLClientCtx(object):
 
         :param url:    store resource uri/path, store://<type>/<project>/<name>:<version>
                        types: artifacts | feature-sets | feature-vectors
-        :param secrets: additional secrets to use when accessing the store resource
         """
-        return get_store_resource(
-            url,
-            db=self._rundb,
-            secrets=self._secrets_manager,
-            data_store_secrets=secrets,
-        )
+        return get_store_resource(url, db=self._rundb, secrets=self._secrets_manager)
 
-    def get_dataitem(self, url, secrets: dict = None):
+    def get_dataitem(self, url):
         """get mlrun dataitem from url
 
         example::
 
             data = context.get_dataitem("s3://my-bucket/file.csv").as_df()
 
-        :param url:    data-item uri/path
-        :param secrets: additional secrets to use when accessing the data-item
         """
-        return self._data_stores.object(url=url, secrets=secrets)
+        return self._data_stores.object(url=url)
 
     def set_logger_stream(self, stream):
         self._logger.replace_handler_stream("default", stream)

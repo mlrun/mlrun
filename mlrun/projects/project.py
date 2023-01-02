@@ -41,10 +41,9 @@ from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifa
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
-from ..k8s_utils import sanitize_function_volumes
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.utils import add_code_metadata, get_item_name, set_item_attribute
+from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
@@ -317,18 +316,17 @@ def get_or_create_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
     :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will excute `git init` on the context dir
+    :param init_git:     if True, will git init the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current username to the project name (for db:// prefixes)
+    :param user_project: add the current user name to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
     context = context or "./"
     try:
-        # load project from the DB.
-        # use `name` as `url` as we load the project from the DB
+        # load project from the DB
         project = load_project(
             context,
             name,
@@ -359,7 +357,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url or context}"
+            message = f"loaded project {name} from {url} or context"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -748,6 +746,23 @@ class ProjectSpec(ModelObj):
     def get_code_path(self):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
+
+    def is_remote(self) -> bool:
+        """
+        Checks if the source of the project is remote.
+        A remote project can be considered as one of the following:
+            * GitHub project e.g., git://github.com/mlrun/project-demo.git
+            * Archive project e.g., "v3io:///projects/my-project/my-project.zip
+              (Archiving a project can be done by `project.export`)
+        """
+        source = self.source
+        if not source or source.startswith(".") or source.startswith("/"):
+            return False
+        return (
+            source.startswith("git://")
+            or source.endswith(".tar.gz")
+            or source.endswith(".zip")
+        )
 
 
 class ProjectStatus(ModelObj):
@@ -1614,7 +1629,6 @@ class MlrunProject(ModelObj):
                 raise ValueError(
                     "default handler cannot be set for existing function object"
                 )
-            _mask_credentials_in_function_object(function_object)
             if image:
                 function_object.spec.image = image
             if with_repo:
@@ -1767,11 +1781,11 @@ class MlrunProject(ModelObj):
             if not f:
                 raise ValueError(f"function named {name} not found")
             if hasattr(f, "to_dict"):
-                name, func = _init_function_from_obj(f, self, name)
+                name, func = _init_function_from_obj(f, self)
             else:
                 if not isinstance(f, dict):
                     raise ValueError("function must be an object or dict")
-                name, func = _init_function_from_dict(f, self, name)
+                name, func = _init_function_from_dict(f, self)
             func.spec.build.code_origin = origin
             funcs[name] = func
             if save:
@@ -1940,7 +1954,6 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
-        overwrite: bool = False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1969,7 +1982,6 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
         :returns: run id
         """
 
@@ -2009,7 +2021,6 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2038,16 +2049,12 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
         )
+        run_msg = f"started run workflow {name} "
         # run is None when scheduling
-        if (
-            run
-            and run.state != mlrun.run.RunStatuses.failed
-            and not workflow_spec.schedule
-        ):
-            # Failure and schedule messages already logged
-            logger.info(
-                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
-            )
+        if run:
+            run_msg += f"with run id = '{run.run_id}' "
+        run_msg += f"by {workflow_engine.engine} engine"
+        logger.info(run_msg)
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
@@ -2782,8 +2789,8 @@ class MlrunProjectLegacy(ModelObj):
             fp.write(self.to_yaml())
 
 
-def _init_function_from_dict(f, project, name=None):
-    name = name or f.get("name", "")
+def _init_function_from_dict(f, project):
+    name = f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
     image = f.get("image", None)
@@ -2875,82 +2882,6 @@ def _init_function_from_obj(func, project, name=None):
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
     return name or func.metadata.name, func
-
-
-def _mask_credentials_in_function_object(function):
-    env_to_mask = [
-        "V3IO_ACCESS_KEY",
-        "V3IO_USERNAME",
-        "V3IO_PASSWORD",
-        "V3IO_API",
-        "V3IO_FRAMESD",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-    ]
-    # some function spec might not have env (e.g. BaseRuntime) so skip if not exist
-    if not hasattr(function, "spec") or not hasattr(function.spec, "env"):
-        return function
-
-    for env in function.spec.env:
-        # if env contain a value and not value_from, this means it wasn't masked then we remove it
-        # if env contain a value_from, this means it was masked then no need to remove it
-        env_name = get_item_name(env, "name")
-        env_value_from = get_item_name(env, "value_from")
-        if env_name in env_to_mask and not env_value_from:
-            set_item_attribute(env, "value", None)
-
-    if (
-        function.metadata.credentials
-        and function.metadata.credentials.access_key
-        and not function.metadata.credentials.access_key.startswith(
-            mlrun.model.Credentials.secret_reference_prefix
-        )
-    ):
-        function.metadata.credentials.access_key = None
-
-    _mask_volumes_in_function_object(function)
-
-    return function
-
-
-def _mask_volumes_in_function_object(function):
-    should_remove_v3io_mounts = False
-    v3io_flex_volume_name = None
-    volumes = []
-
-    sanitize_function_volumes(function)
-
-    for volume in function.spec.volumes:
-        flex_volume = get_item_name(volume, "flexVolume")
-        if flex_volume and get_item_name(flex_volume, "driver") == "v3io/fuse":
-            # set the flex volume name to be used later when removing the volume mount
-            v3io_flex_volume_name = get_item_name(volume, "name")
-            # if it has a secret reference, then it was masked then no need to remove it
-            # just remove the plane access key reference
-            if get_item_name(flex_volume, "secretRef"):
-                if get_item_name(flex_volume, "options"):
-                    # mainly for sanity that we don't leave any access key not masked
-                    options = get_item_name(flex_volume, "options")
-                    if get_item_name(options, "accessKey"):
-                        set_item_attribute(options, "accessKey", None)
-            # if it doesn't has a secret reference, then it wasn't masked then we remove it
-            else:
-                should_remove_v3io_mounts = True
-                continue
-        volumes.append(volume)
-
-    function.spec.volumes = volumes
-    # currently this is checked before entering the loop because we only have that option with v3io flex volume
-    # and it more efficient to check it once and not for each volume, but if we will have more options in the future
-    # we should check it inside the loop
-    if should_remove_v3io_mounts:
-        volume_mounts = []
-        for volume_mount in function.spec.volume_mounts:
-            if get_item_name(volume_mount, "name") == v3io_flex_volume_name:
-                continue
-            volume_mounts.append(volume_mount)
-
-        function.spec.volume_mounts = volume_mounts
 
 
 def _init_function_from_dict_legacy(f, project):

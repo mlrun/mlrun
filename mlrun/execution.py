@@ -110,12 +110,14 @@ class MLClientCtx(object):
     def __enter__(self):
         return self
 
-    # is this the problem?
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_value:
             self.set_state(error=exc_value, commit=False)
-        logger.info("Exiting context")
-        self.commit(completed=False)
+
+        # mpi workers should not set the run as completed, only the launcher
+        kind = self._labels.get("kind", "")
+        mark_as_completed = kind != ["mpijob"]
+        self.commit(completed=mark_as_completed)
 
     def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)

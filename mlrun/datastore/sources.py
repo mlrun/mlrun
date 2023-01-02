@@ -85,7 +85,7 @@ class BaseSourceDriver(DataSource):
             )
         return df
 
-    def to_spark_df(self, session, named_view=False):
+    def to_spark_df(self, session, named_view=False, time_field=None):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
             if named_view:
@@ -176,12 +176,17 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
-    def to_spark_df(self, session, named_view=False):
+    def to_spark_df(self, session, named_view=False, time_field=None):
         import pyspark.sql.functions as funcs
 
         df = session.read.load(**self.get_spark_options())
+
+        parse_dates = self._parse_dates or []
+        if time_field and time_field not in parse_dates:
+            parse_dates.append(time_field)
+
         for col_name, col_type in df.dtypes:
-            if self._parse_dates and col_name in self._parse_dates:
+            if parse_dates and col_name in parse_dates:
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)
@@ -459,7 +464,7 @@ class BigQuerySource(BaseSourceDriver):
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
 
-    def to_spark_df(self, session, named_view=False):
+    def to_spark_df(self, session, named_view=False, time_field=None):
         options = copy(self.attributes.get("spark_options", {}))
         credentials, gcp_project = self._get_credentials_string()
         if credentials:

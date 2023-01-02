@@ -67,6 +67,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    # since github-actions gives us 14G only, and fills it up with some garbage
+    - name: Freeing up disk space
+      run: |
+        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
     - name: Set up python 3.7
       uses: actions/setup-python@v4
       with:
@@ -74,12 +78,8 @@ jobs:
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \
-          -r dockerfiles/mlrun-api/requirements.txt -r extras-requirements.txt && pip install -e .
-
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+          -r dockerfiles/mlrun-api/requirements.txt -r dev-requirements.txt \
+          -r extras-requirements.txt && pip install -e .
 
       # TODO: How can we avoid these duplicate lines from the enterprise system tests, up until line 120.
     - name: Install curl and jq

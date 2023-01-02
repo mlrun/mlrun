@@ -14,7 +14,7 @@
 import datetime
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from mlrun.api import schemas
 
@@ -67,7 +67,7 @@ class DBInterface(ABC):
         self,
         session,
         name="",
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         states=None,

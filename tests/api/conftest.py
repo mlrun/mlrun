@@ -68,15 +68,7 @@ def set_base_url_for_test_client(
     client: typing.Union[httpx.AsyncClient, TestClient],
     prefix: str = BASE_VERSIONED_API_PREFIX,
 ):
-    if isinstance(client, httpx.AsyncClient):
-        client.base_url = client.base_url.join(prefix)
-    elif isinstance(client, TestClient):
-        client.base_url = client.base_url + prefix
-
-        # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
-        client.base_url = client.base_url.rstrip("/") + "/"
-    else:
-        raise NotImplementedError(f"Unknown test client type: {type(client)}")
+    client.base_url = client.base_url.join(prefix)
 
 
 @pytest.fixture()

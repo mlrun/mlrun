@@ -512,6 +512,7 @@ class MLClientCtx(object):
         :param commit: commit (write to DB now vs wait for the end of the run)
         """
         self._results[str(key)] = _cast_result(value)
+        logger.info("logging single result", results=self._results)
         self._update_db(commit=commit)
 
     def log_results(self, results: dict, commit=False):

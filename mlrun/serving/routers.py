@@ -774,30 +774,29 @@ def _init_endpoint_record(
                 if hasattr(c, "endpoint_uid"):
                     children_uids.append(c.endpoint_uid)
 
-                model_endpoint = ModelEndpoint(
-                    metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
-                    spec=ModelEndpointSpec(
-                        function_uri=graph_server.function_uri,
-                        model=versioned_model_name,
-                        model_class=voting_ensemble.__class__.__name__,
-                        stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
-                            project=project, kind="stream"
-                        ),
-                        active=True,
-                        monitoring_mode=ModelMonitoringMode.enabled
-                        if voting_ensemble.context.server.track_models
-                        else ModelMonitoringMode.disabled,
+            model_endpoint = ModelEndpoint(
+                metadata=ModelEndpointMetadata(project=project, uid=endpoint_uid),
+                spec=ModelEndpointSpec(
+                    function_uri=graph_server.function_uri,
+                    model=versioned_model_name,
+                    model_class=voting_ensemble.__class__.__name__,
+                    stream_path=config.model_endpoint_monitoring.store_prefixes.default.format(
+                        project=project, kind="stream"
                     ),
-                    status=ModelEndpointStatus(
-                        children=list(voting_ensemble.routes.keys()),
-                        endpoint_type=EndpointType.ROUTER,
-                        children_uids=children_uids,
-                    ),
-                )
+                    active=True,
+                    monitoring_mode=ModelMonitoringMode.enabled
+                    if voting_ensemble.context.server.track_models
+                    else ModelMonitoringMode.disabled,
+                ),
+                status=ModelEndpointStatus(
+                    children=list(voting_ensemble.routes.keys()),
+                    endpoint_type=EndpointType.ROUTER,
+                    children_uids=children_uids,
+                ),
+            )
 
             db = mlrun.get_run_db()
-
-            db.create_model_endpoint(
+            db.create_or_patch_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
                 model_endpoint=model_endpoint,
@@ -809,7 +808,7 @@ def _init_endpoint_record(
                     project=project, endpoint_id=model_endpoint
                 )
                 current_endpoint.status.endpoint_type = EndpointType.LEAF_EP
-                db.create_model_endpoint(
+                db.create_or_patch_model_endpoint(
                     project=project,
                     endpoint_id=model_endpoint,
                     model_endpoint=current_endpoint,

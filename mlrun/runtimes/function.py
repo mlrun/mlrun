@@ -252,6 +252,7 @@ class NuclioStatus(FunctionStatus):
         internal_invocation_urls=None,
         external_invocation_urls=None,
         build_pod=None,
+        container_image=None,
     ):
         super().__init__(state, build_pod)
 
@@ -265,6 +266,9 @@ class NuclioStatus(FunctionStatus):
         # still exists for backwards compatability reasons.
         # on latest Nuclio (>= 1.6.x) versions, use external_invocation_urls / internal_invocation_urls instead
         self.address = address
+
+        # the name of the image that was built and pushed to the registry, and used by the nuclio function
+        self.container_image = container_image
 
 
 class RemoteRuntime(KubeResource):
@@ -550,6 +554,9 @@ class RemoteRuntime(KubeResource):
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
             self._update_credentials_from_remote_build(data["data"])
+
+            # when a function is deployed, we wait for it to be ready by default
+            # this also means that the function object will be updated with the function status
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort

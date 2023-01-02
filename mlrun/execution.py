@@ -115,9 +115,9 @@ class MLClientCtx(object):
             self.set_state(error=exc_value, commit=False)
 
         # mpi workers should not set the run as completed, only the launcher
-        kind = self._labels.get("kind", "")
-        mark_as_completed = kind != ["mpijob"]
-        self.commit(completed=mark_as_completed)
+        # kind = self._labels.get("kind", "")
+        # mark_as_completed = kind != ["mpijob"]
+        self.commit(completed=False)
 
     def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)

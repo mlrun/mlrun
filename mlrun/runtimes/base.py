@@ -949,10 +949,12 @@ class BaseRuntime(ModelObj):
                 updates["status.error"] = str(err)
 
         elif not was_none and last_state != "completed":
-            logger.info("updating run state to completed", kind=kind)
+            logger.debug(
+                "Updating run state to completed", kind=kind, last_state=last_state
+            )
 
             # mpi workers should not set the run as completed, only the launcher
-            # TODO: create a 'workers' section in run objects state and here each worker will update its state while
+            # TODO: add a 'workers' section in run objects state and here each worker will update its state while
             #  the run state will be resolved by the server.
             if kind != "mpijob":
                 updates = {
@@ -961,7 +963,7 @@ class BaseRuntime(ModelObj):
                 }
                 update_in(resp, "status.state", "completed")
             else:
-                logger.info("mpijob worker, not setting run as completed")
+                logger.debug("MpiJob worker, not setting run as completed")
 
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")

@@ -180,7 +180,7 @@ Make sure to save your changes in the `data` folder within the Jupyter Lab. The 
 
 ## Configuring the remote environment
 
-You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your client environment](remote.md) for more information.
+You can use your code on a local machine while running your functions on a remote cluster. Refer to [Set up your client environment](remote.html) for more information.
 
 ## Advanced chart configuration
 

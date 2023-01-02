@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from ..config import config
 from ..platforms import add_or_refresh_credentials
+from ..utils import logger
 from .base import RunDBError, RunDBInterface  # noqa
 from .filedb import FileRunDB
 from .sqldb import SQLDB
@@ -67,6 +68,12 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     scheme = parsed_url.scheme.lower()
     kwargs = {}
     if "://" not in url or scheme in ["file", "s3", "v3io", "v3ios"]:
+        logger.warning(
+            "Could not detect path to API server, Using Deprecated client interface"
+        )
+        logger.warning(
+            "Please make sure your env variable MLRUN_DB_PATH is configured correctly to point to the API server!"
+        )
         cls = FileRunDB
     elif scheme in ("http", "https"):
         # import here to avoid circular imports

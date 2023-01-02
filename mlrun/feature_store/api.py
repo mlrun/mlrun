@@ -818,53 +818,7 @@ def _ingest_with_spark(
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Paths for spark ingest must contain schema, i.e v3io, s3, az"
                 )
-            spark_options = target.get_spark_options(
-                key_columns, timestamp_key, overwrite
-            )
-            logger.info(
-                f"writing to target {target.name}, spark options {spark_options}"
-            )
-
-            df_to_write = df
-
-            # If partitioning by time, add the necessary columns
-            if timestamp_key and "partitionBy" in spark_options:
-                from pyspark.sql.functions import (
-                    dayofmonth,
-                    hour,
-                    minute,
-                    month,
-                    second,
-                    year,
-                )
-
-                time_unit_to_op = {
-                    "year": year,
-                    "month": month,
-                    "day": dayofmonth,
-                    "hour": hour,
-                    "minute": minute,
-                    "second": second,
-                }
-                timestamp_col = df_to_write[timestamp_key]
-                for partition in spark_options["partitionBy"]:
-                    if (
-                        partition not in df_to_write.columns
-                        and partition in time_unit_to_op
-                    ):
-                        op = time_unit_to_op[partition]
-                        df_to_write = df_to_write.withColumn(
-                            partition, op(timestamp_col)
-                        )
-            df_to_write = target.prepare_spark_df(df_to_write)
-            if overwrite:
-                df_to_write.write.mode("overwrite").save(**spark_options)
-            else:
-                # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
-                # we would like to avoid that
-                df_to_write.persist()
-                if df_to_write.count() > 0:
-                    df_to_write.write.mode("append").save(**spark_options)
+            target.write_spark_dataframe(df, key_columns, timestamp_key, overwrite)
             target.set_resource(featureset)
             target.update_resource_status("ready")
 

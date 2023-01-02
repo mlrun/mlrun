@@ -32,6 +32,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
+from ..utils import logger
 from .utils import parse_kafka_url, store_path_to_spark
 
 
@@ -467,9 +468,9 @@ class BaseStoreTarget(DataTargetBase):
         **kwargs,
     ) -> typing.Optional[int]:
         if hasattr(df, "rdd"):
-            options = self.get_spark_options(key_column, timestamp_key)
-            options.update(kwargs)
-            df.write.mode("overwrite").save(**options)
+            self.write_spark_dataframe(
+                df, key_column, timestamp_key, overwrite=True, **kwargs
+            )
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
             storage_options = self._get_store().get_storage_options()
@@ -546,6 +547,50 @@ class BaseStoreTarget(DataTargetBase):
 
     def set_resource(self, resource):
         self._resource = resource
+
+    def write_spark_dataframe(
+        self, df_to_write, key_columns, timestamp_key, overwrite, **kwargs
+    ):
+        spark_options = self.get_spark_options(key_columns, timestamp_key, overwrite)
+        spark_options.update(kwargs)
+        logger.info(f"writing to target {self.name}, spark options {spark_options}")
+
+        # If partitioning by time, add the necessary columns
+        if timestamp_key and "partitionBy" in spark_options:
+            from pyspark.sql.functions import (
+                dayofmonth,
+                hour,
+                minute,
+                month,
+                second,
+                year,
+            )
+
+            time_unit_to_op = {
+                "year": year,
+                "month": month,
+                "day": dayofmonth,
+                "hour": hour,
+                "minute": minute,
+                "second": second,
+            }
+            timestamp_col = df_to_write[timestamp_key]
+            for partition in spark_options["partitionBy"]:
+                if (
+                    partition not in df_to_write.columns
+                    and partition in time_unit_to_op
+                ):
+                    op = time_unit_to_op[partition]
+                    df_to_write = df_to_write.withColumn(partition, op(timestamp_col))
+        df_to_write = self.prepare_spark_df(df_to_write)
+        if overwrite:
+            df_to_write.write.mode("overwrite").save(**spark_options)
+        else:
+            # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
+            # we would like to avoid that
+            df_to_write.persist()
+            if df_to_write.count() > 0:
+                df_to_write.write.mode("append").save(**spark_options)
 
     @classmethod
     def from_spec(cls, spec: DataTargetBase, resource=None):
@@ -1120,10 +1165,9 @@ class NoSqlBaseTarget(BaseStoreTarget):
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
         if hasattr(df, "rdd"):
-            options = self.get_spark_options(key_column, timestamp_key)
-            options.update(kwargs)
-            df = self.prepare_spark_df(df)
-            df.write.mode("overwrite").save(**options)
+            self.write_spark_dataframe(
+                df, key_column, timestamp_key, overwrite=True, **kwargs
+            )
         else:
             # To prevent modification of the original dataframe
             df = df.copy(deep=False)

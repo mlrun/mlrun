@@ -279,7 +279,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             igz_spark_pre_hook()
 
-    def _post_run(self, result, execution: MLClientCtx):
+    def _post_run(self, results, execution: MLClientCtx):
         if execution._old_workdir:
             os.chdir(execution._old_workdir)
 

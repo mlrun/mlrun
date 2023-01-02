@@ -765,13 +765,10 @@ class BaseRuntime(ModelObj):
             resp = self._get_db_run(run)
 
         elif watch or self.kfp:
-            self._watch_logs(run)
+            run.logs(watch=True, db=self._get_db())
             resp = self._get_db_run(run)
 
         return self._wrap_run_result(resp, run, schedule=schedule)
-
-    def _watch_logs(self, run):
-        return run.logs(watch=True, db=self._get_db())
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):
@@ -952,9 +949,11 @@ class BaseRuntime(ModelObj):
                 updates["status.error"] = str(err)
 
         elif not was_none and last_state != "completed":
-            logger.debug("updating run state to completed", kind=kind)
+            logger.info("updating run state to completed", kind=kind)
 
             # mpi workers should not set the run as completed, only the launcher
+            # TODO: create a 'workers' section in run objects state and here each worker will update its state while
+            #  the run state will be resolved by the server.
             if kind != "mpijob":
                 updates = {
                     "status.last_update": now_date().isoformat(),
@@ -962,7 +961,7 @@ class BaseRuntime(ModelObj):
                 }
                 update_in(resp, "status.state", "completed")
             else:
-                logger.debug("mpijob worker, not setting run as completed")
+                logger.info("mpijob worker, not setting run as completed")
 
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")

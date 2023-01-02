@@ -81,6 +81,10 @@ def get_frontend_spec(
         default_artifact_path=config.artifact_path,
         default_function_pod_resources=mlrun.mlconf.default_function_pod_resources.to_dict(),
         default_function_preemption_mode=mlrun.mlconf.function_defaults.preemption_mode,
+        feature_store_data_prefixes=config.feature_store.data_prefixes.to_dict(),
+        # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
+        ce_mode=config.ce.mode,
+        ce=config.ce.to_dict(),
     )
 
 

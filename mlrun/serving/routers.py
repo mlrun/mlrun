@@ -281,7 +281,7 @@ class _ParallelRunInterface:
             concurrent.futures.ProcessPoolExecutor,
             concurrent.futures.ThreadPoolExecutor,
         ] = None
-        if not hasattr(self, "routes") or not hasattr(self, "contex"):
+        if not hasattr(self, "routes") or not hasattr(self, "context"):
             raise mlrun.errors.MLRunRuntimeError(
                 "A class that inherits from `_ParallelRunInterface` must have 'routes' and 'contex' attributes. "
                 "This attributes can  be achieved by inheriting `BaseModelRouter`"

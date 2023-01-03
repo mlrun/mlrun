@@ -857,6 +857,50 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
+    # ML-2802
+    def test_get_offline_features_with_spark_engine(self):
+        key = "patient_id"
+        measurements = fstore.FeatureSet(
+            "measurements",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        assert measurements.status.targets[0].run_id is not None
+        fv_name = "measurements-fv"
+        features = [
+            "measurements.bad",
+            "measurements.department",
+        ]
+        my_fv = fstore.FeatureVector(
+            fv_name,
+            features,
+        )
+        my_fv.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            fv_name,
+            target=target,
+            query="bad>6 and bad<8",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+        )
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        expected_df.reset_index(drop=True, inplace=True)
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)
+
     def test_ingest_with_steps_drop_features(self):
         key = "patient_id"
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"

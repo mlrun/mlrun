@@ -219,5 +219,5 @@ class BaseMerger(abc.ABC):
         return size
 
     @classmethod
-    def get_default_image(cls):
+    def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image

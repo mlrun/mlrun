@@ -40,6 +40,7 @@ from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
+# Used by `_ParallelRunInterface` in process mode, so it can be accessed from different processes.
 local_routes = {}
 
 
@@ -215,6 +216,7 @@ class ModelRouter(BaseModelRouter):
 
 
 class ExecutorTypes:
+    # TODO: In 1.5.0 do changes
     thread = "thread"
     process = "process"
 
@@ -226,9 +228,9 @@ class ExecutorTypes:
 class ParallelRunnerModes(str, Enum):
     """Supported parallel running modes for VotingEnsemble"""
 
-    array = "array"
-    process = "process"
-    thread = "thread"
+    array = "array"  # running one by one
+    process = "process"  # running in separated processes
+    thread = "thread"  # running in separated threads
 
     @staticmethod
     def all():
@@ -264,7 +266,7 @@ class _ParallelRunInterface:
         :param executor_type: The desired way for execute parallel run.
                               Have 3 option :
                               * array - running one by one
-                              * process - running in separated process
+                              * process - running in separated processes
                               * thread - running in separated threads
         """
         if isinstance(executor_type, ExecutorTypes):
@@ -279,6 +281,11 @@ class _ParallelRunInterface:
             concurrent.futures.ProcessPoolExecutor,
             concurrent.futures.ThreadPoolExecutor,
         ] = None
+        if not hasattr(self, "routes") or not hasattr(self, "contex"):
+            raise mlrun.errors.MLRunRuntimeError(
+                "A class that inherits from `_ParallelRunInterface` must have 'routes' and 'contex' attributes. "
+                "This attributes can  be achieved by inheriting `BaseModelRouter`"
+            )
         super().__init__(**kwargs)
 
     def _init_pool(

@@ -604,8 +604,8 @@ class Scheduler:
         )
 
         # we use max_instances as well as our logic in the run wrapper for concurrent jobs
-        # in order to allow concurrency for triggering the jobs (max_instances), and concurrency
-        # of the jobs themselves (our logic in the run wrapper).
+        # in order to allow concurrency for triggering the jobs from the scheduler (max_instances), and concurrency
+        # of the jobs themselves (our logic in the run wrapper may be invoked manually).
         return self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(

@@ -1210,7 +1210,7 @@ async def test_schedule_job_concurrency_limit(
         concurrency_limit=concurrency_limit,
     )
 
-    random_sleep_time = random.randint(1, 4)
+    random_sleep_time = random.randint(1, 5)
     await asyncio.sleep(random_sleep_time)
     schedule = scheduler.get_schedule(
         db,

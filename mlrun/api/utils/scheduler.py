@@ -740,6 +740,8 @@ class Scheduler:
             job = self._scheduler.get_job(job_id)
             if job:
                 schedule.next_run_time = job.next_run_time
+            else:
+                schedule.next_run_time = None
 
         if include_last_run:
             self._enrich_schedule_with_last_run(db_session, schedule)

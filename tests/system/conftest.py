@@ -41,12 +41,13 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     if report.when == "call":
         item.session.results[item] = report
 
-    try:
-        post_report_failed_to_slack(
-            report, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
-        )
-    except Exception as exc:
-        print(f"Failed to post test report to slack: {exc}")
+    # commented due to spamming
+    # try:
+    #     post_report_failed_to_slack(
+    #         report, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
+    #     )
+    # except Exception as exc:
+    #     print(f"Failed to post test report to slack: {exc}")
 
 
 def pytest_sessionfinish(session: Session, exitstatus: ExitCode):

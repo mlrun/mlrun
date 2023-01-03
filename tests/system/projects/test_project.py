@@ -30,7 +30,7 @@ from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
 data_url = "https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv"
-model_pkg_class = "sklearn.linear_model.LogisticRegression"
+model_class = "sklearn.linear_model.LogisticRegression"
 projects_dir = f"{out_path}/proj"
 funcs = mlrun.projects.pipeline_context.functions
 
@@ -45,10 +45,10 @@ def exec_project(args):
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    funcs["train"].as_step(
+    funcs["auto_trainer"].as_step(
         name="train",
         inputs={"dataset": data_url},
-        params={"model_pkg_class": model_pkg_class, "label_column": "label"},
+        params={"model_class": model_class, "label_columns": "label"},
         outputs=["model", "test_set"],
     )
 
@@ -86,15 +86,14 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function("hub://sklearn_classifier", "train")
-        proj.set_function("hub://test_classifier", "test")
+        proj.set_function("hub://auto_trainer", "auto_trainer")
         proj.set_function("hub://v2_model_server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
-        proj.spec.params = {"label_column": "label"}
+        proj.spec.params = {"label_columns": "label"}
         arg = EntrypointParam(
-            "model_pkg_class",
+            "model_class",
             type="str",
-            default=model_pkg_class,
+            default=model_class,
             doc="model package/algorithm",
         )
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])

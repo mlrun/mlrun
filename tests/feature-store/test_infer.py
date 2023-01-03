@@ -16,11 +16,9 @@ import unittest.mock
 
 import pandas as pd
 import pytest
-import sqlalchemy.orm
 
 import mlrun
 import mlrun.feature_store as fstore
-from mlrun.api.db.base import DBInterface
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
@@ -106,10 +104,7 @@ def test_target_no_time_column():
         )
 
 
-def test_check_permissions(
-    db: DBInterface,
-    db_session: sqlalchemy.orm.Session,
-):
+def test_check_permissions(rundb_mock, monkeypatch):
     data = pd.DataFrame(
         {
             "time_stamp": [
@@ -123,54 +118,37 @@ def test_check_permissions(
     )
     data_set1 = fstore.FeatureSet("fs1", entities=[Entity("string")])
 
-    # mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
-    #     side_effect=mlrun.errors.MLRunAccessDeniedError("")
-    # )
+    monkeypatch.setattr(
+        rundb_mock,
+        "verify_authorization",
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunAccessDeniedError("")),
+    )
 
-    try:
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.preview(
             data_set1,
             data,
             entity_columns=[Entity("string")],
             timestamp_key="time_stamp",
         )
-        assert False
-    except mlrun.errors.MLRunAccessDeniedError:
-        pass
-
-    try:
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.ingest(data_set1, data, infer_options=fstore.InferOptions.default())
-        assert False
-    except mlrun.errors.MLRunAccessDeniedError:
-        pass
 
     features = ["fs1.*"]
     feature_vector = fstore.FeatureVector("test", features)
-    try:
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.get_offline_features(
             feature_vector, entity_timestamp_column="time_stamp"
         )
-        assert False
-    except mlrun.errors.MLRunAccessDeniedError:
-        pass
 
-    try:
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.get_online_feature_service(feature_vector)
-        assert False
-    except mlrun.errors.MLRunAccessDeniedError:
-        pass
 
-    try:
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.deploy_ingestion_service(featureset=data_set1)
-        assert False
-    except mlrun.errors.MLRunAccessDeniedError:
-        pass
 
-    try:
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         data_set1.purge_targets()
-        assert False
-    except mlrun.errors.MLRunAccessDeniedError:
-        pass
 
 
 def test_check_timestamp_key_is_entity():

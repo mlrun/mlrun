@@ -42,7 +42,7 @@ def extract_meta(event):
     return event
 
 
-def test_set_event_meta():
+def test_set_event_meta(rundb_mock):
     function = mlrun.new_function("test1", kind="serving")
     flow = function.set_topology("flow")
     flow.to(SetEventMetadata(id_path="myid", key_path="mykey")).to(
@@ -59,7 +59,7 @@ def test_set_event_meta():
     }
 
 
-def test_set_event_random_id():
+def test_set_event_random_id(rundb_mock):
     function = mlrun.new_function("test2", kind="serving")
     flow = function.set_topology("flow")
     flow.to(SetEventMetadata(random_id=True)).to(

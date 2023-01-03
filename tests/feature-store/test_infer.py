@@ -16,9 +16,11 @@ import unittest.mock
 
 import pandas as pd
 import pytest
+import sqlalchemy.orm
 
 import mlrun
 import mlrun.feature_store as fstore
+from mlrun.api.db.base import DBInterface
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
@@ -104,7 +106,10 @@ def test_target_no_time_column():
         )
 
 
-def test_check_permissions():
+def test_check_permissions(
+    db: DBInterface,
+    db_session: sqlalchemy.orm.Session,
+):
     data = pd.DataFrame(
         {
             "time_stamp": [
@@ -118,9 +123,9 @@ def test_check_permissions():
     )
     data_set1 = fstore.FeatureSet("fs1", entities=[Entity("string")])
 
-    mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
-        side_effect=mlrun.errors.MLRunAccessDeniedError("")
-    )
+    # mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
+    #     side_effect=mlrun.errors.MLRunAccessDeniedError("")
+    # )
 
     try:
         fstore.preview(

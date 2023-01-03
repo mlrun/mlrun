@@ -613,6 +613,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "drop_columns": None,
                 "with_indexes": True,
                 "query": None,
+                "engine_args": None,
             },
             "outputs": [],
             "output_path": "v3io:///mypath",

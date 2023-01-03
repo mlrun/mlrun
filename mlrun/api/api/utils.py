@@ -40,6 +40,7 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
+from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
@@ -701,7 +702,22 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
-            run = fn.run(task, watch=False)
+            # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
+            # locally from the mlrun service pod) - include project secrets and the caller's access key
+            param_file_secrets = (
+                mlrun.api.crud.Secrets()
+                .list_project_secrets(
+                    task["metadata"]["project"],
+                    mlrun.api.schemas.SecretProviderName.kubernetes,
+                    allow_secrets_from_k8s=True,
+                )
+                .secrets
+            )
+            param_file_secrets["V3IO_ACCESS_KEY"] = (
+                auth_info.data_session or auth_info.access_key
+            )
+
+            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:
@@ -714,7 +730,10 @@ def _submit_run(
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

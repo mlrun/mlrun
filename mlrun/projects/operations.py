@@ -132,7 +132,7 @@ def run_function(
     :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:
-                            https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                            https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
     :return: MLRun RunObject or KubeFlow containerOp
     """
@@ -331,12 +331,11 @@ def deploy_function(
             for model_args in models:
                 function.add_model(**model_args)
 
-        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
-        if mock_nuclio and mock_nuclio == "auto":
-            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
-        mock = True if mock_nuclio and mock is None else mock
+        mock = mlrun.mlconf.use_nuclio_mock(mock)
         function._set_as_mock(mock)
         if mock:
+            # make sure the latest ver is saved in the DB (same as in function.deploy())
+            function.save()
             return DeployStatus(
                 state="ready",
                 outputs={"endpoint": "Mock", "name": function.metadata.name},

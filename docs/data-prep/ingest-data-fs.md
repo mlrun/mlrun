@@ -115,9 +115,9 @@ Example:
 
 ```
 cron_trigger = "* */1 * * *" #will run every hour
-source = ParquetSource("myparquet", path=path, time_field="time", schedule=cron_trigger)
-feature_set = fs.FeatureSet(name=name, entities=[fs.Entity("first_name")], timestamp_key="time",)
-fs.ingest(feature_set, source, run_config=fs.RunConfig())
+source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
+feature_set = fstore.FeatureSet(name=name, entities=[fstore.Entity("first_name")], timestamp_key="time",)
+fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
 ```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.

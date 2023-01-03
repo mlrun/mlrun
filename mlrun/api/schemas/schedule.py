@@ -13,11 +13,11 @@
 # limitations under the License.
 #
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
+import mlrun.api.utils.helpers
 from mlrun.api.schemas.auth import Credentials
 from mlrun.api.schemas.object import LabelRecord
 
@@ -72,7 +72,7 @@ class ScheduleCronTrigger(BaseModel):
         )
 
 
-class ScheduleKinds(str, Enum):
+class ScheduleKinds(mlrun.api.utils.helpers.StrEnum):
     job = "job"
     pipeline = "pipeline"
 

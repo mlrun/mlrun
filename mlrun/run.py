@@ -154,6 +154,11 @@ def run_local(
     :param params:   input parameters (dict)
     :param inputs:   input objects (dict of key: path)
     :param artifact_path: default artifact output path
+    :param mode:    Runtime mode for more details head to `mlrun.new_function`
+    :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
+                                    (allows to have function which don't depend on having targets,
+                                    e.g a function which accepts a feature vector uri and generate
+                                     the offline vector e.g. parquet_ for it if it doesn't exist)
 
     :return: run object
     """
@@ -1526,6 +1531,11 @@ class OutputsLogger:
                     artifact = BokehArtifact(key=key, figure=obj)
             except ModuleNotFoundError:
                 pass
+            except ImportError:
+                logger.warn(
+                    "Bokeh installation is ignored. If needed, "
+                    "make sure you have the required version with `pip install mlrun[bokeh]`"
+                )
 
         # Log the artifact:
         if artifact is None:
@@ -1834,6 +1844,11 @@ class ContextHandler:
             ] = ArtifactType.PLOT
         except ModuleNotFoundError:
             pass
+        except ImportError:
+            logger.warn(
+                "Bokeh installation is ignored. If needed, "
+                "make sure you have the required version with `pip install mlrun[bokeh]`"
+            )
 
     @classmethod
     def _init_outputs_logging_map(cls):

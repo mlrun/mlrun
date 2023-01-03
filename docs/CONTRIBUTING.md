@@ -8,7 +8,7 @@ one you can view at https://mlrun.readthedocs.io
 We use [sphinx](https://www.sphinx-doc.org/en/master/) for documentation.
 The documentation files are in
 [reStructuredText](https://docutils.sourceforge.io/rst.html) format.
-The master document is `docs/index.rst`. Every file included in the `.. toctree::`
+The master document is `docs/contents.rst`. Every file included in the `.. toctree::`
 section publishes as a separate HTML page.
 
 The configuration is at: `docs/conf.py`.
@@ -27,7 +27,7 @@ Ask @yaronha to add you to the project if you don't have access.
 
 ## Structure 
 
-The master file is `docs/index.rst`
+The master file is `docs/contents.rst`
 
 ## Language (usage) guidelines
 

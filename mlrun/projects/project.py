@@ -316,17 +316,18 @@ def get_or_create_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
     :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will git init the context dir
+    :param init_git:     if True, will excute `git init` on the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current user name to the project name (for db:// prefixes)
+    :param user_project: add the current username to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
     context = context or "./"
     try:
-        # load project from the DB
+        # load project from the DB.
+        # use `name` as `url` as we load the project from the DB
         project = load_project(
             context,
             name,
@@ -357,7 +358,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url} or context"
+            message = f"loaded project {name} from {url or context}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -440,7 +441,7 @@ def _load_project_file(url, name="", secrets=None):
     try:
         obj = get_object(url, secrets)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(f"cant find project file at {url}, {exc}")
+        raise FileNotFoundError(f"cant find project file at {url}") from exc
     struct = yaml.load(obj, Loader=yaml.FullLoader)
     return _project_instance_from_struct(struct, name)
 
@@ -746,23 +747,6 @@ class ProjectSpec(ModelObj):
     def get_code_path(self):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
-
-    def is_remote(self) -> bool:
-        """
-        Checks if the source of the project is remote.
-        A remote project can be considered as one of the following:
-            * GitHub project e.g., git://github.com/mlrun/project-demo.git
-            * Archive project e.g., "v3io:///projects/my-project/my-project.zip
-              (Archiving a project can be done by `project.export`)
-        """
-        source = self.source
-        if not source or source.startswith(".") or source.startswith("/"):
-            return False
-        return (
-            source.startswith("git://")
-            or source.endswith(".tar.gz")
-            or source.endswith(".zip")
-        )
 
 
 class ProjectStatus(ModelObj):
@@ -1341,9 +1325,10 @@ class MlrunProject(ModelObj):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
+        :param local_path:    path to the local dataframe file that exists locally.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param artifact_path: target artifact path (when not using the default).
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
@@ -1780,11 +1765,11 @@ class MlrunProject(ModelObj):
             if not f:
                 raise ValueError(f"function named {name} not found")
             if hasattr(f, "to_dict"):
-                name, func = _init_function_from_obj(f, self)
+                name, func = _init_function_from_obj(f, self, name)
             else:
                 if not isinstance(f, dict):
                     raise ValueError("function must be an object or dict")
-                name, func = _init_function_from_dict(f, self)
+                name, func = _init_function_from_dict(f, self, name)
             func.spec.build.code_origin = origin
             funcs[name] = func
             if save:
@@ -1953,6 +1938,7 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
+        overwrite: bool = False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1981,6 +1967,7 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
         :returns: run id
         """
 
@@ -2020,6 +2007,7 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
+            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2048,12 +2036,16 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
         )
-        run_msg = f"started run workflow {name} "
         # run is None when scheduling
-        if run:
-            run_msg += f"with run id = '{run.run_id}' "
-        run_msg += f"by {workflow_engine.engine} engine"
-        logger.info(run_msg)
+        if (
+            run
+            and run.state != mlrun.run.RunStatuses.failed
+            and not workflow_spec.schedule
+        ):
+            # Failure and schedule messages already logged
+            logger.info(
+                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
+            )
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
@@ -2229,7 +2221,7 @@ class MlrunProject(ModelObj):
         :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
-                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp
@@ -2788,8 +2780,8 @@ class MlrunProjectLegacy(ModelObj):
             fp.write(self.to_yaml())
 
 
-def _init_function_from_dict(f, project):
-    name = f.get("name", "")
+def _init_function_from_dict(f, project, name=None):
+    name = name or f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
     image = f.get("image", None)

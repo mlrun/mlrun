@@ -71,6 +71,7 @@ def run_merge_job(
             "query": query,
         },
         inputs={"entity_rows": entity_rows},
+        out_path=function.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)

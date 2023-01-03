@@ -14,6 +14,7 @@
 #
 import asyncio
 import pathlib
+import random
 import time
 import typing
 import unittest.mock
@@ -65,6 +66,7 @@ async def bump_counter():
 
 async def bump_counter_and_wait():
     global call_counter
+    logger.debug("Bumping counter", call_counter=call_counter)
     call_counter += 1
     await asyncio.sleep(2)
 
@@ -1208,13 +1210,96 @@ async def test_schedule_job_concurrency_limit(
         concurrency_limit=concurrency_limit,
     )
 
+    random_sleep_time = random.randint(1, 5)
+    await asyncio.sleep(random_sleep_time)
+    schedule = scheduler.get_schedule(
+        db,
+        project_name,
+        schedule_name,
+    )
+
+    # scrub the microseconds to reduce noise
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    if random_sleep_time == 5:
+        # next run time may be none if the job was completed (i.e. end date was reached)
+        assert schedule.next_run_time is None
+    elif random_sleep_time == 4 and schedule.next_run_time is not None:
+        assert schedule.next_run_time >= now
+    else:
+        assert schedule.next_run_time >= now
+
     # wait so all runs will complete
-    await asyncio.sleep(7)
+    await asyncio.sleep(7 - random_sleep_time)
     if schedule_kind == schemas.ScheduleKinds.job:
         runs = get_db().list_runs(db, project=project_name)
         assert len(runs) == run_amount
     else:
         assert call_counter == run_amount
+
+
+@pytest.mark.asyncio
+async def test_schedule_job_next_run_time(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    """
+    This test checks that the next run time is updated after a schedule was skipped due to concurrency limit.
+    It creates a schedule that runs every second for 4 seconds with concurrency limit of 1.
+    The run takes 2 seconds to complete so the function should be triggered twice in that time frame.
+    While the 1st run is still running, manually invoke the schedule (should fail due to concurrency limit)
+    and check that the next run time is updated.
+    """
+    now_plus_4_seconds = datetime.now() + timedelta(seconds=4)
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", end_date=now_plus_4_seconds
+    )
+    schedule_name = "schedule-name"
+    project_name = config.default_project
+    mlrun.new_project(project_name, save=False)
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name, handler="sleep_two_seconds"
+    )
+
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 0
+
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project_name,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+        concurrency_limit=1,
+    )
+
+    await asyncio.sleep(1)
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 1
+
+    await scheduler.invoke_schedule(
+        db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
+    )
+
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 1
+
+    # invocation should have failed due to concurrency limit
+    # assert next run time was updated
+    schedule = scheduler.get_schedule(
+        db,
+        project_name,
+        schedule_name,
+    )
+    assert schedule.next_run_time > datetime.now(timezone.utc)
+
+    # wait so all runs will complete
+    await asyncio.sleep(5)
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 2
 
 
 def _assert_schedule_get_and_list_credentials_enrichment(

@@ -1119,6 +1119,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
             labels=labels,
             concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
         )
         self._upsert(session, [schedule])
 

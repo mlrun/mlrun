@@ -256,19 +256,219 @@ class OperationTypes(str, Enum):
     explain = "explain"
 
 
-class _ParallelRunInterface:
-    def __init__(
-        self, executor_type: Union[ParallelRunnerModes, ExecutorTypes, str], **kwargs
-    ):
-        """
-        Interface for execute parallel runners
+#
+# class _ParallelRunInterface:
+#     def __init__(
+#         self, executor_type: Union[ParallelRunnerModes, ExecutorTypes, str], **kwargs
+#     ):
+#         """
+#         Interface for execute parallel runners
+#
+#         :param executor_type: The desired way for execute parallel run.
+#                               Have 3 option :
+#                               * array - running one by one
+#                               * process - running in separated processes
+#                               * thread - running in separated threads
+#         """
+#         if isinstance(executor_type, ExecutorTypes):
+#             executor_type = str(executor_type)
+#             logger.warn(
+#                 "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
+#                 # TODO: In 1.5.0 do changes
+#                 PendingDeprecationWarning,
+#             )
+#         self.executor_type = ParallelRunnerModes(executor_type)
+#         self._pool: Union[
+#             concurrent.futures.ProcessPoolExecutor,
+#             concurrent.futures.ThreadPoolExecutor,
+#         ] = None
+#         if not hasattr(self, "routes") or not hasattr(self, "context"):
+#             raise mlrun.errors.MLRunRuntimeError(
+#                 "A class that inherits from `_ParallelRunInterface` must have 'routes' and 'contex' attributes. "
+#                 "This attributes can  be achieved by inheriting `BaseModelRouter`"
+#             )
+#         super().__init__(**kwargs)
+#
+#     def _init_pool(
+#         self,
+#     ) -> Union[
+#         concurrent.futures.ProcessPoolExecutor, concurrent.futures.ThreadPoolExecutor
+#     ]:
+#         """
+#
+#         Get the tasks pool of this runner. If the pool is `None`,
+#         a new pool will be initialized according to `executor_type`.
+#
+#         :return: The tasks pool
+#         """
+#         if self._pool is None:
+#             if self.executor_type == ParallelRunnerModes.process:
+#                 # init the context and route on the worker side (cannot be pickeled)
+#                 server = self.context.server.to_dict()
+#                 routes = {}
+#                 for key, route in self.routes.items():
+#                     step = copy.copy(route)
+#                     step.context = None
+#                     step._parent = None
+#                     if step._object:
+#                         step._object.context = None
+#                     routes[key] = step
+#                 executor_class = concurrent.futures.ProcessPoolExecutor
+#                 self._pool = executor_class(
+#                     max_workers=len(self.routes),
+#                     initializer=_ParallelRunInterface.init_pool,
+#                     initargs=(server, routes, id(self)),
+#                 )
+#             elif self.executor_type == ParallelRunnerModes.thread:
+#                 executor_class = concurrent.futures.ThreadPoolExecutor
+#                 self._pool = executor_class(max_workers=len(self.routes))
+#
+#         return self._pool
+#
+#     def _shutdown_pool(self):
+#         """
+#         Shutdowns the pool and updated self._pool to None
+#         """
+#         if self._pool is not None:
+#             if self.executor_type == ParallelRunnerModes.process:
+#                 global local_routes
+#                 local_routes.pop(id(self))
+#             self._pool.shutdown()
+#             self._pool = None
+#
+#     def _parallel_run(self, event: dict):
+#         """
+#         Execute parallel run
+#
+#         :param event: event to run in parallel
+#
+#         :return: All the results of the runs
+#         """
+#         results = {}
+#         if self.executor_type == ParallelRunnerModes.array:
+#             results = {
+#                 model_name: model.run(copy.copy(event)).body
+#                 for model_name, model in self.routes.items()
+#             }
+#             return results
+#         futures = []
+#         executor = self._init_pool()
+#         for route in self.routes.keys():
+#             if self.executor_type == ParallelRunnerModes.process:
+#                 future = executor.submit(
+#                     _ParallelRunInterface._wrap_step, route, id(self), copy.copy(event)
+#                 )
+#             elif self.executor_type == ParallelRunnerModes.thread:
+#                 step = self.routes[route]
+#                 future = executor.submit(
+#                     _ParallelRunInterface._wrap_method,
+#                     route,
+#                     step.run,
+#                     copy.copy(event),
+#                 )
+#
+#             futures.append(future)
+#
+#         for future in concurrent.futures.as_completed(futures):
+#             try:
+#                 key, result = future.result()
+#                 results[key] = result.body
+#             except Exception as exc:
+#                 logger.error(traceback.format_exc())
+#                 print(f"child route generated an exception: {exc}")
+#         self.context.logger.debug(f"Collected results from children: {results}")
+#         return results
+#
+#     @staticmethod
+#     def init_pool(server_spec, routes, object_id):
+#         server = mlrun.serving.GraphServer.from_dict(server_spec)
+#         server.init_states(None, None)
+#         global local_routes
+#         if object_id in local_routes:
+#             return
+#         for route in routes.values():
+#             route.context = server.context
+#             if route._object:
+#                 route._object.context = server.context
+#         local_routes[object_id] = routes
+#
+#     @staticmethod
+#     def _wrap_step(route, object_id, event):
+#         global local_routes
+#         routes = local_routes.get(object_id, None).copy()
+#         if routes is None:
+#             return None, None
+#         return route, routes[route].run(event)
+#
+#     @staticmethod
+#     def _wrap_method(route, handler, event):
+#         return route, handler(event)
 
-        :param executor_type: The desired way for execute parallel run.
-                              Have 3 option :
-                              * array - running one by one
-                              * process - running in separated processes
-                              * thread - running in separated threads
+
+class ParallelRun(BaseModelRouter):
+    def __init__(
+        self,
+        context=None,
+        name: str = None,
+        routes=None,
+        protocol: str = None,
+        url_prefix: str = None,
+        health_prefix: str = None,
+        extend_event=None,
+        executor_type: ParallelRunnerModes = None,
+        **kwargs,
+    ):
+        """Process multiple steps (child routes) in parallel and merge the results
+
+        By default the results dict from each step are merged (by key), when setting the `extend_event`
+        the results will start from the event body dict (values can be overwritten)
+
+        Users can overwrite the merger() method to implement custom merging logic.
+
+        Example::
+
+            # create a function with a parallel router and 3 children
+            fn = mlrun.new_function("parallel", kind="serving")
+            graph = fn.set_topology(
+                "router",
+                mlrun.serving.routers.ParallelRun(extend_event=True, executor_type=executor),
+            )
+            graph.add_route("child1", class_name="Cls1")
+            graph.add_route("child2", class_name="Cls2", my_arg={"c": 7})
+            graph.add_route("child3", handler="my_handler")
+            server = fn.to_mock_server()
+            resp = server.test("", {"x": 8})
+
+
+        :param context:       for internal use (passed in init)
+        :param name:          step name
+        :param routes:        for internal use (routes passed in init)
+        :param executor_type: Parallelism mechanism, "thread" or "process"
+        :param extend_event:  True will add the event body to the result
+        :param input_path:    when specified selects the key/path in the event to use as body
+                              this require that the event body will behave like a dict, example:
+                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
+        :param result_path:   selects the key/path in the event to write the results to
+                              this require that the event body will behave like a dict, example:
+                              event: {"x": 5} , result_path="resp" means the returned response will be written
+                              to event["y"] resulting in {"x": 5, "resp": <result>}
+        :param vote_type:     Voting type to be used (from `VotingTypes`).
+                              by default will try to self-deduct upon the first event:
+                                - float prediction type: regression
+                                - int prediction type: classification
+        :param kwargs:        extra arguments
         """
+        super().__init__(
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            **kwargs,
+        )
+        self.name = name or "ParallelRun"
+        self.extend_event = extend_event
         if isinstance(executor_type, ExecutorTypes):
             executor_type = str(executor_type)
             logger.warn(
@@ -281,12 +481,54 @@ class _ParallelRunInterface:
             concurrent.futures.ProcessPoolExecutor,
             concurrent.futures.ThreadPoolExecutor,
         ] = None
-        if not hasattr(self, "routes") or not hasattr(self, "context"):
-            raise mlrun.errors.MLRunRuntimeError(
-                "A class that inherits from `_ParallelRunInterface` must have 'routes' and 'contex' attributes. "
-                "This attributes can  be achieved by inheriting `BaseModelRouter`"
+
+    def _apply_logic(self, results: dict, event=None):
+        """
+        Apply merge logic on results.
+
+        :param results: A list of sample results by models e.g. results[model][prediction]
+        :param event: Response event
+
+        :return: Dictionary of results
+        """
+        if not self.extend_event:
+            event.body = {}
+        return self.merger(event.body, results)
+
+    def merger(self, body, results):
+        """Merging logic
+
+        input the event body and a dict of route results and returns a dict with merged results
+        """
+        for result in results.values():
+            body.update(result)
+        return body
+
+    def do_event(self, event, *args, **kwargs):
+        # Handle and verify the request
+        original_body = event.body
+        event.body = _extract_input_data(self._input_path, event.body)
+        event = self.preprocess(event)
+        event = self._pre_handle_event(event)
+
+        # Should we terminate the event?
+        if hasattr(event, "terminated") and event.terminated:
+            event.body = _update_result_body(
+                self._result_path, original_body, event.body
             )
-        super().__init__(**kwargs)
+            self._shutdown_pool()
+            return event
+
+        # Verify we use the V2 protocol
+        response = copy.copy(event)
+        results = self._parallel_run(event)
+        self._apply_logic(results, response)
+        response = self.postprocess(response)
+
+        event.body = _update_result_body(
+            self._result_path, original_body, response.body if response else None
+        )
+        return event
 
     def _init_pool(
         self,
@@ -315,7 +557,7 @@ class _ParallelRunInterface:
                 executor_class = concurrent.futures.ProcessPoolExecutor
                 self._pool = executor_class(
                     max_workers=len(self.routes),
-                    initializer=_ParallelRunInterface.init_pool,
+                    initializer=ParallelRun.init_pool,
                     initargs=(server, routes, id(self)),
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
@@ -355,12 +597,12 @@ class _ParallelRunInterface:
         for route in self.routes.keys():
             if self.executor_type == ParallelRunnerModes.process:
                 future = executor.submit(
-                    _ParallelRunInterface._wrap_step, route, id(self), copy.copy(event)
+                    ParallelRun._wrap_step, route, id(self), copy.copy(event)
                 )
             elif self.executor_type == ParallelRunnerModes.thread:
                 step = self.routes[route]
                 future = executor.submit(
-                    _ParallelRunInterface._wrap_method,
+                    ParallelRun._wrap_method,
                     route,
                     step.run,
                     copy.copy(event),
@@ -404,7 +646,7 @@ class _ParallelRunInterface:
         return route, handler(event)
 
 
-class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
+class VotingEnsemble(ParallelRun):
     def __init__(
         self,
         context=None,
@@ -509,10 +751,16 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
                               by default, `prediction`
         :param kwargs:        extra arguments
         """
-        BaseModelRouter.__init__(
-            self, context, name, routes, protocol, url_prefix, health_prefix, **kwargs
+        super().__init__(
+            context=context,
+            name=name,
+            routes=routes,
+            protocol=protocol,
+            url_prefix=url_prefix,
+            health_prefix=health_prefix,
+            executor_type=executor_type,
+            **kwargs,
         )
-        _ParallelRunInterface.__init__(self, executor_type)
         self.name = name or "VotingEnsemble"
         self.vote_type = vote_type
         self.vote_flag = True if self.vote_type is not None else False
@@ -707,12 +955,12 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
 
         return votes
 
-    def _apply_logic(self, predictions: dict):
+    def _apply_logic(self, results: dict, event=None):
         """
         Reduces a list of k predictions from n models to k predictions according to voting logic
 
-        :param predictions: A list of sample predictions by models e.g. predictions[model][prediction]
-
+        :param results: A list of sample predictions by models e.g. predictions[model][prediction]
+        :param event: Response event
         :return: List of the resulting voted predictions
         """
         flattened_predictions = np.array(
@@ -723,11 +971,11 @@ class VotingEnsemble(BaseModelRouter, _ParallelRunInterface):
                         if self.format_response_with_col_name_flag
                         else dictionary["outputs"]
                     ),
-                    predictions.values(),
+                    results.values(),
                 )
             )
         ).T
-        weights = [self._weights[model_name] for model_name in predictions.keys()]
+        weights = [self._weights[model_name] for model_name in results.keys()]
         return self.logic(flattened_predictions, np.array(weights))
 
     def do_event(self, event, *args, **kwargs):
@@ -1235,100 +1483,5 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
             event.body = json.loads(event.body)
         event.body["inputs"] = self._feature_service.get(
             event.body["inputs"], as_list=True
-        )
-        return event
-
-
-class ParallelRun(BaseModelRouter, _ParallelRunInterface):
-    def __init__(
-        self,
-        context=None,
-        name: str = None,
-        routes=None,
-        extend_event=None,
-        executor_type: ParallelRunnerModes = None,
-        **kwargs,
-    ):
-        """Process multiple steps (child routes) in parallel and merge the results
-
-        By default the results dict from each step are merged (by key), when setting the `extend_event`
-        the results will start from the event body dict (values can be overwritten)
-
-        Users can overwrite the merger() method to implement custom merging logic.
-
-        Example::
-
-            # create a function with a parallel router and 3 children
-            fn = mlrun.new_function("parallel", kind="serving")
-            graph = fn.set_topology(
-                "router",
-                mlrun.serving.routers.ParallelRun(extend_event=True, executor_type=executor),
-            )
-            graph.add_route("child1", class_name="Cls1")
-            graph.add_route("child2", class_name="Cls2", my_arg={"c": 7})
-            graph.add_route("child3", handler="my_handler")
-            server = fn.to_mock_server()
-            resp = server.test("", {"x": 8})
-
-
-        :param context:       for internal use (passed in init)
-        :param name:          step name
-        :param routes:        for internal use (routes passed in init)
-        :param executor_type: Parallelism mechanism, "thread" or "process"
-        :param extend_event:  True will add the event body to the result
-        :param input_path:    when specified selects the key/path in the event to use as body
-                              this require that the event body will behave like a dict, example:
-                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
-        :param result_path:   selects the key/path in the event to write the results to
-                              this require that the event body will behave like a dict, example:
-                              event: {"x": 5} , result_path="resp" means the returned response will be written
-                              to event["y"] resulting in {"x": 5, "resp": <result>}
-        :param vote_type:     Voting type to be used (from `VotingTypes`).
-                              by default will try to self-deduct upon the first event:
-                                - float prediction type: regression
-                                - int prediction type: classification
-        :param kwargs:        extra arguments
-        """
-        BaseModelRouter.__init__(self, context, name, routes, **kwargs)
-        _ParallelRunInterface.__init__(self, executor_type)
-        self.name = name or "ParallelRun"
-        self.extend_event = extend_event
-
-    def merger(self, body, results):
-        """Merging logic
-
-        input the event body and a dict of route results and returns a dict with merged results
-        """
-        for result in results.values():
-            body.update(result)
-        return body
-
-    def do_event(self, event, *args, **kwargs):
-        # Handle and verify the request
-        original_body = event.body
-        event.body = _extract_input_data(self._input_path, event.body)
-        event = self.preprocess(event)
-        event = self._pre_handle_event(event)
-
-        # Should we terminate the event?
-        if hasattr(event, "terminated") and event.terminated:
-            event.body = _update_result_body(
-                self._result_path, original_body, event.body
-            )
-            self._shutdown_pool()
-            return event
-
-        # Verify we use the V2 protocol
-        results = self._parallel_run(event)
-        response = copy.copy(event)
-        if self.extend_event:
-            body = copy.copy(event.body)
-        else:
-            body = {}
-        response.body = self.merger(body, results)
-        response = self.postprocess(response)
-
-        event.body = _update_result_body(
-            self._result_path, original_body, response.body if response else None
         )
         return event

@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 from mlrun import errors
 from mlrun.api import schemas
 from mlrun.api.db.base import DBInterface
-from tests.api.db.conftest import dbs
 
 
 def _create_feature_set(name):
@@ -46,10 +45,6 @@ def _create_feature_set(name):
     }
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_create_feature_set(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)
@@ -69,9 +64,6 @@ def test_create_feature_set(db: DBInterface, db_session: Session):
     assert len(features_res.features) == 1
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     name = "dummy"
     feature_set = _create_feature_set(name)
@@ -129,9 +121,6 @@ def test_update_feature_set_labels(db: DBInterface, db_session: Session):
     assert updated_feature_set.metadata.labels == feature_set.metadata.labels
 
 
-@pytest.mark.parametrize(
-    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
-)
 def test_update_feature_set_by_uid(db: DBInterface, db_session: Session):
     name = "mock_feature_set"
     feature_set = _create_feature_set(name)

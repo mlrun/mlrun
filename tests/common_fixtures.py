@@ -60,7 +60,7 @@ def config_test_base():
     Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
 
     environ["PYTHONPATH"] = root_path
-    environ["MLRUN_DBPATH"] = rundb_path
+    # environ["MLRUN_DBPATH"] = rundb_path
     environ["MLRUN_httpdb__dirpath"] = rundb_path
     environ["MLRUN_httpdb__logs_path"] = logs_path
     environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
@@ -108,6 +108,7 @@ def db():
         db_session = create_session()
         db = SQLDB(dsn)
         db.initialize(db_session)
+        config.dbpath = dsn
     finally:
         if db_session is not None:
             db_session.close()

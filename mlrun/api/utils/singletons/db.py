@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from mlrun.api.db.base import DBInterface
-from mlrun.api.db.filedb.db import FileDB
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.db.sqldb.session import create_session
 from mlrun.config import config
@@ -33,16 +32,11 @@ def initialize_db(override_db=None):
     if override_db:
         db = override_db
         return
-    if config.httpdb.db_type == "filedb":
-        logger.info("Creating file db")
-        db = FileDB(config.httpdb.dirpath)
-        db.initialize(None)
-    else:
-        logger.info("Creating sql db")
-        db = SQLDB(config.httpdb.dsn)
-        db_session = None
-        try:
-            db_session = create_session()
-            db.initialize(db_session)
-        finally:
-            db_session.close()
+    logger.info("Creating sql db")
+    db = SQLDB(config.httpdb.dsn)
+    db_session = None
+    try:
+        db_session = create_session()
+        db.initialize(db_session)
+    finally:
+        db_session.close()

@@ -16,11 +16,9 @@
 ## v1.2.1
 
 ## Closed issues
-- Running pipeline after load_project - error message is Cmd('git') failed due to: exit code(129) (https://jira.iguazeng.com/browse/ML-2972)
-- spark missing gcs jars (https://jira.iguazeng.com/browse/ML-2948)
-- log_dataset local_path does not take effect (https://jira.iguazeng.com/browse/ML-2900)
-- scheduling workflow does not have secrets attributes (https://jira.iguazeng.com/browse/ML-2895)
-- Scheduled Jobs are triggered at +1 day (as translated by "normal" cron string) (https://jira.iguazeng.com/browse/ML-2878)
+-  The serving function is no' updated when using local pipeline. [View in Git](https://github.com/mlrun/mlrun/issues/2716(ץ
+
+
 
 ## Upcoming deprecations
 
@@ -125,7 +123,7 @@ The new behavior can be enabled using a feature flag configured in the API.
 ### Closed issues
 
 - Support logging artifacts larger than 5GB to V3IO. [View in Git](https://github.com/mlrun/mlrun/issues/2455).
-- Limit KFP to kfp~=1.8.0, <1.8.14 due to non-backwards changes done in 1.8.14 for ParallelFor, which isn’t compatible with the MLRun managed KFP server (1.8.1) .[View in Git](https://github.com/mlrun/mlrun/issues/2516).
+- Limit KFP to kfp~=1.8.0, <1.8.14 due to non-backwards changes done in 1.8.14 for ParallelFor, which isn’t compatible with the MLRun managed KFP server (1.8.1). [View in Git](https://github.com/mlrun/mlrun/issues/2516).
 - Add `artifact_path` enrichment from project `artifact_path`. Previously, the parameter wasn't applied to project runs when defining `project.artifact_path`. [View in Git](https://github.com/mlrun/mlrun/issues/2507).
 - Align timeouts for requests that are getting re-routed from worker to chief (for projects/background related endpoints). [View in Git](https://github.com/mlrun/mlrun/issues/2565).
 - Fix legacy artifacts load when loading a project. Fixed corner cases when legacy artifacts were saved to yaml and loaded back into the system using `load_project()`. [View in Git](https://github.com/mlrun/mlrun/issues/2584).
@@ -147,8 +145,11 @@ The new behavior can be enabled using a feature flag configured in the API.
 ## v1.1.3
 
 ### Closed issues
-- CLI project pipeline improvements in timeout and overwrite schedule. [View in Git](https://github.com/mlrun/mlrun/pull/2691).
+
 - The CLI supports overwriting the schedule when creating scheduling workflow. [View in Git](https://github.com/mlrun/mlrun/pull/2651).
+- Slack now notifies when a project fails in `load_and_run()`. [View in Git](https://github.com/mlrun/mlrun/pull/2794).
+- Timeout is executed properly when running pipeline in CLI  https://github.com/mlrun/mlrun/pull/2635
+- Uvicorn Keep Alive Timeout (`http_connection_timeout_keep_alive`) is now configurable, with default=11. This maintains  API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.3)

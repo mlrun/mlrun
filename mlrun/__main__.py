@@ -975,7 +975,6 @@ def logs(uid, project, offset, db, watch):
 )
 @click.option(
     "--prioritize-source",
-    "-ps",
     is_flag=True,
     help="give priority to project from remote URL or context and save it in the DB",
 )

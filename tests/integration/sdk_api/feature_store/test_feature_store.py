@@ -15,7 +15,7 @@
 import pytest
 
 import mlrun
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 import tests.integration.sdk_api.base
 from mlrun.datastore import StreamSource
 from mlrun.features import Entity
@@ -27,12 +27,15 @@ class TestFeatureStore(tests.integration.sdk_api.base.TestMLRunIntegration):
         stream_path = f"/{self.project_name}/FeatureStore/{name}/v3ioStream"
 
         v3io_source = StreamSource(
-            path=f"v3io:///projects{stream_path}", key_field="ticker", time_field="time"
+            path=f"v3io:///projects{stream_path}",
+            key_field="ticker",
         )
-        fset = fs.FeatureSet(name, timestamp_key="time", entities=[Entity("ticker")])
+        fset = fstore.FeatureSet(
+            name, timestamp_key="time", entities=[Entity("ticker")]
+        )
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            fs.deploy_ingestion_service(
+            fstore.deploy_ingestion_service(
                 featureset=fset,
                 source=v3io_source,
             )

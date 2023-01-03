@@ -45,6 +45,7 @@ from mlrun.api.utils.singletons.project_member import (
 )
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
@@ -269,7 +270,7 @@ async def _synchronize_with_chief_clusterization_spec():
     except Exception as exc:
         logger.debug(
             "Failed receiving clusterization spec",
-            exc=str(exc),
+            exc=err_to_str(exc),
             traceback=traceback.format_exc(),
         )
     else:
@@ -319,7 +320,9 @@ def _monitor_runs():
                 runtime_handler.monitor_runs(get_db(), db_session)
             except Exception as exc:
                 logger.warning(
-                    "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
+                    "Failed monitoring runs. Ignoring",
+                    exc=err_to_str(exc),
+                    kind=kind,
                 )
     finally:
         close_session(db_session)
@@ -334,7 +337,9 @@ def _cleanup_runtimes():
                 runtime_handler.delete_resources(get_db(), db_session)
             except Exception as exc:
                 logger.warning(
-                    "Failed deleting resources. Ignoring", exc=str(exc), kind=kind
+                    "Failed deleting resources. Ignoring",
+                    exc=err_to_str(exc),
+                    kind=kind,
                 )
     finally:
         close_session(db_session)
@@ -361,7 +366,6 @@ def main():
         "mlrun.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
-        debug=config.httpdb.debug,
         access_log=False,
         timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
     )

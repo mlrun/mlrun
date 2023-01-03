@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
+from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
@@ -153,7 +154,7 @@ class StoreManager:
                 data_store_secrets=secrets,
             )
         except Exception as exc:
-            raise OSError(f"artifact {url} not found, {exc}")
+            raise OSError(f"artifact {url} not found, {err_to_str(exc)}")
         target = resource.get_target_path()
         # the allow_empty.. flag allows us to have functions which dont depend on having targets e.g. a function
         # which accepts a feature vector uri and generate the offline vector (parquet) for it if it doesnt exist
@@ -191,7 +192,7 @@ class StoreManager:
                 raise ValueError(f"no such store ({endpoint})")
 
         store_key = f"{schema}://{endpoint}"
-        if not secrets and not mlrun.is_running_as_api():
+        if not secrets and not mlrun.config.is_running_as_api():
             if store_key in self._stores.keys():
                 return self._stores[store_key], subpath
 
@@ -201,6 +202,7 @@ class StoreManager:
         store = schema_to_store(schema)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
-        if not secrets and not mlrun.is_running_as_api():
+        if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
-        return store, subpath
+        # in file stores in windows path like c:\a\b the drive letter is dropped from the path, so we return the url
+        return store, url if store.kind == "file" else subpath

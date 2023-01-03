@@ -458,7 +458,10 @@ class TestArtifactTags:
         ],
         project: str = None,
     ):
-        return client.delete(
+        # using client.request instead of client.delete because the latter doesn't support body
+        # https://www.python-httpx.org/compatibility/#request-body-on-http-methods
+        return client.request(
+            "DELETE",
             API_TAGS_PATH.format(project=project or self.project, tag=tag),
             json=self._generate_tag_identifiers_json(identifiers=identifiers),
         )

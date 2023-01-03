@@ -340,6 +340,49 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
+def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
+    # Create runs
+    number_of_runs = 50
+    project = "my_project"
+    for counter in range(number_of_runs):
+        uid = f"uid_{counter}"
+        name = f"run_{counter}"
+        run = {
+            "metadata": {
+                "name": name,
+                "uid": uid,
+                "project": project,
+            },
+        }
+        mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": project,
+            "uid": "uid_1",
+        },
+        1,
+    )
+    assert runs[0]["metadata"]["uid"] == "uid_1"
+
+    uid_list = ["uid_12", "uid_29", "uid_xx", "uid_3"]
+    runs = _list_and_assert_objects(
+        client,
+        {
+            "project": project,
+            "uid": uid_list,
+        },
+        # One fictive uid
+        len(uid_list) - 1,
+    )
+
+    expected_uids = set(uid_list)
+    for run in runs:
+        assert run["metadata"]["uid"] in expected_uids
+        expected_uids.remove(run["metadata"]["uid"])
+
+
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.Mock()

@@ -294,19 +294,14 @@ class ParallelRun(BaseModelRouter):
         :param context:       for internal use (passed in init)
         :param name:          step name
         :param routes:        for internal use (routes passed in init)
-        :param executor_type: Parallelism mechanism, "thread" or "process"
+        :param protocol:      serving API protocol (default "v2")
+        :param url_prefix:    url prefix for the router (default /v2/models)
+        :param health_prefix: health api url prefix (default /v2/health)
+        :param executor_type: Parallelism mechanism,  Have 3 option :
+                              * array - running one by one
+                              * process - running in separated process
+                              * thread - running in separated threads
         :param extend_event:  True will add the event body to the result
-        :param input_path:    when specified selects the key/path in the event to use as body
-                              this require that the event body will behave like a dict, example:
-                              event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means request body will be 7
-        :param result_path:   selects the key/path in the event to write the results to
-                              this require that the event body will behave like a dict, example:
-                              event: {"x": 5} , result_path="resp" means the returned response will be written
-                              to event["y"] resulting in {"x": 5, "resp": <result>}
-        :param vote_type:     Voting type to be used (from `VotingTypes`).
-                              by default will try to self-deduct upon the first event:
-                                - float prediction type: regression
-                                - int prediction type: classification
         :param kwargs:        extra arguments
         """
         super().__init__(

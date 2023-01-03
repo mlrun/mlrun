@@ -176,13 +176,16 @@ def validate_tag_name(
     )
 
 
+def get_regex_list_as_string(regex_list: List) -> str:
+    """
+    This function is used to combine a list of regex strings into a single regex,
+    with and condition between them.
+    """
+    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+
+
 def tag_name_regex_as_string() -> str:
-    return (
-        "".join(
-            ["(?={regex})".format(regex=regex) for regex in mlrun.utils.regex.tag_name]
-        )
-        + ".*$"
-    )
+    return get_regex_list_as_string(mlrun.utils.regex.tag_name)
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError

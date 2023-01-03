@@ -84,7 +84,7 @@ def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
             "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
         },
     )
-    assert resp.status_code == HTTPStatus.BAD_REQUEST.value
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
 def test_store_artifact_with_empty_dict(db: Session, client: TestClient):

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -31,6 +32,7 @@ from mlrun.utils.helpers import (
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
+    get_regex_list_as_string,
     str_to_timestamp,
     validate_tag_name,
     verify_field_regex,
@@ -167,6 +169,22 @@ def test_extend_hub_uri():
             expected_output = case["expected_output"]
             output, _ = extend_hub_uri_if_needed(input_uri)
             assert expected_output == output
+
+
+@pytest.mark.parametrize(
+    "regex_list,value,expected",
+    [
+        ([r"^.{0,9}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"], "blabla123", True),
+        ([r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"], "blabla123", False),
+        ([r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"], "bla^%", False),
+        ([r"^.{0,6}$", r"^a...e$", r"ab*"], "abcde", True),
+        ([r"^.{0,6}$", r"^a...e$", r"ab*"], "abababe", False),
+        ([r"^.{0,6}$", r"^a...e$", r"ab*"], "bcea", False),
+    ],
+)
+def test_get_regex_list_as_string(regex_list, value, expected):
+    match = re.match(get_regex_list_as_string(regex_list), value)
+    assert match if expected else match is None
 
 
 @pytest.mark.parametrize(

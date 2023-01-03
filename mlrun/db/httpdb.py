@@ -1057,8 +1057,9 @@ class HTTPRunDB(RunDBInterface):
         The :py:class:`~ScheduleCronTrigger` follows the guidelines in
         https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html.
         It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
-        crontab-formatted string. Note that we adhere to the Unix crontab format,
-        where day of week 0 is Sunday (see https://en.wikipedia.org/wiki/Cron for more information on the format).
+        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format and
+        note that the 0 weekday is always monday).
+
 
         Example::
 

@@ -26,7 +26,6 @@ class ScheduleCronTrigger(BaseModel):
     """
     See this link for help
     https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-    Note that we adhere to the Unix crontab format, where day of week 0 is Sunday
     """
 
     year: Optional[Union[int, str]]
@@ -62,12 +61,6 @@ class ScheduleCronTrigger(BaseModel):
             raise ValueError(
                 f"Wrong number of fields in crontab expression; got {len(values)}, expected 5"
             )
-
-        # APScheduler 1st day of the week is Monday but in the expected format here it's Sunday
-        for numerated_dow, dow in enumerate(
-            ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
-        ):
-            values[4] = values[4].replace(str(numerated_dow), dow)
 
         return cls(
             minute=values[0],

@@ -216,7 +216,7 @@ class ModelRouter(BaseModelRouter):
 
 
 class ExecutorTypes:
-    # TODO: In 1.5.0 will removed
+    # TODO: Remove in 1.5.0.
     thread = "thread"
     process = "process"
 
@@ -257,6 +257,7 @@ class OperationTypes(str, Enum):
 
 
 class ParallelRun(BaseModelRouter):
+    # TODO: change name to ParallelRunModelRouter
     def __init__(
         self,
         context=None,
@@ -365,7 +366,6 @@ class ParallelRun(BaseModelRouter):
             self._shutdown_pool()
             return event
 
-        # Verify we use the V2 protocol
         response = copy.copy(event)
         results = self._parallel_run(event)
         self._apply_logic(results, response)

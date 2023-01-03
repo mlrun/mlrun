@@ -82,10 +82,13 @@ class SparkFeatureMerger(BaseMerger):
                     time_field=entity_timestamp_column,
                 )
 
-            df = source.to_spark_df(self.spark, named_view=self.named_view)
-
             # add the index/key to selected columns
             timestamp_key = feature_set.spec.timestamp_key
+
+            df = source.to_spark_df(
+                self.spark, named_view=self.named_view, time_field=timestamp_key
+            )
+
             if timestamp_key and timestamp_key not in column_names:
                 columns.append((timestamp_key, None))
             for entity in feature_set.spec.entities.keys():

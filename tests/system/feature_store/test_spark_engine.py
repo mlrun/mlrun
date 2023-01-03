@@ -209,7 +209,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fstore.FeatureVector("test-vec", features)
 
-        resp = fstore.get_offline_features(vec)
+        resp = fstore.get_offline_features(vec, with_indexes=True)
         df = resp.to_dataframe()
         assert type(df["timestamp"][0]).__name__ == "Timestamp"
 

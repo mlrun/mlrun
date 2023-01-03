@@ -810,19 +810,20 @@ def _ingest_with_spark(
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
             created_spark_context = True
 
+        timestamp_key = featureset.spec.timestamp_key
+
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
         elif isinstance(source, pyspark.sql.DataFrame):
             df = source
         else:
-            df = source.to_spark_df(spark)
-            df = source.filter_df_start_end_time(df, featureset.spec.timestamp_key)
+            df = source.to_spark_df(spark, time_field=timestamp_key)
+            df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())
-        timestamp_key = featureset.spec.timestamp_key
         targets = targets or featureset.spec.targets
 
         targets_to_ingest = copy.deepcopy(targets)

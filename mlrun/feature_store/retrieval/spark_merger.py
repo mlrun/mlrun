@@ -242,7 +242,7 @@ class SparkFeatureMerger(BaseMerger):
             return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
                 with_gpu=False
             )
-        elif kind == "remote-spark":
+        elif kind == RemoteSparkRuntime.kind:
             return RemoteSparkRuntime.default_image
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")

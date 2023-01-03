@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import uuid
-from typing import Optional
 
 import mlrun
 from mlrun.model import DataTargetBase, new_task
@@ -31,7 +30,7 @@ def run_merge_job(
     merger: BaseMerger,
     engine: str,
     engine_args: dict,
-    spark_service: Optional[str] = None,
+    spark_service: str = None,
     entity_rows=None,
     timestamp_column=None,
     run_config=None,
@@ -52,11 +51,15 @@ def run_merge_job(
         if not function_ref.url:
             function_ref.code = _default_merger_handler.replace(
                 "{{{engine}}}", merger.__name__
-            ).replace("{{{engine_args}}}", str(engine_args or {}))
+            )
         run_config.function = function_ref
 
     function = run_config.to_function(kind, merger.get_default_image(kind))
     if run_config.kind == RuntimeKinds.remotespark:
+        if not spark_service:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "spark_service must be set when running with a remote spark runtime"
+            )
         function.with_spark_service(spark_service=spark_service)
     function.metadata.project = vector.metadata.project
     function.metadata.name = function.metadata.name or name
@@ -69,6 +72,7 @@ def run_merge_job(
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
+            "engine_args": engine_args,
         },
         inputs={"entity_rows": entity_rows},
         out_path=function.spec.output_path,
@@ -129,7 +133,7 @@ import mlrun
 import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
-                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None):
+                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, engine_args=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -137,7 +141,7 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
         entity_rows = entity_rows.as_df()
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
-    merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **{{{engine_args}}})
+    merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
                  query=query)
     target = vector.status.targets[store_target.name].to_dict()

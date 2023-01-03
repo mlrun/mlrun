@@ -100,8 +100,8 @@ def get_offline_features(
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
-    spark_service: Optional[str] = None,
     query: str = None,
+    spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 

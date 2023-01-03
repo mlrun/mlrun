@@ -44,3 +44,6 @@ MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:
 
 # slack webhook for sending system test reports
 MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:
+
+# sql db path string for test_sql_db
+SQL_DB_PATH_STRING:

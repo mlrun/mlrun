@@ -40,7 +40,7 @@ from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
 from .v2_serving import _ModelLogPusher
 
-# Used by `_ParallelRunInterface` in process mode, so it can be accessed from different processes.
+# Used by `ParallelRun` in process mode, so it can be accessed from different processes.
 local_routes = {}
 
 
@@ -216,7 +216,7 @@ class ModelRouter(BaseModelRouter):
 
 
 class ExecutorTypes:
-    # TODO: In 1.5.0 do changes
+    # TODO: In 1.5.0 will removed
     thread = "thread"
     process = "process"
 
@@ -319,7 +319,7 @@ class ParallelRun(BaseModelRouter):
             executor_type = str(executor_type)
             logger.warn(
                 "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
-                # TODO: In 1.5.0 do changes
+                # TODO: In 1.5.0 to remove ExecutorTypes
                 PendingDeprecationWarning,
             )
         self.executor_type = ParallelRunnerModes(executor_type)

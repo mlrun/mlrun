@@ -741,6 +741,8 @@ class Scheduler:
             if job:
                 schedule.next_run_time = job.next_run_time
             else:
+
+                # if the job does not exist, there is no next run time (the job has finished)
                 schedule.next_run_time = None
 
         if include_last_run:

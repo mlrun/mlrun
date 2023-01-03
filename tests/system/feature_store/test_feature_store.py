@@ -3196,6 +3196,24 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected_stat = pd.DataFrame(
             {
+                "25%": {
+                    "myfloat1": -4221170668631284.0,
+                    "myfloat2": 0.06144396608214944,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "50%": {
+                    "myfloat1": -422870927452637.0,
+                    "myfloat2": 0.08649994306936987,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "75%": {
+                    "myfloat1": 3375428813726010.0,
+                    "myfloat2": 0.11155592005659029,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
                 "count": {
                     "myfloat1": 2.0,
                     "myfloat2": 2.0,

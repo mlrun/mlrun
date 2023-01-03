@@ -105,9 +105,7 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.names:
         df = df.reset_index()
-    for col, values in df.describe(
-        include="all", percentiles=[], datetime_is_numeric=True
-    ).items():
+    for col, values in df.describe(include="all", datetime_is_numeric=True).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
             if isinstance(val, (float, np.floating, np.float64)):

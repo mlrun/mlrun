@@ -18,7 +18,6 @@ import mlrun.errors
 
 from ..config import config
 from ..platforms import add_or_refresh_credentials
-from ..utils import logger
 from .base import RunDBError, RunDBInterface  # noqa
 from .sqldb import SQLDB
 

@@ -1145,7 +1145,9 @@ async def test_update_schedule(
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_failure_not_found_in_db(db: Session, scheduler: Scheduler):
+async def test_update_schedule_failure_not_found_in_db(
+    db: Session, scheduler: Scheduler
+):
     schedule_name = "schedule-name"
     project = config.default_project
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
@@ -1156,7 +1158,9 @@ async def test_update_schedule_failure_not_found_in_db(db: Session, scheduler: S
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_failure_not_found_in_scheduler(db: Session, scheduler: Scheduler):
+async def test_update_schedule_failure_not_found_in_scheduler(
+    db: Session, scheduler: Scheduler
+):
     schedule_name = "schedule-name"
     project_name = config.default_project
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
@@ -1182,7 +1186,10 @@ async def test_update_schedule_failure_not_found_in_scheduler(db: Session, sched
             db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
         )
     job_id = scheduler._resolve_job_id(project_name, schedule_name)
-    assert f"Schedule job with id {job_id} not found in scheduler. Reload is required." in str(excinfo.value)
+    assert (
+        f"Schedule job with id {job_id} not found in scheduler. Reload is required."
+        in str(excinfo.value)
+    )
 
 
 @pytest.mark.asyncio

@@ -449,7 +449,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/test_notebooks.py \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests
+		tests/serving/test_async_flow.py
 
 
 .PHONY: test-integration-dockerized

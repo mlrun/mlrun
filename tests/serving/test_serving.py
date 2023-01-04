@@ -338,7 +338,7 @@ def test_v2_explain():
     assert data["outputs"]["explained"] == 5, f"wrong explain response {resp.body}"
 
 
-def test_v2_get_modelmeta():
+def test_v2_get_modelmeta(rundb_mock):
     project = mlrun.new_project("tstsrv", save=False)
     fn = mlrun.new_function("tst", kind="serving")
     model_uri = _log_model(project)

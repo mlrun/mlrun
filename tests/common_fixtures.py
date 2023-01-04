@@ -178,17 +178,23 @@ class RunDBMock:
         self.kind = "http"
         self._pipeline = None
         self._function = None
+        self._artifacts = {}
 
     def reset(self):
         self._function = None
         self._pipeline = None
         self._project_name = None
         self._project = None
+        self._artifacts = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
         self._function = function
         return "1234-1234-1234-1234"
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifacts[key] = artifact
+        return artifact
 
     def store_run(self, struct, uid, project="", iter=0):
         self._run = {

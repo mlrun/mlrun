@@ -144,7 +144,7 @@ class Scheduler:
             concurrency_limit,
             labels,
         )
-        self._create_schedule_in_scheduler(
+        job = self._create_schedule_in_scheduler(
             project,
             name,
             kind,
@@ -153,16 +153,23 @@ class Scheduler:
             concurrency_limit,
             auth_info,
         )
-        job_id = self._resolve_job_id(project, name)
-        job = self._scheduler.get_job(job_id)
-        if job and job.next_run_time:
+        self.update_schedule_next_run_time(db_session, name, project, job)
+
+    def update_schedule_next_run_time(
+        self, db_session, schedule_name, project_name, job=None
+    ):
+        if not job:
+            job_id = self._resolve_job_id(project_name, schedule_name)
+            job = self._scheduler.get_job(job_id)
+
+        if job:
             logger.info(
-                "updating schedule with next_run_time",
+                "Updating schedule with next_run_time",
                 job=job,
                 next_run_time=job.next_run_time,
             )
             get_db().update_schedule(
-                db_session, project, name, next_run_time=job.next_run_time
+                db_session, project_name, schedule_name, next_run_time=job.next_run_time
             )
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
@@ -213,7 +220,7 @@ class Scheduler:
             db_session, db_schedule
         )
 
-        self._update_schedule_in_scheduler(
+        job = self._update_schedule_in_scheduler(
             project,
             name,
             updated_schedule.kind,
@@ -222,13 +229,7 @@ class Scheduler:
             updated_schedule.concurrency_limit,
             auth_info,
         )
-        if updated_schedule.next_run_time:
-            get_db().update_schedule(
-                db_session,
-                project,
-                name,
-                next_run_time=updated_schedule.next_run_time,
-            )
+        self.update_schedule_next_run_time(db_session, name, project, job)
 
     def list_schedules(
         self,
@@ -356,7 +357,9 @@ class Scheduler:
                 secret_name = auth_info.access_key.lstrip(
                     mlrun.model.Credentials.secret_reference_prefix
                 )
-                secret = mlrun.api.crud.Secrets().read_auth_secret(secret_name)
+                secret = mlrun.api.crud.Secrets().read_auth_secret(
+                    secret_name, raise_on_not_found=True
+                )
                 auth_info.access_key = secret.access_key
                 auth_info.username = secret.username
 
@@ -604,9 +607,9 @@ class Scheduler:
         )
 
         # we use max_instances as well as our logic in the run wrapper for concurrent jobs
-        # in order to allow concurrency for triggering the jobs (max_instances), and concurrency
-        # of the jobs themselves (our logic in the run wrapper).
-        self._scheduler.add_job(
+        # in order to allow concurrency for triggering the jobs from the scheduler (max_instances), and concurrency
+        # of the jobs themselves (our logic in the run wrapper may be invoked manually).
+        return self._scheduler.add_job(
             function,
             self.transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
                 cron_trigger
@@ -637,7 +640,7 @@ class Scheduler:
         )
         now = datetime.now(self._scheduler.timezone)
         next_run_time = trigger.get_next_fire_time(None, now)
-        self._scheduler.modify_job(
+        return self._scheduler.modify_job(
             job_id,
             func=function,
             args=args,
@@ -663,7 +666,9 @@ class Scheduler:
                         db_schedule
                     )
                     if secret_name:
-                        secret = mlrun.api.crud.Secrets().read_auth_secret(secret_name)
+                        secret = mlrun.api.crud.Secrets().read_auth_secret(
+                            secret_name, raise_on_not_found=True
+                        )
                         username = secret.username
                         access_key = secret.access_key
                     else:
@@ -730,8 +735,8 @@ class Scheduler:
         }
         schedule = schemas.ScheduleOutput(**schedule_dict)
 
-        # schedules are running only on chief Therefore we querying next_run_time from the scheduler only when
-        # running on chief
+        # Schedules are running only on chief. Therefore, we query next_run_time from the scheduler only when
+        # running on chief.
         if (
             mlrun.mlconf.httpdb.clusterization.role
             == mlrun.api.schemas.ClusterizationRole.chief
@@ -740,6 +745,10 @@ class Scheduler:
             job = self._scheduler.get_job(job_id)
             if job:
                 schedule.next_run_time = job.next_run_time
+            else:
+
+                # if the job does not exist, there is no next run time (the job has finished)
+                schedule.next_run_time = None
 
         if include_last_run:
             self._enrich_schedule_with_last_run(db_session, schedule)
@@ -857,6 +866,10 @@ class Scheduler:
                 schedule_concurrency_limit=schedule_concurrency_limit,
                 active_runs=len(active_runs),
             )
+            scheduler.update_schedule_next_run_time(
+                db_session, schedule_name, project_name
+            )
+            close_session(db_session)
             return
 
         # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store

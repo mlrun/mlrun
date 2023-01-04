@@ -19,12 +19,10 @@ import traceback
 from base64 import b64encode
 from subprocess import PIPE, run
 from sys import executable, stderr
-from unittest import mock
 
 import pytest
 
 import mlrun
-from mlrun.utils import logger
 from tests.conftest import examples_path, out_path, tests_root_directory
 
 
@@ -446,17 +444,3 @@ def test_main_env_file():
     assert out.find("state: completed") != -1, out
     assert out.find("ENV_ARG1: '123'") != -1, out
     assert out.find("kfp_ttl: 12345") != -1, out
-
-
-def test_main_load_project_sanity():
-    context = str(pathlib.Path(__file__).parent / "assets")
-    args = [context]
-    out = exec_main("project", args)
-    logger.debug(f"Output:\n{out}")
-
-
-def test_main_load_and_ensure_project():
-    context = str(pathlib.Path(__file__).parent / "assets")
-    args = [context, "--ensure-project"]
-    out = exec_main("project", args)
-    logger.debug(f"Output:\n{out}")

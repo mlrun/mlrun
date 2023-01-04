@@ -440,7 +440,7 @@ class K8sHelper:
                 raise exc
             elif raise_on_not_found:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Secret not found: {secret_name}"
+                    f"Secret '{secret_name}' was not found in namespace '{namespace}'"
                 ) from exc
 
             return None, None

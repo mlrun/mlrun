@@ -144,7 +144,7 @@ class K8sSecretsMock:
         if not secret:
             if raise_on_not_found:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Secret not found: {secret_name}"
+                    f"Secret '{secret_name}' was not found in auth secrets map"
                 )
 
             return None, None

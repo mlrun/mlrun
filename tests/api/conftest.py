@@ -139,7 +139,7 @@ class K8sSecretsMock:
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         del self.auth_secrets_map[secret_ref]
 
-    def read_auth_secret(self, secret_name, namespace=""):
+    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         secret = self.auth_secrets_map.get(secret_name)
         if not secret:
             return None, None

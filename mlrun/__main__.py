@@ -974,11 +974,6 @@ def logs(uid, project, offset, db, watch):
     help="ensure the project exists, if not, create project",
 )
 @click.option(
-    "--prioritize-source",
-    is_flag=True,
-    help="give priority to project from remote URL or context and save it in the DB",
-)
-@click.option(
     "--schedule",
     type=str,
     default=None,
@@ -991,7 +986,12 @@ def logs(uid, project, offset, db, watch):
     "--overwrite-schedule",
     "-os",
     is_flag=True,
-    help="Overwrite a schedule when submitting a new one with the same name.",
+    help="Overwrite a schedule when submitting a new one with the same name",
+)
+@click.option(
+    "--load",
+    is_flag=True,
+    help="If url is not specified, load the project from the context dir (defaults to './')",
 )
 def project(
     context,
@@ -1019,7 +1019,7 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
-    prioritize_source,
+    load,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1028,9 +1028,9 @@ def project(
     if db:
         mlconf.dbpath = db
 
-    if prioritize_source:
+    if url or load:
 
-        # give priority to project from context or remote URL
+        # load and save from context or remote URL
         proj = load_project(
             context,
             url,
@@ -1055,8 +1055,8 @@ def project(
         logger.info("Loading project from DB")
         try:
 
-            # If the user asked to run a workflow, we need to make sure the project exists in the DB
-            # and not load it from the URL
+            # If the user asked to run a workflow or sync functions to DB,
+            # we need to make sure that the project exists in the DB and not load it from the URL/context
             proj = load_project(
                 context,
                 name,
@@ -1070,8 +1070,8 @@ def project(
         except mlrun.errors.MLRunNotFoundError as exc:
             if not ensure_project:
                 logger.error(
-                    "Project was not found in the DB, please use --ensure-project to create a new project "
-                    "or --prioritize-source to load it from context or remote URL"
+                    "Project was not found in the DB, please use either --ensure-project to create a new project "
+                    "or --load to load it from context or --url to load from remote URL"
                 )
 
             raise exc

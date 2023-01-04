@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import fastapi.concurrency
 import humanfriendly
+from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
@@ -638,14 +639,38 @@ class Scheduler:
         )
         now = datetime.now(self._scheduler.timezone)
         next_run_time = trigger.get_next_fire_time(None, now)
-        return self._scheduler.modify_job(
+        return self._modify_job_in_scheduler(
             job_id,
-            func=function,
-            args=args,
-            kwargs=kwargs,
-            trigger=trigger,
-            next_run_time=next_run_time,
+            function,
+            trigger,
+            next_run_time,
+            *args,
+            **kwargs,
         )
+
+    def _modify_job_in_scheduler(
+        self,
+        job_id: str,
+        function: Callable,
+        trigger: APSchedulerCronTrigger,
+        next_run_time: Optional[datetime] = None,
+        *args,
+        **kwargs,
+    ):
+
+        try:
+            return self._scheduler.modify_job(
+                job_id,
+                func=function,
+                args=args,
+                kwargs=kwargs,
+                trigger=trigger,
+                next_run_time=next_run_time,
+            )
+        except JobLookupError as exc:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Schedule job with id {job_id} not found in scheduler. Reload is required."
+            ) from exc
 
     def _reload_schedules(self, db_session: Session):
         logger.info("Reloading schedules")

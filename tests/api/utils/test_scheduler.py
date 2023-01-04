@@ -1145,7 +1145,7 @@ async def test_update_schedule(
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+async def test_update_schedule_failure_not_found_in_db(db: Session, scheduler: Scheduler):
     schedule_name = "schedule-name"
     project = config.default_project
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
@@ -1153,6 +1153,36 @@ async def test_update_schedule_failure_not_found(db: Session, scheduler: Schedul
             db, mlrun.api.schemas.AuthInfo(), project, schedule_name
         )
     assert "Schedule not found" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_failure_not_found_in_scheduler(db: Session, scheduler: Scheduler):
+    schedule_name = "schedule-name"
+    project_name = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 0
+
+    # create the schedule only in the db
+    inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    get_db().create_schedule(
+        db,
+        project_name,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        inactive_cron_trigger,
+        1,
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.update_schedule(
+            db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
+        )
+    job_id = scheduler._resolve_job_id(project_name, schedule_name)
+    assert f"Schedule job with id {job_id} not found in scheduler. Reload is required." in str(excinfo.value)
 
 
 @pytest.mark.asyncio

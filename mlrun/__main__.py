@@ -991,7 +991,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--save-secrets",
     is_flag=True,
-    help="Save secrets as project secrets.",
+    help="Store the project secrets as k8s secrets",
 )
 def project(
     context,

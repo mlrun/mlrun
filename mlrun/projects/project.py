@@ -41,10 +41,9 @@ from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifa
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
-from ..k8s_utils import sanitize_function_volumes
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.utils import add_code_metadata, get_item_name, set_item_attribute
+from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
 from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
@@ -1613,7 +1612,6 @@ class MlrunProject(ModelObj):
                 raise ValueError(
                     "default handler cannot be set for existing function object"
                 )
-            _mask_credentials_in_function_object(function_object)
             if image:
                 function_object.spec.image = image
             if with_repo:
@@ -2874,82 +2872,6 @@ def _init_function_from_obj(func, project, name=None):
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
     return name or func.metadata.name, func
-
-
-def _mask_credentials_in_function_object(function):
-    env_to_mask = [
-        "V3IO_ACCESS_KEY",
-        "V3IO_USERNAME",
-        "V3IO_PASSWORD",
-        "V3IO_API",
-        "V3IO_FRAMESD",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-    ]
-    # some function spec might not have env (e.g. BaseRuntime) so skip if not exist
-    if not hasattr(function, "spec") or not hasattr(function.spec, "env"):
-        return function
-
-    for env in function.spec.env:
-        # if env contain a value and not value_from, this means it wasn't masked then we remove it
-        # if env contain a value_from, this means it was masked then no need to remove it
-        env_name = get_item_name(env, "name")
-        env_value_from = get_item_name(env, "value_from")
-        if env_name in env_to_mask and not env_value_from:
-            set_item_attribute(env, "value", None)
-
-    if (
-        function.metadata.credentials
-        and function.metadata.credentials.access_key
-        and not function.metadata.credentials.access_key.startswith(
-            mlrun.model.Credentials.secret_reference_prefix
-        )
-    ):
-        function.metadata.credentials.access_key = None
-
-    _mask_volumes_in_function_object(function)
-
-    return function
-
-
-def _mask_volumes_in_function_object(function):
-    should_remove_v3io_mounts = False
-    v3io_flex_volume_name = None
-    volumes = []
-
-    sanitize_function_volumes(function)
-
-    for volume in function.spec.volumes:
-        flex_volume = get_item_name(volume, "flexVolume")
-        if flex_volume and get_item_name(flex_volume, "driver") == "v3io/fuse":
-            # set the flex volume name to be used later when removing the volume mount
-            v3io_flex_volume_name = get_item_name(volume, "name")
-            # if it has a secret reference, then it was masked then no need to remove it
-            # just remove the plane access key reference
-            if get_item_name(flex_volume, "secretRef"):
-                if get_item_name(flex_volume, "options"):
-                    # mainly for sanity that we don't leave any access key not masked
-                    options = get_item_name(flex_volume, "options")
-                    if get_item_name(options, "accessKey"):
-                        set_item_attribute(options, "accessKey", None)
-            # if it doesn't has a secret reference, then it wasn't masked then we remove it
-            else:
-                should_remove_v3io_mounts = True
-                continue
-        volumes.append(volume)
-
-    function.spec.volumes = volumes
-    # currently this is checked before entering the loop because we only have that option with v3io flex volume
-    # and it more efficient to check it once and not for each volume, but if we will have more options in the future
-    # we should check it inside the loop
-    if should_remove_v3io_mounts:
-        volume_mounts = []
-        for volume_mount in function.spec.volume_mounts:
-            if get_item_name(volume_mount, "name") == v3io_flex_volume_name:
-                continue
-            volume_mounts.append(volume_mount)
-
-        function.spec.volume_mounts = volume_mounts
 
 
 def _init_function_from_dict_legacy(f, project):

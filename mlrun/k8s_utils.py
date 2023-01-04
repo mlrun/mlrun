@@ -443,6 +443,8 @@ class K8sHelper:
                     f"Secret not found: {secret_name}"
                 ) from exc
 
+            return None, None
+
         def _get_secret_value(key):
             if secret_data.get(key):
                 return base64.b64decode(secret_data[key]).decode("utf-8")

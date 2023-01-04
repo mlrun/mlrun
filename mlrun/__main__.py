@@ -989,9 +989,9 @@ def logs(uid, project, offset, db, watch):
     help="Overwrite a schedule when submitting a new one with the same name",
 )
 @click.option(
-    "--load",
+    "--update-from-source",
     is_flag=True,
-    help="If url is not specified, load the project from the context dir (defaults to './')",
+    help="Update the project from remote URL or context and save it",
 )
 def project(
     context,
@@ -1019,16 +1019,20 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
-    load,
+    update_from_source,
 ):
-    """load and/or run a project"""
+    """
+    load and/or run a project.
+    running a workflow (project) or syncing functions requires the project to be loaded into the db.
+    see --ensure-project and --update-from-source flags for more information.
+    """
     if env_file:
         mlrun.set_env_from_file(env_file)
 
     if db:
         mlconf.dbpath = db
 
-    if url or load:
+    if update_from_source:
 
         # load and save from context or remote URL
         proj = load_project(
@@ -1052,6 +1056,12 @@ def project(
         )
 
     elif run or sync:
+        if url:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "To run a workflow or sync functions from a remote project (URL), please use --update-from-source to "
+                "update the project in the DB first"
+            )
+
         logger.info("Loading project from DB")
         try:
 
@@ -1070,8 +1080,7 @@ def project(
         except mlrun.errors.MLRunNotFoundError as exc:
             if not ensure_project:
                 logger.error(
-                    "Project was not found in the DB, please use either --ensure-project to create a new project "
-                    "or --load to load it from context or --url to load from remote URL"
+                    "Project was not found in the DB, please use either --ensure-project to create a new project"
                 )
 
             raise exc
@@ -1090,7 +1099,7 @@ def project(
         )
 
     url_str = " from " + url if url else ""
-    print(f"Loading project {proj.name}{url_str} into {context}:\n")
+    logger.info(f"Loading project {proj.name}{url_str} into {context}:\n")
 
     if is_relative_path(artifact_path):
         artifact_path = path.abspath(artifact_path)
@@ -1174,7 +1183,7 @@ def project(
             exit(1)
 
     elif sync:
-        print("saving project functions to db ..")
+        logger.info("saving project functions to db ..")
         proj.sync_functions(save=True)
 
 

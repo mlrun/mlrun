@@ -18,6 +18,7 @@ from ..config import config
 from ..platforms import add_or_refresh_credentials
 from ..utils import logger
 from .base import RunDBError, RunDBInterface  # noqa
+from .nopdb import NopDB
 from .sqldb import SQLDB
 
 # import mlrun.errors
@@ -73,12 +74,11 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
             "Could not detect path to API server, not connected to API server!"
         )
         logger.warning(
-            "Please make sure your env variable MLRUN_DB_PATH is configured correctly to point to the API server"
+            "MLRUN_DB_PATH is not set. Please set this environment variable to the URL of the API server"
+            " in order to connect"
         )
-        return None
-        # raise mlrun.errors.MLRunInvalidArgumentError(
-        #     f"FileDB is not supported anymore. url={url}"
-        # )
+        cls = NopDB
+
     elif scheme in ("http", "https"):
         # import here to avoid circular imports
         from .httpdb import HTTPRunDB

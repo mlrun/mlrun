@@ -358,7 +358,9 @@ class Scheduler:
                 secret_name = auth_info.access_key.lstrip(
                     mlrun.model.Credentials.secret_reference_prefix
                 )
-                secret = mlrun.api.crud.Secrets().read_auth_secret(secret_name)
+                secret = mlrun.api.crud.Secrets().read_auth_secret(
+                    secret_name, raise_on_not_found=True
+                )
                 auth_info.access_key = secret.access_key
                 auth_info.username = secret.username
 
@@ -689,7 +691,9 @@ class Scheduler:
                         db_schedule
                     )
                     if secret_name:
-                        secret = mlrun.api.crud.Secrets().read_auth_secret(secret_name)
+                        secret = mlrun.api.crud.Secrets().read_auth_secret(
+                            secret_name, raise_on_not_found=True
+                        )
                         username = secret.username
                         access_key = secret.access_key
                     else:

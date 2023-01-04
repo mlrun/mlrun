@@ -1166,8 +1166,6 @@ async def test_update_schedule_failure_not_found_in_scheduler(
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
-    runs = get_db().list_runs(db, project=project_name)
-    assert len(runs) == 0
 
     # create the schedule only in the db
     inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")

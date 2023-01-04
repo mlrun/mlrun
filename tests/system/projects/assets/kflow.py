@@ -41,6 +41,7 @@ def kfpipeline(model_class=default_pkg_class, build=0):
     )
 
     # train the model using a library (hub://) function and the generated data
+    # no need to define handler in this step because the train function is the default handler
     train = funcs["auto_trainer"].as_step(
         name="train",
         inputs={"dataset": prep_data.outputs["cleaned_data"]},

@@ -142,6 +142,11 @@ class K8sSecretsMock:
     def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         secret = self.auth_secrets_map.get(secret_name)
         if not secret:
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Secret not found: {secret_name}"
+                )
+
             return None, None
         username = secret[
             mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")

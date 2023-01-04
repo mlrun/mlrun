@@ -78,6 +78,9 @@ def config_test_base():
     mlrun.datastore.store_manager._db = None
     mlrun.datastore.store_manager._stores = {}
 
+    # no need to raise error when using nop_db
+    mlrun.mlconf.httpdb.nop_db.raise_error = False
+
     # remove the is_running_as_api cache, so it won't pass between tests
     mlrun.config._is_running_as_api = None
     # remove singletons in case they were changed (we don't want changes to pass between tests)

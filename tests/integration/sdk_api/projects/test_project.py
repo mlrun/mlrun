@@ -42,6 +42,26 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             in str(exc.value)
         )
 
+    def test_sync_functions(self):
+        project_name = "project-name"
+        project = mlrun.new_project(project_name, save=False)
+        project.set_function("hub://describe", "describe")
+        project_function_object = project.spec._function_objects
+        project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+        project.export(str(project_file_path))
+        imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+        assert imported_project.spec._function_objects == {}
+        imported_project.sync_functions()
+        _assert_project_function_objects(imported_project, project_function_object)
+
+        fn = project.get_function("describe")
+        assert fn.metadata.name == "describe", "func did not return"
+
+        # test that functions can be fetched from the DB (w/o set_function)
+        mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+        fn = project.get_function("train")
+        assert fn.metadata.name == "train", "train func did not return"
+
     def test_overwrite_project(self):
         project_name = "some-project"
 
@@ -220,3 +240,19 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
+
+
+def _assert_project_function_objects(project, expected_function_objects):
+    project_function_objects = project.spec._function_objects
+    assert len(project_function_objects) == len(expected_function_objects)
+    for function_name, function_object in expected_function_objects.items():
+        assert function_name in project_function_objects
+        assert (
+            deepdiff.DeepDiff(
+                project_function_objects[function_name].to_dict(),
+                function_object.to_dict(),
+                ignore_order=True,
+                exclude_paths=["root['spec']['build']['code_origin']"],
+            )
+            == {}
+        )

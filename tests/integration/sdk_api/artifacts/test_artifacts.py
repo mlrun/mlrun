@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pathlib
+
 import pandas
 
 import mlrun
 import mlrun.artifacts
 import tests.integration.sdk_api.base
+from tests import conftest
+
+results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 
 
 class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -71,3 +76,37 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
             project=prj, category=mlrun.api.schemas.ArtifactCategories.dataset
         )
         assert len(artifacts) == 1, "bad number of dataset artifacts"
+
+
+def test_export_import():
+    project = mlrun.new_project("log-mod", save=False)
+    target_project = mlrun.new_project("log-mod2", save=False)
+    for mode in [False, True]:
+        mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = mode
+
+        model = project.log_model(
+            "mymod",
+            body=b"123",
+            model_file="model.pkl",
+            extra_data={"kk": b"456"},
+            artifact_path=results_dir,
+        )
+
+        for suffix in ["yaml", "json", "zip"]:
+            # export the artifact to a file
+            model.export(f"{results_dir}/a.{suffix}")
+
+            # import and log the artifact to the new project
+            artifact = target_project.import_artifact(
+                f"{results_dir}/a.{suffix}", f"mod-{suffix}", artifact_path=results_dir
+            )
+            assert artifact.kind == "model"
+            assert artifact.metadata.key == f"mod-{suffix}"
+            assert artifact.metadata.project == "log-mod2"
+            temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
+                artifact.uri
+            )
+            with open(temp_path, "rb") as fp:
+                data = fp.read()
+            assert data == b"123"
+            assert extra_dataitems["kk"].get() == b"456"

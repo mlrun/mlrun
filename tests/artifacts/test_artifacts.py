@@ -416,40 +416,6 @@ def test_resolve_body_hash_path(
         assert expected_target_path == target_path
 
 
-def test_export_import():
-    project = mlrun.new_project("log-mod", save=False)
-    target_project = mlrun.new_project("log-mod2", save=False)
-    for mode in [False, True]:
-        mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = mode
-
-        model = project.log_model(
-            "mymod",
-            body=b"123",
-            model_file="model.pkl",
-            extra_data={"kk": b"456"},
-            artifact_path=results_dir,
-        )
-
-        for suffix in ["yaml", "json", "zip"]:
-            # export the artifact to a file
-            model.export(f"{results_dir}/a.{suffix}")
-
-            # import and log the artifact to the new project
-            artifact = target_project.import_artifact(
-                f"{results_dir}/a.{suffix}", f"mod-{suffix}", artifact_path=results_dir
-            )
-            assert artifact.kind == "model"
-            assert artifact.metadata.key == f"mod-{suffix}"
-            assert artifact.metadata.project == "log-mod2"
-            temp_path, model_spec, extra_dataitems = mlrun.artifacts.get_model(
-                artifact.uri
-            )
-            with open(temp_path, "rb") as fp:
-                data = fp.read()
-            assert data == b"123"
-            assert extra_dataitems["kk"].get() == b"456"
-
-
 def test_inline_body():
     project = mlrun.new_project("inline", save=False)
 

@@ -671,7 +671,7 @@ class Scheduler:
             )
         except JobLookupError as exc:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Schedule job with id {job_id} not found in scheduler. Reload is required."
+                f"Schedule job with id {job_id} not found in scheduler. Reload schedules is required."
             ) from exc
 
     def _reload_schedules(self, db_session: Session):

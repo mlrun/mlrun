@@ -1179,6 +1179,7 @@ async def test_update_schedule_failure_not_found_in_scheduler(
         1,
     )
 
+    # update schedule should fail since the schedule job was not created in the scheduler
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         scheduler.update_schedule(
             db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name

@@ -424,13 +424,24 @@ class K8sHelper:
         secret_name = self.get_project_secret_name(project)
         self.store_secrets(secret_name, secrets, namespace)
 
-    def read_auth_secret(self, secret_name, namespace=""):
+    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         namespace = self.resolve_namespace(namespace)
 
         try:
             secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
-        except ApiException:
-            return None
+        except ApiException as exc:
+            logger.error(
+                "Failed to read secret",
+                secret_name=secret_name,
+                namespace=namespace,
+                exc=err_to_str(exc),
+            )
+            if exc.status != 404:
+                raise exc
+            elif raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Secret not found: {secret_name}"
+                ) from exc
 
         def _get_secret_value(key):
             if secret_data.get(key):

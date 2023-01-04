@@ -87,8 +87,12 @@ def run_function(
 
     example (use with function object)::
 
+        LABELS = "is_error"
+        MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
+        DATA_PATH = "v3io:///bigdata/bla.parquet"
         function = mlrun.import_function("hub://auto_trainer")
-        run1 = run_function(function, params={"label_columns": LABELS}, inputs={"dataset": DATA_URI})
+        run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                      inputs={"dataset": DATA_PATH})
 
     example (use with project)::
 
@@ -99,14 +103,16 @@ def run_function(
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})
-        run2 = run_function("train", params={"label_columns": LABELS}, inputs={"dataset": run1.outputs["data"]})
+        run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                     inputs={"dataset": run1.outputs["data"]})
 
     example (use in pipeline)::
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url})
-            run2 = run_function("train", params={"label_columns": LABELS}, inputs={"dataset": run1.outputs["data"]})
+            run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                         inputs={"dataset": run1.outputs["data"]})
 
         project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 

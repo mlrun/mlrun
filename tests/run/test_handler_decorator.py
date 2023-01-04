@@ -820,3 +820,130 @@ def test_raise_error_while_parsing_with_mlrun():
 
     # Clean the test outputs:
     artifact_path.cleanup()
+
+
+class MyClass:
+    def __init__(self, class_parameter: int):
+        assert isinstance(class_parameter, int)
+        self._parameter = class_parameter
+
+    @mlrun.handler(
+        outputs=[
+            ("my_array", mlrun.ArtifactType.DATASET),
+            "my_df:dataset",
+            ("my_dict", mlrun.ArtifactType.DATASET),
+            ("my_list", "dataset"),
+        ]
+    )
+    def log_dataset(self) -> Tuple[np.ndarray, pd.DataFrame, dict, list]:
+        return (
+            np.ones((10, 20)),
+            pd.DataFrame(np.zeros((20, 10))),
+            {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]},
+            [["A"], ["B"], [""]],
+        )
+
+    @mlrun.handler(
+        outputs=[
+            ("my_object", mlrun.ArtifactType.OBJECT),
+        ]
+    )
+    def log_object(self) -> Pipeline:
+        encoder_to_imputer = Pipeline(
+            steps=[
+                (
+                    "imputer",
+                    SimpleImputer(
+                        missing_values="", strategy="constant", fill_value="C"
+                    ),
+                ),
+                ("encoder", OrdinalEncoder()),
+            ]
+        )
+        encoder_to_imputer.fit([["A"], ["B"], ["C"]])
+        return encoder_to_imputer
+
+    @mlrun.handler(outputs=["result"])
+    def parse_inputs_from_type_hints(
+        self,
+        my_data: list,
+        my_encoder: Pipeline,
+        data_2,
+        data_3: mlrun.DataItem,
+        mul: int,
+    ):
+        assert data_2 is None or isinstance(data_2, mlrun.DataItem)
+        assert data_3 is None or isinstance(data_3, mlrun.DataItem)
+
+        return int(sum(my_encoder.transform(my_data) + self._parameter * mul))
+
+
+def test_class_methods_without_mlrun():
+    """
+    Run the `log_dataset` function without MLRun to see the wrapper is transparent.
+    """
+    temp_dir = tempfile.TemporaryDirectory()
+
+    my_class = MyClass(class_parameter=1)
+
+    my_array, my_df, my_dict, my_list = my_class.log_dataset()
+    assert isinstance(my_array, np.ndarray)
+    assert isinstance(my_df, pd.DataFrame)
+    assert isinstance(my_dict, dict)
+    assert isinstance(my_list, list)
+
+    my_object = my_class.log_object()
+    assert isinstance(my_object, Pipeline)
+    assert my_object.transform([["A"], ["B"], [""]]).tolist() == [[0], [1], [2]]
+
+    result = my_class.parse_inputs_from_type_hints(
+        my_list, my_encoder=my_object, data_2=None, data_3=None, mul=2
+    )
+    assert result == 9
+
+    temp_dir.cleanup()
+
+
+def test_class_methods_with_mlrun():
+    """
+    Run the `log_dataset` function with MLRun to see the wrapper is logging the returned values as datasets artifacts.
+    """
+    # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+    log_dataset_run = mlrun_function.run(
+        handler="MyClass::log_dataset",
+        params={"_init_args": {"class_parameter": 1}},
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+    log_object_run = mlrun_function.run(
+        handler="MyClass::log_object",
+        params={"_init_args": {"class_parameter": 1}},
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Run the function that will parse the data items:
+    run_object = mlrun_function.run(
+        handler="MyClass::parse_inputs_from_type_hints",
+        inputs={
+            "my_data": log_dataset_run.outputs["my_list"],
+            "my_encoder": log_object_run.outputs["my_object"],
+            "data_2": log_dataset_run.outputs["my_array"],
+            "data_3": log_dataset_run.outputs["my_dict"],
+        },
+        params={"_init_args": {"class_parameter": 1}, "mul": 2},
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Manual validation:
+    mlrun.utils.logger.info(run_object.outputs)
+
+    # Assertion:
+    assert len(run_object.outputs) == 1
+    assert run_object.outputs["result"] == 9
+
+    # Clean the test outputs:
+    artifact_path.cleanup()

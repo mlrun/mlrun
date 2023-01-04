@@ -217,3 +217,7 @@ class BaseMerger(abc.ABC):
         """return results as csv file"""
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
+
+    @classmethod
+    def get_default_image(cls, kind):
+        return mlrun.mlconf.feature_store.default_job_image

@@ -15,6 +15,8 @@
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
+from ...runtimes import RemoteSparkRuntime
+from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
@@ -233,3 +235,14 @@ class SparkFeatureMerger(BaseMerger):
             return self._pandas_df
 
         return self._result_df
+
+    @classmethod
+    def get_default_image(cls, kind):
+        if kind == AbstractSparkRuntime.kind:
+            return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
+                with_gpu=False
+            )
+        elif kind == RemoteSparkRuntime.kind:
+            return RemoteSparkRuntime.default_image
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")

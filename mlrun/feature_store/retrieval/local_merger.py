@@ -133,10 +133,8 @@ class LocalFeatureMerger(BaseMerger):
 
         if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)
-
-        # check if need to set indices
-
-        self._set_indexes(self._result_df)
+        else:
+            self._set_indexes(self._result_df)
 
         self._write_to_target()
 

@@ -144,6 +144,7 @@ class BaseMerger(abc.ABC):
                             "The entities will stay as columns because "
                             "Dask dataframe does not yet support multi-indexes"
                         )
+                        return self._result_df
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "

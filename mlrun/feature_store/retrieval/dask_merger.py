@@ -146,10 +146,10 @@ class DaskFeatureMerger(BaseMerger):
 
         if self._drop_indexes:
             self._result_df = self._result_df.reset_index(drop=True)
+        else:
+            self._result_df = self._set_indexes(self._result_df)
         self._write_to_target()
 
-        # check if need to set indices
-        self._result_df = self._set_indexes(self._result_df)
         return OfflineVectorResponse(self)
 
     def _reset_index(self, df):

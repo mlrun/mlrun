@@ -77,7 +77,7 @@ def run_merge_job(
             "engine_args": engine_args,
         },
         inputs={"entity_rows": entity_rows},
-        out_path=function.spec.output_path,
+        out_path=function.spec.output_path if hasattr(function.spec, 'output_path') else None,
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)

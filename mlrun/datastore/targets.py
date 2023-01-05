@@ -684,7 +684,7 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         return df
 
     def get_dask_options(self):
@@ -998,7 +998,7 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1120,7 +1120,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1174,7 +1174,7 @@ class NoSqlTarget(NoSqlBaseTarget):
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
-    support_spark = False
+    support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
     def get_table_object(self):
@@ -1189,6 +1189,27 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             RedisDriver(redis_url=endpoint, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        from urllib.parse import urlparse
+
+        parsed_url = urlparse(self.get_target_path())
+        return {
+            "key.column": "_spark_object_name",
+            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "format": "org.apache.spark.sql.redis",
+            "host": parsed_url.hostname,
+            "port": parsed_url.port if parsed_url.port else "6379",
+            "user": parsed_url.username,
+            "auth": parsed_url.password,
+        }
+
+    def prepare_spark_df(self, df, key_columns):
+        from pyspark.sql.functions import udf
+        from pyspark.sql.types import StringType
+
+        udf1 = udf(lambda x: x + "}:static", StringType())
+        return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
 class StreamTarget(BaseStoreTarget):

@@ -114,11 +114,15 @@ class Secrets(
                 f"Provider requested is not supported. provider = {secrets.provider}"
             )
 
-    def read_auth_secret(self, secret_name) -> mlrun.api.schemas.AuthSecretData:
+    def read_auth_secret(
+        self, secret_name, raise_on_not_found=False
+    ) -> mlrun.api.schemas.AuthSecretData:
         (
             username,
             access_key,
-        ) = mlrun.api.utils.singletons.k8s.get_k8s().read_auth_secret(secret_name)
+        ) = mlrun.api.utils.singletons.k8s.get_k8s().read_auth_secret(
+            secret_name, raise_on_not_found=raise_on_not_found
+        )
         return mlrun.api.schemas.AuthSecretData(
             provider=mlrun.api.schemas.SecretProviderName.kubernetes,
             username=username,

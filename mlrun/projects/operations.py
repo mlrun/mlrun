@@ -87,26 +87,32 @@ def run_function(
 
     example (use with function object)::
 
-        function = mlrun.import_function("hub://sklearn_classifier")
-        run1 = run_function(function, params={"data": url})
+        LABELS = "is_error"
+        MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
+        DATA_PATH = "s3://bigdata/data.parquet"
+        function = mlrun.import_function("hub://auto_trainer")
+        run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                      inputs={"dataset": DATA_PATH})
 
     example (use with project)::
 
         # create a project with two functions (local and from marketplace)
         project = mlrun.new_project(project_name, "./proj)
         project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-        project.set_function("hub://sklearn_classifier", "train")
+        project.set_function("hub://auto_trainer", "train")
 
         # run functions (refer to them by name)
         run1 = run_function("myfunc", params={"x": 7})
-        run2 = run_function("train", params={"data": run1.outputs["data"]})
+        run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                     inputs={"dataset": run1.outputs["data"]})
 
     example (use in pipeline)::
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
             run1 = run_function("loaddata", params={"url": url})
-            run2 = run_function("train", params={"data": run1.outputs["data"]})
+            run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
+                                         inputs={"dataset": run1.outputs["data"]})
 
         project.run(workflow_handler=my_pipe, arguments={"param1": 7})
 

@@ -681,7 +681,7 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         return df
 
     def get_dask_options(self):
@@ -995,7 +995,7 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1117,7 +1117,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1168,21 +1168,59 @@ class NoSqlTarget(NoSqlBaseTarget):
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
-    support_spark = False
+    support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
     def get_table_object(self):
+        from urllib.parse import urlparse
+
         from storey import Table
         from storey.redis_driver import RedisDriver
 
         endpoint, uri = parse_path(self.get_target_path())
+
         endpoint = endpoint or mlrun.mlconf.redis.url
+        host = self._get_credential(
+            "REDIS_HOST", default_value="REDIS_HOST must be set"
+        )
+        port = self._get_credential("REDIS_PORT", default_value="6379")
+        user = self._get_credential("REDIS_USER")
+        auth = self._get_credential("REDIS_AUTH")
+
+        parsed_url = urlparse(self.get_target_path())
+        scheme = parsed_url.scheme.lower()
+
+        redis_url = f"{scheme}://{user}:{auth}@{host}:{port}/{uri}"
 
         return Table(
             uri,
-            RedisDriver(redis_url=endpoint, key_prefix="/"),
+            RedisDriver(redis_url=redis_url, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        host = self._get_credential(
+            "REDIS_HOST", default_value="REDIS_HOST must be set"
+        )
+        port = self._get_credential("REDIS_PORT", default_value="6379")
+        user = self._get_credential("REDIS_USER")
+        auth = self._get_credential("REDIS_AUTH")
+        return {
+            "key.column": "_spark_object_name",
+            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "format": "org.apache.spark.sql.redis",
+            "host": host,
+            "port": port,
+            "user": user,
+            "auth": auth,
+        }
+
+    def prepare_spark_df(self, df, key_columns):
+        from pyspark.sql.functions import udf
+        from pyspark.sql.types import StringType
+
+        udf1 = udf(lambda x: x + "}:static", StringType())
+        return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
 class StreamTarget(BaseStoreTarget):

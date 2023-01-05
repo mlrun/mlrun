@@ -878,7 +878,7 @@ def _ingest_with_spark(
                         df_to_write = df_to_write.withColumn(
                             partition, op(timestamp_col)
                         )
-            df_to_write = target.prepare_spark_df(df_to_write)
+            df_to_write = target.prepare_spark_df(df_to_write, key_columns)
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:

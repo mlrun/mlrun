@@ -618,7 +618,7 @@ pq_target = ParquetTarget(
 pq_target.write_dataframe(df=pq_df, key_column="id")
 
 # Redis (see docs for writing online features)
-redis_target = RedisNoSqlTarget(name="write", path="redis://1.2.3.4:6379")
+redis_target = RedisNoSqlTarget(name="write", path="redis://path_to_objects")
 redis_target.write_dataframe(df=redis_df)
 
 # Kafka (see docs for writing online features)

@@ -382,6 +382,7 @@ class BaseStoreTarget(DataTargetBase):
         max_events: typing.Optional[int] = None,
         flush_after_seconds: typing.Optional[int] = None,
         storage_options: typing.Dict[str, str] = None,
+        credentials_prefix=None,
     ):
         super().__init__(
             self.kind,
@@ -421,6 +422,15 @@ class BaseStoreTarget(DataTargetBase):
         self._target = None
         self._resource = None
         self._secrets = {}
+        self._credentials_prefix = credentials_prefix
+
+    def _get_credential(self, key, default_value=None):
+        return mlrun.get_secret_or_env(
+            key,
+            secret_provider=self._secrets,
+            default=default_value,
+            prefix=self._credentials_prefix,
+        )
 
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
@@ -1127,9 +1137,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
         else:
             # To prevent modification of the original dataframe
             df = df.copy(deep=False)
-            access_key = self._secrets.get(
-                "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
-            )
+            access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())
             container, path = split_path(path_with_container)
@@ -1164,30 +1172,47 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     writer_step_name = "RedisNoSqlTarget"
 
     def get_table_object(self):
+        from urllib.parse import urlparse
+
         from storey import Table
         from storey.redis_driver import RedisDriver
 
         endpoint, uri = parse_path(self.get_target_path())
+
         endpoint = endpoint or mlrun.mlconf.redis.url
+        host = self._get_credential(
+            "REDIS_HOST", default_value="REDIS_HOST must be set"
+        )
+        port = self._get_credential("REDIS_PORT", default_value="6379")
+        user = self._get_credential("REDIS_USER")
+        auth = self._get_credential("REDIS_AUTH")
+
+        parsed_url = urlparse(self.get_target_path())
+        scheme = parsed_url.scheme.lower()
+
+        redis_url = f"{scheme}://{user}:{auth}@{host}:{port}/{uri}"
 
         return Table(
             uri,
-            RedisDriver(redis_url=endpoint, key_prefix="/"),
+            RedisDriver(redis_url=redis_url, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        from urllib.parse import urlparse
-
-        parsed_url = urlparse(self.get_target_path())
+        host = self._get_credential(
+            "REDIS_HOST", default_value="REDIS_HOST must be set"
+        )
+        port = self._get_credential("REDIS_PORT", default_value="6379")
+        user = self._get_credential("REDIS_USER")
+        auth = self._get_credential("REDIS_AUTH")
         return {
             "key.column": "_spark_object_name",
             "table": "{" + store_path_to_spark(self.get_target_path()),
             "format": "org.apache.spark.sql.redis",
-            "host": parsed_url.hostname,
-            "port": parsed_url.port if parsed_url.port else "6379",
-            "user": parsed_url.username,
-            "auth": parsed_url.password,
+            "host": host,
+            "port": port,
+            "user": user,
+            "auth": auth,
         }
 
     def prepare_spark_df(self, df, key_columns):

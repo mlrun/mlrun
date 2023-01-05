@@ -704,6 +704,7 @@ class RemoteRuntime(KubeResource):
             )
             self.status.state = state
             self.status.nuclio_name = name
+            self.status.container_image = function_status.get("containerImage", "")
             if address:
                 self.status.address = address
                 self.spec.command = f"http://{address}"

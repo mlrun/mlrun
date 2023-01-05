@@ -6,18 +6,11 @@ GitPython~=3.0
 aiohttp~=3.8
 # 8.1.0+ breaks dask/distributed versions older than 2022.04.0, see here - https://github.com/dask/distributed/pull/6018
 click~=8.0.0
-# fastapi 0.78.0 requires starlette 0.19.1 which requires typing_extensions>=3.10.0
-# kfp 1.8.13 requires typing-extensions>=3.7.4,<5
-# for some reason when installing mlrun on a venv that already had typing-extensions==3.7.4.3 it didn't upgrade it to
-# >=3.10.0 although it was installing starlette 0.19.1
-# therefore adding it explicitly
-typing-extensions>=3.10.0,<5
-# in some environments for some reason the protobuf installed was 3.20.0 instead of 3.20.1,
 # when installing google-cloud-storage which required >=3.20.1, <5 it was upgrading the protobuf version to the latest
 # version and because kfp 1.8.13 requires protobuf>=3.13, <4 it resulted incompatibility between kfp and protobuf
 # this can be removed once kfp will support protobuf > 4
 # since google-cloud blacklisted 3.20.0 and 3.20.1 we start from 3.20.2
-protobuf>=3.20.2, <4
+protobuf>=3.13, <3.20
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
 # 1.8.14 introduced new features related to ParallelFor, while our actual kfp server is 1.8.1, which isn't compatible
@@ -54,12 +47,12 @@ kubernetes~=12.0
 # TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from
 #  separating the SDK and API code) (referring to humanfriendly and fastapi)
 humanfriendly~=8.2
-fastapi~=0.78.0
+fastapi~=0.88.0
 fsspec~=2021.8.1
 v3iofs~=0.1.15
 # 3.4 and above failed builidng in some images - see https://github.com/pyca/cryptography/issues/5771
 cryptography~=3.0, <3.4
-storey~=1.3.2
+storey~=1.3.3
 deepdiff~=5.0
 pymysql~=1.0
 inflection~=0.5.0

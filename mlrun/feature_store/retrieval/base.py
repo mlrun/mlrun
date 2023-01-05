@@ -465,3 +465,8 @@ class BaseMerger(abc.ABC):
             raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
         return return_relation
+
+    @classmethod
+    def get_default_image(cls, kind):
+        return mlrun.mlconf.feature_store.default_job_image
+

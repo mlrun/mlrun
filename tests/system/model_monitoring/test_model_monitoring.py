@@ -316,17 +316,16 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             "sklearn_AdaBoostClassifier": "sklearn.ensemble.AdaBoostClassifier",
         }
 
-        # import the training function from the marketplace (hub://)
-        train = mlrun.import_function("hub://sklearn_classifier")
+        # Import the auto trainer function from the marketplace (hub://)
+        train = mlrun.import_function("hub://auto_trainer")
 
         for name, pkg in model_names.items():
 
-            # run the function and specify input dataset path and some parameters (algorithm and label column name)
+            # Run the function and specify input dataset path and some parameters (algorithm and label column name)
             train_run = train.run(
                 name=name,
                 inputs={"dataset": path},
-                params={"model_pkg_class": pkg, "label_column": label_column},
-                artifact_path=f"v3io:///projects/{name}/artifacts",
+                params={"model_class": pkg, "label_columns": label_column},
             )
 
             # Add the model to the serving function's routing spec

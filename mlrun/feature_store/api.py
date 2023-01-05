@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import warnings
 from datetime import datetime
 from typing import List, Optional, Union
 from urllib.parse import urlparse
@@ -93,14 +94,16 @@ def get_offline_features(
     target: DataTargetBase = None,
     run_config: RunConfig = None,
     drop_columns: List[str] = None,
-    start_time: Union[str, pd.Timestamp] = None,
-    end_time: Union[str, pd.Timestamp] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
     join_type: str = "inner",
+    spark_service: str = None,
+
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
     specify a feature vector object/uri and retrieve the desired features, their metadata
@@ -132,6 +135,7 @@ def get_offline_features(
     :param target:                  where to write the results to
     :param drop_columns:            list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
+
     :param run_config:              function and/or run configuration
                                     see :py:class:`~mlrun.feature_store.RunConfig`
     :param start_time:              datetime, low limit of time needed to be filtered. Optional.
@@ -151,6 +155,7 @@ def get_offline_features(
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)
                                     * inner: use intersection of keys from both frames (SQL: inner join).
+    :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -163,10 +168,16 @@ def get_offline_features(
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
 
-    if run_config:
+    merger_engine = get_merger(engine)
+
+    if run_config and not run_config.local:
         return run_merge_job(
             feature_vector,
             target,
+            merger_engine,
+            engine,
+            engine_args,
+            spark_service,
             entity_rows,
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
@@ -185,7 +196,6 @@ def get_offline_features(
     if start_time and not end_time:
         # if end_time is not specified set it to now()
         end_time = pd.Timestamp.now()
-    merger_engine = get_merger(engine)
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,
@@ -440,21 +450,26 @@ def ingest(
         filter_time_string = ""
         if source.schedule:
             featureset.reload(update_spec=False)
-            min_time = datetime.max
-            for target in featureset.status.targets:
-                if target.last_written:
-                    cur_last_written = datetime.fromisoformat(target.last_written)
-                    if cur_last_written < min_time:
-                        min_time = cur_last_written
-            if min_time != datetime.max:
-                source.start_time = min_time
-                time_zone = min_time.tzinfo
-                source.end_time = datetime.now(tz=time_zone)
-                filter_time_string = (
-                    f"Source.start_time for the job is{str(source.start_time)}. "
-                    f"Source.end_time is {str(source.end_time)}"
-                )
 
+    if isinstance(source, DataSource) and source.schedule:
+        min_time = datetime.max
+        for target in targets or featureset.status.targets:
+            if target.last_written:
+                cur_last_written = target.last_written
+                if isinstance(cur_last_written, str):
+                    cur_last_written = datetime.fromisoformat(target.last_written)
+                if cur_last_written < min_time:
+                    min_time = cur_last_written
+        if min_time != datetime.max:
+            source.start_time = min_time
+            time_zone = min_time.tzinfo
+            source.end_time = datetime.now(tz=time_zone)
+            filter_time_string = (
+                f"Source.start_time for the job is{str(source.start_time)}. "
+                f"Source.end_time is {str(source.end_time)}"
+            )
+
+    if mlrun_context:
         mlrun_context.logger.info(
             f"starting ingestion task to {featureset.uri}.{filter_time_string}"
         )
@@ -604,7 +619,7 @@ def preview(
     :param featureset:     feature set object or uri
     :param source:         source dataframe or csv/parquet file path
     :param entity_columns: list of entity (index) column names
-    :param timestamp_key:  timestamp column name
+    :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
     :param options:        schema and stats infer options (:py:class:`~mlrun.feature_store.InferOptions`)
     :param verbose:        verbose log
@@ -618,7 +633,15 @@ def preview(
 
     options = options if options is not None else InferOptions.default()
     if timestamp_key is not None:
+        warnings.warn(
+            "preview's timestamp_key parameter is deprecated. Please pass this parameter to FeatureSet instead",
+            # TODO: Remove this API in 1.4.0
+            PendingDeprecationWarning,
+        )
         featureset.spec.timestamp_key = timestamp_key
+        for step in featureset.graph.steps.values():
+            if step.class_name == "storey.AggregateByKey":
+                step.class_args["time_field"] = timestamp_key
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
@@ -796,19 +819,20 @@ def _ingest_with_spark(
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
             created_spark_context = True
 
+        timestamp_key = featureset.spec.timestamp_key
+
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
         elif isinstance(source, pyspark.sql.DataFrame):
             df = source
         else:
-            df = source.to_spark_df(spark)
-            df = source.filter_df_start_end_time(df, featureset.spec.timestamp_key)
+            df = source.to_spark_df(spark, time_field=timestamp_key)
+            df = source.filter_df_start_end_time(df, timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())
-        timestamp_key = featureset.spec.timestamp_key
         targets = targets or featureset.spec.targets
 
         targets_to_ingest = copy.deepcopy(targets)
@@ -980,6 +1004,7 @@ def get_feature_vector(uri, project=None):
 
 def delete_feature_set(name, project="", tag=None, uid=None, force=False):
     """Delete a :py:class:`~mlrun.feature_store.FeatureSet` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag
@@ -1002,6 +1027,7 @@ def delete_feature_set(name, project="", tag=None, uid=None, force=False):
 
 def delete_feature_vector(name, project="", tag=None, uid=None):
     """Delete a :py:class:`~mlrun.feature_store.FeatureVector` object from the DB.
+
     :param name: Name of the object to delete
     :param project: Name of the object's project
     :param tag: Specific object's version tag

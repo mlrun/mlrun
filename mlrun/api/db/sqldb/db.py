@@ -238,7 +238,7 @@ class SQLDB(DBInterface):
         self,
         session,
         name=None,
-        uid=None,
+        uid: typing.Optional[typing.Union[str, List[str]]] = None,
         project=None,
         labels=None,
         states=None,
@@ -1119,6 +1119,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
             labels=labels,
             concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
         )
         self._upsert(session, [schedule])
 
@@ -2732,7 +2733,11 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         if project == "*":
             project = None
-        query = self._query(session, Run, uid=uid, project=project)
+        query = self._query(session, Run, project=project)
+        if uid:
+            # uid may be either a single uid (string) or a list of uids
+            uid = mlrun.utils.helpers.as_list(uid)
+            query = query.filter(Run.uid.in_(uid))
         return self._add_labels_filter(session, query, Run, labels)
 
     def _latest_uid_filter(self, session, query):

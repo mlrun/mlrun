@@ -138,7 +138,7 @@ class BaseMerger(abc.ABC):
                     if self.engine == "local" or self.engine == "spark":
                         df.set_index(self._index_columns, inplace=True)
                     elif self.engine == "dask" and len(self._index_columns) == 1:
-                        df.set_index(self._index_columns[0], inplace=True)
+                        return df.set_index(self._index_columns[0])
                     else:
                         logger.info(
                             "The entities will stay as columns because "
@@ -469,4 +469,3 @@ class BaseMerger(abc.ABC):
     @classmethod
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
-

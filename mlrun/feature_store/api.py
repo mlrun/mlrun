@@ -103,7 +103,6 @@ def get_offline_features(
     query: str = None,
     join_type: str = "inner",
     spark_service: str = None,
-
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
     specify a feature vector object/uri and retrieve the desired features, their metadata

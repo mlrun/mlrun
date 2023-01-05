@@ -89,7 +89,7 @@ def run_function(
 
         LABELS = "is_error"
         MODEL_CLASS = "sklearn.ensemble.RandomForestClassifier"
-        DATA_PATH = "v3io:///bigdata/bla.parquet"
+        DATA_PATH = "s3://bigdata/data.parquet"
         function = mlrun.import_function("hub://auto_trainer")
         run1 = run_function(function, params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                       inputs={"dataset": DATA_PATH})

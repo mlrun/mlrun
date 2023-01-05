@@ -103,6 +103,7 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             image="mlrun/mlrun",
         )
 
+        # since we're deploying a serving function, we need to add a graph to it
         graph = function.set_topology("flow", engine="sync")
         graph.add_step(name="type", class_name="Type")
 

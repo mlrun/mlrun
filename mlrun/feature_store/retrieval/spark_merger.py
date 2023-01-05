@@ -92,14 +92,14 @@ class SparkFeatureMerger(BaseMerger):
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
-                    columns=columns
+                    columns=columns,
                 )
             else:
                 source = source_driver(
                     self.vector.metadata.name,
                     target.get_target_path(),
                     time_field=entity_timestamp_column,
-                    columns=column_names
+                    columns=column_names,
                 )
 
             # add the index/key to selected columns

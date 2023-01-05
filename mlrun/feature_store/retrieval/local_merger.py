@@ -98,7 +98,7 @@ class LocalFeatureMerger(BaseMerger):
                 if col in rename_col_dict and alias:
                     new_columns.append((rename_col_dict[col], alias))
                 elif col in rename_col_dict and not alias:
-                    new_columns.append((rename_col_dict[col], alias))
+                    new_columns.append((rename_col_dict[col], col))
                 else:
                     new_columns.append((col, alias))
             all_columns.append(new_columns)

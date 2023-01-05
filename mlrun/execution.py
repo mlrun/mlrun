@@ -113,6 +113,7 @@ class MLClientCtx(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_value:
             self.set_state(error=exc_value, commit=False)
+        logger.info("where am I setting state to completed?")
         self.commit(completed=False)
 
     def get_child_context(self, with_parent_params=False, **params):
@@ -844,6 +845,8 @@ class MLClientCtx(object):
             self._annotations["message"] = message
         if completed:
             self._state = "completed"
+
+        logger.info("Is it here?", state=self._state)
 
         if self._parent:
             self._parent.update_child_iterations()

@@ -16,7 +16,6 @@ import http
 
 import fastapi
 import fastapi.concurrency
-import pydantic
 import sqlalchemy.orm
 
 import mlrun.api.api.deps

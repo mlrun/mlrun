@@ -1186,7 +1186,7 @@ async def test_update_schedule_failure_not_found_in_scheduler(
         )
     job_id = scheduler._resolve_job_id(project_name, schedule_name)
     assert (
-        f"Schedule job with id {job_id} not found in scheduler. Reload is required."
+        f"Schedule job with id {job_id} not found in scheduler. Reload schedules is required."
         in str(excinfo.value)
     )
 

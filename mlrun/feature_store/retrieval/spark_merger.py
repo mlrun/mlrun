@@ -109,8 +109,11 @@ class SparkFeatureMerger(BaseMerger):
                 self.spark, named_view=self.named_view, time_field=timestamp_key
             )
 
-            if timestamp_key and timestamp_key not in column_names:
-                columns.append((timestamp_key, None))
+            # if timestamp_key and timestamp_key not in column_names:
+            #     columns.append((timestamp_key, None))
+            # for entity in feature_set.spec.entities.keys():
+            #     if entity not in column_names:
+            #         columns.append((entity, None))
 
             df.reset_index(inplace=True)
             column_names += node.data["save_index"]
@@ -146,6 +149,8 @@ class SparkFeatureMerger(BaseMerger):
         # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
             entity_rows = self.spark.createDataFrame(entity_rows)
+
+        # join the feature data frames
         self.merge(
             entity_df=entity_rows,
             entity_timestamp_column=entity_timestamp_column,
@@ -154,22 +159,16 @@ class SparkFeatureMerger(BaseMerger):
             keys=keys,
             all_columns=all_columns,
         )
-
-        self._result_df.drop(columns=self._drop_columns, inplace=True, errors="ignore")
-
-        # renaming all columns according to self._alias
-        self._result_df.rename(
-            columns=self._alias,
-            inplace=True,
-        )
-        if self.vector.status.label_column:
-            self._result_df.dropna(
-                subset=[self.vector.status.label_column],
-                inplace=True,
-            )
         # filter joined data frame by the query param
         if query:
-            self._result_df.query(query, inplace=True)
+            self._result_df = self._result_df.filter(query)
+
+        self._result_df = self._result_df.drop(*self._drop_columns)
+
+        if self.vector.status.label_column:
+            self._result_df = self._result_df.dropna(
+                subset=[self.vector.status.label_column]
+            )
 
         if self._drop_indexes:
             self._result_df.reset_index(drop=True, inplace=True)
@@ -177,7 +176,6 @@ class SparkFeatureMerger(BaseMerger):
             self._set_indexes(self._result_df)
 
         self._write_to_target()
-
         return OfflineVectorResponse(self)
 
     def _unpersist_df(self, df):

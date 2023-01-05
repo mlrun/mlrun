@@ -819,10 +819,10 @@ class BatchProcessor:
                         dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
                         index_cols=["timestamp", "endpoint_id", "record_type"],
                     )
-                except v3io_frames.errors.Error:
+                except v3io_frames.errors.Error as err:
                     logger.warn(
-                        "Events were not written to the TSDB: No TSDB schema file found at the target path, "
-                        "probably due to not enough model events",
+                        "Could not write drift measures to TSDB",
+                        err=err,
                         tsdb_path=self.tsdb_path,
                         endpoint=endpoint_id,
                     )

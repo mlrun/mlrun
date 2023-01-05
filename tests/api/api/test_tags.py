@@ -274,7 +274,7 @@ class TestArtifactTags:
                 ),
             ],
         )
-        assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
+        assert response.status_code == http.HTTPStatus.UNPROCESSABLE_ENTITY.value
 
         self._list_artifacts_and_assert(
             client, tag=invalid_tag_name, expected_number_of_artifacts=0

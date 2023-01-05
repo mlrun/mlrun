@@ -382,6 +382,7 @@ class BaseStoreTarget(DataTargetBase):
         max_events: typing.Optional[int] = None,
         flush_after_seconds: typing.Optional[int] = None,
         storage_options: typing.Dict[str, str] = None,
+        credentials_prefix=None,
     ):
         super().__init__(
             self.kind,
@@ -421,6 +422,15 @@ class BaseStoreTarget(DataTargetBase):
         self._target = None
         self._resource = None
         self._secrets = {}
+        self._credentials_prefix = credentials_prefix
+
+    def _get_credential(self, key, default_value=None):
+        return mlrun.get_secret_or_env(
+            key,
+            secret_provider=self._secrets,
+            default=default_value,
+            prefix=self._credentials_prefix,
+        )
 
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
@@ -1127,9 +1137,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
         else:
             # To prevent modification of the original dataframe
             df = df.copy(deep=False)
-            access_key = self._secrets.get(
-                "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
-            )
+            access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())
             container, path = split_path(path_with_container)

@@ -16,6 +16,7 @@ import http
 
 import fastapi
 import fastapi.concurrency
+import pydantic
 import sqlalchemy.orm
 
 import mlrun.api.api.deps
@@ -72,7 +73,7 @@ async def overwrite_object_tags_with_tag(
 async def append_tag_to_objects(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
-    tag_objects: mlrun.api.schemas.TagObjects = {},
+    tag_objects: mlrun.api.schemas.TagObjects = fastapi.Body(...),
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),

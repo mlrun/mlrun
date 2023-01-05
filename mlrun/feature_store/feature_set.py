@@ -84,6 +84,22 @@ class FeatureSetSpec(ModelObj):
         engine=None,
         output_path=None,
     ):
+        """Feature set spec object, defines the feature-set's configuration.
+        .. warning::
+            This class should not be modified directly. It is managed by the parent feature-set object or using
+            feature-store APIs. Modifying the spec manually may result in unpredictable behaviour.
+        :param description:   text description (copied from parent feature-set)
+        :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
+        :param features: list of features - :py:class:`~mlrun.features.FeatureSet.Feature`
+        :param partition_keys: list of fields to partition results by (other than the default timestamp key)
+        :param timestamp_key: timestamp column name
+        :param label_column: name of the label column (the one holding the target (y) values)
+        :param targets: list of data targets
+        :param graph: the processing graph
+        :param function: MLRun runtime to execute the feature-set in
+        :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
+        :param output_path: default location where to store results (defaults to MLRun's artifact path)
+        """
         self._features: ObjectList = None
         self._entities: ObjectList = None
         self._targets: ObjectList = None
@@ -200,6 +216,18 @@ class FeatureSetSpec(ModelObj):
 
 
 class FeatureSetStatus(ModelObj):
+    """Feature set status object, containing the current feature-set's status.
+    .. warning::
+        This class should not be modified directly. It is managed by the parent feature-set object or using
+        feature-store APIs. Modifying the status manually may result in unpredictable behaviour.
+    :param state: object's current state
+    :param targets: list of the data targets used in the last ingestion operation
+    :param stats: feature statistics calculated in the last ingestion (if stats calculation was requested)
+    :param preview: preview of the feature-set contents (if preview generation was requested)
+    :param function_uri: function used to execute the feature-set graph
+    :param run_uri: last run used for ingestion
+    """
+
     def __init__(
         self,
         state=None,
@@ -283,7 +311,7 @@ class FeatureSet(ModelObj):
         :param label_column:  name of the label column (the one holding the target (y) values)
         :param relations:     dictionary that indicates all the relations this feature set
                               have with another feature sets. The format of this dictionary is
-                              {"feature_set_name": {"my_column":"other_feature_set_column", ...}...}
+                              {"my_column":Entity, ...}
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None

@@ -136,7 +136,7 @@ class LocalFeatureMerger(BaseMerger):
 
         # check if need to set indices
 
-        self._result_df = self._set_indexes(self._result_df)
+        self._set_indexes(self._result_df)
 
         self._write_to_target()
 

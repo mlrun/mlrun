@@ -136,9 +136,9 @@ class BaseMerger(abc.ABC):
                         index_columns_missing.append(index)
                 if not index_columns_missing:
                     if self.engine == "local" or self.engine == "spark":
-                        return df.set_index(self._index_columns)
+                        df.set_index(self._index_columns, inplace=True)
                     elif self.engine == "dask" and len(self._index_columns) == 1:
-                        return df.set_index(self._index_columns[0])
+                        df.set_index(self._index_columns[0], inplace=True)
                     else:
                         logger.info(
                             "The entities will stay as columns because "
@@ -149,7 +149,6 @@ class BaseMerger(abc.ABC):
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
-        return self._result_df
 
     @abc.abstractmethod
     def _generate_vector(
@@ -184,6 +183,7 @@ class BaseMerger(abc.ABC):
             if keys is not None:
                 keys.pop(0)
             else:
+                # keys can be multiple keys on each side of the join
                 keys = [[[], []]] * len(featureset_dfs)
             if all_columns is not None:
                 all_columns.pop(0)
@@ -193,8 +193,8 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
 
-        for i, featureset, featureset_df, lr_key, columns in zip(
-            range(len(featuresets)), featuresets, featureset_dfs, keys, all_columns
+        for featureset, featureset_df, lr_key, columns in zip(
+            featuresets, featureset_dfs, keys, all_columns
         ):
             if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
@@ -214,7 +214,6 @@ class BaseMerger(abc.ABC):
             # unpersist as required by the implementation (e.g. spark) and delete references
             # to dataframe to allow for GC to free up the memory (local, dask)
             self._unpersist_df(featureset_df)
-            featureset_dfs[i] = None
             del featureset_df
 
         self._result_df = merged_df
@@ -269,6 +268,7 @@ class BaseMerger(abc.ABC):
         def __init__(self, name: str, order: int, data=None):
             self.name = name
             self.data = data
+            # order of this feature_set in the original list
             self.order = order
             self.next = None
 
@@ -299,11 +299,12 @@ class BaseMerger(abc.ABC):
                 node = node.next
 
         def add_first(self, node):
-            node.next = self.head
-            self.head = node
-            self.len += 1
             if self.head is None:
                 self.head = node
+            else:
+                node.next = self.head
+                self.head = node
+            self.len += 1
 
         def add_last(self, node):
             if self.head is None:
@@ -314,18 +315,10 @@ class BaseMerger(abc.ABC):
             current_node.next = node
             self.len += 1
 
-        def add_after(self, target_node_name: str, new_node):
-            if self.head is None:
-                raise Exception("List is empty")
-
-            for node in self:
-                if node.name == target_node_name:
-                    new_node.next = node.next
-                    node.next = new_node
-                    self.len += 1
-                    return
-
-            raise Exception("Node with data '%s' not found" % target_node_name)
+        def add_after(self, target_node, new_node):
+            new_node.next = target_node.next
+            target_node.next = new_node
+            self.len += 1
 
         def find_node(self, target_node_name: str):
             if self.head is None:
@@ -335,20 +328,19 @@ class BaseMerger(abc.ABC):
                 if node.name == target_node_name:
                     return node
 
-        def concat(self, other, data_attributes: List[str]):
+        def concat(self, other: List[str]):
             other_iter = other.__iter__()
             other_head = other_iter.__next__()
             node = self.find_node(other_head.name)
             if node is None:
                 return
-            for atr in data_attributes:
-                node.data[atr] += other_head.data[atr]
+            node.data["save_cols"] += other_head.data["save_cols"]
             for other_node in other_iter:
                 if self.find_node(other_node.name) is None:
                     while node is not None and other_node.order > node.order:
                         node = node.next
                     if node:
-                        self.add_after(node.name, other_node)
+                        self.add_after(node, other_node)
                     else:
                         self.add_last(other_node)
                     node = other_node
@@ -468,7 +460,7 @@ class BaseMerger(abc.ABC):
         return_relation = link_list_iter.__next__()
         for relation_list in link_list_iter:
             if relation_list is not None:
-                return_relation.concat(relation_list, ["save_cols"])
+                return_relation.concat(relation_list)
         if return_relation.len != len(feature_set_objects):
             raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 

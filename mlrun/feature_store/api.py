@@ -145,7 +145,7 @@ def get_offline_features(
     :param engine:                  processing engine kind ("local", "dask", or "spark")
     :param engine_args:             kwargs for the processing engine
     :param query:                   The query string used to filter rows
-    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'outer'
+    :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
                                     indicate join type such as :
                                     * left: use only keys from left frame (SQL: left outer join)
                                     * right: use only keys from right frame (SQL: right outer join)

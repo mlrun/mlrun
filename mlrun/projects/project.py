@@ -1332,7 +1332,7 @@ class MlrunProject(ModelObj):
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
-        :param format:        optional, format to use (e.g. csv, parquet, ..)
+        :param format:        optional, format to use (`csv`, `parquet`, `pq`, `tsdb`, `kv`)
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
         :param preview:       number of lines to store as preview in the artifact metadata
         :param stats:         calculate and store dataset stats in the artifact metadata

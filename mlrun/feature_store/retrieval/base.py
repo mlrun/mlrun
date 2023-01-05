@@ -280,7 +280,7 @@ class BaseMerger(abc.ABC):
             return self.name == other.name
 
     class _LinkedList:
-        def __init__(self):
+        def __init__(self, head=None):
             self.head = None
             self.len = 0
 
@@ -348,6 +348,13 @@ class BaseMerger(abc.ABC):
 
     @staticmethod
     def _create_linked_relation_list(feature_set_objects, feature_set_fields):
+        if len(feature_set_objects) == 1:
+            return BaseMerger._LinkedList(head=BaseMerger._Node(name=feature_set_fields.keys()[0],order=1,                 data={
+                    "left_keys": [],
+                    "right_keys": [],
+                    "save_cols": [],
+                    "save_index": [],
+                }))
         relation_linked_lists = []
         feature_set_entity_list_dict = {
             name: feature_set_objects[name].spec.entities

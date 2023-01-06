@@ -114,6 +114,6 @@ See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRu
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2
-   - The window should be the sum of: consumer’s buffer size + MIF to r1 + MIF to r2. 
+   - The window should be the sum of: consumer’s buffer size + (_max in flight_ to r1) + (_max in flight_ to r2). 
 - If a graph includes: calling to remote r1 and r2 in parallel
-   - The window should be set to: consumer’s buffer size + max (MIF to r1, MIF to r2).
+   - The window should be set to: consumer’s buffer size + max (_max in flight_ to r1, _max in flight_ to r2).

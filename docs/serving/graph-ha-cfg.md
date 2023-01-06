@@ -39,9 +39,10 @@ The consumer function has one buffer per worker holding the incoming events that
 processed. Once this buffer is full, events need to be processed so that the function is able to receive more events. The buffer size is 
 configurable and is key to the overall configuration.
 
-The buffer should be as small as possible. There is a trade-off between the buffer size and the latency. A larger buffer has lower latency 
+The buffer, which represent the amount of messages, should be as small as possible. 
+There is a trade-off between the buffer size and the latency. A larger buffer has lower latency 
 but increases the recovery time after a failure, due to the high number of records that need to be reprocessed. </br>
-To set the buffer size: 
+To set the buffer size:
 
 `function.spec.parameters["source_args"] = {"buffer_size": 1}`
 

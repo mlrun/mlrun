@@ -92,6 +92,11 @@ def post_report_session_finish_to_slack(
 
     data = {"text": text, "attachments": []}
     for item, test_report in session.results.items():
+        # currently do not send information about passed tests
+        # it spams the slack channel and makes message big enough for API to allow it
+        if test_report.passed:
+            continue
+
         item: Function = item
         test_report: TestReport = test_report
         test_failed = test_report.failed

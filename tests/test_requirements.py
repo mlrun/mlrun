@@ -95,7 +95,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0, <1.8.14"},
         "botocore": {">=1.20.106,<1.20.107"},
         "aiobotocore": {"~=1.4.0"},
-        "storey": {"~=1.2.4"},
+        "storey": {"~=1.2.5"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
@@ -130,6 +130,7 @@ def test_requirement_specifiers_convention():
         "protobuf": {">=3.20.2, <4"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
+        "scikit-learn": {"~=1.0.0"},
     }
 
     for (

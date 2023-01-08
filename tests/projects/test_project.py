@@ -17,6 +17,7 @@ import pathlib
 import shutil
 import tempfile
 import zipfile
+from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import inflection
@@ -57,6 +58,24 @@ def test_sync_functions():
     mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
+
+
+def test_sync_functions_with_names_different_than_default():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+
+    describe_func = mlrun.import_function("hub://describe")
+    # set a different name than the default
+    project.set_function(describe_func, "new_describe_func")
+
+    project_function_object = project.spec._function_objects
+    project_function_definition = project.spec._function_definitions
+
+    # sync functions - expected to sync the function objects from the definitions
+    project.sync_functions()
+
+    assert project.spec._function_objects == project_function_object
+    assert project.spec._function_definitions == project_function_definition
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -615,3 +634,55 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
+
+
+@pytest.mark.parametrize(
+    "parameters,hyperparameters,expectation,run_saved",
+    [
+        (
+            {"x": 2**63},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        (
+            {"x": -(2**63)},
+            None,
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        ({"x": 2**63 - 1}, None, does_not_raise(), True),
+        ({"x": -(2**63) + 1}, None, does_not_raise(), True),
+        (
+            None,
+            {"x": [1, 2**63]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        (
+            None,
+            {"x": [1, -(2**63)]},
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+            False,
+        ),
+        (None, {"x": [3, 2**63 - 1]}, does_not_raise(), True),
+        (None, {"x": [3, -(2**63) + 1]}, does_not_raise(), True),
+    ],
+)
+def test_validating_large_int_params(
+    rundb_mock, parameters, hyperparameters, expectation, run_saved
+):
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    proj1 = mlrun.new_project("proj1", save=False)
+    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
+
+    rundb_mock.reset()
+    with expectation:
+        proj1.run_function(
+            "f1",
+            params=parameters,
+            hyperparams=hyperparameters,
+            local=True,
+        )
+
+    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)

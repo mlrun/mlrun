@@ -89,7 +89,7 @@ def init_repo(context, url, init_git):
 
 def new_project(
     name,
-    context=None,
+    context: str = "./",
     init_git: bool = False,
     user_project: bool = False,
     remote: str = None,
@@ -198,7 +198,7 @@ def new_project(
 
 
 def load_project(
-    context: str,
+    context: str = "./",
     url: str = None,
     name: str = None,
     secrets: dict = None,
@@ -235,13 +235,13 @@ def load_project(
 
     :returns: project object
     """
+    if not context:
+        raise ValueError("valid context (local dir path) must be provided")
 
     secrets = secrets or {}
     repo = None
     project = None
     name = _add_username_to_project_name_if_needed(name, user_project)
-    if not context:
-        raise ValueError("valid context (local dir path) must be provided")
 
     from_db = False
     if url:
@@ -291,7 +291,7 @@ def load_project(
 
 def get_or_create_project(
     name: str,
-    context: str,
+    context: str = "./",
     url: str = None,
     secrets: dict = None,
     init_git=False,
@@ -311,7 +311,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (Default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -324,7 +324,7 @@ def get_or_create_project(
     :param save:         whether to save the created project in the DB
     :returns: project object
     """
-
+    context = context or "./"
     try:
         # load project from the DB
         project = load_project(
@@ -357,7 +357,7 @@ def get_or_create_project(
                 user_project=user_project,
                 save=save,
             )
-            message = f"loaded project {name} from {url} or context"
+            message = f"loaded project {name} from {url or context}"
             if save:
                 message = f"{message} and saved in MLRun DB"
             logger.info(message)
@@ -1301,7 +1301,7 @@ class MlrunProject(ModelObj):
         labels=None,
         format="",
         preview=None,
-        stats=False,
+        stats=None,
         target_path="",
         extra_data=None,
         label_column: str = None,
@@ -1324,9 +1324,10 @@ class MlrunProject(ModelObj):
         :param key:           artifact key
         :param df:            dataframe object
         :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local file we upload, will also be use
-                              as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
+        :param local_path:    path to the local dataframe file that exists locally.
+                              The given file extension will be used to save the dataframe to a file
+                              If the file exists, it will be uploaded to the datastore instead of the given df.
+        :param artifact_path: target artifact path (when not using the default).
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
@@ -1649,7 +1650,7 @@ class MlrunProject(ModelObj):
     def get_function(
         self,
         key,
-        sync=True,
+        sync=False,
         enrich=False,
         ignore_cache=False,
         copy_function=True,
@@ -1657,7 +1658,7 @@ class MlrunProject(ModelObj):
         """get function object by name
 
         :param key:   name of key for search
-        :param sync:  will reload/reinit the function
+        :param sync:  will reload/reinit the function from the project spec
         :param enrich: add project info/config/source info to the function object
         :param ignore_cache: read the function object from the DB (ignore the local cache)
         :param copy_function: return a copy of the function object
@@ -1763,11 +1764,11 @@ class MlrunProject(ModelObj):
             if not f:
                 raise ValueError(f"function named {name} not found")
             if hasattr(f, "to_dict"):
-                name, func = _init_function_from_obj(f, self)
+                name, func = _init_function_from_obj(f, self, name)
             else:
                 if not isinstance(f, dict):
                     raise ValueError("function must be an object or dict")
-                name, func = _init_function_from_dict(f, self)
+                name, func = _init_function_from_dict(f, self, name)
             func.spec.build.code_origin = origin
             funcs[name] = func
             if save:
@@ -1936,6 +1937,7 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
+        overwrite: bool = False,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1964,6 +1966,7 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
         :returns: run id
         """
 
@@ -2003,6 +2006,7 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
+            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2031,12 +2035,16 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
         )
-        run_msg = f"started run workflow {name} "
         # run is None when scheduling
-        if run:
-            run_msg += f"with run id = '{run.run_id}' "
-        run_msg += f"by {workflow_engine.engine} engine"
-        logger.info(run_msg)
+        if (
+            run
+            and run.state != mlrun.run.RunStatuses.failed
+            and not workflow_spec.schedule
+        ):
+            # Failure and schedule messages already logged
+            logger.info(
+                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
+            )
         workflow_spec.clear_tmp()
         if watch and not workflow_spec.schedule:
             workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
@@ -2771,8 +2779,8 @@ class MlrunProjectLegacy(ModelObj):
             fp.write(self.to_yaml())
 
 
-def _init_function_from_dict(f, project):
-    name = f.get("name", "")
+def _init_function_from_dict(f, project, name=None):
+    name = name or f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
     image = f.get("image", None)

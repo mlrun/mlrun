@@ -11,7 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import json
 import os
+import urllib
 import warnings
 from collections import namedtuple
 from datetime import datetime
@@ -561,6 +564,22 @@ def is_iguazio_endpoint(endpoint_url: str) -> bool:
 def is_iguazio_session(value: str) -> bool:
     # TODO: find a better heuristic
     return len(value) > 20 and "-" in value
+
+
+def is_iguazio_session_cookie(session_cookie: str) -> bool:
+    if not session_cookie.strip():
+        return False
+
+    # decode url encoded cookie
+    # from: j%3A%7B%22sid%22%3A%20%22946b0749-5c40-4837-a4ac-341d295bfaf7%22%7D
+    # to:   j:{"sid":"946b0749-5c40-4837-a4ac-341d295bfaf7"}
+    try:
+        unqouted_cookie = urllib.parse.unquote(session_cookie.strip())
+        if not unqouted_cookie.startswith("j:"):
+            return is_iguazio_session(session_cookie)
+        return json.loads(unqouted_cookie[2:])["sid"] is not None
+    except Exception:
+        return False
 
 
 def is_iguazio_system_2_10_or_above(dashboard_url):

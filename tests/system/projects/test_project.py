@@ -516,7 +516,39 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         print("OUT:\n", out)
-        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        assert (
+            out.find("pipeline run finished, state=Succeeded") != -1
+        ), "pipeline failed"
+
+    def test_run_cli_watch_with_timeout(self):
+        name = "run-cli-watch-with-timeout"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # exec the workflow and set a short timeout, should fail
+        args = [
+            "--name",
+            name,
+            "--url",
+            "git://github.com/mlrun/project-demo.git",
+            "--run",
+            "main",
+            "--watch",
+            "--timeout 1",
+            "--ensure-project",
+            project_dir,
+        ]
+        out = exec_project(args)
+
+        print("OUT:\n", out)
+        assert (
+            out.find(
+                "Exception: failed to execute command by the given deadline. last_exception: "
+                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+            )
+            != -1
+        )
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)
@@ -574,3 +606,78 @@ class TestProject(TestMLRunSystem):
         project.set_secrets(file_path=env_file)
         secrets = db.list_project_secret_keys(name, provider="kubernetes")
         assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
+
+    def test_overwrite_schedule(self):
+        name = "overwrite-test"
+        project_dir = f"{projects_dir}/{name}"
+        workflow_name = "main"
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+        )
+
+        schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
+        # overwriting nothing
+        project.run(workflow_name, schedule=schedules[0], overwrite=True)
+        schedule = self._run_db.get_schedule(name, workflow_name)
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[0]
+        ), "Failed to overwrite nothing"
+
+        # overwriting schedule:
+        project.run(workflow_name, schedule=schedules[1], dirty=True, overwrite=True)
+        schedule = self._run_db.get_schedule(name, workflow_name)
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[1]
+        ), "Failed to overwrite existing schedule"
+
+        expected_error_message = (
+            f"There is already a schedule for workflow {workflow_name}."
+            f" If you want to overwrite this schedule use 'overwrite = True'"
+        )
+        # submit schedule when one exists without overwrite - fail:
+        with pytest.raises(
+            mlrun.errors.MLRunConflictError, match=expected_error_message
+        ):
+            project.run(
+                workflow_name,
+                schedule=schedules[1],
+                dirty=True,
+            )
+
+        # overwriting schedule from cli:
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "-os",  # stands for overwrite-schedule
+            "--schedule",
+            f"'{schedules[2]}'",
+        ]
+        exec_project(args)
+        schedule = self._run_db.get_schedule(name, workflow_name)
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[2]
+        ), "Failed to overwrite from CLI"
+
+        # without overwrite schedule from cli:
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--schedule",
+            f"'{schedules[1]}'",
+        ]
+        out = exec_project(args)
+        assert (
+            expected_error_message.replace("overwrite = True", "--overwrite-schedule")
+            in out
+        )

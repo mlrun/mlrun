@@ -218,6 +218,8 @@ class GraphServer(ModelObj):
             raise MLRunInvalidArgumentError(
                 "no models or steps were set, use function.set_topology() and add steps"
             )
+        if not method:
+            method = "POST" if body else "GET"
         event = MockEvent(
             body=body,
             path=path,
@@ -251,7 +253,7 @@ class GraphServer(ModelObj):
             try:
                 body = json.loads(event.body)
                 event.body = body
-            except json.decoder.JSONDecodeError as exc:
+            except (json.decoder.JSONDecodeError, UnicodeDecodeError) as exc:
                 if event.content_type in ["json", "application/json"]:
                     # if its json type and didnt load, raise exception
                     message = f"failed to json decode event, {exc}"

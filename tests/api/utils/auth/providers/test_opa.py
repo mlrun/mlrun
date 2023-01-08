@@ -58,15 +58,13 @@ async def opa_provider(
     mlrun.mlconf.httpdb.authorization.mode = "opa"
     provider = mlrun.api.utils.auth.providers.opa.Provider()
 
-    # closing the provider's session to avoid "unclosed session" warning on below reinit
-    await provider._session.close()
-
     # force running init again so the configured api url will be used
     provider.__init__()
     yield provider
 
     # explicitly closing the provider's session to avoid "unclosed session" warning between tests
-    await provider._session.close()
+    if provider._session:
+        await provider._session.close()
 
 
 @pytest.mark.asyncio

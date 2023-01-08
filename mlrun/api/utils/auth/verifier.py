@@ -70,7 +70,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info,
         )
 
-    def query_project_resources_permissions(
+    async def query_project_resources_permissions(
         self,
         resource_type: mlrun.api.schemas.AuthorizationResourceTypes,
         resources: typing.List,
@@ -79,20 +79,26 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-        allowed = True
-        # TODO: execute in parallel
-        for resource in resources:
-            project_name, resource_name = project_and_resource_name_extractor(resource)
-            resource_allowed = self.query_project_resource_permissions(
-                resource_type,
-                project_name,
-                resource_name,
-                action,
-                auth_info,
-                raise_on_forbidden,
+        project_resources = [
+            # project name, resource name
+            project_and_resource_name_extractor(resource)
+            for resource in resources
+        ]
+        return all(
+            await asyncio.gather(
+                *[
+                    self.query_project_resource_permissions(
+                        resource_type,
+                        project_resource[0],
+                        project_resource[1],
+                        action,
+                        auth_info,
+                        raise_on_forbidden,
+                    )
+                    for project_resource in project_resources
+                ]
             )
-            allowed = allowed and resource_allowed
-        return allowed
+        )
 
     def query_project_resource_permissions(
         self,

@@ -1516,6 +1516,7 @@ class SQLTarget(BaseStoreTarget):
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
+        time_fields: List[str] = None,
     ):
         """
         Write to SqlDB as output target for a flow.
@@ -1551,6 +1552,7 @@ class SQLTarget(BaseStoreTarget):
         :param create_table:                pass True if you want to create new table named by
                                             table_name with schema on current database.
         :param create_according_to_data:    (not valid)
+        :param time_fields :    all the field to be parsed as timestamp.
         """
         create_according_to_data = False  # TODO: open for user
         db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
@@ -1565,6 +1567,7 @@ class SQLTarget(BaseStoreTarget):
                 "db_path": db_path,
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
+                "time_fields": time_fields,
             }
             path = (
                 f"mlrunSql://@{db_path}//@{table_name}"
@@ -1661,13 +1664,11 @@ class SQLTarget(BaseStoreTarget):
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = db.create_engine(db_path)
         with engine.connect() as conn:
-            metadata = db.MetaData()
-            temp_table = db.Table(
-                table_name, metadata, autoload=True, autoload_with=engine
+            df = pd.read_sql(
+                f"SELECT * FROM {self.attributes.get('table_name')}",
+                con=conn,
+                parse_dates=self.attributes.get("time_fields"),
             )
-            results = conn.execute(db.select([temp_table])).fetchall()
-            conn.close()
-            df = pd.DataFrame(results, columns=temp_table.columns.keys())
             if self._primary_key_column:
                 df.set_index(self._primary_key_column, inplace=True)
             if columns:

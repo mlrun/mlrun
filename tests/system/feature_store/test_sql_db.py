@@ -142,7 +142,12 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             conn.close()
 
         # test source
-        source = SQLSource(table_name=source_name, db_path=self.db, key_field=key)
+        source = SQLSource(
+            table_name=source_name,
+            db_path=self.db,
+            key_field=key,
+            time_fields=["time"] if source_name == "quotes" else None,
+        )
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         one_hot_encoder_mapping = {
             encoder_col: list(origin_df[encoder_col].unique()),
@@ -173,7 +178,9 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             conn.close()
 
         # test source
-        source = SQLSource(table_name=source_name, db_path=self.db, key_field=key)
+        source = SQLSource(
+            table_name=source_name, db_path=self.db, key_field=key, time_fields=["time"]
+        )
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"
@@ -204,6 +211,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             create_table=True,
             schema=schema,
             primary_key_column=key,
+            time_fields=["time"],
         )
         feature_set = fs.FeatureSet(f"fs-{target_name}-tr", entities=[fs.Entity(key)])
         fs.ingest(feature_set, source=origin_df, targets=[target])
@@ -233,6 +241,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             db_path=self.db,
             create_table=False,
             primary_key_column=key,
+            time_fields=["time"] if target_name == "trades" else None,
         )
         feature_set = fs.FeatureSet(f"fs-{target_name}-tr", entities=[fs.Entity(key)])
         fs.ingest(feature_set, source=origin_df, targets=[target])
@@ -256,6 +265,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             create_table=True,
             schema=schema,
             primary_key_column=key,
+            time_fields=["time"],
         )
         feature_set = fs.FeatureSet(f"fs-{target_name}-tr", entities=[fs.Entity(key)])
         feature_set_ref = fs.FeatureSet(
@@ -301,7 +311,12 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             origin_df.to_sql(table_name, conn, if_exists="replace", index=False)
             conn.close()
 
-        source = SQLSource(table_name=table_name, db_path=self.db, key_field=key)
+        source = SQLSource(
+            table_name=table_name,
+            db_path=self.db,
+            key_field=key,
+            time_fields=["time"] if name == "trades" else None,
+        )
 
         target = SQLTarget(
             table_name=table_name,
@@ -309,6 +324,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             create_table=True,
             schema=schema,
             primary_key_column=key,
+            time_fields=["time"] if name == "trades" else None,
         )
 
         targets = [target]

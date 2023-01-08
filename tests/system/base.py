@@ -103,7 +103,7 @@ class TestMLRunSystem:
                 for fset in fsets:
                     fset.purge_targets()
 
-        self._delete_test_project()
+        # self._delete_test_project()
 
         self.custom_teardown()
 

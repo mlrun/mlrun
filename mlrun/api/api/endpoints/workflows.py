@@ -212,12 +212,13 @@ def submit_workflow(
 
 
 @router.get(
-    "/projects/{project}/{uid}", response_model=mlrun.api.schemas.GetWorkflowResponse
+    "/projects/{project}/{name}/{uid}",
+    response_model=mlrun.api.schemas.GetWorkflowResponse,
 )
 def get_workflow_id(
     project: str,
-    uid: str,
     name: str,
+    uid: str,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -236,8 +237,8 @@ def get_workflow_id(
     Supporting workflows that executed by the remote engine **only**.
 
     :param project:     name of the project
-    :param uid:         the id of the running job that runs the workflow
     :param name:        name of the workflow
+    :param uid:         the id of the running job that runs the workflow
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
 

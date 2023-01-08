@@ -737,6 +737,7 @@ class _RemoteRunner(_PipelineRunner):
             while not workflow_id:
                 workflow_id = run_db.get_workflow_id(
                     project=project.name,
+                    name=submit_workflow_result.name,
                     run_id=submit_workflow_result.run_id,
                 ).workflow_id
                 time.sleep(seconds)

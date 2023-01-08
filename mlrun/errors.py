@@ -98,7 +98,7 @@ def raise_for_status(
             error_message = f"{error_message}: {message}"
         status_code = (
             response.status_code
-            if isinstance(response, requests.Response)
+            if hasattr(response, "status_code")
             else response.status
         )
         try:

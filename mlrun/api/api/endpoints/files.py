@@ -65,9 +65,11 @@ async def get_files_with_project_secrets(
 
     secrets = {}
     if use_secrets:
-        secrets = _verify_and_get_project_secrets(project, auth_info)
+        secrets = await _verify_and_get_project_secrets(project, auth_info)
 
-    return _get_files(schema, objpath, user, size, offset, auth_info, secrets=secrets)
+    return await run_in_threadpool(
+        _get_files, schema, objpath, user, size, offset, auth_info, secrets=secrets
+    )
 
 
 @router.get("/filestat")

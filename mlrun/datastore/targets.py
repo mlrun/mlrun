@@ -1696,7 +1696,6 @@ class SQLTarget(BaseStoreTarget):
             create_according_to_data = bool(create_according_to_data)
             engine = db.create_engine(
                 db_path,
-                echo=True,
             )
             connection = engine.connect()
             if create_according_to_data:

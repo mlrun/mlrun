@@ -50,7 +50,7 @@ async def get_project_background_task(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return run_in_threadpool(
+    return await run_in_threadpool(
         mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
         db_session,
         name=name,
@@ -90,11 +90,11 @@ async def get_internal_background_task(
             internal_background_task=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return run_in_threadpool(
+        return await run_in_threadpool(
             chief_client.get_internal_background_task, name=name, request=request
         )
 
-    return run_in_threadpool(
+    return await run_in_threadpool(
         mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
         name=name,
     )

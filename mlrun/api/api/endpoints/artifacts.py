@@ -128,7 +128,7 @@ async def get_artifact(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = run_in_threadpool(
+    data = await run_in_threadpool(
         mlrun.api.crud.Artifacts().get_artifact,
         db_session,
         key,

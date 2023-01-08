@@ -112,7 +112,7 @@ async def get_function(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    func = run_in_threadpool(
+    func = await run_in_threadpool(
         mlrun.api.crud.Functions().get_function,
         db_session,
         name,

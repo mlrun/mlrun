@@ -727,7 +727,7 @@ async def store_feature_vector(
         auth_info, project, feature_vector.dict()
     )
     tag, uid = parse_reference(reference)
-    uid = run_in_threadpool(
+    uid = await run_in_threadpool(
         mlrun.api.crud.FeatureStore().store_feature_vector,
         db_session,
         project,
@@ -738,7 +738,7 @@ async def store_feature_vector(
         versioned,
     )
 
-    return run_in_threadpool(
+    return await run_in_threadpool(
         mlrun.api.crud.FeatureStore().get_feature_vector,
         db_session,
         project,

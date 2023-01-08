@@ -929,8 +929,10 @@ class SQLSource(BaseSourceDriver):
             engine = db.create_engine(db_path)
             with engine.connect() as con:
                 return pd.read_sql(
-                    query, con=con, chunksize=self.attributes.get("chunksize"),
-                    parse_dates=self.attributes.get("time_fields")
+                    query,
+                    con=con,
+                    chunksize=self.attributes.get("chunksize"),
+                    parse_dates=self.attributes.get("time_fields"),
                 )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

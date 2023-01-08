@@ -1250,6 +1250,9 @@ class HTTPRunDB(RunDBInterface):
                 func.status.external_invocation_urls = resp.headers.get(
                     "x-mlrun-external-invocation-urls", ""
                 ).split(",")
+                func.status.container_image = resp.headers.get(
+                    "x-mlrun-container-image", ""
+                )
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")

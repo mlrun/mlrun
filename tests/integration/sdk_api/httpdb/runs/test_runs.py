@@ -20,6 +20,7 @@ import pytest
 import mlrun
 import mlrun.api.schemas
 import tests.integration.sdk_api.base
+from tests.conftest import examples_path
 
 
 class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
@@ -171,6 +172,27 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         for run in runs:
             assert run["metadata"]["uid"] in uid_list
             uid_list.remove(run["metadata"]["uid"])
+
+    def test_job_file(self):
+        filename = f"{examples_path}/training.py"
+        fn = mlrun.code_to_function(filename=filename, kind="job")
+        assert fn.kind == "job", "kind not set, test failed"
+        assert fn.spec.build.functionSourceCode, "code not embedded"
+        assert fn.spec.build.origin_filename == filename, "did not record filename"
+        assert type(fn.metadata.labels) == dict, "metadata labels were not set"
+        run = fn.run(workdir=str(examples_path), local=True)
+
+        project, uri, tag, hash_key = mlrun.utils.parse_versioned_object_uri(
+            run.spec.function
+        )
+        local_fn = mlrun.get_run_db().get_function(
+            uri, project, tag=tag, hash_key=hash_key
+        )
+        assert local_fn["spec"]["command"] == filename, "wrong command path"
+        assert (
+            local_fn["spec"]["build"]["functionSourceCode"]
+            == fn.spec.build.functionSourceCode
+        ), "code was not copied to local function"
 
 
 def _list_and_assert_objects(expected_number_of_runs: int, **kwargs):

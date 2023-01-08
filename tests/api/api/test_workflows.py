@@ -29,7 +29,7 @@ def _create_proj_with_workflow(client: TestClient):
         metadata=mlrun.api.schemas.ProjectMetadata(name=PROJECT_NAME),
         spec=mlrun.api.schemas.ProjectSpec(
             description="banana",
-            source="source",
+            source="://source",
             goals="some goals",
             workflows=[{"name": WORKFLOW_NAME}],
         ),
@@ -44,7 +44,7 @@ def test_workflow_does_not_exist(db: Session, client: TestClient):
     resp = client.post(f"projects/{PROJECT_NAME}/workflows/{wrong_name}/submit")
     assert (
         resp.json()["detail"]["reason"]["reason"]
-        == f"{wrong_name} workflow not found in project"
+        == f"workflow {wrong_name} not found in project"
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 

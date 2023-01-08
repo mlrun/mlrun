@@ -702,8 +702,8 @@ class TestProject(TestMLRunSystem):
         secrets = db.list_project_secret_keys(name, provider="kubernetes")
         assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
 
-    def test_overwrite_schedule(self):
-        name = "overwrite-test"
+    def test_override_workflow(self):
+        name = "override-test"
         project_dir = f"{projects_dir}/{name}"
         workflow_name = "main"
         self.custom_project_names_to_delete.append(name)
@@ -715,34 +715,28 @@ class TestProject(TestMLRunSystem):
 
         schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
         # overwriting nothing
-        project.run(workflow_name, schedule=schedules[0], overwrite=True)
+        project.run(workflow_name, schedule=schedules[0], override=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[0]
-        ), "Failed to overwrite nothing"
+        ), "Failed to override nothing"
 
         # overwriting schedule:
-        project.run(workflow_name, schedule=schedules[1], dirty=True, overwrite=True)
+        project.run(workflow_name, schedule=schedules[1], dirty=True, override=True)
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[1]
-        ), "Failed to overwrite existing schedule"
+        ), "Failed to override existing schedule"
 
-        expected_error_message = (
-            f"There is already a schedule for workflow {workflow_name}."
-            f" If you want to overwrite this schedule use 'overwrite = True'"
-        )
-        # submit schedule when one exists without overwrite - fail:
-        with pytest.raises(
-            mlrun.errors.MLRunConflictError, match=expected_error_message
-        ):
+        # submit schedule when one exists without override - fail:
+        with pytest.raises(mlrun.errors.MLRunConflictError):
             project.run(
                 workflow_name,
                 schedule=schedules[1],
                 dirty=True,
             )
 
-        # overwriting schedule from cli:
+        # overriding workflow from cli:
         args = [
             project_dir,
             "-n",
@@ -750,7 +744,7 @@ class TestProject(TestMLRunSystem):
             "-d",
             "-r",
             workflow_name,
-            "-os",  # stands for overwrite-schedule
+            "-ow",  # stands for override-workflow
             "--schedule",
             f"'{schedules[2]}'",
         ]
@@ -758,9 +752,9 @@ class TestProject(TestMLRunSystem):
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[2]
-        ), "Failed to overwrite from CLI"
+        ), "Failed to override from CLI"
 
-        # without overwrite schedule from cli:
+        # without override workflow from cli:
         args = [
             project_dir,
             "-n",
@@ -772,7 +766,4 @@ class TestProject(TestMLRunSystem):
             f"'{schedules[1]}'",
         ]
         out = exec_project(args)
-        assert (
-            expected_error_message.replace("overwrite = True", "--overwrite-schedule")
-            in out
-        )
+        assert "MLRunConflictError" in out

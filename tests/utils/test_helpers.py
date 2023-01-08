@@ -214,8 +214,9 @@ def test_extend_hub_uri():
 )
 def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
     regex_str = get_regex_list_as_string(regex_list)
+    assert expected_str == regex_str
     match = re.match(regex_str, value)
-    assert expected_str == regex_str and match if expected else match is None
+    assert match if expected else match is None
 
 
 @pytest.mark.parametrize(

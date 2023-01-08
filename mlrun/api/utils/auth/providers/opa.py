@@ -35,9 +35,7 @@ class Provider(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session = mlrun.utils.AsyncClientWithRetry(
-            logger=logger,
-        )
+        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path
@@ -210,7 +208,7 @@ class Provider(
         url = f"{self._api_url}{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self._request_timeout
-
+        await self._ensure_session()
         async with self._session.request(
             method, url, verify_ssl=False, **kwargs
         ) as response:
@@ -257,3 +255,9 @@ class Provider(
             },
         }
         return body
+
+    async def _ensure_session(self):
+        if not self._session:
+            self._session = mlrun.utils.AsyncClientWithRetry(
+                logger=logger,
+            )

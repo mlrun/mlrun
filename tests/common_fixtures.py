@@ -60,7 +60,7 @@ def config_test_base():
     Path(f"{results}/kfp").mkdir(parents=True, exist_ok=True)
 
     environ["PYTHONPATH"] = root_path
-    # environ["MLRUN_DBPATH"] = rundb_path
+    environ["MLRUN_DBPATH"] = rundb_path
     environ["MLRUN_httpdb__dirpath"] = rundb_path
     environ["MLRUN_httpdb__logs_path"] = logs_path
     environ["MLRUN_httpdb__projects__periodic_sync_interval"] = "0 seconds"
@@ -182,6 +182,7 @@ class RunDBMock:
         self._pipeline = None
         self._function = None
         self._artifacts = {}
+        self._project_name = None
 
     def reset(self):
         self._function = None

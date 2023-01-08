@@ -26,4 +26,4 @@ from .runs import Runs  # noqa: F401
 from .runtime_resources import RuntimeResources  # noqa: F401
 from .secrets import Secrets, SecretsClientType  # noqa: F401
 from .tags import Tags  # noqa: F401
-from .workflows import Workflows  # noqa: F401
+from .workflows import WorkflowRunners  # noqa: F401

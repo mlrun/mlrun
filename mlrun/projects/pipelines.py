@@ -73,7 +73,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
-        overwrite: bool = None,
+        override: bool = None,
     ):
         self.engine = engine
         self.code = code
@@ -86,7 +86,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
-        self.overwrite = overwrite
+        self.override = override
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -710,78 +710,13 @@ class _RemoteRunner(_PipelineRunner):
         workflow_name = (
             name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         )
-        runner_name = f"workflow-runner-{workflow_name}"
-        workflow_id = None
-
-        # Creating the load project and workflow running function:
-        load_and_run_fn = mlrun.new_function(
-            name=runner_name,
-            project=project.name,
-            kind="job",
-            image=mlrun.mlconf.default_base_image,
-        )
-
-        runspec = mlrun.RunObject(
-            spec=mlrun.model.RunSpec(
-                parameters={
-                    "url": project.spec.source,
-                    "project_name": project.name,
-                    "workflow_name": workflow_name or workflow_spec.name,
-                    "workflow_path": workflow_spec.path,
-                    "workflow_arguments": workflow_spec.args,
-                    "artifact_path": artifact_path,
-                    "workflow_handler": workflow_handler or workflow_spec.handler,
-                    "namespace": namespace,
-                    "ttl": workflow_spec.ttl,
-                    "engine": workflow_spec.engine,
-                    "local": workflow_spec.run_local,
-                    "schedule": workflow_spec.schedule,
-                },
-                handler="mlrun.projects.load_and_run",
-            ),
-            metadata=mlrun.model.RunMetadata(name=workflow_name),
-        )
-
-        runspec = runspec.set_label("job-type", "workflow-runner").set_label(
-            "workflow", workflow_name
-        )
-        if workflow_spec.schedule:
-            is_scheduled = True
-            schedule_name = runspec.spec.parameters.get("workflow_name")
-            run_db = mlrun.get_run_db()
-
-            try:
-                run_db.get_schedule(project.name, schedule_name)
-            except mlrun.errors.MLRunNotFoundError:
-                is_scheduled = False
-
-            if workflow_spec.overwrite:
-                if is_scheduled:
-                    logger.info(f"Deleting schedule {schedule_name}")
-                    run_db.delete_schedule(project.name, schedule_name)
-                else:
-                    logger.info(
-                        f"No schedule by name '{schedule_name}' was found, nothing to overwrite."
-                    )
-            elif is_scheduled:
-                raise mlrun.errors.MLRunConflictError(
-                    f"There is already a schedule for workflow {schedule_name}."
-                    " If you want to overwrite this schedule use 'overwrite = True'"
-                )
-
-        msg = "executing workflow "
-        if workflow_spec.schedule:
-            msg += "scheduling "
-        logger.info(f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine")
-        
-        run_db = mlrun.get_run_db()
-        msg = "executing workflow "
-        if workflow_spec.schedule:
-            msg += "scheduling "
+        start_message = "scheduling" if workflow_spec.schedule else "running"
         logger.info(
-            f"{msg}'{runner_name}' remotely with {workflow_spec.engine} engine"
+            f"{start_message} '{workflow_name}' remotely with {workflow_spec.engine} engine"
         )
 
+        workflow_id = None
+        run_db = mlrun.get_run_db()
         try:
             submit_workflow_result = run_db.submit_workflow(
                 project=project.name,
@@ -789,9 +724,10 @@ class _RemoteRunner(_PipelineRunner):
                 workflow_spec=workflow_spec.to_dict(),
                 artifact_path=artifact_path,
                 source=project.spec.source,
-                run_name=runner_name,
                 namespace=namespace,
             )
+            if submit_workflow_result.status == "scheduled":
+                return
 
             project.notifiers.push_pipeline_start_message(
                 project.metadata.name,
@@ -832,24 +768,6 @@ class _RemoteRunner(_PipelineRunner):
                 workflow=workflow_spec,
                 state=state,
             )
-
-    @staticmethod
-    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        # The returned engine for this run is the engine of the workflow.
-        # So the right function will be invoked (another runner).
-        pass
-
-    @staticmethod
-    def get_run_status(
-        project,
-        run: _PipelineRunStatus,
-        timeout=None,
-        expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
-    ):
-        # The returned engine for this run is the engine of the workflow.
-        # So the right function will be invoked (another runner).
-        pass
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -950,6 +868,7 @@ def load_and_run(
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
     if load_only:
+        project.sync_functions(save=True)
         return
 
     workflow_log_message = workflow_name or workflow_path

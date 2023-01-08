@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, List, Optional, Union
+import uuid
+from typing import List, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -23,169 +24,296 @@ from mlrun.api.api.utils import (
     get_run_db_instance,
     get_scheduler,
 )
+from mlrun.config import config
+from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
+from mlrun.utils import logger
 
 
-class Workflows(
+class WorkflowRunners(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    def create_function(
-        self,
+    @staticmethod
+    def create_runner(
         run_name: str,
+        project: str,
         db_session: Session,
         auth_info: mlrun.api.schemas.AuthInfo,
-        project: str = None,
-        access_key: str = None,
-        **kwargs,
-    ):
-        _function = mlrun.new_function(name=run_name, project=project, **kwargs)
+    ) -> mlrun.run.KubejobRuntime:
+        """
+        Creating the base object for the workflow runner function with
+        all the necessary metadata to create it on server-side.
 
-        run_db = get_run_db_instance(db_session)
-        _function.set_db_connection(run_db)
+        :param run_name:    workflow-runner function name
+        :param project:     project name
+        :param db_session:  session that manages the current dialog with the database
+        :param auth_info:   auth info of the request
 
-        if access_key:
-            _function.metadata.credentials.access_key = access_key
+        :returns: workflow runner object
+        """
+        runner = mlrun.new_function(
+            name=run_name,
+            project=project,
+            kind=mlrun.runtimes.RuntimeKinds.job,
+            # For preventing deployment
+            image=mlrun.mlconf.default_base_image,
+        )
+
+        runner.set_db_connection(get_run_db_instance(db_session))
+
+        # Enrichment and validation requires access key
+        runner.metadata.credentials.access_key = Credentials.generate_access_key
 
         apply_enrichment_and_validation_on_function(
-            function=_function,
+            function=runner,
             auth_info=auth_info,
         )
 
-        _function.save()
-        return _function
+        runner.save()
+        return runner
 
-    def execute_function(
+    def schedule(
         self,
-        function: mlrun.runtimes.BaseRuntime,
-        project: Union[str, mlrun.api.schemas.Project],
-        load_only: bool = False,
+        runner: mlrun.run.KubejobRuntime,
+        project: mlrun.api.schemas.Project,
+        workflow_request: mlrun.api.schemas.WorkflowRequest,
         db_session: Session = None,
         auth_info: mlrun.api.schemas.AuthInfo = None,
-        **kwargs,
     ):
-        run_kwargs = kwargs.pop("run_kwargs", {})
-        workflow_spec = kwargs.get("workflow_spec")
-        kwargs["project"] = project
-        if load_only:
-            runspec = _create_run_object(
-                runspec_function=_create_run_object_for_load_project,
-                labels=[("job-type", "project-loader"), ("project", project)],
-                **kwargs,
+        """
+        Schedule workflow runner.
+
+        :param runner:              workflow runner function object
+        :param project:             MLRun project
+        :param workflow_request:    contains the workflow spec, that will be scheduled
+        :param db_session:          session that manages the current dialog with the database
+        :param auth_info:           auth info of the request
+        """
+        labels = [
+            ("job-type", "workflow-runner"),
+            ("workflow", workflow_request.spec.name),
+        ]
+
+        run_spec = self._prepare_run_object_for_scheduling(
+            project=project,
+            workflow_request=workflow_request,
+            run_name=runner.metadata.name,
+            labels=labels,
+        )
+        schedule = workflow_request.spec.schedule
+        scheduled_object = {
+            "task": run_spec.to_dict(),
+            "schedule": schedule,
+        }
+
+        if workflow_request.spec.override:
+            logger.info(f"Deleting schedule {runner.metadata.name}")
+            get_scheduler().update_schedule(
+                db_session=db_session,
+                auth_info=auth_info,
+                project=project.metadata.name,
+                name=runner.metadata.name,
+                scheduled_object=scheduled_object,
+                cron_trigger=schedule,
+                labels=runner.metadata.labels,
             )
-        else:
 
-            workflow_name = kwargs.get("workflow_name") or workflow_spec.name
-
-            runspec = _create_run_object(
-                runspec_function=_create_run_object_for_workflow_runner,
-                labels=[("job-type", "workflow-runner"), ("workflow", workflow_name)],
-                **kwargs,
-            )
-
-        if workflow_spec and workflow_spec.schedule:
-            # Creating scheduled object:
-            scheduled_object = {
-                "task": runspec.to_dict(),
-                "schedule": workflow_spec.schedule,
-            }
-            # Creating schedule:
+        try:
             get_scheduler().create_schedule(
                 db_session=db_session,
                 auth_info=auth_info,
                 project=project.metadata.name,
-                name=function.metadata.name,
+                name=runner.metadata.name,
                 kind=mlrun.api.schemas.ScheduleKinds.job,
                 scheduled_object=scheduled_object,
-                cron_trigger=workflow_spec.schedule,
-                labels=function.metadata.labels,
+                cron_trigger=schedule,
+                labels=runner.metadata.labels,
             )
+        except mlrun.errors.MLRunConflictError:
+            raise mlrun.errors.MLRunConflictError(
+                f"There is already a schedule for workflow {runner.metadata.name}."
+                " If you want to override this schedule use override=True (SDK) or --override-workflow"
+            )
+
+    def run(
+        self,
+        runner: mlrun.run.KubejobRuntime,
+        project: mlrun.api.schemas.Project,
+        workflow_request: mlrun.api.schemas.WorkflowRequest = None,
+        load_only: bool = False,
+    ) -> RunObject:
+        """
+        Run workflow runner.
+
+        :param runner:              workflow runner function object
+        :param project:             MLRun project
+        :param workflow_request:    contains the workflow spec, that will be executed
+        :param load_only:           If True, will only load the project remotely (without running workflow)
+
+        :returns: run context object (RunObject) with run metadata, results and status
+        """
+        if load_only:
+            labels = [
+                ("job-type", "project-loader"),
+                ("project", project.metadata.name),
+            ]
         else:
-            run_kwargs["artifact_path"] = kwargs.get("artifact_path", "")
-            return function.run(runspec=runspec, **run_kwargs)
+            labels = [
+                ("job-type", "workflow-runner"),
+                ("workflow", runner.metadata.name),
+            ]
 
+        run_spec = self._prepare_run_object_for_single_run(
+            project=project,
+            labels=labels,
+            workflow_request=workflow_request,
+            run_name=runner.metadata.name,
+            load_only=load_only,
+        )
 
-def _create_run_object(
-    runspec_function,
-    labels: List = None,
-    **kwargs,
-):
-    runspec = runspec_function(**kwargs)
-    if isinstance(runspec, tuple):
-        spec, metadata = runspec
-    else:
-        spec, metadata = runspec, None
+        return runner.run(
+            runspec=run_spec,
+            artifact_path=workflow_request.artifact_path or "",
+            local=False,
+        )
 
-    run_object = {"spec": spec}
-    if metadata:
-        run_object["metadata"] = metadata
+    @staticmethod
+    def _label_run_object(
+        run_object: mlrun.run.RunObject,
+        labels: List[Tuple[str, str]],
+    ) -> mlrun.run.RunObject:
+        """
+        Setting labels to the task
 
-    # Creating object:
-    run_object = mlrun.RunObject.from_dict(run_object)
+        :param run_object:  run object to set labels on
+        :param labels:      list that contains pairs of label keys and label values
 
-    # Setting labels:
-    if labels:
+        :returns: labeled RunObject
+        """
         for key, value in labels:
             run_object = run_object.set_label(key, value)
-    return run_object
+        return run_object
 
+    @staticmethod
+    def _set_source(project: mlrun.api.schemas.Project, source: str) -> bool:
+        """
+        Setting the project source.
+        In case the user provided a source we want to load the project from the source
+        (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
 
-def _create_run_object_for_workflow_runner(
-    project,
-    workflow_spec,
-    artifact_path: Optional[str] = None,
-    namespace: Optional[str] = None,
-    workflow_name: Optional[str] = None,
-    workflow_handler: Union[str, Callable] = None,
-    **kwargs,
-):
-    """
-    Creating run object for the load_and_run function.
+        :param project: MLRun project
+        :param source:  the source of the project, needs to be a remote URL that contains the project yaml file.
 
-    :param project:             project object that matches the workflow
-    :param workflow_spec:       spec of the workflow to run
-    :param artifact_path:       artifact path target for the run
-    :param namespace:           kubernetes namespace if other than default
-    :param workflow_name:       name of the workflow to override the one in the workflow spec.
-    :param workflow_handler:    handler of the workflow to override the one in the workflow spec.
-    :param kwargs:              dictionary with "spec" and "metadata" keys with dictionaries as values that are
-                                corresponding to the keys.
+        :returns: True if the project need to be saved afterwards.
+        """
 
-    :return:    a RunObject with the desired spec and metadata with labels.
-    """
-    spec_kwargs = kwargs.get("spec") if kwargs else {}
-    metadata_kwargs = kwargs.get("metadata") if kwargs else {}
+        save = True
+        if source:
+            save = False
+            project.spec.source = source
 
-    spec = {
-        "parameters": {
-            "url": project.spec.source,
-            "project_name": project.metadata.name,
-            "workflow_name": workflow_name or workflow_spec.name,
-            "workflow_path": workflow_spec.path,
-            "workflow_arguments": workflow_spec.args,
-            "artifact_path": artifact_path,
-            "workflow_handler": workflow_handler or workflow_spec.handler,
-            "namespace": namespace,
-            "ttl": workflow_spec.ttl,
-            "engine": workflow_spec.engine,
-            "local": workflow_spec.run_local,
-        },
-        "handler": "mlrun.projects.load_and_run",
-    }
-    metadata = {"name": workflow_name}
-    spec.update(spec_kwargs)
-    metadata.update(metadata_kwargs)
-    return spec, metadata
+        if "://" not in project.spec.source:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"remote workflows can only be performed by a project with remote source,"
+                f" the given source '{project.spec.source}' is not remote"
+            )
+        return save
 
+    def _prepare_run_object_for_scheduling(
+        self,
+        project: mlrun.api.schemas.Project,
+        workflow_request: mlrun.api.schemas.WorkflowRequest,
+        run_name: str,
+        labels: List[Tuple[str, str]],
+    ) -> mlrun.run.RunObject:
+        """
+        Preparing all the necessary metadata and specifications for scheduling workflow from server-side.
 
-def _create_run_object_for_load_project(
-    project,
-    source,
-):
-    spec = {
-        "parameters": {
-            "url": source,
-            "project_name": project,
-            "load_only": True,
-        },
-        "handler": "mlrun.projects.load_and_run",
-    }
-    return spec
+        :param project:             MLRun project
+        :param workflow_request:    contains the workflow spec and extra data for the run object
+        :param run_name:            workflow-runner function name
+        :param labels:              pairs of label keys and label values for the task
+
+        :returns: RunObject ready for schedule.
+        """
+        meta_uid = uuid.uuid4().hex
+
+        save = self._set_source(project, workflow_request.source)
+        workflow_spec = workflow_request.spec
+        run_object = RunObject(
+            spec=RunSpec(
+                parameters={
+                    "url": project.spec.source,
+                    "project_name": project.metadata.name,
+                    "workflow_name": workflow_spec.name,
+                    "workflow_path": workflow_spec.path,
+                    "workflow_arguments": workflow_spec.args,
+                    "artifact_path": workflow_request.artifact_path,
+                    "workflow_handler": workflow_spec.handler,
+                    "namespace": workflow_request.namespace,
+                    "ttl": workflow_spec.ttl,
+                    "engine": workflow_spec.engine,
+                    "local": workflow_spec.run_local,
+                    "save": save,
+                },
+                handler="mlrun.projects.load_and_run",
+                scrape_metrics=config.scrape_metrics,
+                output_path=(
+                    workflow_request.artifact_path or config.artifact_path
+                ).replace("{{run.uid}}", meta_uid),
+            ),
+            metadata=RunMetadata(
+                uid=meta_uid, name=run_name, project=project.metadata.name
+            ),
+        )
+
+        # Setting labels:
+        return self._label_run_object(run_object, labels)
+
+    def _prepare_run_object_for_single_run(
+        self,
+        project: mlrun.api.schemas.Project,
+        labels: List,
+        workflow_request: mlrun.api.schemas.WorkflowRequest = None,
+        run_name: str = None,
+        load_only: bool = False,
+    ) -> mlrun.run.RunObject:
+        """
+        Preparing all the necessary metadata and specifications for running workflow from server-side.
+
+        :param project:             MLRun project
+        :param labels:              pairs of label keys and label values for the task
+        :param workflow_request:    contains the workflow spec and extra data for the run object
+        :param run_name:            workflow-runner function name
+        :param load_only:           if True, will only load the project remotely (without running workflow)
+
+        :returns: RunObject ready for execution.
+        """
+        run_object = RunObject(
+            spec=RunSpec(
+                parameters={
+                    "url": project.spec.source,
+                    "project_name": project.metadata.name,
+                    "load_only": load_only,
+                },
+                handler="mlrun.projects.load_and_run",
+            ),
+            metadata=RunMetadata(name=run_name),
+        )
+        workflow_spec = workflow_request.spec
+        if not load_only:
+            run_object.spec.parameters.update(
+                {
+                    "workflow_name": run_name,
+                    "workflow_path": workflow_spec.path,
+                    "workflow_arguments": workflow_spec.args,
+                    "artifact_path": workflow_request.artifact_path,
+                    "workflow_handler": workflow_spec.handler,
+                    "namespace": workflow_request.namespace,
+                    "ttl": workflow_spec.ttl,
+                    "engine": workflow_spec.engine,
+                    "local": workflow_spec.run_local,
+                }
+            )
+
+        # Setting labels:
+        return self._label_run_object(run_object, labels)

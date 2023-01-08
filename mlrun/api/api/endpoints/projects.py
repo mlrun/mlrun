@@ -23,6 +23,7 @@ import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.utils import logger
@@ -320,12 +321,11 @@ async def get_project_summary(
     return project_summary
 
 
-@router.post(
-    "/projects/{project}/load",
-)
-def load_project(
-    project: str,
-    source: str,
+@router.post("/projects/{name}/load", response_model=mlrun.api.schemas.BackgroundTask)
+async def load_project(
+    name: str,
+    url: str,
+    background_tasks: fastapi.BackgroundTasks,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -334,45 +334,83 @@ def load_project(
     ),
 ):
     """
-    :param project:     project name
-    :param source:      name (in DB) or git or tar.gz or .zip sources archive path e.g.:
-                        git://github.com/mlrun/demo-xgb-project.git
-                        http://mysite/archived-project.zip
-                        <project-name>
-                        The git project should include the project yaml file.
-    :param auth_info:   auth info of the request
-    :param db_session:  session that manages the current dialog with the database
-    :returns:    The project object.
+    Loading a project remotely from a given source.
+
+    :param name:                project name
+    :param url:                 git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                The git project should include the project yaml file.
+    :param background_tasks:    injected automatically by fastapi
+    :param auth_info:           auth info of the request
+    :param db_session:          session that manages the current dialog with the database
+
+    :returns: a BackgroundTask object, with details on execution process and its status
     """
+    project = mlrun.api.schemas.Project(
+        metadata=mlrun.api.schemas.ProjectMetadata(name=name),
+        spec=mlrun.api.schemas.ProjectSpec(source=url),
+    )
+
+    # We must store the project before we run the remote load_project function because
+    # we want this function will be running under the project itself instead of the default project.
+    project, is_running_in_background = get_project_member().store_project(
+        db_session,
+        name,
+        project,
+        auth_info.projects_role,
+        auth_info.session,
+    )
+
     # Creating the auxiliary function for loading the project:
-    load_project_fn = mlrun.api.crud.Workflows().create_function(
-        run_name=f"load-project-{project}",
-        kind=mlrun.runtimes.RuntimeKinds.job,
-        # For preventing deployment
-        image=mlrun.mlconf.default_base_image,
+    load_project_runner = mlrun.api.crud.WorkflowRunners().create_runner(
+        run_name=f"load-{name}",
+        project=name,
         db_session=db_session,
         auth_info=auth_info,
-        # Enrichment and validation requires an access key.
-        access_key=mlrun.model.Credentials.generate_access_key,
     )
 
     logger.debug(
         "saved function for loading project",
-        project_name=project,
-        function_name=load_project_fn.metadata.name,
-        kind=load_project_fn.kind,
+        project_name=name,
+        function_name=load_project_runner.metadata.name,
+        kind=load_project_runner.kind,
+        source=project.spec.source,
     )
 
-    mlrun.api.crud.Workflows().execute_function(
-        function=load_project_fn,
+    background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
+
+    background_task = await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
+        name,
+        background_tasks,
+        _run_load_project,
+        background_timeout,
+        # arguments for execute_function
+        load_project_runner,
+        project,
+    )
+
+    return background_task
+
+
+def _run_load_project(
+    load_project_runner: mlrun.run.KubejobRuntime,
+    project: mlrun.api.schemas.Project,
+):
+    """
+    Wrapper function to load project for running as a background task
+
+    :param load_project_runner: load project function runner object
+    :param project:             MLRun project
+
+    :returns: run context object (RunObject) with run metadata, results and status
+    """
+    return mlrun.api.crud.WorkflowRunners().run(
+        runner=load_project_runner,
         project=project,
-        source=source,
         load_only=True,
-    )
-
-    project = get_project_member().get_project(db_session, project, auth_info.session)
-    return mlrun.api.schemas.Project(
-        project=project,
     )
 
 

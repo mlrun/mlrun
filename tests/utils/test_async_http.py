@@ -14,94 +14,89 @@
 #
 
 import http.server
-import threading
+import typing
 from unittest import mock
 
+import aioresponses
 import pytest
-from aiohttp import (
-    ClientConnectorError,
-    ClientResponse,
-    ClientResponseError,
-    ServerDisconnectedError,
-)
+from aiohttp import ClientConnectorError, ServerDisconnectedError
 
-from mlrun.errors import MLRunHTTPError
-from mlrun.errors import raise_for_status as mlrun_raise_for_status
 from mlrun.utils.async_http import AsyncClientWithRetry
-from mlrun.utils.logger import create_logger
 
 
 @pytest.fixture
 async def async_client():
     async with AsyncClientWithRetry() as client:
-        client._client.request = mock.AsyncMock()
-        return client
-
-
-@pytest.fixture
-def httpd_on_demand():
-    httpd_on_demand = HTTPDaemonOnDemand()
-    yield httpd_on_demand
-    httpd_on_demand.close()
+        yield client
 
 
 @pytest.mark.asyncio
-async def test_retry_exceptions(httpd_on_demand: "HTTPDaemonOnDemand"):
-    retry_counter = 0
-
-    def wrap_real_request(client_):
-        def handle_request(*args, **kwargs):
-            nonlocal retry_counter
-            retry_counter += 1
-            return real_handle_request(*args, **kwargs)
-
-        real_handle_request = client_._client.request
-        client_._client.request = handle_request
-
-    async with AsyncClientWithRetry(
-        read_timeout=10,
-        conn_timeout=10,
-    ) as client:
-        wrap_real_request(client)
-
-        # Case - Server was not started, expect it to refuse our connection
-        with pytest.raises(ClientConnectorError) as exc:
-            await client.get(f"http://localhost:{httpd_on_demand.port}")
-        assert retry_counter == 3, "should have retried 3 times"
-        assert exc.value.os_error.errno == 61, "expected connection refused"
-
-        # starting the server
-        httpd_on_demand.start()
-
-        # Case - Server is started, but it's not responding, or closing the connection prematurely
-        # reset counter
-        retry_counter = 0
-        with pytest.raises(ServerDisconnectedError) as exc:
-            await client.get(
-                f"http://localhost:{httpd_on_demand.port}",
-                headers={
-                    "x-action": "close",
-                },
+@pytest.mark.parametrize(
+    "exception",
+    [
+        ClientConnectorError(
+            mock.MagicMock(
+                code=500,
+            ),
+            ConnectionResetError(),
+        ),
+        ServerDisconnectedError(),
+    ],
+)
+async def test_retry_os_exception_fail(async_client: AsyncClientWithRetry, exception):
+    with aioresponses.aioresponses() as aiohttp_mock:
+        max_retries = 3
+        for i in range(max_retries):
+            aiohttp_mock.get(
+                "http://localhost:30678",
+                exception=exception,
             )
-        assert retry_counter == 3, "should have retried 3 times"
-        assert exc.value.message == "Server disconnected"
-
-        # Case - Server is started, but it's not responding, or closing the connection prematurely
-        # Do not retry because method is blacklisted
-        # reset counter
-        retry_counter = 0
-        client.retry_options.blacklisted_methods = ["POST"]
-        with pytest.raises(ServerDisconnectedError) as exc:
-            await client.post(
-                f"http://localhost:{httpd_on_demand.port}",
-                headers={
-                    "x-action": "close",
-                },
-            )
+        with pytest.raises(exception.__class__):
+            async_client.retry_options.attempts = max_retries
+            await async_client.get("http://localhost:30678")
         assert (
-            retry_counter == 1
-        ), "should have retried 1 time, POST is a blacklisted method"
-        assert exc.value.message == "Server disconnected"
+            len(list(aiohttp_mock.requests.values())[0]) == max_retries
+        ), f"Expected {max_retries} retries"
+
+
+@pytest.mark.asyncio
+async def test_retry_os_exception_success(async_client: AsyncClientWithRetry):
+    with aioresponses.aioresponses() as aiohttp_mock:
+        max_retries = 3
+        for i in range(max_retries - 1):
+            aiohttp_mock.get(
+                "http://localhost:30678",
+                exception=ClientConnectorError(
+                    mock.MagicMock(
+                        code=500,
+                    ),
+                    ConnectionResetError(),
+                ),
+            )
+            aiohttp_mock.get(
+                "http://localhost:30678",
+                status=200,
+            )
+        response = await async_client.get("http://localhost:30678")
+        assert response.status == 200, "Expected to succeed after retries"
+        assert (
+            len(list(aiohttp_mock.requests.values())[0]) == max_retries - 1
+        ), f"Expected {max_retries-1} retries"
+
+
+@pytest.mark.asyncio
+async def test_no_retry_on_blacklisted_method(async_client: AsyncClientWithRetry):
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            "http://localhost:30678",
+            status=500,
+        )
+        async_client.retry_options.blacklisted_methods = ["POST"]
+        response = await async_client.post("http://localhost:30678")
+        assert response.status == 500, "Expected to succeed after retries"
+
+        # Do not retry because method is blacklisted
+        aiohttp_mock.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -132,86 +127,20 @@ async def test_retry_exceptions(httpd_on_demand: "HTTPDaemonOnDemand"):
     ],
 )
 @pytest.mark.asyncio
-async def test_retry_method_status_codes(async_client, method, status_codes):
-    def dummy_raise_for_status():
-        status_code = status_codes[async_client._client.request.call_count - 1]
-        if status_code >= http.HTTPStatus.BAD_REQUEST:
-            raise ClientResponseError(
-                mock.MagicMock(),
-                mock.MagicMock(),
-                # return the last status code from the retry list
-                status=status_codes[async_client._client.request.call_count - 1],
-            )
+async def test_retry_method_status_codes(
+    async_client: AsyncClientWithRetry,
+    method: str,
+    status_codes: typing.List[http.HTTPStatus],
+):
 
-    async_client._client.request.side_effect = [
-        mock.AsyncMock(
-            spec=ClientResponse,
-            status=status_code,
-            raise_for_status=dummy_raise_for_status,
-        )
-        for status_code in status_codes
-    ]
-    response = await async_client.request(method, "http://nothinghere")
-    assert response.status == status_codes[-1], "response status is not as expected"
+    with aioresponses.aioresponses() as aiohttp_mock:
+        for status_code in status_codes:
+            aiohttp_mock.add("http://nothinghere", method=method, status=status_code)
 
-    # ensure we called the request the correct number of times
-    assert async_client._client.request.call_count == len(
-        status_codes
-    ), "Wrong number of retries"
+        response = await async_client.request(method, "http://nothinghere")
+        assert response.status == status_codes[-1], "response status is not as expected"
 
-
-class HTTPDaemonOnDemand:
-    def __init__(self):
-        self._logger = create_logger("DEBUG", name="async-http-logger")
-        self._port = 30666
-        self._httpd = None
-        self._httpd_thread = None
-        self._started = False
-        self._closed = False
-
-    @property
-    def httpd(self):
-        return self._httpd
-
-    @property
-    def port(self):
-        return self._port
-
-    def start(self):
-        self._logger.debug("Starting HTTP daemon")
-        self._httpd = http.server.HTTPServer(
-            ("localhost", self._port), HTTPDaemonOnDemandRequestHandler
-        )
-        self._httpd_thread = threading.Thread(target=self.run_server)
-        self._httpd_thread.start()
-        self._started = True
-
-    def run_server(self):
-        self._logger.debug("Running HTTP daemon")
-        self._httpd.serve_forever()
-
-    def close(self):
-        if self._closed:
-            return
-        self._logger.debug("Closing HTTP daemon")
-        self._httpd.shutdown()
-        self._logger.debug("HTTP daemon closed, joining thread")
-        self._httpd_thread.join()
-        self._closed = True
-
-
-class HTTPDaemonOnDemandRequestHandler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self._default_handler()
-
-    def do_POST(self):
-        self._default_handler()
-
-    def _default_handler(self):
-        action = self.headers.get("x-action", "")
-        status_code = int(self.headers.get("x-status-code", http.HTTPStatus.OK))
-        if action == "close":
-            self.request.close()
-        else:
-            self.send_response(status_code)
-            self.end_headers()
+        # ensure we called the request the correct number of times
+        assert len(list(aiohttp_mock.requests.values())[0]) == len(
+            status_codes
+        ), "Wrong number of retries"

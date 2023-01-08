@@ -173,7 +173,7 @@ class _CustomRequestContext(_RequestContext):
                         return response
                 else:
                     self._logger.debug(
-                        f"Request failed on retryable http code, retrying",
+                        "Request failed on retryable http code, retrying",
                         retry_wait_secs=retry_wait,
                         method=params.method,
                         url=params.url,
@@ -185,7 +185,7 @@ class _CustomRequestContext(_RequestContext):
             except Exception as exc:
                 if not self._retry_options.retry_on_exception:
                     self._logger.warning(
-                        f"Request failed, retry on exception is disabled",
+                        "Request failed, retry on exception is disabled",
                         method=params.method,
                         url=params.url,
                         exc=err_to_str(exc),
@@ -214,7 +214,7 @@ class _CustomRequestContext(_RequestContext):
                     attempt=current_attempt, response=None
                 )
                 self._logger.debug(
-                    f"Request failed on retryable exception, retrying",
+                    "Request failed on retryable exception, retrying",
                     retry_wait_secs=retry_wait,
                     method=params.method,
                     url=params.url,
@@ -242,7 +242,7 @@ class _CustomRequestContext(_RequestContext):
                     return result
             except Exception as exc:
                 self._logger.warning(
-                    f"Request failed on evaluating response",
+                    "Request failed on evaluating response",
                     retry_wait_secs=retry_wait_secs,
                     method=params.method,
                     url=params.url,

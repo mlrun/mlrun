@@ -295,14 +295,17 @@ async def list_feature_sets_tags(
         project,
     )
     feature_set_name_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_feature_set_names = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
-        list(feature_set_name_to_tag.keys()),
-        lambda feature_set_name: (
-            project,
-            feature_set_name,
-        ),
-        auth_info,
+    auth_verifier = mlrun.api.utils.auth.verifier.AuthVerifier()
+    allowed_feature_set_names = (
+        await auth_verifier.filter_project_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.feature_set,
+            list(feature_set_name_to_tag.keys()),
+            lambda feature_set_name: (
+                project,
+                feature_set_name,
+            ),
+            auth_info,
+        )
     )
     tags = {
         tag_tuple[2]
@@ -680,14 +683,17 @@ async def list_feature_vectors_tags(
     feature_vector_name_to_tag = {
         tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples
     }
-    allowed_feature_vector_names = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
-        list(feature_vector_name_to_tag.keys()),
-        lambda feature_vector_name: (
-            project,
-            feature_vector_name,
-        ),
-        auth_info,
+    auth_verifier = mlrun.api.utils.auth.verifier.AuthVerifier()
+    allowed_feature_vector_names = (
+        await auth_verifier.filter_project_resources_by_permissions(
+            mlrun.api.schemas.AuthorizationResourceTypes.feature_vector,
+            list(feature_vector_name_to_tag.keys()),
+            lambda feature_vector_name: (
+                project,
+                feature_vector_name,
+            ),
+            auth_info,
+        )
     )
     tags = {
         tag_tuple[2]

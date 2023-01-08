@@ -172,19 +172,50 @@ def test_extend_hub_uri():
 
 
 @pytest.mark.parametrize(
-    "regex_list,value,expected",
+    "regex_list,value,expected_str,expected",
     [
-        ([r"^.{0,9}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"], "blabla123", True),
-        ([r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"], "blabla123", False),
-        ([r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"], "bla^%", False),
-        ([r"^.{0,6}$", r"^a...e$", r"ab*"], "abcde", True),
-        ([r"^.{0,6}$", r"^a...e$", r"ab*"], "abababe", False),
-        ([r"^.{0,6}$", r"^a...e$", r"ab*"], "bcea", False),
+        (
+            [r"^.{0,9}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
+            "blabla123",
+            "(?=^.{0,9}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
+            True,
+        ),
+        (
+            [r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
+            "blabla123",
+            "(?=^.{0,6}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
+            False,
+        ),
+        (
+            [r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
+            "bla^%",
+            "(?=^.{0,6}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
+            False,
+        ),
+        (
+            [r"^.{0,6}$", r"^a...e$", r"ab*"],
+            "abcde",
+            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
+            True,
+        ),
+        (
+            [r"^.{0,6}$", r"^a...e$", r"ab*"],
+            "abababe",
+            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
+            False,
+        ),
+        (
+            [r"^.{0,6}$", r"^a...e$", r"ab*"],
+            "bcea",
+            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
+            False,
+        ),
     ],
 )
-def test_get_regex_list_as_string(regex_list, value, expected):
-    match = re.match(get_regex_list_as_string(regex_list), value)
-    assert match if expected else match is None
+def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
+    regex_str = get_regex_list_as_string(regex_list)
+    match = re.match(regex_str, value)
+    assert expected_str == regex_str and match if expected else match is None
 
 
 @pytest.mark.parametrize(

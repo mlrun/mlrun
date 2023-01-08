@@ -137,7 +137,10 @@ class TestProject(TestMLRunSystem):
         assert runs[0].metadata.name == "test"
         runs_list.compare(filename=f"{projects_dir}/compare.html")
         artifacts = project2.list_artifacts(tag=run.run_id).to_objects()
-        assert len(artifacts) == 4  # cleaned_data, test_set_preds, model, test_set
+
+        # model, prep_data_cleaned_data, test_evaluation-confusion-matrix, test_evaluation-roc-curves,
+        # test_evaluation-test_set, train_confusion-matrix, train_feature-importance, train_roc-curves, test_set
+        assert len(artifacts) == 9
         assert artifacts[0].producer["workflow"] == run.run_id
 
         models = project2.list_models(tag=run.run_id)
@@ -145,7 +148,7 @@ class TestProject(TestMLRunSystem):
         assert models[0].producer["workflow"] == run.run_id
 
         functions = project2.list_functions(tag="latest")
-        assert len(functions) == 3  # prep-data, train, test
+        assert len(functions) == 2  # prep-data, auto-trainer
         assert functions[0].metadata.project == name
 
     def test_run_artifact_path(self):
@@ -343,7 +346,7 @@ class TestProject(TestMLRunSystem):
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
 
-        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_functions()) == 4, "functions count mismatch"
         assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
         old_creation_time = project.metadata.created
 
@@ -375,7 +378,7 @@ class TestProject(TestMLRunSystem):
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
 
-        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_functions()) == 4, "functions count mismatch"
         assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
         old_creation_time = project.metadata.created
 
@@ -385,7 +388,7 @@ class TestProject(TestMLRunSystem):
 
         # ensure project was not deleted
         project = db.get_project(name=self.project_name)
-        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_functions()) == 4, "functions count mismatch"
         assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
         assert (
             project.metadata.created == old_creation_time

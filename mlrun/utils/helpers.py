@@ -154,6 +154,34 @@ def verify_field_regex(
     return True
 
 
+def validate_tag_name(
+    tag_name: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    """
+    This function is used to validate a tag name for invalid characters using field regex.
+    if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
+    otherwise, it returns False
+    """
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        tag_name,
+        mlrun.utils.regex.tag_name,
+        raise_on_failure=raise_on_failure,
+    )
+
+
+def get_regex_list_as_string(regex_list: List) -> str:
+    """
+    This function is used to combine a list of regex strings into a single regex,
+    with and condition between them.
+    """
+    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+
+
+def tag_name_regex_as_string() -> str:
+    return get_regex_list_as_string(mlrun.utils.regex.tag_name)
+
+
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):

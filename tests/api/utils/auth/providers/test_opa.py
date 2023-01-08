@@ -15,9 +15,9 @@
 import http
 import time
 
+import aioresponses
 import deepdiff
 import pytest
-import requests_mock as requests_mock_package
 
 import mlrun.api.schemas
 import mlrun.api.utils.auth.providers.opa
@@ -57,16 +57,23 @@ async def opa_provider(
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
     provider = mlrun.api.utils.auth.providers.opa.Provider()
+
+    # closing the provider's session to avoid "unclosed session" warning on below reinit
+    await provider._session.close()
+
     # force running init again so the configured api url will be used
     provider.__init__()
-    return provider
+    yield provider
+
+    # explicitly closing the provider's session to avoid "unclosed session" warning between tests
+    await provider._session.close()
 
 
-def test_query_permissions_success(
+@pytest.mark.asyncio
+async def test_query_permissions_success(
     api_url: str,
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
-    requests_mock: requests_mock_package.Mocker,
 ):
     resource = "/projects/project-name/functions/function-name"
     action = mlrun.api.schemas.AuthorizationAction.create
@@ -74,32 +81,34 @@ def test_query_permissions_success(
         user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
-    def mock_permission_query_success(request, context):
+    def mock_permission_query_success(url, **kwargs):
         assert (
             deepdiff.DeepDiff(
                 opa_provider._generate_permission_request_body(
                     resource, action.value, auth_info
                 ),
-                request.json(),
+                kwargs["json"],
                 ignore_order=True,
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.OK.value
-        return {"result": True}
+        return aioresponses.CallbackResult(
+            status=http.HTTPStatus.OK.value, payload={"result": True}
+        )
 
-    requests_mock.post(
-        f"{api_url}{permission_query_path}", json=mock_permission_query_success
-    )
-    allowed = opa_provider.query_permissions(resource, action, auth_info)
-    assert allowed is True
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}", callback=mock_permission_query_success
+        )
+        allowed = await opa_provider.query_permissions(resource, action, auth_info)
+    assert allowed is True, "Expected query permissions to succeed"
 
 
-def test_filter_by_permission(
+@pytest.mark.asyncio
+async def test_filter_by_permission(
     api_url: str,
     permission_filter_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
-    requests_mock: requests_mock_package.Mocker,
 ):
     resources = [
         {"resource_id": 1, "opa_resource": "/some-resource", "allowed": True},
@@ -126,27 +135,29 @@ def test_filter_by_permission(
         user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
-    def mock_filter_query_success(request, context):
+    def mock_filter_query_success(url, **kwargs):
         opa_resources = [resource["opa_resource"] for resource in resources]
         assert (
             deepdiff.DeepDiff(
                 opa_provider._generate_filter_request_body(
                     opa_resources, action.value, auth_info
                 ),
-                request.json(),
+                kwargs["json"],
                 ignore_order=True,
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.OK.value
-        return {"result": allowed_opa_resources}
+        return aioresponses.CallbackResult(
+            status=http.HTTPStatus.OK.value, payload={"result": allowed_opa_resources}
+        )
 
-    requests_mock.post(
-        f"{api_url}{permission_filter_path}", json=mock_filter_query_success
-    )
-    allowed_resources = opa_provider.filter_by_permissions(
-        resources, lambda resource: resource["opa_resource"], action, auth_info
-    )
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_filter_path}", callback=mock_filter_query_success
+        )
+        allowed_resources = await opa_provider.filter_by_permissions(
+            resources, lambda resource: resource["opa_resource"], action, auth_info
+        )
     assert (
         deepdiff.DeepDiff(
             expected_allowed_resources,
@@ -157,11 +168,12 @@ def test_filter_by_permission(
     )
 
 
-def test_query_permissions_failure(
+@pytest.mark.asyncio
+async def test_query_permissions_failure(
     api_url: str,
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
-    requests_mock: requests_mock_package.Mocker,
+    requests_mock: aioresponses.aioresponses,
 ):
     resource = "/projects/project-name/functions/function-name"
     action = mlrun.api.schemas.AuthorizationAction.create
@@ -169,49 +181,52 @@ def test_query_permissions_failure(
         user_id="user-id", user_group_ids=["user-group-id-1", "user-group-id-2"]
     )
 
-    def mock_permission_query_failure(request, context):
+    def mock_permission_query_failure(url, **kwargs):
         assert (
             deepdiff.DeepDiff(
                 opa_provider._generate_permission_request_body(
                     resource, action.value, auth_info
                 ),
-                request.json(),
+                kwargs["json"],
                 ignore_order=True,
             )
             == {}
         )
-        context.status_code = http.HTTPStatus.OK.value
-        return {"result": False}
+        return aioresponses.CallbackResult(
+            status=http.HTTPStatus.OK.value, payload={"result": False}
+        )
 
-    requests_mock.post(
-        f"{api_url}{permission_query_path}", json=mock_permission_query_failure
-    )
-    with pytest.raises(
-        mlrun.errors.MLRunAccessDeniedError,
-        match=f"Not allowed to {action} resource {resource}",
-    ):
-        opa_provider.query_permissions(resource, action, auth_info)
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}", callback=mock_permission_query_failure
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunAccessDeniedError,
+            match=f"Not allowed to {action} resource {resource}",
+        ):
+            await opa_provider.query_permissions(resource, action, auth_info)
 
 
-def test_query_permissions_use_cache(
+@pytest.mark.asyncio
+async def test_query_permissions_use_cache(
     api_url: str,
     permission_query_path: str,
     opa_provider: mlrun.api.utils.auth.providers.opa.Provider,
-    requests_mock: requests_mock_package.Mocker,
 ):
     auth_info = mlrun.api.schemas.AuthInfo(user_id="user-id")
     project_name = "project-name"
     opa_provider.add_allowed_project_for_owner(project_name, auth_info)
-    mocker = requests_mock.post(f"{api_url}{permission_query_path}", json={})
-    assert (
-        opa_provider.query_permissions(
-            f"/projects/{project_name}/resource",
-            mlrun.api.schemas.AuthorizationAction.create,
-            auth_info,
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        assert (
+            await opa_provider.query_permissions(
+                f"/projects/{project_name}/resource",
+                mlrun.api.schemas.AuthorizationAction.create,
+                auth_info,
+            )
+            is True
         )
-        is True
-    )
-    assert mocker.call_count == 0
+        aiohttp_mock.assert_not_called()
 
 
 def test_allowed_project_owners_cache(

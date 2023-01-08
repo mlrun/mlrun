@@ -90,6 +90,9 @@ def test_infer_from_df():
         "mean",
         "std",
         "min",
+        "25%",
+        "50%",
+        "75%",
         "max",
         "hist",
     ], "wrong stats result"

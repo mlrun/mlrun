@@ -175,8 +175,7 @@ def get_df_stats_spark(df, options, num_bins=20, sample_size=None):
         for stat, val in values.dropna().items():
             if stat in ["min", "max"] and original_type not in numerical_spark_types:
                 stats_dict[stat] = val
-                # TODO: we exclude 50% for compatibility with the pandas implementation, but why?
-            elif stat != "50%":
+            else:
                 stats_dict[stat] = float(val)
         results_dict[col] = stats_dict
 

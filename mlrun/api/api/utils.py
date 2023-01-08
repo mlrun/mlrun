@@ -41,7 +41,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
-from mlrun.k8s_utils import get_k8s_helper, sanitize_function_volumes
+from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger, parse_versioned_object_uri
@@ -243,8 +243,36 @@ def _mask_v3io_volume_credentials(function: mlrun.runtimes.pod.KubeResource):
     """
     get_item_attribute = mlrun.runtimes.utils.get_item_name
     v3io_volume_indices = []
-
-    sanitize_function_volumes(function)
+    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
+    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
+    new_volumes = []
+    k8s_api_client = kubernetes.client.ApiClient()
+    for volume in function.spec.volumes:
+        if isinstance(volume, dict):
+            if "flexVolume" in volume:
+                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
+                if not isinstance(volume["flexVolume"], dict):
+                    # sanity
+                    if isinstance(
+                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
+                    ):
+                        volume[
+                            "flexVolume"
+                        ] = k8s_api_client.sanitize_for_serialization(
+                            volume["flexVolume"]
+                        )
+                    else:
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
+                        )
+            new_volumes.append(volume)
+        elif isinstance(volume, kubernetes.client.V1Volume):
+            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unexpected volume type: {type(volume)}"
+            )
+    function.spec.volumes = new_volumes
 
     for index, volume in enumerate(function.spec.volumes):
         if volume.get("flexVolume", {}).get("driver") == "v3io/fuse":

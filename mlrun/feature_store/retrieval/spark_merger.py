@@ -92,14 +92,12 @@ class SparkFeatureMerger(BaseMerger):
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
-                    columns=columns,
                 )
             else:
                 source = source_driver(
                     self.vector.metadata.name,
                     target.get_target_path(),
                     time_field=entity_timestamp_column,
-                    columns=column_names,
                 )
 
             # add the index/key to selected columns
@@ -118,6 +116,8 @@ class SparkFeatureMerger(BaseMerger):
             df.reset_index(inplace=True)
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
+            # select requested columns and rename with alias where needed
+            df = df.select([col(name) for name in column_names])
             # rename columns to be unique for each feature set
             rename_col_dict = {
                 col: f"{col}_{name}"
@@ -138,13 +138,14 @@ class SparkFeatureMerger(BaseMerger):
                 if col in rename_col_dict and alias:
                     new_columns.append((rename_col_dict[col], alias))
                 elif col in rename_col_dict and not alias:
-                    new_columns.append((rename_col_dict[col], alias))
+                    new_columns.append((rename_col_dict[col], col))
                 else:
                     new_columns.append((col, alias))
             all_columns.append(new_columns)
             self._update_alias(
                 dictionary={name: alias for name, alias in new_columns if alias}
             )
+
 
         # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):

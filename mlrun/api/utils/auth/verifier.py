@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import base64
 import typing
 
@@ -45,7 +46,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         project_and_resource_name_extractor: typing.Callable,
         auth_info: mlrun.api.schemas.AuthInfo,
         action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
-    ) -> typing.List:
+    ) -> typing.Coroutine[typing.Any, typing.Any, typing.List]:
         def _generate_opa_resource(resource):
             project_name, resource_name = project_and_resource_name_extractor(resource)
             return self._generate_resource_string_from_project_resource(
@@ -61,7 +62,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         project_names: typing.List[str],
         auth_info: mlrun.api.schemas.AuthInfo,
         action: mlrun.api.schemas.AuthorizationAction = mlrun.api.schemas.AuthorizationAction.read,
-    ) -> typing.List:
+    ) -> typing.Coroutine[typing.Any, typing.Any, typing.List]:
         return self.filter_by_permissions(
             project_names,
             self._generate_resource_string_from_project_name,
@@ -101,7 +102,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-    ) -> bool:
+    ) -> typing.Coroutine[typing.Any, typing.Any, bool]:
         return self.query_permissions(
             self._generate_resource_string_from_project_resource(
                 resource_type, project_name, resource_name
@@ -117,7 +118,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-    ) -> bool:
+    ) -> typing.Coroutine[typing.Any, typing.Any, bool]:
         return self.query_permissions(
             self._generate_resource_string_from_project_name(project_name),
             action,
@@ -131,7 +132,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-    ) -> bool:
+    ) -> typing.Coroutine[typing.Any, typing.Any, bool]:
         return self.query_resource_permissions(
             resource_type,
             "",
@@ -147,7 +148,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-    ) -> bool:
+    ) -> typing.Coroutine[typing.Any, typing.Any, bool]:
         return self.query_permissions(
             resource_type.to_resource_string("", resource_name),
             action=action,
@@ -161,12 +162,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-    ) -> bool:
+    ) -> typing.Coroutine[typing.Any, typing.Any, bool]:
         return self._auth_provider.query_permissions(
-            resource,
-            action,
-            auth_info,
-            raise_on_forbidden,
+            resource, action, auth_info, raise_on_forbidden
         )
 
     def filter_by_permissions(
@@ -175,7 +173,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         opa_resource_extractor: typing.Callable,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
-    ) -> typing.List:
+    ) -> typing.Coroutine[typing.Any, typing.Any, typing.List]:
         return self._auth_provider.filter_by_permissions(
             resources,
             opa_resource_extractor,

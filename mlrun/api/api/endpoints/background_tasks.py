@@ -15,6 +15,7 @@
 import fastapi
 import semver
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
@@ -30,7 +31,7 @@ router = fastapi.APIRouter()
     "/projects/{project}/background-tasks/{name}",
     response_model=mlrun.api.schemas.BackgroundTask,
 )
-def get_project_background_task(
+async def get_project_background_task(
     project: str,
     name: str,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
@@ -42,15 +43,18 @@ def get_project_background_task(
 ):
     # Since there's no not-found option on get_project_background_task - we authorize before getting (unlike other
     # get endpoint)
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.project_background_task,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
-        db_session, name=name, project=project
+    return run_in_threadpool(
+        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+        db_session,
+        name=name,
+        project=project,
     )
 
 
@@ -58,7 +62,7 @@ def get_project_background_task(
     "/background-tasks/{name}",
     response_model=mlrun.api.schemas.BackgroundTask,
 )
-def get_internal_background_task(
+async def get_internal_background_task(
     name: str,
     request: fastapi.Request,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
@@ -71,7 +75,7 @@ def get_internal_background_task(
     # we also skip Iguazio 3.6 for now, until it will add support for it (still in development)
     igz_version = mlrun.mlconf.get_parsed_igz_version()
     if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.background_task,
             name,
             mlrun.api.schemas.AuthorizationAction.read,
@@ -86,8 +90,11 @@ def get_internal_background_task(
             internal_background_task=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.get_internal_background_task(name=name, request=request)
+        return run_in_threadpool(
+            chief_client.get_internal_background_task, name=name, request=request
+        )
 
-    return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
-        name=name
+    return run_in_threadpool(
+        mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task,
+        name=name,
     )

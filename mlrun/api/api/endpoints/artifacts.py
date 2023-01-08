@@ -51,8 +51,7 @@ async def store_artifact(
         project,
         auth_info=auth_info,
     )
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -81,22 +80,22 @@ async def store_artifact(
 
 
 @router.get("/projects/{project}/artifact-tags")
-def list_artifact_tags(
+async def list_artifact_tags(
     project: str,
     category: schemas.ArtifactCategories = None,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    tag_tuples = mlrun.api.crud.Artifacts().list_artifact_tags(
-        db_session, project, category
+    tag_tuples = await run_in_threadpool(
+        mlrun.api.crud.Artifacts().list_artifact_tags, db_session, project, category
     )
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
-    allowed_artifact_keys = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_artifact_keys = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         list(artifact_key_to_tag.keys()),
         lambda artifact_key: (
@@ -120,7 +119,7 @@ def list_artifact_tags(
 # TODO /projects/{project}/artifact/{key:path} should be deprecated in 1.4
 @router.get("/projects/{project}/artifact/{key:path}")
 @router.get("/projects/{project}/artifacts/{key:path}")
-def get_artifact(
+async def get_artifact(
     project: str,
     key: str,
     tag: str = "latest",
@@ -129,10 +128,16 @@ def get_artifact(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = mlrun.api.crud.Artifacts().get_artifact(
-        db_session, key, tag, iter, project, format_
+    data = run_in_threadpool(
+        mlrun.api.crud.Artifacts().get_artifact,
+        db_session,
+        key,
+        tag,
+        iter,
+        project,
+        format_,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
@@ -147,7 +152,7 @@ def get_artifact(
 # TODO /artifact/{project}/{uid} should be deprecated in 1.4
 @router.delete("/artifact/{project}/{uid}")
 @router.delete("/projects/{project}/artifacts/{uid}")
-def delete_artifact(
+async def delete_artifact(
     project: str,
     uid: str,
     key: str,
@@ -155,21 +160,23 @@ def delete_artifact(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         project,
         key,
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    mlrun.api.crud.Artifacts().delete_artifact(db_session, key, tag, project)
+    await run_in_threadpool(
+        mlrun.api.crud.Artifacts().delete_artifact, db_session, key, tag, project
+    )
     return {}
 
 
 # TODO /artifacts should be deprecated in 1.4
 @router.get("/artifacts")
 @router.get("/projects/{project}/artifacts")
-def list_artifacts(
+async def list_artifacts(
     project: str = None,
     name: str = None,
     tag: str = None,
@@ -184,13 +191,14 @@ def list_artifacts(
 ):
     if project is None:
         project = config.default_project
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
 
-    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
+    artifacts = await run_in_threadpool(
+        mlrun.api.crud.Artifacts().list_artifacts,
         db_session,
         project,
         name,
@@ -203,7 +211,7 @@ def list_artifacts(
         format_=format_,
     )
 
-    artifacts = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    artifacts = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         _artifact_project_and_resource_name_extractor,
@@ -216,7 +224,7 @@ def list_artifacts(
 
 # TODO /artifacts should be deprecated in 1.4
 @router.delete("/artifacts")
-def delete_artifacts_legacy(
+async def delete_artifacts_legacy(
     project: str = mlrun.mlconf.default_project,
     name: str = "",
     tag: str = "",
@@ -224,7 +232,7 @@ def delete_artifacts_legacy(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return _delete_artifacts(
+    return await _delete_artifacts(
         project=project,
         name=name,
         tag=tag,
@@ -235,7 +243,7 @@ def delete_artifacts_legacy(
 
 
 @router.delete("/projects/{project}/artifacts")
-def delete_artifacts(
+async def delete_artifacts(
     project: str = mlrun.mlconf.default_project,
     name: str = "",
     tag: str = "",
@@ -243,7 +251,7 @@ def delete_artifacts(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return _delete_artifacts(
+    return await _delete_artifacts(
         project=project,
         name=name,
         tag=tag,
@@ -253,7 +261,7 @@ def delete_artifacts(
     )
 
 
-def _delete_artifacts(
+async def _delete_artifacts(
     project: str = None,
     name: str = None,
     tag: str = None,
@@ -261,17 +269,29 @@ def _delete_artifacts(
     auth_info: mlrun.api.schemas.AuthInfo = None,
     db_session: Session = None,
 ):
-    artifacts = mlrun.api.crud.Artifacts().list_artifacts(
-        db_session, project, name, tag, labels
+    artifacts = await run_in_threadpool(
+        mlrun.api.crud.Artifacts().list_artifacts,
+        db_session,
+        project,
+        name,
+        tag,
+        labels,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
         _artifact_project_and_resource_name_extractor,
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    mlrun.api.crud.Artifacts().delete_artifacts(db_session, project, name, tag, labels)
+    await run_in_threadpool(
+        mlrun.api.crud.Artifacts().delete_artifacts,
+        db_session,
+        project,
+        name,
+        tag,
+        labels,
+    )
     return {}
 
 

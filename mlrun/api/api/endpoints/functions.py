@@ -104,7 +104,7 @@ async def store_function(
 
 
 @router.get("/func/{project}/{name}")
-def get_function(
+async def get_function(
     project: str,
     name: str,
     tag: str = "",
@@ -112,10 +112,15 @@ def get_function(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    func = mlrun.api.crud.Functions().get_function(
-        db_session, name, project, tag, hash_key
+    func = run_in_threadpool(
+        mlrun.api.crud.Functions().get_function,
+        db_session,
+        name,
+        project,
+        tag,
+        hash_key,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -130,25 +135,27 @@ def get_function(
 @router.delete(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
-def delete_function(
+async def delete_function(
     project: str,
     name: str,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    mlrun.api.crud.Functions().delete_function(db_session, project, name)
+    await run_in_threadpool(
+        mlrun.api.crud.Functions().delete_function, db_session, project, name
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/funcs")
-def list_functions(
+async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
@@ -158,15 +165,20 @@ def list_functions(
 ):
     if project is None:
         project = config.default_project
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    functions = mlrun.api.crud.Functions().list_functions(
-        db_session, project, name, tag, labels
+    functions = await run_in_threadpool(
+        mlrun.api.crud.Functions().list_functions,
+        db_session,
+        project,
+        name,
+        tag,
+        labels,
     )
-    functions = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    functions = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
@@ -206,8 +218,7 @@ async def build_function(
         project,
         auth_info=auth_info,
     )
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         function_name,
@@ -278,8 +289,7 @@ async def start_function(
     logger.info("Got request to start function", body=data)
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.metadata.project,
         function.metadata.name,
@@ -324,7 +334,7 @@ async def function_status(
 
 @router.get("/build/status")
 @router.get("/build/status/")
-def build_status(
+async def build_status(
     name: str = "",
     project: str = "",
     tag: str = "",
@@ -335,7 +345,7 @@ def build_status(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
@@ -344,7 +354,9 @@ def build_status(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_info,
     )
-    fn = mlrun.api.crud.Functions().get_function(db_session, name, project, tag)
+    fn = await run_in_threadpool(
+        mlrun.api.crud.Functions().get_function, db_session, name, project, tag
+    )
     if not fn:
         log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
@@ -357,7 +369,8 @@ def build_status(
             last_log_timestamp,
             text,
             status,
-        ) = get_nuclio_deploy_status(
+        ) = await run_in_threadpool(
+            get_nuclio_deploy_status,
             name,
             project,
             tag,
@@ -391,7 +404,8 @@ def build_status(
             # Versioned means the version will be saved in the DB forever, we don't want to spam
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
-        mlrun.api.crud.Functions().store_function(
+        await run_in_threadpool(
+            mlrun.api.crud.Functions().store_function,
             db_session,
             fn,
             name,
@@ -460,7 +474,7 @@ def build_status(
         state = mlrun.api.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = get_k8s().logs(pod)
+        resp = await run_in_threadpool(get_k8s().logs, pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -477,7 +491,8 @@ def build_status(
     versioned = False
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
-    mlrun.api.crud.Functions().store_function(
+    await run_in_threadpool(
+        mlrun.api.crud.Functions().store_function,
         db_session,
         fn,
         name,
@@ -694,7 +709,6 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def _create_model_monitoring_stream(project: str):
-
     stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind="stream"
     )

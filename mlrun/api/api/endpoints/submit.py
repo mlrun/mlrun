@@ -75,8 +75,7 @@ async def submit_job(
             auth_info,
         )
     if data.get("schedule"):
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             data["task"]["metadata"]["project"],
             data["task"]["metadata"]["name"],
@@ -100,8 +99,7 @@ async def submit_job(
             return chief_client.submit_job(request=request, json=data)
 
     else:
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             data["task"]["metadata"]["project"],
             "",

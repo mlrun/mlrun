@@ -25,4 +25,6 @@ router = APIRouter()
     response_model=mlrun.api.schemas.ClientSpec,
 )
 def get_client_spec():
+
+    # TODO: cache me
     return mlrun.api.crud.ClientSpec().get_client_spec()

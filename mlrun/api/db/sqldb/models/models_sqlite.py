@@ -129,7 +129,7 @@ def make_tag_v2(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
-    class Artifact(Base, HasStruct):
+    class LegacyArtifact(Base, HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),

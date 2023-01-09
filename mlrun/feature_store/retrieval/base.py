@@ -139,6 +139,8 @@ class BaseMerger(abc.ABC):
                         df.set_index(self._index_columns, inplace=True)
                     elif self.engine == "dask" and len(self._index_columns) == 1:
                         return df.set_index(self._index_columns[0])
+                    elif self.engine == "dask" and len(self._index_columns) != 1:
+                        return self._reset_index(self._result_df)
                     else:
                         logger.info(
                             "The entities will stay as columns because "
@@ -483,3 +485,6 @@ class BaseMerger(abc.ABC):
     @classmethod
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
+
+    def _reset_index(self, _result_df):
+        raise NotImplementedError

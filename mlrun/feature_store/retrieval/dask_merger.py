@@ -86,6 +86,9 @@ class DaskFeatureMerger(BaseMerger):
             df = df.reset_index()
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
+            if feature_set.spec.timestamp_key:
+                column_names += feature_set.spec.timestamp_key
+                node.data["save_cols"] += feature_set.spec.timestamp_key
 
             df = df.persist()
 
@@ -145,7 +148,7 @@ class DaskFeatureMerger(BaseMerger):
             self._result_df = self._result_df.query(query)
 
         if self._drop_indexes:
-            self._result_df = self._result_df.reset_index(drop=True)
+            self._result_df = self._reset_index(self._result_df)
         else:
             self._result_df = self._set_indexes(self._result_df)
         self._write_to_target()
@@ -154,7 +157,11 @@ class DaskFeatureMerger(BaseMerger):
 
     def _reset_index(self, df):
         to_drop = df.index.name is None
-        return df.reset_index(drop=to_drop)
+        # df = df.assign(idx=1)
+        df = df.reset_index(drop=to_drop)
+        # df = df.drop(columns=['idx'])
+        # df.index.name = '1'
+        return df
 
     def _asof_join(
         self,
@@ -169,30 +176,21 @@ class DaskFeatureMerger(BaseMerger):
         indexes = None
         if not right_keys:
             indexes = list(featureset.spec.entities.keys())
-
         entity_df = self._reset_index(entity_df)
-        entity_df = (
-            entity_df
-            if entity_timestamp_column not in entity_df
-            else entity_df.set_index(entity_timestamp_column, drop=True)
-        )
         featureset_df = self._reset_index(featureset_df)
-        featureset_df = (
-            featureset_df
-            if entity_timestamp_column not in featureset_df
-            else featureset_df.set_index(entity_timestamp_column, drop=True)
-        )
-
         merged_df = dask_df_multi.merge_asof(
             entity_df,
             featureset_df,
-            left_index=True,
-            right_index=True,
+            left_on=entity_timestamp_column,
+            right_on=featureset.spec.timestamp_key,
             by=indexes,
             left_by=left_keys,
             right_by=right_keys,
+            suffixes=("", f"_{featureset.metadata.name}_"),
         )
-
+        for col in merged_df.columns:
+            if re.findall(f"_{featureset.metadata.name}_$", col):
+                self._append_drop_column(col)
         return merged_df
 
     def _join(

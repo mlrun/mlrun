@@ -78,6 +78,9 @@ class LocalFeatureMerger(BaseMerger):
             df.reset_index(inplace=True)
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
+            if feature_set.spec.timestamp_key:
+                column_names += feature_set.spec.timestamp_key
+                node.data["save_cols"] += feature_set.spec.timestamp_key
             # rename columns to be unique for each feature set
             rename_col_dict = {
                 col: f"{col}_{name}"
@@ -178,13 +181,18 @@ class LocalFeatureMerger(BaseMerger):
             by=indexes,
             left_by=left_keys,
             right_by=right_keys,
+            suffixes=("", f"_{featureset.metadata.name}_"),
         )
+        for col in merged_df.columns:
+            if re.findall(f"_{featureset.metadata.name}_$", col):
+                self._append_drop_column(col)
 
         # Undo indexing tricks for asof merge
         # to return the correct indexes and not
         # overload `index` columns
         if (
-            "index" not in indexes
+            indexes
+            and "index" not in indexes
             and index_col_not_in_entity
             and index_col_not_in_featureset
             and "index" in merged_df.columns

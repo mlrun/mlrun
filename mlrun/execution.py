@@ -840,13 +840,14 @@ class MLClientCtx(object):
         :param message:   commit message to save in the run
         :param completed: mark run as completed
         """
+        logger.info("Is it here 1?", state=self._state, completed=completed)
         completed = completed and self._state == "running"
         if message:
             self._annotations["message"] = message
         if completed:
             self._state = "completed"
 
-        logger.info("Is it here?", state=self._state)
+        logger.info("Is it here 2?", state=self._state)
 
         if self._parent:
             self._parent.update_child_iterations()

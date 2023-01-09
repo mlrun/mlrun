@@ -18,7 +18,7 @@ from os.path import isdir
 import mlrun.config
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, is_relative_path, logger
+from ..utils import is_legacy_artifact, is_relative_path, logger, validate_tag_name
 from .base import (
     Artifact,
     DirArtifact,
@@ -241,6 +241,9 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
+            # before uploading the item, we want to ensure that its tags are valid,
+            # so that we don't upload something that won't be stored later
+            validate_tag_name(item.metadata.tag, "artifact.metadata.tag")
             if is_legacy_artifact(item):
                 item.upload()
             else:

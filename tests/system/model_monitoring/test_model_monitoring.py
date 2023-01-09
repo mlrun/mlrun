@@ -41,8 +41,8 @@ from mlrun.api.schemas import (
 )
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.runtimes import BaseRuntime
 from mlrun.model_monitoring import EndpointType, ModelMonitoringMode
+from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
 

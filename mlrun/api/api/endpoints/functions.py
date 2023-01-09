@@ -361,70 +361,45 @@ async def build_status(
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
-        (
-            state,
-            address,
-            nuclio_name,
-            last_log_timestamp,
-            text,
-            status,
-        ) = await run_in_threadpool(
-            get_nuclio_deploy_status,
-            name,
-            project,
-            tag,
-            # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
-            last_log_timestamp=last_log_timestamp or 1.0,
-            verbose=verbose,
-            auth_info=auth_info,
-        )
-        if state == "ready":
-            logger.info("Nuclio function deployed successfully", name=name)
-        if state in ["error", "unhealthy"]:
-            logger.error(f"Nuclio deploy error, {text}", name=name)
-
-        internal_invocation_urls = status.get("internalInvocationUrls", [])
-        external_invocation_urls = status.get("externalInvocationUrls", [])
-
-        # on earlier versions of mlrun, address used to represent the nodePort external invocation url
-        # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
-        # and hence, for BC it would be filled with the external invocation url first item
-        # or completely empty.
-        address = external_invocation_urls[0] if external_invocation_urls else ""
-
-        update_in(fn, "status.nuclio_name", nuclio_name)
-        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
-        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
-        update_in(fn, "status.state", state)
-        update_in(fn, "status.address", address)
-
-        versioned = False
-        if state == "ready":
-            # Versioned means the version will be saved in the DB forever, we don't want to spam
-            # the DB with intermediate or unusable versions, only successfully deployed versions
-            versioned = True
-        await run_in_threadpool(
-            mlrun.api.crud.Functions().store_function,
+        return await run_in_threadpool(
+            _handle_nuclio_deploy_status,
             db_session,
+            auth_info,
             fn,
             name,
             project,
             tag,
-            versioned=versioned,
-        )
-        return Response(
-            content=text,
-            media_type="text/plain",
-            headers={
-                "x-mlrun-function-status": state,
-                "x-mlrun-last-timestamp": str(last_log_timestamp),
-                "x-mlrun-address": address,
-                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
-                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
-                "x-mlrun-name": nuclio_name,
-            },
+            last_log_timestamp,
+            verbose,
         )
 
+    return await run_in_threadpool(
+        _handle_job_deploy_status,
+        db_session,
+        auth_info,
+        fn,
+        name,
+        project,
+        tag,
+        last_log_timestamp,
+        verbose,
+        offset,
+        logs,
+    )
+
+
+def _handle_job_deploy_status(
+    db_session,
+    auth_info,
+    fn,
+    name,
+    project,
+    tag,
+    last_log_timestamp,
+    verbose,
+    offset,
+    logs,
+):
     # job deploy status
     state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
@@ -473,7 +448,7 @@ async def build_status(
         state = mlrun.api.schemas.FunctionState.error
 
     if (logs and state != "pending") or state in terminal_states:
-        resp = await run_in_threadpool(get_k8s().logs, pod)
+        resp = get_k8s().logs(pod)
         if state in terminal_states:
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -490,8 +465,7 @@ async def build_status(
     versioned = False
     if state == mlrun.api.schemas.FunctionState.ready:
         versioned = True
-    await run_in_threadpool(
-        mlrun.api.crud.Functions().store_function,
+    mlrun.api.crud.Functions().store_function(
         db_session,
         fn,
         name,
@@ -508,6 +482,72 @@ async def build_status(
             "function_status": state,
             "function_image": image,
             "builder_pod": pod,
+        },
+    )
+
+
+def _handle_nuclio_deploy_status(
+    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
+):
+    (
+        state,
+        address,
+        nuclio_name,
+        last_log_timestamp,
+        text,
+        status,
+    ) = get_nuclio_deploy_status(
+        name,
+        project,
+        tag,
+        # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+        last_log_timestamp=last_log_timestamp or 1.0,
+        verbose=verbose,
+        auth_info=auth_info,
+    )
+    if state == "ready":
+        logger.info("Nuclio function deployed successfully", name=name)
+    if state in ["error", "unhealthy"]:
+        logger.error(f"Nuclio deploy error, {text}", name=name)
+
+    internal_invocation_urls = status.get("internalInvocationUrls", [])
+    external_invocation_urls = status.get("externalInvocationUrls", [])
+
+    # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+    # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+    # and hence, for BC it would be filled with the external invocation url first item
+    # or completely empty.
+    address = external_invocation_urls[0] if external_invocation_urls else ""
+
+    update_in(fn, "status.nuclio_name", nuclio_name)
+    update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+    update_in(fn, "status.external_invocation_urls", external_invocation_urls)
+    update_in(fn, "status.state", state)
+    update_in(fn, "status.address", address)
+
+    versioned = False
+    if state == "ready":
+        # Versioned means the version will be saved in the DB forever, we don't want to spam
+        # the DB with intermediate or unusable versions, only successfully deployed versions
+        versioned = True
+    mlrun.api.crud.Functions().store_function(
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
+    )
+    return Response(
+        content=text,
+        media_type="text/plain",
+        headers={
+            "x-mlrun-function-status": state,
+            "x-mlrun-last-timestamp": str(last_log_timestamp),
+            "x-mlrun-address": address,
+            "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+            "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
+            "x-mlrun-name": nuclio_name,
         },
     )
 

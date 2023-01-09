@@ -73,6 +73,7 @@ from mlrun.utils import (
     is_legacy_artifact,
     logger,
     update_in,
+    validate_tag_name,
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -532,6 +533,10 @@ class SQLDB(DBInterface):
         self._upsert(session, [art])
         if tag_artifact:
             tag = tag or "latest"
+
+            # we want to ensure that the tag is valid before storing,
+            # if it isn't, MLRunInvalidArgumentError will be raised
+            validate_tag_name(tag, "artifact.metadata.tag")
             self.tag_artifacts(session, [art], project, tag)
             # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
             # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
@@ -1226,6 +1231,10 @@ class SQLDB(DBInterface):
             )
             tag = query.one_or_none()
             if not tag:
+                # To maintain backwards compatibility,
+                # we validate the tag name only if it does not already exist on the artifact,
+                # we don't want to fail on old tags that were created before the validation was added.
+                validate_tag_name(tag_name=name, field_name="artifact.metadata.tag")
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
             self._upsert(session, [tag], ignore=True)

@@ -147,7 +147,7 @@ Your `HOST_IP` address can be found using the `Get-NetIPConfiguration` cmdlet (d
 
 
 This creates 4 services:
-- J3yter lab (in [http://localhost:8888](http://localhost:8888))
+- Jupyter lab (in [http://localhost:8888](http://localhost:8888))
 - MLRun API (in [http://localhost:8080](http://localhost:8080)), running on the Jupyter container
 - MLRun UI (in [http://localhost:8060](http://localhost:8060))
 - Nuclio Dashboard/controller (in [http://localhost:8070](http://localhost:8070))

@@ -113,7 +113,7 @@ class MLClientCtx(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_value:
             self.set_state(error=exc_value, commit=False)
-        self.commit()
+        self.commit(completed=False)
 
     def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)
@@ -840,7 +840,7 @@ class MLClientCtx(object):
         """update an artifact object in the cache and the DB"""
         self._artifacts_manager.update_artifact(self, artifact_object)
 
-    def commit(self, message: str = "", completed=True):
+    def commit(self, message: str = "", completed=False):
         """save run state and optionally add a commit message
 
         :param message:   commit message to save in the run

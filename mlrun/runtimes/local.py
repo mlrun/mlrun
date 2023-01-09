@@ -443,7 +443,6 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             if cwd:
                 os.chdir(cwd)
             val = handler(**kwargs)
-            context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
             logger.error(f"execution error, {traceback.format_exc()}")
@@ -456,7 +455,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     context.set_logger_stream(sys.stdout)
     if val:
         context.log_result("return", val)
-    context.commit()
+    context.commit(completed=False)
     logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err
 

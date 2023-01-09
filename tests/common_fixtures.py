@@ -265,6 +265,11 @@ class RunDBMock:
     ):
         return "ready", last_log_timestamp
 
+    def update_run(self, updates: dict, uid, project="", iter=0):
+        self._function["state"] = {
+            "status": updates["status.state"],
+        }
+
     def assert_no_mount_or_creds_configured(self):
         env_list = self._function["spec"]["env"]
         env_params = [item["name"] for item in env_list]

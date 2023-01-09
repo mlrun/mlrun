@@ -149,7 +149,10 @@ def get_offline_features(
     :param engine_args:             kwargs for the processing engine
     :param query:                   The query string used to filter rows
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
-                                    indicate join type such as :
+                                    Only for dask and local engines (not for spark)
+                                    Used for regular join when timestemp and feature_vector.spec.timestamp_field
+                                    are None.
+                                    Indicate join type such as :
                                     * left: use only keys from left frame (SQL: left outer join)
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)

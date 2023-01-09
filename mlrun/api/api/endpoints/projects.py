@@ -347,14 +347,32 @@ async def load_project(
 
     :returns: a BackgroundTask object, with details on execution process and its status
     """
+    def _run_load_project(
+        runner: mlrun.run.KubejobRuntime,
+        project_name: mlrun.api.schemas.Project,
+    ):
+        """
+        Wrapper function to load project for running as a background task
+
+        :param runner:  load project function runner object
+        :param project_name: MLRun project
+
+        :returns: run context object (RunObject) with run metadata, results and status
+        """
+        return mlrun.api.crud.WorkflowRunners().run(
+            runner=runner,
+            project=project_name,
+            load_only=True,
+        )
+
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name),
         spec=mlrun.api.schemas.ProjectSpec(source=url),
     )
 
-    # We must store the project before we run the remote load_project function because
+    # We must create the project before we run the remote load_project function because
     # we want this function will be running under the project itself instead of the default project.
-    project, is_running_in_background = get_project_member().store_project(
+    project, _ = get_project_member().create_project(
         db_session,
         name,
         project,
@@ -393,25 +411,6 @@ async def load_project(
     )
 
     return background_task
-
-
-def _run_load_project(
-    load_project_runner: mlrun.run.KubejobRuntime,
-    project: mlrun.api.schemas.Project,
-):
-    """
-    Wrapper function to load project for running as a background task
-
-    :param load_project_runner: load project function runner object
-    :param project:             MLRun project
-
-    :returns: run context object (RunObject) with run metadata, results and status
-    """
-    return mlrun.api.crud.WorkflowRunners().run(
-        runner=load_project_runner,
-        project=project,
-        load_only=True,
-    )
 
 
 def _is_request_from_leader(

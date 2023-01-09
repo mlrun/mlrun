@@ -258,6 +258,8 @@ class OperationTypes(str, Enum):
 
 class ParallelRun(BaseModelRouter):
     # TODO: change name to ParallelRunModelRouter
+    # To consider because ParallelRun inherits from BaseModelRouter
+    # Didn't changed yet because ParallelRun is not only for models
     def __init__(
         self,
         context=None,

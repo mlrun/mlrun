@@ -1177,10 +1177,17 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        from urllib.parse import urlparse
+
+        target = urlparse(self.get_target_path())
         return {
             "key.column": "_spark_object_name",
             "table": "{" + store_path_to_spark(self.get_target_path()),
             "format": "org.apache.spark.sql.redis",
+            "host": target.hostname,
+            "port": target.port,
+            "user": target.username,
+            "auth": target.password,
         }
 
     def prepare_spark_df(self, df, key_columns):

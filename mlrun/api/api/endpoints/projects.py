@@ -350,19 +350,19 @@ async def load_project(
 
     def _run_load_project(
         runner: mlrun.run.KubejobRuntime,
-        project_name: mlrun.api.schemas.Project,
+        project_: mlrun.api.schemas.Project,
     ):
         """
         Wrapper function to load project for running as a background task
 
         :param runner:  load project function runner object
-        :param project_name: MLRun project
+        :param project_: MLRun project
 
         :returns: run context object (RunObject) with run metadata, results and status
         """
         return mlrun.api.crud.WorkflowRunners().run(
             runner=runner,
-            project=project_name,
+            project=project_,
             load_only=True,
         )
 
@@ -374,11 +374,10 @@ async def load_project(
     # We must create the project before we run the remote load_project function because
     # we want this function will be running under the project itself instead of the default project.
     project, _ = get_project_member().create_project(
-        db_session,
-        name,
-        project,
-        auth_info.projects_role,
-        auth_info.session,
+        db_session=db_session,
+        project=project,
+        projects_role=auth_info.projects_role,
+        leader_session=auth_info.session,
     )
 
     # Creating the auxiliary function for loading the project:

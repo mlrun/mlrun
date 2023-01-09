@@ -99,6 +99,8 @@ class WorkflowRunners(
             run_name=runner.metadata.name,
             labels=labels,
         )
+        runner._store_function(runspec=run_spec, meta=run_spec.metadata, db=runner._get_db())
+        logger.info(f"===DEBUG===\n{run_spec.to_dict()}\n===DEBUG===")
         schedule = workflow_request.spec.schedule
         scheduled_object = {
             "task": run_spec.to_dict(),

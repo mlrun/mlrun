@@ -43,7 +43,6 @@ from mlrun.api.db.sqldb.helpers import (
     update_labels,
 )
 from mlrun.api.db.sqldb.models import (
-    LegacyArtifact,
     BackgroundTask,
     DataVersion,
     Entity,
@@ -51,6 +50,7 @@ from mlrun.api.db.sqldb.models import (
     FeatureSet,
     FeatureVector,
     Function,
+    LegacyArtifact,
     Log,
     MarketplaceSource,
     Project,
@@ -560,7 +560,9 @@ class SQLDB(DBInterface):
             self._set_tag_in_artifact_struct(artifact_struct, tag)
             artifacts.append(artifact_struct)
         else:
-            tag_results = self._query(session, LegacyArtifact.Tag, obj_id=artifact_id).all()
+            tag_results = self._query(
+                session, LegacyArtifact.Tag, obj_id=artifact_id
+            ).all()
             if not tag_results:
                 return [artifact_struct]
             for tag_object in tag_results:
@@ -741,7 +743,8 @@ class SQLDB(DBInterface):
         if not identifiers:
             return []
         predicates = [
-            and_(LegacyArtifact.key == key, LegacyArtifact.uid == uid) for (key, uid) in identifiers
+            and_(LegacyArtifact.key == key, LegacyArtifact.uid == uid)
+            for (key, uid) in identifiers
         ]
         return (
             self._query(session, LegacyArtifact, project=project)
@@ -756,7 +759,9 @@ class SQLDB(DBInterface):
             LegacyArtifact.key == key, LegacyArtifact.project == project
         )
         if tag:
-            query = query.join(LegacyArtifact.Tag).filter(LegacyArtifact.Tag.name == tag)
+            query = query.join(LegacyArtifact.Tag).filter(
+                LegacyArtifact.Tag.name == tag
+            )
 
         # Cannot delete yet, because tag and label deletion queries join with the artifacts table, so the objects
         # still need to be there.
@@ -803,7 +808,9 @@ class SQLDB(DBInterface):
         query = (
             session.query(LegacyArtifact.Tag)
             .join(LegacyArtifact)
-            .filter(LegacyArtifact.project == project, LegacyArtifact.key == artifact_key)
+            .filter(
+                LegacyArtifact.project == project, LegacyArtifact.key == artifact_key
+            )
         )
         if tag_name:
             query = query.filter(LegacyArtifact.Tag.name == tag_name)
@@ -2794,7 +2801,9 @@ class SQLDB(DBInterface):
             # Like query
             iter_prefix = f"{iter}-" if iter else ""
             return query.filter(
-                LegacyArtifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%", escape="\\")
+                LegacyArtifact.key.ilike(
+                    f"{iter_prefix}%{exact_name[1:]}%", escape="\\"
+                )
             )
 
         # From here on, it's either exact name match or no name

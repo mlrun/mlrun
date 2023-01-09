@@ -45,12 +45,12 @@ import mlrun.artifacts.model
 import mlrun.errors
 import tests.api.conftest
 from mlrun.api.db.sqldb.models import (
-    LegacyArtifact,
     Entity,
     Feature,
     FeatureSet,
     FeatureVector,
     Function,
+    LegacyArtifact,
     Project,
     Run,
     Schedule,

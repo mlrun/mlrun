@@ -206,8 +206,8 @@ def load_project(
     subpath: str = None,
     clone: bool = False,
     user_project: bool = False,
-    sync_functions: bool = False,
     save: bool = True,
+    sync_functions: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -232,8 +232,8 @@ def load_project(
     :param subpath:        project subpath (within the archive)
     :param clone:          if True, always clone (delete any existing content)
     :param user_project:   add the current user name to the project name (for db:// prefixes)
-    :param sync_functions: sync the project's functions into the project object (will be saved to the DB if save=True)
     :param save:           whether to save the created project and artifact in the DB
+    :param sync_functions: sync the project's functions into the project object (will be saved to the DB if save=True)
 
     :returns: project object
     """
@@ -1692,7 +1692,7 @@ class MlrunProject(ModelObj):
         return FunctionsDict(self)
 
     def get_function_names(self) -> typing.List[str]:
-        """get a list of all the project functions names"""
+        """get a list of all the project functions' names"""
         return [func["name"] for func in self.spec.functions]
 
     def pull(self, branch=None, remote=None):
@@ -2827,11 +2827,9 @@ def _init_function_from_dict(f, project, name=None):
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
             )
-        func = import_function(url)
+        func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
-        if name:
-            func.metadata.name = name
     elif url.endswith(".ipynb"):
         # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(

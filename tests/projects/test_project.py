@@ -438,7 +438,7 @@ def test_load_project(
         ),
         (
             True,
-            5,
+            4,
         ),
     ],
 )

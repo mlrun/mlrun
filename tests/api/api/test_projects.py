@@ -155,7 +155,7 @@ def test_get_non_existing_project(
     """
     project = "does-not-exist"
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
-        unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
+        unittest.mock.AsyncMock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
     response = client.get(f"projects/{project}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value

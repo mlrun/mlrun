@@ -162,14 +162,14 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             raise_on_forbidden=raise_on_forbidden,
         )
 
-    def query_permissions(
+    async def query_permissions(
         self,
         resource: str,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
-    ) -> typing.Coroutine[typing.Any, typing.Any, bool]:
-        return self._auth_provider.query_permissions(
+    ) -> bool:
+        return await self._auth_provider.query_permissions(
             resource, action, auth_info, raise_on_forbidden
         )
 

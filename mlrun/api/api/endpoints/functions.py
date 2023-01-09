@@ -74,8 +74,7 @@ async def store_function(
         project,
         auth_info=auth_info,
     )
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -326,7 +325,7 @@ async def function_status(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    resp = await run_in_threadpool(_get_function_status, data, auth_info)
+    resp = await _get_function_status(data, auth_info)
     return {
         "data": resp,
     }
@@ -666,7 +665,7 @@ def _start_function(
         mlrun.api.db.session.close_session(db_session)
 
 
-def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
+async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     logger.info(f"function_status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
@@ -681,7 +680,7 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     if not project or not name:
         project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -696,7 +695,6 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
             reason="runtime error: 'status' not supported by this runtime",
         )
 
-    resp = None
     try:
         resp = resource["status"](selector)
         logger.info("status: %s", resp)

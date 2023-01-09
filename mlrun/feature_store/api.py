@@ -94,13 +94,14 @@ def get_offline_features(
     target: DataTargetBase = None,
     run_config: RunConfig = None,
     drop_columns: List[str] = None,
-    start_time: Union[str, pd.Timestamp] = None,
-    end_time: Union[str, pd.Timestamp] = None,
+    start_time: Union[str, datetime] = None,
+    end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
     update_stats: bool = False,
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
+    spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
 
@@ -146,7 +147,8 @@ def get_offline_features(
     :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
     :param engine:          processing engine kind ("local", "dask", or "spark")
     :param engine_args:     kwargs for the processing engine
-    :param query:          The query string used to filter rows
+    :param query:           The query string used to filter rows
+    :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True
@@ -159,10 +161,16 @@ def get_offline_features(
         entity_timestamp_column or feature_vector.spec.timestamp_field
     )
 
-    if run_config:
+    merger_engine = get_merger(engine)
+
+    if run_config and not run_config.local:
         return run_merge_job(
             feature_vector,
             target,
+            merger_engine,
+            engine,
+            engine_args,
+            spark_service,
             entity_rows,
             timestamp_column=entity_timestamp_column,
             run_config=run_config,
@@ -180,7 +188,6 @@ def get_offline_features(
     if start_time and not end_time:
         # if end_time is not specified set it to now()
         end_time = pd.Timestamp.now()
-    merger_engine = get_merger(engine)
     merger = merger_engine(feature_vector, **(engine_args or {}))
     return merger.start(
         entity_rows,

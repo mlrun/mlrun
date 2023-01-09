@@ -248,8 +248,8 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_1"
-    artifact_2_tag = "artifact_tag_2"
+    artifact_1_tag = "artifact-tag-1"
+    artifact_2_tag = "artifact-tag-2"
 
     db.store_artifact(
         db_session,
@@ -310,8 +310,8 @@ def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     artifact_uid = "artifact_uid_1"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_uid)
-    artifact_1_tag = "artifact_tag_1"
-    artifact_2_tag = "artifact_tag_2"
+    artifact_1_tag = "artifact-tag-1"
+    artifact_2_tag = "artifact-tag-2"
 
     db.store_artifact(
         db_session,
@@ -352,8 +352,8 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
 
     db.store_artifact(
         db_session,
@@ -391,9 +391,9 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
-    artifact_2_tag_2 = "artifact_tag_two_again"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
+    artifact_2_tag_2 = "artifact-tag-two-again"
 
     db.store_artifact(
         db_session,

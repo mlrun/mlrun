@@ -919,7 +919,7 @@ def _create_resources_of_all_kinds(
     }
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
     artifact_uids = ["some_uid", "some_uid2", "some_uid3"]
-    artifact_tags = ["some_tag", "some_tag2", "some_tag3"]
+    artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
     for artifact_key in artifact_keys:
         for artifact_uid in artifact_uids:
             for artifact_tag in artifact_tags:

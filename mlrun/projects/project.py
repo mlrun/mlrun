@@ -107,7 +107,7 @@ def new_project(
         # create a project with local and marketplace functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://sklearn_classifier', 'train')
+        project.set_function('hub://auto_trainer', 'train')
         project.set_artifact('data', Artifact(target_path=data_url))
         project.set_workflow('main', "./myflow.py")
         project.save()
@@ -1332,7 +1332,7 @@ class MlrunProject(ModelObj):
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
-        :param format:        optional, format to use (e.g. csv, parquet, ..)
+        :param format:        optional, format to use (`csv`, `parquet`, `pq`, `tsdb`, `kv`)
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
         :param preview:       number of lines to store as preview in the artifact metadata
         :param stats:         calculate and store dataset stats in the artifact metadata
@@ -1551,7 +1551,7 @@ class MlrunProject(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://sklearn_classifier:master
+            functions hub/market: e.g. hub://auto_trainer:master
 
         examples::
 
@@ -2194,11 +2194,12 @@ class MlrunProject(ModelObj):
             # create a project with two functions (local and from marketplace)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-            project.set_function("hub://sklearn_classifier", "train")
+            project.set_function("hub://auto_trainer", "train")
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})
-            run2 = project.run_function("train", params={"data": run1.outputs["data"]})
+            run2 = project.run_function("train", params={"label_columns": LABELS},
+                                                 inputs={"dataset":run1.outputs["data"]})
 
         :param function:        name of the function (in the project) or function object
         :param handler:         name of the function handler
@@ -2221,7 +2222,7 @@ class MlrunProject(ModelObj):
         :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
-                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp
@@ -2721,7 +2722,7 @@ class MlrunProjectLegacy(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://sklearn_classifier:master
+            functions hub/market: e.g. hub://auto_trainer:master
 
         examples::
 

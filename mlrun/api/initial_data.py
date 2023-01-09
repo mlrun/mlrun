@@ -341,7 +341,7 @@ def _fix_artifact_tags_duplications(
     # get all artifacts
     artifacts = db._find_artifacts(db_session, None, "*")
     # get all artifact tags
-    tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
+    tags = db._query(db_session, mlrun.api.db.sqldb.models.LegacyArtifact.Tag).all()
     # artifact record id -> artifact
     artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
     tags_to_delete = []
@@ -384,7 +384,7 @@ def _fix_artifact_tags_duplications(
 
 
 def _find_last_updated_artifact(
-    artifacts: typing.List[mlrun.api.db.sqldb.models.Artifact],
+    artifacts: typing.List[mlrun.api.db.sqldb.models.LegacyArtifact],
 ):
     # sanity
     if not artifacts:

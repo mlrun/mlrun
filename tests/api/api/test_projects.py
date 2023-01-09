@@ -45,7 +45,7 @@ import mlrun.artifacts.model
 import mlrun.errors
 import tests.api.conftest
 from mlrun.api.db.sqldb.models import (
-    Artifact,
+    LegacyArtifact,
     Entity,
     Feature,
     FeatureSet,
@@ -1152,9 +1152,9 @@ def _assert_db_resources_in_project(
                 )
             if cls.__tablename__ == "artifacts_labels":
                 number_of_cls_records = (
-                    db_session.query(Artifact)
+                    db_session.query(LegacyArtifact)
                     .join(cls)
-                    .filter(Artifact.project == project)
+                    .filter(LegacyArtifact.project == project)
                     .count()
                 )
             if cls.__tablename__ == "feature_sets_labels":

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import Artifact
+from mlrun.api.db.sqldb.models import LegacyArtifact
 from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 
@@ -175,7 +175,7 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
         artifact_with_new_tag["tag"] = "new-tag"
         expected_results.append(artifact_with_new_tag)
 
-    artifacts = db_session.query(Artifact).all()
+    artifacts = db_session.query(LegacyArtifact).all()
     db.tag_artifacts(db_session, artifacts, prj, "new-tag")
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}

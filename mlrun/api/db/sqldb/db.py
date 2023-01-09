@@ -43,7 +43,7 @@ from mlrun.api.db.sqldb.helpers import (
     update_labels,
 )
 from mlrun.api.db.sqldb.models import (
-    Artifact,
+    LegacyArtifact,
     BackgroundTask,
     DataVersion,
     Entity,
@@ -524,7 +524,7 @@ class SQLDB(DBInterface):
         existed = True
         art = self._get_artifact(session, uid, project, key)
         if not art:
-            art = Artifact(key=key, uid=uid, updated=updated, project=project)
+            art = LegacyArtifact(key=key, uid=uid, updated=updated, project=project)
             existed = False
 
         update_labels(art, labels)
@@ -560,7 +560,7 @@ class SQLDB(DBInterface):
             self._set_tag_in_artifact_struct(artifact_struct, tag)
             artifacts.append(artifact_struct)
         else:
-            tag_results = self._query(session, Artifact.Tag, obj_id=artifact_id).all()
+            tag_results = self._query(session, LegacyArtifact.Tag, obj_id=artifact_id).all()
             if not tag_results:
                 return [artifact_struct]
             for tag_object in tag_results:
@@ -571,11 +571,11 @@ class SQLDB(DBInterface):
 
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
-        ids = self._resolve_tag(session, Artifact, project, tag)
+        ids = self._resolve_tag(session, LegacyArtifact, project, tag)
         if iter:
             key = f"{iter}-{key}"
 
-        query = self._query(session, Artifact, key=key, project=project)
+        query = self._query(session, LegacyArtifact, key=key, project=project)
 
         # This will hold the real tag of the object (if exists). Will be placed in the artifact structure.
         db_tag = None
@@ -586,16 +586,16 @@ class SQLDB(DBInterface):
         # 2. uid - in this case _resolve_tag won't find anything and simply return what was given to it, which actually
         # represents the uid
         if isinstance(ids, list) and ids:
-            query = query.filter(Artifact.id.in_(ids))
+            query = query.filter(LegacyArtifact.id.in_(ids))
             db_tag = tag
         elif isinstance(ids, str) and ids:
-            query = query.filter(Artifact.uid == ids)
+            query = query.filter(LegacyArtifact.uid == ids)
         else:
             # Select by last updated
-            max_updated = session.query(func.max(Artifact.updated)).filter(
-                Artifact.project == project, Artifact.key == key
+            max_updated = session.query(func.max(LegacyArtifact.updated)).filter(
+                LegacyArtifact.project == project, LegacyArtifact.key == key
             )
-            query = query.filter(Artifact.updated.in_(max_updated))
+            query = query.filter(LegacyArtifact.updated.in_(max_updated))
 
         art = query.one_or_none()
         if not art:
@@ -646,7 +646,7 @@ class SQLDB(DBInterface):
             if tag == "*" or use_tag_as_uid:
                 ids = tag
             else:
-                ids = self._resolve_tag(session, Artifact, project, tag)
+                ids = self._resolve_tag(session, LegacyArtifact, project, tag)
 
         artifacts = ArtifactList()
         artifact_records = self._find_artifacts(
@@ -741,10 +741,10 @@ class SQLDB(DBInterface):
         if not identifiers:
             return []
         predicates = [
-            and_(Artifact.key == key, Artifact.uid == uid) for (key, uid) in identifiers
+            and_(LegacyArtifact.key == key, LegacyArtifact.uid == uid) for (key, uid) in identifiers
         ]
         return (
-            self._query(session, Artifact, project=project)
+            self._query(session, LegacyArtifact, project=project)
             .filter(or_(*predicates))
             .all()
         )
@@ -752,11 +752,11 @@ class SQLDB(DBInterface):
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
 
-        query = session.query(Artifact).filter(
-            Artifact.key == key, Artifact.project == project
+        query = session.query(LegacyArtifact).filter(
+            LegacyArtifact.key == key, LegacyArtifact.project == project
         )
         if tag:
-            query = query.join(Artifact.Tag).filter(Artifact.Tag.name == tag)
+            query = query.join(LegacyArtifact.Tag).filter(LegacyArtifact.Tag.name == tag)
 
         # Cannot delete yet, because tag and label deletion queries join with the artifacts table, so the objects
         # still need to be there.
@@ -767,7 +767,7 @@ class SQLDB(DBInterface):
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
         self._delete_artifact_tags(session, project, key, tag, commit=False)
         self._delete_class_labels(
-            session, Artifact, project=project, key=key, commit=False
+            session, LegacyArtifact, project=project, key=key, commit=False
         )
         for artifact in artifacts:
             session.delete(artifact)
@@ -777,21 +777,21 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        artifacts: typing.List[Artifact],
+        artifacts: typing.List[LegacyArtifact],
         tags: typing.List[str] = None,
         commit: bool = True,
     ):
         artifacts_keys = [str(artifact.key) for artifact in artifacts]
         query = (
-            session.query(Artifact.Tag)
-            .join(Artifact)
+            session.query(LegacyArtifact.Tag)
+            .join(LegacyArtifact)
             .filter(
-                Artifact.project == project,
-                Artifact.key.in_(artifacts_keys),
+                LegacyArtifact.project == project,
+                LegacyArtifact.key.in_(artifacts_keys),
             )
         )
         if tags:
-            query = query.filter(Artifact.Tag.name.in_(tags))
+            query = query.filter(LegacyArtifact.Tag.name.in_(tags))
         for tag in query:
             session.delete(tag)
         if commit:
@@ -801,12 +801,12 @@ class SQLDB(DBInterface):
         self, session, project, artifact_key, tag_name="", commit=True
     ):
         query = (
-            session.query(Artifact.Tag)
-            .join(Artifact)
-            .filter(Artifact.project == project, Artifact.key == artifact_key)
+            session.query(LegacyArtifact.Tag)
+            .join(LegacyArtifact)
+            .filter(LegacyArtifact.project == project, LegacyArtifact.key == artifact_key)
         )
         if tag_name:
-            query = query.filter(Artifact.Tag.name == tag_name)
+            query = query.filter(LegacyArtifact.Tag.name == tag_name)
         for tag in query:
             session.delete(tag)
         if commit:
@@ -816,7 +816,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         ids = "*"
         if tag and tag != "*":
-            ids = self._resolve_tag(session, Artifact, project, tag)
+            ids = self._resolve_tag(session, LegacyArtifact, project, tag)
         distinct_keys = {
             artifact.key
             for artifact in self._find_artifacts(
@@ -1226,8 +1226,8 @@ class SQLDB(DBInterface):
                     project=project,
                     name=name,
                 )
-                .join(Artifact)
-                .filter(Artifact.key == artifact.key)
+                .join(LegacyArtifact)
+                .filter(LegacyArtifact.key == artifact.key)
             )
             tag = query.one_or_none()
             if not tag:
@@ -2665,7 +2665,7 @@ class SQLDB(DBInterface):
     def _get_artifact(self, session, uid, project, key):
         try:
             resp = self._query(
-                session, Artifact, uid=uid, project=project, key=key
+                session, LegacyArtifact, uid=uid, project=project, key=key
             ).one_or_none()
             return resp
         finally:
@@ -2753,14 +2753,14 @@ class SQLDB(DBInterface):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
             session.query(
-                Artifact.uid,
-                Artifact.project,
-                Artifact.key,
-                func.max(Artifact.updated),
+                LegacyArtifact.uid,
+                LegacyArtifact.project,
+                LegacyArtifact.key,
+                func.max(LegacyArtifact.updated),
             )
             .group_by(
-                Artifact.project,
-                Artifact.key.label("key"),
+                LegacyArtifact.project,
+                LegacyArtifact.key.label("key"),
             )
             .subquery("max_key")
         )
@@ -2769,9 +2769,9 @@ class SQLDB(DBInterface):
         return query.join(
             subq,
             and_(
-                Artifact.project == subq.c.project,
-                Artifact.key == subq.c.key,
-                Artifact.uid == subq.c.uid,
+                LegacyArtifact.project == subq.c.project,
+                LegacyArtifact.key == subq.c.key,
+                LegacyArtifact.uid == subq.c.uid,
             ),
         )
 
@@ -2794,22 +2794,22 @@ class SQLDB(DBInterface):
             # Like query
             iter_prefix = f"{iter}-" if iter else ""
             return query.filter(
-                Artifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%", escape="\\")
+                LegacyArtifact.key.ilike(f"{iter_prefix}%{exact_name[1:]}%", escape="\\")
             )
 
         # From here on, it's either exact name match or no name
         if iter:
             if name:
-                return query.filter(Artifact.key == f"{iter}-{name}")
-            return query.filter(Artifact.key.ilike(f"{iter}-%"))
+                return query.filter(LegacyArtifact.key == f"{iter}-{name}")
+            return query.filter(LegacyArtifact.key.ilike(f"{iter}-%"))
 
         # Exact match, no iter specified
         return query.filter(
             or_(
-                Artifact.key == name,
+                LegacyArtifact.key == name,
                 and_(
-                    Artifact.key.like(f"%-{exact_name}", escape="\\"),
-                    func.length(Artifact.key) < len(name) + 4,
+                    LegacyArtifact.key.like(f"%-{exact_name}", escape="\\"),
+                    func.length(LegacyArtifact.key) < len(name) + 4,
                 ),
             )
         )
@@ -2844,21 +2844,21 @@ class SQLDB(DBInterface):
             logger.warning(message, kind=kind, category=category)
             raise ValueError(message)
         labels = label_set(labels)
-        query = self._query(session, Artifact, project=project)
+        query = self._query(session, LegacyArtifact, project=project)
         if ids != "*":
             if ids == "latest" and not use_tag_as_uid:
                 query = self._latest_uid_filter(session, query)
             elif isinstance(ids, str):
-                query = query.filter(Artifact.uid == ids)
+                query = query.filter(LegacyArtifact.uid == ids)
             else:
-                query = query.filter(Artifact.id.in_(ids))
-        query = self._add_labels_filter(session, query, Artifact, labels)
+                query = query.filter(LegacyArtifact.id.in_(ids))
+        query = self._add_labels_filter(session, query, LegacyArtifact, labels)
 
         if since or until:
             since = since or datetime.min
             until = until or datetime.max
             query = query.filter(
-                and_(Artifact.updated >= since, Artifact.updated <= until)
+                and_(LegacyArtifact.updated >= since, LegacyArtifact.updated <= until)
             )
 
         query = self._add_artifact_name_and_iter_query(query, name, iter)

@@ -246,20 +246,18 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "accuracy": true,
               "drift_status": true,
               "endpoint_function": false,
               "endpoint_id": false,
               "error_count": true
             },
             "indexByName": {
-              "accuracy": 9,
               "drift_status": 8,
               "endpoint_function": 2,
               "endpoint_id": 0,
               "endpoint_model": 1,
               "endpoint_model_class": 3,
-              "error_count": 10,
+              "error_count": 9,
               "first_request": 6,
               "last_request": 7,
               "latency_avg_1h": 5,
@@ -760,7 +758,7 @@
       }
     }
   ],
-  "refresh": false,
+  "refresh": "1m",
   "schemaVersion": 26,
   "style": "dark",
   "tags": [],

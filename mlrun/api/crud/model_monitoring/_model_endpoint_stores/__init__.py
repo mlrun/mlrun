@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 import enum
 import typing
@@ -24,10 +25,10 @@ from .model_endpoint_store import ModelEndpointStore
 class ModelEndpointStoreType(enum.Enum):
     """Enum class to handle the different store type values for saving a model endpoint record."""
 
-    kv = "kv"
-    sql = "sql"
+    KV = "kv"
+    SQL = "sql"
 
-    def to_endpoint_target(
+    def to_endpoint_store(
         self,
         project: str,
         access_key: str = None,
@@ -45,20 +46,20 @@ class ModelEndpointStoreType(enum.Enum):
                                   e.g. A root user with password 1234, tries to connect a schema called mlrun within a
                                   local MySQL DB instance: 'mysql+pymysql://root:1234@localhost:3306/mlrun'.
 
-        :return: ModelEndpointStore object.
+        :return: `ModelEndpointStore` object.
 
         """
 
-        if self.value == ModelEndpointStoreType.kv.value:
+        if self.value == ModelEndpointStoreType.KV.value:
 
-            from .kv_model_endpoint_store import _ModelEndpointKVStore
+            from .kv_model_endpoint_store import KVModelEndpointStore
 
             # Get V3IO access key from env
             access_key = (
                 mlrun.mlconf.get_v3io_access_key() if access_key is None else access_key
             )
 
-            return _ModelEndpointKVStore(project=project, access_key=access_key)
+            return KVModelEndpointStore(project=project, access_key=access_key)
 
         # Assuming SQL store target if store type is not KV.
         # Update these lines once there are more than two store target types.
@@ -67,9 +68,9 @@ class ModelEndpointStoreType(enum.Enum):
             if connection_string is not None
             else mlrun.mlconf.model_endpoint_monitoring.connection_string
         )
-        from .sql_model_endpoint_store import _ModelEndpointSQLStore
+        from .sql_model_endpoint_store import SQLModelEndpointStore
 
-        return _ModelEndpointSQLStore(
+        return SQLModelEndpointStore(
             project=project, connection_string=sql_connection_string
         )
 
@@ -80,12 +81,11 @@ class ModelEndpointStoreType(enum.Enum):
         """
         valid_values = list(cls.__members__.keys())
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "%r is not a valid %s, please choose a valid value: %s."
-            % (value, cls.__name__, valid_values)
+            f"{value} is not a valid endpoint store, please choose a valid value: %{valid_values}."
         )
 
 
-def get_model_endpoint_target(
+def get_model_endpoint_store(
     project: str, access_key: str = None
 ) -> ModelEndpointStore:
     """
@@ -94,7 +94,7 @@ def get_model_endpoint_target(
     :param project:    The name of the project.
     :param access_key: Access key with permission to the DB table.
 
-    :return: ModelEndpointStore object. Using this object, the user can apply different operations on the
+    :return: `ModelEndpointStore` object. Using this object, the user can apply different operations on the
              model endpoint record such as write, update, get and delete.
     """
 
@@ -104,4 +104,4 @@ def get_model_endpoint_target(
     )
 
     # Convert into model endpoint store target object
-    return model_endpoint_store_type.to_endpoint_target(project, access_key)
+    return model_endpoint_store_type.to_endpoint_store(project, access_key)

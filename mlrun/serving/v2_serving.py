@@ -22,12 +22,15 @@ from mlrun.api.schemas import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringMode,
 )
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
+from mlrun.model_monitoring import (
+    EndpointType,
+    ModelMonitoringMode,
+    create_model_endpoint_id,
+)
 from mlrun.utils import logger, now_date, parse_versioned_object_uri
-from mlrun.utils.model_monitoring import EndpointType
 
 from .server import GraphServer
 from .utils import StepToDict, _extract_input_data, _update_result_body
@@ -486,7 +489,7 @@ def _init_endpoint_record(
         versioned_model_name = f"{model.name}:latest"
 
     # Generating model endpoint ID based on function uri and model version
-    uid = mlrun.utils.model_monitoring.create_model_endpoint_id(
+    uid = create_model_endpoint_id(
         function_uri=graph_server.function_uri, versioned_model=versioned_model_name
     ).uid
 

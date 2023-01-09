@@ -448,22 +448,6 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Accuracy"
-            },
-            "properties": [
-              {
-                "id": "custom.align",
-                "value": "center"
-              },
-              {
-                "id": "noValue",
-                "value": "N/A"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "Error Count"
             },
             "properties": [
@@ -627,8 +611,7 @@
               "model_hash": false
             },
             "indexByName": {
-              "accuracy": 8,
-              "drift_status": 9,
+              "drift_status": 8,
               "endpoint_function": 1,
               "endpoint_id": 0,
               "endpoint_model": 2,
@@ -639,7 +622,6 @@
               "last_request": 6
             },
             "renameByName": {
-              "accuracy": "Accuracy",
               "drift_status": "Drift Status",
               "endpoint_function": "Function",
               "endpoint_id": "Endpoint ID",

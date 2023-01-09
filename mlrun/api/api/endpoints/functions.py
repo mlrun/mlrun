@@ -380,11 +380,15 @@ def build_status(
         # or completely empty.
         address = external_invocation_urls[0] if external_invocation_urls else ""
 
+        # the built and pushed image name used to run the nuclio function container
+        container_image = status.get("containerImage", "")
+
         update_in(fn, "status.nuclio_name", nuclio_name)
         update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
         update_in(fn, "status.external_invocation_urls", external_invocation_urls)
         update_in(fn, "status.state", state)
         update_in(fn, "status.address", address)
+        update_in(fn, "status.container_image", container_image)
 
         versioned = False
         if state == "ready":
@@ -408,6 +412,7 @@ def build_status(
                 "x-mlrun-address": address,
                 "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
                 "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
+                "x-mlrun-container-image": container_image,
                 "x-mlrun-name": nuclio_name,
             },
         )

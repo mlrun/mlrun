@@ -31,7 +31,6 @@ class EventFieldType:
     NAMED_FEATURES = "named_features"
     LABELS = "labels"
     LATENCY = "latency"
-    UNPACKED_LABELS = "unpacked_labels"
     LABEL_COLUMNS = "label_columns"
     LABEL_NAMES = "label_names"
     PREDICTION = "prediction"

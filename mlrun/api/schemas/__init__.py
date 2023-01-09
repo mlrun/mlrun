@@ -104,7 +104,6 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
-    ModelMonitoringMode,
     ModelMonitoringStoreKinds,
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus

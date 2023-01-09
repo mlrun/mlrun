@@ -28,8 +28,8 @@ import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.api.crud.model_monitoring import get_model_endpoint_target
-from mlrun.model_monitoring.constants import (
+from mlrun.api.crud.model_monitoring import get_model_endpoint_store
+from mlrun.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
@@ -528,7 +528,6 @@ class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
         logger.info("ProcessBeforeParquet1", event=event)
         # Remove the following keys from the event
         for key in [
-            EventFieldType.UNPACKED_LABELS,
             EventFieldType.FEATURES,
             EventFieldType.NAMED_FEATURES,
         ]:
@@ -598,7 +597,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         version = event.get(EventFieldType.VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-        endpoint_id = mlrun.utils.model_monitoring.create_model_endpoint_id(
+        endpoint_id = mlrun.model_monitoring.create_model_endpoint_id(
             function_uri=function_uri,
             versioned_model=versioned_model,
         )
@@ -667,11 +666,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
             return None
 
-        # Get labels from event (if exist)
-        unpacked_labels = {
-            f"_{k}": v for k, v in event.get(EventFieldType.LABELS, {}).items()
-        }
-
         # Adjust timestamp format
         timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
 
@@ -710,7 +704,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
                     EventFieldType.ENTITIES: event.get("request", {}).get(
                         EventFieldType.ENTITIES, {}
                     ),
-                    EventFieldType.UNPACKED_LABELS: unpacked_labels,
                 }
             )
 
@@ -1044,7 +1037,7 @@ def update_endpoint_record(
     endpoint_id: str,
     attributes: dict,
 ):
-    model_endpoint_target = get_model_endpoint_target(
+    model_endpoint_target = get_model_endpoint_store(
         project=project,
     )
     model_endpoint_target.update_model_endpoint(
@@ -1053,7 +1046,7 @@ def update_endpoint_record(
 
 
 def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_target = get_model_endpoint_target(
+    model_endpoint_target = get_model_endpoint_store(
         project=project,
     )
     return model_endpoint_target.get_model_endpoint(

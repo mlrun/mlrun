@@ -36,7 +36,7 @@ from mlrun.api.schemas import (
 )
 from mlrun.api.utils.singletons.project_member import get_project_member
 from mlrun.errors import MLRunBadRequestError
-from mlrun.model_monitoring.constants import EventKeyMetrics, EventLiveStats
+from mlrun.model_monitoring import EventKeyMetrics, EventLiveStats
 from mlrun.utils import config, logger
 from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client
@@ -159,7 +159,7 @@ def grafana_list_endpoints_ids(
     project = query_parameters.get("project")
 
     # Create model endpoint target object and list the model endpoints unique ids.
-    endpoint_target = mlrun.api.crud.model_monitoring.get_model_endpoint_target(
+    endpoint_target = mlrun.api.crud.model_monitoring.get_model_endpoint_store(
         project=project
     )
     endpoint_list = endpoint_target.list_model_endpoints()

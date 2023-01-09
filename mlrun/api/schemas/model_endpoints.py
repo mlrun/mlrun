@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
+
 import json
 import typing
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -20,9 +20,15 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-import mlrun.model_monitoring.constants as model_monitoring_constants
 from mlrun.api.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.utils.model_monitoring import EndpointType, create_model_endpoint_id
+from mlrun.model_monitoring import (
+    EndpointType,
+    EventFieldType,
+    EventKeyMetrics,
+    EventLiveStats,
+    ModelMonitoringMode,
+    create_model_endpoint_id,
+)
 
 
 class ModelMonitoringStoreKinds:
@@ -40,7 +46,7 @@ class ModelEndpointMetadata(BaseModel):
 
     @classmethod
     def from_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
-        """Create a ModelEndpointMetadata object from an endpoint dictionary
+        """Create a `ModelEndpointMetadata` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
@@ -48,22 +54,17 @@ class ModelEndpointMetadata(BaseModel):
         """
         new_object = cls()
         if json_parse_values is None:
-            json_parse_values = [model_monitoring_constants.EventFieldType.LABELS]
+            json_parse_values = [EventFieldType.LABELS]
         # Replace the key name endpoint_id with uid as required by the object schema
-        if model_monitoring_constants.EventFieldType.ENDPOINT_ID in endpoint_dict:
-            endpoint_dict[
-                model_monitoring_constants.EventFieldType.UID
-            ] = endpoint_dict.pop(model_monitoring_constants.EventFieldType.ENDPOINT_ID)
+        if EventFieldType.ENDPOINT_ID in endpoint_dict:
+            endpoint_dict[EventFieldType.UID] = endpoint_dict.pop(
+                EventFieldType.ENDPOINT_ID
+            )
         return _mapping_attributes(
             base_model=new_object,
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
-
-
-class ModelMonitoringMode(str, enum.Enum):
-    enabled = "enabled"
-    disabled = "disabled"
 
 
 class ModelEndpointSpec(ObjectSpec):
@@ -77,11 +78,11 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str] = ""
     monitor_configuration: Optional[dict] = {}
     active: Optional[bool] = True
-    monitoring_mode: Optional[str] = ModelMonitoringMode.disabled
+    monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled
 
     @classmethod
     def from_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
-        """Create a ModelEndpointSpec object from an endpoint dictionary
+        """Create a `ModelEndpointSpec` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
@@ -90,9 +91,9 @@ class ModelEndpointSpec(ObjectSpec):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                model_monitoring_constants.EventFieldType.FEATURE_NAMES,
-                model_monitoring_constants.EventFieldType.LABEL_NAMES,
-                model_monitoring_constants.EventFieldType.MONITOR_CONFIGURATION,
+                EventFieldType.FEATURE_NAMES,
+                EventFieldType.LABEL_NAMES,
+                EventFieldType.MONITOR_CONFIGURATION,
             ]
         return _mapping_attributes(
             base_model=new_object,
@@ -155,9 +156,9 @@ class ModelEndpointStatus(ObjectStatus):
     drift_status: Optional[str] = ""
     drift_measures: Optional[dict] = {}
     metrics: Optional[Dict[str, Dict[str, Any]]] = {
-        model_monitoring_constants.EventKeyMetrics.GENERIC: {
-            model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H: 0,
-            model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+        EventKeyMetrics.GENERIC: {
+            EventLiveStats.LATENCY_AVG_1H: 0,
+            EventLiveStats.PREDICTIONS_PER_SECOND: 0,
         }
     }
     features: Optional[List[Features]] = []
@@ -171,7 +172,7 @@ class ModelEndpointStatus(ObjectStatus):
 
     @classmethod
     def from_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
-        """Create a ModelEndpointStatus object from an endpoint dictionary
+        """Create a `ModelEndpointStatus` object from an endpoint dictionary
 
         :param endpoint_dict:     Model endpoint dictionary.
         :param json_parse_values: List of dictionary keys with a JSON string value that will be parsed into a
@@ -180,13 +181,13 @@ class ModelEndpointStatus(ObjectStatus):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                model_monitoring_constants.EventFieldType.FEATURE_STATS,
-                model_monitoring_constants.EventFieldType.CURRENT_STATS,
-                model_monitoring_constants.EventFieldType.DRIFT_MEASURES,
-                model_monitoring_constants.EventFieldType.METRICS,
-                model_monitoring_constants.EventFieldType.CHILDREN,
-                model_monitoring_constants.EventFieldType.CHILDREN_UIDS,
-                model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
+                EventFieldType.FEATURE_STATS,
+                EventFieldType.CURRENT_STATS,
+                EventFieldType.DRIFT_MEASURES,
+                EventFieldType.METRICS,
+                EventFieldType.CHILDREN,
+                EventFieldType.CHILDREN_UIDS,
+                EventFieldType.ENDPOINT_TYPE,
             ]
         return _mapping_attributes(
             base_model=new_object,
@@ -214,10 +215,10 @@ class ModelEndpoint(BaseModel):
             self.metadata.uid = str(uid)
 
     def flat_dict(self):
-        """Generate a flattened ModelEndpoint dictionary. The flattened dictionary result is important for storing
+        """Generate a flattened `ModelEndpoint` dictionary. The flattened dictionary result is important for storing
         the model endpoint object in the database.
 
-        :return: Flattened ModelEndpoint dictionary.
+        :return: Flattened `ModelEndpoint` dictionary.
         """
         # Convert the ModelEndpoint object into a dictionary using BaseModel dict() function
         model_endpoint_dictionary = self.dict(exclude={"kind"})
@@ -237,17 +238,15 @@ class ModelEndpoint(BaseModel):
                 else:
                     flatten_dict[key] = model_endpoint_dictionary[k_object][key]
         # Replace the key name uid with endpoint_id as required by the DB schema
-        flatten_dict[
-            model_monitoring_constants.EventFieldType.ENDPOINT_ID
-        ] = flatten_dict.pop(model_monitoring_constants.EventFieldType.UID)
+        flatten_dict[EventFieldType.ENDPOINT_ID] = flatten_dict.pop(EventFieldType.UID)
 
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
-        flatten_dict.pop(model_monitoring_constants.EventFieldType.FEATURES, None)
+        flatten_dict.pop(EventFieldType.FEATURES, None)
         return flatten_dict
 
     @classmethod
     def from_dict(cls, endpoint_dict: dict):
-        """Create a ModelEndpoint object from an endpoint dictionary.
+        """Create a `ModelEndpoint` object from an endpoint dictionary.
 
         :param endpoint_dict:     Model endpoint dictionary.
         """
@@ -304,9 +303,9 @@ def _mapping_attributes(
     flattened_dictionary: dict,
     json_parse_values: typing.List = None,
 ):
-    """Generate a BaseModel object with the provided dictionary attributes.
+    """Generate a `BaseModel` object with the provided dictionary attributes.
 
-    :param base_model:           BaseModel object (e.g. ModelEndpointMetadata).
+    :param base_model:           `BaseModel` object (e.g. `ModelEndpointMetadata`).
     :param flattened_dictionary: Flattened dictionary that contains the model endpoint attributes.
     :param json_parse_values:    List of dictionary keys with a JSON string value that will be parsed into a
                                  dictionary using json.loads().

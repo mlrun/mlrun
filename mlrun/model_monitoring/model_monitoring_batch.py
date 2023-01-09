@@ -34,7 +34,7 @@ import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring.constants import EventFieldType
+from mlrun.model_monitoring import EventFieldType
 from mlrun.utils import logger
 
 
@@ -619,11 +619,11 @@ class BatchProcessor:
             return
 
         active_endpoints = set()
-        for endpoint in endpoints.endpoints:
+        for endpoint in endpoints:
             if (
                 endpoint.spec.active
                 and endpoint.spec.monitoring_mode
-                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+                == mlrun.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 active_endpoints.add(endpoint.metadata.uid)
 
@@ -639,7 +639,7 @@ class BatchProcessor:
                 # Skip router endpoint:
                 if (
                     endpoint.status.endpoint_type
-                    == mlrun.utils.model_monitoring.EndpointType.ROUTER
+                    == mlrun.model_monitoring.EndpointType.ROUTER
                 ):
                     # endpoint.status.feature_stats is None
                     logger.info(f"{endpoint_id} is router skipping")

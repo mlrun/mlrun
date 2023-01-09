@@ -27,6 +27,7 @@ import requests
 import semver
 
 import mlrun
+import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
@@ -266,8 +267,7 @@ class HTTPRunDB(RunDBInterface):
                     f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
                     " CE mode don't match"
                 )
-            config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
-            config.ce.release = server_cfg.get("ce_version") or config.ce.release
+            config.ce = server_cfg.get("ce") or config.ce
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")
@@ -531,7 +531,7 @@ class HTTPRunDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project=None,
         labels=None,
         state=None,
@@ -557,7 +557,7 @@ class HTTPRunDB(RunDBInterface):
 
 
         :param name: Name of the run to retrieve.
-        :param uid: Unique ID of the run.
+        :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
@@ -1057,9 +1057,11 @@ class HTTPRunDB(RunDBInterface):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
         schedule itself are within the schedule object provided.
         The :py:class:`~ScheduleCronTrigger` follows the guidelines in
-        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html.
+        https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html.
         It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
-        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format).
+        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format and
+        note that the 0 weekday is always monday).
+
 
         Example::
 
@@ -1250,6 +1252,9 @@ class HTTPRunDB(RunDBInterface):
                 func.status.external_invocation_urls = resp.headers.get(
                     "x-mlrun-external-invocation-urls", ""
                 ).split(",")
+                func.status.container_image = resp.headers.get(
+                    "x-mlrun-container-image", ""
+                )
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")
@@ -2557,7 +2562,9 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            ModelEndpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         """
         Creates a DB record with the given model_endpoint record.
@@ -2566,12 +2573,18 @@ class HTTPRunDB(RunDBInterface):
         :param endpoint_id: The id of the endpoint.
         :param model_endpoint: An object representing the model endpoint.
         """
+        if isinstance(model_endpoint, ModelEndpoint):
+            model_endpoint = model_endpoint.dict()
+        elif isinstance(
+            model_endpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint
+        ):
+            model_endpoint = model_endpoint.to_dict()
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
         self.api_call(
             method="POST",
             path=path,
-            body=model_endpoint.json(),
+            body=dict_to_json(model_endpoint),
         )
 
     def delete_model_endpoint(
@@ -2604,7 +2617,7 @@ class HTTPRunDB(RunDBInterface):
         top_level: bool = False,
         uids: Optional[List[str]] = None,
         convert_to_endpoint_object=True,
-    ) -> schemas.ModelEndpointList:
+    ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
         This functions supports filtering by the following parameters:
@@ -2632,7 +2645,7 @@ class HTTPRunDB(RunDBInterface):
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` =
                                  days), or 0 for the earliest time.
         :param top_level: if true will return only routers and endpoint that are NOT children of any router
-        :param uids: if passed will return ModelEndpointList of endpoints with uid in uids
+        :param uids: if passed will return `ModelEndpointList` of endpoints with uid in uids
         """
 
         path = f"projects/{project}/model-endpoints"
@@ -2655,7 +2668,14 @@ class HTTPRunDB(RunDBInterface):
                 "convert_to_endpoint_object": convert_to_endpoint_object,
             },
         )
-        return schemas.ModelEndpointList(**response.json())
+
+        # Generate a list of a model endpoint dictionaries
+        model_endpoints = response.json()["endpoints"]
+        if model_endpoints:
+            return [
+                mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(obj)
+                for obj in model_endpoints
+            ]
 
     def get_model_endpoint(
         self,
@@ -2666,9 +2686,9 @@ class HTTPRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
         convert_to_endpoint_object: bool = True,
-    ) -> schemas.ModelEndpoint:
+    ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
         """
-        Returns a single ModelEndpoint object with additional metrics and feature related data.
+        Returns a single `ModelEndpoint` object with additional metrics and feature related data.
 
         :param project:                    The name of the project
         :param endpoint_id:                The unique id of the model endpoint.
@@ -2688,9 +2708,9 @@ class HTTPRunDB(RunDBInterface):
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a ModelEndpoint or not. True by default.
+                                           into a `ModelEndpoint` or not. True by default.
 
-        :return: A ModelEndpoint object.
+        :return: A `ModelEndpoint` object.
         """
 
         path = f"projects/{project}/model-endpoints/{endpoint_id}"
@@ -2705,7 +2725,10 @@ class HTTPRunDB(RunDBInterface):
                 "convert_to_endpoint_object": convert_to_endpoint_object,
             },
         )
-        return schemas.ModelEndpoint(**response.json())
+
+        return mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(
+            response.json()
+        )
 
     def patch_model_endpoint(
         self,

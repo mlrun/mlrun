@@ -30,7 +30,7 @@ from mlrun.utils import logger
 from .model_endpoint_store import ModelEndpointStore
 
 
-class _ModelEndpointSQLStore(ModelEndpointStore):
+class SQLModelEndpointStore(ModelEndpointStore):
 
     """
     Handles the DB operations when the DB target is from type SQL. For the SQL operations, we use SQLAlchemy, a Python
@@ -59,7 +59,7 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
         Create a new endpoint record in the SQL table. This method also creates the model endpoints table within the
         SQL database if not exist.
 
-        :param endpoint: ModelEndpoint object that will be written into the DB.
+        :param endpoint: `ModelEndpoint` object that will be written into the DB.
         """
 
         engine = db.create_engine(self.connection_string)
@@ -139,17 +139,18 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
 
     def get_model_endpoint(
         self,
+        endpoint_id: str,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
-        endpoint_id: str = None,
         convert_to_endpoint_object: bool = True,
     ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
         """
         Get a single model endpoint object. You can apply different time series metrics that will be added to the
         result.
 
+        :param endpoint_id:                The unique id of the model endpoint.
         :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
                                            pre-defined real-time metrics for model endpoints such as
                                            predictions_per_second and latency_avg_5m but also custom metrics defined
@@ -165,16 +166,14 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
                                            or 0 for the earliest time.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
-        :param endpoint_id:                The unique id of the model endpoint.
-        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a ModelEndpoint or not. True by default.
 
-        :return: A ModelEndpoint object or a model endpoint dictionary if convert_to_endpoint_object is False.
+        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
+                                           into a `ModelEndpoint` or not. True by default.
+
+        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
+
+        :raise MLRunNotFoundError: If the model endpoints table was not found or the model endpoint id was not found.
         """
-        logger.info(
-            "Getting model endpoint record from SQL",
-            endpoint_id=endpoint_id,
-        )
 
         engine = db.create_engine(self.connection_string)
 
@@ -244,8 +243,8 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
         uids: typing.List = None,
     ) -> mlrun.api.schemas.ModelEndpointList:
         """
-        Returns a list of ModelEndpoint objects, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available ModelEndpoint objects for the given project will
+        Returns a list of `ModelEndpoint` objects, supports filtering by model, function, labels or top level.
+        By default, when no filters are applied, all available `ModelEndpoint` objects for the given project will
         be listed.
 
         :param model:           The name of the model to filter by.
@@ -258,7 +257,7 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
                                 real-time metrics for model endpoints such as predictions_per_second and latency_avg_5m
                                 but also custom metrics defined by the user. Please note that these metrics are stored
                                 in the time series DB and the results will be appeared under
-                                model_endpoint.spec.metrics.
+                                `model_endpoint.spec.metrics`.
         :param start:           The start time of the metrics. Can be represented by a string containing an RFC 3339
                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
@@ -269,8 +268,8 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
                                  the earliest time.
         :param uids:             List of model endpoint unique ids to include in the result.
 
-        :return: An object of ModelEndpointList which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
+                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
         engine = db.create_engine(self.connection_string)
@@ -325,8 +324,8 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
                     combined=False,
                 )
             if top_level:
-                node_ep = str(mlrun.utils.model_monitoring.EndpointType.NODE_EP.value)
-                router_ep = str(mlrun.utils.model_monitoring.EndpointType.ROUTER.value)
+                node_ep = str(mlrun.model_monitoring.EndpointType.NODE_EP.value)
+                router_ep = str(mlrun.model_monitoring.EndpointType.ROUTER.value)
                 endpoint_types = [node_ep, router_ep]
                 query = self._filter_values(
                     query=query,
@@ -338,8 +337,9 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
             # Labels from type list won't be supported from 1.4.0
             # TODO: Remove in 1.4.0
             if labels and isinstance(labels, typing.List):
-                logger.warn(
-                    "Labels should be from type dictionary, not list",
+                logger.warning(
+                    "Labels should be from type dictionary, not list,"
+                    "Will be deprecated in 1.4.0.",
                     labels=labels,
                 )
 
@@ -410,7 +410,7 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
     @staticmethod
     def _get_table(table_name: str, metadata: db.MetaData):
         """Declaring a new SQL table object with the required model endpoints columns. Below you can find the list
-        of available columns:
+        of columns:
 
         [endpoint_id, state, project, function_uri, model, model_class, labels, model_uri, stream_path, active,
         monitoring_mode, feature_stats, current_stats, feature_names, children, label_names, timestamp, endpoint_type,
@@ -502,8 +502,8 @@ class _ModelEndpointSQLStore(ModelEndpointStore):
         Delete all model endpoints resources in both SQL and the time series DB. In addition, delete the model
         endpoints table from SQL if it's empty at the end of the process.
 
-        :param endpoints: An object of ModelEndpointList which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :param endpoints: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
+                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
         # Delete model endpoint record from SQL table

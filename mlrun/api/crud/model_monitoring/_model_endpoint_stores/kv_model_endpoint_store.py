@@ -28,7 +28,7 @@ from mlrun.utils import logger
 from .model_endpoint_store import ModelEndpointStore
 
 
-class _ModelEndpointKVStore(ModelEndpointStore):
+class KVModelEndpointStore(ModelEndpointStore):
     """
     Handles the DB operations when the DB target is from type KV. For the KV operations, we use an instance of V3IO
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
@@ -48,7 +48,7 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         """
         Create a new endpoint record in the KV table.
 
-        :param endpoint: ModelEndpoint object that will be written into the DB.
+        :param endpoint: `ModelEndpoint` object that will be written into the DB.
         """
 
         # Retrieving the relevant attributes from the model endpoint object
@@ -78,8 +78,6 @@ class _ModelEndpointKVStore(ModelEndpointStore):
             attributes=attributes,
         )
 
-        logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
-
     def delete_model_endpoint(
         self,
         endpoint_id: str,
@@ -96,11 +94,9 @@ class _ModelEndpointKVStore(ModelEndpointStore):
             key=endpoint_id,
         )
 
-        logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
-
     def get_model_endpoint(
         self,
-        endpoint_id: str = None,
+        endpoint_id: str,
         start: str = "now-1h",
         end: str = "now",
         metrics: typing.List[str] = None,
@@ -128,14 +124,12 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a ModelEndpoint or not. True by default.
+                                           into a `ModelEndpoint` or not. True by default.
 
-        :return: A ModelEndpoint object.
+        :return: A `ModelEndpoint` object.
+
+        :raise MLRunNotFoundError: If the endpoint was not found.
         """
-        logger.info(
-            "Getting model endpoint record from kv",
-            endpoint_id=endpoint_id,
-        )
 
         # Getting the raw data from the KV table
         endpoint = self.client.kv.get(
@@ -199,8 +193,8 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         uids: typing.List = None,
     ) -> mlrun.api.schemas.ModelEndpointList:
         """
-        Returns a list of ModelEndpoint objects, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available ModelEndpoint objects for the given project will
+        Returns a list of `ModelEndpoint` objects, supports filtering by model, function, labels or top level.
+        By default, when no filters are applied, all available `ModelEndpoint` objects for the given project will
         be listed.
 
         :param model:           The name of the model to filter by.
@@ -225,8 +219,8 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         :param uids:            List of model endpoint unique ids to include in the result.
 
 
-        :return: An object of ModelEndpointList which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
+                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
         # Initialize an empty model endpoints list
@@ -236,6 +230,12 @@ class _ModelEndpointKVStore(ModelEndpointStore):
 
         # Labels from type list won't be supported from 1.4.0
         # TODO: Remove in 1.4.0
+        if labels and isinstance(labels, typing.List):
+            logger.warning(
+                "Labels should be from type dictionary, not list,"
+                "Will be deprecated in 1.4.0.",
+                labels=labels,
+            )
         if labels and isinstance(labels, dict):
             labels = [f"{key}={value}" for key, value in labels.items()]
 
@@ -244,7 +244,7 @@ class _ModelEndpointKVStore(ModelEndpointStore):
             cursor = self.client.kv.new_cursor(
                 container=self.container,
                 table_path=self.path,
-                filter_expression=self.build_kv_cursor_filter_expression(
+                filter_expression=self._build_kv_cursor_filter_expression(
                     self.project,
                     function,
                     model,
@@ -284,8 +284,8 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         """
         Delete all model endpoints resources in both KV and the time series DB.
 
-        :param endpoints: An object of ModelEndpointList which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :param endpoints: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
+                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
         # Delete model endpoint record from KV table
@@ -327,10 +327,10 @@ class _ModelEndpointKVStore(ModelEndpointStore):
             frames.delete(
                 backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
                 table=filtered_path,
-                if_missing=v3io_frames.frames_pb2.IGNORE,
             )
-        except v3io_frames.errors.CreateError:
+        except (v3io_frames.errors.DeleteError, v3io_frames.errors.CreateError) as e:
             # Frames might raise an exception if schema file does not exist.
+            logger.warning("Failed to delete TSDB schema file:", err=e)
             pass
 
         # Final cleanup of tsdb path
@@ -366,7 +366,7 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         return tsdb_path, filtered_path
 
     @staticmethod
-    def build_kv_cursor_filter_expression(
+    def _build_kv_cursor_filter_expression(
         project: str,
         function: str = None,
         model: str = None,
@@ -386,6 +386,8 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         :param top_level:  If True will return only routers and endpoint that are NOT children of any router.
 
         :return: A valid filter expression as a string.
+
+        :raise MLRunInvalidArgumentError: If project value is None.
         """
 
         if not project:
@@ -415,8 +417,8 @@ class _ModelEndpointKVStore(ModelEndpointStore):
         # Apply top_level filter (remove endpoints that considered a child of a router)
         if top_level:
             filter_expression.append(
-                f"(endpoint_type=='{str(mlrun.utils.model_monitoring.EndpointType.NODE_EP.value)}' "
-                f"OR  endpoint_type=='{str(mlrun.utils.model_monitoring.EndpointType.ROUTER.value)}')"
+                f"(endpoint_type=='{str(mlrun.model_monitoring.EndpointType.NODE_EP.value)}' "
+                f"OR  endpoint_type=='{str(mlrun.model_monitoring.EndpointType.ROUTER.value)}')"
             )
 
         return " AND ".join(filter_expression)

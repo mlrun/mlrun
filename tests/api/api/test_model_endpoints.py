@@ -14,6 +14,7 @@
 #
 import os
 import string
+import typing
 from random import choice, randint
 from typing import Optional
 
@@ -21,6 +22,7 @@ import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
+from mlrun.api.crud.model_monitoring._model_endpoint_stores import ModelEndpointStore
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -36,6 +38,9 @@ TEST_TABLE = "test_table_model_endpoints"
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
 
+# Bound a typing variable for ModelEndpointStore
+KVmodelType = typing.TypeVar("KVmodelType", bound="ModelEndpointStore")
+
 
 def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
@@ -45,12 +50,12 @@ def test_build_kv_cursor_filter_expression():
         value="kv"
     )
 
-    endpoint_target = store_type_object.to_endpoint_target(
+    endpoint_target: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
     with pytest.raises(MLRunInvalidArgumentError):
-        endpoint_target.build_kv_cursor_filter_expression("")
+        endpoint_target._build_kv_cursor_filter_expression("")
 
     filter_expression = endpoint_target.build_kv_cursor_filter_expression(
         project=TEST_PROJECT
@@ -231,7 +236,7 @@ def test_get_endpoint_features_function():
         value="kv"
     )
 
-    endpoint_target = store_type_object.to_endpoint_target(
+    endpoint_target = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
@@ -271,14 +276,14 @@ def test_get_endpoint_features_function():
 
 
 def test_generating_tsdb_paths():
-    """Validate that the TSDB paths for the _ModelEndpointKVStore object are created as expected. These paths are
+    """Validate that the TSDB paths for the KVModelEndpointStore object are created as expected. These paths are
     usually important when the user call the delete project API and as a result the TSDB resources should be deleted"""
 
     # Initialize endpoint store target object
     store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
         value="kv"
     )
-    endpoint_target = store_type_object.to_endpoint_target(
+    endpoint_target: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
@@ -318,7 +323,7 @@ def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
 
 
 def test_sql_target_list_model_endpoints():
-    """Testing list model endpoint using _ModelEndpointSQLStore object. In the following test
+    """Testing list model endpoint using SQLModelEndpointStore object. In the following test
     we create two model endpoints and list these endpoints. In addition, this test validates the
     filter optional operation within the list model endpoints API. At the end of this test, we validate
     that the model endpoints are deleted from the DB.
@@ -328,7 +333,7 @@ def test_sql_target_list_model_endpoints():
     store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
         value="sql"
     )
-    endpoint_target = store_type_object.to_endpoint_target(
+    endpoint_target = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
@@ -372,7 +377,7 @@ def test_sql_target_list_model_endpoints():
 
 
 def test_sql_target_patch_endpoint():
-    """Testing the update of a model endpoint using _ModelEndpointSQLStore object. In the following
+    """Testing the update of a model endpoint using SQLModelEndpointStore object. In the following
     test we update attributes within the model endpoint spec and status and then validate that there
     attributes were actually updated.
     """
@@ -381,7 +386,7 @@ def test_sql_target_patch_endpoint():
     store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
         value="sql"
     )
-    endpoint_target = store_type_object.to_endpoint_target(
+    endpoint_target = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 

@@ -44,7 +44,7 @@ def create_or_patch(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> mlrun.api.schemas.ModelEndpoint:
     """
-    Either create or update the record of a given ModelEndpoint object.
+    Either create or update the record of a given `ModelEndpoint` object.
     Leaving here for backwards compatibility.
     """
 
@@ -97,7 +97,7 @@ def create_model_endpoint(
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
 ) -> mlrun.api.schemas.ModelEndpoint:
     """
-    Create a DB record of a given ModelEndpoint object.
+    Create a DB record of a given `ModelEndpoint` object.
 
     :param project:         The name of the project.
     :param endpoint_id:     The unique id of the model endpoint.
@@ -147,7 +147,7 @@ async def patch_model_endpoint(
     ),
 ) -> mlrun.api.schemas.ModelEndpoint:
     """
-    Update a DB record of a given ModelEndpoint object.
+    Update a DB record of a given `ModelEndpoint` object.
 
     :param project:       The name of the project.
     :param endpoint_id:   The unique id of the model endpoint.
@@ -241,7 +241,7 @@ def list_model_endpoints(
     labels or top level. By default, when no filters are applied, all available endpoints for the given project will be
     listed.
 
-    If uids are passed: will return ModelEndpointList of endpoints with uid in uids
+    If uids are passed: will return `ModelEndpointList` of endpoints with uid in uids
     Labels can be used to filter on the existence of a label:
     api/projects/{project}/model-endpoints/?label=mylabel
 
@@ -263,8 +263,8 @@ def list_model_endpoints(
                       (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
     :param metrics:   A list of real-time metrics to return for each endpoint. There are pre-defined real-time metrics
                       for model endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
-                      defined by the user. Please note that these metrics are stored in the time series DB and t
-                      he results will be appeared under model_endpoint.spec.metrics of each endpoint.
+                      defined by the user. Please note that these metrics are stored in the time series DB and the
+                      results will be appeared under model_endpoint.spec.metrics of each endpoint.
     :param start:     The start time of the metrics. Can be represented by a string containing an RFC 3339
                       time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
                       `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
@@ -272,9 +272,9 @@ def list_model_endpoints(
                       time, a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where
                       `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
     :param top_level: If True will return only routers and endpoint that are NOT children of any router.
-    :param uids:      Will return ModelEndpointList of endpoints with uid in uids.
+    :param uids:      Will return `ModelEndpointList` of endpoints with uid in uids.
 
-    :return: An object of ModelEndpointList which is literally a list of model endpoints along with some metadata. To
+    :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some metadata. To
              get a standard list of model endpoints use ModelEndpointList.endpoints.
     """
 
@@ -349,9 +349,9 @@ def get_model_endpoint(
                                        be added to the output of the resulting object.
     :param auth_info:                  The auth info of the request
     :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                       into a ModelEndpoint or not. True by default.
+                                       into a `ModelEndpoint` or not. True by default.
 
-    :return: A ModelEndpoint object.
+    :return: A `ModelEndpoint` object.
     """
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,

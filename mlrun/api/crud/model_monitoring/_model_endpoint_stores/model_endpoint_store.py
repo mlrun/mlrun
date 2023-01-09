@@ -45,7 +45,7 @@ class ModelEndpointStore(ABC):
         """
         Create a new endpoint record in the DB table.
 
-        :param endpoint: ModelEndpoint object that will be written into the DB.
+        :param endpoint: `ModelEndpoint` object that will be written into the DB.
         """
         pass
 
@@ -77,19 +77,19 @@ class ModelEndpointStore(ABC):
         """
         Delete all model endpoints resources.
 
-        :param endpoints: An object of ModelEndpointList which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :param endpoints: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
+                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
         pass
 
     @abstractmethod
     def get_model_endpoint(
         self,
+        endpoint_id: str,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
-        endpoint_id: str = None,
         convert_to_endpoint_object: bool = True,
     ) -> mlrun.api.schemas.ModelEndpoint:
         """
@@ -107,15 +107,15 @@ class ModelEndpointStore(ABC):
                                            or 0 for the earliest time.
         :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
                                            pre-defined real-time metrics for model endpoints such as
-                                           predictions_per_second and latency_avg_5m but also custom metrics defined
+                                           `predictions_per_second` and `latency_avg_5m` but also custom metrics defined
                                            by the user. Please note that these metrics are stored in the time series
-                                           DB and the results will be appeared under model_endpoint.spec.metrics.
+                                           DB and the results will be appeared under `model_endpoint.spec.metrics`.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a ModelEndpoint or not. True by default.
+                                           into a `ModelEndpoint` or not. True by default.
 
-        :return: A ModelEndpoint object.
+        :return: A `ModelEndpoint` object.
         """
         pass
 
@@ -132,8 +132,8 @@ class ModelEndpointStore(ABC):
         uids: typing.List = None,
     ) -> mlrun.api.schemas.ModelEndpointList:
         """
-        Returns a list of ModelEndpoint objects, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available ModelEndpoint objects for the given project will
+        Returns a list of `ModelEndpoint` objects, supports filtering by model, function, labels or top level.
+        By default, when no filters are applied, all available `ModelEndpoint` objects for the given project will
         be listed.
 
         :param model:           The name of the model to filter by.
@@ -143,10 +143,10 @@ class ModelEndpointStore(ABC):
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param metrics:         A list of real-time metrics to return for each model endpoint. There are pre-defined
-                                real-time metrics for model endpoints such as predictions_per_second and latency_avg_5m
-                                but also custom metrics defined by the user. Please note that these metrics are stored
-                                in the time series DB and the results will be appeared under
-                                model_endpoint.spec.metrics.
+                                real-time metrics for model endpoints such as `predictions_per_second` and
+                                `latency_avg_5m` but also custom metrics defined by the user. Please note that these
+                                metrics are stored in the time series DB and the results will be appeared under
+                                `model_endpoint.spec.metrics`.
         :param start:           The start time of the metrics. Can be represented by a string containing an RFC 3339
                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
@@ -157,8 +157,8 @@ class ModelEndpointStore(ABC):
                                  the earliest time.
         :param uids:             List of model endpoint unique ids to include in the result.
 
-        :return: An object of ModelEndpointList which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
+                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
         pass
 
@@ -167,7 +167,7 @@ class ModelEndpointStore(ABC):
         """
         Retrieving the relevant attributes from the model endpoint object.
 
-        :param endpoint: ModelEndpoint object that will be used for getting the attributes.
+        :param endpoint: `ModelEndpoint` object that will be used for getting the attributes.
 
         :return: A flat dictionary of attributes.
         """
@@ -200,7 +200,7 @@ class ModelEndpointStore(ABC):
                              batch job.
 
         return: List of feature objects. Each feature has a name, weight, expected values, and actual values. More info
-                can be found under mlrun.api.schemas.Features.
+                can be found under `mlrun.api.schemas.Features`.
         """
 
         # Initialize feature and current stats dictionaries
@@ -224,14 +224,14 @@ class ModelEndpointStore(ABC):
         self, endpoint: typing.Dict, feature_analysis: bool = False
     ) -> mlrun.api.schemas.ModelEndpoint:
         """
-        Create a ModelEndpoint object according to a provided model endpoint dictionary.
+        Create a `ModelEndpoint` object according to a provided model endpoint dictionary.
 
-        :param endpoint:         DB record of model endpoint which need to be converted into a valid ModelEndpoint
+        :param endpoint:         DB record of model endpoint which need to be converted into a valid `ModelEndpoint`
                                  object.
         :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
                                  the output of the resulting object.
 
-        :return: A ModelEndpoint object.
+        :return: A `ModelEndpoint` object.
         """
 
         endpoint_obj = mlrun.api.schemas.ModelEndpoint.from_dict(endpoint)
@@ -266,7 +266,7 @@ class ModelEndpointStore(ABC):
     ) -> typing.Dict[str, typing.List]:
         """
         Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
-        predictions_per_second and latency_avg_5m but also custom metrics defined by the user.
+        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
 
         :param endpoint_id:      The unique id of the model endpoint.
         :param metrics:          A list of real-time metrics to return for the model endpoint.

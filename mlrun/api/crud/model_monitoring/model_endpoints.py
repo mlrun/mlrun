@@ -37,7 +37,7 @@ import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
-from ._model_endpoint_stores import get_model_endpoint_target
+from ._model_endpoint_stores import get_model_endpoint_store
 
 
 class ModelEndpoints:
@@ -52,7 +52,7 @@ class ModelEndpoints:
     ) -> mlrun.api.schemas.ModelEndpoint:
         # TODO: deprecated, remove in 1.5.0.
         """
-        Either create or updates the record of a given ModelEndpoint object.
+        Either create or updates the record of a given `ModelEndpoint` object.
         Leaving here for backwards compatibility, remove in 1.5.0.
 
         :param db_session:             A session that manages the current dialog with the database
@@ -60,7 +60,7 @@ class ModelEndpoints:
         :param model_endpoint:         Model endpoint object to update
         :param auth_info:              The auth info of the request
 
-        :return: Model endpoint object.
+        :return: `ModelEndpoint` object.
         """
 
         return self.create_model_endpoint(
@@ -74,12 +74,12 @@ class ModelEndpoints:
     ) -> mlrun.api.schemas.ModelEndpoint:
         """
         Creates model endpoint record in DB. The DB target type is defined under
-        mlrun.config.model_endpoint_monitoring.store_type (KV by default).
+        `mlrun.config.model_endpoint_monitoring.store_type` (KV by default).
 
         :param db_session:             A session that manages the current dialog with the database.
         :param model_endpoint:         Model endpoint object to update.
 
-        :return: ModelEndpoint object.
+        :return: `ModelEndpoint` object.
         """
 
         if model_endpoint.spec.model_uri or model_endpoint.status.feature_stats:
@@ -123,7 +123,7 @@ class ModelEndpoints:
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
                 model_endpoint.spec.monitoring_mode
-                == mlrun.api.schemas.ModelMonitoringMode.enabled.value
+                == mlrun.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 monitoring_feature_set = self.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
@@ -158,7 +158,7 @@ class ModelEndpoints:
         logger.info("Creating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         # Write the new model endpoint
-        model_endpoint_target = get_model_endpoint_target(
+        model_endpoint_target = get_model_endpoint_store(
             project=model_endpoint.metadata.project,
         )
         model_endpoint_target.write_model_endpoint(endpoint=model_endpoint)
@@ -261,7 +261,7 @@ class ModelEndpoints:
     @staticmethod
     def _validate_length_features_and_labels(model_endpoint):
         """
-        Validate that the length of feature_stats is equal to the length of feature_names and label_names
+        Validate that the length of feature_stats is equal to the length of `feature_names` and `label_names`
 
         :param model_endpoint:    An object representing the model endpoint.
         """
@@ -288,8 +288,8 @@ class ModelEndpoints:
         self, model_endpoint
     ) -> typing.Tuple[typing.Dict, typing.List]:
         """
-        Create a clean matching version of feature names for both feature_stats and feature_names. Please note that
-        label names exist only in feature_stats and label_names.
+        Create a clean matching version of feature names for both `feature_stats` and `feature_names`. Please note that
+        label names exist only in `feature_stats` and `label_names`.
 
         :param model_endpoint:    An object representing the model endpoint.
         :return: A tuple of:
@@ -328,15 +328,17 @@ class ModelEndpoints:
                            endpoint available attributes can be found under
                            :py:class:`~mlrun.api.schemas.ModelEndpoint`.
 
-        :return: A patched ModelEndpoint object.
+        :return: A patched `ModelEndpoint` object.
         """
 
-        model_endpoint_target = get_model_endpoint_target(
+        model_endpoint_target = get_model_endpoint_store(
             project=project,
         )
         model_endpoint_target.update_model_endpoint(
             endpoint_id=endpoint_id, attributes=attributes
         )
+
+        logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
         return model_endpoint_target.get_model_endpoint(
             endpoint_id=endpoint_id, start="now-1h", end="now"
@@ -353,10 +355,12 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_target = get_model_endpoint_target(
+        model_endpoint_target = get_model_endpoint_store(
             project=project,
         )
         model_endpoint_target.delete_model_endpoint(endpoint_id=endpoint_id)
+
+        logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
     @staticmethod
     def get_model_endpoint(
@@ -379,7 +383,7 @@ class ModelEndpoints:
                                            metrics for model endpoints such as predictions_per_second and
                                            latency_avg_5m but also custom metrics defined by the user. Please note that
                                            these metrics are stored in the time series DB and the results will be
-                                           appeared under model_endpoint.spec.metrics.
+                                           appeared under `model_endpoint.spec.metrics`.
         :param start:                      The start time of the metrics. Can be represented by a string containing an
                                            RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                            `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
@@ -391,12 +395,17 @@ class ModelEndpoints:
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a ModelEndpoint or not. True by default.
+                                           into a `ModelEndpoint` or not. True by default.
 
-        :return: A ModelEndpoint object.
+        :return: A `ModelEndpoint` object.
         """
 
-        model_endpoint_target = get_model_endpoint_target(
+        logger.info(
+            "Getting model endpoint record from DB",
+            endpoint_id=endpoint_id,
+        )
+
+        model_endpoint_target = get_model_endpoint_store(
             project=project, access_key=auth_info.data_session
         )
 
@@ -423,7 +432,7 @@ class ModelEndpoints:
         uids: typing.List[str] = None,
     ) -> mlrun.api.schemas.model_endpoints.ModelEndpointList:
         """
-        Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
+        Returns a list of `ModelEndpointState` objects. Each object represents the current state of a model endpoint.
         This functions supports filtering by the following parameters:
         1) model
         2) function
@@ -443,9 +452,9 @@ class ModelEndpoints:
         :param labels:    A list of labels to filter by. Label filters work by either filtering a specific value of a
                           label (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
         :param metrics:   A list of metrics to return for each endpoint. There are pre-defined metrics for model
-                          endpoints such as predictions_per_second and latency_avg_5m but also custom metrics defined
-                          by the user. Please note that these metrics are stored in the time series DB and the results
-                          will be appeared under model_endpoint.spec.metrics of each endpoint.
+                          endpoints such as `predictions_per_second` and `latency_avg_5m` but also custom metrics
+                          defined by the user. Please note that these metrics are stored in the time series DB and the
+                          results will be appeared under model_endpoint.spec.metrics of each endpoint.
         :param start:     The start time of the metrics. Can be represented by a string containing an RFC 3339 time,
                           a Unix timestamp in milliseconds, a relative time (`'now'` or `'now-[0-9]+[mhd]'`, where `m`
                           = minutes, `h` = hours, and `'d'` = days), or 0 for the earliest time.
@@ -455,8 +464,8 @@ class ModelEndpoints:
         :param top_level: If True will return only routers and endpoint that are NOT children of any router.
         :param uids:      List of model endpoint unique ids to include in the result.
 
-        :return: An object of ModelEndpointList which is literally a list of model endpoints along with some metadata.
-                 To get a standard list of model endpoints use ModelEndpointList.endpoints.
+        :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some metadata.
+                 To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
         logger.info(
@@ -478,7 +487,7 @@ class ModelEndpoints:
             labels = json.loads(labels)
         # labels = json.loads(labels)
 
-        endpoint_target = get_model_endpoint_target(
+        endpoint_target = get_model_endpoint_store(
             access_key=auth_info.data_session, project=project
         )
 
@@ -509,7 +518,6 @@ class ModelEndpoints:
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
-
         """
         self.deploy_model_monitoring_stream_processing(
             project=project,
@@ -557,7 +565,7 @@ class ModelEndpoints:
 
         endpoints = self.list_model_endpoints(auth_info, project_name)
 
-        endpoint_target = get_model_endpoint_target(
+        endpoint_target = get_model_endpoint_store(
             access_key=auth_info.data_session, project=project_name
         )
         endpoint_target.delete_model_endpoints_resources(endpoints)

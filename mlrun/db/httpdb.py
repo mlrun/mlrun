@@ -3002,20 +3002,20 @@ class HTTPRunDB(RunDBInterface):
 
     def load_project(
         self,
-        project: str,
-        source: str,
-    ):
+        name: str,
+        url: str,
+    ) -> schemas.BackgroundTask:
         """
         Loading a project remotely from the given source.
-
-        :param project: project name
-        :param source:
-        :return:
+        :param name:        project name
+        :param url:         git or tar.gz or .zip sources archive path e.g.:
+                            git://github.com/mlrun/demo-xgb-project.git
+                            http://mysite/archived-project.zip
+                            The git project should include the project yaml file.
+        :returns:      A BackgroundTask object, with details on execution process and its status.
         """
-        response = self.api_call(
-            "POST", f"projects/{project}/load", params={"source": source}
-        )
-        return schemas.Project(**response.json())
+        response = self.api_call("POST", f"projects/{name}/load", params={"url": url})
+        return schemas.BackgroundTask(**response.json())
 
 
 def _as_json(obj):

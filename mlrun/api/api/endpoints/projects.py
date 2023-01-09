@@ -347,6 +347,7 @@ async def load_project(
 
     :returns: a BackgroundTask object, with details on execution process and its status
     """
+
     def _run_load_project(
         runner: mlrun.run.KubejobRuntime,
         project_name: mlrun.api.schemas.Project,

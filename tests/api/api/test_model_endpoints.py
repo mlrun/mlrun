@@ -22,7 +22,9 @@ import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
-from mlrun.api.crud.model_monitoring._model_endpoint_stores import ModelEndpointStore # noqa: F401
+from mlrun.api.crud.model_monitoring._model_endpoint_stores import (  # noqa: F401
+    ModelEndpointStore,
+)
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -57,18 +59,18 @@ def test_build_kv_cursor_filter_expression():
     with pytest.raises(MLRunInvalidArgumentError):
         endpoint_target._build_kv_cursor_filter_expression("")
 
-    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
         project=TEST_PROJECT
     )
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
-    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
         project=TEST_PROJECT, function="test_function", model="test_model"
     )
     expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
-    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
         project=TEST_PROJECT, labels=["lbl1", "lbl2"]
     )
     assert (
@@ -76,7 +78,7 @@ def test_build_kv_cursor_filter_expression():
         == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
     )
 
-    filter_expression = endpoint_target.build_kv_cursor_filter_expression(
+    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
         project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
     )
     assert (

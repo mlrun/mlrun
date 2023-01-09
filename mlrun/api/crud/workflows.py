@@ -99,7 +99,10 @@ class WorkflowRunners(
             run_name=runner.metadata.name,
             labels=labels,
         )
-        runner._store_function(runspec=run_spec, meta=run_spec.metadata, db=runner._get_db())
+        # this includes filling the spec.function which is required for submit run
+        runner._store_function(
+            runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
+        )
         logger.info(f"===DEBUG===\n{run_spec.to_dict()}\n===DEBUG===")
         schedule = workflow_request.spec.schedule
         scheduled_object = {
@@ -118,23 +121,23 @@ class WorkflowRunners(
                 cron_trigger=schedule,
                 labels=runner.metadata.labels,
             )
-
-        try:
-            get_scheduler().create_schedule(
-                db_session=db_session,
-                auth_info=auth_info,
-                project=project.metadata.name,
-                name=runner.metadata.name,
-                kind=mlrun.api.schemas.ScheduleKinds.job,
-                scheduled_object=scheduled_object,
-                cron_trigger=schedule,
-                labels=runner.metadata.labels,
-            )
-        except mlrun.errors.MLRunConflictError:
-            raise mlrun.errors.MLRunConflictError(
-                f"There is already a schedule for workflow {runner.metadata.name}."
-                " If you want to override this schedule use override=True (SDK) or --override-workflow"
-            )
+        else:
+            try:
+                get_scheduler().create_schedule(
+                    db_session=db_session,
+                    auth_info=auth_info,
+                    project=project.metadata.name,
+                    name=runner.metadata.name,
+                    kind=mlrun.api.schemas.ScheduleKinds.job,
+                    scheduled_object=scheduled_object,
+                    cron_trigger=schedule,
+                    labels=runner.metadata.labels,
+                )
+            except mlrun.errors.MLRunConflictError:
+                raise mlrun.errors.MLRunConflictError(
+                    f"There is already a schedule for workflow {runner.metadata.name}."
+                    " If you want to override this schedule use override=True (SDK) or --override-workflow"
+                )
 
     def run(
         self,

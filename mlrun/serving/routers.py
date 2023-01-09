@@ -25,7 +25,6 @@ import numpy as np
 
 import mlrun
 import mlrun.utils.model_monitoring
-from mlrun.errors import err_to_str
 from mlrun.model_monitoring import (
     EndpointType,
     ModelMonitoringMode,

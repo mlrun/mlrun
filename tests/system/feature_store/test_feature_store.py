@@ -3485,12 +3485,14 @@ class TestFeatureStore(TestMLRunSystem):
             engine=engine,
         )
         if with_indexes:
-            expected = pd.DataFrame(employees_with_department, columns=['name', 'id'])
-            expected.set_index('id', inplace=True)
+            expected = pd.DataFrame(employees_with_department, columns=["name", "id"])
+            expected.set_index("id", inplace=True)
             assert_frame_equal(expected, resp.to_dataframe())
         else:
-            assert_frame_equal(pd.DataFrame(employees_with_department, columns=['name']),
-                               resp.to_dataframe())
+            assert_frame_equal(
+                pd.DataFrame(employees_with_department, columns=["name"]),
+                resp.to_dataframe(),
+            )
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(

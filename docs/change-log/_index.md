@@ -16,7 +16,7 @@
 ## v1.2.1
 
 ## Closed issues
--  The serving function is no' updated when using local pipeline. [View in Git](https://github.com/mlrun/mlrun/issues/2716(ץ
+-  The serving function is now updated when using local pipeline. [View in Git](https://github.com/mlrun/mlrun/issues/2716(ץ
 
 
 

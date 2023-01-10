@@ -25,7 +25,7 @@ import (
 
 func StartServer() error {
 	listenPort := flag.Int("listen-port", 8080, "GRPC listen port")
-	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal, panic)")
+	logLevel := flag.String("log-level", "debug", "Log level (debug, info, warn, error, fatal, panic)")
 	logFormatter := flag.String("log-formatter", "text", "Log formatter (text, json)")
 
 	flag.Parse()

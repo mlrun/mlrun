@@ -159,11 +159,6 @@ class LocalFeatureMerger(BaseMerger):
             indexes = list(featureset.spec.entities.keys())
         index_col_not_in_entity = "index" not in entity_df.columns
         index_col_not_in_featureset = "index" not in featureset_df.columns
-        # Sort left and right keys
-        if type(entity_df.index) != pd.RangeIndex:
-            entity_df.reset_index(inplace=True)
-        if type(featureset_df.index) != pd.RangeIndex:
-            featureset_df.reset_index(inplace=True)
         entity_df[entity_timestamp_column] = pd.to_datetime(
             entity_df[entity_timestamp_column]
         )

@@ -3567,7 +3567,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    @pytest.mark.parametrize("engine", ["dask"])
+    @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_relation_asof_join(self, engine, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(

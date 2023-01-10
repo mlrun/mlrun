@@ -15,7 +15,7 @@
 import re
 
 import dask.dataframe as dd
-import dask.dataframe.multi as dask_df_multi
+from dask.dataframe.multi import merge, merge_asof
 from dask.distributed import Client
 
 import mlrun
@@ -83,6 +83,7 @@ class DaskFeatureMerger(BaseMerger):
                 time_column=entity_timestamp_column,
                 index=False,
             )
+
             df = df.reset_index()
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
@@ -157,10 +158,7 @@ class DaskFeatureMerger(BaseMerger):
 
     def _reset_index(self, df):
         to_drop = df.index.name is None
-        # df = df.assign(idx=1)
         df = df.reset_index(drop=to_drop)
-        # df = df.drop(columns=['idx'])
-        # df.index.name = '1'
         return df
 
     def _asof_join(
@@ -173,17 +171,25 @@ class DaskFeatureMerger(BaseMerger):
         right_keys: list,
         columns: list,
     ):
-        indexes = None
-        if not right_keys:
-            indexes = list(featureset.spec.entities.keys())
+
         entity_df = self._reset_index(entity_df)
+        entity_df = (
+            entity_df
+            if entity_timestamp_column not in entity_df
+            else entity_df.set_index(entity_timestamp_column, drop=True)
+        )
         featureset_df = self._reset_index(featureset_df)
-        merged_df = dask_df_multi.merge_asof(
+        featureset_df = (
+            featureset_df
+            if entity_timestamp_column not in featureset_df
+            else featureset_df.set_index(entity_timestamp_column, drop=True)
+        )
+
+        merged_df = merge_asof(
             entity_df,
             featureset_df,
-            left_on=entity_timestamp_column,
-            right_on=featureset.spec.timestamp_key,
-            by=indexes,
+            left_index=True,
+            right_index=True,
             left_by=left_keys,
             right_by=right_keys,
             suffixes=("", f"_{featureset.metadata.name}_"),
@@ -191,6 +197,7 @@ class DaskFeatureMerger(BaseMerger):
         for col in merged_df.columns:
             if re.findall(f"_{featureset.metadata.name}_$", col):
                 self._append_drop_column(col)
+
         return merged_df
 
     def _join(
@@ -205,7 +212,7 @@ class DaskFeatureMerger(BaseMerger):
     ):
 
         fs_name = featureset.metadata.name
-        merged_df = dask_df_multi.merge(
+        merged_df = merge(
             entity_df,
             featureset_df,
             how=self._join_type,

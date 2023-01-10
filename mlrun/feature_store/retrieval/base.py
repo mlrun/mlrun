@@ -152,6 +152,8 @@ class BaseMerger(abc.ABC):
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
+            else:
+                return df
 
     @abc.abstractmethod
     def _generate_vector(

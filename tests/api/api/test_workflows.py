@@ -81,7 +81,9 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         f"projects/{PROJECT_NAME}/{right_id}", params={"name": WORKFLOW_NAME}
     ).json()
 
-    assert good_resp.get("workflow_id", "") == expected_workflow_id, f"response: {good_resp}"
+    assert (
+        good_resp.get("workflow_id", "") == expected_workflow_id
+    ), f"response: {good_resp}"
     bad_resp = client.get(
         f"projects/{PROJECT_NAME}/{wrong_id}", params={"name": WORKFLOW_NAME}
     )

@@ -26,7 +26,6 @@ from mlrun.api.api.utils import (
 )
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
-from mlrun.utils import logger
 
 
 class WorkflowRunners(

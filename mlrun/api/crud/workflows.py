@@ -37,6 +37,7 @@ class WorkflowRunners(
         project: str,
         db_session: Session,
         auth_info: mlrun.api.schemas.AuthInfo,
+        image: str,
     ) -> mlrun.run.KubejobRuntime:
         """
         Creating the base object for the workflow runner function with
@@ -46,6 +47,7 @@ class WorkflowRunners(
         :param project:     project name
         :param db_session:  session that manages the current dialog with the database
         :param auth_info:   auth info of the request
+        :param image:       image for the workflow runner job
 
         :returns: workflow runner object
         """
@@ -53,8 +55,8 @@ class WorkflowRunners(
             name=run_name,
             project=project,
             kind=mlrun.runtimes.RuntimeKinds.job,
-            # For preventing deployment
-            image=mlrun.mlconf.default_base_image,
+            # For preventing deployment:
+            image=image,
         )
 
         runner.set_db_connection(get_run_db_instance(db_session))
@@ -342,7 +344,6 @@ class WorkflowRunners(
                     local=workflow_spec.run_local,
                 )
             )
-            run_object.metadata.name = workflow_spec.name
 
         # Setting labels:
         return self._label_run_object(run_object, labels)

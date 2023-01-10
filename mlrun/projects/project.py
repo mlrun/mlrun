@@ -1941,6 +1941,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         override: bool = False,
+        image: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1969,7 +1970,8 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param override: replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param image:     image for workflow runner job, only for scheduled and remote workflows
         :returns: run id
         """
 
@@ -2037,6 +2039,7 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            image=image,
         )
         # run is None when scheduling
         if (

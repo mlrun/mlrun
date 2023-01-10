@@ -40,6 +40,7 @@ class WorkflowRequest(pydantic.BaseModel):
     source: typing.Optional[str] = None
     run_name: typing.Optional[str] = None
     namespace: typing.Optional[str] = None
+    image: typing.Optional[str] = None
 
 
 class WorkflowResponse(pydantic.BaseModel):

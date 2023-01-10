@@ -2949,6 +2949,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        image: Optional[str] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -2961,6 +2962,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param image:           image for the workflow runner job
 
         :returns:    :py:class:`~mlrun.api.schemas.WorkflowResponse`.
         """
@@ -2970,6 +2972,7 @@ class HTTPRunDB(RunDBInterface):
             "source": source,
             "run_name": run_name,
             "namespace": namespace,
+            "image": image,
         }
         if isinstance(workflow_spec, schemas.WorkflowSpec):
             workflow_spec = workflow_spec.dict()

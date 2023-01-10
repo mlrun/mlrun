@@ -40,18 +40,36 @@ router = fastapi.APIRouter()
 def _get_workflow_by_name(
     project: mlrun.api.schemas.Project, name: str
 ) -> typing.Optional[Dict]:
-    for project_workflow in project.spec.workflows:
-        if project_workflow["name"] == name:
-            return project_workflow
+    """
+    Getting workflow from project
+
+    :param project:     MLRun project
+    :param name:        workflow name
+
+    :return: workflow as a dict if project has the workflow, otherwise None
+    """
+    for workflow in project.spec.workflows:
+        if workflow["name"] == name:
+            return workflow
     return None
 
 
-def _enrich_workflow(
+def _fill_workflow_missing_fields_from_project(
     project: mlrun.api.schemas.Project,
     name: str,
     spec: mlrun.api.schemas.WorkflowSpec,
     arguments,
-):
+) -> mlrun.api.schemas.WorkflowSpec:
+    """
+    Fill the workflow spec details from the project object, with favour to spec
+
+    :param project:     MLRun project that contains the workflow
+    :param name:        workflow name
+    :param spec:        workflow spec input
+    :param arguments:   arguments to workflow
+
+    :return: completed workflow spec
+    """
     # Verifying workflow exists in project:
     workflow = _get_workflow_by_name(project, name)
     if not workflow:
@@ -106,18 +124,17 @@ def submit_workflow(
     :param auth_info:           auth info of the request
     :param db_session:          session that manages the current dialog with the database
 
-    :returns: A response that contains the project name, workflow name, name of the workflow,
+    :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
-    # Getting project:
+    # Getting project
     project = (
         mlrun.api.utils.singletons.project_member.get_project_member().get_project(
             db_session=db_session, name=project, leader_session=auth_info.session
         )
     )
 
-    # Verifying permissions:
-    # 1. CREATE run
+    # check permission CREATE run
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.run,
         project_name=project.metadata.name,
@@ -125,7 +142,7 @@ def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
-    # 2. READ workflow
+    # check permission READ workflow
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
@@ -134,7 +151,7 @@ def submit_workflow(
         auth_info=auth_info,
     )
 
-    workflow_spec = _enrich_workflow(
+    workflow_spec = _fill_workflow_missing_fields_from_project(
         project=project,
         name=name,
         spec=workflow_request.spec,
@@ -150,6 +167,7 @@ def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
+        image=workflow_request.image or mlrun.mlconf.default_base_image,
     )
     logger.debug(
         "saved function for running workflow",
@@ -242,7 +260,7 @@ def get_workflow_id(
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
 
-    :returns: The id of the workflow.
+    :returns: workflow id
     """
     # Check permission READ run:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

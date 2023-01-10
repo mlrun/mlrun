@@ -983,11 +983,12 @@ def logs(uid, project, offset, db, watch):
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
 @click.option(
-    "--overwrite-schedule",
-    "-os",
+    "--override-workflow",
+    "-ow",
     is_flag=True,
-    help="Overwrite a schedule when submitting a new one with the same name.",
+    help="Override a scheduled workflow when submitting a new one with the same name.",
 )
+@click.option("--image", "-i", type=str, help="image for the workflow runner job")
 def project(
     context,
     name,
@@ -1013,7 +1014,8 @@ def project(
     timeout,
     ensure_project,
     schedule,
-    overwrite_schedule,
+    override_workflow,
+    image,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1076,32 +1078,23 @@ def project(
                 },
             )
         try:
-            try:
-                proj.run(
-                    run,
-                    workflow_path,
-                    arguments=args,
-                    artifact_path=artifact_path,
-                    namespace=namespace,
-                    sync=sync,
-                    watch=watch,
-                    dirty=dirty,
-                    workflow_handler=handler,
-                    engine=engine,
-                    local=local,
-                    schedule=schedule,
-                    timeout=timeout,
-                    overwrite=overwrite_schedule,
-                )
-            except mlrun.errors.MLRunConflictError as error:
-                if error.args:
-                    # error.args is a tuple, so need to convert to list for changing its value.
-                    args_list = list(error.args)
-                    args_list[0] = args_list[0].replace(
-                        "overwrite = True", "--overwrite-schedule"
-                    )
-                    error.args = tuple(args_list)
-                raise error
+            proj.run(
+                run,
+                workflow_path,
+                arguments=args,
+                artifact_path=artifact_path,
+                namespace=namespace,
+                sync=sync,
+                watch=watch,
+                dirty=dirty,
+                workflow_handler=handler,
+                engine=engine,
+                local=local,
+                schedule=schedule,
+                timeout=timeout,
+                override=override_workflow,
+                image=image,
+            )
 
         except Exception as exc:
             print(traceback.format_exc())

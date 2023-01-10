@@ -17,7 +17,32 @@ package common
 import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"os"
+	"strconv"
+	"strings"
 )
+
+func GetEnvOrDefaultString(key string, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	} else if value == "nil" || value == "none" {
+		return ""
+	}
+	return value
+}
+
+func GetEnvOrDefaultBool(key string, defaultValue bool) bool {
+	return strings.ToLower(GetEnvOrDefaultString(key, strconv.FormatBool(defaultValue))) == "true"
+}
+
+func GetEnvOrDefaultInt(key string, defaultValue int) int {
+	valueInt, err := strconv.Atoi(GetEnvOrDefaultString(key, strconv.Itoa(defaultValue)))
+	if err != nil {
+		return defaultValue
+	}
+	return valueInt
+}
 
 func GetClientConfig(kubeconfigPath string) (*rest.Config, error) {
 	if kubeconfigPath != "" {

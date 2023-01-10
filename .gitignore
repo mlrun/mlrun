@@ -28,3 +28,4 @@ tests/system/env.yml
 .python-version
 *.bak
 docs/contributing.md
+mlrun/api/proto/*pb2*.py

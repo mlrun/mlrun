@@ -79,13 +79,12 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
     mlrun.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
     good_resp = client.get(
         f"projects/{PROJECT_NAME}/{right_id}", params={"name": WORKFLOW_NAME}
-    )
-    print(f"Good response:\n{good_resp.json()}")
-    assert good_resp.json()["workflow_id"] == expected_workflow_id
+    ).json()
+
+    assert good_resp.get("workflow_id", "") == expected_workflow_id, f"response: {good_resp}"
     bad_resp = client.get(
         f"projects/{PROJECT_NAME}/{wrong_id}", params={"name": WORKFLOW_NAME}
     )
-    print(f"Bad response:\n{bad_resp.json()}")
     assert bad_resp.status_code == HTTPStatus.NOT_FOUND
 
 

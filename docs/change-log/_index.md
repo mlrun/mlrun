@@ -15,15 +15,29 @@
 
 ## v1.2.1
 
-## Closed issues
--  The serving function is now updated when using local pipeline. [View in Git](https://github.com/mlrun/mlrun/issues/2716(ץ
+### New and updated features
 
+#### Feature store
+- Supports ingesting Avro-encoded Kafka records. [View in Git](https://github.com/mlrun/mlrun/issues/2649).
 
+### Closed issues
+- When running a workflow with `local=True`, the serving function is updated. [View in Git](https://github.com/mlrun/mlrun/issues/2716).
+- The Kubernetes **Pods** tab in **Monitor Workflows** now shows the complete pod details. [View in Git](https://github.com/mlrun/mlrun/pull/1576).
+- When selecting **All** in the **Tag** dropdown list of the **Projects | Feature Store | Feature Vectors** tab, 
+all of the vectors display correctly. [View in Git](https://github.com/mlrun/ui/pull/1549).
+- MLRun API returns the correct `next_run_time` value. [View in Git](https://github.com/mlrun/mlrun/pull/2862).
+- Filtering in **Projects | Jobs | Monitor Workflows** returns correct results for all ranges. (Previously was not accurate 
+for > 1 hour.) [View in Git](https://github.com/mlrun/mlrun/pull/2786).
+- The updated tooltips in **Projects | Jobs | Schedule** explain that day 0 (for cron jobs) is Monday, and not Sunday. 
+[View in Git](https://github.com/mlrun/ui/pull/1571).
+- When creating a project, the error `NotImplementedError` was updated to explain that MLRun does not have a 
+DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 
-## Upcoming deprecations
+### Upcoming deprecations
 
 Starting with v1.3.0, and continuing in subsequent releases, obsolete functions will be removed.
-The following MLRun APIs have been deprecated since at least v1.0.0. Until now, they have not been removed from the code, but a warning appears if you attempt to use then. 
+The following MLRun APIs have been deprecated since at least v1.0.0. Until now, they have not been removed from the 
+code, but a warning appears if you attempt to use then. 
 These frunctions will be removed from the v1.3.0 code:
 
 - Deprecated since MLRun 0.7.0:
@@ -70,7 +84,8 @@ These frunctions will be removed from the v1.3.0 code:
 
 #### Artifacts
 - Support for artifact tagging:
-    SDK: Add `tag_artifacts`  and `delete_artifacts_tags` that can be used to modify existing artifacts tags and have more than one version for an artifact.
+    SDK: Add `tag_artifacts`  and `delete_artifacts_tags` that can be used to modify existing artifacts tags and have 
+    more than one version for an artifact.
     API: Introduce new endpoints in `/projects/<project>/tags`.
 	UI: You can add and edit artifact tags in the UI.
     
@@ -83,7 +98,7 @@ These frunctions will be removed from the v1.3.0 code:
 
 #### Feature store
 - Support Redis as an online feature set for storey engine only. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).)
-- Fully support ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
+- Fully supports ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
    - Support DataFrame with multi-index.
    - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
 - Add new step: `DropFeature` for pandas and storey engines. (TechPreview)
@@ -94,12 +109,14 @@ These frunctions will be removed from the v1.3.0 code:
 
 #### Functions
 - Add `function.with_annotations({"framework":"tensorflow"})` to user created functions.
-- Add `overwrite_build_params` to `project.build_function()` so the user can choose whether or not to keep the build params that were used in previous function builds.
+- Add `overwrite_build_params` to `project.build_function()` so the user can choose whether or not to keep the 
+build params that were used in previous function builds.
 - `deploy_function` has a new option of mock deployment that allows running the function locally
 
 
 #### Installation
-- Add option to install `google-cloud` requirements using `mlrun[google-cloud]`:  when installing MLRun for integration with GCP clients, only compatible packages are installed.
+- Add option to install `google-cloud` requirements using `mlrun[google-cloud]`:  when installing MLRun for integration 
+with GCP clients, only compatible packages are installed.
 
 
 #### Models
@@ -112,12 +129,14 @@ These frunctions will be removed from the v1.3.0 code:
 - Refactor artifacts endpoints to follow the MLRun convention of `/projects/<project>/artifacts/...`. (The previous API will be deprecated in a future release.)
 - Add `/api/_internal/memory-reports/` endpoints for memory related metrics to better understand the memory consumption of the API.
 - Improve the HTTP retry mechanism.
-- Support a new lightweight mechanism for KFP pods to pull the run state they triggered. Default behavior is legacy, which pulls the logs of the run to figure out the run state. 
+- Support a new lightweight mechanism for KFP pods to pull the run state they triggered. Default behavior is legacy, 
+which pulls the logs of the run to figure out the run state. 
 The new behavior can be enabled using a feature flag configured in the API.
 
 ### Breaking changes
 
-- Feature store: Ingestion using pandas now takes the dataframe and creates indices out of the entity column (and removes it as 
+- Feature store: Ingestion using pandas now takes the dataframe and creates indices out of the entity column 
+(and removes it as 
    a column in this df). This could cause breakage for existing custom steps when using a pandas engine.
 
 ### Closed issues
@@ -129,8 +148,12 @@ The new behavior can be enabled using a feature flag configured in the API.
 - Fix legacy artifacts load when loading a project. Fixed corner cases when legacy artifacts were saved to yaml and loaded back into the system using `load_project()`. [View in Git](https://github.com/mlrun/mlrun/issues/2584).
 - Fix artifact `latest` tag enrichment to happen also when user defined a specific tag. [View in Git](https://github.com/mlrun/mlrun/issues/2572).
 - Fix zip source extraction during function build. [View in Git](https://github.com/mlrun/mlrun/issues/2588).
-- Fix Docker compose deployment so Nuclio is configured properly with a platformConfig file that sets proper mounts and network configuration for Nuclio functions, meaning that they run in the same network as MLRun. [View in Git](https://github.com/mlrun/mlrun/issues/2601).
-- Workaround for background tasks getting cancelled prematurely, due to the current FastAPI version that has a bug in the starlette package it uses. The bug caused the task to get cancelled if the client’s http connection was closed before the task was done. [View in Git](https://github.com/mlrun/mlrun/issues/2618).
+- Fix Docker compose deployment so Nuclio is configured properly with a platformConfig file that sets proper mounts and network 
+configuration for Nuclio functions, meaning that they run in the same network as MLRun. 
+[View in Git](https://github.com/mlrun/mlrun/issues/2601).
+- Workaround for background tasks getting cancelled prematurely, due to the current FastAPI version that 
+has a bug in the starlette package it uses. The bug caused the task to get cancelled if the client’s http connection 
+was closed before the task was done. [View in Git](https://github.com/mlrun/mlrun/issues/2618).
 - Fix run fails after deploying function without defined image. [View in Git](https://github.com/mlrun/mlrun/pull/2530).
 - Scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
 - Can now delete a model via tag. [View in Git](https://github.com/mlrun/mlrun/pull/2433).
@@ -149,7 +172,8 @@ The new behavior can be enabled using a feature flag configured in the API.
 - The CLI supports overwriting the schedule when creating scheduling workflow. [View in Git](https://github.com/mlrun/mlrun/pull/2651).
 - Slack now notifies when a project fails in `load_and_run()`. [View in Git](https://github.com/mlrun/mlrun/pull/2794).
 - Timeout is executed properly when running pipeline in CLI  https://github.com/mlrun/mlrun/pull/2635
-- Uvicorn Keep Alive Timeout (`http_connection_timeout_keep_alive`) is now configurable, with default=11. This maintains  API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
+- Uvicorn Keep Alive Timeout (`http_connection_timeout_keep_alive`) is now configurable, with default=11. This maintains 
+API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.3)
@@ -187,7 +211,9 @@ The new behavior can be enabled using a feature flag configured in the API.
 ### New and updated features
 
 #### API
--  MLRun scalability: Workers are used to handle the connection to the MLRun database and can be increased to improve handling of high workloads against the MLRun DB. You can configure the number of workers for an MLRun service, which is applied to the service's user-created pods. The default is 2. 
+-  MLRun scalability: Workers are used to handle the connection to the MLRun database and can be increased to 
+improve handling of high workloads against the MLRun DB. You can configure the number of workers for an MLRun 
+service, which is applied to the service's user-created pods. The default is 2. 
    - v1.1.0 cannot run on top of 3.0.x.
    - For Iguazio v <3.5.0 number of workers set to 1 by default. To change this number, contact support (helm-chart change required).
    - Multi-instance is not supported for MLrun running on SQLite.
@@ -201,7 +227,8 @@ The new behavior can be enabled using a feature flag configured in the API.
 
 #### UI
 
-- The Projects home page now has three tiles, Data, Jobs and Workflows, Deployment, that guide you through key capabilities of Iguazio, and provide quick access to common tasks.
+- The Projects home page now has three tiles, Data, Jobs and Workflows, Deployment, that guide you through key 
+capabilities of Iguazio, and provide quick access to common tasks.
 - The **Projects | Jobs | Monitor Jobs** tab now displays the Spark UI URL.
 - The information of the Drift Analysis tab is now displayed in the Model Overview.
 - If there is an error, the error messages are now displayed in the Projects | Jobs | Monitor jobs tab.
@@ -325,7 +352,7 @@ The new behavior can be enabled using a feature flag configured in the API.
 
 #### Graph
 - A new tab under **Projects | Models** named **Real-time pipelines** that displays the real time pipeline graph, 
-   with a drill-down to view the steps and their details. [Tech Preview]
+with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Closed issues
 

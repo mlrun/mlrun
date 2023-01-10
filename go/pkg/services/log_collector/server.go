@@ -94,6 +94,11 @@ func NewLogCollectorServer(logger *loggerus.Loggerus,
 	}, nil
 }
 
+func (lcs *LogCollectorServer) RegisterRoutes(ctx context.Context) {
+	lcs.AbstractMlrunGRPCServer.RegisterRoutes(ctx)
+	log_collector.RegisterLogCollectorServer(lcs.Server, lcs)
+}
+
 // StartLog writes the log item info to the state file, gets the pod using the label selector,
 // triggers `monitorPod` and `streamLogs` goroutines.
 func (lcs *LogCollectorServer) StartLog(ctx context.Context, request *log_collector.StartLogRequest) (*log_collector.StartLogResponse, error) {

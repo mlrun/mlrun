@@ -37,7 +37,7 @@ type MlrunGRPCServer interface {
 
 type AbstractMlrunGRPCServer struct {
 	Logger         *loggerus.Loggerus
-	server         *grpc.Server
+	Server         *grpc.Server
 	grpcServerOpts []grpc.ServerOption
 }
 
@@ -53,7 +53,7 @@ func (s *AbstractMlrunGRPCServer) getLogger() *loggerus.Loggerus {
 }
 
 func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
-	s.server = server
+	s.Server = server
 }
 
 func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
@@ -62,8 +62,8 @@ func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {
 	s.Logger.DebugCtx(ctx, "Registering routes")
-	liveness.RegisterReadinessProbeServer(s.server, s)
-	liveness.RegisterLivenessProbeServer(s.server, s)
+	liveness.RegisterReadinessProbeServer(s.Server, s)
+	liveness.RegisterLivenessProbeServer(s.Server, s)
 }
 
 func (s *AbstractMlrunGRPCServer) OnBeforeStart(ctx context.Context) error {

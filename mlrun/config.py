@@ -463,6 +463,12 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
+    "sidecar": {
+        "log_collector": {
+            "address": "",
+            "enabled": False,
+        },
+    },
 }
 
 _is_running_as_api = None

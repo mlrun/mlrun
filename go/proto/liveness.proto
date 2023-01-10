@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package example;
+package mlrun;
 
 option go_package = "proto/build/liveness";
 

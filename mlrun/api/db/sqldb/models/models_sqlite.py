@@ -130,7 +130,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     class LegacyArtifact(Base, HasStruct):
-        __tablename__ = "artifacts"
+        __tablename__ = "legacy_artifacts"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
         )
@@ -149,6 +149,42 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
+
+    class Artifact(Base, HasStruct):
+        __tablename__ = "artifacts"
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "name", name="_artifacts_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        iter = Column(Integer)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        producer_uid = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+
+        _full_object = Column("object", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.uid}"
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
 
     class Function(Base, HasStruct):
         __tablename__ = "functions"

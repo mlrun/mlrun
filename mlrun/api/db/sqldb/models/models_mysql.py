@@ -148,6 +148,48 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"
 
+    class Artifact(Base, HasStruct):
+        __tablename__ = "artifacts_new"
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        iter = Column(Integer)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        producer_uid = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        created = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+        updated = Column(
+            sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
+            default=datetime.now(timezone.utc),
+        )
+
+        _full_object = Column("object", JSON)
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}/{self.uid}"
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value)
+
     class Function(Base, HasStruct):
         __tablename__ = "functions"
         __table_args__ = (

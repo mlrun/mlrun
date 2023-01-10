@@ -135,7 +135,7 @@ class WorkflowRunners(
             except mlrun.errors.MLRunConflictError:
                 raise mlrun.errors.MLRunConflictError(
                     f"There is already a schedule for workflow {runner.metadata.name}."
-                    " If you want to override this schedule use override=True (SDK) or --override-workflow"
+                    " If you want to override this schedule use override=True (SDK) or --override-workflow (CLI)"
                 )
 
     def run(

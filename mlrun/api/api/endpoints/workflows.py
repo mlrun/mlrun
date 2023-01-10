@@ -56,7 +56,7 @@ def _enrich_workflow(
     workflow = _get_workflow_by_name(project, name)
     if not workflow:
         log_and_raise(
-            reason=f"workflow '{name}' not found in project",
+            reason=f"workflow {name} not found in project",
         )
     if spec:
         # Merge between the workflow spec provided in the request with existing

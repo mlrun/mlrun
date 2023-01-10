@@ -223,7 +223,7 @@ def get_workflow_id(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
-):
+) -> mlrun.api.schemas.GetWorkflowResponse:
     """
     Retrieve workflow id from the uid of the workflow runner.
     When creating a remote workflow we are creating an auxiliary function
@@ -242,7 +242,7 @@ def get_workflow_id(
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
 
-    :returns: The id and status of the workflow.
+    :returns: The id of the workflow.
     """
     # Check permission READ run:
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -261,16 +261,8 @@ def get_workflow_id(
         auth_info,
     )
 
-    # Reading run:
-    run = mlrun.api.crud.Runs().get_run(
-        db_session=db_session, uid=uid, iter=0, project=project
+    return mlrun.api.crud.WorkflowRunners().get_workflow_id(
+        uid=uid,
+        project=project,
+        db_session=db_session,
     )
-    run_object = mlrun.RunObject.from_dict(run)
-
-    if not isinstance(run_object.status.results, dict):
-        # in case the run object did not instantiate with the "results" field at this point
-        return {"workflow_id": None}
-
-    workflow_id = run_object.status.results.get("workflow_id", "")
-
-    return mlrun.api.schemas.GetWorkflowResponse(workflow_id=workflow_id)

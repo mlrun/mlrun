@@ -182,6 +182,32 @@ class WorkflowRunners(
         )
 
     @staticmethod
+    def get_workflow_id(
+        uid, project, db_session
+    ) -> mlrun.api.schemas.GetWorkflowResponse:
+        """
+        Retrieving the actual workflow id form the workflow runner
+
+        :param uid:         the id of the workflow runner job
+        :param project:     name of the project
+        :param db_session:  session that manages the current dialog with the database
+
+        :return: The id of the workflow.
+        """
+        # Reading run:
+        run = mlrun.api.crud.Runs().get_run(
+            db_session=db_session, uid=uid, iter=0, project=project
+        )
+        run_object = RunObject(**run)
+        if isinstance(run_object.status.results, dict):
+            workflow_id = run_object.status.results.get("workflow_id", "")
+        else:
+            # in case the run object did not instantiate with the "results" field at this point
+            workflow_id = None
+
+        return mlrun.api.schemas.GetWorkflowResponse(workflow_id=workflow_id)
+
+    @staticmethod
     def _label_run_object(
         run_object: mlrun.run.RunObject,
         labels: List[Tuple[str, str]],
@@ -246,20 +272,20 @@ class WorkflowRunners(
         workflow_spec = workflow_request.spec
         run_object = RunObject(
             spec=RunSpec(
-                parameters={
-                    "url": project.spec.source,
-                    "project_name": project.metadata.name,
-                    "workflow_name": workflow_spec.name,
-                    "workflow_path": workflow_spec.path,
-                    "workflow_arguments": workflow_spec.args,
-                    "artifact_path": workflow_request.artifact_path,
-                    "workflow_handler": workflow_spec.handler,
-                    "namespace": workflow_request.namespace,
-                    "ttl": workflow_spec.ttl,
-                    "engine": workflow_spec.engine,
-                    "local": workflow_spec.run_local,
-                    "save": save,
-                },
+                parameters=dict(
+                    url=project.spec.source,
+                    project_name=project.metadata.name,
+                    workflow_name=workflow_spec.name,
+                    workflow_path=workflow_spec.path,
+                    workflow_arguments=workflow_spec.args,
+                    artifact_path=workflow_request.artifact_path,
+                    workflow_handler=workflow_spec.handler,
+                    namespace=workflow_request.namespace,
+                    ttl=workflow_spec.ttl,
+                    engine=workflow_spec.engine,
+                    local=workflow_spec.run_local,
+                    save=save,
+                ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
                 output_path=(
@@ -295,11 +321,11 @@ class WorkflowRunners(
         """
         run_object = RunObject(
             spec=RunSpec(
-                parameters={
-                    "url": project.spec.source,
-                    "project_name": project.metadata.name,
-                    "load_only": load_only,
-                },
+                parameters=dict(
+                    url=project.spec.source,
+                    project_name=project.metadata.name,
+                    load_only=load_only,
+                ),
                 handler="mlrun.projects.load_and_run",
             ),
             metadata=RunMetadata(name=run_name),
@@ -308,17 +334,17 @@ class WorkflowRunners(
         if not load_only:
             workflow_spec = workflow_request.spec
             run_object.spec.parameters.update(
-                {
-                    "workflow_name": run_name,
-                    "workflow_path": workflow_spec.path,
-                    "workflow_arguments": workflow_spec.args,
-                    "artifact_path": workflow_request.artifact_path,
-                    "workflow_handler": workflow_spec.handler,
-                    "namespace": workflow_request.namespace,
-                    "ttl": workflow_spec.ttl,
-                    "engine": workflow_spec.engine,
-                    "local": workflow_spec.run_local,
-                }
+                dict(
+                    workflow_name=run_name,
+                    workflow_path=workflow_spec.path,
+                    workflow_arguments=workflow_spec.args,
+                    artifact_path=workflow_request.artifact_path,
+                    workflow_handler=workflow_spec.handler,
+                    namespace=workflow_request.namespace,
+                    ttl=workflow_spec.ttl,
+                    engine=workflow_spec.engine,
+                    local=workflow_spec.run_local,
+                )
             )
 
         # Setting labels:

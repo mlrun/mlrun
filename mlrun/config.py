@@ -468,7 +468,7 @@ default_config = {
             "address": "localhost:8080",
             "enabled": True,
         }
-    }
+    },
 }
 
 _is_running_as_api = None

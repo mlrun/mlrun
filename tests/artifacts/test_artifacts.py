@@ -466,3 +466,19 @@ def test_inline_body():
     )
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
+
+
+def test_import_artifact_using_relative_path():
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    # log an artifact and save the content/body in the object (inline)
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=str(assets_path())
+    )
+    assert artifact.spec.get_body() == "123"
+    artifact.export(f"{str(assets_path())}/x.yaml")
+
+    # importing the artifact using a relative path
+    artifact = project.import_artifact(f"x.yaml", "y")
+    assert artifact.spec.get_body() == "123"
+    assert artifact.metadata.key == "y"

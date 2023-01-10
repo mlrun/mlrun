@@ -1495,7 +1495,9 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        item_path, _ = _get_item_absolute_path(item_path, self)
         dataitem = mlrun.get_dataitem(item_path)
+
         if item_path.endswith(".yaml") or item_path.endswith(".yml"):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
@@ -2799,19 +2801,13 @@ def _init_function_from_dict(f, project):
     requirements = f.get("requirements", None)
     tag = f.get("tag", None)
 
-    in_context = False
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
-    if url and "://" not in url:
-        if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.get_code_path(), url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = _get_item_absolute_path(url, project)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2819,6 +2815,8 @@ def _init_function_from_dict(f, project):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
+
+        # TODO: add helper to determine if url ends with yaml,yml and reuse from import artifact as weell
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
@@ -2894,16 +2892,10 @@ def _init_function_from_dict_legacy(f, project):
     if with_repo and not project.source:
         raise ValueError("project source must be specified when cloning context")
 
-    in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
 
-    if url and "://" not in url:
-        if project.context and not url.startswith("/"):
-            url = path.join(project.context, url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = _get_item_absolute_path(url, project)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2957,3 +2949,13 @@ def _has_module(handler, kind):
 
 def _is_imported_artifact(artifact):
     return artifact and isinstance(artifact, dict) and "import_from" in artifact
+
+
+def _get_item_absolute_path(url, project):
+    if url and "://" not in url:
+        if project.spec.context and not url.startswith("/"):
+            url = path.join(project.spec.get_code_path(), url)
+            return url, True
+        if not path.isfile(url):
+            raise OSError(f"{url} not found")
+    return url, False

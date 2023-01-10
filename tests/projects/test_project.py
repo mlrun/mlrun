@@ -39,6 +39,10 @@ def context():
         shutil.rmtree(context)
 
 
+def assets_path():
+    return pathlib.Path(__file__).absolute().parent / "assets"
+
+
 def test_sync_functions():
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
@@ -468,6 +472,21 @@ def test_set_func_with_tag():
     )
     func = project.get_function("desc2")
     assert func.metadata.tag is None
+
+
+def test_set_function_with_relative_path(context):
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    project.set_function(
+        "handler.py",
+        "desc1",
+        image="mlrun/mlrun",
+    )
+
+    func = project.get_function("desc1")
+    assert func is not None and func.spec.build.origin_filename.startswith(
+        str(assets_path())
+    )
 
 
 def test_function_run_cli():

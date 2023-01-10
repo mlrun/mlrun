@@ -2816,7 +2816,6 @@ def _init_function_from_dict(f, project):
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
 
-        # TODO: add helper to determine if url ends with yaml,yml and reuse from import artifact as weell
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(

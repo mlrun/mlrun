@@ -181,7 +181,7 @@ class WorkflowRunners(
 
     @staticmethod
     def get_workflow_id(
-        uid, project, db_session
+        uid: str, project: str, db_session: Session
     ) -> mlrun.api.schemas.GetWorkflowResponse:
         """
         Retrieving the actual workflow id form the workflow runner
@@ -196,7 +196,7 @@ class WorkflowRunners(
         run = mlrun.api.crud.Runs().get_run(
             db_session=db_session, uid=uid, iter=0, project=project
         )
-        run_object = RunObject(**run)
+        run_object = RunObject.from_dict(run)
         if isinstance(run_object.status.results, dict):
             workflow_id = run_object.status.results.get("workflow_id", "")
         else:

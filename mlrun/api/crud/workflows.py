@@ -293,7 +293,7 @@ class WorkflowRunners(
                 ).replace("{{run.uid}}", meta_uid),
             ),
             metadata=RunMetadata(
-                uid=meta_uid, name=run_name, project=project.metadata.name
+                uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
             ),
         )
 
@@ -335,7 +335,7 @@ class WorkflowRunners(
             workflow_spec = workflow_request.spec
             run_object.spec.parameters.update(
                 dict(
-                    workflow_name=run_name,
+                    workflow_name=workflow_spec.name,
                     workflow_path=workflow_spec.path,
                     workflow_arguments=workflow_spec.args,
                     artifact_path=workflow_request.artifact_path,
@@ -346,6 +346,7 @@ class WorkflowRunners(
                     local=workflow_spec.run_local,
                 )
             )
+            run_object.metadata.name = workflow_spec.name
 
         # Setting labels:
         return self._label_run_object(run_object, labels)

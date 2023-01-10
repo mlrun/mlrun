@@ -712,7 +712,7 @@ class _RemoteRunner(_PipelineRunner):
         )
         start_message = "scheduling" if workflow_spec.schedule else "running"
         logger.info(
-            f"{start_message} '{workflow_name}' remotely with {workflow_spec.engine} engine"
+            f"{start_message} '{workflow_name}' workflow remotely with {workflow_spec.engine} engine"
         )
 
         workflow_id = None
@@ -725,6 +725,7 @@ class _RemoteRunner(_PipelineRunner):
                 artifact_path=artifact_path,
                 source=project.spec.source,
                 namespace=namespace,
+                run_name="some-run-name",
             )
             if submit_workflow_result.status == "scheduled":
                 return

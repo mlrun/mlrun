@@ -465,9 +465,9 @@ default_config = {
     },
     "sidecar": {
         "log_collector": {
-            "address": "localhost:8080",
-            "enabled": True,
-        }
+            "address": "",
+            "enabled": False,
+        },
     },
 }
 

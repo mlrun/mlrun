@@ -96,26 +96,25 @@ class WorkflowRunners(
         run_spec = self._prepare_run_object_for_scheduling(
             project=project,
             workflow_request=workflow_request,
-            run_name=runner.metadata.name,
             labels=labels,
         )
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
-        schedule = workflow_request.spec.schedule
+        workflow_spec = workflow_request.spec
+        schedule = workflow_spec.schedule
         scheduled_object = {
             "task": run_spec.to_dict(),
             "schedule": schedule,
         }
 
         if workflow_request.spec.override:
-            logger.info(f"Deleting schedule {runner.metadata.name}")
             get_scheduler().update_schedule(
                 db_session=db_session,
                 auth_info=auth_info,
                 project=project.metadata.name,
-                name=runner.metadata.name,
+                name=workflow_spec.name,
                 scheduled_object=scheduled_object,
                 cron_trigger=schedule,
                 labels=runner.metadata.labels,
@@ -126,7 +125,7 @@ class WorkflowRunners(
                     db_session=db_session,
                     auth_info=auth_info,
                     project=project.metadata.name,
-                    name=runner.metadata.name,
+                    name=workflow_spec.name,
                     kind=mlrun.api.schemas.ScheduleKinds.job,
                     scheduled_object=scheduled_object,
                     cron_trigger=schedule,
@@ -134,7 +133,7 @@ class WorkflowRunners(
                 )
             except mlrun.errors.MLRunConflictError:
                 raise mlrun.errors.MLRunConflictError(
-                    f"There is already a schedule for workflow {runner.metadata.name}."
+                    f"There is already a schedule for workflow {workflow_spec.name}."
                     " If you want to override this schedule use override=True (SDK) or --override-workflow (CLI)"
                 )
 
@@ -253,7 +252,6 @@ class WorkflowRunners(
         self,
         project: mlrun.api.schemas.Project,
         workflow_request: mlrun.api.schemas.WorkflowRequest,
-        run_name: str,
         labels: List[Tuple[str, str]],
     ) -> mlrun.run.RunObject:
         """
@@ -261,7 +259,6 @@ class WorkflowRunners(
 
         :param project:             MLRun project
         :param workflow_request:    contains the workflow spec and extra data for the run object
-        :param run_name:            workflow-runner function name
         :param labels:              pairs of label keys and label values for the task
 
         :returns: RunObject ready for schedule.

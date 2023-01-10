@@ -725,7 +725,6 @@ class _RemoteRunner(_PipelineRunner):
                 artifact_path=artifact_path,
                 source=project.spec.source,
                 namespace=namespace,
-                run_name="some-run-name",
             )
             if submit_workflow_result.status == "scheduled":
                 return

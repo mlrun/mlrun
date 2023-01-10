@@ -174,9 +174,10 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
+        artifact_path = workflow_request.artifact_path if workflow_request else ""
         return runner.run(
             runspec=run_spec,
-            artifact_path=workflow_request.artifact_path or "",
+            artifact_path=artifact_path,
             local=False,
         )
 

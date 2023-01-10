@@ -273,8 +273,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         if not pods:
             logger.error("no pod matches that job name")
             return
-        # TODO: Why was this here?
-        # k8s = self._get_k8s()
         return list(pods.items())[0]
 
     def with_tracing(

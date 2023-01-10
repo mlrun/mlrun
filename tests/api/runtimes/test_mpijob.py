@@ -18,8 +18,9 @@ import unittest.mock
 from kubernetes import client as k8s_client
 
 import mlrun.runtimes.pod
-from mlrun import code_to_function
+from mlrun import code_to_function, mlconf
 from mlrun.api.utils.singletons.k8s import get_k8s
+from mlrun.runtimes.constants import MPIJobCRDVersions
 from tests.api.runtimes.base import TestRuntimeBase
 
 
@@ -28,7 +29,7 @@ class TestMpiJob(TestRuntimeBase):
         self.runtime_kind = "mpijob"
         self.code_handler = "test_func"
 
-    def _get_pod(self):
+    def _get_pod(self, phase="Running"):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
@@ -38,12 +39,16 @@ class TestMpiJob(TestRuntimeBase):
                 },
                 name=self.name,
             ),
+            status=k8s_client.V1PodStatus(phase="Running"),
         )
 
-    def _mock_list_pods(self, pods=None):
+    def _mock_list_pods(self, workers=1, pods=None, phase="Running"):
         if pods is None:
-            pods = [self._get_pod()]
+            pods = [self._get_pod(phase=phase)] * workers
         get_k8s().list_pods = unittest.mock.Mock(return_value=pods)
+
+    def _mock_get_namespaced_custom_object(self):
+        pass
 
     def _generate_runtime(
         self, kind=None, labels=None
@@ -65,13 +70,68 @@ class TestMpiV1Runtime(TestMpiJob):
     def custom_setup(self):
         super(TestMpiV1Runtime, self).custom_setup()
         self.name = "test-mpi-v1"
+        mlconf.mpijob_crd_version = MPIJobCRDVersions.v1
 
     def custom_teardown(self):
         pass
 
-    def test_run_state_completion(self):
+    def _mock_get_namespaced_custom_object(self, workers=1):
+        get_k8s().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
+            return_value={
+                "status": {
+                    "replicaStatuses": {
+                        "Launcher": {
+                            "active": 1,
+                        },
+                        "Worker": {
+                            "active": workers,
+                        },
+                    }
+                },
+            }
+        )
+
+    def test_run_v1_sanity(self):
         self._mock_list_pods()
+        self._mock_create_namespaced_custom_object()
+        self._mock_get_namespaced_custom_object()
+        mpijob_function = self._generate_runtime(self.runtime_kind)
+        mpijob_function.deploy()
+        run = mpijob_function.run(
+            artifact_path="v3io:///mypath",
+            watch=False,
+        )
+
+        assert run.status.state == "running"
+
+    def test_run_state_completion(self):
+        workers = 4
+        self._mock_list_pods(workers=workers)
+        self._mock_create_namespaced_custom_object()
+        self._mock_get_namespaced_custom_object(workers=workers)
         mpijob_function = self._generate_runtime(self.runtime_kind)
         mpijob_function.spec.replicas = 4
         mpijob_function.deploy()
-        mpijob_function.run()
+        run = mpijob_function.run(
+            artifact_path="v3io:///mypath",
+            watch=False,
+        )
+
+        # TODO: understand why the kind is not added to the labels
+        print(run.to_dict())
+
+        # simulate the workers
+        for _ in range(workers):
+            run = mpijob_function.run(
+                runspec=run,
+                artifact_path="v3io:///mypath",
+                local=True,
+                params={"p1": 1},
+            )
+
+            assert run.status.state == "completed"
+
+        # read run
+        # db = mlrun.get_run_db()
+        # run = db.read_run(run.metadata.uid)
+        # assert run["status"]["state"] == "running", "run status was updated in db"

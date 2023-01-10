@@ -12,37 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package log_collector
 
-package example;
-
-option go_package = "proto/build/log_collector";
-
-import "google/protobuf/empty.proto";
-
-service LogCollector {
-  rpc StartLog(StartLogRequest) returns (StartLogResponse) {}
-  rpc GetLog(GetLogRequest) returns (GetLogResponse) {}
+type StateFile struct {
+	InProgress []LoggedItem `json:"inProgress"`
 }
 
-message StartLogRequest {
-  string runId = 1;
-  map<string,string> selector = 2;
-}
-
-message StartLogResponse {
-  bool success = 1;
-  string error = 2;
-}
-
-message GetLogRequest {
-  string runId = 1;
-  uint64 offset = 2;
-  uint64 size = 3;
-}
-
-message GetLogResponse {
-  bool success = 1;
-  string error = 2;
-  bytes log = 3;
+type LoggedItem struct {
+	RunId         string            `json:"runId"`
+	LabelSelector map[string]string `json:"labelSelector"`
 }

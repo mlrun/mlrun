@@ -36,13 +36,20 @@ type MlrunGRPCServer interface {
 }
 
 type AbstractMlrunGRPCServer struct {
-	logger         *loggerus.Loggerus
+	Logger         *loggerus.Loggerus
 	server         *grpc.Server
 	grpcServerOpts []grpc.ServerOption
 }
 
+func NewAbstractMlrunGRPCServer(logger *loggerus.Loggerus, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
+	return &AbstractMlrunGRPCServer{
+		Logger:         logger,
+		grpcServerOpts: grpcServerOpts,
+	}, nil
+}
+
 func (s *AbstractMlrunGRPCServer) getLogger() *loggerus.Loggerus {
-	return s.logger
+	return s.Logger
 }
 
 func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
@@ -54,13 +61,13 @@ func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 }
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {
-	s.logger.DebugCtx(ctx, "Registering routes")
+	s.Logger.DebugCtx(ctx, "Registering routes")
 	liveness.RegisterReadinessProbeServer(s.server, s)
 	liveness.RegisterLivenessProbeServer(s.server, s)
 }
 
 func (s *AbstractMlrunGRPCServer) OnBeforeStart(ctx context.Context) error {
-	s.logger.DebugCtx(ctx, "Initializing Server")
+	s.Logger.DebugCtx(ctx, "Initializing Server")
 	return nil
 }
 
@@ -70,13 +77,6 @@ func (s *AbstractMlrunGRPCServer) Liveness(context.Context, *emptypb.Empty) (*li
 
 func (s *AbstractMlrunGRPCServer) Readiness(context.Context, *emptypb.Empty) (*liveness.ReadinessResponse, error) {
 	return &liveness.ReadinessResponse{Ready: true}, nil
-}
-
-func NewAbstractMlrunGRPCServer(logger *loggerus.Loggerus, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
-	return &AbstractMlrunGRPCServer{
-		logger:         logger,
-		grpcServerOpts: grpcServerOpts,
-	}, nil
 }
 
 func StartServer(server MlrunGRPCServer, port int) error {

@@ -16,19 +16,16 @@ import deepdiff
 import numpy
 import pandas
 import pytest
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.exc import MultipleResultsFound
 
 import mlrun.api.initial_data
 import mlrun.errors
 from mlrun.api import schemas
-from mlrun.api.db.base import DBError, DBInterface
+from mlrun.api.db.base import DBInterface
 from mlrun.api.schemas.artifact import ArtifactCategories
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
-from mlrun.utils import logger
 from tests.api.db.conftest import dbs
 
 
@@ -251,8 +248,8 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_1"
-    artifact_2_tag = "artifact_tag_2"
+    artifact_1_tag = "artifact-tag-1"
+    artifact_2_tag = "artifact-tag-2"
 
     db.store_artifact(
         db_session,
@@ -269,7 +266,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         tag=artifact_2_tag,
     )
     artifacts = db.list_artifacts(db_session, artifact_key, tag="*")
-    assert len(artifacts) == 2
+    assert len(artifacts) == 3  # also latest is returned
     expected_uids = [artifact_1_uid, artifact_2_uid]
     uids = [artifact["metadata"]["uid"] for artifact in artifacts]
     assert (
@@ -280,7 +277,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         )
         == {}
     )
-    expected_tags = [artifact_1_tag, artifact_2_tag]
+    expected_tags = [artifact_1_tag, artifact_2_tag, "latest"]
     tags = [artifact["metadata"]["tag"] for artifact in artifacts]
     assert (
         deepdiff.DeepDiff(
@@ -313,8 +310,8 @@ def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     artifact_uid = "artifact_uid_1"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_uid)
-    artifact_1_tag = "artifact_tag_1"
-    artifact_2_tag = "artifact_tag_2"
+    artifact_1_tag = "artifact-tag-1"
+    artifact_2_tag = "artifact-tag-2"
 
     db.store_artifact(
         db_session,
@@ -355,8 +352,8 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
 
     db.store_artifact(
         db_session,
@@ -394,9 +391,9 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     artifact_2_uid = "artifact_uid_2"
     artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
     artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
-    artifact_1_tag = "artifact_tag_one"
-    artifact_2_tag = "artifact_tag_two"
-    artifact_2_tag_2 = "artifact_tag_two_again"
+    artifact_1_tag = "artifact-tag-one"
+    artifact_2_tag = "artifact-tag-two"
+    artifact_2_tag_2 = "artifact-tag-two-again"
 
     db.store_artifact(
         db_session,
@@ -512,7 +509,7 @@ def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
 
 
 def _generate_artifact_with_iterations(
-    db, db_session, key, uid, num_iters, best_iter, kind
+    db, db_session, key, uid, num_iters, best_iter, kind, project=""
 ):
     for iter in range(num_iters):
         artifact_body = _generate_artifact(
@@ -527,6 +524,71 @@ def _generate_artifact_with_iterations(
             artifact_body,
             uid,
             iter=iter,
+            project=project,
+        )
+
+
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
+def test_list_artifacts_best_iter_with_tagged_iteration(
+    db: DBInterface, db_session: Session
+):
+    artifact_key_1 = "artifact-1"
+    artifact_key_2 = "artifact-2"
+    artifact_uid_1 = "uid-1"
+    artifact_uid_2 = "uid-2"
+    num_iters = 3
+    best_iter = 2
+    project = "project1"
+    tag = "mytag1"
+
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_key_1,
+        artifact_uid_1,
+        num_iters,
+        best_iter,
+        ArtifactCategories.model,
+        project=project,
+    )
+
+    _generate_artifact_with_iterations(
+        db,
+        db_session,
+        artifact_key_2,
+        artifact_uid_2,
+        num_iters,
+        best_iter,
+        ArtifactCategories.model,
+        project=project,
+    )
+
+    identifier_1 = schemas.ArtifactIdentifier(
+        kind=ArtifactCategories.model,
+        key=artifact_key_1,
+        uid=artifact_uid_1,
+        iter=best_iter,
+    )
+    identifier_2 = schemas.ArtifactIdentifier(
+        kind=ArtifactCategories.model,
+        key=artifact_key_2,
+        uid=artifact_uid_2,
+        iter=best_iter,
+    )
+    db.append_tag_to_artifacts(db_session, project, tag, [identifier_1, identifier_2])
+    results = db.list_artifacts(
+        db_session, project=project, tag=tag, best_iteration=True
+    )
+    assert len(results) == 2
+
+    for artifact in results:
+        assert (
+            artifact["metadata"]["tag"] == tag
+            and artifact["spec"]["iter"] == best_iter
+            and artifact["metadata"]["uid"] in (artifact_uid_1, artifact_uid_2)
+            and artifact["metadata"]["name"] in (artifact_key_1, artifact_key_2)
         )
 
 
@@ -609,166 +671,62 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
         )
 
 
-# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
 @pytest.mark.parametrize(
-    "data_migration_db,db_session",
-    [(dbs[0], dbs[0])],
-    indirect=["data_migration_db", "db_session"],
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
-def test_data_migration_fix_artifact_tags_duplications(
-    data_migration_db: DBInterface,
-    db_session: Session,
-):
-    def _buggy_tag_artifacts(session, objs, project: str, name: str):
-        # This is the function code that was used before we did the fix and added the data migration
-        for obj in objs:
-            tag = obj.Tag(project=project, name=name, obj_id=obj.id)
-            _upsert(session, tag, ignore=True)
+def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
+    artifact_key = "artifact-1"
+    artifact_1_uid = "uid-1"
+    artifact_2_uid = "uid-2"
+    artifact_3_uid = "uid-3"
 
-    def _upsert(session, obj, ignore=False):
-        try:
-            session.add(obj)
-            session.commit()
-        except SQLAlchemyError as err:
-            session.rollback()
-            cls = obj.__class__.__name__
-            logger.warning(f"conflict adding {cls}, {err}")
-            if not ignore:
-                raise DBError(f"duplicate {cls} - {err}") from err
-
-    data_migration_db.tag_artifacts = _buggy_tag_artifacts
-
-    artifact_1_key = "artifact_key_1"
-    artifact_1_uid = "artifact_1_uid_1"
-    artifact_1_body = _generate_artifact(artifact_1_key, artifact_1_uid)
-    artifact_1_kind = ChartArtifact.kind
-    artifact_1_with_kind_uid = "artifact_1_uid_2"
-    artifact_1_with_kind_body = _generate_artifact(
-        artifact_1_key, artifact_1_with_kind_uid, kind=artifact_1_kind
-    )
-    artifact_2_key = "artifact_key_2"
-    artifact_2_uid = "artifact_2_uid_1"
-    artifact_2_body = _generate_artifact(artifact_2_key, artifact_2_uid)
-    artifact_2_kind = PlotArtifact.kind
-    artifact_2_with_kind_uid = "artifact_2_uid_2"
-    artifact_2_with_kind_body = _generate_artifact(
-        artifact_2_key, artifact_2_with_kind_uid, kind=artifact_2_kind
-    )
-    artifact_3_key = "artifact_key_3"
-    artifact_3_kind = DatasetArtifact.kind
-    artifact_3_with_kind_uid = "artifact_3_uid_1"
-    artifact_3_with_kind_body = _generate_artifact(
-        artifact_3_key, artifact_3_with_kind_uid, kind=artifact_3_kind
-    )
-
-    data_migration_db.store_artifact(
+    num_iters = 5
+    best_iter_1 = 2
+    best_iter_2 = 4
+    best_iter_3 = 2
+    _generate_artifact_with_iterations(
+        db,
         db_session,
-        artifact_1_key,
-        artifact_1_body,
+        artifact_key,
         artifact_1_uid,
+        num_iters,
+        best_iter_1,
+        ArtifactCategories.model,
     )
-    data_migration_db.store_artifact(
+    _generate_artifact_with_iterations(
+        db,
         db_session,
-        artifact_1_key,
-        artifact_1_with_kind_body,
-        artifact_1_with_kind_uid,
+        artifact_key,
+        artifact_2_uid,
+        num_iters,
+        best_iter_2,
+        ArtifactCategories.model,
     )
-    data_migration_db.store_artifact(
-        db_session, artifact_2_key, artifact_2_body, artifact_2_uid, tag="not-latest"
-    )
-    data_migration_db.store_artifact(
+    _generate_artifact_with_iterations(
+        db,
         db_session,
-        artifact_2_key,
-        artifact_2_with_kind_body,
-        artifact_2_with_kind_uid,
-        tag="not-latest",
-    )
-    data_migration_db.store_artifact(
-        db_session, artifact_3_key, artifact_3_with_kind_body, artifact_3_with_kind_uid
+        artifact_key,
+        artifact_3_uid,
+        num_iters,
+        best_iter_3,
+        ArtifactCategories.model,
     )
 
-    # Before the migration:
-    # 1. read artifact would have failed when there's more than one tag record with the same key (happen when you
-    # store twice)
-    with pytest.raises(MultipleResultsFound):
-        data_migration_db.read_artifact(db_session, artifact_1_key, tag="latest")
-    with pytest.raises(MultipleResultsFound):
-        data_migration_db.read_artifact(db_session, artifact_2_key, tag="not-latest")
-
-    # 2. read artifact would have succeed when there's only one tag record with the same key (happen when you
-    # stored only once)
-    artifact = data_migration_db.read_artifact(db_session, artifact_3_key, tag="latest")
-    assert artifact["metadata"]["uid"] == artifact_3_with_kind_uid
-
-    # 3. list artifact without tag would have returned the latest (by update time) of each artifact key
-    artifacts = data_migration_db.list_artifacts(db_session)
-    assert len(artifacts) == len([artifact_1_key, artifact_2_key, artifact_3_key])
-    assert (
-        deepdiff.DeepDiff(
-            [artifact["metadata"]["uid"] for artifact in artifacts],
-            [
-                artifact_1_with_kind_uid,
-                artifact_2_with_kind_uid,
-                artifact_3_with_kind_uid,
-            ],
-            ignore_order=True,
+    for category in [ArtifactCategories.model, None]:
+        results = db.list_artifacts(
+            db_session, tag="*", best_iteration=True, category=category
         )
-        == {}
-    )
+        assert len(results) == 3
+        expected_uids = [artifact_1_uid, artifact_2_uid, artifact_3_uid]
+        uids = []
+        for result in results:
+            uids.append(result["metadata"]["uid"])
+            if result["metadata"]["uid"] == artifact_3_uid:
+                assert result["metadata"]["tag"] == "latest"
+            else:
+                assert result["metadata"].get("tag") is None
 
-    # 4. list artifact with tag would have returned all of the artifact that at some point were tagged with the given
-    # tag
-    artifacts = data_migration_db.list_artifacts(db_session, tag="latest")
-    assert len(artifacts) == len(
-        [artifact_1_uid, artifact_1_with_kind_uid, artifact_3_with_kind_uid]
-    )
-
-    # perform the migration
-    mlrun.api.initial_data._fix_artifact_tags_duplications(
-        data_migration_db, db_session
-    )
-
-    # After the migration:
-    # 1. read artifact should succeed (fixed) and return the latest updated record that was tagged with the requested
-    # tag
-    artifact = data_migration_db.read_artifact(db_session, artifact_1_key, tag="latest")
-    assert artifact["metadata"]["uid"] == artifact_1_with_kind_uid
-    artifact = data_migration_db.read_artifact(
-        db_session, artifact_2_key, tag="not-latest"
-    )
-    assert artifact["metadata"]["uid"] == artifact_2_with_kind_uid
-
-    # 2. read artifact should (still) succeed when there's only one tag record with the same key (happen when you
-    # stored only once)
-    artifact = data_migration_db.read_artifact(db_session, artifact_3_key, tag="latest")
-    assert artifact["metadata"]["uid"] == artifact_3_with_kind_uid
-
-    # 3. list artifact without tag should (still) return the latest (by update time) of each artifact key
-    artifacts = data_migration_db.list_artifacts(db_session)
-    assert len(artifacts) == len([artifact_1_key, artifact_2_key, artifact_3_key])
-    assert (
-        deepdiff.DeepDiff(
-            [artifact["metadata"]["uid"] for artifact in artifacts],
-            [
-                artifact_1_with_kind_uid,
-                artifact_2_with_kind_uid,
-                artifact_3_with_kind_uid,
-            ],
-            ignore_order=True,
-        )
-        == {}
-    )
-
-    # 4. list artifact with tag should (fixed) return all of the artifact that are tagged with the given tag
-    artifacts = data_migration_db.list_artifacts(db_session, tag="latest")
-    assert (
-        deepdiff.DeepDiff(
-            [artifact["metadata"]["uid"] for artifact in artifacts],
-            [artifact_1_with_kind_uid, artifact_3_with_kind_uid],
-            ignore_order=True,
-        )
-        == {}
-    )
+        assert set(expected_uids) == set(uids)
 
 
 # running only on sqldb cause filedb is not really a thing anymore, will be removed soon

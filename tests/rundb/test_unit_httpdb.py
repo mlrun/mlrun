@@ -76,6 +76,13 @@ def test_api_call_enum_conversion():
             # one try + the max retries
             1 + mlrun.config.config.http_retry_defaults.max_retries,
         ),
+        (
+            "enabled",
+            requests.exceptions.ConnectionError,
+            "Connection aborted",
+            # one try + the max retries
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
         # feature disabled
         ("disabled", Exception, "some-error", 1),
         ("disabled", ConnectionError, "some-error", 1),
@@ -93,6 +100,13 @@ def test_api_call_enum_conversion():
             "Connection refused",
             1,
         ),
+        (
+            "disabled",
+            requests.exceptions.ConnectionError,
+            "Connection aborted",
+            # one try + the max retries
+            1,
+        ),
     ],
 )
 def test_connection_reset_causes_retries(
@@ -106,7 +120,10 @@ def test_connection_reset_causes_retries(
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
-        with pytest.raises(exception_type):
+
+        # Catching also MLRunRuntimeError as if the exception inherits from requests.RequestException, it will be
+        # wrapped with MLRunRuntimeError
+        with pytest.raises((exception_type, mlrun.errors.MLRunRuntimeError)):
             db.api_call("GET", "some-path")
 
     assert requests.Session.request.call_count == call_amount

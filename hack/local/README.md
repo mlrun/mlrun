@@ -28,12 +28,12 @@ To use MLRun with your local Docker registry, run the MLRun API service, dashboa
 ```
 SHARED_DIR=~/mlrun-data
 
-docker pull mlrun/jupyter:1.0.6
-docker pull mlrun/mlrun-ui:1.0.6
+docker pull mlrun/jupyter:1.2.0
+docker pull mlrun/mlrun-ui:1.2.0
 
 docker network create mlrun-network
-docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:1.0.6
-docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:1.0.6
+docker run -it -p 8080:8080 -p 8888:8888 --rm -d --network mlrun-network --name jupyter -v ${SHARED_DIR}:/home/jovyan/data mlrun/jupyter:1.2.0
+docker run -it -p 4000:80 --rm -d --network mlrun-network --name mlrun-ui -e MLRUN_API_PROXY_URL=http://jupyter:8080 mlrun/mlrun-ui:1.2.0
 ```
 
 When the execution completes &mdash;

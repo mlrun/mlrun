@@ -41,8 +41,8 @@ ONE_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
 
         self.headers = None
@@ -83,8 +83,8 @@ class V3ioStore(DataStore):
         except ImportError as exc:
             if not silent:
                 raise ImportError(
-                    f"v3iofs or storey not installed, run pip install storey, {exc}"
-                )
+                    "v3iofs or storey not installed, run pip install storey"
+                ) from exc
             return None
         self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem
@@ -167,9 +167,7 @@ class V3ioStore(DataStore):
         return FileStats(size, modified)
 
     def listdir(self, key):
-        v3io_client = v3io.dataplane.Client(
-            endpoint=self.url, access_key=self.token, transport_kind="requests"
-        )
+        v3io_client = v3io.dataplane.Client(endpoint=self.url, access_key=self.token)
         container, subpath = split_path(self._join(key))
         if not subpath.endswith("/"):
             subpath += "/"
@@ -192,13 +190,17 @@ class V3ioStore(DataStore):
             raise
 
         # todo: full = key, size, last_modified
-        return [obj.key[subpath_length:] for obj in response.output.contents]
+        dir_content = [
+            dir.prefix[subpath_length:] for dir in response.output.common_prefixes
+        ]
+        obj_content = [obj.key[subpath_length:] for obj in response.output.contents]
+        return dir_content + obj_content
 
     def rm(self, path, recursive=False, maxdepth=None):
         """Recursive rm file/folder
         Workaround for v3io-fs not supporting recursive directory removal"""
 
-        fs = self.get_filesystem()
+        file_system = self.get_filesystem()
         if isinstance(path, str):
             path = [path]
         maxdepth = maxdepth if not maxdepth else maxdepth - 1
@@ -207,7 +209,9 @@ class V3ioStore(DataStore):
             _, p = parse_path(p, suffix="")
             p = "/" + p
             if recursive:
-                find_out = fs.find(p, maxdepth=maxdepth, withdirs=True, detail=True)
+                find_out = file_system.find(
+                    p, maxdepth=maxdepth, withdirs=True, detail=True
+                )
                 rec = set(
                     sorted(
                         [
@@ -217,8 +221,8 @@ class V3ioStore(DataStore):
                     )
                 )
                 to_rm |= rec
-            if p not in to_rm and (recursive is False or fs.exists(p)):
-                p = p + ("/" if fs.isdir(p) else "")
+            if p not in to_rm and (recursive is False or file_system.exists(p)):
+                p = p + ("/" if file_system.isdir(p) else "")
                 to_rm.add(p)
         for p in reversed(list(sorted(to_rm))):
-            fs.rm_file(p)
+            file_system.rm_file(p)

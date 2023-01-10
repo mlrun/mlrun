@@ -17,7 +17,6 @@ import pathlib
 import sys
 import uuid
 from datetime import datetime
-from time import sleep
 
 import fsspec
 import pandas as pd
@@ -26,14 +25,46 @@ import v3iofs
 from storey import EmitEveryEvent
 
 import mlrun
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
 from mlrun.feature_store import FeatureSet
+from mlrun.feature_store.steps import (
+    DateExtractor,
+    DropFeatures,
+    MapValues,
+    OneHotEncoder,
+)
 from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
+from tests.system.feature_store.expected_stats import expected_stats
+
+
+def read_and_assert(csv_path_spark, csv_path_storey):
+    read_back_df_spark = None
+    file_system = fsspec.filesystem("v3io")
+    for file_entry in file_system.ls(csv_path_spark):
+        filepath = file_entry["name"]
+        if not filepath.endswith("/_SUCCESS"):
+            read_back_df_spark = pd.read_csv(f"v3io://{filepath}")
+            break
+    assert read_back_df_spark is not None
+
+    read_back_df_storey = None
+    for file_entry in file_system.ls(csv_path_storey):
+        filepath = file_entry["name"]
+        read_back_df_storey = pd.read_csv(f"v3io://{filepath}")
+        break
+    assert read_back_df_storey is not None
+
+    read_back_df_storey = read_back_df_storey.dropna(axis=1, how="all")
+    read_back_df_spark = read_back_df_spark.dropna(axis=1, how="all")
+
+    assert read_back_df_spark.sort_index(axis=1).equals(
+        read_back_df_storey.sort_index(axis=1)
+    )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -122,132 +153,52 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_basic_remote_spark_ingest(self):
         key = "patient_id"
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             return_df=True,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
 
         stats_df = measurements.get_stats_table()
-        expexted_result = {
-            "count": {
-                "bad": 190.0,
-                "department": 190.0,
-                "hr": 190.0,
-                "is_in_bed": 190.0,
-                "movements": 190.0,
-                "patient_id": 190.0,
-                "room": 190.0,
-                "rr": 190.0,
-                "spo2": 190.0,
-                "turn_count": 190.0,
-            },
-            "mean": {
-                "bad": 49.10526315789474,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 3.6203568596815643,
-                "patient_id": float("nan"),
-                "room": 1.4947368421052631,
-                "rr": 24.68421052631579,
-                "spo2": 98.77894736842106,
-                "turn_count": 1.3398340922970073,
-            },
-            "std": {
-                "bad": 30.111424007351214,
-                "department": float("nan"),
-                "hr": 0.0,
-                "is_in_bed": 0.0,
-                "movements": 3.2840955409124373,
-                "patient_id": float("nan"),
-                "room": 0.5012932314788251,
-                "rr": 2.499791135803136,
-                "spo2": 1.749853795062193,
-                "turn_count": 1.2704837468566184,
-            },
-            "min": {
-                "bad": 4.0,
-                "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 0.0,
-                "patient_id": "025-79-2727",
-                "room": 1.0,
-                "rr": 5.0,
-                "spo2": 85.0,
-                "turn_count": 0.0,
-            },
-            "25%": {
-                "bad": 17.0,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 0.18989211159466102,
-                "patient_id": float("nan"),
-                "room": 1.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 0.0,
-            },
-            "75%": {
-                "bad": 76.0,
-                "department": float("nan"),
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 6.010198369762724,
-                "patient_id": float("nan"),
-                "room": 2.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 2.951729964062169,
-            },
-            "max": {
-                "bad": 95.0,
-                "department": "4685f09b-51cc-48c9-b8e5-32e3175d4759",
-                "hr": 220.0,
-                "is_in_bed": 1.0,
-                "movements": 10.0,
-                "patient_id": "838-21-8151",
-                "room": 2.0,
-                "rr": 25.0,
-                "spo2": 99.0,
-                "turn_count": 3.0,
-            },
-        }
-        expected_df = pd.DataFrame(expexted_result)
-        assert stats_df.drop("hist", axis=1).equals(expected_df)
+        expected_stats_df = pd.DataFrame(expected_stats)
+        print(f"stats_df: {stats_df.to_json()}")
+        print(f"expected_stats_df: {expected_stats_df.to_json()}")
+        assert stats_df.equals(expected_stats_df)
 
     def test_basic_remote_spark_ingest_csv(self):
         key = "patient_id"
         name = "measurements"
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             name,
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
             engine="spark",
         )
         # Added to test that we can ingest a column named "summary"
         measurements.graph.to(name="rename_column", handler="rename_column")
         source = CSVSource(
-            "mycsv", path=self.get_remote_csv_source_path(), time_field="timestamp"
+            "mycsv",
+            path=self.get_remote_csv_source_path(),
         )
         filename = str(
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
             / "spark_ingest_remote_test_code.py"
         )
         func = code_to_function("func", kind="remote-spark", filename=filename)
-        run_config = fs.RunConfig(local=False, function=func, handler="ingest_handler")
-        fs.ingest(
+        run_config = fstore.RunConfig(
+            local=False, function=func, handler="ingest_handler"
+        )
+        fstore.ingest(
             measurements,
             source,
             return_df=True,
@@ -256,9 +207,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         features = [f"{name}.*"]
-        vec = fs.FeatureVector("test-vec", features)
+        vec = fstore.FeatureVector("test-vec", features)
 
-        resp = fs.get_offline_features(vec)
+        resp = fstore.get_offline_features(vec, with_indexes=True)
         df = resp.to_dataframe()
         assert type(df["timestamp"][0]).__name__ == "Timestamp"
 
@@ -270,19 +221,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements",
-            entities=[fs.Entity("name")],
+            entities=[fstore.Entity("name")],
             engine="spark",
         )
 
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fs.ingest(
+            fstore.ingest(
                 measurements,
                 df,
                 return_df=True,
                 spark_context=self.spark_service,
-                run_config=fs.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=False),
             )
 
     def test_ingest_to_csv(self):
@@ -290,31 +241,31 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
         csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_spark",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         csv_path_spark = measurements.get_target_path(name="csv")
 
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements_storey",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_storey)]
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             targets,
@@ -341,6 +292,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey.sort_index(axis=1)
         )
 
+    # tests that data is filtered by time in scheduled jobs
     @pytest.mark.parametrize("partitioned", [True, False])
     def test_schedule_on_filtered_by_time(self, partitioned):
         name = f"sched-time-{str(partitioned)}"
@@ -360,15 +312,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         ).to_parquet(path=path, filesystem=fsys)
 
-        cron_trigger = "*/3 * * * *"
-
         source = ParquetSource(
-            "myparquet", path=path, time_field="time", schedule=cron_trigger
+            "myparquet",
+            path=path,
+            schedule="mock",  # to enable filtering by time
         )
 
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             name=name,
-            entities=[fs.Entity("first_name")],
+            entities=[fstore.Entity("first_name")],
             timestamp_key="time",
             engine="spark",
         )
@@ -391,21 +343,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 NoSqlTarget(),
             ]
 
-        fs.ingest(
+        fstore.ingest(
             feature_set,
             source,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
             targets=targets,
             spark_context=self.spark_service,
         )
-        # ingest starts every third minute and it can take ~150 seconds to finish.
-        time_till_next_run = 180 - now.second - 60 * (now.minute % 3)
-        sleep(time_till_next_run + 150)
 
         features = [f"{name}.*"]
-        vec = fs.FeatureVector("sched_test-vec", features)
+        vec = fstore.FeatureVector("sched_test-vec", features)
 
-        with fs.get_online_feature_service(vec) as svc:
+        with fstore.get_online_feature_service(vec) as svc:
 
             resp = svc.get([{"first_name": "yosi"}, {"first_name": "moshe"}])
             assert resp[0]["data"] == 10
@@ -424,7 +373,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 }
             ).to_parquet(path=path)
 
-            sleep(180)
+            fstore.ingest(
+                feature_set,
+                source,
+                run_config=fstore.RunConfig(local=False),
+                targets=targets,
+                spark_context=self.spark_service,
+            )
+
             resp = svc.get(
                 [
                     {"first_name": "yosi"},
@@ -441,7 +397,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             assert resp[4] is None
 
         # check offline
-        resp = fs.get_offline_features(vec)
+        resp = fstore.get_offline_features(vec)
         assert len(resp.to_dataframe() == 4)
         assert "uri" not in resp.to_dataframe() and "katya" not in resp.to_dataframe()
 
@@ -470,11 +426,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
 
-        data_set = fs.FeatureSet(
+        data_set = fstore.FeatureSet(
             f"{name}_storey",
             entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -484,7 +441,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             period="10m",
         )
 
-        df = fs.ingest(data_set, source, targets=[])
+        df = fstore.ingest(data_set, source, targets=[])
 
         assert df.to_dict() == {
             "mood": {("moshe", "cohen"): "good", ("yosi", "levi"): "good"},
@@ -499,7 +456,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         name_spark = f"{name}_spark"
 
-        data_set = fs.FeatureSet(
+        data_set = fstore.FeatureSet(
             name_spark,
             entities=[Entity("first_name"), Entity("last_name")],
             engine="spark",
@@ -512,19 +469,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             period="10m",
         )
 
-        fs.ingest(
+        fstore.ingest(
             data_set,
             source,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
 
         features = [
             f"{name_spark}.*",
         ]
 
-        vector = fs.FeatureVector("my-vec", features)
-        resp = fs.get_offline_features(
+        vector = fstore.FeatureVector("my-vec", features)
+        resp = fstore.get_offline_features(
             vector, entity_timestamp_column="time", with_indexes=True
         )
         assert resp.to_dataframe().to_dict() == {
@@ -562,10 +519,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(v3iofs.fs.V3ioFS.protocol)
         df.to_parquet(path=path, filesystem=fsys)
 
-        source = ParquetSource("myparquet", path=path, time_field="time")
+        source = ParquetSource("myparquet", path=path)
         name_spark = f"{name}_spark"
 
-        data_set = fs.FeatureSet(
+        data_set = fstore.FeatureSet(
             name_spark,
             entities=[Entity("first_name"), Entity("last_name")],
             timestamp_key="time",
@@ -580,11 +537,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             emit_policy=EmitEveryEvent(),
         )
 
-        fs.ingest(
+        fstore.ingest(
             data_set,
             source,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
 
         print(f"Results:\n{data_set.to_dataframe().sort_values('time').to_string()}\n")
@@ -603,7 +560,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # Compare Spark-generated results with Storey results (which are always per-event)
         name_storey = f"{name}_storey"
 
-        storey_data_set = fs.FeatureSet(
+        storey_data_set = fstore.FeatureSet(
             name_storey,
             timestamp_key="time",
             entities=[Entity("first_name"), Entity("last_name")],
@@ -615,7 +572,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             windows=["2h"],
             period="10m",
         )
-        fs.ingest(storey_data_set, source)
+        fstore.ingest(storey_data_set, source)
 
         storey_df = storey_data_set.to_dataframe().reset_index().sort_values("time")
         print(f"Storey results:\n{storey_df.to_string()}\n")
@@ -642,12 +599,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             name=name,
-            entities=[fs.Entity("first_name")],
+            entities=[fstore.Entity("first_name")],
             timestamp_key="time",
             engine="spark",
         )
@@ -665,10 +621,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             ),
         ]
 
-        fs.ingest(
+        fstore.ingest(
             feature_set,
             source,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
             targets=targets,
             spark_context=self.spark_service,
         )
@@ -705,12 +661,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             name=name,
-            entities=[fs.Entity("first_name")],
+            entities=[fstore.Entity("first_name")],
             timestamp_key="time",
             engine="spark",
         )
@@ -721,10 +676,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             partitioned=False,
         )
 
-        fs.ingest(
+        fstore.ingest(
             feature_set,
             source,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
             targets=[
                 target,
             ],
@@ -755,12 +710,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=path,
-            time_field="time",
         )
 
-        feature_set = fs.FeatureSet(
+        feature_set = fstore.FeatureSet(
             name=name,
-            entities=[fs.Entity("first_name")],
+            entities=[fstore.Entity("first_name")],
             timestamp_key="time",
             engine="spark",
         )
@@ -771,10 +725,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             partitioned=False,
         )
 
-        fs.ingest(
+        fstore.ingest(
             feature_set,
             source,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
             targets=[
                 target,
             ],
@@ -783,9 +737,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         features = [f"{name}.*"]
-        vec = fs.FeatureVector("test-vec", features)
+        vec = fstore.FeatureVector("test-vec", features)
 
-        resp = fs.get_offline_features(vec)
+        resp = fstore.get_offline_features(vec)
         df = resp.to_dataframe()
         assert df.to_dict() == {"data": {0: 2000}}
 
@@ -824,9 +778,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
 
         if should_succeed:
-            fs.ingest(
+            fstore.ingest(
                 fset,
-                run_config=fs.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=False),
                 spark_context=self.spark_service,
                 source=source,
                 targets=[target],
@@ -840,66 +794,293 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 assert v3io.isdir(fset.get_target_path())
         else:
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                fs.ingest(fset, source=source, targets=[target])
+                fstore.ingest(fset, source=source, targets=[target])
 
     def test_error_is_properly_propagated(self):
         key = "patient_id"
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path="wrong-path.pq")
         with pytest.raises(mlrun.runtimes.utils.RunError):
-            fs.ingest(
+            fstore.ingest(
                 measurements,
                 source,
                 return_df=True,
                 spark_context=self.spark_service,
-                run_config=fs.RunConfig(local=False),
+                run_config=fstore.RunConfig(local=False),
             )
 
-    def test_get_offline_features_with_filter(self):
+    # ML-3092
+    def test_get_offline_features_with_filter_and_indexes(self):
         key = "patient_id"
-        measurements = fs.FeatureSet(
+        measurements = fstore.FeatureSet(
             "measurements",
-            entities=[fs.Entity(key)],
+            entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
-        fs.ingest(
+        fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
-
         fv_name = "measurements-fv"
         features = [
             "measurements.bad",
             "measurements.department",
         ]
-
-        my_fv = fs.FeatureVector(
+        my_fv = fstore.FeatureVector(
             fv_name,
             features,
-            description="my feature vector",
         )
+        my_fv.spec.with_indexes = True
         my_fv.save()
         target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
-        fs.get_offline_features(
+        resp = fstore.get_offline_features(
             fv_name,
             target=target,
             query="bad>6 and bad<8",
-            engine="spark",
-            run_config=fs.RunConfig(local=False),
+            run_config=fstore.RunConfig(local=False),
         )
-        df_res = target.as_df()
-        df = source.to_dataframe()
-        expected_df = df[df["bad"] == 7][["bad", "department"]]
-        expected_df.reset_index(drop=True, inplace=True)
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        source_df.set_index(key, drop=True, inplace=True)
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)
 
-        assert df_res.equals(expected_df)
+    # ML-2802
+    def test_get_offline_features_with_spark_engine(self):
+        key = "patient_id"
+        measurements = fstore.FeatureSet(
+            "measurements",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        assert measurements.status.targets[0].run_id is not None
+        fv_name = "measurements-fv"
+        features = [
+            "measurements.bad",
+            "measurements.department",
+        ]
+        my_fv = fstore.FeatureVector(
+            fv_name,
+            features,
+        )
+        my_fv.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            fv_name,
+            target=target,
+            query="bad>6 and bad<8",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+        )
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        expected_df.reset_index(drop=True, inplace=True)
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)
+
+    def test_ingest_with_steps_drop_features(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fstore.FeatureSet(
+            "measurements_storey",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(DropFeatures(features=["bad"]))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)
+
+    def test_ingest_with_steps_onehot(self):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fstore.FeatureSet(
+            "measurements_storey",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(OneHotEncoder(mapping={"is_in_bed": [0, 1]}))
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)
+
+    @pytest.mark.parametrize("with_original_features", [True, False])
+    def test_ingest_with_steps_mapval(self, with_original_features):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
+                    "hr_is_error": {False: "0", True: "1"},
+                },
+                with_original_features=with_original_features,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fstore.FeatureSet(
+            "measurements_storey",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(
+            MapValues(
+                mapping={
+                    "bad": {"ranges": {"one": [0, 30], "two": [30, "inf"]}},
+                    "hr_is_error": {False: "0", True: "1"},
+                },
+                with_original_features=with_original_features,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)
+
+    @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
+    def test_ingest_with_steps_extractor(self, timestamp_col):
+        key = "patient_id"
+        csv_path_spark = "v3io:///bigdata/test_ingest_to_csv_spark"
+        csv_path_storey = "v3io:///bigdata/test_ingest_to_csv_storey.csv"
+
+        measurements = fstore.FeatureSet(
+            "measurements_spark",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        measurements.graph.to(
+            DateExtractor(
+                parts=["day_of_year"],
+                timestamp_col=timestamp_col,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        csv_path_spark = measurements.get_target_path(name="csv")
+
+        measurements = fstore.FeatureSet(
+            "measurements_storey",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+        )
+        measurements.graph.to(
+            DateExtractor(
+                parts=["day_of_year"],
+                timestamp_col=timestamp_col,
+            )
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [CSVTarget(name="csv", path=csv_path_storey)]
+        fstore.ingest(
+            measurements,
+            source,
+            targets,
+        )
+        csv_path_storey = measurements.get_target_path(name="csv")
+        read_and_assert(csv_path_spark, csv_path_storey)

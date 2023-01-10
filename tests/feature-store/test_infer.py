@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 import mlrun
-import mlrun.feature_store as fs
+import mlrun.feature_store as fstore
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
@@ -51,7 +51,7 @@ def test_infer_from_df():
     key = "patient_id"
     df = pd.read_csv(this_dir + "testdata.csv")
     df.set_index(key, inplace=True)
-    featureset = fs.FeatureSet("testdata")
+    featureset = fstore.FeatureSet("testdata")
     _infer_from_static_df(df, featureset, options=InferOptions.all())
     # print(featureset.to_yaml())
 
@@ -90,6 +90,9 @@ def test_infer_from_df():
         "mean",
         "std",
         "min",
+        "25%",
+        "50%",
+        "75%",
         "max",
         "hist",
     ], "wrong stats result"
@@ -116,14 +119,14 @@ def test_check_permissions():
             "string": ["ab", "cd", "ef"],
         }
     )
-    data_set1 = fs.FeatureSet("fs1", entities=[Entity("string")])
+    data_set1 = fstore.FeatureSet("fs1", entities=[Entity("string")])
 
     mlrun.db.FileRunDB.verify_authorization = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunAccessDeniedError("")
     )
 
     try:
-        fs.preview(
+        fstore.preview(
             data_set1,
             data,
             entity_columns=[Entity("string")],
@@ -134,27 +137,29 @@ def test_check_permissions():
         pass
 
     try:
-        fs.ingest(data_set1, data, infer_options=fs.InferOptions.default())
+        fstore.ingest(data_set1, data, infer_options=fstore.InferOptions.default())
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     features = ["fs1.*"]
-    feature_vector = fs.FeatureVector("test", features)
+    feature_vector = fstore.FeatureVector("test", features)
     try:
-        fs.get_offline_features(feature_vector, entity_timestamp_column="time_stamp")
+        fstore.get_offline_features(
+            feature_vector, entity_timestamp_column="time_stamp"
+        )
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
-        fs.get_online_feature_service(feature_vector)
+        fstore.get_online_feature_service(feature_vector)
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
 
     try:
-        fs.deploy_ingestion_service(featureset=data_set1)
+        fstore.deploy_ingestion_service(featureset=data_set1)
         assert False
     except mlrun.errors.MLRunAccessDeniedError:
         pass
@@ -168,6 +173,6 @@ def test_check_permissions():
 
 def test_check_timestamp_key_is_entity():
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        fs.FeatureSet(
+        fstore.FeatureSet(
             "imp1", entities=[Entity("time_stamp")], timestamp_key="time_stamp"
         )

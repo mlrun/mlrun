@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import v3io
 import v3io.dataplane
+import v3io_frames
 
 import mlrun
 import mlrun.api.schemas
@@ -786,16 +787,16 @@ class BatchProcessor:
                         ],
                     )
 
-                # Update the results in the KV table:
-                self.v3io.kv.update(
-                    container=self.kv_container,
-                    table_path=self.kv_path,
-                    key=endpoint_id,
-                    attributes={
-                        "current_stats": json.dumps(current_stats),
-                        "drift_measures": json.dumps(drift_result),
-                        "drift_status": drift_status.value,
-                    },
+                attributes = {
+                    "current_stats": json.dumps(current_stats),
+                    "drift_measures": json.dumps(drift_result),
+                    "drift_status": drift_status.value,
+                }
+
+                self.db.patch_model_endpoint(
+                    project=self.project,
+                    endpoint_id=endpoint_id,
+                    attributes=attributes,
                 )
 
                 # Update the results in tsdb:
@@ -811,12 +812,20 @@ class BatchProcessor:
                     "hellinger_mean": drift_result["hellinger_mean"],
                 }
 
-                self.frames.write(
-                    backend="tsdb",
-                    table=self.tsdb_path,
-                    dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
-                    index_cols=["timestamp", "endpoint_id", "record_type"],
-                )
+                try:
+                    self.frames.write(
+                        backend="tsdb",
+                        table=self.tsdb_path,
+                        dfs=pd.DataFrame.from_dict([tsdb_drift_measures]),
+                        index_cols=["timestamp", "endpoint_id", "record_type"],
+                    )
+                except v3io_frames.errors.Error as err:
+                    logger.warn(
+                        "Could not write drift measures to TSDB",
+                        err=err,
+                        tsdb_path=self.tsdb_path,
+                        endpoint=endpoint_id,
+                    )
 
                 logger.info("Done updating drift measures", endpoint_id=endpoint_id)
 

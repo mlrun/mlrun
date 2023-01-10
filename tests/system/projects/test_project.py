@@ -30,7 +30,7 @@ from tests.conftest import out_path
 from tests.system.base import TestMLRunSystem
 
 data_url = "https://s3.wasabisys.com/iguazio/data/iris/iris.data.raw.csv"
-model_pkg_class = "sklearn.linear_model.LogisticRegression"
+model_class = "sklearn.linear_model.LogisticRegression"
 projects_dir = f"{out_path}/proj"
 funcs = mlrun.projects.pipeline_context.functions
 
@@ -45,10 +45,10 @@ def exec_project(args):
 @dsl.pipeline(name="test pipeline", description="test")
 def pipe_test():
     # train the model using a library (hub://) function and the generated data
-    funcs["train"].as_step(
+    funcs["auto_trainer"].as_step(
         name="train",
         inputs={"dataset": data_url},
-        params={"model_pkg_class": model_pkg_class, "label_column": "label"},
+        params={"model_class": model_class, "label_columns": "label"},
         outputs=["model", "test_set"],
     )
 
@@ -86,15 +86,14 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function("hub://sklearn_classifier", "train")
-        proj.set_function("hub://test_classifier", "test")
+        proj.set_function("hub://auto_trainer", "auto_trainer")
         proj.set_function("hub://v2_model_server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
-        proj.spec.params = {"label_column": "label"}
+        proj.spec.params = {"label_columns": "label"}
         arg = EntrypointParam(
-            "model_pkg_class",
+            "model_class",
             type="str",
-            default=model_pkg_class,
+            default=model_class,
             doc="model package/algorithm",
         )
         proj.set_workflow("main", "./kflow.py", args_schema=[arg])
@@ -102,6 +101,23 @@ class TestProject(TestMLRunSystem):
         proj.spec.artifact_path = "v3io:///projects/{{run.project}}"
         proj.save()
         return proj
+
+    def test_project_persists_function_changes(self):
+        func_name = "build-func"
+        commands = [
+            "echo 1111",
+            "echo 2222",
+        ]
+        self.project.set_function(
+            "assets/handler.py", func_name, kind="job", image="mlrun/mlrun"
+        )
+        self.project.build_function(
+            func_name, base_image="mlrun/mlrun", commands=commands
+        )
+        assert (
+            self.project.get_function(func_name, sync=False).spec.build.commands
+            == commands
+        )
 
     def test_run(self):
         name = "pipe1"
@@ -121,7 +137,10 @@ class TestProject(TestMLRunSystem):
         assert runs[0].metadata.name == "test"
         runs_list.compare(filename=f"{projects_dir}/compare.html")
         artifacts = project2.list_artifacts(tag=run.run_id).to_objects()
-        assert len(artifacts) == 4  # cleaned_data, test_set_preds, model, test_set
+
+        # model, prep_data_cleaned_data, test_evaluation-confusion-matrix, test_evaluation-roc-curves,
+        # test_evaluation-test_set, train_confusion-matrix, train_feature-importance, train_roc-curves, test_set
+        assert len(artifacts) == 9
         assert artifacts[0].producer["workflow"] == run.run_id
 
         models = project2.list_models(tag=run.run_id)
@@ -129,7 +148,7 @@ class TestProject(TestMLRunSystem):
         assert models[0].producer["workflow"] == run.run_id
 
         functions = project2.list_functions(tag="latest")
-        assert len(functions) == 3  # prep-data, train, test
+        assert len(functions) == 2  # prep-data, auto-trainer
         assert functions[0].metadata.project == name
 
     def test_run_artifact_path(self):
@@ -327,7 +346,7 @@ class TestProject(TestMLRunSystem):
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
 
-        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_functions()) == 4, "functions count mismatch"
         assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
         old_creation_time = project.metadata.created
 
@@ -359,7 +378,7 @@ class TestProject(TestMLRunSystem):
         # get project from db for creation time
         project = db.get_project(name=self.project_name)
 
-        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_functions()) == 4, "functions count mismatch"
         assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
         old_creation_time = project.metadata.created
 
@@ -369,7 +388,7 @@ class TestProject(TestMLRunSystem):
 
         # ensure project was not deleted
         project = db.get_project(name=self.project_name)
-        assert len(project.list_functions()) == 5, "functions count mismatch"
+        assert len(project.list_functions()) == 4, "functions count mismatch"
         assert len(project.list_artifacts()) == 1, "artifacts count mismatch"
         assert (
             project.metadata.created == old_creation_time
@@ -499,7 +518,39 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         print("OUT:\n", out)
-        assert out.find("pipeline run finished, state=Succeeded"), "pipeline failed"
+        assert (
+            out.find("pipeline run finished, state=Succeeded") != -1
+        ), "pipeline failed"
+
+    def test_run_cli_watch_with_timeout(self):
+        name = "run-cli-watch-with-timeout"
+        self.custom_project_names_to_delete.append(name)
+        project_dir = f"{projects_dir}/{name}"
+        shutil.rmtree(project_dir, ignore_errors=True)
+
+        # exec the workflow and set a short timeout, should fail
+        args = [
+            "--name",
+            name,
+            "--url",
+            "git://github.com/mlrun/project-demo.git",
+            "--run",
+            "main",
+            "--watch",
+            "--timeout 1",
+            "--ensure-project",
+            project_dir,
+        ]
+        out = exec_project(args)
+
+        print("OUT:\n", out)
+        assert (
+            out.find(
+                "Exception: failed to execute command by the given deadline. last_exception: "
+                "pipeline run has not completed yet, function_name: get_pipeline_if_completed, timeout: 1"
+            )
+            != -1
+        )
 
     def test_build_and_run(self):
         # test that build creates a proper image and run will use the updated function (with the built image)
@@ -557,3 +608,78 @@ class TestProject(TestMLRunSystem):
         project.set_secrets(file_path=env_file)
         secrets = db.list_project_secret_keys(name, provider="kubernetes")
         assert secrets.secret_keys == ["ENV_ARG1", "ENV_ARG2"]
+
+    def test_overwrite_schedule(self):
+        name = "overwrite-test"
+        project_dir = f"{projects_dir}/{name}"
+        workflow_name = "main"
+        self.custom_project_names_to_delete.append(name)
+        project = mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+        )
+
+        schedules = ["*/30 * * * *", "*/40 * * * *", "*/50 * * * *"]
+        # overwriting nothing
+        project.run(workflow_name, schedule=schedules[0], overwrite=True)
+        schedule = self._run_db.get_schedule(name, workflow_name)
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[0]
+        ), "Failed to overwrite nothing"
+
+        # overwriting schedule:
+        project.run(workflow_name, schedule=schedules[1], dirty=True, overwrite=True)
+        schedule = self._run_db.get_schedule(name, workflow_name)
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[1]
+        ), "Failed to overwrite existing schedule"
+
+        expected_error_message = (
+            f"There is already a schedule for workflow {workflow_name}."
+            f" If you want to overwrite this schedule use 'overwrite = True'"
+        )
+        # submit schedule when one exists without overwrite - fail:
+        with pytest.raises(
+            mlrun.errors.MLRunConflictError, match=expected_error_message
+        ):
+            project.run(
+                workflow_name,
+                schedule=schedules[1],
+                dirty=True,
+            )
+
+        # overwriting schedule from cli:
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "-os",  # stands for overwrite-schedule
+            "--schedule",
+            f"'{schedules[2]}'",
+        ]
+        exec_project(args)
+        schedule = self._run_db.get_schedule(name, workflow_name)
+        assert (
+            schedule.scheduled_object["schedule"] == schedules[2]
+        ), "Failed to overwrite from CLI"
+
+        # without overwrite schedule from cli:
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--schedule",
+            f"'{schedules[1]}'",
+        ]
+        out = exec_project(args)
+        assert (
+            expected_error_message.replace("overwrite = True", "--overwrite-schedule")
+            in out
+        )

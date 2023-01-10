@@ -156,7 +156,7 @@ def delete_run(
 def list_runs(
     project: str = None,
     name: str = None,
-    uid: str = None,
+    uid: List[str] = Query([]),
     labels: List[str] = Query([], alias="label"),
     state: str = None,
     last: int = 0,

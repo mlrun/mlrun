@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 import typing
 
 import pydantic
+
+import mlrun.api.utils.helpers
 
 
 class ResourceSpec(pydantic.BaseModel):
@@ -29,7 +30,7 @@ class Resources(pydantic.BaseModel):
     limits: ResourceSpec = ResourceSpec()
 
 
-class NodeSelectorOperator(str, enum.Enum):
+class NodeSelectorOperator(mlrun.api.utils.helpers.StrEnum):
     """
     A node selector operator is the set of operators that can be used in a node selector requirement
     https://github.com/kubernetes/api/blob/b754a94214be15ffc8d648f9fe6481857f1fc2fe/core/v1/types.go#L2765

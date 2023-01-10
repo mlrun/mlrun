@@ -21,11 +21,11 @@ import socket
 import sys
 import traceback
 import uuid
-from datetime import datetime, timezone
 from typing import Optional, Union
 
 import mlrun
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
 
 from ..datastore import get_stream_pusher
@@ -218,6 +218,8 @@ class GraphServer(ModelObj):
             raise MLRunInvalidArgumentError(
                 "no models or steps were set, use function.set_topology() and add steps"
             )
+        if not method:
+            method = "POST" if body else "GET"
         event = MockEvent(
             body=body,
             path=path,
@@ -251,10 +253,10 @@ class GraphServer(ModelObj):
             try:
                 body = json.loads(event.body)
                 event.body = body
-            except json.decoder.JSONDecodeError as exc:
+            except (json.decoder.JSONDecodeError, UnicodeDecodeError) as exc:
                 if event.content_type in ["json", "application/json"]:
                     # if its json type and didnt load, raise exception
-                    message = f"failed to json decode event, {exc}"
+                    message = f"failed to json decode event, {err_to_str(exc)}"
                     context.logger.error(message)
                     server_context.push_error(event, message, source="_handler")
                     return context.Response(
@@ -263,7 +265,7 @@ class GraphServer(ModelObj):
         try:
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
-            message = f"{exc.__class__.__name__}: {exc}"
+            message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")
@@ -387,7 +389,6 @@ class MockEvent(object):
         self.id = event_id or uuid.uuid4().hex
         self.key = ""
         self.body = body
-        self.time = get_event_time(time) or datetime.now(timezone.utc)
 
         # optional
         self.headers = headers or {}
@@ -528,17 +529,3 @@ def format_error(server, context, source, event, message, args):
         "message": message,
         "args": args,
     }
-
-
-def get_event_time(time):
-    # init the event time from time, date, or str (similar to storey)
-    if time is not None and not isinstance(time, datetime):
-        if isinstance(time, str):
-            time = datetime.fromisoformat(time)
-        elif isinstance(time, int):
-            time = datetime.utcfromtimestamp(time)
-        else:
-            raise TypeError(
-                f"Event time parameter must be a datetime, string, or int. Got {type(time)} instead."
-            )
-    return time

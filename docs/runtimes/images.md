@@ -19,12 +19,16 @@ See [README](https://github.com/mlrun/mlrun/blob/development/dockerfiles/README.
 ## MLRun images and external docker images
 
 There is no difference in the usage between the MLRun images and external docker images. However:
-- MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.0.6`. So, if the client gets upgraded you'll automatically get a new image tag. 
-- Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the datanode registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.1.0`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.1.0`.
+- MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.2.0`. So, if the client gets upgraded you'll automatically get a new image tag. 
+- Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the datanode registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.2.0`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.2.0`.
 
 These characteristics are great when you’re working in a POC or development environment. But MLRun typically upgrades packages as part of the image, and therefore the default MLRun images can break your product flow. 
 
 ### Working with images in production
 For production you should create your own images to ensure that the image is fixed.
+<<<<<<< HEAD
 - Pin the image tag, e.g. `image="mlrun/mlrun:1.1.0"`. This maintains the image tag at the version you specified, even when the client is upgraded. Otherwise, an upgrade of the client would also upgrade the image. (If you specify an external (not MLRun images) docker image, like python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
+=======
+- Pin the image tag, e.g. `image="mlrun/mlrun:1.2.0"`. This maintains the image tag at 1.1.0 even when the client is upgraded. Otherwise, an upgrade of the client would also upgrade the image. (If you specify an external (not MLRun images) docker image, like python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
+>>>>>>> 8f4badd3932b069e5464f0b36cd3e96a58768360
 - Pin the versions of requirements, again to avoid breakages, e.g. `pandas==1.4.0`. (If you only specify the package name, e.g. pandas, then pip/conda (python's package managers) just pick up the latest version.)

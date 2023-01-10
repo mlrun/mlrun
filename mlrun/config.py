@@ -38,12 +38,13 @@ import semver
 import yaml
 
 import mlrun.errors
+from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
 _load_lock = Lock()
 _none_type = type(None)
-
+default_env_file = "~/.mlrun.env"
 
 default_config = {
     "namespace": "",  # default kubernetes namespace
@@ -192,7 +193,8 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
-                }
+                },
+                "request_timeout": 45,  # seconds
             },
             # see mlrun.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
@@ -211,12 +213,13 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.api.schemas.APIStates for options
         "state": "online",
         "retry_api_call_on_exception": "enabled",
+        "http_connection_timeout_keep_alive": 11,
         "db": {
             "commit_retry_timeout": 30,
             "commit_retry_interval": 3,
@@ -267,6 +270,24 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
+        },
+        "logs": {
+            "pipelines": {
+                # pull state mode was introduced to have a way to pull the state of a run which was spawned by a
+                # pipeline step instead of pulling the state by getting the run logs
+                "pull_state": {
+                    # enabled - pull state of a run every "pull_state_interval" seconds and pull logs every
+                    # "pull_logs_interval" seconds
+                    # disabled - pull logs every "pull_logs_default_interval" seconds
+                    "mode": "disabled",
+                    # those params are used when mode is enabled
+                    "pull_logs_interval": 30,  # seconds
+                    "pull_state_interval": 5,  # seconds
+                },
+            },
+            # this is the default interval period for pulling logs, if not specified different timeout interval
+            "pull_logs_default_interval": 3,  # seconds
+            "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
         },
         "authorization": {
             "mode": "none",  # one of none, opa
@@ -346,6 +367,8 @@ default_config = {
         },
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
+        # See mlrun.api.schemas.ModelEndpointStoreType for available options
+        "store_type": "kv",
     },
     "secret_stores": {
         "vault": {
@@ -409,6 +432,10 @@ default_config = {
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
+        # map file data items starting with virtual path to the real path, used when consumers have different mounts
+        # e.g. Windows client (on host) and Linux container (Jupyter, Nuclio..) need to access the same files/artifacts
+        # need to map container path to host windows paths, e.g. "\data::c:\\mlrun_data" ("::" used as splitter)
+        "item_to_real_path": "",
     },
     "default_function_pod_resources": {
         "requests": {"cpu": None, "memory": None, "gpu": None},
@@ -429,11 +456,27 @@ default_config = {
     "ce": {
         # ce mode can be one of: "", lite, full
         "mode": "",
+        # not possible to call this "version" because the Config class has a "version" property
+        # which returns the version from the version.json file
+        "release": "",
     },
     "debug": {
         "expose_internal_api_endpoints": False,
     },
 }
+
+_is_running_as_api = None
+
+
+def is_running_as_api():
+    # MLRUN_IS_API_SERVER is set when running the api server which is being done through the CLI command mlrun db
+    global _is_running_as_api
+
+    if _is_running_as_api is None:
+        # os.getenv will load the env var as string, and json.loads will convert it to a bool
+        _is_running_as_api = json.loads(os.getenv("MLRUN_IS_API_SERVER", "false"))
+
+    return _is_running_as_api
 
 
 class Config:
@@ -468,13 +511,20 @@ class Config:
         name = self.__class__.__name__
         return f"{name}({self._cfg!r})"
 
-    def update(self, cfg):
+    def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():
             if hasattr(self, key):
                 if isinstance(value, dict):
                     getattr(self, key).update(value)
                 else:
-                    setattr(self, key, value)
+                    try:
+                        setattr(self, key, value)
+                    except mlrun.errors.MLRunRuntimeError as exc:
+                        if not skip_errors:
+                            raise exc
+                        print(
+                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                        )
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)
@@ -855,12 +905,23 @@ class Config:
         # determine is Nuclio service is detected, when the nuclio_version is not set
         return True if mlrun.mlconf.nuclio_version else False
 
+    def use_nuclio_mock(self, force_mock=None):
+        # determine if to use Nuclio mock service
+        mock_nuclio = mlrun.mlconf.mock_nuclio_deployment
+        if mock_nuclio and mock_nuclio == "auto":
+            mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
+        return True if mock_nuclio and force_mock is None else force_mock
+
+    def get_v3io_access_key(self):
+        # Get v3io access key from the environment
+        return os.environ.get("V3IO_ACCESS_KEY")
+
 
 # Global configuration
 config = Config.from_dict(default_config)
 
 
-def _populate():
+def _populate(skip_errors=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -869,15 +930,20 @@ def _populate():
     global _loaded
 
     with _load_lock:
-        _do_populate()
+        _do_populate(skip_errors=skip_errors)
 
 
-def _do_populate(env=None):
+def _do_populate(env=None, skip_errors=False):
     global config
 
-    if "MLRUN_ENV_FILE" in os.environ:
-        env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
-        dotenv.load_dotenv(env_file, override=True)
+    if not os.environ.get("MLRUN_IGNORE_ENV_FILE") and not is_running_as_api():
+        if "MLRUN_ENV_FILE" in os.environ:
+            env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
+            dotenv.load_dotenv(env_file, override=True)
+        else:
+            env_file = os.path.expanduser(default_env_file)
+            if os.path.isfile(env_file):
+                dotenv.load_dotenv(env_file, override=True)
 
     if not config:
         config = Config.from_dict(default_config)
@@ -891,11 +957,11 @@ def _do_populate(env=None):
         if not isinstance(data, dict):
             raise TypeError(f"configuration in {config_path} not a dict")
 
-        config.update(data)
+        config.update(data, skip_errors=skip_errors)
 
     data = read_env(env)
     if data:
-        config.update(data)
+        config.update(data, skip_errors=skip_errors)
 
     # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
     # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
@@ -1039,4 +1105,6 @@ def read_env(env=None, prefix=env_prefix):
     return config
 
 
-_populate()
+# populate config, skip errors when setting the config attributes and issue warnings instead
+# this is to avoid failure when doing `import mlrun` and the dbpath (API service) is incorrect or down
+_populate(skip_errors=True)

@@ -60,7 +60,7 @@ class RunDBInterface(ABC):
     def list_runs(
         self,
         name="",
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         state="",
@@ -262,7 +262,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_artifact_tags(self, project=None):
+    def list_artifact_tags(
+        self, project=None, category: Union[str, schemas.ArtifactCategories] = None
+    ):
         pass
 
     @abstractmethod
@@ -473,18 +475,19 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def create_or_patch_model_endpoint(
+    def create_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
-        access_key: Optional[str] = None,
     ):
         pass
 
     @abstractmethod
-    def delete_model_endpoint_record(
-        self, project: str, endpoint_id: str, access_key: Optional[str] = None
+    def delete_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
     ):
         pass
 
@@ -498,7 +501,6 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        access_key: Optional[str] = None,
     ):
         pass
 
@@ -511,7 +513,15 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        access_key: Optional[str] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def patch_model_endpoint(
+        self,
+        project: str,
+        endpoint_id: str,
+        attributes: dict,
     ):
         pass
 

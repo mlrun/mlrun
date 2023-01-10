@@ -14,7 +14,7 @@
 import sys
 import tempfile
 from base64 import b64encode
-from os import getenv, path, remove
+from os import path, remove
 
 import dask.dataframe as dd
 import fsspec
@@ -24,7 +24,7 @@ import requests
 import urllib3
 
 import mlrun.errors
-from mlrun.secrets import SecretsStore
+from mlrun.errors import err_to_str
 from mlrun.utils import is_ipython, logger
 
 verify_ssl = False
@@ -43,7 +43,7 @@ class FileStats:
 
 
 class DataStore:
-    def __init__(self, parent, name, kind, endpoint=""):
+    def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
         self._parent = parent
         self.kind = kind
         self.name = name
@@ -53,6 +53,7 @@ class DataStore:
         self.options = {}
         self.from_spec = False
         self._filesystem = None
+        self._secrets = secrets or {}
 
     @property
     def is_structured(self):
@@ -80,11 +81,8 @@ class DataStore:
 
     def _get_secret_or_env(self, key, default=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
-        return (
-            self._secret(key)
-            or getenv(key)
-            or getenv(SecretsStore.k8s_env_variable_name_for_secret(key))
-            or default
+        return mlrun.get_secret_or_env(
+            key, secret_provider=self._get_secret, default=default
         )
 
     def get_storage_options(self):
@@ -92,16 +90,19 @@ class DataStore:
         return None
 
     def open(self, filepath, mode):
-        fs = self.get_filesystem(False)
-        return fs.open(filepath, mode)
+        file_system = self.get_filesystem(False)
+        return file_system.open(filepath, mode)
 
     def _join(self, key):
         if self.subpath:
             return f"{self.subpath}/{key}"
         return key
 
-    def _secret(self, key):
+    def _get_parent_secret(self, key):
         return self._parent.secret(self.secret_pfx + key)
+
+    def _get_secret(self, key: str, default=None):
+        return self._secrets.get(key, default) or self._get_parent_secret(key)
 
     @property
     def url(self):
@@ -170,7 +171,7 @@ class DataStore:
                     from storey.utils import find_filters, find_partitions
 
                     filters = []
-                    partitions_time_attributes = find_partitions(url, fs)
+                    partitions_time_attributes = find_partitions(url, file_system)
 
                     find_filters(
                         partitions_time_attributes,
@@ -189,9 +190,9 @@ class DataStore:
         else:
             raise Exception(f"file type unhandled {url}")
 
-        fs = self.get_filesystem()
-        if fs:
-            if self.supports_isdir() and fs.isdir(url) or df_module == dd:
+        file_system = self.get_filesystem()
+        if file_system:
+            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
@@ -200,10 +201,10 @@ class DataStore:
 
                 file = url
                 # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
-                if fs.protocol != "file":
-                    # If not dir, use fs.open() to avoid regression when pandas < 1.2 and does not
+                if file_system.protocol != "file":
+                    # If not dir, use file_system.open() to avoid regression when pandas < 1.2 and does not
                     # support the storage_options parameter.
-                    file = fs.open(url)
+                    file = file_system.open(url)
 
                 return reader(file, **kwargs)
 
@@ -452,7 +453,7 @@ def http_get(url, headers=None, auth=None):
     try:
         response = requests.get(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -463,7 +464,7 @@ def http_head(url, headers=None, auth=None):
     try:
         response = requests.head(url, headers=headers, auth=auth, verify=verify_ssl)
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -476,7 +477,7 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {exc}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
 
     mlrun.errors.raise_for_status(response)
 
@@ -487,8 +488,8 @@ def http_upload(url, file_path, headers=None, auth=None):
 
 
 class HttpStore(DataStore):
-    def __init__(self, parent, schema, name, endpoint=""):
-        super().__init__(parent, name, schema, endpoint)
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        super().__init__(parent, name, schema, endpoint, secrets)
         self.auth = None
 
     def get_filesystem(self, silent=True):

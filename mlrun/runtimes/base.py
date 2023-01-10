@@ -427,7 +427,7 @@ class BaseRuntime(ModelObj):
             db,
             autocommit=False,
             is_api=self._is_api_server,
-            update_db=False,
+            store_run=False,
         )
 
         self._verify_run_params(run.spec.parameters)

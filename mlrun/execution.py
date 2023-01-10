@@ -317,7 +317,7 @@ class MLClientCtx(object):
             self._start_time = start
         self._state = "running"
         if store_run:
-            self._store_run()
+            self.store_run()
         return self
 
     @property
@@ -985,7 +985,7 @@ class MLClientCtx(object):
         """convert the run context to a json buffer"""
         return dict_to_json(self.to_dict())
 
-    def _store_run(self):
+    def store_run(self):
         self._write_tmpfile()
         if self._rundb:
             self._rundb.store_run(

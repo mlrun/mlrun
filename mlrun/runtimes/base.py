@@ -442,8 +442,8 @@ class BaseRuntime(ModelObj):
             for task in tasks:
                 self._verify_run_params(task.spec.parameters)
 
-        # post verifications, update execution in db and run pre run hooks
-        execution.commit(completed=False)
+        # post verifications, store execution in db and run pre run hooks
+        execution.store_run()
         self._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None

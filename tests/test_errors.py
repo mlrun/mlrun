@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.errors import err_to_str
+import http
+from unittest import mock
+
+import pytest
+from aiohttp import ClientResponse
+
+from mlrun.errors import MLRunHTTPError, err_to_str, raise_for_status
 
 
 def test_error_none():
@@ -53,3 +59,31 @@ def test_error_circular_chain():
     a.__cause__ = b
     b.__cause__ = a
     assert err_to_str(b) == "b, caused by: a"
+
+
+def test_raise_for_aiohttp_client_response_status():
+
+    # import locally to avoid confusion with mlrun requirements sorting
+    from yarl import URL
+
+    response = ClientResponse(
+        method="GET",
+        url=mock.MagicMock(spec=URL),
+        writer=mock.MagicMock(),
+        continue100=None,
+        timer=mock.MagicMock(),
+        request_info=mock.MagicMock(),
+        traces=mock.MagicMock(),
+        loop=mock.MagicMock(),
+        session=mock.MagicMock(),
+    )
+    response.status = 503
+    response.reason = "Service Unavailable"
+    with pytest.raises(MLRunHTTPError) as exc:
+        raise_for_status(response)
+    assert (
+        exc.value.response.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE
+    ), "should have raised 503"
+    assert isinstance(
+        exc.value.response, ClientResponse
+    ), "should have aiohttp client response in exception"

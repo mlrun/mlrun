@@ -16,9 +16,9 @@ package main
 
 import (
 	"flag"
-	"github.com/mlrun/mlrun/pkg/common"
 	"os"
 
+	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/log_collector"
 
@@ -34,9 +34,10 @@ func StartServer() error {
 	namespace := flag.String("namespace", "", "The namespace to collect logs from")
 
 	// env vars parsing
-	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_BASE_DIR", "/home/iguazio/log-collector/pod-logs"), "The directory to store the logs in")
-	stateFilePath := flag.String("state-file-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_STATE_FILE_DIR", "/home/iguazio/log-collector/state"), "The directory to store the state file in")
-	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_KUBECONFIG_PATH", "/home/iguazio/.kube/config"), "Path to kubeconfig file")
+	// TODO: volume /var/mlrun
+	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_BASE_DIR", "/var/mlrun/log-collector/pod-logs"), "The directory to store the logs in")
+	stateFilePath := flag.String("state-file-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_STATE_FILE_DIR", "/var/mlrun/log-collector/state"), "The directory to store the state file in")
+	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_KUBECONFIG_PATH", "/var/mlrun/.kube/config"), "Path to kubeconfig file")
 	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_MONITORING_INTERVAL", "30s"), "Interval to monitor the pods completion/failure")
 	getLogsInterval := flag.String("get-logs-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_GET_LOGS_INTERVAL", "10s"), "Interval to get the logs from the pods")
 

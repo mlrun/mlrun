@@ -15,11 +15,12 @@
 package common
 
 import (
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"strconv"
 	"strings"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 func GetEnvOrDefaultString(key string, defaultValue string) string {

@@ -22,33 +22,33 @@ import (
 	"github.com/mlrun/mlrun/proto/build/liveness"
 
 	"github.com/nuclio/errors"
-	"github.com/nuclio/loggerus"
+	"github.com/nuclio/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type MlrunGRPCServer interface {
-	getLogger() *loggerus.Loggerus
-	setServer(*grpc.Server)
-	getServerOpts() []grpc.ServerOption
 	RegisterRoutes(context context.Context)
 	OnBeforeStart(context context.Context) error
+	getLogger() logger.Logger
+	setServer(*grpc.Server)
+	getServerOpts() []grpc.ServerOption
 }
 
 type AbstractMlrunGRPCServer struct {
-	Logger         *loggerus.Loggerus
+	Logger         logger.Logger
 	Server         *grpc.Server
 	grpcServerOpts []grpc.ServerOption
 }
 
-func NewAbstractMlrunGRPCServer(logger *loggerus.Loggerus, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
+func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
 	return &AbstractMlrunGRPCServer{
 		Logger:         logger,
 		grpcServerOpts: grpcServerOpts,
 	}, nil
 }
 
-func (s *AbstractMlrunGRPCServer) getLogger() *loggerus.Loggerus {
+func (s *AbstractMlrunGRPCServer) getLogger() logger.Logger {
 	return s.Logger
 }
 

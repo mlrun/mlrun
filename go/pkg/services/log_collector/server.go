@@ -32,7 +32,7 @@ import (
 	"github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/nuclio/errors"
-	"github.com/nuclio/loggerus"
+	"github.com/nuclio/logger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -50,7 +50,7 @@ type LogCollectorServer struct {
 	stateFileLock      sync.Locker
 }
 
-func NewLogCollectorServer(logger *loggerus.Loggerus,
+func NewLogCollectorServer(logger logger.Logger,
 	namespace,
 	baseDir,
 	stateFilePath,
@@ -134,14 +134,14 @@ func (lcs *LogCollectorServer) StartLog(ctx context.Context, request *log_collec
 	// found a pod
 	pod := pods.Items[0]
 
-	childCtx, _ := context.WithCancel(ctx)
+	// TODO: create a child context before calling goroutines?
 
 	//start monitoring it
 	stopChan := make(chan struct{}, 1)
-	go lcs.monitorPodState(childCtx, pod.Name, stopChan)
+	go lcs.monitorPodState(ctx, pod.Name, stopChan)
 
 	// stream logs to file
-	go lcs.streamPodLogs(childCtx, request.RunId, pod.Name, stopChan)
+	go lcs.streamPodLogs(ctx, request.RunId, pod.Name, stopChan)
 
 	return &log_collector.StartLogResponse{
 		Success: true,
@@ -225,22 +225,21 @@ func (lcs *LogCollectorServer) monitorPodState(ctx context.Context, podName stri
 	lcs.Logger.DebugWithCtx(ctx, "Starting pod state monitoring", "podName", podName)
 
 	for {
-		select {
-		case <-time.After(lcs.monitoringInterval):
 
-			// get pod
-			pod, err := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).Get(ctx, podName, metav1.GetOptions{})
-			if err != nil {
-				lcs.Logger.WarnWithCtx(ctx, "Failed to get pod", "podName", podName)
-			}
-
-			// check pod state. if completed / failed - invoke stopChan and return
-			if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
-				lcs.Logger.DebugWithCtx(ctx, "Stopping pod state monitoring", "podName", podName)
-				stopChan <- struct{}{}
-				return
-			}
+		// get pod
+		pod, err := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			lcs.Logger.WarnWithCtx(ctx, "Failed to get pod", "podName", podName)
 		}
+
+		// check pod state. if completed / failed - invoke stopChan and return
+		if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
+			lcs.Logger.DebugWithCtx(ctx, "Stopping pod state monitoring", "podName", podName)
+			stopChan <- struct{}{}
+			return
+		}
+
+		time.Sleep(lcs.monitoringInterval)
 	}
 }
 

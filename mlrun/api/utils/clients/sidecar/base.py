@@ -1,7 +1,42 @@
-class GRPCCLient(object):
-    def __init__(self, address, port, logger=None):
-        self._address = address
-        self._port = port
-        self._logger = logger or get_logger("GRPCClient")
-        self._channel = grpc.insecure_channel(f"{address}:{port}")
-        self._client = grpc_client.GrpcClient(self._channel)
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import grpc
+
+import mlrun.config
+from mlrun.utils import logger
+
+
+class BaseGRPCClient(object):
+
+    name = None
+    stub_class = None
+
+    def __init__(self):
+        self._channel = None
+        self._stub = None
+        self._initialize()
+
+    def _initialize(self):
+        if not self.name:
+            return
+        sidecar_config = getattr(mlrun.config.config.sidecar, self.name)
+        self._channel = grpc.aio.insecure_channel(sidecar_config.address)
+        if self.stub_class:
+            self._stub = self.stub_class(self._channel)
+
+    async def _call(self, endpoint, request):
+        logger.debug("Calling endpoint", endpoint=endpoint, request=request)
+        response = await getattr(self._stub, endpoint)(request)
+        return response

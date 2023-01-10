@@ -29,7 +29,7 @@ compile-schemas-go:
 
 .PHONY: compile-schemas-python
 compile-schemas-python:
-	python -m grpc_tools.protoc --proto_path=mlrun/api/proto=proto --python_out=.. --grpc_python_out=.. proto/*.proto
+	python -m grpc_tools.protoc --proto_path=. --python_out=../mlrun/api --grpc_python_out=../mlrun/api proto/*.proto
 	sh hack/scripts/fix_python_grpc_imports.sh
 
 .PHONY: cleanup

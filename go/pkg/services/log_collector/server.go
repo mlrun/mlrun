@@ -28,8 +28,16 @@ type logCollectorServer struct {
 	*framework.AbstractMlrunGRPCServer
 }
 
+func (s *logCollectorServer) RegisterRoutes(ctx context.Context) {
+	s.AbstractMlrunGRPCServer.RegisterRoutes(ctx)
+	log_collector.RegisterLogCollectorServer(s.Server, s)
+}
+
 func (s *logCollectorServer) StartLog(ctx context.Context, request *log_collector.StartLogRequest) (*log_collector.StartLogResponse, error) {
-	return nil, nil
+	return &log_collector.StartLogResponse{
+		Success: true,
+		Error:   "",
+	}, nil
 }
 
 func NewLogCollectorServer(logger *loggerus.Loggerus) (*logCollectorServer, error) {

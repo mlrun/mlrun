@@ -29,7 +29,7 @@ def _create_proj_with_workflow(client: TestClient):
         metadata=mlrun.api.schemas.ProjectMetadata(name=PROJECT_NAME),
         spec=mlrun.api.schemas.ProjectSpec(
             description="banana",
-            source="://source",
+            source="git://github.com/mlrun/project-demo",
             goals="some goals",
             workflows=[{"name": WORKFLOW_NAME}],
         ),
@@ -80,10 +80,12 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
     good_resp = client.get(
         f"projects/{PROJECT_NAME}/{right_id}", params={"name": WORKFLOW_NAME}
     )
+    print(f"Good response:\n{good_resp.json()}")
     assert good_resp.json()["workflow_id"] == expected_workflow_id
     bad_resp = client.get(
         f"projects/{PROJECT_NAME}/{wrong_id}", params={"name": WORKFLOW_NAME}
     )
+    print(f"Bad response:\n{bad_resp.json()}")
     assert bad_resp.status_code == HTTPStatus.NOT_FOUND
 
 

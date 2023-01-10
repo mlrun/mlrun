@@ -479,6 +479,6 @@ def test_import_artifact_using_relative_path():
     artifact.export(f"{str(assets_path())}/x.yaml")
 
     # importing the artifact using a relative path
-    artifact = project.import_artifact(f"x.yaml", "y")
+    artifact = project.import_artifact("x.yaml", "y")
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"

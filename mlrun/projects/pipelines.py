@@ -710,9 +710,9 @@ class _RemoteRunner(_PipelineRunner):
         workflow_name = (
             name.split("-")[-1] if f"{project.metadata.name}-" in name else name
         )
-        start_message = "scheduling" if workflow_spec.schedule else "running"
+        workflow_action = "schedule" if workflow_spec.schedule else "run"
         logger.info(
-            f"{start_message} '{workflow_name}' workflow remotely with {workflow_spec.engine} engine"
+            f"submitting {workflow_action} request for '{workflow_name}' workflow"
         )
 
         workflow_id = None
@@ -726,7 +726,7 @@ class _RemoteRunner(_PipelineRunner):
                 source=project.spec.source,
                 namespace=namespace,
             )
-            if submit_workflow_result.status == "scheduled":
+            if workflow_spec.schedule:
                 return
 
             project.notifiers.push_pipeline_start_message(
@@ -758,7 +758,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f"Workflow {workflow_name} run failed!, error: {e}\n{trace}",
+                f"Workflow {workflow_name} {workflow_action} failed!, error: {e}\n{trace}",
                 "error",
             )
             state = mlrun.run.RunStatuses.failed

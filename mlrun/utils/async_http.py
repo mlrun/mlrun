@@ -14,7 +14,7 @@
 #
 
 import asyncio
-import http
+import logging
 import typing
 from typing import List, Optional
 
@@ -35,12 +35,15 @@ class AsyncClientWithRetry(RetryClient):
 
     def __init__(
         self,
-        max_retries=config.http_retry_defaults.max_retries,
-        retry_backoff_factor=config.http_retry_defaults.backoff_factor,
-        retry_on_exception=True,
-        retry_on_status=True,
-        blacklisted_methods=None,
-        logger=None,
+        max_retries: int = config.http_retry_defaults.max_retries,
+        retry_backoff_factor: float = config.http_retry_defaults.backoff_factor,
+        retry_on_status_codes: typing.List[
+            int
+        ] = config.http_retry_defaults.status_codes,
+        retry_on_exception: bool = True,
+        raise_for_status: bool = True,
+        blacklisted_methods: typing.Optional[typing.List[str]] = None,
+        logger: logging.Logger = None,
         *args,
         **kwargs,
     ):
@@ -51,17 +54,13 @@ class AsyncClientWithRetry(RetryClient):
                 # do not retry on PUT / PATCH as they might have side effects (not truly idempotent)
                 blacklisted_methods=blacklisted_methods or ["POST", "PUT", "PATCH"],
                 attempts=max_retries,
-                statuses={
-                    http.HTTPStatus.BAD_GATEWAY.value,
-                    http.HTTPStatus.SERVICE_UNAVAILABLE.value,
-                    http.HTTPStatus.GATEWAY_TIMEOUT.value,
-                    http.HTTPStatus.TOO_MANY_REQUESTS,
-                },
-                # a callback that will run on response to decide if retry is needed
+                statuses=retry_on_status_codes,
                 factor=retry_backoff_factor,
+                # do not retry on all service errors. we want to explicit the status codes we want to retry on
+                retry_all_server_errors=False,
             ),
             logger=logger or mlrun_logger,
-            raise_for_status=retry_on_status,
+            raise_for_status=raise_for_status,
             **kwargs,
         )
 
@@ -87,7 +86,7 @@ class AsyncClientWithRetry(RetryClient):
 class ExponentialRetryOverride(ExponentialRetry):
     # make sure to only add exceptions that are raised early in the request. For example, ConnectionError can be raised
     # during the handling of a request, and therefore should not be retried, as the request might not be idempotent.
-    HTTP_RETRYABLE_EXCEPTION = [
+    HTTP_RETRYABLE_EXCEPTIONS = [
         # "Connection reset by peer" is raised when the server closes the connection prematurely during TCP handshake.
         ConnectionResetError,
         # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
@@ -98,8 +97,13 @@ class ExponentialRetryOverride(ExponentialRetry):
         aiohttp.ServerDisconnectedError,
     ]
 
-    def __init__(self, retry_on_exception, blacklisted_methods, *args, **kwargs):
-
+    def __init__(
+        self,
+        retry_on_exception: bool,
+        blacklisted_methods: typing.List[int],
+        *args,
+        **kwargs,
+    ):
         # whether to retry on exceptions
         self.retry_on_exception = retry_on_exception
 
@@ -108,7 +112,7 @@ class ExponentialRetryOverride(ExponentialRetry):
 
         # default exceptions that should be retried on (when retry_on_exception is True)
         if "exceptions" not in kwargs:
-            kwargs["exceptions"] = self.HTTP_RETRYABLE_EXCEPTION
+            kwargs["exceptions"] = self.HTTP_RETRYABLE_EXCEPTIONS
         super().__init__(*args, **kwargs)
 
 
@@ -192,8 +196,13 @@ class _CustomRequestContext(_RequestContext):
                     )
                     raise exc
 
-                # exhaust all attempts, stop here, return the last response
-                if current_attempt >= self._retry_options.attempts:
+                # exhausted all attempts, stop here, return the last response
+                exhausted_attempts = current_attempt >= self._retry_options.attempts
+
+                # if the response is not retryable, return now.
+                # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
+                not_retryable_method = not self._is_method_retryable(params.method)
+                if exhausted_attempts or not_retryable_method:
                     if response:
                         self._response = response
                         return response
@@ -201,14 +210,6 @@ class _CustomRequestContext(_RequestContext):
 
                 # by type
                 self.verify_exception_type(exc)
-
-                # if the response is not retryable, return now.
-                # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
-                if not self._is_method_retryable(params.method):
-                    if response:
-                        self._response = response
-                        return response
-                    raise exc
 
                 retry_wait = self._retry_options.get_timeout(
                     attempt=current_attempt, response=None
@@ -229,7 +230,11 @@ class _CustomRequestContext(_RequestContext):
         return method not in self._retry_options.blacklisted_methods
 
     async def _check_response_callback(
-        self, params, retry_count, retry_wait_secs, response
+        self,
+        params: RequestParams,
+        retry_count: int,
+        retry_wait_secs: int,
+        response: aiohttp.ClientResponse,
     ):
         if self._retry_options.evaluate_response_callback is not None:
             try:

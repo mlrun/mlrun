@@ -4,6 +4,7 @@ urllib3>=1.25.4, <1.27
 chardet>=3.0.2, <4.0
 GitPython~=3.0
 aiohttp~=3.8
+aiohttp-retry~=2.8
 # 8.1.0+ breaks dask/distributed versions older than 2022.04.0, see here - https://github.com/dask/distributed/pull/6018
 click~=8.0.0
 # when installing google-cloud-storage which required >=3.20.1, <5 it was upgrading the protobuf version to the latest

@@ -6,6 +6,7 @@ flake8~=5.0
 pytest-asyncio~=0.15.0
 pytest-alembic~=0.4.0
 pytest-httpserver~=1.0
+aioresponses~=0.7
 requests-mock~=1.8
 httpx~=0.22.0
 # needed for system tests

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import asyncio
 import copy
 import datetime
 import typing
@@ -33,7 +35,7 @@ class Provider(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session = mlrun.utils.HTTPSessionWithRetry(verbose=True)
+        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path
@@ -60,27 +62,31 @@ class Provider(
             str, typing.Dict[str, datetime]
         ] = {}
 
-    def query_permissions(
+    async def query_permissions(
         self,
         resource: str,
         action: mlrun.api.schemas.AuthorizationAction,
         auth_info: mlrun.api.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
+
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.api.schemas.AuthorizationAction.store:
-            create_allowed = self.query_permissions(
-                resource,
-                mlrun.api.schemas.AuthorizationAction.create,
-                auth_info,
-                raise_on_forbidden,
+            results = await asyncio.gather(
+                self.query_permissions(
+                    resource,
+                    mlrun.api.schemas.AuthorizationAction.create,
+                    auth_info,
+                    raise_on_forbidden,
+                ),
+                self.query_permissions(
+                    resource,
+                    mlrun.api.schemas.AuthorizationAction.update,
+                    auth_info,
+                    raise_on_forbidden,
+                ),
             )
-            update_allowed = self.query_permissions(
-                resource,
-                mlrun.api.schemas.AuthorizationAction.update,
-                auth_info,
-                raise_on_forbidden,
-            )
+            create_allowed, update_allowed = results
             return create_allowed and update_allowed
         if self._is_request_from_leader(auth_info.projects_role):
             return True
@@ -89,10 +95,10 @@ class Provider(
         body = self._generate_permission_request_body(resource, action, auth_info)
         if self._log_level > 5:
             logger.debug("Sending request to OPA", body=body)
-        response = self._send_request_to_api(
+        response = await self._send_request_to_api(
             "POST", self._permission_query_path, json=body
         )
-        response_body = response.json()
+        response_body = await response.json()
         if self._log_level > 5:
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]
@@ -102,7 +108,7 @@ class Provider(
             )
         return allowed
 
-    def filter_by_permissions(
+    async def filter_by_permissions(
         self,
         resources: typing.List,
         opa_resource_extractor: typing.Callable,
@@ -128,10 +134,10 @@ class Provider(
         body = self._generate_filter_request_body(opa_resources, action, auth_info)
         if self._log_level > 5:
             logger.debug("Sending filter request to OPA", body=body)
-        response = self._send_request_to_api(
+        response = await self._send_request_to_api(
             "POST", self._permission_filter_path, json=body
         )
-        response_body = response.json()
+        response_body = await response.json()
         if self._log_level > 5:
             logger.debug("Received filter response from OPA", body=response_body)
         allowed_opa_resources = response_body["result"]
@@ -198,24 +204,27 @@ class Provider(
             return True
         return False
 
-    def _send_request_to_api(self, method, path, **kwargs):
+    async def _send_request_to_api(self, method, path, **kwargs):
         url = f"{self._api_url}{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self._request_timeout
-        response = self._session.request(method, url, verify=False, **kwargs)
-        if not response.ok:
-            log_kwargs = copy.deepcopy(kwargs)
-            log_kwargs.update({"method": method, "path": path})
-            if response.content:
-                try:
-                    data = response.json()
-                except Exception:
-                    pass
-                else:
-                    log_kwargs.update({"data": data})
-            logger.warning("Request to opa failed", **log_kwargs)
-            mlrun.errors.raise_for_status(response)
-        return response
+        await self._ensure_session()
+        async with self._session.request(
+            method, url, verify_ssl=False, **kwargs
+        ) as response:
+            if not response.ok:
+                log_kwargs = copy.deepcopy(kwargs)
+                log_kwargs.update({"method": method, "path": path})
+                if response.content:
+                    try:
+                        data = await response.json()
+                    except Exception:
+                        pass
+                    else:
+                        log_kwargs.update({"data": data})
+                logger.warning("Request to opa failed", **log_kwargs)
+                mlrun.errors.raise_for_status(response)
+            return response
 
     @staticmethod
     def _generate_permission_request_body(
@@ -226,7 +235,7 @@ class Provider(
         body = {
             "input": {
                 "resource": resource,
-                "action": action,
+                "action": str(action),
                 "ids": auth_info.get_member_ids(),
             },
         }
@@ -241,8 +250,14 @@ class Provider(
         body = {
             "input": {
                 "resources": resources,
-                "action": action,
+                "action": str(action),
                 "ids": auth_info.get_member_ids(),
             },
         }
         return body
+
+    async def _ensure_session(self):
+        if not self._session:
+            self._session = mlrun.utils.AsyncClientWithRetry(
+                logger=logger,
+            )

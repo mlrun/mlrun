@@ -12,13 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GO_VERSION=1.19.4
+ARG GO_VERSION=latest
 
 FROM golang:${GO_VERSION} as build-binary
 
 RUN mkdir /app
-ADD . /app/
 WORKDIR /app
+
+# copy `go.mod` for definitions and `go.sum` to invalidate the next layer
+# in case of a change in the dependencies
+COPY go.mod go.sum /app/
+
+RUN go mod download
+
+ADD . /app/
 RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -installsuffix cgo -o main cmd/log_collector/main.go
 
 FROM scratch

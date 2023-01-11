@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GO_VERSION=latest
+ARG GO_VERSION=1.19
 
 FROM golang:${GO_VERSION} as build-binary
 

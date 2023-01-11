@@ -16,10 +16,13 @@ ARG GO_VERSION=1.19
 
 FROM golang:${GO_VERSION} as build-binary
 
+ARG PROTOC_GEN_GO_VERSION=v1.28
+ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
+
 WORKDIR /app/go
 
 RUN apt-get update
 RUN apt install -y protobuf-compiler
 
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
+  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}

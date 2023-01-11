@@ -32,46 +32,8 @@ for > 1 hour.) [View in Git](https://github.com/mlrun/mlrun/pull/2786).
 [View in Git](https://github.com/mlrun/ui/pull/1571).
 - When creating a project, the error `NotImplementedError` was updated to explain that MLRun does not have a 
 DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
+- Previewing artifacts in the UI was fixed. [View in Git](https://github.com/mlrun/mlrun/pull/2592).
 
-### Upcoming deprecations
-
-Starting with v1.3.0, and continuing in subsequent releases, obsolete functions will be removed.
-The following MLRun APIs have been deprecated since at least v1.0.0. Until now, they have not been removed from the 
-code, but a warning appears if you attempt to use then. 
-These frunctions will be removed from the v1.3.0 code:
-
-- Deprecated since MLRun 0.7.0:
-   - All the following project property values should be read via `project.spec`. These values should not be set directly.
-      - artifact_path
-      - source
-      - context
-      - mountdir
-      - params
-      - description
-      - functions
-      - workflows
-      - artifacts
-   - Project.func() – users should use project.get_function()
-   - Project.create_vault_secrets() – users should use project.set_secrets()
-- Deprecated since MLRun 0.8.0
-   - mount_path parameter in mount_v3io() should not be used. volume_mounts parameter should be used.
-- Deprecated since MLRun 1.0.0
-   - All the following DatasetArtifact property values should be read via `column_metadata.spec`. These values should not be set directly.
-      - column_metadata
-      - schema
-      - header
-      - preview
-      - stats
-   - All the following ModelArtifact property values should be read via ModelArtifact.spec. These values should not be set directly.
-      - inputs
-      - outputs
-      - model_file
-      - parameters
-      - metrics
-      - feature_stats
-      - feature_vector
-      - feature_weights
-      - model_target_file
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.1)
@@ -84,17 +46,17 @@ These frunctions will be removed from the v1.3.0 code:
 
 #### Artifacts
 - Support for artifact tagging:
-    SDK: Add `tag_artifacts`  and `delete_artifacts_tags` that can be used to modify existing artifacts tags and have 
+   - SDK: Add `tag_artifacts`  and `delete_artifacts_tags` that can be used to modify existing artifacts tags and have 
     more than one version for an artifact.
-    API: Introduce new endpoints in `/projects/<project>/tags`.
-	UI: You can add and edit artifact tags in the UI.
+    - UI: You can add and edit artifact tags in the UI.
+    - API: Introduce new endpoints in `/projects/<project>/tags`.
     
 #### Auth
 - Support S3 profile and assume-role when using `fsspec`.
 - Support GitHub fine grained tokens.
 
 #### Documentation
-- Restructured, and new content.
+- Restructured, and added new content.
 
 #### Feature store
 - Support Redis as an online feature set for storey engine only. (See [Redis target store](../data-prep/ingest-data-fs.html#redis-target-store).)
@@ -108,16 +70,14 @@ These frunctions will be removed from the v1.3.0 code:
 - Add `HuggingFaceModelServer` to `mlrun.frameworks` at `mlrun.frameworks.huggingface` to serve `HuggingFace` models.
 
 #### Functions
-- Add `function.with_annotations({"framework":"tensorflow"})` to user created functions.
+- Add `function.with_annotations({"framework":"tensorflow"})` to user-created functions.
 - Add `overwrite_build_params` to `project.build_function()` so the user can choose whether or not to keep the 
 build params that were used in previous function builds.
-- `deploy_function` has a new option of mock deployment that allows running the function locally
-
+- `deploy_function` has a new option of mock deployment that allows running the function locally.
 
 #### Installation
-- Add option to install `google-cloud` requirements using `mlrun[google-cloud]`:  when installing MLRun for integration 
+- New option to install `google-cloud` requirements using `mlrun[google-cloud]`:  when installing MLRun for integration 
 with GCP clients, only compatible packages are installed.
-
 
 #### Models
 - The Labels in the **Models > Overview** tab can be edited.
@@ -136,8 +96,7 @@ The new behavior can be enabled using a feature flag configured in the API.
 ### Breaking changes
 
 - Feature store: Ingestion using pandas now takes the dataframe and creates indices out of the entity column 
-(and removes it as 
-   a column in this df). This could cause breakage for existing custom steps when using a pandas engine.
+(and removes it as a column in this df). This could cause breakage for existing custom steps when using a pandas engine.
 
 ### Closed issues
 
@@ -152,10 +111,10 @@ The new behavior can be enabled using a feature flag configured in the API.
 configuration for Nuclio functions, meaning that they run in the same network as MLRun. 
 [View in Git](https://github.com/mlrun/mlrun/issues/2601).
 - Workaround for background tasks getting cancelled prematurely, due to the current FastAPI version that 
-has a bug in the starlette package it uses. The bug caused the task to get cancelled if the client’s http connection 
+has a bug in the starlette package it uses. The bug caused the task to get cancelled if the client’s HTTP connection 
 was closed before the task was done. [View in Git](https://github.com/mlrun/mlrun/issues/2618).
 - Fix run fails after deploying function without defined image. [View in Git](https://github.com/mlrun/mlrun/pull/2530).
-- Scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
+- Fix scheduled jobs failed on GKE with resource quota error. [View in Git](https://github.com/mlrun/mlrun/pull/2520).
 - Can now delete a model via tag. [View in Git](https://github.com/mlrun/mlrun/pull/2433).
 
 
@@ -171,7 +130,7 @@ was closed before the task was done. [View in Git](https://github.com/mlrun/mlru
 
 - The CLI supports overwriting the schedule when creating scheduling workflow. [View in Git](https://github.com/mlrun/mlrun/pull/2651).
 - Slack now notifies when a project fails in `load_and_run()`. [View in Git](https://github.com/mlrun/mlrun/pull/2794).
-- Timeout is executed properly when running pipeline in CLI  https://github.com/mlrun/mlrun/pull/2635
+- Timeout is executed properly when running a pipeline in CLI. [View in Git]https://github.com/mlrun/mlrun/pull/2635).
 - Uvicorn Keep Alive Timeout (`http_connection_timeout_keep_alive`) is now configurable, with default=11. This maintains 
 API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 
@@ -219,32 +178,27 @@ service, which is applied to the service's user-created pods. The default is 2.
    - Multi-instance is not supported for MLrun running on SQLite.
 -  Supports pipeline scheduling.
       
+#### Documentation
+- Added Azure and S3 examples to {ref}`ingest-features-spark`.
+
 #### Feature store
 - Supports S3, Azure, GCS targets when using Spark as an engine for the feature store.
 - Snowflake as datasource has a connector ID: `iguazio_platform`.
 - You can add a time-based filter condition when running `get_offline_feature` with a given vector. 
 
-
-#### UI
-
-- The Projects home page now has three tiles, Data, Jobs and Workflows, Deployment, that guide you through key 
-capabilities of Iguazio, and provide quick access to common tasks.
-- The **Projects | Jobs | Monitor Jobs** tab now displays the Spark UI URL.
-- The information of the Drift Analysis tab is now displayed in the Model Overview.
-- If there is an error, the error messages are now displayed in the Projects | Jobs | Monitor jobs tab.
-
-#### Workflows
-- The steps in Workflows are color-coded to identify their status: blue=running; green=completed; red=error.
-
 #### Storey
 - MLRun can write to parquet with flexible schema per batch for ParquetTarget: useful for inconsistent or unknown schema.
 
-#### Documentation
-- Added Azure and S3 examples to {ref}`Ingesting features with Spark <ingest-features-with-spark>`.
+#### UI
 
-### Closed issues
+- The **Projects** home page now has three tiles, Data, Jobs and Workflows, Deployment, that guide you through key 
+capabilities of Iguazio, and provide quick access to common tasks.
+- The **Projects | Jobs | Monitor Jobs** tab now displays the Spark UI URL.
+- The information of the Drift Analysis tab is now displayed in the Model Overview.
+- If there is an error, the error messages are now displayed in the **Projects | Jobs | Monitor** jobs tab.
 
-
+#### Workflows
+- The steps in **Workflows** are color-coded to identify their status: blue=running; green=completed; red=error.
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
@@ -253,13 +207,12 @@ capabilities of Iguazio, and provide quick access to common tasks.
 ## v1.0.6
 
 ### Closed issues
-- Import from mlrun fails with "ImportError: cannot import name dataclass_transform" (ML-2552)
+- Import from mlrun fails with "ImportError: cannot import name dataclass_transform".
    Workaround for previous releases:
-   Install `pip install pydantic==1.9.2` after `align_mlrun.sh`. 
-   [View in Git](https://github.com/mlrun/mlrun/pull/).
-- MLRun FeatureSet was not not enriching with security context when running from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/
+   Install `pip install pydantic==1.9.2` after `align_mlrun.sh`.
+- MLRun FeatureSet was not not enriching with security context when running from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/2250).
 - MlRun Accesskey presents as cleartext in the mlrun yaml, when the mlrun function is created by feature set 
-   request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/).
+   request from the UI. [View in Git](https://github.com/mlrun/mlrun/pull/2250).
    
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.6)
@@ -285,9 +238,9 @@ capabilities of Iguazio, and provide quick access to common tasks.
 
 ### Closed issues
 - Limit Azure transitive dependency to avoid new bug. [View in Git](https://github.com/mlrun/mlrun/pull/2034).
-- Images: Fix GPU image to have new signing keys. [View in Git](https://github.com/mlrun/mlrun/pull/2030).
-- Spark: Allow mounting v3io on driver but not executors. <Backport 1.0.x> [View in Git](https://github.com/mlrun/mlrun/pull/2023).
-- Tests: Send only string headers to align to new requests limitation  [View in Git](https://github.com/mlrun/mlrun/pull/2039).
+- Fix GPU image to have new signing keys. [View in Git](https://github.com/mlrun/mlrun/pull/2030).
+- Spark: Allow mounting v3io on driver but not executors. [View in Git](https://github.com/mlrun/mlrun/pull/2023).
+- Tests: Send only string headers to align to new requests limitation. [View in Git](https://github.com/mlrun/mlrun/pull/2039).
 
 
 ### See more
@@ -313,10 +266,10 @@ capabilities of Iguazio, and provide quick access to common tasks.
 
 ### New and updated features
 
-- Runtimes: Add java options spark job parameters. [View in Git](https://github.com/mlrun/mlrun/pull/1968).
-- Spark: Allow setting executor and driver core parameter in spark operator. [View in Git](https://github.com/mlrun/mlrun/pull/1973).
+- Runtimes: Add java options to Spark job parameters. [View in Git](https://github.com/mlrun/mlrun/pull/1968).
+- Spark: Allow setting executor and driver core parameter in Spark operator. [View in Git](https://github.com/mlrun/mlrun/pull/1973).
 - API: Block unauthorized paths on files endpoints. [View in Git](https://github.com/mlrun/mlrun/pull/1967).
-- Documentation: New quick start guide and update docker install section. [View in Git](https://github.com/mlrun/mlrun/pull/1948).
+- Documentation: New quick start guide and updated docker install section. [View in Git](https://github.com/mlrun/mlrun/pull/1948).
 
 ### Closed issues
 - Frameworks: Fix to logging the target columns in favor of model monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/1929).
@@ -335,31 +288,23 @@ capabilities of Iguazio, and provide quick access to common tasks.
 #### Feature store
 - Supports snowflake as a datasource for the feature store.
 
-#### UI
-- Supports configuring pod priority.
-- Enhanced masking of sensitive data.
-- The dataset tab is now in the Projects main menu (was previously under the Feature store).
+#### Graph
+- A new tab under **Projects | Models** named **Real-time pipelines** displays the real time pipeline graph, 
+with a drill-down to view the steps and their details. [Tech Preview]
 
 #### Projects
-- Setting owner and members are in a dedicated Project Settings section.
+- Setting owner and members are in a dedicated **Project Settings** section.
 - The **Project Monitoring** report has a new tile named **Consumer groups (v3io streams)** that shows the total number
    of consumer groups, with drill-down capabilities for more details.
-
 
 #### Resource management
 - Supports preemptible nodes.
 - Supports configuring CPU, GPU, and memory default limits for user jobs.
 
-#### Graph
-- A new tab under **Projects | Models** named **Real-time pipelines** that displays the real time pipeline graph, 
-with a drill-down to view the steps and their details. [Tech Preview]
-
-### Closed issues
-
-- 
-
-
-
+#### UI
+- Supports configuring pod priority.
+- Enhanced masking of sensitive data.
+- The dataset tab is now in the **Projects** main menu (was previously under the Feature store).
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.0)

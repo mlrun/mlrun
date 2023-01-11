@@ -87,9 +87,9 @@ additional details and code-samples:
 
 <!---
 TODO - add this once we have Spark service documentation.
-1. [Spark service](???) - **do we have a page for this? Are we documenting it?**
+- [Spark service](???) - **do we have a page for this? Are we documenting it?**
 -->
-1. [Spark operator](../runtimes/spark-operator.html)
+- [Spark operator](../runtimes/spark-operator.html)
 
 In a similar manner, Dask can be used for parallel processing of the data. To read data as a Dask `DataFrame`, use the
 following code:

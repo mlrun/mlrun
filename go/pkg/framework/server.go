@@ -72,7 +72,7 @@ func (s *AbstractMlrunGRPCServer) Check(context.Context, *health.HealthCheckRequ
 	}, nil
 }
 
-func (s *AbstractMlrunGRPCServer) Watch(response *health.HealthCheckRequest, stream health.Health_WatchServer) error {
+func (s *AbstractMlrunGRPCServer) Watch(request *health.HealthCheckRequest, stream health.Health_WatchServer) error {
 	currentStatus := s.servingStatus
 
 	// send once the status

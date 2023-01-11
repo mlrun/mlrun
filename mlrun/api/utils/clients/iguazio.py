@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
+import contextlib
 import copy
 import datetime
 import enum
@@ -20,8 +22,10 @@ import json
 import typing
 import urllib.parse
 
+import aiohttp
 import fastapi
 import requests.adapters
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.leader
@@ -71,8 +75,8 @@ class Client(
     mlrun.api.utils.projects.remotes.leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
             == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
@@ -132,7 +136,9 @@ class Client(
                 "cookie": request.headers.get("cookie"),
             },
         )
-        return self._generate_auth_info_from_session_verification_response(response)
+        return self._generate_auth_info_from_session_verification_response(
+            response.headers, response.json()
+        )
 
     def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
         response = self._send_request_to_api(
@@ -141,7 +147,9 @@ class Client(
             "Failed verifying iguazio session",
             session,
         )
-        return self._generate_auth_info_from_session_verification_response(response)
+        return self._generate_auth_info_from_session_verification_response(
+            response.headers, response.json()
+        )
 
     def get_user_unix_id(self, session: str) -> str:
         response = self._send_request_to_api(
@@ -327,6 +335,10 @@ class Client(
             data=self._transform_mlrun_project_to_iguazio_project(project)["data"]
         )
 
+    @property
+    def is_sync(self):
+        return True
+
     def _find_latest_updated_at(
         self, response_body: dict
     ) -> typing.Optional[datetime.datetime]:
@@ -435,62 +447,16 @@ class Client(
         self, method, path, error_message: str, session=None, **kwargs
     ):
         url = f"{self._api_url}/api/{path}"
-        # support session being already a cookie
-        session_cookie = session
-        if (
-            session_cookie
-            and not session_cookie.startswith('j:{"sid"')
-            and not session_cookie.startswith(urllib.parse.quote_plus('j:{"sid"'))
-        ):
-            session_cookie = f'j:{{"sid": "{session_cookie}"}}'
-        if session_cookie:
-            cookies = kwargs.get("cookies", {})
-            # in case some dev using this function for some reason setting cookies manually through kwargs + have a
-            # cookie with "session" key there + filling the session cookie - explode
-            if "session" in cookies and cookies["session"] != session_cookie:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Session cookie already set"
-                )
-            cookies["session"] = session_cookie
-            kwargs["cookies"] = cookies
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = 20
-        if "projects" in path:
-            if mlrun.api.schemas.HeaderNames.projects_role not in kwargs.get(
-                "headers", {}
-            ):
-                kwargs.setdefault("headers", {})[
-                    mlrun.api.schemas.HeaderNames.projects_role
-                ] = "mlrun"
-
-        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
-        # convert to strings. Do the same for params for niceness
-        for kwarg in ["headers", "params"]:
-            dict_ = kwargs.get(kwarg, {})
-            for key in dict_.keys():
-                if isinstance(dict_[key], enum.Enum):
-                    dict_[key] = dict_[key].value
+        self._prepare_request_kwargs(session, path, kwargs=kwargs)
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
-            log_kwargs = copy.deepcopy(kwargs)
-            log_kwargs.update({"method": method, "path": path})
-            if response.content:
-                try:
-                    data = response.json()
-                    ctx = data.get("meta", {}).get("ctx")
-                    errors = data.get("errors", [])
-                except Exception:
-                    pass
-                else:
-                    error_message = f"{error_message}: {str(errors)}"
-                    log_kwargs.update({"ctx": ctx, "errors": errors})
-            logger.warning("Request to iguazio failed", **log_kwargs)
-            mlrun.errors.raise_for_status(response, error_message)
+            self._handle_error_response(method, path, response, error_message, kwargs)
         return response
 
     def _generate_auth_info_from_session_verification_response(
         self,
-        response: requests.Response,
+        response_headers: typing.Mapping[str, typing.Any],
+        response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> mlrun.api.schemas.AuthInfo:
 
         (
@@ -500,12 +466,12 @@ class Client(
             user_unix_id,
             user_id,
             group_ids,
-        ) = self._resolve_params_from_response_headers(response)
+        ) = self._resolve_params_from_response_headers(response_headers)
 
         (
             user_id_from_body,
             group_ids_from_body,
-        ) = self._resolve_params_from_response_body(response)
+        ) = self._resolve_params_from_response_body(response_body)
 
         # from iguazio version >= 3.5.2, user and group ids are included in the response body
         # if not, get them from the headers
@@ -525,23 +491,25 @@ class Client(
         return auth_info
 
     @staticmethod
-    def _resolve_params_from_response_headers(response: requests.Response):
+    def _resolve_params_from_response_headers(
+        response_headers: typing.Mapping[str, typing.Any]
+    ):
 
-        username = response.headers.get("x-remote-user")
-        session = response.headers.get("x-v3io-session-key")
-        user_id = response.headers.get("x-user-id")
+        username = response_headers.get("x-remote-user")
+        session = response_headers.get("x-v3io-session-key")
+        user_id = response_headers.get("x-user-id")
 
-        gids = response.headers.get("x-user-group-ids", [])
+        gids = response_headers.get("x-user-group-ids", [])
         # "x-user-group-ids" header is a comma separated list of group ids
-        if gids:
+        if gids and not isinstance(gids, list):
             gids = gids.split(",")
 
-        planes = response.headers.get("x-v3io-session-planes")
+        planes = response_headers.get("x-v3io-session-planes")
         if planes:
             planes = planes.split(",")
         planes = planes or []
         user_unix_id = None
-        x_unix_uid = response.headers.get("x-unix-uid")
+        x_unix_uid = response_headers.get("x-unix-uid")
         # x-unix-uid may be 'Unknown' in case it is missing or in case of enrichment failures
         if x_unix_uid and x_unix_uid.lower() != "unknown":
             user_unix_id = int(x_unix_uid)
@@ -549,9 +517,9 @@ class Client(
         return username, session, planes, user_unix_id, user_id, gids
 
     @staticmethod
-    def _resolve_params_from_response_body(response: requests.Response):
-
-        response_body = response.json()
+    def _resolve_params_from_response_body(
+        response_body: typing.Mapping[typing.Any, typing.Any]
+    ) -> typing.Tuple[typing.Optional[str], typing.Optional[typing.List[str]]]:
         context_auth = get_in(
             response_body, "data.attributes.context.authentication", {}
         )
@@ -677,3 +645,145 @@ class Client(
         if iguazio_project["attributes"].get("owner_username"):
             mlrun_project.spec.owner = iguazio_project["attributes"]["owner_username"]
         return mlrun_project
+
+    def _prepare_request_kwargs(self, session, path, *, kwargs):
+        # support session being already a cookie
+        session_cookie = session
+        if (
+            session_cookie
+            and not session_cookie.startswith('j:{"sid"')
+            and not session_cookie.startswith(urllib.parse.quote_plus('j:{"sid"'))
+        ):
+            session_cookie = f'j:{{"sid": "{session_cookie}"}}'
+        if session_cookie:
+            cookies = kwargs.get("cookies", {})
+            # in case some dev using this function for some reason setting cookies manually through kwargs + have a
+            # cookie with "session" key there + filling the session cookie - explode
+            if "session" in cookies and cookies["session"] != session_cookie:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Session cookie already set"
+                )
+            cookies["session"] = session_cookie
+            kwargs["cookies"] = cookies
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = 20
+        if "projects" in path:
+            if mlrun.api.schemas.HeaderNames.projects_role not in kwargs.get(
+                "headers", {}
+            ):
+                kwargs.setdefault("headers", {})[
+                    mlrun.api.schemas.HeaderNames.projects_role
+                ] = "mlrun"
+
+        # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
+        # convert to strings. Do the same for params for niceness
+        for kwarg in ["headers", "params"]:
+            dict_ = kwargs.get(kwarg, {})
+            for key in dict_.keys():
+                if isinstance(dict_[key], enum.Enum):
+                    dict_[key] = dict_[key].value
+
+    def _handle_error_response(self, method, path, response, error_message, kwargs):
+        log_kwargs = copy.deepcopy(kwargs)
+        log_kwargs.update({"method": method, "path": path})
+        if response.content:
+            try:
+                data = response.json()
+                ctx = data.get("meta", {}).get("ctx")
+                errors = data.get("errors", [])
+            except Exception:
+                pass
+            else:
+                error_message = f"{error_message}: {str(errors)}"
+                log_kwargs.update({"ctx": ctx, "errors": errors})
+        logger.warning("Request to iguazio failed", **log_kwargs)
+        mlrun.errors.raise_for_status(response, error_message)
+
+
+class AsyncClient(Client):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self._run_in_threadpool_callback = run_in_threadpool
+        self._async_session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+
+    @property
+    def is_sync(self):
+        return False
+
+    def __getattribute__(self, name):
+        attr = super().__getattribute__(name)
+        if name.startswith("_") or not callable(attr):
+            return attr
+
+        # already a coroutine
+        if asyncio.iscoroutinefunction(attr):
+            return attr
+
+        # not a coroutine, run in threadpool
+        def wrapper(*args, **kwargs):
+            return self._run_in_threadpool_callback(attr, *args, **kwargs)
+
+        return wrapper
+
+    async def verify_request_session(
+        self, request: fastapi.Request
+    ) -> mlrun.api.schemas.AuthInfo:
+        """
+        Proxy the request to one of the session verification endpoints (which will verify the session of the request)
+        """
+        async with self._send_request_to_api_async(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            "Failed verifying iguazio session",
+            headers={
+                "authorization": request.headers.get("authorization"),
+                "cookie": request.headers.get("cookie"),
+            },
+        ) as response:
+            return self._generate_auth_info_from_session_verification_response(
+                response.headers, await response.json()
+            )
+
+    async def verify_session(self, session: str) -> mlrun.api.schemas.AuthInfo:
+        async with self._send_request_to_api_async(
+            "POST",
+            mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint,
+            "Failed verifying iguazio session",
+            session,
+        ) as response:
+            return self._generate_auth_info_from_session_verification_response(
+                response.headers, await response.json()
+            )
+
+    @contextlib.asynccontextmanager
+    async def _send_request_to_api_async(
+        self, method, path, error_message: str, session=None, **kwargs
+    ) -> aiohttp.ClientResponse:
+        url = f"{self._api_url}/api/{path}"
+        self._prepare_request_kwargs(session, path, kwargs=kwargs)
+        await self._ensure_async_session()
+        response = None
+        try:
+            response = await self._async_session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
+            if not response.ok:
+                self._handle_error_response(
+                    method, path, response, error_message, kwargs
+                )
+            yield response
+        finally:
+            if response:
+                response.release()
+
+    async def _ensure_async_session(self):
+        if not self._async_session:
+            self._async_session = mlrun.utils.AsyncClientWithRetry(
+                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+                == mlrun.api.schemas.HTTPSessionRetryMode.enabled.value,
+                logger=logger,
+            )

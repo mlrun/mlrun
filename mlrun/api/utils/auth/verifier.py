@@ -192,7 +192,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     ):
         self._auth_provider.add_allowed_project_for_owner(project_name, auth_info)
 
-    def authenticate_request(
+    async def authenticate_request(
         self, request: fastapi.Request
     ) -> mlrun.api.schemas.AuthInfo:
         auth_info = mlrun.api.schemas.AuthInfo()
@@ -218,8 +218,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
                 raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
             auth_info.token = token
         elif self._iguazio_auth_configured():
-            iguazio_client = mlrun.api.utils.clients.iguazio.Client()
-            auth_info = iguazio_client.verify_request_session(request)
+            iguazio_client = mlrun.api.utils.clients.iguazio.AsyncClient()
+            auth_info = await iguazio_client.verify_request_session(request)
             if "x-data-session-override" in request.headers:
                 auth_info.data_session = request.headers["x-data-session-override"]
 
@@ -246,14 +246,16 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             auth_info.data_session = request.headers["X-V3io-Access-Key"]
         return auth_info
 
-    def generate_auth_info_from_session(
+    async def generate_auth_info_from_session(
         self, session: str
     ) -> mlrun.api.schemas.AuthInfo:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(
                 "Session is currently supported only for iguazio authentication mode"
             )
-        return mlrun.api.utils.clients.iguazio.Client().verify_session(session)
+        return await mlrun.api.utils.clients.iguazio.AsyncClient().verify_session(
+            session
+        )
 
     def get_or_create_access_key(
         self, session: str, planes: typing.List[str] = None

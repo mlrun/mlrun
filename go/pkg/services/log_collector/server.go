@@ -294,10 +294,17 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 	}
 	restClientRequest := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).GetLogs(podName, podLogOptions)
 
-	// stream logs
-	stream, err := restClientRequest.Stream(ctx)
-	if err != nil {
-		lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
+	// initialize error for the while loop
+	streamErr := errors.New("Stream error")
+	var stream io.ReadCloser
+
+	// stream logs - retry if failed
+	for streamErr != nil {
+		stream, streamErr = restClientRequest.Stream(ctx)
+		if streamErr != nil {
+			lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
+		}
+		time.Sleep(2 * time.Second)
 	}
 
 	for {
@@ -305,6 +312,8 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 		case <-time.After(lcs.getLogsInterval):
 
 			buf := make([]byte, 1024)
+
+			// This is blocking until there is something to read
 			numBytes, err := stream.Read(buf)
 
 			// nothing read, continue
@@ -312,7 +321,7 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 				continue
 			}
 
-			// if error is EOF, the pod is done streaming logs - VALIDATE THIS!
+			// if error is EOF, the pod is done streaming logs (deleted/completed)
 			if err == io.EOF {
 				lcs.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
 				break
@@ -330,7 +339,7 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 			filePath := lcs.resolvePodLogFilePath(runId, podName)
 			if err := common.EnsureFileExists(filePath); err != nil {
 				lcs.Logger.ErrorWithCtx(ctx,
-					"Failed to create log file",
+					"Failed to ensure log file",
 					"runId", runId,
 					"filePath", filePath)
 			}

@@ -17,6 +17,7 @@ package common
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -68,8 +69,14 @@ func EnsureDirExists(dirPath string, mode os.FileMode) error {
 
 func EnsureFileExists(filePath string) error {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+
+		// get file directory
+		dirPath := filepath.Dir(filePath)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return errors.Wrapf(err, "Failed to create directory - %s", dirPath)
+		}
 		if _, err := os.Create(filePath); err != nil {
-			return err
+			return errors.Wrapf(err, "Failed to create file - %s", filePath)
 		}
 	}
 

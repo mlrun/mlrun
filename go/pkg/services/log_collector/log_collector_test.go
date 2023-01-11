@@ -16,15 +16,19 @@ package log_collector
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
 
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -78,6 +82,11 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		suite.getLogsIntervalStr,
 		suite.stateFileUpdateIntervalStr)
 	suite.Require().NoError(err, "Failed to create log collector server")
+
+	// initialize log collector state
+	suite.LogCollectorServer.state = &State{
+		InProgress: map[string]LogItem{},
+	}
 
 	// overwrite log collector server's kube client set with the fake one
 	suite.LogCollectorServer.kubeClientSet = &suite.kubeClientSet
@@ -225,6 +234,61 @@ func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
 
 	// verify item is not in progress
 	suite.Require().Equal(0, len(state.InProgress))
+}
+
+func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
+
+	// create fake pod
+	fakePod := v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: suite.namespace,
+			Labels: map[string]string{
+				"app": "test",
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  "test-container",
+					Image: "alpine",
+					Command: []string{
+						"/bin/sh",
+					},
+					Args: []string{
+						"-c",
+						"echo test; sleep 10",
+					},
+				},
+			},
+		},
+	}
+
+	// add fake pod to fake client set
+	pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
+	suite.Require().NoError(err, "Failed to create pod")
+
+	// stream pod logs
+	stopChan := make(chan struct{})
+	go suite.LogCollectorServer.streamPodLogs(suite.ctx, pod.Name, "test-container", stopChan)
+
+	time.Sleep(20 * time.Second)
+
+	// stop streaming
+	close(stopChan)
+
+	logFile := path.Join(suite.baseDir, fmt.Sprintf("%s-%s.log", pod.Name, pod.Spec.Containers[0].Name))
+
+	// make sure log file exists
+	_, err = os.Stat(logFile)
+	suite.Require().NoError(err, "Failed to find log file")
+
+	// read log file
+	logBytes, err := os.ReadFile(logFile)
+	suite.Require().NoError(err, "Failed to read log file")
+
+	// verify log file content
+	suite.Require().Equal("fake logs", string(logBytes))
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

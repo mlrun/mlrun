@@ -27,7 +27,7 @@ service LogCollector {
 
 message StartLogRequest {
   string runId = 1;
-  map<string,string> selector = 2;
+  string selector = 2;
 }
 
 message StartLogResponse {

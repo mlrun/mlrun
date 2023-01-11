@@ -97,11 +97,10 @@ func StartServer(server MlrunGRPCServer, port int) error {
 		return errors.Wrap(err, "Failed running on before start hook")
 	}
 	logger.DebugWithCtx(initContext, "Starting server")
+	defer listener.Close()
 	if err := grpcServer.Serve(listener); err != nil {
 		return errors.Wrap(err, "Failed to start server")
 	}
-
-	defer listener.Close()
 
 	return nil
 }

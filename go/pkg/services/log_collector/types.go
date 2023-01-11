@@ -15,10 +15,10 @@
 package log_collector
 
 type State struct {
-	InProgress []LogItem `json:"inProgress"`
+	InProgress map[string]LogItem `json:"inProgress"`
 }
 
 type LogItem struct {
-	RunId         string            `json:"runId"`
-	LabelSelector map[string]string `json:"labelSelector"`
+	RunId         string `json:"runId"`
+	LabelSelector string `json:"labelSelector"`
 }

@@ -15,7 +15,6 @@
 package log_collector
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,6 +22,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -35,18 +35,20 @@ import (
 	"github.com/nuclio/logger"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 )
 
 type LogCollectorServer struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace          string
-	baseDir            string
-	monitoringInterval time.Duration
-	getLogsInterval    time.Duration
-	kubeClientSet      kubernetes.Interface
-	stateFileLock      sync.Locker
+	namespace               string
+	baseDir                 string
+	monitoringInterval      time.Duration
+	getLogsInterval         time.Duration
+	stateFileUpdateInterval time.Duration
+	kubeClientSet           kubernetes.Interface
+	state                   *State
+	stateLock               sync.Locker
+	stateFileLock           sync.Locker
 }
 
 func NewLogCollectorServer(logger logger.Logger,
@@ -54,14 +56,15 @@ func NewLogCollectorServer(logger logger.Logger,
 	baseDir,
 	kubeconfigPath,
 	monitoringInterval,
-	getLogsInterval string) (*LogCollectorServer, error) {
+	getLogsInterval,
+	stateFileUpdateInterval string) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
 	}
 
 	// initialize kubernetes client
-	restConfig, err := common.GetClientConfig(kubeconfigPath)
+	restConfig, err := common.GetKubernetesClientConfig(kubeconfigPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to get client configuration")
 	}
@@ -79,6 +82,10 @@ func NewLogCollectorServer(logger logger.Logger,
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
 	}
+	stateFileUpdateIntervalDuration, err := time.ParseDuration(stateFileUpdateInterval)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
+	}
 
 	// ensure base dir exists
 	if err := common.EnsureDirExists(baseDir, os.ModeDir); err != nil {
@@ -91,9 +98,39 @@ func NewLogCollectorServer(logger logger.Logger,
 		baseDir:                 baseDir,
 		monitoringInterval:      monitoringIntervalDuration,
 		getLogsInterval:         getLogsIntervalDuration,
+		stateFileUpdateInterval: stateFileUpdateIntervalDuration,
 		kubeClientSet:           kubeClientSet,
+		stateLock:               &sync.Mutex{},
 		stateFileLock:           &sync.Mutex{},
 	}, nil
+}
+
+func (lcs *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
+	lcs.Logger.DebugCtx(ctx, "Initializing Server")
+
+	// load state from file
+	state, err := lcs.readStateFile()
+	if err != nil {
+		return errors.Wrap(err, "Failed to load state file")
+	}
+	lcs.state = state
+
+	// start state updating goroutine
+	go lcs.updateStateFile(ctx, lcs.state)
+
+	// if there are items in the stateFile, call StartLog for each of them
+	for runId, logItem := range state.InProgress {
+		lcs.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runId", runId)
+		if _, err := lcs.StartLog(ctx, &log_collector.StartLogRequest{
+			RunId:    runId,
+			Selector: logItem.LabelSelector,
+		}); err != nil {
+			lcs.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runId", runId)
+			continue
+		}
+	}
+
+	return nil
 }
 
 func (lcs *LogCollectorServer) RegisterRoutes(ctx context.Context) {
@@ -121,8 +158,10 @@ func (lcs *LogCollectorServer) StartLog(ctx context.Context, request *log_collec
 
 	// list pods using label selector until a pod is found
 	for len(pods.Items) == 0 {
+		// TODO: add timeout to this loop
+
 		pods, err = lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labels.SelectorFromSet(request.Selector).String(),
+			LabelSelector: request.Selector,
 		})
 		if err != nil {
 			err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunId)
@@ -133,7 +172,7 @@ func (lcs *LogCollectorServer) StartLog(ctx context.Context, request *log_collec
 		}
 	}
 
-	// found a pod
+	// found a pod. for now, we only assume each run has a single pod.
 	pod := pods.Items[0]
 
 	// TODO: create a child context before calling goroutines, so it won't be canceled
@@ -247,33 +286,44 @@ func (lcs *LogCollectorServer) monitorPodState(ctx context.Context, podName stri
 
 // streamPodLogs streams logs from a pod and writes them into a file
 func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName string, stopChan chan struct{}) {
-	var prevLogTime *metav1.Time
+
+	// get logs from pod.
+	// since we're in appending to the file, get the logs since the last time we got them
+	podLogOptions := &v1.PodLogOptions{
+		Follow: true,
+	}
+	restClientRequest := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).GetLogs(podName, podLogOptions)
+
+	// stream logs
+	stream, err := restClientRequest.Stream(ctx)
+	if err != nil {
+		lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
+	}
 
 	for {
 		select {
 		case <-time.After(lcs.getLogsInterval):
 
-			// get logs from pod.
-			// since we're in appending to the file, get the logs since the last time we got them
-			podLogOptions := &v1.PodLogOptions{
-				SinceTime: prevLogTime,
-			}
-			*prevLogTime = metav1.Now()
-			restClientRequest := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).GetLogs(podName, podLogOptions)
+			buf := make([]byte, 1024)
+			numBytes, err := stream.Read(buf)
 
-			// stream logs
-			restReadCloser, err := restClientRequest.Stream(ctx)
-			if err != nil {
-				lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
-				//return "", errors.Wrap(err, "Failed to get pod log read/closer", "runId", runId)
+			// nothing read, continue
+			if numBytes == 0 {
+				continue
 			}
 
-			buf := new(bytes.Buffer)
-			_, err = io.Copy(buf, restReadCloser)
-			restReadCloser.Close() // nolint: errcheck
+			// if error is EOF, the pod is done streaming logs - VALIDATE THIS!
+			if err == io.EOF {
+				lcs.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
+				break
+			}
+
+			// if error is not EOF, return error
 			if err != nil {
-				lcs.Logger.WarnWithCtx(ctx, "Failed to copy information from log stream to buffer", "runId", runId)
-				//return "", errors.Wrap(err, "Failed to read pod logs", "runId", runId)
+				lcs.Logger.WarnWithCtx(ctx, "Failed to read pod log",
+					"error",
+					err, "runId", runId)
+				continue
 			}
 
 			// write log contents to file
@@ -284,7 +334,7 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 					"runId", runId,
 					"filePath", filePath)
 			}
-			if err := lcs.writeToFile(ctx, filePath, buf.Bytes(), true); err != nil {
+			if err := common.WriteToFile(ctx, lcs.Logger, filePath, buf[:numBytes], true); err != nil {
 				lcs.Logger.ErrorWithCtx(ctx,
 					"Failed to write log contents to file",
 					"runId", runId,
@@ -302,29 +352,33 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 				lcs.Logger.WarnWithCtx(ctx, "Failed to remove run id from state file")
 			}
 
+			stream.Close() // nolint: errcheck
 			return
 		}
 	}
 }
 
 // addItemToInProgress adds an item to the `in_progress` list in the state file
-func (lcs *LogCollectorServer) addItemToInProgress(ctx context.Context, runId string, selector map[string]string) error {
+func (lcs *LogCollectorServer) addItemToInProgress(ctx context.Context, runId string, selector string) error {
 
-	stateFile, err := lcs.getState()
-	if err != nil {
-		return errors.Wrap(err, "Failed to get state file")
-	}
+	state := lcs.getState()
 
-	loggedItem := LogItem{
+	logItem := LogItem{
 		RunId:         runId,
 		LabelSelector: selector,
 	}
 
-	stateFile.InProgress = append(stateFile.InProgress, loggedItem)
-
-	if err := lcs.writeStateToFile(ctx, stateFile); err != nil {
-		return errors.Wrap(err, "Failed to write state file")
+	if existingItem, exists := state.InProgress[runId]; exists {
+		lcs.Logger.DebugWithCtx(ctx,
+			"Item already exists in state file. Overwriting label selector",
+			"runId", runId,
+			"existingItem", existingItem)
+		// TODO: notify the goroutines to stop and restart them with the new selector
 	}
+
+	state.InProgress[runId] = logItem
+
+	lcs.setState(state)
 
 	return nil
 }
@@ -333,33 +387,33 @@ func (lcs *LogCollectorServer) addItemToInProgress(ctx context.Context, runId st
 func (lcs *LogCollectorServer) removeItemFromInProgress(ctx context.Context, runId string) error {
 
 	// get state file
-	stateFile, err := lcs.getState()
-	if err != nil {
-		return errors.Wrap(err, "Failed to get state file")
-	}
+	state := lcs.getState()
 
-	// find and remove run id item
-	indexToDelete := 0
-	for i, loggedItem := range stateFile.InProgress {
-		if loggedItem.RunId == runId {
-			indexToDelete = i
-		}
-	}
+	// remove run id item from state
+	delete(state.InProgress, runId)
 
-	// remove item from in progress slice
-	stateFile.InProgress[indexToDelete] = stateFile.InProgress[len(stateFile.InProgress)-1]
-	stateFile.InProgress = stateFile.InProgress[:len(stateFile.InProgress)-1]
-
-	// write state file back
-	if err := lcs.writeStateToFile(ctx, stateFile); err != nil {
-		return errors.Wrap(err, "Failed to write state file")
-	}
+	lcs.setState(state)
 
 	return nil
 }
 
+func (lcs *LogCollectorServer) getState() *State {
+	lcs.stateLock.Lock()
+	defer lcs.stateLock.Unlock()
+
+	return lcs.state
+
+}
+
+func (lcs *LogCollectorServer) setState(state *State) {
+	lcs.stateLock.Lock()
+	defer lcs.stateLock.Unlock()
+
+	lcs.state = state
+}
+
 // getState returns the state file
-func (lcs *LogCollectorServer) getState() (*State, error) {
+func (lcs *LogCollectorServer) readStateFile() (*State, error) {
 
 	// get lock
 	lcs.stateFileLock.Lock()
@@ -380,7 +434,9 @@ func (lcs *LogCollectorServer) getState() (*State, error) {
 	if len(stateFileBytes) == 0 {
 
 		// if file is empty, return the empty state instance
-		return state, nil
+		return &State{
+			InProgress: map[string]LogItem{},
+		}, nil
 	}
 
 	// unmarshal
@@ -406,37 +462,12 @@ func (lcs *LogCollectorServer) writeStateToFile(ctx context.Context, state *Stat
 
 	// write to file
 	stateFilePath := lcs.resolveStateFilePath()
-	return lcs.writeToFile(ctx, stateFilePath, encodedState, false)
-}
-
-// writeToFile writes the given bytes to the given file path
-func (lcs *LogCollectorServer) writeToFile(ctx context.Context, filePath string, content []byte, append bool) error {
-
-	// this flag enables us to create the file if it doesn't exist
-	openFlags := os.O_CREATE | os.O_WRONLY
-	if append {
-		openFlags = openFlags | os.O_APPEND
-	}
-
-	// open file
-	file, err := os.OpenFile(filePath, openFlags, 0600)
-	if err != nil {
-		return errors.Wrapf(err, "Failed to open file - %s", filePath)
-	}
-
-	defer file.Close() // nolint: errcheck
-
-	lcs.Logger.DebugWithCtx(ctx, "Writing log contents to file", "filePath", filePath)
-	if _, err := file.Write(content); err != nil {
-		return errors.Wrapf(err, "Failed to write log contents to file - %s", filePath)
-	}
-
-	return nil
+	return common.WriteToFile(ctx, lcs.Logger, stateFilePath, encodedState, false)
 }
 
 // resolvePodLogFilePath returns the path to the pod log file
 func (lcs *LogCollectorServer) resolvePodLogFilePath(runId, podName string) string {
-	return path.Join(lcs.baseDir, "logs", fmt.Sprintf("%s_%s", runId, podName))
+	return path.Join(lcs.baseDir, "logs", fmt.Sprintf("%s_%s.log", runId, podName))
 }
 
 func (lcs *LogCollectorServer) resolveStateFilePath() string {
@@ -502,4 +533,28 @@ func (lcs *LogCollectorServer) validateOffsetAndSize(offset uint64, size uint64,
 	}
 
 	return offset, size
+}
+
+// updateStateFile periodically checks if changes were made to the state, and updates them in the state file
+func (lcs *LogCollectorServer) updateStateFile(ctx context.Context, state *State) {
+
+	for {
+
+		// get state file
+		currentState := lcs.getState()
+
+		// if state changed, write it to file
+		if !reflect.DeepEqual(currentState, state) {
+
+			state = currentState
+
+			// write state file
+			if err := lcs.writeStateToFile(ctx, state); err != nil {
+				lcs.Logger.ErrorWithCtx(ctx, "Failed to write state file", "err", err)
+				return
+			}
+		}
+
+		time.Sleep(lcs.stateFileUpdateInterval)
+	}
 }

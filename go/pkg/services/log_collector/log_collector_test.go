@@ -20,6 +20,8 @@ import (
 	"path"
 	"testing"
 
+	"github.com/mlrun/mlrun/pkg/common"
+
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
@@ -28,15 +30,16 @@ import (
 
 type LogCollectorTestSuite struct {
 	suite.Suite
-	LogCollectorServer    *LogCollectorServer
-	logger                logger.Logger
-	ctx                   context.Context
-	kubeClientSet         fake.Clientset
-	namespace             string
-	baseDir               string
-	kubeConfigFilePath    string
-	monitoringIntervalStr string
-	getLogsIntervalStr    string
+	LogCollectorServer         *LogCollectorServer
+	logger                     logger.Logger
+	ctx                        context.Context
+	kubeClientSet              fake.Clientset
+	namespace                  string
+	baseDir                    string
+	kubeConfigFilePath         string
+	monitoringIntervalStr      string
+	getLogsIntervalStr         string
+	stateFileUpdateIntervalStr string
 }
 
 func (suite *LogCollectorTestSuite) SetupSuite() {
@@ -49,6 +52,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.namespace = "default"
 	suite.monitoringIntervalStr = "10s"
 	suite.getLogsIntervalStr = "10s"
+	suite.getLogsIntervalStr = "10s"
+	suite.stateFileUpdateIntervalStr = "5s"
 
 	// get cwd
 	cwd, err := os.Getwd()
@@ -70,7 +75,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		suite.baseDir,
 		suite.kubeConfigFilePath,
 		suite.monitoringIntervalStr,
-		suite.getLogsIntervalStr)
+		suite.getLogsIntervalStr,
+		suite.stateFileUpdateIntervalStr)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// overwrite log collector server's kube client set with the fake one
@@ -81,12 +87,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 
 func (suite *LogCollectorTestSuite) TearDownSuite() {
 
-	// delete all files in base dir
+	// delete base dir and created files
 	err := os.RemoveAll(suite.baseDir)
-	suite.Require().NoError(err, "Failed to delete base dir")
-
-	// delete base dir itself
-	err = os.Remove(suite.baseDir)
 	suite.Require().NoError(err, "Failed to delete base dir")
 
 	suite.logger.InfoWith("Tear down complete")
@@ -156,7 +158,7 @@ func (suite *LogCollectorTestSuite) TestWriteToFile() {
 	filePath := path.Join(suite.baseDir, fileName)
 
 	// write file
-	err := suite.LogCollectorServer.writeToFile(suite.ctx, filePath, []byte("test"), false)
+	err := common.WriteToFile(suite.ctx, suite.logger, filePath, []byte("test"), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
 	// read file
@@ -170,21 +172,20 @@ func (suite *LogCollectorTestSuite) TestWriteToFile() {
 func (suite *LogCollectorTestSuite) TestReadWriteStateFile() {
 
 	// read state file
-	state, err := suite.LogCollectorServer.getState()
+	state, err := suite.LogCollectorServer.readStateFile()
 	suite.Require().NoError(err, "Failed to read state file")
 
 	// verify state is empty
 	suite.Require().Equal(0, len(state.InProgress))
 
 	// add item to InProgress
+	runId := "abc123"
 	item := LogItem{
-		RunId: "abc123",
-		LabelSelector: map[string]string{
-			"app": "test",
-		},
+		RunId:         runId,
+		LabelSelector: "app=test",
 	}
 
-	state.InProgress = append(state.InProgress, item)
+	state.InProgress[runId] = item
 
 	// write state file
 	err = suite.LogCollectorServer.writeStateToFile(suite.ctx, state)
@@ -192,12 +193,38 @@ func (suite *LogCollectorTestSuite) TestReadWriteStateFile() {
 
 	// read state file again
 
-	state, err = suite.LogCollectorServer.getState()
+	state, err = suite.LogCollectorServer.readStateFile()
 	suite.Require().NoError(err, "Failed to read state file")
 
 	// verify item is in progress
 	suite.Require().Equal(1, len(state.InProgress))
-	suite.Require().Equal(item, state.InProgress[0])
+	suite.Require().Equal(item, state.InProgress[runId])
+}
+
+func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
+	runId := "some-run-id"
+	labelSelector := "app=test"
+
+	err := suite.LogCollectorServer.addItemToInProgress(suite.ctx, runId, labelSelector)
+	suite.Require().NoError(err, "Failed to add item to in progress")
+
+	// read state file
+	state := suite.LogCollectorServer.getState()
+
+	// verify item is in progress
+	suite.Require().Equal(1, len(state.InProgress))
+	suite.Require().Equal(runId, state.InProgress[runId].RunId)
+	suite.Require().Equal(labelSelector, state.InProgress[runId].LabelSelector)
+
+	// remove item from in progress
+	err = suite.LogCollectorServer.removeItemFromInProgress(suite.ctx, runId)
+	suite.Require().NoError(err, "Failed to remove item from in progress")
+
+	// read state file again
+	state = suite.LogCollectorServer.getState()
+
+	// verify item is not in progress
+	suite.Require().Equal(0, len(state.InProgress))
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

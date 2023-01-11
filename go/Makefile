@@ -53,11 +53,14 @@ compile-schemas: cleanup compile-schemas-go compile-schemas-python
 
 .PHONY: compile-schemas-go
 compile-schemas-go:
+	@echo Compiling go schemas
 	protoc --go_out=. --go-grpc_out=. --go-grpc_opt=require_unimplemented_servers=false proto/*.proto
 
 .PHONY: compile-schemas-python
 compile-schemas-python:
+	@echo Compiling python schemas
 	python -m grpc_tools.protoc --proto_path=. --python_out=../mlrun/api --grpc_python_out=../mlrun/api proto/*.proto
+	@echo Fixing Python GRPC Imports
 	sh hack/scripts/fix_python_grpc_imports.sh
 
 .PHONY: cleanup

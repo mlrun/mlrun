@@ -236,6 +236,9 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                             "uid": uid,
                             "project": project,
                             "iter": iteration,
+                            "labels": {
+                                "kind": "job",
+                            },
                         },
                     }
                     mlrun.api.crud.Runs().store_run(db, run, uid, iteration, project)

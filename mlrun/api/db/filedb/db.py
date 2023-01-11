@@ -83,6 +83,7 @@ class FileDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,

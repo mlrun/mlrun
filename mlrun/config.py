@@ -466,7 +466,15 @@ default_config = {
     "sidecar": {
         "log_collector": {
             "address": "",
-            "enabled": False,
+            # log collection mode can be one of: "sidecar", "legacy", "best-effort"
+            # "sidecar" - use the sidecar to collect logs
+            # "legacy" - use the legacy log collection method (logs are collected straight from the pod)
+            # "best-effort" - use the sidecar, but if for some reason it's not available use the legacy method
+            # note that this mode also effects the log querying method as well, meaning if the mode is "best-effort"
+            # the log query will try to use the sidecar first and if it's not available it will use the legacy method
+            "mode": "sidecar",
+            # interval for collecting and sending runs which require their logs to be collected
+            "periodic_start_log_interval": 10,
         },
     },
 }

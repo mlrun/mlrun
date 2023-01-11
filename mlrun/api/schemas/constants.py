@@ -170,3 +170,9 @@ class APIStates:
 class ClusterizationRole:
     chief = "chief"
     worker = "worker"
+
+
+class LogsCollectorMode:
+    legacy = "legacy"
+    sidecar = "sidecar"
+    best_effort = "best-effort"

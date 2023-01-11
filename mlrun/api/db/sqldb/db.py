@@ -255,6 +255,7 @@ class SQLDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -280,7 +281,8 @@ class SQLDB(DBInterface):
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
-
+        if requested_logs is not None:
+            query = query.filter(Run.requested_log == requested_logs)
         if partition_by:
             self._assert_partition_by_parameters(
                 schemas.RunPartitionByField, partition_by, partition_sort_by

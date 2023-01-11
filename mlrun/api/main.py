@@ -26,6 +26,7 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.clients.sidecar.log_collector as mlrun_log_collector
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.version
@@ -47,7 +48,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_sched
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -224,6 +225,57 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+
+
+def _start_logs_collection():
+    if config.sidecar.logs_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+        logger.info(
+            "Using legacy logs collection method",
+            mode=config.sidecar.logs_collector.mode,
+        )
+        return
+    logger.info("Starting logs collection", mode=config.sidecar.logs_collector.mode)
+    run_function_periodically(
+        config.sidecar.logs_collector.interval,
+        _collect_runs_logs.__name__,
+        False,
+        _collect_runs_logs,
+    )
+
+
+async def _collect_runs_logs():
+    logs_collector_client = mlrun_log_collector.LogCollectorClient()
+    db_session = create_session()
+    try:
+        # list all the runs in the system which we didn't request logs collection for yet
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_runs, db_session, requested_logs=False
+        )
+        for run in runs:
+            run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
+            project_name = run.get("metadata", {}).get("project", None)
+            run_uid = run.get("metadata", {}).get("uid", None)
+            # empty kind means it's a local run, the log collector doesn't support it
+            if not run_kind:
+                continue
+            try:
+                runtime_handler = get_runtime_handler(run_kind)
+                label_selector = runtime_handler.resolve_label_selector(
+                    project=project_name,
+                    object_id=run_uid,
+                    class_mode=RuntimeClassMode.run,
+                )
+                await logs_collector_client.start_logs(run_uid, label_selector)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to start logs for run",
+                    run_uid=run_uid,
+                    exc=exc,
+                    traceback=traceback.format_exc(),
+                )
+
+    finally:
+        close_session(db_session)
 
 
 def _start_periodic_cleanup():

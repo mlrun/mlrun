@@ -317,6 +317,9 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
 
 class MpiV1RuntimeHandler(BaseRuntimeHandler):
     kind = "mpijob"
+    class_modes = {
+        "run": "mpijob",
+    }
 
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
@@ -356,10 +359,6 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["mpijob"]
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:

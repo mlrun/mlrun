@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 import sqlalchemy.dialects.mysql
 from sqlalchemy import (
+    BOOLEAN,
     JSON,
     Column,
     ForeignKey,
@@ -206,6 +207,7 @@ with warnings.catch_warnings():
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        requested_logs = Column(BOOLEAN, default=False, index=True)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")

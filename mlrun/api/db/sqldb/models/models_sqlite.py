@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 from sqlalchemy import (
     BLOB,
+    BOOLEAN,
     JSON,
     TIMESTAMP,
     Column,
@@ -203,6 +204,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/api/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         start_time = Column(TIMESTAMP)
+        requested_logs = Column(BOOLEAN)
         updated = Column(TIMESTAMP, default=datetime.utcnow)
         labels = relationship(Label)
 

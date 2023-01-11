@@ -408,6 +408,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     kind = "job"
+    class_modes = {"run": "job", "build": "build"}
 
     @staticmethod
     def _expect_pods_without_uid() -> bool:
@@ -424,7 +425,3 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["build", "job"]

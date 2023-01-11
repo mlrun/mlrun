@@ -207,6 +207,7 @@ class RemoteSparkRuntime(KubejobRuntime):
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     kind = "remote-spark"
+    class_modes = {"run": "remote-spark"}
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:
@@ -215,10 +216,6 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["remote-spark"]
 
 
 def igz_spark_pre_hook():

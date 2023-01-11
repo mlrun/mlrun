@@ -697,7 +697,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/function={object_id}"
 
     @staticmethod
-    def _get_possible_mlrun_class_label_values() -> List[str]:
+    def get_possible_mlrun_class_label_values(class_type: str = None) -> List[str]:
         return ["dask"]
 
     def _enrich_list_resources_response(

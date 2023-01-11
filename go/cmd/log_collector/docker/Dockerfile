@@ -37,5 +37,6 @@ COPY --from=build-binary /app/main /main
 COPY --from=build-binary /app/grpc_health_probe /grpc_health_probe
 
 EXPOSE 8080
+VOLUME /var/mlrun
 
 CMD ["/main"]

@@ -19,6 +19,7 @@ on:
     branches:
     - development
     - '[0-9]+.[0-9]+.x'
+    - log-collector-side-car
 
   # Run CI also on push to backport release branches - we sometimes push code there by cherry-picking, meaning it
   # doesn't go through CI (no PR)

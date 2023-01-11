@@ -14,11 +14,11 @@
 
 package log_collector
 
-type StateFile struct {
-	InProgress []LoggedItem `json:"inProgress"`
+type State struct {
+	InProgress []LogItem `json:"inProgress"`
 }
 
-type LoggedItem struct {
+type LogItem struct {
 	RunId         string            `json:"runId"`
 	LabelSelector map[string]string `json:"labelSelector"`
 }

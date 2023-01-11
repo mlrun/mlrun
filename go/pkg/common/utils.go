@@ -52,3 +52,23 @@ func GetClientConfig(kubeconfigPath string) (*rest.Config, error) {
 
 	return rest.InClusterConfig()
 }
+
+func EnsureDirExists(dirPath string, mode os.FileMode) error {
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(dirPath, mode); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func EnsureFileExists(filePath string) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		if _, err := os.Create(filePath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

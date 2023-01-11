@@ -499,6 +499,7 @@ test-system-dockerized: build-test-system ## Run mlrun system tests in docker co
 	docker run \
 		--env MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=$(MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES) \
 		--env MLRUN_SYSTEM_TESTS_COMPONENT=$(MLRUN_SYSTEM_TESTS_COMPONENT) \
+		--env MLRUN_VERSION=$(MLRUN_VERSION) \
 		-t \
 		--rm \
 		$(MLRUN_SYSTEM_TEST_IMAGE_NAME)

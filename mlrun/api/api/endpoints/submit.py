@@ -66,8 +66,7 @@ async def submit_job(
             _,
             _,
         ) = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.function,
             function_project,
             function_name,
@@ -75,8 +74,7 @@ async def submit_job(
             auth_info,
         )
     if data.get("schedule"):
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.schedule,
             data["task"]["metadata"]["project"],
             data["task"]["metadata"]["name"],
@@ -97,11 +95,12 @@ async def submit_job(
                 task=task,
             )
             chief_client = mlrun.api.utils.clients.chief.Client()
-            return chief_client.submit_job(request=request, json=data)
+            return await fastapi.concurrency.run_in_threadpool(
+                chief_client.submit_job, request=request, json=data
+            )
 
     else:
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.run,
             data["task"]["metadata"]["project"],
             "",
@@ -125,6 +124,5 @@ async def submit_job(
         data["task"]["metadata"].setdefault("labels", {}).update(
             {"mlrun/client_version": client_version}
         )
-    logger.info("Submit run", data=data)
-    response = await mlrun.api.api.utils.submit_run(db_session, auth_info, data)
-    return response
+    logger.info("Submitting run", data=data)
+    return await mlrun.api.api.utils.submit_run(db_session, auth_info, data)

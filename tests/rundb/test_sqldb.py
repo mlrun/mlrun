@@ -172,11 +172,11 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     for artifact in full_results:
         expected_results.append(artifact)
         artifact_with_new_tag = artifact.copy()
-        artifact_with_new_tag["tag"] = "new_tag"
+        artifact_with_new_tag["tag"] = "new-tag"
         expected_results.append(artifact_with_new_tag)
 
     artifacts = db_session.query(Artifact).all()
-    db.tag_artifacts(db_session, artifacts, prj, "new_tag")
+    db.tag_artifacts(db_session, artifacts, prj, "new-tag")
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 

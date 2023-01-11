@@ -265,8 +265,7 @@ class HTTPRunDB(RunDBInterface):
                     f"warning!, server ({server_cfg['ce_mode']}) and client ({config.ce.mode})"
                     " CE mode don't match"
                 )
-            config.ce.mode = server_cfg.get("ce_mode") or config.ce.mode
-            config.ce.release = server_cfg.get("ce_version") or config.ce.release
+            config.ce = server_cfg.get("ce") or config.ce
 
             # get defaults from remote server
             config.remote_host = config.remote_host or server_cfg.get("remote_host")
@@ -530,7 +529,7 @@ class HTTPRunDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project=None,
         labels=None,
         state=None,
@@ -556,7 +555,7 @@ class HTTPRunDB(RunDBInterface):
 
 
         :param name: Name of the run to retrieve.
-        :param uid: Unique ID of the run.
+        :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
         :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
             applied, otherwise result will be empty.
@@ -1056,9 +1055,11 @@ class HTTPRunDB(RunDBInterface):
         """Create a new schedule on the given project. The details on the actual object to schedule as well as the
         schedule itself are within the schedule object provided.
         The :py:class:`~ScheduleCronTrigger` follows the guidelines in
-        https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html.
+        https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html.
         It also supports a :py:func:`~ScheduleCronTrigger.from_crontab` function that accepts a
-        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format).
+        crontab-formatted string (see https://en.wikipedia.org/wiki/Cron for more information on the format and
+        note that the 0 weekday is always monday).
+
 
         Example::
 
@@ -1249,6 +1250,9 @@ class HTTPRunDB(RunDBInterface):
                 func.status.external_invocation_urls = resp.headers.get(
                     "x-mlrun-external-invocation-urls", ""
                 ).split(",")
+                func.status.container_image = resp.headers.get(
+                    "x-mlrun-container-image", ""
+                )
             else:
                 func.status.build_pod = resp.headers.get("builder_pod", "")
                 func.spec.image = resp.headers.get("function_image", "")

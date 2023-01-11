@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 import typing
 
 import pydantic
 
+import mlrun.api.utils.helpers
 
-class PipelinesFormat(str, enum.Enum):
+
+class PipelinesFormat(mlrun.api.utils.helpers.StrEnum):
     full = "full"
     metadata_only = "metadata_only"
     summary = "summary"

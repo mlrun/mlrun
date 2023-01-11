@@ -999,7 +999,7 @@ class KubeResource(BaseRuntime):
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
-    def with_image_pull_configuration(
+    def set_image_pull_configuration(
         self, image_pull_policy: str = None, image_pull_secret_name: str = None
     ):
         """
@@ -1008,14 +1008,15 @@ class KubeResource(BaseRuntime):
         :param image_pull_policy: The policy to use when pulling. One of `IfNotPresent`, `Always` or `Never`
         :param image_pull_secret_name: Name of a k8s secret containing image repository's authentication credentials
         """
-        if image_pull_policy:
-            allowed_policies = ["Always", "IfNotPresent", "Never"]
+        if image_pull_policy is not None:
+            # An empty string can be used to reset to default configuration
+            allowed_policies = ["Always", "IfNotPresent", "Never", ""]
             if image_pull_policy not in allowed_policies:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Image pull policy must be one of {allowed_policies}, got {image_pull_policy}"
                 )
             self.spec.image_pull_policy = image_pull_policy
-        if image_pull_secret_name:
+        if image_pull_secret_name is not None:
             self.spec.image_pull_secret = image_pull_secret_name
 
     def with_limits(

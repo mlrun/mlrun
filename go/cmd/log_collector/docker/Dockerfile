@@ -13,6 +13,7 @@
 # limitations under the License.
 
 ARG GO_VERSION=1.19
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.14
 
 FROM golang:${GO_VERSION} as build-binary
 
@@ -28,8 +29,12 @@ RUN go mod download
 ADD . /app/
 RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -installsuffix cgo -o main cmd/log_collector/main.go
 
+RUN wget -qO/app/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.14/grpc_health_probe-linux-amd64 && \
+    chmod +x /app/grpc_health_probe
+
 FROM scratch
 COPY --from=build-binary /app/main /main
+COPY --from=build-binary /app/grpc_health_probe /grpc_health_probe
 
 EXPOSE 8080
 

@@ -11,20 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-from fastapi import APIRouter
 
-import mlrun.api.crud
-import mlrun.api.schemas
+ARG GO_VERSION=1.19
 
-router = APIRouter()
+FROM golang:${GO_VERSION} as build-binary
 
+ARG PROTOC_GEN_GO_VERSION=v1.28
+ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
 
-@router.get(
-    "/client-spec",
-    response_model=mlrun.api.schemas.ClientSpec,
-)
-def get_client_spec():
+WORKDIR /app/go
 
-    # TODO: cache me
-    return mlrun.api.crud.ClientSpec().get_client_spec()
+RUN apt-get update
+RUN apt install -y protobuf-compiler
+
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
+  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}

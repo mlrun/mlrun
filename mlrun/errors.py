@@ -15,6 +15,7 @@
 import typing
 from http import HTTPStatus
 
+import aiohttp
 import requests
 
 
@@ -37,8 +38,10 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self,
         *args,
-        response: requests.Response = None,
-        status_code: int = None,
+        response: typing.Optional[
+            typing.Union[requests.Response, aiohttp.ClientResponse]
+        ] = None,
+        status_code: typing.Optional[int] = None,
         **kwargs,
     ):
 
@@ -48,6 +51,15 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
             response = requests.Response()
         if status_code:
             response.status_code = status_code
+
+        if isinstance(response, aiohttp.ClientResponse):
+            if "request" not in kwargs:
+                kwargs["request"] = response.request_info
+
+            # consolidate the response object to be a requests.Response object-like
+            setattr(
+                response, "status_code", status_code if status_code else response.status
+            )
 
         requests.HTTPError.__init__(self, *args, response=response, **kwargs)
 
@@ -67,21 +79,30 @@ class MLRunHTTPStatusError(MLRunHTTPError):
         )
 
 
-def raise_for_status(response: requests.Response, message: str = None):
+def raise_for_status(
+    response: typing.Union[
+        requests.Response,
+        aiohttp.ClientResponse,
+    ],
+    message: str = None,
+):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
     If no specific error exists, raises an MLRunHTTPError
     """
     try:
         response.raise_for_status()
-    except requests.HTTPError as exc:
+    except (requests.HTTPError, aiohttp.ClientResponseError) as exc:
         error_message = err_to_str(exc)
         if message:
             error_message = f"{error_message}: {message}"
+        status_code = (
+            response.status_code
+            if hasattr(response, "status_code")
+            else response.status
+        )
         try:
-            raise STATUS_ERRORS[response.status_code](
-                error_message, response=response
-            ) from exc
+            raise STATUS_ERRORS[status_code](error_message, response=response) from exc
         except KeyError:
             raise MLRunHTTPError(error_message, response=response) from exc
 

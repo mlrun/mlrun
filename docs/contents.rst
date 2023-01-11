@@ -42,12 +42,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Software specifications
-   
-   sw-specs
-
-.. toctree::
-   :maxdepth: 1
    :caption: Change log
    
    change-log/_index

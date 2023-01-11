@@ -45,7 +45,14 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
+from ..utils import (
+    is_ipython,
+    is_legacy_artifact,
+    is_relative_path,
+    logger,
+    update_in,
+    url_suffix_is_yaml,
+)
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
@@ -2945,10 +2952,6 @@ def _has_module(handler, kind):
     if not handler:
         return False
     return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler
-
-
-def url_suffix_is_yaml(url):
-    return url.endswith(".yaml") or url.endswith(".yml")
 
 
 def _is_imported_artifact(artifact):

@@ -33,6 +33,7 @@ from mlrun.runtimes.utils import (
 
 from .base import BaseRuntime, BaseRuntimeHandler, RunError  # noqa
 from .constants import MPIJobCRDVersions
+from .context_handler import ContextHandler, LogInstructionType, ParseInstructionType, ArtifactType
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime
 from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa

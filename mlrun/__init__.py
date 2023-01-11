@@ -35,6 +35,7 @@ from .db import get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import NewTask, RunObject, RunTemplate, new_task
+from .runtimes import ArtifactType
 from .platforms import (
     VolumeMount,
     auto_mount,
@@ -55,7 +56,6 @@ from .projects import (
 )
 from .projects.project import _add_username_to_project_name_if_needed
 from .run import (
-    ArtifactType,
     code_to_function,
     function_to_module,
     get_dataitem,

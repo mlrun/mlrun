@@ -16,8 +16,8 @@ import http
 import typing
 
 import fastapi
-import fastapi.concurrency
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.schemas
@@ -134,7 +134,7 @@ def patch_project(
 
 
 @router.get("/projects/{name}", response_model=mlrun.api.schemas.Project)
-def get_project(
+async def get_project(
     name: str,
     db_session: sqlalchemy.orm.Session = fastapi.Depends(
         mlrun.api.api.deps.get_db_session
@@ -143,10 +143,12 @@ def get_project(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    project = get_project_member().get_project(db_session, name, auth_info.session)
+    project = await run_in_threadpool(
+        get_project_member().get_project, db_session, name, auth_info.session
+    )
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
@@ -206,7 +208,7 @@ def delete_project(
 
 
 @router.get("/projects", response_model=mlrun.api.schemas.ProjectsOutput)
-def list_projects(
+async def list_projects(
     format_: mlrun.api.schemas.ProjectsFormat = fastapi.Query(
         mlrun.api.schemas.ProjectsFormat.full, alias="format"
     ),
@@ -223,7 +225,8 @@ def list_projects(
     allowed_project_names = None
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        projects_output = get_project_member().list_projects(
+        projects_output = await run_in_threadpool(
+            get_project_member().list_projects,
             db_session,
             owner,
             mlrun.api.schemas.ProjectsFormat.name_only,
@@ -232,13 +235,14 @@ def list_projects(
             auth_info.projects_role,
             auth_info.session,
         )
-        allowed_project_names = (
+        allowed_project_names = await (
             mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
                 projects_output.projects,
                 auth_info,
             )
         )
-    return get_project_member().list_projects(
+    return await run_in_threadpool(
+        get_project_member().list_projects,
         db_session,
         owner,
         format_,
@@ -264,7 +268,7 @@ async def list_project_summaries(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    projects_output = await fastapi.concurrency.run_in_threadpool(
+    projects_output = await run_in_threadpool(
         get_project_member().list_projects,
         db_session,
         owner,
@@ -277,8 +281,7 @@ async def list_project_summaries(
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        allowed_project_names = await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions,
+        allowed_project_names = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
             auth_info,
         )
@@ -310,8 +313,7 @@ async def get_project_summary(
     )
     # skip permission check if it's the leader
     if not _is_request_from_leader(auth_info.projects_role):
-        await fastapi.concurrency.run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,

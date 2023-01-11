@@ -368,6 +368,12 @@ push-log-collector: log-collector
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
 		make push-log-collector
 
+
+.PHONY: compile-schemas
+compile-schemas: ## Compile schemas
+		cd go && \
+		make compile-schemas
+
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME)$(MLRUN_PYTHON_VERSION_SUFFIX):$(MLRUN_DOCKER_TAG)
@@ -378,7 +384,7 @@ MLRUN_API_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: api
-api: update-version-file ## Build mlrun-api docker image
+api: compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
@@ -403,7 +409,7 @@ MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
-build-test: update-version-file ## Build test docker image
+build-test: compile-schemas update-version-file ## Build test docker image
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
@@ -421,7 +427,7 @@ push-test: build-test ## Push test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: update-version-file ## Build system tests docker image
+build-test-system: compile-schemas update-version-file ## Build system tests docker image
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \

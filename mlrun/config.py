@@ -472,7 +472,7 @@ default_config = {
             # "best-effort" - use the sidecar, but if for some reason it's not available use the legacy method
             # note that this mode also effects the log querying method as well, meaning if the mode is "best-effort"
             # the log query will try to use the sidecar first and if it's not available it will use the legacy method
-            "mode": "sidecar",
+            "mode": "legacy",
             # interval for collecting and sending runs which require their logs to be collected
             "periodic_start_log_interval": 10,
         },

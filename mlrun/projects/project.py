@@ -246,7 +246,7 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
-        if url.endswith(".yaml"):
+        if url_suffix_is_yaml(url):
             project = _load_project_file(url, name, secrets)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -1480,7 +1480,7 @@ class MlrunProject(ModelObj):
             return artifact
 
         dataitem = mlrun.get_dataitem(item_path)
-        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+        if url_suffix_is_yaml(item_path):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
         elif item_path.endswith(".json"):
@@ -2811,7 +2811,7 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif url_suffix_is_yaml(url) or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
@@ -2899,7 +2899,7 @@ def _init_function_from_dict_legacy(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif url_suffix_is_yaml(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
             func.spec.image = image
@@ -2945,6 +2945,10 @@ def _has_module(handler, kind):
     if not handler:
         return False
     return (kind in RuntimeKinds.nuclio_runtimes() and ":" in handler) or "." in handler
+
+
+def url_suffix_is_yaml(url):
+    return url.endswith(".yaml") or url.endswith(".yml")
 
 
 def _is_imported_artifact(artifact):

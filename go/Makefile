@@ -44,17 +44,34 @@ log-collector: compile-schemas
 push-log-collector:
 	@echo Pushing log-collector image
 	docker push $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
+
+.PHONY: schemas-compiler
+schemas-compiler: schemas-compiler
+	@echo Building schemas-compiler image
+	docker build \
+		--file cmd/schemas_compiler/docker/Dockerfile \
+		--build-arg GO_VERSION=$(GO_VERSION) \
+		--tag $(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		.
 #
 # Protobuf
 #
 .PHONY: compile-schemas
-compile-schemas: cleanup compile-schemas-go compile-schemas-python
+compile-schemas: cleanup compile-schemas-go-dockerized compile-schemas-python
 	@echo Done
 
 .PHONY: compile-schemas-go
 compile-schemas-go:
 	@echo Compiling go schemas
 	protoc --go_out=. --go-grpc_out=. --go-grpc_opt=require_unimplemented_servers=false proto/*.proto
+
+.PHONY: compile-schemas-go-dockerized
+compile-schemas-go-dockerized: schemas-compiler
+	@echo Compiling go schemas in docker container
+	docker run \
+		-v $(shell dirname $(PWD)):/app \
+		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		make compile-schemas-go
 
 .PHONY: compile-schemas-python
 compile-schemas-python:

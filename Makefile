@@ -360,7 +360,7 @@ log-collector: update-version-file
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
-    cd go && \
+	cd go && \
 		MLRUN_VERSION=$(MLRUN_VERSION) \
 		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \

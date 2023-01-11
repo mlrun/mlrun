@@ -174,7 +174,8 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	jupyter \
 	base \
 	models \
-	models-gpu
+	models-gpu \
+	log-collector
 
 .PHONY: docker-images
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
@@ -347,6 +348,25 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 push-jupyter: jupyter ## Push mlrun jupyter docker image
 	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
 
+.PHONY: log-collector
+log-collector: update-version-file
+	cd go && \
+		MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
+		make log-collector
+
+.PHONY: push-log-collector
+push-log-collector: log-collector
+	cd go && \
+		MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
+		make push-log-collector
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api

@@ -1495,6 +1495,7 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        # Obtaining the item's absolute path from the project context, in case the user provided a relative path
         item_path, _ = _get_item_absolute_path(item_path, self)
         dataitem = mlrun.get_dataitem(item_path)
 
@@ -2951,10 +2952,12 @@ def _is_imported_artifact(artifact):
 
 
 def _get_item_absolute_path(url, project):
+    in_context = False
     if url and "://" not in url:
         if project.spec.context and not url.startswith("/"):
+            in_context = True
             url = path.join(project.spec.get_code_path(), url)
-            return url, True
+            return url, in_context
         if not path.isfile(url):
             raise OSError(f"{url} not found")
-    return url, False
+    return url, in_context

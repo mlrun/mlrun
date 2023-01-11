@@ -13,8 +13,8 @@
 # limitations under the License.
 #
 import fastapi
-import fastapi.concurrency
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.crud
@@ -34,8 +34,7 @@ async def store_log(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,
@@ -43,7 +42,7 @@ async def store_log(
         auth_info,
     )
     body = await request.body()
-    await fastapi.concurrency.run_in_threadpool(
+    await run_in_threadpool(
         mlrun.api.crud.Logs().store_log,
         body,
         project,
@@ -54,7 +53,7 @@ async def store_log(
 
 
 @router.get("/log/{project}/{uid}")
-def get_log(
+async def get_log(
     project: str,
     uid: str,
     size: int = -1,
@@ -66,15 +65,15 @@ def get_log(
         mlrun.api.api.deps.get_db_session
     ),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.log,
         project,
         uid,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    run_state, log = mlrun.api.crud.Logs().get_logs(
-        db_session, project, uid, size, offset
+    run_state, log = await run_in_threadpool(
+        mlrun.api.crud.Logs().get_logs, db_session, project, uid, size, offset
     )
     headers = {
         "x-mlrun-run-state": run_state,

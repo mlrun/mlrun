@@ -35,7 +35,7 @@ router = APIRouter()
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-def create_or_patch(
+async def create_or_patch(
     project: str,
     endpoint_id: str,
     model_endpoint: mlrun.api.schemas.ModelEndpoint,
@@ -56,7 +56,7 @@ def create_or_patch(
         PendingDeprecationWarning,
     )
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -76,7 +76,8 @@ def create_or_patch(
         )
     # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
     # V3IO_ACCESS_KEY here
-    mlrun.api.crud.ModelEndpoints().create_or_patch(
+    await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().create_or_patch,
         db_session=db_session,
         access_key=os.environ.get("V3IO_ACCESS_KEY"),
         model_endpoint=model_endpoint,
@@ -88,7 +89,7 @@ def create_or_patch(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     response_model=mlrun.api.schemas.ModelEndpoint,
 )
-def create_model_endpoint(
+async def create_model_endpoint(
     project: str,
     endpoint_id: str,
     model_endpoint: mlrun.api.schemas.ModelEndpoint,
@@ -110,7 +111,7 @@ def create_model_endpoint(
 
     :return: A Model endpoint object.
     """
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -128,7 +129,8 @@ def create_model_endpoint(
             f"\nMake sure the supplied function_uri, and model are configured as intended"
         )
 
-    return mlrun.api.crud.ModelEndpoints().create_model_endpoint(
+    return await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().create_model_endpoint,
         db_session=db_session,
         model_endpoint=model_endpoint,
     )
@@ -165,8 +167,7 @@ async def patch_model_endpoint(
     :return: A Model endpoint object.
     """
 
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -190,7 +191,7 @@ async def patch_model_endpoint(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
-def delete_model_endpoint(
+async def delete_model_endpoint(
     project: str,
     endpoint_id: str,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
@@ -206,7 +207,7 @@ def delete_model_endpoint(
 
     """
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project_name=project,
         resource_name=endpoint_id,
@@ -214,7 +215,8 @@ def delete_model_endpoint(
         auth_info=auth_info,
     )
 
-    mlrun.api.crud.ModelEndpoints().delete_model_endpoint(
+    await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().delete_model_endpoint,
         project=project,
         endpoint_id=endpoint_id,
     )
@@ -224,7 +226,7 @@ def delete_model_endpoint(
     "/projects/{project}/model-endpoints",
     response_model=mlrun.api.schemas.ModelEndpointList,
 )
-def list_model_endpoints(
+async def list_model_endpoints(
     project: str,
     model: Optional[str] = Query(None),
     function: Optional[str] = Query(None),
@@ -280,13 +282,14 @@ def list_model_endpoints(
              get a standard list of model endpoints use ModelEndpointList.endpoints.
     """
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,
         action=mlrun.api.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
 
-    endpoints = mlrun.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoints = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().list_model_endpoints,
         auth_info=auth_info,
         project=project,
         model=model,
@@ -298,7 +301,7 @@ def list_model_endpoints(
         top_level=top_level,
         uids=uids,
     )
-    allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_endpoints = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoints.endpoints,
         lambda _endpoint: (
@@ -316,7 +319,7 @@ def list_model_endpoints(
     "/projects/{project}/model-endpoints/{endpoint_id}",
     response_model=mlrun.api.schemas.ModelEndpoint,
 )
-def get_model_endpoint(
+async def get_model_endpoint(
     project: str,
     endpoint_id: str,
     start: str = Query(default="now-1h"),
@@ -348,7 +351,7 @@ def get_model_endpoint(
 
     :return: A ModelEndpoint object.
     """
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -356,7 +359,8 @@ def get_model_endpoint(
         auth_info,
     )
 
-    return mlrun.api.crud.ModelEndpoints().get_model_endpoint(
+    return await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,

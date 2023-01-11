@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
+	"github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
@@ -289,6 +290,31 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 
 	// verify log file content
 	suite.Require().Equal("fake logs", string(logBytes))
+}
+
+func (suite *LogCollectorTestSuite) TestGetLog() {
+
+	runId := "some-run-id"
+	podName := "my-pod"
+
+	// creat log file for runId and pod
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, podName)
+
+	// write log file
+	logText := "Some fake pod logs"
+	err := common.WriteToFile(suite.ctx, suite.logger, logFilePath, []byte(logText), false)
+	suite.Require().NoError(err, "Failed to write to file")
+
+	// get logs
+	log, err := suite.LogCollectorServer.GetLog(suite.ctx, &log_collector.GetLogRequest{
+		RunId:  runId,
+		Offset: 0,
+		Size:   100,
+	})
+	suite.Require().NoError(err, "Failed to get logs")
+
+	// verify logs
+	suite.Require().Equal(logText, string(log.Log))
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

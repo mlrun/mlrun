@@ -225,7 +225,7 @@ func (lcs *LogCollectorServer) GetLog(ctx context.Context, request *log_collecto
 	}
 
 	offset, size := lcs.validateOffsetAndSize(request.Offset, request.Size, uint64(fileInfo.Size()))
-	if offset == 0 || size == 0 {
+	if size == 0 {
 		lcs.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", request.RunId)
 		return &log_collector.GetLogResponse{
 			Success: true,

@@ -96,6 +96,10 @@ func WriteToFile(ctx context.Context, logger logger.Logger, filePath string, con
 		openFlags = openFlags | os.O_TRUNC
 	}
 
+	if err := EnsureFileExists(filePath); err != nil {
+		return errors.Wrap(err, "Failed to ensure file exists")
+	}
+
 	// open file
 	file, err := os.OpenFile(filePath, openFlags, 0600)
 	if err != nil {

@@ -14,7 +14,6 @@
 
 import os
 import time
-import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException

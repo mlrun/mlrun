@@ -214,7 +214,7 @@ def test_get_background_task_auth_skip(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = (
-        unittest.mock.Mock()
+        unittest.mock.AsyncMock()
     )
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
     response = client.post("/test/internal-background-tasks")

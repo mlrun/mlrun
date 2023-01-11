@@ -18,6 +18,7 @@ from http import HTTPStatus
 from uuid import uuid4
 
 import deepdiff
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -462,7 +463,8 @@ def test_feature_vector_list_partition_by(db: Session, client: TestClient) -> No
     )
 
 
-def test_verify_feature_vector_features_permissions(
+@pytest.mark.asyncio
+async def test_verify_feature_vector_features_permissions(
     db: Session, client: TestClient
 ) -> None:
     project = "some-project"
@@ -503,9 +505,9 @@ def test_verify_feature_vector_features_permissions(
         )
 
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = (
-        unittest.mock.Mock(side_effect=_verify_queried_resources)
+        unittest.mock.AsyncMock(side_effect=_verify_queried_resources)
     )
-    mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
+    await mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
         mlrun.api.schemas.AuthInfo(),
         project,
         {"spec": {"features": features, "label_feature": label_feature}},

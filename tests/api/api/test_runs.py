@@ -385,7 +385,7 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
 
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.Mock()
+        unittest.mock.AsyncMock()
     )
 
     # delete runs from specific project

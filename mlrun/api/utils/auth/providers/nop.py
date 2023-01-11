@@ -23,7 +23,7 @@ class Provider(
     mlrun.api.utils.auth.providers.base.Provider,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
-    def query_permissions(
+    async def query_permissions(
         self,
         resource: str,
         action: mlrun.api.schemas.AuthorizationAction,
@@ -32,7 +32,7 @@ class Provider(
     ) -> bool:
         return True
 
-    def filter_by_permissions(
+    async def filter_by_permissions(
         self,
         resources: typing.List,
         opa_resource_extractor: typing.Callable,

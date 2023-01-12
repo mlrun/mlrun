@@ -250,7 +250,11 @@ async def _collect_runs_logs():
         runs_to_update_requested_logs = []
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
-            get_db().list_distinct_runs_uids, db_session, project="*", requested_logs=False, only_uids=False
+            get_db().list_distinct_runs_uids,
+            db_session,
+            project="*",
+            requested_logs=False,
+            only_uids=False,
         )
         for run in runs:
             run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)

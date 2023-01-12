@@ -59,7 +59,13 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_distinct_runs_uids(self, session, project: str = None, requested_logs: bool = None, only_uids: bool = False):
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs: bool = None,
+        only_uids: bool = False,
+    ):
         pass
 
     @abstractmethod

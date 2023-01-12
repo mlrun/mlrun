@@ -60,7 +60,13 @@ class FileDB(DBInterface):
             self.db.update_run, updates, uid, project, iter
         )
 
-    def list_distinct_runs_uids(self, session, project: str = None, requested_logs: bool = None, only_uids: bool = False):
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs: bool = None,
+        only_uids: bool = False,
+    ):
         raise NotImplementedError()
 
     def update_runs_requested_logs(

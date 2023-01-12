@@ -683,6 +683,7 @@ def get_obj_status(selector=[], namespace=None):
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
     kind = "dask"
+    class_modes = {"run": "dask"}
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.
@@ -695,10 +696,6 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/function={object_id}"
-
-    @staticmethod
-    def get_possible_mlrun_class_label_values(class_type: str = None) -> List[str]:
-        return ["dask"]
 
     def _enrich_list_resources_response(
         self,

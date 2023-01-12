@@ -498,12 +498,12 @@ func (lcs *LogCollectorServer) validateOffsetAndSize(offset uint64, size uint64,
 // updateStateFile periodically checks if changes were made to the state, and updates them in the state file
 func (lcs *LogCollectorServer) updateStateFile(ctx context.Context) {
 
-	prevState := lcs.getState()
+	prevState := *lcs.getState()
 
 	for {
 
 		// get state file
-		currentState := lcs.getState()
+		currentState := *lcs.getState()
 
 		// if state changed, write it to file
 		if !reflect.DeepEqual(currentState, prevState) {
@@ -511,7 +511,7 @@ func (lcs *LogCollectorServer) updateStateFile(ctx context.Context) {
 			prevState = currentState
 
 			// write state file
-			if err := lcs.writeStateToFile(ctx, prevState); err != nil {
+			if err := lcs.writeStateToFile(ctx, &currentState); err != nil {
 				lcs.Logger.ErrorWithCtx(ctx, "Failed to write state file", "err", err)
 				return
 			}

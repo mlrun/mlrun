@@ -471,17 +471,17 @@ class _PipelineRunner(abc.ABC):
         namespace=None,
         source=None,
     ) -> _PipelineRunStatus:
-        return None
+        pass
 
     @staticmethod
     @abc.abstractmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
-        return ""
+        pass
 
     @staticmethod
     @abc.abstractmethod
     def get_state(run_id, project=None):
-        return ""
+        pass
 
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):

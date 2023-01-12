@@ -337,6 +337,9 @@ class Client(
 
     @property
     def is_sync(self):
+        """
+        False because client is synchronous
+        """
         return True
 
     def _find_latest_updated_at(
@@ -712,9 +715,21 @@ class AsyncClient(Client):
 
     @property
     def is_sync(self):
+        """
+        False because client is asynchronous
+        """
         return False
 
     def __getattribute__(self, name):
+        """
+        This method is called when trying to access an attribute of the class.
+        We override it to make sure that all *public* methods that are not async will be run in a thread pool.
+          by convention/norm - public methods are methods that don't start with an underscore.
+          If the method name starts with an underscore - it's a private method that was called from a public method,
+          which means that it's already running in a thread pool or runs asynchronously.
+        If the method is async, we don't do anything and let the async machinery handle it.
+
+        """
         attr = super().__getattribute__(name)
         if name.startswith("_") or not callable(attr):
             return attr

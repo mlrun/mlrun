@@ -40,10 +40,16 @@ async def chief_client(
     client = mlrun.api.utils.clients.chief.Client()
     # force running init again so the configured api url will be used
     client.__init__()
-    return client
+
+    try:
+        yield client
+    finally:
+        if client._session:
+            await client._session.close()
 
 
-def test_get_background_task_from_chief_success(
+@pytest.mark.asyncio
+async def test_get_background_task_from_chief_success(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -56,7 +62,7 @@ def test_get_background_task_from_chief_success(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -69,7 +75,7 @@ def test_get_background_task_from_chief_success(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -91,11 +97,12 @@ def test_get_background_task_from_chief_failed(
         f"{api_url}/api/v1/background-tasks/{task_name}",
         status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
 
 
-def test_trigger_migration_succeeded(
+@pytest.mark.asyncio
+async def test_trigger_migration_succeeded(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -110,7 +117,7 @@ def test_trigger_migration_succeeded(
         json=response_body,
         status_code=http.HTTPStatus.ACCEPTED,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -125,7 +132,7 @@ def test_trigger_migration_succeeded(
         json=response_body,
         status_code=http.HTTPStatus.ACCEPTED,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -137,7 +144,8 @@ def test_trigger_migration_succeeded(
     assert background_task.metadata.updated > background_task.metadata.created
 
 
-def test_trigger_migrations_from_chief_failures(
+@pytest.mark.asyncio
+async def test_trigger_migrations_from_chief_failures(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -146,7 +154,7 @@ def test_trigger_migrations_from_chief_failures(
         f"{api_url}/api/v1/operations/migrations",
         status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
     assert not response.body
 
@@ -155,14 +163,15 @@ def test_trigger_migrations_from_chief_failures(
         status_code=http.HTTPStatus.PRECONDITION_FAILED.value,
         text="Migrations were already triggered and failed. Restart the API to retry",
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert "Migrations were already triggered and failed" in response.body.decode(
         "utf-8"
     )
 
 
-def test_trigger_migrations_chief_restarted_while_executing_migrations(
+@pytest.mark.asyncio
+async def test_trigger_migrations_chief_restarted_while_executing_migrations(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -178,7 +187,7 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
         json=response_body,
         status_code=http.HTTPStatus.ACCEPTED,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -192,7 +201,7 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
     requests_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name

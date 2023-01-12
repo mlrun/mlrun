@@ -2016,7 +2016,7 @@ class MlrunProject(ModelObj):
                 if overwrite:
                     logger.warn(
                         "Please use override (SDK) or --override-workflow (CLI) "
-                        "instead ov overwrite (SDK) or --overwrite-schedule (CLI)"
+                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
                         "This will be removed in 1.6.0",
                         # TODO: Remove in 1.6.0
                     )

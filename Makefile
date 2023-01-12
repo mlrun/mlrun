@@ -549,7 +549,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		-m "not enterprise" \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
-.PHONY: test-package
+.PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run
 

@@ -230,7 +230,7 @@ class SQLDB(DBInterface):
         self._delete_empty_labels(session, Run.Label)
 
     def update_runs_requested_logs(
-        self, session, uids: list[str], requested_logs: bool = False
+        self, session, uids: List[str], requested_logs: bool = False
     ):
         self._query(session, Run).filter(Run.id.in_(uids)).update(
             {Run.requested_logs: requested_logs}, synchronize_session=False

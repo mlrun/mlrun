@@ -60,7 +60,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def update_runs_requested_logs(
-        self, session, uids: list[str], requested_logs: bool = False
+        self, session, uids: List[str], requested_logs: bool = False
     ):
         pass
 

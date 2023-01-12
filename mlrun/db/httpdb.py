@@ -2972,7 +2972,7 @@ class HTTPRunDB(RunDBInterface):
             "source": source,
             "run_name": run_name,
             "namespace": namespace,
-            "image": image,
+            "image": image or mlrun.mlconf.default_base_image,
         }
         if isinstance(workflow_spec, schemas.WorkflowSpec):
             workflow_spec = workflow_spec.dict()

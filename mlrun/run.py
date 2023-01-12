@@ -443,7 +443,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     examples::
 
-        function = mlrun.import_function("hub://sklearn_classifier")
+        function = mlrun.import_function("hub://auto_trainer")
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
@@ -1737,7 +1737,10 @@ class ContextHandler:
         for key in kwargs.keys():
             if isinstance(kwargs[key], mlrun.DataItem) and expected_arguments_types[
                 key
-            ] not in [inspect._empty, mlrun.DataItem]:
+            ] not in [
+                inspect._empty,
+                mlrun.DataItem,
+            ]:
                 kwargs[key] = self._parse_input(
                     data_item=kwargs[key], expected_type=expected_arguments_types[key]
                 )

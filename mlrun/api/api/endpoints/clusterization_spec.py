@@ -34,4 +34,5 @@ def clusterization_spec():
         chief_client = mlrun.api.utils.clients.chief.Client()
         return chief_client.get_clusterization_spec()
 
+    # TODO: cache me
     return mlrun.api.crud.ClusterizationSpec().get_clusterization_spec()

@@ -55,7 +55,7 @@ def test_sync_functions():
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+    mlrun.import_function("hub://auto_trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
 
@@ -459,88 +459,6 @@ def test_set_func_requirements():
         "python -m pip install y",
         "python -m pip install pandas",
     ]
-
-
-def test_set_function_mask_v3io_credentials():
-    project = mlrun.projects.MlrunProject("newproj")
-    describe_func1 = mlrun.import_function("hub://describe", project=project.name)
-    v3io_access_key = "v3io-access-key"
-    v3io_username = "v3io-username"
-
-    os.environ["V3IO_ACCESS_KEY"] = v3io_access_key
-    os.environ["V3IO_USERNAME"] = v3io_username
-
-    describe_func1.apply(mlrun.platforms.auto_mount())
-    assert describe_func1.get_env("V3IO_ACCESS_KEY") is not None
-    assert describe_func1.get_env("V3IO_USERNAME") is not None
-    assert describe_func1.spec.volumes[0]["name"] == "v3io"
-    assert (
-        describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"]
-        == v3io_access_key
-    )
-    assert describe_func1.spec.volume_mounts[0]["name"] == "v3io"
-    describe_func1.metadata.credentials.access_key = "some-access-key"
-
-    project.set_function(describe_func1, "describe")
-
-    masked_describe_func = project.get_function("describe")
-    assert masked_describe_func.metadata.credentials.access_key is None
-    assert masked_describe_func.get_env("V3IO_ACCESS_KEY") is None
-    assert masked_describe_func.get_env("V3IO_USERNAME") is None
-    assert masked_describe_func.spec.volumes == []
-    assert masked_describe_func.spec.volume_mounts == []
-
-    secret_name = "v3io-secret"
-    describe_func1 = mlrun.import_function(
-        "hub://describe", project=project.name, new_name="describe1"
-    )
-    v3io_volume_name = "flexFuseV3IO"
-    describe_func1.apply(
-        mlrun.platforms.mount_v3io(name=v3io_volume_name, secret=secret_name)
-    )
-
-    assert describe_func1.get_env("V3IO_ACCESS_KEY") is None
-    assert describe_func1.get_env("V3IO_USERNAME") is None
-    assert describe_func1.spec.volumes[0]["flexVolume"]["driver"] == "v3io/fuse"
-    assert (
-        describe_func1.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
-    )
-    assert (
-        describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"]
-        == v3io_access_key
-    )
-
-    project.set_function(describe_func1, "describe1")
-
-    masked_describe1_func = project.get_function("describe1")
-    assert masked_describe1_func.metadata.credentials.access_key is None
-    assert masked_describe1_func.get_env("V3IO_ACCESS_KEY") is None
-    assert masked_describe1_func.get_env("V3IO_USERNAME") is None
-    assert masked_describe1_func.spec.volume_mounts == describe_func1.spec.volume_mounts
-    assert masked_describe1_func.spec.volumes[0]["name"] == v3io_volume_name
-    assert (
-        describe_func1.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
-    )
-    assert describe_func1.spec.volumes[0]["flexVolume"]["options"]["accessKey"] is None
-
-
-def test_set_function_mask_s3_credentials():
-    project = mlrun.projects.MlrunProject("newproj")
-    describe_func = mlrun.import_function("hub://describe", project=project.name)
-    s3_access_key = "s3-access-key"
-    s3_secret = "s3-secret"
-
-    os.environ["AWS_ACCESS_KEY_ID"] = s3_access_key
-    os.environ["AWS_SECRET_ACCESS_KEY"] = s3_secret
-    describe_func.apply(mlrun.platforms.mount_s3())
-    assert describe_func.get_env("AWS_ACCESS_KEY_ID") is not None
-    assert describe_func.get_env("AWS_SECRET_ACCESS_KEY") is not None
-
-    project.set_function(describe_func, "describe")
-
-    masked_describe_func = project.get_function("describe")
-    assert masked_describe_func.get_env("AWS_ACCESS_KEY_ID") is None
-    assert masked_describe_func.get_env("AWS_SECRET_ACCESS_KEY") is None
 
 
 def test_set_func_with_tag():

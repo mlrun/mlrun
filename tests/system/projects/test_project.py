@@ -784,3 +784,33 @@ class TestProject(TestMLRunSystem):
         assert (
             run.state == mlrun.run.RunStatuses.failed
         ), "pipeline supposed to fail since newflow is not in the temporary source"
+
+    def _assert_scheduled(self, project_name, schedule_str):
+        schedule = self._run_db.get_schedule(project_name, "main")
+        assert schedule.scheduled_object["schedule"] == schedule_str
+
+    def test_backwards_compatibility_overwrite(self):
+        # TODO: Remove in 1.6.0 when removing overwrite from SDK
+        name = "set-workflow"
+        self.custom_project_names_to_delete.append(name)
+
+        # _create_project contains set_workflow inside:
+        project = self._create_project(name)
+
+        archive_path = f"v3io:///projects/{project.name}/archived.zip"
+        project.export(archive_path)
+        project.spec.source = archive_path
+        project.save()
+        print(project.to_yaml())
+
+        schedule = "*/20 * * * *"
+        project.run("main", schedule=schedule)
+        self._assert_scheduled(name, schedule)
+
+        schedule = "*/21 * * * *"
+        project.run("main", schedule=schedule, override=True)
+        self._assert_scheduled(name, schedule)
+
+        schedule = "*/22 * * * *"
+        project.run("main", schedule=schedule, overwrite=True)
+        self._assert_scheduled(name, schedule)

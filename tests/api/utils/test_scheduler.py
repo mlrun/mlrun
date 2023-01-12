@@ -1316,6 +1316,9 @@ async def test_schedule_job_next_run_time(
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
 
+    # invocation should fail due to concurrency limit
+    # the next run time should be updated to the next second after the invocation timestamp
+    schedule_invocation_timestamp = datetime.now(timezone.utc)
     await scheduler.invoke_schedule(
         db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
     )
@@ -1323,14 +1326,14 @@ async def test_schedule_job_next_run_time(
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
 
-    # invocation should have failed due to concurrency limit
     # assert next run time was updated
     schedule = scheduler.get_schedule(
         db,
         project_name,
         schedule_name,
     )
-    assert schedule.next_run_time > datetime.now(timezone.utc)
+
+    assert schedule.next_run_time > schedule_invocation_timestamp
 
     # wait so all runs will complete
     await asyncio.sleep(5)

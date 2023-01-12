@@ -64,6 +64,86 @@ class Logs(
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
     ) -> typing.Tuple[str, bytes]:
+        if (
+            mlrun.mlconf.sidecar.logs_collector.mode
+            == mlrun.api.schemas.LogsCollectorMode.best_effort
+        ):
+            try:
+                self._get_logs_from_logs_collector(
+                    db_session,
+                    project,
+                    uid,
+                    size,
+                    offset,
+                    source,
+                )
+            except Exception as exc:
+                if mlrun.mlconf.sidecar.logs_collector.verbose:
+                    logger.warning(
+                        "Failed to get logs from logs collector, falling back to legacy method",
+                        exc=exc,
+                    )
+                return self._get_logs_legacy_method(
+                    db_session,
+                    project,
+                    uid,
+                    size,
+                    offset,
+                    source,
+                )
+        elif (
+            mlrun.mlconf.sidecar.logs_collector.mode
+            == mlrun.api.schemas.LogsCollectorMode.sidecar
+        ):
+            return self._get_logs_from_logs_collector(
+                db_session,
+                project,
+                uid,
+                size,
+                offset,
+                source,
+            )
+        elif (
+            mlrun.mlconf.sidecar.logs_collector.mode
+            == mlrun.api.schemas.LogsCollectorMode.legacy
+        ):
+            return self._get_logs_legacy_method(
+                db_session,
+                project,
+                uid,
+                size,
+                offset,
+                source,
+            )
+
+    def _get_logs_from_logs_collector(
+        self,
+        db_session: Session,
+        project: str,
+        uid: str,
+        size: int = -1,
+        offset: int = 0,
+        source: LogSources = LogSources.AUTO,
+    ) -> typing.Tuple[str, bytes]:
+        pod_name = get_db().get_log_pod_name(db_session, project, uid)
+        if not pod_name:
+            return "", b""
+        return self._get_logs_from_pod(
+            pod_name,
+            size,
+            offset,
+            source,
+        )
+
+    @staticmethod
+    def _get_logs_legacy_method(
+        db_session: Session,
+        project: str,
+        uid: str,
+        size: int = -1,
+        offset: int = 0,
+        source: LogSources = LogSources.AUTO,
+    ) -> typing.Tuple[str, bytes]:
         """
         :return: Tuple with:
             1. str of the run state (so watchers will know whether to continue polling for logs)

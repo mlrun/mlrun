@@ -464,7 +464,7 @@ default_config = {
         "expose_internal_api_endpoints": False,
     },
     "sidecar": {
-        "log_collector": {
+        "logs_collector": {
             "address": "",
             # log collection mode can be one of: "sidecar", "legacy", "best-effort"
             # "sidecar" - use the sidecar to collect logs
@@ -475,6 +475,7 @@ default_config = {
             "mode": "legacy",
             # interval for collecting and sending runs which require their logs to be collected
             "periodic_start_log_interval": 10,
+            "verbose": True,
         },
     },
 }

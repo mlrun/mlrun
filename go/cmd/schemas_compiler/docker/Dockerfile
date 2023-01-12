@@ -14,15 +14,18 @@
 
 ARG GO_VERSION=1.19
 
-FROM golang:${GO_VERSION} as build-binary
+FROM golang:${GO_VERSION}
 
 ARG PROTOC_GEN_GO_VERSION=v1.28
 ARG PROTOC_GEN_GO_GRPC_VERSION=v1.2
+ARG GRPCIO_TOOLS_VERSION="~=1.41.0"
 
 WORKDIR /app/go
 
 RUN apt-get update
-RUN apt install -y protobuf-compiler
+RUN apt install -y protobuf-compiler python3 python3-setuptools python3-pip
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
+
+RUN pip install grpcio-tools${GRPCIO_TOOLS_VERSION}

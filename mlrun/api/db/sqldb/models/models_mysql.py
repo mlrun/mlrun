@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-import pickle
+import sys
 import warnings
 from datetime import datetime, timezone
 
@@ -33,6 +33,14 @@ from sqlalchemy.orm import class_mapper, relationship
 
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
+
+if sys.version_info < (3, 8):
+    try:
+        import pickle5 as pickle
+    except ImportError:
+        import pickle
+else:
+    import pickle
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter

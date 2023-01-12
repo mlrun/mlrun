@@ -1214,9 +1214,9 @@ async def test_schedule_job_concurrency_limit(
     global call_counter
     call_counter = 0
 
-    now = datetime.now(timezone.utc)
-    now_plus_1_seconds = now + timedelta(seconds=1)
-    now_plus_5_seconds = now + timedelta(seconds=5)
+    after_sleep_timestamp = datetime.now(timezone.utc)
+    now_plus_1_seconds = after_sleep_timestamp + timedelta(seconds=1)
+    now_plus_5_seconds = after_sleep_timestamp + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
         second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )
@@ -1248,7 +1248,7 @@ async def test_schedule_job_concurrency_limit(
 
     random_sleep_time = random.randint(1, 5)
     await asyncio.sleep(random_sleep_time)
-    now = datetime.now(timezone.utc)
+    after_sleep_timestamp = datetime.now(timezone.utc)
 
     schedule = scheduler.get_schedule(
         db,
@@ -1257,11 +1257,11 @@ async def test_schedule_job_concurrency_limit(
     )
     if schedule.next_run_time is None:
         # next run time may be none if the job was completed (i.e. end date was reached)
-        assert now >= now_plus_5_seconds
+        assert after_sleep_timestamp >= now_plus_5_seconds
 
     else:
         # scrub the microseconds to reduce noise
-        assert schedule.next_run_time >= now.replace(microsecond=0)
+        assert schedule.next_run_time >= after_sleep_timestamp.replace(microsecond=0)
 
     # wait so all runs will complete
     await asyncio.sleep(7 - random_sleep_time)

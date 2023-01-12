@@ -1009,8 +1009,7 @@ class KubeResource(BaseRuntime):
         :param image_pull_secret_name: Name of a k8s secret containing image repository's authentication credentials
         """
         if image_pull_policy is not None:
-            # An empty string can be used to reset to default configuration
-            allowed_policies = ["Always", "IfNotPresent", "Never", ""]
+            allowed_policies = ["Always", "IfNotPresent", "Never"]
             if image_pull_policy not in allowed_policies:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Image pull policy must be one of {allowed_policies}, got {image_pull_policy}"

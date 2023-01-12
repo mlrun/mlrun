@@ -192,6 +192,7 @@ class SQLDB(DBInterface):
                 iteration=iter,
                 state=run_state(run_data),
                 start_time=run_start_time(run_data) or now,
+                requested_logs=False,
             )
         self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
@@ -227,6 +228,14 @@ class SQLDB(DBInterface):
         run.struct = struct
         self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
+
+    def update_runs_requested_logs(
+        self, session, uids: list[str], requested_logs: bool = False
+    ):
+        self._query(session, Run).filter(Run.id.in_(uids)).update(
+            {Run.requested_logs: requested_logs}, synchronize_session=False
+        )
+        session.commit()
 
     def read_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
@@ -297,6 +306,9 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+
+        if as_records:
+            return query.all()
 
         runs = RunList()
         for run in query:

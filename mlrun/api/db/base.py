@@ -59,6 +59,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def update_runs_requested_logs(
+        self, session, uids: list[str], requested_logs: bool = False
+    ):
+        pass
+
+    @abstractmethod
     def read_run(self, session, uid, project="", iter=0):
         pass
 

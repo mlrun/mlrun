@@ -307,9 +307,6 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
-        if as_records:
-            return query.all()
-
         runs = RunList()
         for run in query:
             runs.append(run.struct)

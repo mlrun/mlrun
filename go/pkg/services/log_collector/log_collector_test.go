@@ -219,8 +219,7 @@ func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
 	suite.Require().Equal(labelSelector, state.InProgress[runId].LabelSelector)
 
 	// remove item from in progress
-	err = suite.LogCollectorServer.removeItemFromInProgress(runId)
-	suite.Require().NoError(err, "Failed to remove item from in progress")
+	suite.LogCollectorServer.removeItemFromInProgress(runId)
 
 	// read state file again
 	state = suite.LogCollectorServer.getState()

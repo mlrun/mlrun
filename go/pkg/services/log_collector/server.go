@@ -102,7 +102,7 @@ func (lcs *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 	lcs.state = state
 
 	// start state updating goroutine
-	go lcs.updateStateFile(ctx, lcs.state)
+	go lcs.updateStateFile(ctx)
 
 	// if there are items in the stateFile, call StartLog for each of them
 	for runId, logItem := range state.InProgress {
@@ -261,16 +261,19 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 	}
 	restClientRequest := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).GetLogs(podName, podLogOptions)
 
-	// initialize error for the while loop
-	streamErr := errors.New("Stream error")
-	var stream io.ReadCloser
+	// initialize stream and error for the while loop
+	var (
+		streamErr error
+		stream    io.ReadCloser
+	)
 
 	// stream logs - retry if failed
-	for streamErr != nil {
+	for {
 		stream, streamErr = restClientRequest.Stream(ctx)
-		if streamErr != nil {
-			lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
+		if streamErr == nil {
+			break
 		}
+		lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
 		time.Sleep(1 * time.Second)
 	}
 	defer stream.Close() // nolint: errcheck
@@ -281,15 +284,15 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 		// This is blocking until there is something to read
 		numBytes, err := stream.Read(buf)
 
-		// nothing read, continue
-		if numBytes == 0 {
-			continue
-		}
-
 		// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
 		if err == io.EOF {
 			lcs.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
 			break
+		}
+
+		// nothing read, continue
+		if numBytes == 0 {
+			continue
 		}
 
 		// if error is not EOF, log it and continue
@@ -315,9 +318,7 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 		"podName", podName)
 
 	// remove run id from state file
-	if err := lcs.removeItemFromInProgress(runId); err != nil {
-		lcs.Logger.WarnWithCtx(ctx, "Failed to remove run id from state file")
-	}
+	lcs.removeItemFromInProgress(runId)
 }
 
 // addItemToInProgress adds an item to the `in_progress` list in the state file
@@ -346,7 +347,7 @@ func (lcs *LogCollectorServer) addItemToInProgress(ctx context.Context, runId st
 }
 
 // removeItemFromInProgress removes an item from the `in_progress` list in the state file
-func (lcs *LogCollectorServer) removeItemFromInProgress(runId string) error {
+func (lcs *LogCollectorServer) removeItemFromInProgress(runId string) {
 
 	// get state file
 	state := lcs.getState()
@@ -355,8 +356,6 @@ func (lcs *LogCollectorServer) removeItemFromInProgress(runId string) error {
 	delete(state.InProgress, runId)
 
 	lcs.setState(state)
-
-	return nil
 }
 
 func (lcs *LogCollectorServer) getState() *State {
@@ -364,7 +363,6 @@ func (lcs *LogCollectorServer) getState() *State {
 	defer lcs.stateLock.Unlock()
 
 	return lcs.state
-
 }
 
 func (lcs *LogCollectorServer) setState(state *State) {
@@ -498,7 +496,9 @@ func (lcs *LogCollectorServer) validateOffsetAndSize(offset uint64, size uint64,
 }
 
 // updateStateFile periodically checks if changes were made to the state, and updates them in the state file
-func (lcs *LogCollectorServer) updateStateFile(ctx context.Context, state *State) {
+func (lcs *LogCollectorServer) updateStateFile(ctx context.Context) {
+
+	prevState := lcs.getState()
 
 	for {
 
@@ -506,12 +506,12 @@ func (lcs *LogCollectorServer) updateStateFile(ctx context.Context, state *State
 		currentState := lcs.getState()
 
 		// if state changed, write it to file
-		if !reflect.DeepEqual(currentState, state) {
+		if !reflect.DeepEqual(currentState, prevState) {
 
-			state = currentState
+			prevState = currentState
 
 			// write state file
-			if err := lcs.writeStateToFile(ctx, state); err != nil {
+			if err := lcs.writeStateToFile(ctx, prevState); err != nil {
 				lcs.Logger.ErrorWithCtx(ctx, "Failed to write state file", "err", err)
 				return
 			}

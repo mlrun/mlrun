@@ -1015,7 +1015,6 @@ def project(
     ensure_project,
     schedule,
     override_workflow,
-    image,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1093,7 +1092,6 @@ def project(
                 schedule=schedule,
                 timeout=timeout,
                 override=override_workflow,
-                image=image,
             )
 
         except Exception as exc:

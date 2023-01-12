@@ -167,7 +167,7 @@ def submit_workflow(
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
-        image=workflow_request.image or mlrun.mlconf.default_base_image,
+        image=workflow_spec.image or mlrun.mlconf.default_base_image,
     )
     logger.debug(
         "saved function for running workflow",
@@ -177,6 +177,7 @@ def submit_workflow(
         arguments=workflow_spec.args,
         source=project.spec.source,
         kind=workflow_runner.kind,
+        image=workflow_runner.spec.image,
     )
 
     run_uid = None

@@ -31,6 +31,7 @@ class WorkflowSpec(pydantic.BaseModel):
     schedule: typing.Union[str, ScheduleCronTrigger] = None
     run_local: typing.Optional[bool] = None
     override: typing.Optional[bool] = None
+    image: typing.Optional[str] = None
 
 
 class WorkflowRequest(pydantic.BaseModel):
@@ -40,7 +41,6 @@ class WorkflowRequest(pydantic.BaseModel):
     source: typing.Optional[str] = None
     run_name: typing.Optional[str] = None
     namespace: typing.Optional[str] = None
-    image: typing.Optional[str] = None
 
 
 class WorkflowResponse(pydantic.BaseModel):

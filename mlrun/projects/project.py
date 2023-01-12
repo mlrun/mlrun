@@ -1067,6 +1067,7 @@ class MlrunProject(ModelObj):
         handler=None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
         ttl=None,
+        image: str = None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1082,6 +1083,7 @@ class MlrunProject(ModelObj):
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
+        :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
         """
         if not workflow_path:
@@ -1108,6 +1110,8 @@ class MlrunProject(ModelObj):
         workflow["schedule"] = schedule
         if ttl:
             workflow["ttl"] = ttl
+        if image:
+            workflow["image"] = image
         self.spec.set_workflow(name, workflow)
 
     @property
@@ -1941,7 +1945,6 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         override: bool = False,
-        image: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1971,7 +1974,6 @@ class MlrunProject(ModelObj):
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
         :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one.
-        :param image:     image for workflow runner job, only for scheduled and remote workflows
         :returns: run id
         """
 
@@ -2039,7 +2041,6 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
-            image=image,
         )
         # run is None when scheduling
         if (

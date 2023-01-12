@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,12 +24,12 @@ get_os() {
 }
 
 SCHEMAS_DIR=../mlrun/api/proto/
-SED_REGEX='s/mlrun.api.proto/./g'
+SED_REGEX='s/from proto import/from \. import/g'
 OS=$(get_os)
-SCHEMA_FILES=$(find ../mlrun/api/proto/ -name '*pb2*.py')
+SCHEMA_FILES=$(find ../mlrun/api/proto/ -name '*pb2_grpc.py')
 
-if [ "${OS}" == "Mac" ]; then
-  sed -i '' -e ${SED_REGEX} ${SCHEMA_FILES}
+if [ "${OS}" = "Mac" ]; then
+  sed -i '' -e "${SED_REGEX}" ${SCHEMA_FILES}
 else
-  sed -i -e ${SED_REGEX} ${SCHEMA_FILES}
+  sed -i -e "${SED_REGEX}" ${SCHEMA_FILES}
 fi

@@ -18,35 +18,46 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
-	"github.com/mlrun/mlrun/proto/build/liveness"
+	"github.com/mlrun/mlrun/proto/build/health"
 
 	"github.com/nuclio/errors"
-	"github.com/nuclio/loggerus"
+	"github.com/nuclio/logger"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+const HealthWatchInterval = 5 * time.Second
+
 type MlrunGRPCServer interface {
-	getLogger() *loggerus.Loggerus
-	setServer(*grpc.Server)
-	getServerOpts() []grpc.ServerOption
 	RegisterRoutes(context context.Context)
 	OnBeforeStart(context context.Context) error
+	getLogger() logger.Logger
+	setServer(*grpc.Server)
+	getServerOpts() []grpc.ServerOption
 }
 
 type AbstractMlrunGRPCServer struct {
-	logger         *loggerus.Loggerus
-	server         *grpc.Server
+	Logger         logger.Logger
+	Server         *grpc.Server
+	servingStatus  health.HealthCheckResponse_ServingStatus
 	grpcServerOpts []grpc.ServerOption
 }
 
-func (s *AbstractMlrunGRPCServer) getLogger() *loggerus.Loggerus {
-	return s.logger
+func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
+	return &AbstractMlrunGRPCServer{
+		Logger:         logger,
+		grpcServerOpts: grpcServerOpts,
+		servingStatus:  health.HealthCheckResponse_SERVING,
+	}, nil
+}
+
+func (s *AbstractMlrunGRPCServer) getLogger() logger.Logger {
+	return s.Logger
 }
 
 func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
-	s.server = server
+	s.Server = server
 }
 
 func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
@@ -54,29 +65,43 @@ func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 }
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {
-	s.logger.DebugCtx(ctx, "Registering routes")
-	liveness.RegisterReadinessProbeServer(s.server, s)
-	liveness.RegisterLivenessProbeServer(s.server, s)
+	s.Logger.DebugCtx(ctx, "Registering routes")
+	health.RegisterHealthServer(s.Server, s)
 }
 
 func (s *AbstractMlrunGRPCServer) OnBeforeStart(ctx context.Context) error {
-	s.logger.DebugCtx(ctx, "Initializing Server")
+	s.Logger.DebugCtx(ctx, "Initializing Server")
 	return nil
 }
 
-func (s *AbstractMlrunGRPCServer) Liveness(context.Context, *emptypb.Empty) (*liveness.LivenessResponse, error) {
-	return &liveness.LivenessResponse{Live: true}, nil
-}
-
-func (s *AbstractMlrunGRPCServer) Readiness(context.Context, *emptypb.Empty) (*liveness.ReadinessResponse, error) {
-	return &liveness.ReadinessResponse{Ready: true}, nil
-}
-
-func NewAbstractMlrunGRPCServer(logger *loggerus.Loggerus, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
-	return &AbstractMlrunGRPCServer{
-		logger:         logger,
-		grpcServerOpts: grpcServerOpts,
+func (s *AbstractMlrunGRPCServer) Check(context.Context, *health.HealthCheckRequest) (*health.HealthCheckResponse, error) {
+	return &health.HealthCheckResponse{
+		Status: s.servingStatus,
 	}, nil
+}
+
+func (s *AbstractMlrunGRPCServer) Watch(request *health.HealthCheckRequest, stream health.Health_WatchServer) error {
+	currentStatus := s.servingStatus
+
+	// send once the status
+	if err := stream.Send(&health.HealthCheckResponse{
+		Status: currentStatus,
+	}); err != nil {
+		return err
+	}
+
+	// start watching status
+	for {
+		if s.servingStatus != currentStatus {
+			currentStatus = s.servingStatus
+			if err := stream.Send(&health.HealthCheckResponse{
+				Status: currentStatus,
+			}); err != nil {
+				return err
+			}
+		}
+		time.Sleep(HealthWatchInterval)
+	}
 }
 
 func StartServer(server MlrunGRPCServer, port int) error {
@@ -97,11 +122,10 @@ func StartServer(server MlrunGRPCServer, port int) error {
 		return errors.Wrap(err, "Failed running on before start hook")
 	}
 	logger.DebugWithCtx(initContext, "Starting server")
+	defer listener.Close()
 	if err := grpcServer.Serve(listener); err != nil {
 		return errors.Wrap(err, "Failed to start server")
 	}
-
-	defer listener.Close()
 
 	return nil
 }

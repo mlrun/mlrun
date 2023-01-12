@@ -35,6 +35,7 @@ class ClientSpec(
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
             kfp_image=config.kfp_image,
+            kfp_url=config.resolve_kfp_url(),
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=resolve_nuclio_version(),

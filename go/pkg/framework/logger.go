@@ -18,12 +18,13 @@ import (
 	"os"
 
 	"github.com/nuclio/errors"
+	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/sirupsen/logrus"
 )
 
-func NewLogger(name string, logLevel string, formatter string) (*loggerus.Loggerus, error) {
-	var loggerInstance *loggerus.Loggerus
+func NewLogger(name string, logLevel string, formatter string) (logger.Logger, error) {
+	var loggerInstance logger.Logger
 	var err error
 
 	parsedLogLevel, err := logrus.ParseLevel(logLevel)

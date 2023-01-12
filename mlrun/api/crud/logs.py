@@ -81,8 +81,7 @@ class Logs(
                 fp.seek(offset)
                 out = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
-            k8s = get_k8s()
-            if k8s and k8s.is_running_inside_kubernetes_cluster():
+            if get_k8s():
                 run_kind = data.get("metadata", {}).get("labels", {}).get("kind")
                 pods = get_k8s().get_logger_pods(project, uid, run_kind)
                 if pods:

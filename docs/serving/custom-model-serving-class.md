@@ -132,7 +132,7 @@ To specify the topology, router class and class args use `.set_topology()` with 
 
 To provision a serving function, you need to create an MLRun function of type `serving`.
 This can be done by using the `code_to_function()` call from a notebook. You can also import 
-an existing serving function/template from the Function Hub.
+an existing serving function/template from the marketplace.
 
 Example (run inside a notebook): this code converts a notebook to a serving function and adding a model to it:
 

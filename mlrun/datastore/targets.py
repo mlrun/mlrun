@@ -490,11 +490,11 @@ class BaseStoreTarget(DataTargetBase):
                         "Format for writing dask dataframe should be CSV or Parquet!"
                     )
             except Exception as exc:
-                raise RuntimeError("Failed to write Dask Dataframe") from exc
+                raise RuntimeError(f"Failed to write Dask Dataframe for {exc}.")
         else:
             target_path = generate_path_with_chunk(self, chunk_id)
-            file_system = self._get_store().get_filesystem(False)
-            if file_system.protocol == "file":
+            fs = self._get_store().get_filesystem(False)
+            if fs.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
@@ -524,21 +524,16 @@ class BaseStoreTarget(DataTargetBase):
                     )
                     if unit == time_partitioning_granularity:
                         break
-            storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
-                target_df,
-                storage_options,
-                target_path,
-                partition_cols=partition_cols,
-                **kwargs,
+                target_df, fs, target_path, partition_cols=partition_cols, **kwargs
             )
             try:
-                return file_system.size(target_path)
+                return fs.size(target_path)
             except Exception:
                 return None
 
     @staticmethod
-    def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         raise NotImplementedError()
 
     def set_secrets(self, secrets):
@@ -765,15 +760,10 @@ class ParquetTarget(BaseStoreTarget):
             )
 
     @staticmethod
-    def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
         # In order to save the DataFrame in parquet format, all of the column names must be strings:
         df.columns = [str(column) for column in df.columns.tolist()]
-        df.to_parquet(
-            target_path,
-            partition_cols=partition_cols,
-            storage_options=storage_options,
-            **kwargs,
-        )
+        df.to_parquet(target_path, partition_cols=partition_cols, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -861,7 +851,6 @@ class ParquetTarget(BaseStoreTarget):
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
-            time_field=timestamp_key,
             storage_options=self.storage_options
             or self._get_store().get_storage_options(),
             max_events=self.max_events,
@@ -934,11 +923,12 @@ class CSVTarget(BaseStoreTarget):
     support_storey = True
 
     @staticmethod
-    def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
-        # avoid writing the range index unless explicitly specified via kwargs
-        if isinstance(df.index, pd.RangeIndex):
-            kwargs["index"] = kwargs.get("index", False)
-        df.to_csv(target_path, storage_options=storage_options, **kwargs)
+    def _write_dataframe(df, fs, target_path, partition_cols, **kwargs):
+        with fs.open(target_path, "wb") as fp:
+            # avoid writing the range index unless explicitly specified via kwargs
+            if isinstance(df.index, pd.RangeIndex):
+                kwargs["index"] = kwargs.get("index", False)
+            df.to_csv(fp, **kwargs)
 
     def add_writer_state(
         self, graph, after, features, key_columns=None, timestamp_key=None
@@ -1243,12 +1233,10 @@ class KafkaTarget(BaseStoreTarget):
         producer_options=None,
         **kwargs,
     ):
-        attrs = {}
-        if bootstrap_servers is not None:
-            attrs["bootstrap_servers"] = bootstrap_servers
-        if bootstrap_servers is not None:
-            attrs["producer_options"] = producer_options
-
+        attrs = {
+            "bootstrap_servers": bootstrap_servers,
+            "producer_options": producer_options,
+        }
         super().__init__(*args, attributes=attrs, **kwargs)
 
     def add_writer_step(
@@ -1265,8 +1253,7 @@ class KafkaTarget(BaseStoreTarget):
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
 
-        attributes = copy(self.attributes)
-        bootstrap_servers = attributes.pop("bootstrap_servers", None)
+        bootstrap_servers = self.attributes.get("bootstrap_servers")
         topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
@@ -1277,7 +1264,7 @@ class KafkaTarget(BaseStoreTarget):
             columns=column_list,
             topic=topic,
             bootstrap_servers=bootstrap_servers,
-            **attributes,
+            **self.attributes,
         )
 
     def as_df(self, columns=None, df_module=None, **kwargs):

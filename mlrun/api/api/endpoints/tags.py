@@ -23,7 +23,6 @@ import mlrun.api.crud.tags
 import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
-from mlrun.utils.helpers import tag_name_regex_as_string
 
 router = fastapi.APIRouter()
 
@@ -31,8 +30,8 @@ router = fastapi.APIRouter()
 @router.post("/projects/{project}/tags/{tag}", response_model=mlrun.api.schemas.Tag)
 async def overwrite_object_tags_with_tag(
     project: str,
-    tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
-    tag_objects: mlrun.api.schemas.TagObjects = fastapi.Body(...),
+    tag: str,
+    tag_objects: mlrun.api.schemas.TagObjects,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -71,8 +70,8 @@ async def overwrite_object_tags_with_tag(
 @router.put("/projects/{project}/tags/{tag}", response_model=mlrun.api.schemas.Tag)
 async def append_tag_to_objects(
     project: str,
-    tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
-    tag_objects: mlrun.api.schemas.TagObjects = fastapi.Body(...),
+    tag: str,
+    tag_objects: mlrun.api.schemas.TagObjects,
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -144,4 +143,3 @@ async def delete_tag_from_objects(
         tag,
         tag_objects,
     )
-    return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)

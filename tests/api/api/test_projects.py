@@ -15,7 +15,6 @@
 import copy
 import datetime
 import http
-import json.decoder
 import os
 import typing
 import unittest.mock
@@ -26,6 +25,7 @@ import deepdiff
 import fastapi.testclient
 import mergedeep
 import pytest
+import simplejson.errors
 import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -123,7 +123,7 @@ def test_redirection_from_worker_to_chief_delete_project(
             assert response.status_code == expected_status
             try:
                 assert response.json() == expected_response
-            except json.decoder.JSONDecodeError:
+            except simplejson.errors.JSONDecodeError:
                 # NO_CONTENT response doesn't return json serializable response
                 assert response.text == expected_response
 
@@ -919,7 +919,7 @@ def _create_resources_of_all_kinds(
     }
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
     artifact_uids = ["some_uid", "some_uid2", "some_uid3"]
-    artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
+    artifact_tags = ["some_tag", "some_tag2", "some_tag3"]
     for artifact_key in artifact_keys:
         for artifact_uid in artifact_uids:
             for artifact_tag in artifact_tags:

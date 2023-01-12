@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from kfp import Client
-from nuclio import build_file, utils
+from nuclio import build_file
 
 import mlrun.api.schemas
 import mlrun.errors
@@ -154,11 +154,6 @@ def run_local(
     :param params:   input parameters (dict)
     :param inputs:   input objects (dict of key: path)
     :param artifact_path: default artifact output path
-    :param mode:    Runtime mode for more details head to `mlrun.new_function`
-    :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
-                                    (allows to have function which don't depend on having targets,
-                                    e.g a function which accepts a feature vector uri and generate
-                                     the offline vector e.g. parquet_ for it if it doesn't exist)
 
     :return: run object
     """
@@ -176,8 +171,6 @@ def run_local(
     command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
 
     if runtime:
-        if task:
-            handler = handler or task.spec.handler
         handler = handler or runtime.spec.default_handler or ""
         meta = runtime.metadata.copy()
         meta.project = project or meta.project
@@ -433,21 +426,21 @@ def get_or_create_ctx(
 def import_function(url="", secrets=None, db="", project=None, new_name=None):
     """Create function object from DB or local/remote YAML file
 
-    Functions can be imported from function repositories (mlrun Function Hub (formerly Marketplace) or local db),
+    Function can be imported from function repositories (mlrun marketplace or local db),
     or be read from a remote URL (http(s), s3, git, v3io, ..) containing the function YAML
 
     special URLs::
 
-        function hub: hub://{name}[:{tag}]
+        function marketplace: hub://{name}[:{tag}]
         local mlrun db:       db://{project-name}/{name}[:{tag}]
 
     examples::
 
-        function = mlrun.import_function("hub://auto_trainer")
+        function = mlrun.import_function("hub://sklearn_classifier")
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
-    :param url: path/url to Function Hub, db or function YAML file
+    :param url: path/url to marketplace, db or function YAML file
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)
     :param db: optional, mlrun api/db path
     :param project: optional, target project for the function
@@ -598,14 +591,11 @@ def new_function(
             )
 
     if not name:
+        # todo: regex check for valid name
         if command and kind not in [RuntimeKinds.remote]:
             name, _ = path.splitext(path.basename(command))
         else:
             name = "mlrun-" + uuid.uuid4().hex[0:6]
-
-    # make sure function name is valid
-    name = utils.normalize_name(name)
-
     runner.metadata.name = name
     runner.metadata.project = (
         runner.metadata.project or project or mlconf.default_project
@@ -733,7 +723,7 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
-    :param categories:   list of categories for mlrun Function Hub, defaults to None
+    :param categories:   list of categories for mlrun function marketplace, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
     :param ignored_tags: notebook cells to ignore when converting notebooks to py code (separated by ';')
@@ -1531,11 +1521,6 @@ class OutputsLogger:
                     artifact = BokehArtifact(key=key, figure=obj)
             except ModuleNotFoundError:
                 pass
-            except ImportError:
-                logger.warn(
-                    "Bokeh installation is ignored. If needed, "
-                    "make sure you have the required version with `pip install mlrun[bokeh]`"
-                )
 
         # Log the artifact:
         if artifact is None:
@@ -1762,7 +1747,7 @@ class ContextHandler:
             # Parse the instructions:
             artifact_type = self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.get(
                 type(obj), self._ARTIFACT_TYPE_CLASS.DEFAULT
-            ).value
+            )
             key = None
             logging_kwargs = {}
             if isinstance(instructions, str):
@@ -1779,9 +1764,6 @@ class ContextHandler:
                 artifact_type = instructions[1]
                 if len(instructions) > 2:
                     logging_kwargs = instructions[2]
-            # Check if the object to log is None (None values are only logged if the artifact type is Result):
-            if obj is None and artifact_type != ArtifactType.RESULT.value:
-                continue
             # Log:
             self._log_output(
                 obj=obj,
@@ -1844,11 +1826,6 @@ class ContextHandler:
             ] = ArtifactType.PLOT
         except ModuleNotFoundError:
             pass
-        except ImportError:
-            logger.warn(
-                "Bokeh installation is ignored. If needed, "
-                "make sure you have the required version with `pip install mlrun[bokeh]`"
-            )
 
     @classmethod
     def _init_outputs_logging_map(cls):
@@ -1886,19 +1863,10 @@ class ContextHandler:
         :param expected_type: THe expected type to parse to.
 
         :returns: The parsed data item.
-
-        :raises MLRunRuntimeError: If an error was raised during the parsing function.
         """
-        try:
-            return self._INPUTS_PARSING_MAP.get(
-                expected_type, self._INPUTS_PARSING_MAP[object]
-            )(data_item=data_item)
-        except Exception as exception:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"MLRun tried to parse a `DataItem` of type '{expected_type}' but failed. Be sure the item was "
-                f"logged correctly - as the type you are trying to parse it back to. In general, python objects should "
-                f"be logged as pickles."
-            ) from exception
+        return self._INPUTS_PARSING_MAP.get(
+            expected_type, self._INPUTS_PARSING_MAP[object]
+        )(data_item=data_item)
 
     def _log_output(
         self,
@@ -1916,7 +1884,6 @@ class ContextHandler:
         :param key:           The key (name) of the artifact or a logging kwargs to use when logging the artifact.
 
         :raises MLRunInvalidArgumentError: If a key was provided in the logging kwargs.
-        :raises MLRunRuntimeError:         If an error was raised during the logging function.
         """
         # Get the artifact type (will also verify the artifact type is valid):
         artifact_type = self._ARTIFACT_TYPE_CLASS(artifact_type)
@@ -1929,18 +1896,12 @@ class ContextHandler:
             )
 
         # Use the logging map to log the object:
-        try:
-            self._OUTPUTS_LOGGING_MAP[artifact_type](
-                ctx=self._context,
-                obj=obj,
-                key=key,
-                logging_kwargs=logging_kwargs,
-            )
-        except Exception as exception:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"MLRun tried to log '{key}' as '{artifact_type.value}' but failed. If you didn't provide the artifact "
-                f"type and the default one does not fit, try to select the correct type from the enum `ArtifactType`."
-            ) from exception
+        self._OUTPUTS_LOGGING_MAP[artifact_type](
+            ctx=self._context,
+            obj=obj,
+            key=key,
+            logging_kwargs=logging_kwargs,
+        )
 
 
 def handler(

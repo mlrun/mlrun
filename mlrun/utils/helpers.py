@@ -36,7 +36,6 @@ from yaml.representer import RepresenterError
 import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
-from mlrun.errors import err_to_str
 
 from ..config import config
 from .logger import create_logger
@@ -136,6 +135,13 @@ class run_keys:
 def verify_field_regex(
     field_name, field_value, patterns, raise_on_failure: bool = True
 ) -> bool:
+    logger.debug(
+        "Validating field against patterns",
+        field_name=field_name,
+        field_value=field_value,
+        pattern=patterns,
+    )
+
     for pattern in patterns:
         if not re.match(pattern, str(field_value)):
             log_func = logger.warn if raise_on_failure else logger.debug
@@ -152,34 +158,6 @@ def verify_field_regex(
             else:
                 return False
     return True
-
-
-def validate_tag_name(
-    tag_name: str, field_name: str, raise_on_failure: bool = True
-) -> bool:
-    """
-    This function is used to validate a tag name for invalid characters using field regex.
-    if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
-    otherwise, it returns False
-    """
-    return mlrun.utils.helpers.verify_field_regex(
-        field_name,
-        tag_name,
-        mlrun.utils.regex.tag_name,
-        raise_on_failure=raise_on_failure,
-    )
-
-
-def get_regex_list_as_string(regex_list: List) -> str:
-    """
-    This function is used to combine a list of regex strings into a single regex,
-    with and condition between them.
-    """
-    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
-
-
-def tag_name_regex_as_string() -> str:
-    return get_regex_list_as_string(mlrun.utils.regex.tag_name)
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -460,7 +438,7 @@ def dict_to_yaml(struct) -> str:
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as exc:
-        raise ValueError("error: data result cannot be serialized to YAML") from exc
+        raise ValueError(f"error: data result cannot be serialized to YAML, {exc}")
     return data
 
 
@@ -818,8 +796,7 @@ def retry_until_successful(
             if timeout is None or time.time() + next_interval < start_time + timeout:
                 if logger is not None and verbose:
                     logger.debug(
-                        f"Operation not yet successful, Retrying in {next_interval} seconds."
-                        f" exc: {err_to_str(exc)}"
+                        f"Operation not yet successful, Retrying in {next_interval} seconds. exc: {exc}"
                     )
 
                 time.sleep(next_interval)
@@ -936,7 +913,7 @@ def get_class(class_name, namespace=None):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, class {class_name} not found") from exc
+        raise ImportError(f"state init failed, class {class_name} not found, {exc}")
     return class_object
 
 
@@ -958,8 +935,8 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found"
-        ) from exc
+            f"state/function init failed, handler {function} not found, {exc}"
+        )
     return function_object
 
 
@@ -988,9 +965,7 @@ def get_handler_extended(
     try:
         instance = class_object(**class_args)
     except TypeError as exc:
-        raise TypeError(
-            f"failed to init class {class_path}\n args={class_args}"
-        ) from exc
+        raise TypeError(f"failed to init class {class_path}, {exc}\n args={class_args}")
 
     if not hasattr(instance, handler_path):
         raise ValueError(
@@ -1125,9 +1100,3 @@ def is_relative_path(path):
     if not path:
         return False
     return not (path.startswith("/") or ":\\" in path or "://" in path)
-
-
-def as_number(field_name, field_value):
-    if isinstance(field_value, str) and not field_value.isnumeric():
-        raise ValueError(f"{field_name} must be numeric (str/int types)")
-    return int(field_value)

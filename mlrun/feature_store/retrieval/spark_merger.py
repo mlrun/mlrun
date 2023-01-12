@@ -15,8 +15,6 @@
 import mlrun
 from mlrun.datastore.targets import get_offline_target
 
-from ...runtimes import RemoteSparkRuntime
-from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
 from ..feature_vector import OfflineVectorResponse
 from .base import BaseMerger
 
@@ -72,7 +70,7 @@ class SparkFeatureMerger(BaseMerger):
             ):
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.get_target_path(),
+                    target.path,
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
@@ -80,17 +78,14 @@ class SparkFeatureMerger(BaseMerger):
             else:
                 source = source_driver(
                     self.vector.metadata.name,
-                    target.get_target_path(),
+                    target.path,
                     time_field=entity_timestamp_column,
                 )
 
+            df = source.to_spark_df(self.spark, named_view=self.named_view)
+
             # add the index/key to selected columns
             timestamp_key = feature_set.spec.timestamp_key
-
-            df = source.to_spark_df(
-                self.spark, named_view=self.named_view, time_field=timestamp_key
-            )
-
             if timestamp_key and timestamp_key not in column_names:
                 columns.append((timestamp_key, None))
             for entity in feature_set.spec.entities.keys():
@@ -100,7 +95,6 @@ class SparkFeatureMerger(BaseMerger):
             # select requested columns and rename with alias where needed
             df = df.select([col(name).alias(alias or name) for name, alias in columns])
             dfs.append(df)
-            del df
 
         # convert pandas entity_rows to spark DF if needed
         if entity_rows is not None and not hasattr(entity_rows, "rdd"):
@@ -122,9 +116,6 @@ class SparkFeatureMerger(BaseMerger):
 
         self._write_to_target()
         return OfflineVectorResponse(self)
-
-    def _unpersist_df(self, df):
-        df.unpersist()
 
     def _asof_join(
         self,
@@ -230,19 +221,7 @@ class SparkFeatureMerger(BaseMerger):
     def get_df(self, to_pandas=True):
         if to_pandas:
             if self._pandas_df is None:
-                self._pandas_df = self._result_df.toPandas()
-                self._set_indexes(self._pandas_df)
+                self._pandas_df = self._set_indexes(self._result_df.toPandas())
             return self._pandas_df
 
         return self._result_df
-
-    @classmethod
-    def get_default_image(cls, kind):
-        if kind == AbstractSparkRuntime.kind:
-            return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
-                with_gpu=False
-            )
-        elif kind == RemoteSparkRuntime.kind:
-            return RemoteSparkRuntime.default_image
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported kind '{kind}'")

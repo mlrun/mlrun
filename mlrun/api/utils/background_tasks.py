@@ -154,7 +154,6 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 await function(*args, **kwargs)
             else:
                 await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
-
         except Exception:
             logger.warning(
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"

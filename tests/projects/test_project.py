@@ -17,7 +17,6 @@ import pathlib
 import shutil
 import tempfile
 import zipfile
-from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import inflection
@@ -55,27 +54,9 @@ def test_sync_functions():
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://auto_trainer", new_name="train").save()
+    mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
-
-
-def test_sync_functions_with_names_different_than_default():
-    project_name = "project-name"
-    project = mlrun.new_project(project_name, save=False)
-
-    describe_func = mlrun.import_function("hub://describe")
-    # set a different name than the default
-    project.set_function(describe_func, "new_describe_func")
-
-    project_function_object = project.spec._function_objects
-    project_function_definition = project.spec._function_definitions
-
-    # sync functions - expected to sync the function objects from the definitions
-    project.sync_functions()
-
-    assert project.spec._function_objects == project_function_object
-    assert project.spec._function_definitions == project_function_definition
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -103,41 +84,11 @@ def test_create_project_from_file_with_legacy_structure():
         "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
         "o-Customer-Churn.csv",
         "db_key": "raw-data",
-        "src_path": "./relative_path",
     }
-    model_dict = {
-        "db_key": "model_best_estimator",
-        "framework": "xgboost",
-        "hash": "934cb89155cfd9225cb6f7271f1f1bb775eeb340",
-        "iter": "0",
-        "key": "model_best_estimator",
-        "kind": "model",
-        "labels": {"framework": "xgboost"},
-        "model_file": "model_best_estimator.pkl",
-        "producer": {
-            "kind": "run",
-            "name": "some_run",
-            "owner": "admin",
-            "uri": "some_run/311a3bb1c85145e7a3daa0aa4189a4f9",
-            "workflow": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
-        },
-        "size": 100,
-        "tag": "0.0.24",
-        "tree": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
-        "src_path": "./relative_path",
-        "target_path": "/some/target/path",
-        "updated": "2022-09-29T19:32:57.718312+00:00",
-    }
-
-    legacy_project.artifacts = [artifact_dict, model_dict]
+    legacy_project.artifacts = [artifact_dict]
     legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
     legacy_project.save(str(legacy_project_file_path))
     project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
-
-    # This is usually called as part of load_project. However, since we're using save=False, this doesn't get
-    # called. So, calling manually to verify it works.
-    project.register_artifacts()
-
     assert project.kind == "project"
     assert project.metadata.name == project_name
     assert project.spec.description == description
@@ -634,55 +585,3 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
-
-
-@pytest.mark.parametrize(
-    "parameters,hyperparameters,expectation,run_saved",
-    [
-        (
-            {"x": 2**63},
-            None,
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-            False,
-        ),
-        (
-            {"x": -(2**63)},
-            None,
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-            False,
-        ),
-        ({"x": 2**63 - 1}, None, does_not_raise(), True),
-        ({"x": -(2**63) + 1}, None, does_not_raise(), True),
-        (
-            None,
-            {"x": [1, 2**63]},
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-            False,
-        ),
-        (
-            None,
-            {"x": [1, -(2**63)]},
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-            False,
-        ),
-        (None, {"x": [3, 2**63 - 1]}, does_not_raise(), True),
-        (None, {"x": [3, -(2**63) + 1]}, does_not_raise(), True),
-    ],
-)
-def test_validating_large_int_params(
-    rundb_mock, parameters, hyperparameters, expectation, run_saved
-):
-    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    proj1 = mlrun.new_project("proj1", save=False)
-    proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
-
-    rundb_mock.reset()
-    with expectation:
-        proj1.run_function(
-            "f1",
-            params=parameters,
-            hyperparams=hyperparameters,
-            local=True,
-        )
-
-    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)

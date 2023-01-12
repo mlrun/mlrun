@@ -37,7 +37,6 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
-from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 
@@ -84,7 +83,7 @@ class Member(
         except Exception as exc:
             logger.warning(
                 "Initial projects sync failed",
-                exc=err_to_str(exc),
+                exc=str(exc),
                 traceback=traceback.format_exc(),
             )
         self._start_periodic_sync()

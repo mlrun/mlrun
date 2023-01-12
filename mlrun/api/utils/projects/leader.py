@@ -32,7 +32,6 @@ import mlrun.utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
-from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 
@@ -274,7 +273,7 @@ class Member(
                     project_follower_name=project_follower_name,
                     project=project,
                     project_name=project_name,
-                    exc=err_to_str(exc),
+                    exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
             else:
@@ -330,7 +329,7 @@ class Member(
                     follower_name=follower_name,
                     project_name=project_name,
                     project=project,
-                    exc=err_to_str(exc),
+                    exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
 
@@ -364,7 +363,7 @@ class Member(
                     project_follower_name=project_follower_name,
                     project_name=project_name,
                     project=project,
-                    exc=err_to_str(exc),
+                    exc=str(exc),
                     traceback=traceback.format_exc(),
                 )
 

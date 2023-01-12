@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from enum import Enum
+
 import mergedeep
 
-import mlrun.api.utils.helpers
 import mlrun.errors
 
 
-class PatchMode(mlrun.api.utils.helpers.StrEnum):
+class PatchMode(str, Enum):
     replace = "replace"
     additive = "additive"
 
@@ -33,7 +34,7 @@ class PatchMode(mlrun.api.utils.helpers.StrEnum):
             )
 
 
-class DeletionStrategy(mlrun.api.utils.helpers.StrEnum):
+class DeletionStrategy(str, Enum):
     restrict = "restrict"
     restricted = "restricted"
     cascade = "cascade"
@@ -93,7 +94,7 @@ class HeaderNames:
     client_version = f"{headers_prefix}client-version"
 
 
-class FeatureStorePartitionByField(mlrun.api.utils.helpers.StrEnum):
+class FeatureStorePartitionByField(str, Enum):
     name = "name"  # Supported for feature-store objects
 
     def to_partition_by_db_field(self, db_cls):
@@ -105,7 +106,7 @@ class FeatureStorePartitionByField(mlrun.api.utils.helpers.StrEnum):
             )
 
 
-class RunPartitionByField(mlrun.api.utils.helpers.StrEnum):
+class RunPartitionByField(str, Enum):
     name = "name"  # Supported for runs objects
 
     def to_partition_by_db_field(self, db_cls):
@@ -117,7 +118,7 @@ class RunPartitionByField(mlrun.api.utils.helpers.StrEnum):
             )
 
 
-class SortField(mlrun.api.utils.helpers.StrEnum):
+class SortField(str, Enum):
     created = "created"
     updated = "updated"
 
@@ -135,7 +136,7 @@ class SortField(mlrun.api.utils.helpers.StrEnum):
             )
 
 
-class OrderType(mlrun.api.utils.helpers.StrEnum):
+class OrderType(str, Enum):
     asc = "asc"
     desc = "desc"
 

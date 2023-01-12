@@ -36,16 +36,6 @@ class NotificationTypes(str, enum.Enum):
             self.slack: SlackNotification,
         }.get(self)
 
-    def inverse_dependencies(self) -> typing.List[str]:
-        """
-        Some notifications should only run if another notification type didn't run.
-        Per given notification type, return a list of notification types that should not run in order for this
-        notification to run.
-        """
-        return {
-            self.console: [self.ipython],
-        }.get(self, [])
-
     @classmethod
     def all(cls) -> typing.List[str]:
         return list(

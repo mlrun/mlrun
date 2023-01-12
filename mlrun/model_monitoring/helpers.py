@@ -21,7 +21,7 @@ import mlrun.api.api.utils
 import mlrun.api.crud.secrets
 import mlrun.api.utils.singletons.db
 import mlrun.config
-import mlrun.feature_store as fstore
+import mlrun.feature_store as fs
 import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stream_processing_fs
 import mlrun.runtimes
@@ -94,7 +94,7 @@ def initial_model_monitoring_stream_processing_function(
         ),
     )
 
-    run_config = fstore.RunConfig(function=function, local=False)
+    run_config = fs.RunConfig(function=function, local=False)
     function.spec.parameters = run_config.parameters
 
     func = http_source.add_nuclio_trigger(function)
@@ -117,7 +117,6 @@ def get_model_monitoring_batch_function(
     :param project:                     project name.
     :param model_monitoring_access_key: access key to apply the model monitoring process.
     :param db_session:                  A session that manages the current dialog with the database.
-    :param auth_info:                   The auth info of the request.
     :param tracking_policy:             Model monitoring configurations.
 
     :return:                            A function object from a mlrun runtime class
@@ -154,8 +153,5 @@ def get_model_monitoring_batch_function(
 
     # Needs to be a member of the project and have access to project data path
     function.metadata.credentials.access_key = model_monitoring_access_key
-
-    # Ensure that the auth env vars are set
-    mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
 
     return function

@@ -258,97 +258,16 @@ def test_forbidden_file_access():
         obj.stat()
 
 
-def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
-    mlrun.config._is_running_as_api = True
-
-    user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
-    user1_objpath = "v3io://some-system/some-dir/user1"
-
-    user2_secrets = {"V3IO_ACCESS_KEY": "user2-access-key"}
-    user2_objpath = "v3io://some-system/some-dir/user2"
-
-    user3_objpath = "v3io://some-system/some-dir/user3"
-    store = mlrun.datastore.datastore.StoreManager(
-        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
-    )
-    obj = store.object(url=user1_objpath, secrets=user1_secrets)
-    assert store._stores == {}
-    assert obj._store._secrets == user1_secrets
-
-    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
-    assert store._stores == {}
-    assert obj2._store._secrets == user2_secrets
-
-    obj3 = store.object(url=user3_objpath)
-    assert store._stores == {}
-    assert obj3._store._secrets == {}
-
-
-def test_verify_data_stores_are_cached_when_not_api():
-    user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
-    user1_objpath = "v3io://some-system/some-dir/user1"
-
-    user2_secrets = {"V3IO_ACCESS_KEY": "user2-access-key"}
-    user2_objpath = "v3io://some-system/some-dir/user2"
-
-    user3_objpath = "v3io://some-system/some-dir/user3"
-    store = mlrun.datastore.datastore.StoreManager(
-        secrets={"V3IO_ACCESS_KEY": "api-access-key"}
-    )
-    # if secrets provided then store is not cached
-    obj = store.object(url=user1_objpath, secrets=user1_secrets)
-    assert store._stores == {}
-    assert obj._store._secrets == user1_secrets
-
-    # if secrets provided then store is not cached
-    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
-    assert store._stores == {}
-    assert obj2._store._secrets == user2_secrets
-
-    # if no secrets provided then store is cached
-    obj3 = store.object(url=user3_objpath)
-    assert len(store._stores) == 1
-    assert store._stores["v3io://some-system"] is not None
-    assert obj3._store._secrets == {}
-
-    # if secrets provided then store is not cached
-    obj2 = store.object(url=user2_objpath, secrets=user2_secrets)
-    assert len(store._stores) == 1
-    assert obj2._store._secrets == user2_secrets
-    # the store is not cached so the secrets are not updated, because this is the same store type as the one cached,
-    # so we verify that the secrets are not updated
-    assert store._stores["v3io://some-system"]._secrets == {}
-
-
 def test_fsspec():
     with TemporaryDirectory() as tmpdir:
         print(tmpdir)
         store, _ = mlrun.store_manager.get_or_create_store(tmpdir)
-        file_system = store.get_filesystem(False)
+        fs = store.get_filesystem(False)
         with store.open(tmpdir + "/1x.txt", "w") as fp:
             fp.write("123")
         with mlrun.get_dataitem(tmpdir + "/2x.txt").open("w") as fp:
             fp.write("456")
-        files = file_system.ls(tmpdir)
+        files = fs.ls(tmpdir)
         assert len(files) == 2, "2 test files were not written"
         assert files[0].endswith("x.txt"), "wrong file name"
-        assert (
-            file_system.open(tmpdir + "/1x.txt", "r").read() == "123"
-        ), "wrong file content"
-
-
-@pytest.mark.parametrize(
-    "virtual_path", ["/dummy/path", "c:\\dummy\\path", "/dummy/path/"]
-)
-def test_item_to_real_path_map(virtual_path):
-    # test that the virtual dir (/dummy/path) is replaced with a real dir
-
-    with TemporaryDirectory() as tmpdir:
-        print(tmpdir)
-        mlrun.mlconf.storage.item_to_real_path = f"{virtual_path}::{tmpdir}"
-
-        data = mlrun.run.get_dataitem(f"{virtual_path}/test1.txt")
-        data.put("abc")
-        assert data.get() == b"abc", "failed put/get test"
-        assert data.stat().size == 3, "got wrong file size"
-        assert os.path.isfile(os.path.join(tmpdir, "test1.txt"))
+        assert fs.open(tmpdir + "/1x.txt", "r").read() == "123", "wrong file content"

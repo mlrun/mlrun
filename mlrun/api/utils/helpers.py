@@ -13,19 +13,10 @@
 # limitations under the License.
 #
 import asyncio
-import enum
 
 import mlrun
 import mlrun.api.schemas
 from mlrun.utils import logger
-
-
-class StrEnum(str, enum.Enum):
-    def __str__(self):
-        return self.value
-
-    def __repr__(self):
-        return self.value
 
 
 def ensure_running_on_chief(function):

@@ -52,11 +52,11 @@ def newpipe():
 
     # train with hyper-paremeters
     train = run_function(
-        "auto_trainer",
+        "train",
         name="train",
-        params={"label_columns": LABELS, "train_test_split_size": 0.10},
+        params={"sample": -1, "label_column": LABELS, "test_size": 0.10},
         hyperparams={
-            "model_class": [
+            "model_pkg_class": [
                 "sklearn.ensemble.RandomForestClassifier",
                 "sklearn.linear_model.LogisticRegression",
                 "sklearn.ensemble.AdaBoostClassifier",
@@ -70,12 +70,12 @@ def newpipe():
 
     # test and visualize our model
     run_function(
-        "auto_trainer",
+        "test",
         name="test",
-        handler="evaluate",
-        params={"label_columns": LABELS, "model": train.outputs["model"]},
+        params={"label_column": LABELS},
         inputs={
-            "dataset": train.outputs["test_set"],
+            "models_path": train.outputs["model"],
+            "test_set": train.outputs["test_set"],
         },
     )
 

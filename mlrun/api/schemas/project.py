@@ -13,16 +13,15 @@
 # limitations under the License.
 #
 import datetime
+import enum
 import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
-
 from .object import ObjectKind, ObjectStatus
 
 
-class ProjectsFormat(mlrun.api.utils.helpers.StrEnum):
+class ProjectsFormat(str, enum.Enum):
     full = "full"
     name_only = "name_only"
     # internal - allowed only in follower mode, only for the leader for upgrade purposes
@@ -39,13 +38,13 @@ class ProjectMetadata(pydantic.BaseModel):
         extra = pydantic.Extra.allow
 
 
-class ProjectDesiredState(mlrun.api.utils.helpers.StrEnum):
+class ProjectDesiredState(str, enum.Enum):
     online = "online"
     offline = "offline"
     archived = "archived"
 
 
-class ProjectState(mlrun.api.utils.helpers.StrEnum):
+class ProjectState(str, enum.Enum):
     unknown = "unknown"
     creating = "creating"
     deleting = "deleting"

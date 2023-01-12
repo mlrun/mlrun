@@ -2,7 +2,7 @@
 # Build and run workflows/pipelines
 
 This section shows how to write a batch pipeline so that it can be executed via an MLRun Project.
-With a batch pipeline, you can use the MLRun Project to execute several Functions in a DAG using the Python SDK or CLI.
+With a batch pipelineyou can use the MLRun Project to execute several Functions in a DAG using the Python SDK or CLI.
 
 This example creates a project with three MLRun functions and a single pipeline that orchestrates them. The pipeline steps are:
 - `get-data` &mdash; Get iris data from sklearn
@@ -26,7 +26,7 @@ project.set_function(name='deploy-model', func='hub://v2_model_server')
 
 ## Write a pipeline
 
-Next, define the pipeline that orchestrates the three components. This pipeline is simple, however you can create very complex pipelines with branches, conditions, and more.
+Next, define the pipeline that orchestrates the three comoponents. This pipeline is simple, however you can create very complex pipelines with branches, conditions, and more.
 
 ```
 %%writefile pipelines/training_pipeline.py

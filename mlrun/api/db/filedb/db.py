@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
 from mlrun.api.db.base import DBError, DBInterface
@@ -67,7 +67,7 @@ class FileDB(DBInterface):
         self,
         session,
         name="",
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project="",
         labels=None,
         states=None,
@@ -173,7 +173,6 @@ class FileDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        use_tag_as_uid: bool = None,
     ):
         return self._transform_run_db_error(
             self.db.list_artifacts, name, project, tag, labels, since, until
@@ -434,7 +433,7 @@ class FileDB(DBInterface):
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
         raise NotImplementedError()
 
-    def list_artifact_tags(self, session, project, category):
+    def list_artifact_tags(self, session, project):
         return self._transform_run_db_error(self.db.list_artifact_tags, project)
 
     def create_schedule(

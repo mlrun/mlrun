@@ -41,10 +41,6 @@ class IPythonNotification(NotificationBase):
         except ImportError:
             pass
 
-    @property
-    def active(self) -> bool:
-        return self._ipython is not None
-
     def send(
         self,
         message: str,
@@ -53,7 +49,7 @@ class IPythonNotification(NotificationBase):
         custom_html: str = None,
     ):
         if not self._ipython:
-            mlrun.utils.helpers.logger.debug(
+            mlrun.utils.helpers.logger.warn(
                 "Not in IPython environment, skipping notification"
             )
             return

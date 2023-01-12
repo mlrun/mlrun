@@ -43,15 +43,15 @@ MLRun's robust transformation engine performs complex operations with just a few
 execution process, call the `infer` method with a sample DataFrame. This runs all operations in memory without storing the results. Once the 
 graph is defined, it's time to ingest the data.
 
-You can ingest data directly from a DataFrame, by calling the feature set {py:class}`~mlrun.feature_store.ingest` method. You can also define an ingestion 
+You can ingest data directly from a DataFrame, by calling the feature set `ingest` method. You can also define an ingestion 
 process that runs as a Kubernetes job. This is useful if there is a large ingestion process, or if there is a recurrent ingestion and you 
 want to schedule the job. 
 
-MLRun can also leverage [Nuclio](https://nuclio.io/docs/latest/) to perform real-time ingestion by calling the {py:class}`~mlrun.feature_store.deploy_ingestion_service` function. This means that during 
+MLRun can also leverage [Nuclio](https://nuclio.io/docs/latest/) to perform real-time ingestion by calling the `deploy_ingestion_service` function. This means that during 
 serving you can update feature values, and not just read them. For example, you can update a sliding window aggregation as part of a model 
 serving process.
 
-The next step is to define the [feature vector](feature-vectors.html). Call the {py:meth}`~mlrun.feature_store.get_offline_features` function to join together features across different feature sets. 
+The next step is to define the [feature vector](feature-vectors.html). Call the `get_offline_features` function to join together features across different feature sets. 
 
 ## Training and serving using the feature store 
 
@@ -70,7 +70,7 @@ The training job automatically generates a set of results and versioned artifact
 
 For serving, once you validate the feature vector, use the **online** feature service, based on the 
 nosql target defined in the feature set for real-time serving. For serving, you define a serving class derived from 
-`mlrun.serving.V2ModelServer`. In the class `load` method, call the {py:meth}`~mlrun.feature_store.get_online_feature_service` function with the vector name, which returns 
+`mlrun.serving.V2ModelServer`. In the class `load` method, call the `get_online_feature_service` function with the vector name, which returns 
 a feature service object. In the class `preprocess` method, call the feature service `get` method to get the values of those features.
 
 Using this feature store centric process, using one computation graph definition for a feature set, you receive an automatic online and 

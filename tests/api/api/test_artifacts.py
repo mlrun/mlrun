@@ -14,7 +14,6 @@
 #
 from http import HTTPStatus
 
-import deepdiff
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -53,38 +52,6 @@ def _create_project(client: TestClient, project_name: str = PROJECT):
     resp = client.post(LEGACY_API_PROJECTS_PATH, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
-
-
-def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
-    _create_project(client)
-    tag = "test_tag_with_characters@#$#%^"
-
-    resp = client.post(
-        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
-        data="{}",
-    )
-    assert resp.status_code == HTTPStatus.OK.value
-
-    # test overwriting tags object with an invalid tag
-    resp = client.post(
-        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
-        json={
-            "kind": "artifact",
-            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
-        },
-    )
-
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
-
-    # test append invalid tag to artifact's tags
-    resp = client.put(
-        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
-        json={
-            "kind": "artifact",
-            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
-        },
-    )
-    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
 def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
@@ -276,14 +243,12 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
     resp = client.get(LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"))
     assert resp.status_code == HTTPStatus.OK.value
 
-    # expected to return three artifacts with the same key but different tags (latest, tag1, tag2)
+    # expected to return two artifacts with the same key but different tags
     artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == 3
-
-    tags = []
-    for artifact in artifacts:
-        assert artifact["metadata"]["tag"] in [tag, new_tag, "latest"]
-        tags.append(artifact["metadata"]["tag"])
+    assert len(artifacts) == 2
 
     # verify that the artifacts returned contains different tags
-    assert (deepdiff.DeepDiff(tags, [tag, new_tag, "latest"], ignore_order=True)) == {}
+    assert artifacts[0]["metadata"]["tag"] != artifacts[1]["metadata"]["tag"]
+
+    for artifact in artifacts:
+        assert artifact["metadata"]["tag"] in [tag, new_tag]

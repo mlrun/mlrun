@@ -332,14 +332,14 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
 
     _list_and_assert_objects(client, "feature_sets", project_name, None, count)
 
-    # Delete the last feature set
+    # Delete the last fs
     response = client.delete(
         f"projects/{project_name}/feature-sets/feature_set_{count-1}"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 1)
 
-    # Delete the first feature set
+    # Delete the first fs
     response = client.delete(f"projects/{project_name}/feature-sets/feature_set_0")
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 2)

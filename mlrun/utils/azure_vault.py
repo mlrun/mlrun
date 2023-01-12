@@ -27,8 +27,8 @@ class AzureVaultStore:
             from azure.keyvault.secrets import SecretClient
         except ImportError as exc:
             raise ImportError(
-                "Azure key-vault libraries not installed, run pip install mlrun[azure-key-vault]"
-            ) from exc
+                f"Azure key-vault libraries not installed, run pip install mlrun[azure-key-vault], {exc}"
+            )
 
         self._vault_name = vault_name
         self._url = mlconf.secret_stores.azure_vault.url.format(name=vault_name)

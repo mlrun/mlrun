@@ -113,7 +113,7 @@ class SQLDB(RunDBInterface):
     def list_runs(
         self,
         name=None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project=None,
         labels=None,
         state=None,
@@ -768,18 +768,17 @@ class SQLDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def create_model_endpoint(
+    def create_or_patch_model_endpoint(
         self,
         project: str,
         endpoint_id: str,
         model_endpoint: ModelEndpoint,
+        access_key=None,
     ):
         raise NotImplementedError()
 
-    def delete_model_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
+    def delete_model_endpoint_record(
+        self, project: str, endpoint_id: str, access_key=None
     ):
         raise NotImplementedError()
 
@@ -792,6 +791,7 @@ class SQLDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
+        access_key=None,
     ):
         raise NotImplementedError()
 
@@ -803,14 +803,7 @@ class SQLDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-    ):
-        raise NotImplementedError()
-
-    def patch_model_endpoint(
-        self,
-        project: str,
-        endpoint_id: str,
-        attributes: dict,
+        access_key=None,
     ):
         raise NotImplementedError()
 

@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 from os.path import isdir
 
 import mlrun.config
 
 from ..db import RunDBInterface
-from ..utils import is_legacy_artifact, is_relative_path, logger, validate_tag_name
+from ..utils import is_legacy_artifact, is_relative_path, logger
 from .base import (
     Artifact,
     DirArtifact,
@@ -128,8 +127,8 @@ class ArtifactManager:
 
     def log_artifact(
         self,
-        producer: typing.Union["ArtifactProducer", "mlrun.MLClientCtx"],
-        item: Artifact,
+        producer,
+        item,
         body=None,
         target_path="",
         tag="",
@@ -142,29 +141,6 @@ class ArtifactManager:
         db_key=None,
         **kwargs,
     ) -> Artifact:
-        """
-        Log an artifact to the DB and upload it to the artifact store.
-        :param producer: The producer of the artifact, the producer depends from where the artifact is being logged.
-        :param item: The artifact to log.
-        :param body: The body of the artifact.
-        :param target_path: The target path of the artifact. (cannot be a relative path)
-                            If not provided, the artifact will be stored in the default artifact path.
-                            If provided and is a remote path (e.g. s3://bucket/path), no artifact will be uploaded
-                            as it already exists.
-        :param tag: The tag of the artifact.
-        :param viewer: Kubeflow viewer type
-        :param local_path: The local path of the artifact. If remote path is provided then the artifact won't be
-                            uploaded and this parameter will be used as the target path.
-        :param artifact_path: The path to store the artifact.
-         If not provided, the artifact will be stored in the default artifact path.
-        :param format: The format of the artifact. (e.g. csv, json, html, etc.)
-        :param upload: Whether to upload the artifact or not.
-        :param labels: Labels to add to the artifact.
-        :param db_key: The key to use when logging the artifact to the DB.
-        If not provided, will generate a key based on the producer name and the artifact key.
-        :param kwargs: Arguments to pass to the artifact class.
-        :return: The logged artifact.
-        """
         if isinstance(item, str):
             key = item
             if local_path and isdir(local_path):
@@ -201,16 +177,12 @@ class ArtifactManager:
         item.iter = producer.iteration
         item.project = producer.project
 
-        # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
             if is_relative_path(target_path):
                 raise ValueError(
                     f"target_path ({target_path}) param cannot be relative"
                 )
             upload = False
-
-        # if target_path wasn't provided, but src_path is not relative, then no need to upload the artifact as it
-        # already exists. In this case set the target_path to the src_path and set upload to False
         elif src_path and "://" in src_path:
             if upload:
                 raise ValueError(f"Cannot upload from remote path {src_path}")
@@ -221,13 +193,7 @@ class ArtifactManager:
         # didn't pass target_path explicitly then we won't use `generate_target_path` to calculate the target path,
         # but rather use the `resolve_<body/file>_target_hash_path` in the `item.upload` method.
         elif (
-            # if the user didn't pass target_path explicitly but asked for upload (or didn't set upload at all)
-            # and the other conditions match we will enrich the target_path.
-            # generally we don't want to enrich target_path if there is no matching artifact in target_path either
-            # there is already a remote artifact in target_path ( that was previously uploaded ) or the user asked
-            # to upload the artifact.
-            (upload or upload is None)
-            and not item.is_inline()
+            not item.is_inline()
             and not mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash
         ):
             target_path = item.generate_target_path(artifact_path, producer)
@@ -241,13 +207,7 @@ class ArtifactManager:
         self.artifacts[key] = item
 
         if ((upload is None and item.kind != "dir") or upload) and not item.is_inline():
-            # before uploading the item, we want to ensure that its tags are valid,
-            # so that we don't upload something that won't be stored later
-            validate_tag_name(item.metadata.tag, "artifact.metadata.tag")
-            if is_legacy_artifact(item):
-                item.upload()
-            else:
-                item.upload(artifact_path=artifact_path)
+            item.upload(artifact_path=artifact_path)
 
         if db_key:
             self._log_to_db(db_key, producer.project, producer.inputs, item)
@@ -263,14 +223,6 @@ class ArtifactManager:
         self._log_to_db(item.db_key, producer.project, producer.inputs, item)
 
     def _log_to_db(self, key, project, sources, item, tag=None):
-        """
-        log artifact to db
-        :param key: Identifying key of the artifact.
-        :param project: Project that the artifact belongs to.
-        :param sources: List of artifact sources ( Mainly passed from the producer.items ).
-        :param item: The actual artifact to store.
-        :param tag: The name of the Tag of the artifact.
-        """
         if self.artifact_db:
             item.updated = None
             if sources:

@@ -37,7 +37,7 @@ To review the mock server api, see [here](../api/mlrun.runtimes.html#mlrun.runti
 
 ## Deploying the model 
 
-Deploying models in MLRun uses a special function type `serving`. You can create a `serving` function using the `code_to_function()` call from a notebook. You can also import an existing serving function/template from the Function Hub.
+Deploying models in MLRun uses a special function type `serving`. You can create a `serving` function using the `code_to_function()` call from a notebook. You can also import an existing serving function/template from the marketplace.
 
 This example converts a notebook to a serving function and adds a model to it:
 

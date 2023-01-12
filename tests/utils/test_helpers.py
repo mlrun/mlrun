@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import re
 import unittest.mock
-from contextlib import nullcontext as does_not_raise
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -32,9 +30,7 @@ from mlrun.utils.helpers import (
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
-    get_regex_list_as_string,
     str_to_timestamp,
-    validate_tag_name,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -52,85 +48,93 @@ def test_retry_until_successful_fatal_failure():
         )
 
 
-@pytest.mark.parametrize(
-    "value, expected",
-    [
-        ("asd", does_not_raise()),
-        ("Asd", does_not_raise()),
-        ("AsA", does_not_raise()),
-        ("As-123_2.8A", does_not_raise()),
-        ("1As-123_2.8A5", does_not_raise()),
-        (
-            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
-            does_not_raise(),
-        ),
-        (
+def test_run_name_regex():
+    cases = [
+        {"value": "asd", "valid": True},
+        {"value": "Asd", "valid": True},
+        {"value": "AsA", "valid": True},
+        {"value": "As-123_2.8A", "valid": True},
+        {"value": "1As-123_2.8A5", "valid": True},
+        {
+            "value": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azs",
+            "valid": True,
+        },
+        {
             # Invalid because the first letter is -
-            "-As-123_2.8A",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
+            "value": "-As-123_2.8A",
+            "valid": False,
+        },
+        {
             # Invalid because the last letter is .
-            "As-123_2.8A.",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
+            "value": "As-123_2.8A.",
+            "valid": False,
+        },
+        {
             # Invalid because $ is not allowed
-            "As-123_2.8A$a",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
+            "value": "As-123_2.8A$a",
+            "valid": False,
+        },
+        {
             # Invalid because it's more then 63 characters
-            "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-    ],
-)
-def test_run_name_regex(value, expected):
-    with expected:
-        verify_field_regex("test_field", value, mlrun.utils.regex.run_name)
+            "value": "azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsxdcfvg-azsx",
+            "valid": False,
+        },
+    ]
+    for case in cases:
+        try:
+            verify_field_regex("test_field", case["value"], mlrun.utils.regex.run_name)
+        except Exception:
+            if case["valid"]:
+                raise
+        else:
+            if not case["valid"]:
+                raise
 
 
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("asd", does_not_raise()),
-        ("asdlnasd-123123-asd", does_not_raise()),
+def test_spark_job_name_regex():
+    cases = [
+        {"value": "asd", "valid": True},
+        {"value": "asdlnasd-123123-asd", "valid": True},
         # DNS-1035
-        ("t012312-asdasd", does_not_raise()),
-        (
+        {"value": "t012312-asdasd", "valid": True},
+        {
             # Starts with alphanumeric number
-            "012312-asdasd",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        ("As-123_2.8A", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        ("1As-123_2.8A5", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
-        (
+            "value": "012312-asdasd",
+            "valid": False,
+        },
+        {"value": "As-123_2.8A", "valid": False},
+        {"value": "1As-123_2.8A5", "valid": False},
+        {
             # Invalid because the first letter is -
-            "-As-123_2.8A",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
+            "value": "-As-123_2.8A",
+            "valid": False,
+        },
+        {
             # Invalid because the last letter is .
-            "As-123_2.8A.",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
+            "value": "As-123_2.8A.",
+            "valid": False,
+        },
+        {
             # Invalid because $ is not allowed
-            "As-123_2.8A$a",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
+            "value": "As-123_2.8A$a",
+            "valid": False,
+        },
         # sprakjob length 29
-        ("asdnoinasoidas-asdaskdlnaskdl", does_not_raise()),
-        (
-            "asdnoinasoidas-asdaskdlnaskdl2",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-    ],
-)
-def test_spark_job_name_regex(value, expected):
-    with expected:
-        verify_field_regex("test_field", value, mlrun.utils.regex.sparkjob_name)
+        {"value": "asdnoinasoidas-asdaskdlnaskdl", "valid": True},
+        {"value": "asdnoinasoidas-asdaskdlnaskdl2", "valid": False},
+    ]
+    for case in cases:
+        try:
+            verify_field_regex(
+                "test_field", case["value"], mlrun.utils.regex.sparkjob_name
+            )
+        except Exception as exc:
+            print(exc)
+            if case["valid"]:
+                raise
+        else:
+            if not case["valid"]:
+                raise
 
 
 def test_extend_hub_uri():
@@ -169,90 +173,6 @@ def test_extend_hub_uri():
             expected_output = case["expected_output"]
             output, _ = extend_hub_uri_if_needed(input_uri)
             assert expected_output == output
-
-
-@pytest.mark.parametrize(
-    "regex_list,value,expected_str,expected",
-    [
-        (
-            [r"^.{0,9}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
-            "blabla123",
-            "(?=^.{0,9}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
-            True,
-        ),
-        (
-            [r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
-            "blabla123",
-            "(?=^.{0,6}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
-            False,
-        ),
-        (
-            [r"^.{0,6}$", r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"],
-            "bla^%",
-            "(?=^.{0,6}$)(?=^[a-z0-9]([-a-z0-9]*[a-z0-9])?$).*$",
-            False,
-        ),
-        (
-            [r"^.{0,6}$", r"^a...e$", r"ab*"],
-            "abcde",
-            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
-            True,
-        ),
-        (
-            [r"^.{0,6}$", r"^a...e$", r"ab*"],
-            "abababe",
-            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
-            False,
-        ),
-        (
-            [r"^.{0,6}$", r"^a...e$", r"ab*"],
-            "bcea",
-            "(?=^.{0,6}$)(?=^a...e$)(?=ab*).*$",
-            False,
-        ),
-    ],
-)
-def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
-    regex_str = get_regex_list_as_string(regex_list)
-    assert expected_str == regex_str
-    match = re.match(regex_str, value)
-    assert match if expected else match is None
-
-
-@pytest.mark.parametrize(
-    "tag_name,expected",
-    [
-        (
-            "tag_name",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
-            "tag_with_char!@#",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
-            "tag^name",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
-            "(tagname)",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
-            "tagname%",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        ("tagname2.0", does_not_raise()),
-        ("tag-name", does_not_raise()),
-        ("tag-NAME", does_not_raise()),
-    ],
-)
-def test_validate_tag_name(tag_name, expected):
-    with expected:
-        validate_tag_name(
-            tag_name,
-            field_name="artifact.metadata,tag",
-        )
 
 
 def test_enrich_image():
@@ -492,29 +412,27 @@ def test_get_parsed_docker_registry():
         assert case["expected_repository"] == repository
 
 
-@pytest.mark.parametrize(
-    "uri,expected_output",
-    [
-        ("store:///123", (StorePrefix.Artifact, "123")),
-        ("store://xyz", (StorePrefix.Artifact, "xyz")),
-        (
-            "store://feature-sets/123",
-            (StorePrefix.FeatureSet, "123"),
-        ),
-        (
-            "store://feature-vectors/456",
-            (StorePrefix.FeatureVector, "456"),
-        ),
-        (
-            "store://artifacts/890",
-            (StorePrefix.Artifact, "890"),
-        ),
-        ("xxx://xyz", (None, "")),
-    ],
-)
-def test_parse_store_uri(uri, expected_output):
-    output = parse_store_uri(uri)
-    assert expected_output == output
+def test_parse_store_uri():
+    cases = [
+        {"uri": "store:///123", "expected_output": (StorePrefix.Artifact, "123")},
+        {"uri": "store://xyz", "expected_output": (StorePrefix.Artifact, "xyz")},
+        {
+            "uri": "store://feature-sets/123",
+            "expected_output": (StorePrefix.FeatureSet, "123"),
+        },
+        {
+            "uri": "store://feature-vectors/456",
+            "expected_output": (StorePrefix.FeatureVector, "456"),
+        },
+        {
+            "uri": "store://artifacts/890",
+            "expected_output": (StorePrefix.Artifact, "890"),
+        },
+        {"uri": "xxx://xyz", "expected_output": (None, "")},
+    ]
+    for case in cases:
+        output = parse_store_uri(case["uri"])
+        assert case["expected_output"] == output
 
 
 def test_fill_artifact_path_template():

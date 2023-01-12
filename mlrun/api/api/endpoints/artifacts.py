@@ -26,6 +26,7 @@ from mlrun.api import schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.api.schemas.artifact import ArtifactsFormat
+from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.utils import is_legacy_artifact, logger
 
@@ -83,7 +84,6 @@ async def store_artifact(
 @router.get("/projects/{project}/artifact-tags")
 def list_artifact_tags(
     project: str,
-    category: schemas.ArtifactCategories = None,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -92,9 +92,7 @@ def list_artifact_tags(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    tag_tuples = mlrun.api.crud.Artifacts().list_artifact_tags(
-        db_session, project, category
-    )
+    tag_tuples = get_db().list_artifact_tags(db_session, project)
     artifact_key_to_tag = {tag_tuple[1]: tag_tuple[2] for tag_tuple in tag_tuples}
     allowed_artifact_keys = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.artifact,
@@ -112,8 +110,7 @@ def list_artifact_tags(
     ]
     return {
         "project": project,
-        # Remove duplicities
-        "tags": list(set(tags)),
+        "tags": tags,
     }
 
 

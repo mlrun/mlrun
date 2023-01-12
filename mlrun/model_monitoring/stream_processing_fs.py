@@ -316,7 +316,7 @@ class EventStreamProcessor:
                     EventFieldType.RECORD_TYPE,
                 ],
                 max_events=self.tsdb_batching_max_events,
-                flush_after_seconds=self.tsdb_batching_timeout_secs,
+                timeout_secs=self.tsdb_batching_timeout_secs,
                 key=EventFieldType.ENDPOINT_ID,
             )
 
@@ -716,7 +716,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
 
         # Create a storey event object with list of events, based on endpoint_id which will be used
         # in the upcoming steps
-        storey_event = storey.Event(body=events, key=endpoint_id)
+        storey_event = storey.Event(body=events, key=endpoint_id, time=timestamp)
         return storey_event
 
     def is_list_of_numerics(

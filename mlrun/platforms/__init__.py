@@ -21,7 +21,6 @@ from .iguazio import (
     V3ioStreamClient,
     VolumeMount,
     add_or_refresh_credentials,
-    is_iguazio_session_cookie,
     mount_v3io,
     mount_v3io_extended,
     mount_v3io_legacy,

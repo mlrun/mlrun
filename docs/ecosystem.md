@@ -67,7 +67,3 @@ This section lists the data stores, development tools, services, platforms, etc.
 - Github Actions 
 - Gitlab CI/CD 
 - KFP 
-
-## Browser
-
-MLRun runs on Chrome and Firefox 

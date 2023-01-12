@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import tempfile
 import time
 import unittest.mock
@@ -20,7 +21,7 @@ import pandas as pd
 import pytest
 
 import mlrun
-import mlrun.feature_store as fstore
+import mlrun.feature_store as fs
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store.steps import (
     DateExtractor,
@@ -38,6 +39,7 @@ def extract_meta(event):
     event.body = {
         "id": event.id,
         "key": event.key,
+        "time": event.time,
     }
     return event
 
@@ -45,17 +47,18 @@ def extract_meta(event):
 def test_set_event_meta():
     function = mlrun.new_function("test1", kind="serving")
     flow = function.set_topology("flow")
-    flow.to(SetEventMetadata(id_path="myid", key_path="mykey")).to(
+    flow.to(SetEventMetadata(id_path="myid", key_path="mykey", time_path="mytime")).to(
         name="e", handler="extract_meta", full_event=True
     ).respond()
 
     server = function.to_mock_server()
-    event = {"myid": "34", "mykey": "123"}
+    event = {"myid": "34", "mykey": "123", "mytime": "2022-01-18 15:01"}
     resp = server.test(body=event)
     server.wait_for_completion()
     assert resp == {
         "id": "34",
         "key": "123",
+        "time": datetime.datetime(2022, 1, 18, 15, 1),
     }
 
 
@@ -86,14 +89,14 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
         "department": data["department"].tolist(),
     }
     # Define the corresponding FeatureSet
-    data_set_pandas = fstore.FeatureSet(
+    data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
 
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set_pandas.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
     data_set_pandas._run_db = rundb_mock
 
@@ -104,7 +107,7 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
+    df_pandas = fs.ingest(
         data_set_pandas,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -157,12 +160,12 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     )
 
     # Define the corresponding FeatureSet
-    data_set = fstore.FeatureSet(
+    data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
     data_set._run_db = rundb_mock
 
@@ -171,7 +174,7 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
+    df = fs.ingest(
         data_set,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -198,13 +201,13 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     elif isinstance(set_index_before, int) and len(entities) > 1:
         data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
-    data_set_pandas = fstore.FeatureSet(
+    data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set_pandas.graph.to(Imputer(mapping={"department": "IT"}))
     data_set_pandas._run_db = rundb_mock
 
@@ -215,7 +218,7 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
+    df_pandas = fs.ingest(
         data_set_pandas,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -233,12 +236,12 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     )
 
     # Define the corresponding FeatureSet
-    data_set = fstore.FeatureSet(
+    data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set.graph.to(Imputer(mapping={"department": "IT"}))
     data_set._run_db = rundb_mock
 
@@ -247,7 +250,7 @@ def test_pandas_step_imputer(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
+    df = fs.ingest(
         data_set,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -274,9 +277,9 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
     elif isinstance(set_index_before, int) and len(entities) > 1:
         data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
-    data_set_pandas = fstore.FeatureSet(
+    data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
@@ -299,7 +302,7 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our  dataset through our defined pipeline
-    df_pandas = fstore.ingest(
+    df_pandas = fs.ingest(
         data_set_pandas,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -329,12 +332,12 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
         check_names=True,
     )
     # Define the corresponding FeatureSet
-    data_set = fstore.FeatureSet(
+    data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set.graph.to(
         MapValues(
             mapping={
@@ -351,7 +354,7 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
+    df = fs.ingest(
         data_set,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -369,10 +372,7 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
 
 @pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
 @pytest.mark.parametrize("set_index_before", [True, False, 0])
-@pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
-def test_pandas_step_data_extractor(
-    rundb_mock, entities, set_index_before, timestamp_col
-):
+def test_pandas_step_data_extractor(rundb_mock, entities, set_index_before):
     data, _ = get_data()
     data_to_ingest = data.copy()
     if set_index_before or len(entities) == 1:
@@ -380,17 +380,17 @@ def test_pandas_step_data_extractor(
     elif isinstance(set_index_before, int) and len(entities) > 1:
         data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
-    data_set_pandas = fstore.FeatureSet(
+    data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set_pandas.graph.to(
         DateExtractor(
             parts=["hour", "day_of_week"],
-            timestamp_col=timestamp_col,
+            timestamp_col="timestamp",
         )
     )
     data_set_pandas._run_db = rundb_mock
@@ -402,7 +402,7 @@ def test_pandas_step_data_extractor(
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
+    df_pandas = fs.ingest(
         data_set_pandas,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -422,16 +422,16 @@ def test_pandas_step_data_extractor(
         check_names=True,
     )
     # Define the corresponding FeatureSet
-    data_set = fstore.FeatureSet(
+    data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
     # Pre-processing grpah steps
     data_set.graph.to(
         DateExtractor(
             parts=["hour", "day_of_week"],
-            timestamp_col=timestamp_col,
+            timestamp_col="timestamp",
         )
     )
     data_set._run_db = rundb_mock
@@ -441,7 +441,7 @@ def test_pandas_step_data_extractor(
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
+    df = fs.ingest(
         data_set,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -467,17 +467,17 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
     elif isinstance(set_index_before, int) and len(entities) > 1:
         data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
-    data_set_pandas = fstore.FeatureSet(
+    data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
     # Pre-processing grpah steps
     data_set_pandas.graph.to(FeaturesetValidator())
-    data_set_pandas["age"] = fstore.Feature(
+    data_set_pandas["age"] = fs.Feature(
         validator=MinMaxValidator(min=30, severity="info"),
-        value_type=fstore.ValueType.INT16,
+        value_type=fs.ValueType.INT16,
     )
     data_set_pandas._run_db = rundb_mock
 
@@ -488,7 +488,7 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
+    df_pandas = fs.ingest(
         data_set_pandas,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -506,16 +506,16 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
         check_names=True,
     )
     # Define the corresponding FeatureSet
-    data_set = fstore.FeatureSet(
+    data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set.graph.to(FeaturesetValidator())
-    data_set["age"] = fstore.Feature(
+    data_set["age"] = fs.Feature(
         validator=MinMaxValidator(min=30, severity="info"),
-        value_type=fstore.ValueType.INT16,
+        value_type=fs.ValueType.INT16,
     )
     data_set._run_db = rundb_mock
 
@@ -524,7 +524,7 @@ def test_pandas_step_data_validator(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
+    df = fs.ingest(
         data_set,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -550,13 +550,13 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     elif isinstance(set_index_before, int) and len(entities) > 1:
         data_to_ingest.set_index(entities[set_index_before], inplace=True)
     # Define the corresponding FeatureSet
-    data_set_pandas = fstore.FeatureSet(
+    data_set_pandas = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
         engine="pandas",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set_pandas.graph.to(DropFeatures(features=["age"]))
     data_set_pandas._run_db = rundb_mock
 
@@ -567,7 +567,7 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     output_path = tempfile.TemporaryDirectory()
 
     # Ingest our dataset through our defined pipeline
-    df_pandas = fstore.ingest(
+    df_pandas = fs.ingest(
         data_set_pandas,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
@@ -586,12 +586,12 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
         check_names=True,
     )
     # Define the corresponding FeatureSet
-    data_set = fstore.FeatureSet(
+    data_set = fs.FeatureSet(
         "fs-new",
-        entities=[fstore.Entity(ent) for ent in entities],
+        entities=[fs.Entity(ent) for ent in entities],
         description="feature set",
     )
-    # Pre-processing graph steps
+    # Pre-processing grpah steps
     data_set.graph.to(DropFeatures(features=["age"]))
     data_set._run_db = rundb_mock
 
@@ -600,7 +600,7 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     data_set.purge_targets = unittest.mock.Mock()
 
     # Ingest our dataset through our defined pipeline
-    df = fstore.ingest(
+    df = fs.ingest(
         data_set,
         data_to_ingest,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],

@@ -13,16 +13,15 @@
 # limitations under the License.
 #
 import datetime
+import enum
 import typing
 
 import pydantic
 
-import mlrun.api.utils.helpers
-
 from .object import ObjectKind
 
 
-class BackgroundTaskState(mlrun.api.utils.helpers.StrEnum):
+class BackgroundTaskState(str, enum.Enum):
     succeeded = "succeeded"
     failed = "failed"
     running = "running"

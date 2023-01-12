@@ -45,7 +45,6 @@ def db() -> Generator:
     config.httpdb.db_type = "sqldb"
     dsn = f"sqlite:///{db_file.name}?check_same_thread=false"
     config.httpdb.dsn = dsn
-    mlrun.config._is_running_as_api = True
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
@@ -68,7 +67,15 @@ def set_base_url_for_test_client(
     client: typing.Union[httpx.AsyncClient, TestClient],
     prefix: str = BASE_VERSIONED_API_PREFIX,
 ):
-    client.base_url = client.base_url.join(prefix)
+    if isinstance(client, httpx.AsyncClient):
+        client.base_url = client.base_url.join(prefix)
+    elif isinstance(client, TestClient):
+        client.base_url = client.base_url + prefix
+
+        # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
+        client.base_url = client.base_url.rstrip("/") + "/"
+    else:
+        raise NotImplementedError(f"Unknown test client type: {type(client)}")
 
 
 @pytest.fixture()
@@ -116,8 +123,7 @@ class K8sSecretsMock:
     def set_is_running_in_k8s_cluster(self, value: bool):
         self._is_running_in_k8s = value
 
-    @staticmethod
-    def get_auth_secret_name(username: str, access_key: str) -> str:
+    def get_auth_secret_name(self, username: str, access_key: str) -> str:
         return f"secret-ref-{username}-{access_key}"
 
     def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
@@ -138,23 +144,6 @@ class K8sSecretsMock:
 
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         del self.auth_secrets_map[secret_ref]
-
-    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
-        secret = self.auth_secrets_map.get(secret_name)
-        if not secret:
-            if raise_on_not_found:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Secret '{secret_name}' was not found in auth secrets map"
-                )
-
-            return None, None
-        username = secret[
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
-        ]
-        access_key = secret[
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
-        ]
-        return username, access_key
 
     def store_project_secrets(self, project, secrets, namespace=""):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
@@ -255,7 +244,6 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         "get_auth_secret_name",
         "store_auth_secret",
         "delete_auth_secret",
-        "read_auth_secret",
     ]
 
     for mocked_function_name in mocked_function_names:

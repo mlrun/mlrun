@@ -18,7 +18,7 @@ import typing
 import mlrun.lists
 
 
-class NotificationSeverity(str, enum.Enum):
+class NotificationSeverity(enum.Enum):
     INFO = "info"
     DEBUG = "debug"
     VERBOSE = "verbose"
@@ -32,10 +32,6 @@ class NotificationBase:
         params: typing.Dict[str, str] = None,
     ):
         self.params = params or {}
-
-    @property
-    def active(self) -> bool:
-        return True
 
     def send(
         self,

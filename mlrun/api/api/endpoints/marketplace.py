@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import mimetypes
 from http import HTTPStatus
 from typing import List, Optional

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import os
 import typing
 
 import requests
@@ -41,12 +42,9 @@ class SlackNotification(NotificationBase):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env(
-            "SLACK_WEBHOOK"
-        )
-
+        webhook = self.params.get("webhook", None) or os.environ.get("SLACK_WEBHOOK")
         if not webhook:
-            mlrun.utils.helpers.logger.debug(
+            mlrun.utils.helpers.logger.warn(
                 "No slack webhook is set, skipping notification"
             )
             return

@@ -47,19 +47,6 @@ def _prep_dir(source, target_dir, suffix, secrets, clone):
     return temp_file
 
 
-def get_git_username_password_from_token(token):
-    # Github's access tokens have a known prefix according to their type. See
-    # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-    # We distinguish new fine-grained access tokens (begin with "github_pat_" from classic tokens.
-    if token.startswith("github_pat_"):
-        username = "oauth2"
-        password = token
-    else:
-        username = token
-        password = "x-oauth-basic"
-    return username, password
-
-
 def clone_zip(source, target_dir, secrets=None, clone=True):
     tmpfile = _prep_dir(source, target_dir, ".zip", secrets, clone)
     with zipfile.ZipFile(tmpfile, "r") as zf:
@@ -95,7 +82,7 @@ def clone_git(url, context, secrets=None, clone=True):
     secrets = secrets or {}
 
     def get_secret(key):
-        return mlrun.get_secret_or_env(key, secret_provider=secrets)
+        return os.environ.get(key, secrets.get(key))
 
     url_obj = urlparse(url)
     if not context:
@@ -129,7 +116,8 @@ def clone_git(url, context, secrets=None, clone=True):
     )
     token = get_secret("GIT_TOKEN")
     if token:
-        username, password = get_git_username_password_from_token(token)
+        username = token
+        password = "x-oauth-basic"
 
     clone_path = f"https://{host}{url_obj.path}"
     enriched_clone_path = ""

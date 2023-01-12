@@ -14,7 +14,7 @@
 import datetime
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlrun.api import schemas
 
@@ -67,7 +67,7 @@ class DBInterface(ABC):
         self,
         session,
         name="",
-        uid: Optional[Union[str, List[str]]] = None,
+        uid=None,
         project="",
         labels=None,
         states=None,
@@ -153,7 +153,6 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        use_tag_as_uid: bool = None,
     ):
         pass
 
@@ -507,7 +506,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifact_tags(self, session, project, category):
+    def list_artifact_tags(self, session, project):
         return []
 
     def create_marketplace_source(

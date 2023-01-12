@@ -58,23 +58,14 @@ class Client(
     def get_internal_background_task(
         self, name: str, request: fastapi.Request = None
     ) -> fastapi.Response:
-        """
-        internal background tasks are managed by the chief only
-        """
         return self._proxy_request_to_chief("GET", f"background-tasks/{name}", request)
 
     def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
-        """
-        only chief can execute migrations
-        """
         return self._proxy_request_to_chief("POST", "operations/migrations", request)
 
     def create_schedule(
         self, project: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
-        """
-        Schedules are running only on chief
-        """
         return self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules", request, json
         )
@@ -82,9 +73,6 @@ class Client(
     def update_schedule(
         self, project: str, name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
-        """
-        Schedules are running only on chief
-        """
         return self._proxy_request_to_chief(
             "PUT", f"projects/{project}/schedules/{name}", request, json
         )
@@ -92,9 +80,6 @@ class Client(
     def delete_schedule(
         self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
-        """
-        Schedules are running only on chief
-        """
         return self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules/{name}", request
         )
@@ -102,9 +87,6 @@ class Client(
     def delete_schedules(
         self, project: str, request: fastapi.Request
     ) -> fastapi.Response:
-        """
-        Schedules are running only on chief
-        """
         return self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules", request
         )
@@ -112,43 +94,18 @@ class Client(
     def invoke_schedule(
         self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
-        """
-        Schedules are running only on chief
-        """
         return self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
     def submit_job(self, request: fastapi.Request, json: dict) -> fastapi.Response:
-        """
-        submit job can be responsible for creating schedules and schedules are running only on chief,
-        so when the job contains a schedule, we re-route the request to chief
-        """
-        return self._proxy_request_to_chief(
-            "POST",
-            "submit_job",
-            request,
-            json,
-            timeout=int(mlrun.mlconf.submit_timeout),
-        )
+        return self._proxy_request_to_chief("POST", "submit_job", request, json)
 
     def build_function(self, request: fastapi.Request, json: dict) -> fastapi.Response:
-        """
-        if serving function and track_models is enabled, it means that schedules will be created as part of
-        building the function, then we re-route the request to chief
-        """
         return self._proxy_request_to_chief("POST", "build/function", request, json)
 
     def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
-        """
-        delete project can be responsible for deleting schedules. Schedules are running only on chief,
-        that is why we re-route requests to chief
-        """
-        # timeout is greater than default as delete project can take a while because it deletes all the
-        # project resources (depends on the deletion strategy)
-        return self._proxy_request_to_chief(
-            "DELETE", f"projects/{name}", request, timeout=120
-        )
+        return self._proxy_request_to_chief("DELETE", f"projects/{name}", request)
 
     def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
@@ -175,11 +132,8 @@ class Client(
         request: fastapi.Request = None,
         json: dict = None,
         raise_on_failure: bool = False,
-        **kwargs,
     ) -> fastapi.Response:
-        request_kwargs = self._resolve_request_kwargs_from_request(
-            request, json, **kwargs
-        )
+        request_kwargs = self._resolve_request_kwargs_from_request(request, json)
 
         chief_response = self._send_request_to_api(
             method=method,
@@ -192,18 +146,16 @@ class Client(
 
     @staticmethod
     def _resolve_request_kwargs_from_request(
-        request: fastapi.Request = None, json: dict = None, **kwargs
+        request: fastapi.Request = None, json: dict = None
     ) -> dict:
-        request_kwargs = {}
+        kwargs = {}
         if request:
             json = json if json else {}
-            request_kwargs.update({"json": json})
-            request_kwargs.update({"headers": dict(request.headers)})
-            request_kwargs.update({"params": dict(request.query_params)})
-            request_kwargs.update({"cookies": request.cookies})
-
-        request_kwargs.update(**kwargs)
-        return request_kwargs
+            kwargs.update({"json": json})
+            kwargs.update({"headers": dict(request.headers)})
+            kwargs.update({"params": dict(request.query_params)})
+            kwargs.update({"cookies": request.cookies})
+        return kwargs
 
     @staticmethod
     def _convert_requests_response_to_fastapi_response(
@@ -226,9 +178,7 @@ class Client(
     ):
         url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
         if kwargs.get("timeout") is None:
-            kwargs["timeout"] = (
-                mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
-            )
+            kwargs["timeout"] = 20
         logger.debug("Sending request to chief", method=method, url=url, **kwargs)
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_PYTHON_VERSION=3.9.13
+ARG MLRUN_PYTHON_VERSION=3.7.13
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 

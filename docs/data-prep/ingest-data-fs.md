@@ -21,24 +21,11 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 - When using the pandas engine, do not use spaces (` `) or periods (`.`) in the column names. These cause errors in the ingestion.
 ```
 
-**In this section**
-- [Inferring data](#inferring-data)
-- [Ingest data locally](#ingest-data-locally)
-- [Ingest data using an MLRun job](#ingest-data-using-an-mlrun-job)
-- [Real-time ingestion](#real-time-ingestion)
-- [Incremental ingestion](#incremental-ingestion)
-- [Data sources](#data-sources)
-- [Target stores](#target-stores)
-
 ## Inferring data
 
-There are two types of inferring: 
-- Metadata/schema: This is responsible for describing the dataset and generating its meta-data, such as deducing the 
-data-types of the features and listing the entities that are involved. Options belonging to this type are 
-`Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value 
-containing all the options of this type.
--  Stats/preview: This related to calculating statistics and generating a preview of the actual data in the dataset. 
-Options of this type are `Stats`, `Histogram` and `Preview`. 
+There are 2 types of infer options - metadata/schema inferring, and stats/preview inferring. The first type is responsible for describing the dataset and generating its meta-data, such as deducing the data-types of the features and listing the entities that are involved. Options belonging to this type are `Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value containing all the options of this type.
+The 2nd type is related to calculating statistics and generating a preview of the actual data in the dataset. Options of this type are `Stats`, `Histogram` and `Preview`. 
+
 
 The `InferOptions class` has the following values:<br>
 class InferOptions:<br>
@@ -52,8 +39,7 @@ class InferOptions:<br>
     
 The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
 
-When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
-
+When simultanesouly ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
 
 ## Ingest data locally
 
@@ -138,7 +124,7 @@ You can also create a custom `source` to access various databases or data source
 
 ## Target stores
 
-By default, the feature sets are saved in parquet and the Iguazio NoSQL DB (`NoSqlTarget`). <br>
+By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
 The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
 
 ```{admonition} Note
@@ -150,8 +136,6 @@ The default location can be modified in mlrun config or specified per ingest ope
 
 ```{admonition} Tech preview
 ```
-=======
-### Redis target store 
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).

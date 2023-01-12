@@ -268,11 +268,9 @@ class DatasetArtifact(Artifact):
         artifact.spec.header = preview_df.columns.values.tolist()
         artifact.status.preview = preview_df.values.tolist()
         artifact.spec.schema = build_table_schema(preview_df)
-
-        # set artifact stats if stats is explicitly set to true, or if stats is None and the dataframe is small
-        if stats or (
-            stats is None
-            and (
+        if (
+            stats
+            or (
                 artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
             )
             or ignore_preview_limits

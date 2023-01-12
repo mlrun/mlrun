@@ -61,7 +61,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             "status": {"bla": "blabla"},
         }
         function_names = ["function_name_1", "function_name_2", "function_name_3"]
-        function_tags = ["some-tag", "some-tag2", "some-tag3"]
+        function_tags = ["some_tag", "some_tag2", "some_tag3"]
         for function_name in function_names:
             for function_tag in function_tags:
                 db.store_function(
@@ -84,7 +84,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
                 artifact_key,
                 artifact,
                 "some_uid",
-                tag="some-tag",
+                tag="some_tag",
                 project=project.metadata.name,
             )
 

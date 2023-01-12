@@ -13,7 +13,6 @@
 # limitations under the License.
 import hashlib
 import os
-import pathlib
 import tempfile
 import typing
 import warnings
@@ -434,7 +433,7 @@ class Artifact(ModelObj):
         return artifact_hash, target_path
 
     def _resolve_suffix(self) -> str:
-        suffix = "".join(pathlib.Path(self.spec.src_path or "").suffixes)
+        suffix = os.path.splitext(self.spec.src_path or "")[1]
         if not suffix and self.spec.format:
             suffix = f".{self.spec.format}"
         return suffix
@@ -867,6 +866,17 @@ class DirArtifactSpec(ArtifactSpec):
 
 class DirArtifact(Artifact):
     kind = "dir"
+
+    _dict_fields = [
+        "key",
+        "kind",
+        "iter",
+        "tree",
+        "src_path",
+        "target_path",
+        "description",
+        "db_key",
+    ]
 
     @property
     def spec(self) -> DirArtifactSpec:

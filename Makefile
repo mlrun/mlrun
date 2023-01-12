@@ -371,7 +371,7 @@ push-log-collector: log-collector
 
 .PHONY: compile-schemas
 compile-schemas: ## Compile schemas
-		cd go && \
+	cd go && \
 		make compile-schemas
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
@@ -599,7 +599,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code (using black and isort)
 	@echo "Running black fmt..."
-	python -m black . --exclude=/mlrun/api/proto
+	python -m black .
 	python -m isort .
 
 .PHONY: lint

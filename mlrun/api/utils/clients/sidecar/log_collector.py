@@ -14,6 +14,8 @@
 
 import mlrun.api.proto.log_collector_pb2
 import mlrun.api.proto.log_collector_pb2_grpc
+import mlrun.errors
+from mlrun.utils import logger
 
 from .base import BaseGRPCClient
 
@@ -22,11 +24,24 @@ class LogCollectorClient(BaseGRPCClient):
     name = "log_collector"
     stub_class = mlrun.api.proto.log_collector_pb2_grpc.LogCollectorStub
 
-    async def start_logs(self, run_id: str, selector: str) -> bool:
+    async def start_logs(
+        self,
+        run_id: str,
+        selector: str,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> (bool, str):
         request = mlrun.api.proto.log_collector_pb2.StartLogRequest(
             runId=run_id, selector=selector
         )
         response = await self._call("StartLog", request)
         if not response.success:
-            raise Exception(response.error)
-        return response.success
+            msg = f"Failed to start logs for run {run_id}"
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    msg,
+                    error=response.error,
+                )
+            if verbose:
+                logger.warning(msg, error=response.error)
+        return response.success, response.error

@@ -988,6 +988,11 @@ def logs(uid, project, offset, db, watch):
     is_flag=True,
     help="Overwrite a schedule when submitting a new one with the same name.",
 )
+@click.option(
+    "--save-secrets",
+    is_flag=True,
+    help="Store the project secrets as k8s secrets",
+)
 def project(
     context,
     name,
@@ -1014,6 +1019,7 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
+    save_secrets,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1045,7 +1051,13 @@ def project(
         proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
-        proj._secrets = SecretsStore.from_list(secrets)
+        secret_store = SecretsStore.from_list(secrets)
+        # Used to run a workflow with secrets in runtime, without using or storing k8s secrets.
+        # To run a scheduled workflow or to use those secrets in other runs, save
+        # the secrets in k8s and use the --save-secret flag
+        proj._secrets = secret_store
+        if save_secrets:
+            proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())
 
     if run:

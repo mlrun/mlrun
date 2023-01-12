@@ -1248,19 +1248,20 @@ async def test_schedule_job_concurrency_limit(
 
     random_sleep_time = random.randint(1, 5)
     await asyncio.sleep(random_sleep_time)
+    now = datetime.now(timezone.utc)
+
     schedule = scheduler.get_schedule(
         db,
         project_name,
         schedule_name,
     )
-
-    # scrub the microseconds to reduce noise
-    now = datetime.now(timezone.utc)
-    if now >= now_plus_5_seconds:
+    if schedule.next_run_time is None:
         # next run time may be none if the job was completed (i.e. end date was reached)
-        assert schedule.next_run_time is None
+        assert now >= now_plus_5_seconds
+
     else:
-        assert schedule.next_run_time >= now
+        # scrub the microseconds to reduce noise
+        assert schedule.next_run_time >= now.replace(microsecond=0)
 
     # wait so all runs will complete
     await asyncio.sleep(7 - random_sleep_time)

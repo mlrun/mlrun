@@ -57,26 +57,30 @@ schemas-compiler: schemas-compiler
 # Protobuf
 #
 .PHONY: compile-schemas
-compile-schemas: cleanup compile-schemas-go-dockerized compile-schemas-python
+compile-schemas: compile-schemas-dockerized
 	@echo Done
+
+.PHONY: compile-schemas-local
+compile-schemas-local: cleanup compile-schemas-go compile-schemas-python
+	@echo Done
+
+.PHONY: compile-schemas-dockerized
+compile-schemas-dockerized: schemas-compiler
+	@echo Compiling schemas in docker container
+	docker run \
+		-v $(shell dirname $(PWD)):/app \
+		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		make compile-schemas-local
 
 .PHONY: compile-schemas-go
 compile-schemas-go:
 	@echo Compiling go schemas
 	protoc --go_out=. --go-grpc_out=. --go-grpc_opt=require_unimplemented_servers=false proto/*.proto
 
-.PHONY: compile-schemas-go-dockerized
-compile-schemas-go-dockerized: schemas-compiler
-	@echo Compiling go schemas in docker container
-	docker run \
-		-v $(shell dirname $(PWD)):/app \
-		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
-		make compile-schemas-go
-
 .PHONY: compile-schemas-python
 compile-schemas-python:
 	@echo Compiling python schemas
-	python -m grpc_tools.protoc --proto_path=. --python_out=../mlrun/api --grpc_python_out=../mlrun/api proto/*.proto
+	python3 -m grpc_tools.protoc --proto_path=. --python_out=../mlrun/api --grpc_python_out=../mlrun/api proto/*.proto
 	@echo Fixing Python GRPC Imports
 	sh hack/scripts/fix_python_grpc_imports.sh
 

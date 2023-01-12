@@ -23,28 +23,36 @@ import (
 	"github.com/mlrun/mlrun/proto/build/health"
 
 	"github.com/nuclio/errors"
-	"github.com/nuclio/loggerus"
+	"github.com/nuclio/logger"
 	"google.golang.org/grpc"
 )
 
 const HealthWatchInterval = 5 * time.Second
 
 type MlrunGRPCServer interface {
-	getLogger() *loggerus.Loggerus
-	setServer(*grpc.Server)
-	getServerOpts() []grpc.ServerOption
 	RegisterRoutes(context context.Context)
 	OnBeforeStart(context context.Context) error
+	getLogger() logger.Logger
+	setServer(*grpc.Server)
+	getServerOpts() []grpc.ServerOption
 }
 
 type AbstractMlrunGRPCServer struct {
-	Logger         *loggerus.Loggerus
+	Logger         logger.Logger
 	Server         *grpc.Server
 	servingStatus  health.HealthCheckResponse_ServingStatus
 	grpcServerOpts []grpc.ServerOption
 }
 
-func (s *AbstractMlrunGRPCServer) getLogger() *loggerus.Loggerus {
+func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
+	return &AbstractMlrunGRPCServer{
+		Logger:         logger,
+		grpcServerOpts: grpcServerOpts,
+		servingStatus:  health.HealthCheckResponse_SERVING,
+	}, nil
+}
+
+func (s *AbstractMlrunGRPCServer) getLogger() logger.Logger {
 	return s.Logger
 }
 
@@ -96,14 +104,6 @@ func (s *AbstractMlrunGRPCServer) Watch(request *health.HealthCheckRequest, stre
 	}
 }
 
-func NewAbstractMlrunGRPCServer(logger *loggerus.Loggerus, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
-	return &AbstractMlrunGRPCServer{
-		Logger:         logger,
-		grpcServerOpts: grpcServerOpts,
-		servingStatus:  health.HealthCheckResponse_SERVING,
-	}, nil
-}
-
 func StartServer(server MlrunGRPCServer, port int) error {
 	initContext := context.Background()
 
@@ -122,11 +122,10 @@ func StartServer(server MlrunGRPCServer, port int) error {
 		return errors.Wrap(err, "Failed running on before start hook")
 	}
 	logger.DebugWithCtx(initContext, "Starting server")
+	defer listener.Close()
 	if err := grpcServer.Serve(listener); err != nil {
 		return errors.Wrap(err, "Failed to start server")
 	}
-
-	defer listener.Close()
 
 	return nil
 }

@@ -1332,7 +1332,6 @@ async def test_schedule_job_next_run_time(
         project_name,
         schedule_name,
     )
-
     assert schedule.next_run_time > schedule_invocation_timestamp
 
     # wait so all runs will complete

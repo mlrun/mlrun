@@ -30,10 +30,20 @@ import (
 const HealthWatchInterval = 5 * time.Second
 
 type MlrunGRPCServer interface {
+
+	// RegisterRoutes registers the server's routes
 	RegisterRoutes(context context.Context)
+
+	// OnBeforeStart allows to perform operations before the server starts
 	OnBeforeStart(context context.Context) error
-	getLogger() logger.Logger
+
+	// SetServingStatus sets the server's healthcheck serving status
+	SetServingStatus(status health.HealthCheckResponse_ServingStatus)
+
+	// setServer sets the server's grpc server
 	setServer(*grpc.Server)
+
+	// getServerOpts returns the server's grpc server options
 	getServerOpts() []grpc.ServerOption
 }
 
@@ -46,18 +56,9 @@ type AbstractMlrunGRPCServer struct {
 
 func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
 	return &AbstractMlrunGRPCServer{
-		Logger:         logger,
+		Logger:         logger.GetChild("grpcserver"),
 		grpcServerOpts: grpcServerOpts,
-		servingStatus:  health.HealthCheckResponse_SERVING,
 	}, nil
-}
-
-func (s *AbstractMlrunGRPCServer) getLogger() logger.Logger {
-	return s.Logger
-}
-
-func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
-	s.Server = server
 }
 
 func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
@@ -104,7 +105,7 @@ func (s *AbstractMlrunGRPCServer) Watch(request *health.HealthCheckRequest, stre
 	}
 }
 
-func StartServer(server MlrunGRPCServer, port int) error {
+func StartServer(server MlrunGRPCServer, port int, logger logger.Logger) error {
 	initContext := context.Background()
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -112,7 +113,6 @@ func StartServer(server MlrunGRPCServer, port int) error {
 		return errors.Wrap(err, fmt.Sprintf("Failed to listen on port %d", port))
 	}
 
-	logger := server.getLogger()
 	logger.DebugWithCtx(initContext, "Listening", "port", port)
 	grpcServer := grpc.NewServer(server.getServerOpts()...)
 	server.setServer(grpcServer)
@@ -122,10 +122,19 @@ func StartServer(server MlrunGRPCServer, port int) error {
 		return errors.Wrap(err, "Failed running on before start hook")
 	}
 	logger.DebugWithCtx(initContext, "Starting server")
+	server.SetServingStatus(health.HealthCheckResponse_SERVING)
 	defer listener.Close()
 	if err := grpcServer.Serve(listener); err != nil {
 		return errors.Wrap(err, "Failed to start server")
 	}
 
 	return nil
+}
+
+func (s *AbstractMlrunGRPCServer) SetServingStatus(status health.HealthCheckResponse_ServingStatus) {
+	s.servingStatus = status
+}
+
+func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
+	s.Server = server
 }

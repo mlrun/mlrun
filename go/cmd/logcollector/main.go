@@ -16,29 +16,28 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/framework"
-	"github.com/mlrun/mlrun/pkg/services/log_collector"
+	"github.com/mlrun/mlrun/pkg/services/logcollector"
 
 	"github.com/nuclio/errors"
 )
 
 func StartServer() error {
 
-	// flag parsing
+	// env vars parsing
 	listenPort := flag.Int("listen-port", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_LISTEN_PORT", 8080), "GRPC listen port")
 	logLevel := flag.String("log-level", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
 	logFormatter := flag.String("log-formatter", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_LOG_FORMATTER", "text"), "Log formatter (text, json)")
-
-	// if namespace is not passed, it will be taken from env
-	namespace := flag.String("namespace", "", "The namespace to collect logs from")
-
-	// env vars parsing
 	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_BASE_DIR", "/var/mlrun/log-collector/pod-logs"), "The directory to store the logs in")
 	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_KUBECONFIG_PATH", ""), "Path to kubeconfig file")
 	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_STATE_FILE_UPDATE_INTERVAL", "10s"), "Interval to get the logs from the pods")
+
+	// if namespace is not passed, it will be taken from env
+	namespace := flag.String("namespace", "", "The namespace to collect logs from")
 
 	flag.Parse()
 
@@ -48,7 +47,7 @@ func StartServer() error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to create logger")
 	}
-	server, err := log_collector.NewLogCollectorServer(logger,
+	server, err := logcollector.NewLogCollectorServer(logger,
 		*namespace,
 		*baseDir,
 		*kubeconfigPath,
@@ -56,7 +55,7 @@ func StartServer() error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")
 	}
-	return framework.StartServer(server, *listenPort)
+	return framework.StartServer(server, *listenPort, server.Logger)
 }
 
 func getNamespace(namespaceArgument string) string {
@@ -78,6 +77,8 @@ func getNamespace(namespaceArgument string) string {
 func main() {
 	err := StartServer()
 	if err != nil {
+		stackTrace := errors.GetErrorStackString(err, 10)
+		fmt.Printf("Failed to start log collector server: %s", stackTrace)
 		panic(err)
 	}
 }

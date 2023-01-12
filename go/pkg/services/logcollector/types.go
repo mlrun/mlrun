@@ -12,13 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package log_collector
+package logcollector
+
+import "context"
+
+type LogItem struct {
+	RunId         string `json:"runId"`
+	LabelSelector string `json:"labelSelector"`
+}
 
 type State struct {
 	InProgress map[string]LogItem `json:"inProgress"`
 }
 
-type LogItem struct {
-	RunId         string `json:"runId"`
-	LabelSelector string `json:"labelSelector"`
+type StateStore interface {
+
+	// AddLogItem adds a log item to the state store
+	AddLogItem(ctx context.Context, runId, selector string) error
+
+	// RemoveLogItem removes a log item from the state store
+	RemoveLogItem(runId string) error
+
+	// UpdateState updates the state periodically
+	UpdateState(ctx context.Context)
+
+	// WriteState writes the state to persistent storage
+	WriteState(state *State) error
+
+	// GetInProgress returns the in progress log items
+	GetInProgress() (map[string]LogItem, error)
+
+	// GetState returns the state store state
+	GetState() *State
 }

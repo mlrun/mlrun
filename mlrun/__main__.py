@@ -991,13 +991,12 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--notification",
     "-nt",
-    multiple=True,
-    help="Allow to set a project notifier in runtime, or by a file or by a dict."
-    "for exmaple:"
-    "--notification {'notification_type':{param_key:param_value}}"
-    "--notification {'slack':{'SLACK_WEBHOOK':'<slack_webhook_url>'}}"
+    help="Allow to set a project notifier in runtime, or by a file or by a dict.\n"
+    "for exmaple:\n"
+    "--notification 'notification_type'={param_key:param_value}\n"
+    "--notification 'slack'={'SLACK_WEBHOOK':'<slack_webhook_url>'}\n"
     "--notification file=notification.txt, in notification.txt you should store the notification"
-    ",type={param_key:param_value}"
+    ",type={param_key:param_value}\n"
     "For using notifications in other run please store them as env ot secrets.",
 )
 def project(
@@ -1091,16 +1090,14 @@ def project(
         if notification:
             print('notification=',notification)
             print('notification_type=', type(notification))
-            if isinstance(notification, str) and "file" in notification:
-                notification = line2keylist(notification,keyname='type',valname='params')
-                print('notification_line2keylist=', notification)
-            elif isinstance(notification, dict):
-                for k,v in notification:
-                    notification_type = k
-                    notification_param = v
-                    print('notification_type=', notification_type,'notification_param=',notification_param)
-                    proj.notifiers.add_notification(notification_type=notification_type,params=notification_param)
-                print(proj._notifiers._notifications)
+            notification = line2keylist(notification,keyname='type',valname='params')
+            print('notification_line2keylist=', notification)
+            for k,v in notification:
+                notification_type = k
+                notification_param = v
+                print('notification_type=', notification_type,'notification_param=',notification_param)
+                proj.notifiers.add_notification(notification_type=notification_type,params=notification_param)
+            print(proj._notifiers._notifications)
         try:
             try:
                 proj.run(

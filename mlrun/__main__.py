@@ -988,6 +988,18 @@ def logs(uid, project, offset, db, watch):
     is_flag=True,
     help="Overwrite a schedule when submitting a new one with the same name.",
 )
+@click.option(
+    "--notification",
+    "-nt",
+    multiple=True,
+    help="Allow to set a project notifier in runtime, or by a file or by a dict."
+    "for exmaple:"
+    "--notification {'notification_type':{param_key:param_value}}"
+    "--notification {'slack':{'SLACK_WEBHOOK':'<slack_webhook_url>'}}"
+    "--notification file=notification.txt, in notification.txt you should store the notification"
+    ",type={param_key:param_value}"
+    "For using notifications in other run please store them as env ot secrets.",
+)
 def project(
     context,
     name,
@@ -1014,6 +1026,7 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
+    notification
 ):
     """load and/or run a project"""
     if env_file:
@@ -1075,6 +1088,19 @@ def project(
                     "token": proj.get_param("GIT_TOKEN"),
                 },
             )
+        if notification:
+            print('notification=',notification)
+            print('notification_type=', type(notification))
+            if isinstance(notification, str) and "file" in notification:
+                notification = line2keylist(notification,keyname='type',valname='params')
+                print('notification_line2keylist=', notification)
+            elif isinstance(notification, dict):
+                for k,v in notification:
+                    notification_type = k
+                    notification_param = v
+                    print('notification_type=', notification_type,'notification_param=',notification_param)
+                    proj.notifiers.add_notification(notification_type=notification_type,params=notification_param)
+                print(proj._notifiers._notifications)
         try:
             try:
                 proj.run(

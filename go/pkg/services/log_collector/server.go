@@ -177,12 +177,8 @@ func (lcs *LogCollectorServer) StartLog(ctx context.Context, request *log_collec
 
 	// TODO: create a child context before calling goroutines, so it won't be canceled
 
-	//start monitoring it
-	stopChan := make(chan struct{}, 1)
-	go lcs.monitorPodState(ctx, pod.Name, stopChan)
-
 	// stream logs to file
-	go lcs.streamPodLogs(ctx, request.RunId, pod.Name, stopChan)
+	go lcs.streamPodLogs(ctx, request.RunId, pod.Name)
 
 	return &log_collector.StartLogResponse{
 		Success: true,
@@ -260,35 +256,20 @@ func (lcs *LogCollectorServer) GetLog(ctx context.Context, request *log_collecto
 	}, nil
 }
 
-// monitorPodState monitors the pod, and stops log streaming if the pod reached completed or failed state
-func (lcs *LogCollectorServer) monitorPodState(ctx context.Context, podName string, stopChan chan struct{}) {
-
-	lcs.Logger.DebugWithCtx(ctx, "Starting pod state monitoring", "podName", podName)
-
-	for {
-
-		// get pod
-		pod, err := lcs.kubeClientSet.CoreV1().Pods(lcs.namespace).Get(ctx, podName, metav1.GetOptions{})
-		if err != nil {
-			lcs.Logger.WarnWithCtx(ctx, "Failed to get pod", "podName", podName)
-		}
-
-		// check pod state. if completed / failed - invoke stopChan and return
-		if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
-			lcs.Logger.DebugWithCtx(ctx, "Stopping pod state monitoring", "podName", podName)
-			stopChan <- struct{}{}
-			return
-		}
-
-		time.Sleep(lcs.monitoringInterval)
-	}
-}
-
 // streamPodLogs streams logs from a pod and writes them into a file
-func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName string, stopChan chan struct{}) {
+func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName string) {
 
-	// get logs from pod.
-	// since we're in appending to the file, get the logs since the last time we got them
+	// create a log file to the pod
+	filePath := lcs.resolvePodLogFilePath(runId, podName)
+	if err := common.EnsureFileExists(filePath); err != nil {
+		lcs.Logger.ErrorWithCtx(ctx,
+			"Failed to ensure log file",
+			"runId", runId,
+			"filePath", filePath)
+		return
+	}
+
+	// get logs from pod, and keep the stream open (follow)
 	podLogOptions := &v1.PodLogOptions{
 		Follow: true,
 	}
@@ -304,66 +285,52 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 		if streamErr != nil {
 			lcs.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
+	defer stream.Close() // nolint: errcheck
 
 	for {
-		select {
-		case <-time.After(lcs.getLogsInterval):
+		buf := make([]byte, 1024)
 
-			buf := make([]byte, 1024)
+		// This is blocking until there is something to read
+		numBytes, err := stream.Read(buf)
 
-			// This is blocking until there is something to read
-			numBytes, err := stream.Read(buf)
+		// nothing read, continue
+		if numBytes == 0 {
+			continue
+		}
 
-			// nothing read, continue
-			if numBytes == 0 {
-				continue
-			}
+		// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
+		if err == io.EOF {
+			lcs.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
+			break
+		}
 
-			// if error is EOF, the pod is done streaming logs (deleted/completed)
-			if err == io.EOF {
-				lcs.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
-				break
-			}
+		// if error is not EOF, log it and continue
+		if err != nil {
+			lcs.Logger.WarnWithCtx(ctx, "Failed to read pod log",
+				"error",
+				err, "runId", runId)
+			continue
+		}
 
-			// if error is not EOF, return error
-			if err != nil {
-				lcs.Logger.WarnWithCtx(ctx, "Failed to read pod log",
-					"error",
-					err, "runId", runId)
-				continue
-			}
-
-			// write log contents to file
-			filePath := lcs.resolvePodLogFilePath(runId, podName)
-			if err := common.EnsureFileExists(filePath); err != nil {
-				lcs.Logger.ErrorWithCtx(ctx,
-					"Failed to ensure log file",
-					"runId", runId,
-					"filePath", filePath)
-			}
-			if err := common.WriteToFile(ctx, lcs.Logger, filePath, buf[:numBytes], true); err != nil {
-				lcs.Logger.ErrorWithCtx(ctx,
-					"Failed to write log contents to file",
-					"runId", runId,
-					"podName", podName)
-			}
-
-		case <-stopChan:
-			lcs.Logger.DebugWithCtx(ctx,
-				"Removing item from state file",
+		// write log contents to file
+		if err := common.WriteToFile(ctx, lcs.Logger, filePath, buf[:numBytes], true); err != nil {
+			lcs.Logger.ErrorWithCtx(ctx,
+				"Failed to write log contents to file",
 				"runId", runId,
 				"podName", podName)
-
-			// remove run id from state file
-			if err := lcs.removeItemFromInProgress(ctx, runId); err != nil {
-				lcs.Logger.WarnWithCtx(ctx, "Failed to remove run id from state file")
-			}
-
-			stream.Close() // nolint: errcheck
-			return
 		}
+	}
+
+	lcs.Logger.DebugWithCtx(ctx,
+		"Removing item from state file",
+		"runId", runId,
+		"podName", podName)
+
+	// remove run id from state file
+	if err := lcs.removeItemFromInProgress(ctx, runId); err != nil {
+		lcs.Logger.WarnWithCtx(ctx, "Failed to remove run id from state file")
 	}
 }
 

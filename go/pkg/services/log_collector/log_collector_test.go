@@ -16,7 +16,6 @@ package log_collector
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -238,6 +237,7 @@ func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
 }
 
 func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
+	runId := "some-run-id"
 
 	// create fake pod
 	fakePod := v1.Pod{
@@ -270,22 +270,19 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().NoError(err, "Failed to create pod")
 
 	// stream pod logs
-	stopChan := make(chan struct{})
-	go suite.LogCollectorServer.streamPodLogs(suite.ctx, pod.Name, "test-container", stopChan)
+	go suite.LogCollectorServer.streamPodLogs(suite.ctx, runId, pod.Name)
 
-	time.Sleep(20 * time.Second)
+	// let the stream run and log some lines
+	time.Sleep(5 * time.Second)
 
-	// stop streaming
-	close(stopChan)
-
-	logFile := path.Join(suite.baseDir, fmt.Sprintf("%s-%s.log", pod.Name, pod.Spec.Containers[0].Name))
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, pod.Name)
 
 	// make sure log file exists
-	_, err = os.Stat(logFile)
+	_, err = os.Stat(logFilePath)
 	suite.Require().NoError(err, "Failed to find log file")
 
 	// read log file
-	logBytes, err := os.ReadFile(logFile)
+	logBytes, err := os.ReadFile(logFilePath)
 	suite.Require().NoError(err, "Failed to read log file")
 
 	// verify log file content

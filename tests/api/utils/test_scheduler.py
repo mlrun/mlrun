@@ -1214,7 +1214,7 @@ async def test_schedule_job_concurrency_limit(
     global call_counter
     call_counter = 0
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     now_plus_1_seconds = now + timedelta(seconds=1)
     now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
@@ -1255,12 +1255,10 @@ async def test_schedule_job_concurrency_limit(
     )
 
     # scrub the microseconds to reduce noise
-    now = datetime.now(timezone.utc).replace(microsecond=0)
-    if random_sleep_time == 5:
+    now = datetime.now(timezone.utc)
+    if now >= now_plus_5_seconds:
         # next run time may be none if the job was completed (i.e. end date was reached)
         assert schedule.next_run_time is None
-    elif random_sleep_time == 4 and schedule.next_run_time is not None:
-        assert schedule.next_run_time >= now
     else:
         assert schedule.next_run_time >= now
 

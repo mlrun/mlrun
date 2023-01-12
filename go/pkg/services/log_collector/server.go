@@ -42,8 +42,6 @@ type LogCollectorServer struct {
 	*framework.AbstractMlrunGRPCServer
 	namespace               string
 	baseDir                 string
-	monitoringInterval      time.Duration
-	getLogsInterval         time.Duration
 	stateFileUpdateInterval time.Duration
 	kubeClientSet           kubernetes.Interface
 	state                   *State

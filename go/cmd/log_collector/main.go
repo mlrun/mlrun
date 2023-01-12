@@ -36,11 +36,8 @@ func StartServer() error {
 	namespace := flag.String("namespace", "", "The namespace to collect logs from")
 
 	// env vars parsing
-	// TODO: volume /var/mlrun
 	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_BASE_DIR", "/var/mlrun/log-collector/pod-logs"), "The directory to store the logs in")
 	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_KUBECONFIG_PATH", ""), "Path to kubeconfig file")
-	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_MONITORING_INTERVAL", "30s"), "Interval to monitor the pods completion/failure")
-	getLogsInterval := flag.String("get-logs-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_GET_LOGS_INTERVAL", "10s"), "Interval to get the logs from the pods")
 	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_STATE_FILE_UPDATE_INTERVAL", "10s"), "Interval to get the logs from the pods")
 
 	flag.Parse()
@@ -55,8 +52,6 @@ func StartServer() error {
 		*namespace,
 		*baseDir,
 		*kubeconfigPath,
-		*monitoringInterval,
-		*getLogsInterval,
 		*stateFileUpdateInterval)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")

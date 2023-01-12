@@ -41,8 +41,6 @@ type LogCollectorTestSuite struct {
 	namespace                  string
 	baseDir                    string
 	kubeConfigFilePath         string
-	monitoringIntervalStr      string
-	getLogsIntervalStr         string
 	stateFileUpdateIntervalStr string
 }
 
@@ -54,9 +52,6 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.kubeClientSet = *fake.NewSimpleClientset()
 	suite.ctx = context.Background()
 	suite.namespace = "default"
-	suite.monitoringIntervalStr = "10s"
-	suite.getLogsIntervalStr = "10s"
-	suite.getLogsIntervalStr = "10s"
 	suite.stateFileUpdateIntervalStr = "5s"
 
 	// get cwd
@@ -78,8 +73,6 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		suite.namespace,
 		suite.baseDir,
 		suite.kubeConfigFilePath,
-		suite.monitoringIntervalStr,
-		suite.getLogsIntervalStr,
 		suite.stateFileUpdateIntervalStr)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
@@ -226,7 +219,7 @@ func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
 	suite.Require().Equal(labelSelector, state.InProgress[runId].LabelSelector)
 
 	// remove item from in progress
-	err = suite.LogCollectorServer.removeItemFromInProgress(suite.ctx, runId)
+	err = suite.LogCollectorServer.removeItemFromInProgress(runId)
 	suite.Require().NoError(err, "Failed to remove item from in progress")
 
 	// read state file again

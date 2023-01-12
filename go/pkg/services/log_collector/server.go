@@ -55,8 +55,6 @@ func NewLogCollectorServer(logger logger.Logger,
 	namespace,
 	baseDir,
 	kubeconfigPath,
-	monitoringInterval,
-	getLogsInterval,
 	stateFileUpdateInterval string) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
@@ -74,14 +72,6 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 
 	// parse interval durations
-	monitoringIntervalDuration, err := time.ParseDuration(monitoringInterval)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
-	}
-	getLogsIntervalDuration, err := time.ParseDuration(getLogsInterval)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
-	}
 	stateFileUpdateIntervalDuration, err := time.ParseDuration(stateFileUpdateInterval)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
@@ -96,8 +86,6 @@ func NewLogCollectorServer(logger logger.Logger,
 		AbstractMlrunGRPCServer: abstractServer,
 		namespace:               namespace,
 		baseDir:                 baseDir,
-		monitoringInterval:      monitoringIntervalDuration,
-		getLogsInterval:         getLogsIntervalDuration,
 		stateFileUpdateInterval: stateFileUpdateIntervalDuration,
 		kubeClientSet:           kubeClientSet,
 		stateLock:               &sync.Mutex{},
@@ -190,7 +178,7 @@ func (lcs *LogCollectorServer) GetLog(ctx context.Context, request *log_collecto
 	lcs.Logger.DebugWithCtx(ctx, "Received Get Log request", "request", request)
 
 	// get log file path
-	filePath, err := lcs.getLogFilePath(ctx, request.RunId)
+	filePath, err := lcs.getLogFilePath(request.RunId)
 	if err != nil {
 		err := errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunId)
 		return &log_collector.GetLogResponse{
@@ -329,7 +317,7 @@ func (lcs *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName
 		"podName", podName)
 
 	// remove run id from state file
-	if err := lcs.removeItemFromInProgress(ctx, runId); err != nil {
+	if err := lcs.removeItemFromInProgress(runId); err != nil {
 		lcs.Logger.WarnWithCtx(ctx, "Failed to remove run id from state file")
 	}
 }
@@ -360,7 +348,7 @@ func (lcs *LogCollectorServer) addItemToInProgress(ctx context.Context, runId st
 }
 
 // removeItemFromInProgress removes an item from the `in_progress` list in the state file
-func (lcs *LogCollectorServer) removeItemFromInProgress(ctx context.Context, runId string) error {
+func (lcs *LogCollectorServer) removeItemFromInProgress(runId string) error {
 
 	// get state file
 	state := lcs.getState()
@@ -450,7 +438,7 @@ func (lcs *LogCollectorServer) resolveStateFilePath() string {
 	return path.Join(lcs.baseDir, "state.json")
 }
 
-func (lcs *LogCollectorServer) getLogFilePath(ctx context.Context, runId string) (string, error) {
+func (lcs *LogCollectorServer) getLogFilePath(runId string) (string, error) {
 
 	logFilePath := ""
 	var latestModTime time.Time

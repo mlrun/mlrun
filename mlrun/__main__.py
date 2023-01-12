@@ -1052,9 +1052,9 @@ def project(
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
         secret_store = SecretsStore.from_list(secrets)
-        # Allow the user to run a workflow with secrets on runtime, without using or storing k8s secrets.
-        # if the user wants to run a schedule workflow or to use those secrets in other runs he will need to save
-        # those secrets in k8s and use the --save-secret flag
+        # Used to run a workflow with secrets in runtime, without using or storing k8s secrets.
+        # To run a scheduled workflow or to use those secrets in other runs, save
+        # the secrets in k8s and use the --save-secret flag
         proj._secrets = secret_store
         if save_secrets:
             proj.set_secrets(secret_store._secrets)

@@ -60,10 +60,13 @@ class FileDB(DBInterface):
             self.db.update_run, updates, uid, project, iter
         )
 
+    def list_distinct_runs_uids(self, session, project: str = None, requested_logs: bool = None, only_uids: bool = False):
+        raise NotImplementedError()
+
     def update_runs_requested_logs(
         self, session, uids: List[str], requested_logs: bool = False
     ):
-        pass
+        raise NotImplementedError()
 
     def read_run(self, session, uid, project="", iter=0):
         return self._transform_run_db_error(self.db.read_run, uid, project, iter)

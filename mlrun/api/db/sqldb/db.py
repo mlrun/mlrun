@@ -229,6 +229,42 @@ class SQLDB(DBInterface):
         self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
 
+    def list_distinct_runs_uids(
+        self, session, project: str = None, requested_logs: bool = None, only_uids=True
+    ) -> typing.Union[List[str], RunList]:
+        """
+        List all runs uids in the DB
+        :param session: DB session
+        :param project: Project name
+        :param requested_logs: If True, will return only runs that have requested logs
+        :param only_uids: If True, will return only the uids of the runs as list of strings
+                          If False, will return the full run objects as RunList
+        :return: List of runs uids or RunList
+        """
+        if only_uids:
+            # using distinct to avoid duplicates as there could be multiple runs with the same uid(different iterations)
+            query = self._query(session, distinct(Run.uid))
+        else:
+            query = self._query(session, Run)
+
+        if project:
+            query = query.filter(Run.project == project)
+        if requested_logs is not None:
+            query = query.filter(Run.requested_logs == requested_logs)
+
+        if not only_uids:
+            # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
+            # note we cannot promise that the same row will be returned each time per uid as the order is not guaranteed
+            query = query.group_by(Run.uid)
+
+            runs = RunList()
+            for run in query:
+                runs.append(run.struct)
+
+            return runs
+
+        return [uid for uid, in query.all()]
+
     def update_runs_requested_logs(
         self, session, uids: List[str], requested_logs: bool = False
     ):

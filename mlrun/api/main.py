@@ -247,9 +247,10 @@ async def _collect_runs_logs():
     logs_collector_client = mlrun_log_collector.LogCollectorClient()
     db_session = create_session()
     try:
+        runs_to_update_requested_logs = []
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
-            get_db().list_runs, db_session, requested_logs=False
+            get_db().list_distinct_runs_uids, db_session, project="*", requested_logs=False, only_uids=False
         )
         for run in runs:
             run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
@@ -265,7 +266,13 @@ async def _collect_runs_logs():
                     object_id=run_uid,
                     class_mode=RuntimeClassMode.run,
                 )
-                await logs_collector_client.start_logs(run_uid, label_selector)
+                success = await logs_collector_client.start_logs(
+                    run_uid, label_selector
+                )
+                if success:
+                    # update the run to mark that we requested logs collection for it
+                    runs_to_update_requested_logs.append(run)
+
             except Exception as exc:
                 logger.warning(
                     "Failed to start logs for run",
@@ -273,6 +280,15 @@ async def _collect_runs_logs():
                     exc=exc,
                     traceback=traceback.format_exc(),
                 )
+
+        if runs_to_update_requested_logs:
+            # update the runs to indicate that we have requested log collection for them
+            await fastapi.concurrency.run_in_threadpool(
+                get_db().update_runs_requested_logs,
+                db_session,
+                uids=runs_to_update_requested_logs,
+                requested_logs=True,
+            )
 
     finally:
         close_session(db_session)

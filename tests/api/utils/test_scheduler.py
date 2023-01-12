@@ -1214,9 +1214,9 @@ async def test_schedule_job_concurrency_limit(
     global call_counter
     call_counter = 0
 
-    after_sleep_timestamp = datetime.now(timezone.utc)
-    now_plus_1_seconds = after_sleep_timestamp + timedelta(seconds=1)
-    now_plus_5_seconds = after_sleep_timestamp + timedelta(seconds=5)
+    now = datetime.now(timezone.utc)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
         second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
     )

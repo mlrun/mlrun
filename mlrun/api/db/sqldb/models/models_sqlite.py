@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-import sys
 import warnings
 from datetime import datetime, timezone
 
@@ -34,14 +33,7 @@ from sqlalchemy.orm import class_mapper, relationship
 
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
-
-if sys.version_info < (3, 8):
-    try:
-        import pickle5 as pickle
-    except ImportError:
-        import pickle
-else:
-    import pickle
+from mlrun.utils import protocol
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -67,11 +59,11 @@ class BaseModel:
 class HasStruct(BaseModel):
     @property
     def struct(self):
-        return pickle.loads(self.body)
+        return protocol.loads(self.body)
 
     @struct.setter
     def struct(self, value):
-        self.body = pickle.dumps(value)
+        self.body = protocol.dumps(value)
 
     def to_dict(self, exclude=None):
         """
@@ -265,11 +257,11 @@ with warnings.catch_warnings():
 
         @property
         def scheduled_object(self):
-            return pickle.loads(self.struct)
+            return protocol.loads(self.struct)
 
         @scheduled_object.setter
         def scheduled_object(self, value):
-            self.struct = pickle.dumps(value)
+            self.struct = protocol.dumps(value)
 
         @property
         def cron_trigger(self) -> schemas.ScheduleCronTrigger:
@@ -322,11 +314,11 @@ with warnings.catch_warnings():
         @property
         def full_object(self):
             if self._full_object:
-                return pickle.loads(self._full_object)
+                return protocol.loads(self._full_object)
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = pickle.dumps(value)
+            self._full_object = protocol.dumps(value)
 
     class Feature(Base, BaseModel):
         __tablename__ = "features"

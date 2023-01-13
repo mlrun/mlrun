@@ -56,7 +56,7 @@ async def test_retry_os_exception_fail(
         async_client.retry_options.attempts = max_retries
         await async_client.get("http://localhost:30678")
     assert (
-        len(list(aioresponses_mock.requests.values())[0]) == max_retries
+        aioresponses_mock.called_times() == max_retries
     ), f"Expected {max_retries} retries"
 
 
@@ -82,7 +82,7 @@ async def test_retry_os_exception_success(
     response = await async_client.get("http://localhost:30678")
     assert response.status == 200, "Expected to succeed after retries"
     assert (
-        len(list(aioresponses_mock.requests.values())[0]) == max_retries - 1
+        aioresponses_mock.called_times() == max_retries - 1
     ), f"Expected {max_retries - 1} retries"
 
 

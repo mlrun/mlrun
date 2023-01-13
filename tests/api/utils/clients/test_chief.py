@@ -133,9 +133,7 @@ async def test_retry_on_exception(
     with pytest.raises(aiohttp.ClientConnectionError):
         await chief_client.get_internal_background_task(task_name)
 
-    assert (
-        len(list(aioresponses_mock.requests.values())[0]) == retry_attempts
-    ), "request did not retry"
+    assert aioresponses_mock.called_times() == retry_attempts, "request did not retry"
 
 
 @pytest.mark.asyncio

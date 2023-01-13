@@ -236,46 +236,59 @@ class Client(
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
             )
         logger.debug("Sending request to chief", method=method, url=url, **kwargs)
-        response = await self._session.request(method, url, verify_ssl=False, **kwargs)
-        if not response.ok:
-            log_kwargs = copy.deepcopy(kwargs)
-            log_kwargs.update({"method": method, "path": path})
-            if response.content:
-                try:
-                    data = await response.json()
-                    error = data.get("error")
-                    error_stack_trace = data.get("errorStackTrace")
-                except Exception:
-                    pass
-                else:
-                    log_kwargs.update(
-                        {"error": error, "error_stack_trace": error_stack_trace}
-                    )
-            logger.warning("Request to chief failed", **log_kwargs)
-            if raise_on_failure:
-                mlrun.errors.raise_for_status(response)
-            return response
+        response = None
         try:
-            data = await response.json()
-        except Exception:
-
-            # there are some responses like NO-CONTENT which doesn't return a json body
-            data = await response.text()
-        logger.debug(
-            "Request to chief succeeded",
-            method=method,
-            url=url,
-            **kwargs,
-            response=data,
-        )
-        return response
+            response = await self._session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
+            if not response.ok:
+                await self._on_request_api_failure(
+                    method, path, response, raise_on_failure, **kwargs
+                )
+            else:
+                logger.debug(
+                    "Request to chief succeeded",
+                    method=method,
+                    url=url,
+                    **kwargs,
+                )
+            yield response
+        finally:
+            if response:
+                response.release()
 
     async def _ensure_session(self):
         if not self._session:
             self._session = mlrun.utils.AsyncClientWithRetry(
-                # when the request is forwarded to the chief, if we receive a 5XX error, the code will be forwarded to the
-                # client. if the client is the SDK, it will retry the request. if the client is UI, it will receive the
-                # error without retry. so no need to retry the request to the chief on status codes, only exceptions for
-                # failed handshakes.
+                # This client handles forwarding requests from worker to chief.
+                # if we receive 5XX error, the code will be returned to the client.
+                #  if client is the SDK - it will handle and retry the request itself, upon its own retry policy
+                #  if the client is UI  - it will propagate the error to the user.
+                # Thus, do not retry.
+                # only exceptions (e.g.: connection initiating).
                 raise_for_status=False,
             )
+
+            # if we go any HTTP response, return it, do not retry.
+            # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
+            self._session.retry_options.evaluate_response_callback = lambda _: True
+
+    async def _on_request_api_failure(
+        self, method, path, response, raise_on_failure, **kwargs
+    ):
+        log_kwargs = copy.deepcopy(kwargs)
+        log_kwargs.update({"method": method, "path": path})
+        if response.content:
+            try:
+                data = await response.json()
+                error = data.get("error")
+                error_stack_trace = data.get("errorStackTrace")
+            except Exception:
+                pass
+            else:
+                log_kwargs.update(
+                    {"error": error, "error_stack_trace": error_stack_trace}
+                )
+        logger.warning("Request to chief failed", **log_kwargs)
+        if raise_on_failure:
+            mlrun.errors.raise_for_status(response)

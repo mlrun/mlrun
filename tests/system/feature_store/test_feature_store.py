@@ -2802,7 +2802,7 @@ class TestFeatureStore(TestMLRunSystem):
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
-            dask_cluster.with_requests(mem="2G")
+            dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
             engine_args = {
                 "dask_client": dask_cluster,

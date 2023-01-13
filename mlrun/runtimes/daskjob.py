@@ -465,17 +465,11 @@ class DaskCluster(KubejobRuntime):
         )
 
     def with_requests(self, mem=None, cpu=None):
-        warnings.warn(
-            "Dask's with_requests will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
+        # TODO: In 1.4.0 change to NotImplementedError
+        raise DeprecationWarning(
+            "Dask's with_requests is deprecated and will be removed in 1.4.0, use "
             "with_scheduler_requests/with_worker_requests instead",
-            # TODO: In 0.8.0 deprecate and replace with_requests to with_worker/scheduler_requests in examples & demos
-            #  (or maybe just change behavior ?)
-            PendingDeprecationWarning,
         )
-        # the scheduler/worker specific function was introduced after the general one, to keep backwards compatibility
-        # this function just sets the requests for both of them
-        self.with_scheduler_requests(mem, cpu)
-        self.with_worker_requests(mem, cpu)
 
     def with_scheduler_requests(
         self, mem: str = None, cpu: str = None, patch: bool = False
@@ -602,7 +596,7 @@ def enrich_dask_cluster(function, secrets, client_version):
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    worker_args = ["dask-worker", "--nthreads", str(spec.nthreads)]
+    worker_args = ["dask worker", "--nthreads", str(spec.nthreads)]
     memory_limit = spec.resources.get("limits", {}).get("memory")
     if memory_limit:
         worker_args.extend(["--memory-limit", str(memory_limit)])

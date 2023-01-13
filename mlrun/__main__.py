@@ -61,6 +61,7 @@ from .utils import (
     update_in,
 )
 from .utils.version import Version
+import ast
 
 pd.set_option("mode.chained_assignment", None)
 
@@ -1088,7 +1089,7 @@ def project(
                 },
             )
         if notification:
-            print('notification=',notification)
+            print('notification_1=',notification)
             print('notification_type=', type(notification))
             notification = line2keylist(notification,keyname='type',valname='params')
             print('notification_line2keylist=', notification)

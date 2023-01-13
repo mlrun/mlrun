@@ -1,4 +1,4 @@
-pytest~=5.4
+pytest~=6.0
 twine~=3.1
 # TODO: bump black when it become stable
 black~=22.0

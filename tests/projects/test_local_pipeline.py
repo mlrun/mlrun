@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import pathlib
+from contextlib import nullcontext as does_not_raise
 
 import pytest
 
@@ -108,22 +109,35 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         # expect y = (param1 * 2) + 1 = 7
         assert run2.output("y") == 7, "unexpected run result"
 
-    def test_run_pipeline(self):
+    @pytest.mark.parametrize(
+        "local,expectation",
+        [
+            # If local is not specified, and kfp isn't configured, the pipeline will run locally anyway
+            (None, does_not_raise()),
+            # If the pipeline is local, the pipeline should run successfully
+            (True, does_not_raise()),
+            # If the pipeline is explicitly remote, the pipeline should fail because kfp isn't configured
+            (False, pytest.raises(ValueError)),
+        ],
+    )
+    def test_run_pipeline(self, local, expectation):
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("localpipe2")
         self._set_functions()
-        self.project.run(
-            "p1",
-            workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
-            workflow_handler="my_pipe",
-            arguments={"param1": 7},
-            local=True,
-        )
 
-        run_result: mlrun.RunObject = mlrun.projects.pipeline_context._test_result
-        assert run_result.state() == "completed", "run didnt complete"
-        # expect y = (param1 * 2) + 1 = 15
-        assert run_result.output("y") == 15, "unexpected run result"
+        with expectation:
+            self.project.run(
+                "p1",
+                workflow_path=str(f"{self.assets_path / self.pipeline_path}"),
+                workflow_handler="my_pipe",
+                arguments={"param1": 7},
+                local=local,
+            )
+
+            run_result: mlrun.RunObject = mlrun.projects.pipeline_context._test_result
+            assert run_result.state() == "completed", "run didnt complete"
+            # expect y = (param1 * 2) + 1 = 15
+            assert run_result.output("y") == 15, "unexpected run result"
 
     def test_pipeline_args(self):
         mlrun.projects.pipeline_context.clear(with_project=True)

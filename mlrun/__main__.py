@@ -1097,7 +1097,7 @@ def project(
                         add_notification(notification, proj)
 
                 else:
-                    add_notification(notification, proj)
+                    add_notification({notification['type']:notification['params']}, proj)
             print(proj._notifiers._notifications['slack'].params,type(proj._notifiers._notifications['slack'].params))
             print(proj._notifiers._notifications['slack'].params.get('webhook',None))
         try:

@@ -36,6 +36,7 @@ MLRUN_DOCKER_REGISTRY ?=
 # disable caching)
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
+MLRUN_SKIP_COMPILE_SCHEMAS ?=
 MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}'),)
@@ -371,8 +372,12 @@ push-log-collector: log-collector
 
 .PHONY: compile-schemas
 compile-schemas: ## Compile schemas
+ifdef MLRUN_SKIP_COMPILE_SCHEMAS
+	@echo "Skipping compile schemas"
+else
 	cd go && \
-		make compile-schemas
+	  make compile-schemas
+endif
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api

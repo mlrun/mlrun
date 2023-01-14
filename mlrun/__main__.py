@@ -1093,7 +1093,8 @@ def project(
                 if notification["type"] == "file":
                     with open(notification["params"]) as fp:
                         lines = fp.read().splitlines()
-                        add_notification(lines, proj)
+                        notification = list2dict(notification)
+                        add_notification(notification, proj)
 
                 else:
                     add_notification(notification, proj)
@@ -1410,7 +1411,6 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
 def add_notification(notification, proj):
     print('add_notification',notification)
-    notification = list2dict(notification)
     for k, v in notification.items():
         notification_type = k
         list_prams = v[1:-1].split(":",1)

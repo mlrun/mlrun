@@ -1413,7 +1413,7 @@ def add_notification(notification, proj):
     notification = list2dict(notification)
     for k, v in notification.items():
         notification_type = k
-        list_prams = v.str[1:-1].split(":",1)
+        list_prams = v[1:-1].split(":",1)
         print('list_prams', notification)
         notification_param = {list_prams[0]:list_prams[1]}
         print(

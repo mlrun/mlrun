@@ -1097,7 +1097,7 @@ def project(
 
                 else:
                     add_notification(notification, proj)
-            print(proj._notifiers._notifications)
+            print(proj._notifiers._notifications['slack'].params)
         try:
             try:
                 proj.run(
@@ -1408,6 +1408,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
 
 def add_notification(notification, proj):
+    print('add_notification',notification)
     notification = list2dict(notification)
     for k, v in notification.items():
         notification_type = k

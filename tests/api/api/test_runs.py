@@ -240,11 +240,6 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                     }
                     mlrun.api.crud.Runs().store_run(db, run, uid, iteration, project)
 
-    # List runs
-    runs = mlrun.api.utils.singletons.db.get_db().list_runs(
-        db, project="*", as_records=True
-    )
-    print(runs)
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
     runs = _list_and_assert_objects(
         client,

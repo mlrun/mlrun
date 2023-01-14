@@ -57,7 +57,7 @@ async def trigger_migrations(
     # note in api.py we do declare to use the authenticate_request dependency - meaning we do have authentication
     global current_migration_background_task_name
 
-    background_task, http_code = await run_in_threadpool(
+    background_task = await run_in_threadpool(
         _get_or_create_migration_background_task,
         current_migration_background_task_name,
         background_tasks,
@@ -78,14 +78,14 @@ def _get_or_create_migration_background_task(
             task_name
         )
         return background_task
-    elif (
-        mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations
-    ):
-        return None
     elif mlrun.mlconf.httpdb.state == mlrun.api.schemas.APIStates.migrations_failed:
         raise mlrun.errors.MLRunPreconditionFailedError(
             "Migrations were already triggered and failed. Restart the API to retry"
         )
+    elif (
+        mlrun.mlconf.httpdb.state != mlrun.api.schemas.APIStates.waiting_for_migrations
+    ):
+        return None
 
     logger.info("Starting the migration process")
     return mlrun.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(

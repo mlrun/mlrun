@@ -1093,7 +1093,7 @@ def project(
                 if notification["type"] == "file":
                     with open(notification["params"]) as fp:
                         lines = fp.read().splitlines()
-                        notification = list2dict(notification)
+                        notification = list2dict(lines)
                         add_notification(notification, proj)
 
                 else:
@@ -1413,7 +1413,7 @@ def add_notification(notification, proj):
     print('add_notification',notification)
     for k, v in notification.items():
         notification_type = k
-        list_prams = v[1:-1].split(":",1)
+        list_prams = v.replace("{","").replace("}","").split(":",1)
         print('list_prams', notification)
         notification_param = {list_prams[0]:list_prams[1]}
         print(

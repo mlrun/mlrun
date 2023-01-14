@@ -150,7 +150,7 @@ async def test_retry_method_status_codes(
 @pytest.mark.asyncio
 async def test_headers_serialization(async_client: AsyncClientWithRetry):
     """
-    Header keys/values type must be str
+    Header keys/values type must be str to be serializable
     This tests ensures we drop headers with 'None' values
     """
     BaseConnector.connect = mock.AsyncMock()

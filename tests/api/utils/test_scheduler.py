@@ -53,8 +53,6 @@ async def scheduler(db: Session) -> typing.Generator:
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()
-    logger.debug("Deleting default project resources")
-    get_db().delete_project_related_resources(db, config.default_project)
 
 
 call_counter: int = 0

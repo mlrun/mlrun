@@ -17,10 +17,10 @@ import http.server
 import typing
 from unittest import mock
 
+import aiohttp.client_exceptions
 import aioresponses
 import pytest
-import aiohttp.client_exceptions
-from aiohttp import ClientConnectorError, ServerDisconnectedError, BaseConnector
+from aiohttp import BaseConnector, ClientConnectorError, ServerDisconnectedError
 
 from mlrun.utils.async_http import AsyncClientWithRetry
 
@@ -148,9 +148,7 @@ async def test_retry_method_status_codes(
 
 
 @pytest.mark.asyncio
-async def test_headers_serialization(
-    async_client: AsyncClientWithRetry
-):
+async def test_headers_serialization(async_client: AsyncClientWithRetry):
     """
     Header keys/values type must be str
     This tests ensures we drop headers with 'None' values

@@ -993,13 +993,10 @@ def logs(uid, project, offset, db, watch):
     "--notification",
     "-nt",
     multiple=True,
-    help="Allow to set a project notifier in runtime, or by a file or by a dict.\n"
-    "for exmaple:\n"
-    "--notification 'notification_type'={param_key:param_value}\n"
-    "--notification 'slack'={'SLACK_WEBHOOK':'<slack_webhook_url>'}\n"
-    "--notification file=notification.txt, in notification.txt you should store the notification"
-    ",type={param_key:param_value}\n"
-    "For using notifications in other run please store them as env ot secrets.",
+    help="Allow to set a project notifier in runtime, by text file or a dictionary."
+    "--notification 'notification_type'={param_key:param_value}"
+    "--notification file=notification.txt"
+    "For using notifications in other runs in a project please store them as env or project secrets.",
 )
 def project(
     context,
@@ -1090,15 +1087,15 @@ def project(
                 },
             )
         if notification:
-            print(2)
+            print(3)
             notifications = line2keylist(notification,keyname='type',valname='params')
-            print('notification_line2keylist=', notification)
+            print('notification_line2keylist=', notifications)
             for notification in notifications:
+                print('notification=', notification)
                 if notification['type'] == 'file':
                     with open(notification['parmas']) as fp:
                         lines = fp.read().splitlines()
-                        notification = list2dict(lines)
-                        add_notification(notification,proj)
+                        add_notification(lines,proj)
 
                 else:
                    add_notification(notification,proj)
@@ -1412,6 +1409,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
     return runtime
 
 def add_notification(notification,proj):
+    notification = list2dict(notification)
     for k, v in notification.items():
         notification_type = k
         notification_param = v

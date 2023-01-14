@@ -992,6 +992,7 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--notification",
     "-nt",
+    multiple=True,
     help="Allow to set a project notifier in runtime, or by a file or by a dict.\n"
     "for exmaple:\n"
     "--notification 'notification_type'={param_key:param_value}\n"
@@ -1089,15 +1090,18 @@ def project(
                 },
             )
         if notification:
-            print('notification_1=',notification)
-            print('notification_type=', type(notification))
-            notification = line2keylist(notification,keyname='type',valname='params')
+            print(2)
+            notifications = line2keylist(notification,keyname='type',valname='params')
             print('notification_line2keylist=', notification)
-            for k,v in notification:
-                notification_type = k
-                notification_param = v
-                print('notification_type=', notification_type,'notification_param=',notification_param)
-                proj.notifiers.add_notification(notification_type=notification_type,params=notification_param)
+            for notification in notifications:
+                if notification['type'] == 'file':
+                    with open(notification['parmas']) as fp:
+                        lines = fp.read().splitlines()
+                        notification = list2dict(lines)
+                        add_notification(notification,proj)
+
+                else:
+                   add_notification(notification,proj)
             print(proj._notifiers._notifications)
         try:
             try:
@@ -1125,6 +1129,7 @@ def project(
                         "overwrite = True", "--overwrite-schedule"
                     )
                     error.args = tuple(args_list)
+                    proj.notifiers.push(message=error.args)
                 raise error
 
         except Exception as exc:
@@ -1406,6 +1411,13 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
     return runtime
 
+def add_notification(notification,proj):
+    for k, v in notification.items():
+        notification_type = k
+        notification_param = v
+        print('notification_type=', notification_type, 'notification_param=', notification_param)
+        proj.notifiers.add_notification(notification_type=notification_type,
+                                     params=notification_param)
 
 if __name__ == "__main__":
     main()

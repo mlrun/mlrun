@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun.api.proto.log_collector_pb2
-import mlrun.api.proto.log_collector_pb2_grpc
 import mlrun.errors
 from mlrun.utils import logger
 
@@ -22,7 +20,20 @@ from .base import BaseGRPCClient
 
 class LogCollectorClient(BaseGRPCClient):
     name = "log_collector"
-    stub_class = mlrun.api.proto.log_collector_pb2_grpc.LogCollectorStub
+
+    def __init__(self):
+        super().__init__()
+        self._initialize_proto_client_imports()
+        self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
+
+    def _initialize_proto_client_imports(self):
+        # Importing the proto client classes here and not at the top of the file to avoid raising an import error
+        # when the log_collector service is not enabled / the proto client wasn't compiled
+        import mlrun.api.proto.log_collector_pb2
+        import mlrun.api.proto.log_collector_pb2_grpc
+
+        self._log_collector_pb2 = mlrun.api.proto.log_collector_pb2
+        self._log_collector_pb2_grpc = mlrun.api.proto.log_collector_pb2_grpc
 
     async def start_logs(
         self,
@@ -31,7 +42,7 @@ class LogCollectorClient(BaseGRPCClient):
         verbose: bool = True,
         raise_on_error: bool = True,
     ) -> (bool, str):
-        request = mlrun.api.proto.log_collector_pb2.StartLogRequest(
+        request = self._log_collector_pb2.StartLogRequest(
             runId=run_id, selector=selector
         )
         response = await self._call("StartLog", request)

@@ -225,16 +225,21 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+            _start_logs_collection()
 
 
 def _start_logs_collection():
     if config.sidecar.logs_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
         logger.info(
-            "Using legacy logs collection method",
+            "Using legacy logs collection method, skipping logs collection periodic function",
             mode=config.sidecar.logs_collector.mode,
         )
         return
-    logger.info("Starting logs collection", mode=config.sidecar.logs_collector.mode)
+    logger.info(
+        "Starting logs collection periodic function",
+        mode=config.sidecar.logs_collector.mode,
+        interval=config.sidecar.logs_collector.interval,
+    )
     run_function_periodically(
         config.sidecar.logs_collector.interval,
         _collect_runs_logs.__name__,

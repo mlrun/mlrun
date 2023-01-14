@@ -17,8 +17,9 @@ import http.server
 import typing
 from unittest import mock
 
+import aiohttp.client_exceptions
 import pytest
-from aiohttp import ClientConnectorError, ServerDisconnectedError
+from aiohttp import BaseConnector, ClientConnectorError, ServerDisconnectedError
 
 from mlrun.utils.async_http import AsyncClientWithRetry
 from tests.common_fixtures import aioresponses_mock
@@ -146,3 +147,17 @@ async def test_retry_method_status_codes(
     assert aioresponses_mock.called_times() == len(
         status_codes
     ), "Wrong number of retries"
+
+
+@pytest.mark.asyncio
+async def test_headers_serialization(async_client: AsyncClientWithRetry):
+    """
+    Header keys/values type must be str to be serializable
+    This tests ensures we drop headers with 'None' values
+    """
+    BaseConnector.connect = mock.AsyncMock()
+    with pytest.raises(aiohttp.client_exceptions.ClientOSError) as e:
+        await async_client.get("http://nothinghere", headers={"x": None, "y": "z"})
+
+    # assert the client tried to write the headers to the socket which means they were serialized successfully
+    assert "Cannot write to closing transport" in str(e.value)

@@ -41,6 +41,7 @@ class SlackNotification(NotificationBase):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
+        print(self.params)
         webhook = self.params.get("webhook", None) or mlrun.get_secret_or_env(
             "SLACK_WEBHOOK"
         )

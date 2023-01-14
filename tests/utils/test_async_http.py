@@ -157,5 +157,5 @@ async def test_headers_serialization(async_client: AsyncClientWithRetry):
     with pytest.raises(aiohttp.client_exceptions.ClientOSError) as e:
         await async_client.get("http://nothinghere", headers={"x": None, "y": "z"})
 
-    # assert the client tried to write the headers to the socket which means they were serialized
+    # assert the client tried to write the headers to the socket which means they were serialized successfully
     assert "Cannot write to closing transport" in str(e.value)

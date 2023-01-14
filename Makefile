@@ -569,6 +569,8 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: run-test-db
 run-test-db:
+	# clean up any previous test db container
+	docker rm test-db || true
 	docker run \
 		--name=test-db \
 		-v $(shell pwd):/mlrun \

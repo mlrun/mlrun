@@ -559,7 +559,6 @@ class Scheduler:
             )
         )
         now = now or datetime.now(apscheduler_cron_trigger.timezone)
-        next_run_time = None
         second_next_run_time = now
 
         # doing 60 checks to allow one minute precision, if the _min_allowed_interval is less then one minute validation
@@ -862,9 +861,6 @@ class Scheduler:
         schedule_concurrency_limit,
         auth_info: mlrun.api.schemas.AuthInfo,
     ):
-        # import here to avoid circular imports
-        import mlrun.api.crud
-        from mlrun.api.api.utils import submit_run
 
         # removing the schedule from the body otherwise when the scheduler will submit this task it will go to an
         # endless scheduling loop
@@ -880,83 +876,15 @@ class Scheduler:
                 schemas.constants.LabelNames.schedule_name
             ] = schedule_name
 
-        db_session = create_session()
-
-        active_runs = mlrun.api.crud.Runs().list_runs(
-            db_session,
-            states=RunStates.non_terminal_states(),
-            project=project_name,
-            labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
-        )
-        if len(active_runs) >= schedule_concurrency_limit:
-            logger.warn(
-                "Schedule exceeded concurrency limit, skipping this run",
-                project=project_name,
-                schedule_name=schedule_name,
-                schedule_concurrency_limit=schedule_concurrency_limit,
-                active_runs=len(active_runs),
-            )
-            scheduler.update_schedule_next_run_time(
-                db_session, schedule_name, project_name
-            )
-            close_session(db_session)
-            return
-
-        # if credentials are needed but missing (will happen for schedules on upgrade from scheduler that didn't store
-        # credentials to one that does store) enrich them
-        # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
-        if (
-            not auth_info.access_key
-            and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
-        ):
-            # import here to avoid circular imports
-            import mlrun.api.utils.auth
-            import mlrun.api.utils.singletons.project_member
-
-            logger.info(
-                "Schedule missing auth info which is required. Trying to fill from project owner",
-                project_name=project_name,
-                schedule_name=schedule_name,
-            )
-
-            project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
-                db_session, project_name
-            )
-            # Update the schedule with the new auth info so we won't need to do the above again in the next run
-            scheduler.update_schedule(
-                db_session,
-                mlrun.api.schemas.AuthInfo(
-                    username=project_owner.username,
-                    access_key=project_owner.access_key,
-                    # enriching with control plane tag because scheduling a function requires control plane
-                    planes=[
-                        mlrun.api.utils.clients.iguazio.SessionPlanes.control,
-                    ],
-                ),
-                project_name,
-                schedule_name,
-            )
-
-        response = await submit_run(db_session, auth_info, scheduled_object)
-
-        run_metadata = response["data"]["metadata"]
-        run_uri = RunObject.create_uri(
-            run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
-        )
-        # update every finish of a run the next run time so it would be accessible for worker instances
-        job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
-        job = scheduler._scheduler.get_job(job_id)
-        get_db().update_schedule(
-            db_session,
-            run_metadata["project"],
+        return await fastapi.concurrency.run_in_threadpool(
+            Scheduler._submit_run_wrapper,
+            scheduler,
+            scheduled_object,
+            project_name,
             schedule_name,
-            last_run_uri=run_uri,
-            next_run_time=job.next_run_time if job else None,
+            schedule_concurrency_limit,
+            auth_info,
         )
-
-        close_session(db_session)
-
-        return response
 
     @staticmethod
     def transform_schemas_cron_trigger_to_apscheduler_cron_trigger(
@@ -976,3 +904,96 @@ class Scheduler:
             cron_trigger.timezone,
             cron_trigger.jitter,
         )
+
+    @staticmethod
+    def _submit_run_wrapper(
+        scheduler,
+        scheduled_object,
+        project_name,
+        schedule_name,
+        schedule_concurrency_limit,
+        auth_info,
+    ):
+
+        # import here to avoid circular imports
+        import mlrun.api.crud
+        from mlrun.api.api.utils import submit_run_sync
+
+        db_session = None
+
+        try:
+            db_session = create_session()
+
+            active_runs = mlrun.api.crud.Runs().list_runs(
+                db_session,
+                states=RunStates.non_terminal_states(),
+                project=project_name,
+                labels=f"{schemas.constants.LabelNames.schedule_name}={schedule_name}",
+            )
+            if len(active_runs) >= schedule_concurrency_limit:
+                logger.warn(
+                    "Schedule exceeded concurrency limit, skipping this run",
+                    project=project_name,
+                    schedule_name=schedule_name,
+                    schedule_concurrency_limit=schedule_concurrency_limit,
+                    active_runs=len(active_runs),
+                )
+                scheduler.update_schedule_next_run_time(
+                    db_session, schedule_name, project_name
+                )
+                return
+
+            # if credentials are needed but missing (will happen for schedules on upgrade from scheduler
+            # that didn't store credentials to one that does store) enrich them
+            # Note that here we're using the "knowledge" that submit_run only requires the access key of the auth info
+            if (
+                not auth_info.access_key
+                and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
+            ):
+                # import here to avoid circular imports
+                import mlrun.api.utils.auth
+                import mlrun.api.utils.singletons.project_member
+
+                logger.info(
+                    "Schedule missing auth info which is required. Trying to fill from project owner",
+                    project_name=project_name,
+                    schedule_name=schedule_name,
+                )
+
+                project_owner = mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner(
+                    db_session, project_name
+                )
+                # Update the schedule with the new auth info so we won't need to do the above again in the next run
+                scheduler.update_schedule(
+                    db_session,
+                    mlrun.api.schemas.AuthInfo(
+                        username=project_owner.username,
+                        access_key=project_owner.access_key,
+                        # enriching with control plane tag because scheduling a function requires control plane
+                        planes=[
+                            mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+                        ],
+                    ),
+                    project_name,
+                    schedule_name,
+                )
+
+            _, _, _, response = submit_run_sync(db_session, auth_info, scheduled_object)
+
+            run_metadata = response["data"]["metadata"]
+            run_uri = RunObject.create_uri(
+                run_metadata["project"], run_metadata["uid"], run_metadata["iteration"]
+            )
+            # update every finish of a run the next run time, so it would be accessible for worker instances
+            job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
+            job = scheduler._scheduler.get_job(job_id)
+            get_db().update_schedule(
+                db_session,
+                run_metadata["project"],
+                schedule_name,
+                last_run_uri=run_uri,
+                next_run_time=job.next_run_time if job else None,
+            )
+            return response
+        finally:
+            close_session(db_session)

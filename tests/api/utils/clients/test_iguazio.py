@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import asyncio
+
 import datetime
 import functools
 import http
@@ -31,6 +31,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.config
 import mlrun.errors
+from mlrun.api.utils.asyncio import maybe_coroutine
 from tests.common_fixtures import aioresponses_mock
 
 
@@ -1132,9 +1133,3 @@ def _assert_project_creation(
 
 def _generate_app_services_manifests_body(app_services):
     return {"data": [{"attributes": {"app_services": app_services}}]}
-
-
-async def maybe_coroutine(o):
-    if asyncio.iscoroutine(o):
-        return await o
-    return o

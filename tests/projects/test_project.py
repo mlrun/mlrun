@@ -16,6 +16,7 @@ import os
 import pathlib
 import shutil
 import tempfile
+import unittest.mock
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -487,6 +488,52 @@ def test_set_function_with_relative_path(context):
     assert func is not None and func.spec.build.origin_filename.startswith(
         str(assets_path())
     )
+
+
+def test_import_artifact_using_relative_path():
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    # log an artifact and save the content/body in the object (inline)
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=str(assets_path())
+    )
+    assert artifact.spec.get_body() == "123"
+    artifact.export(f"{str(assets_path())}/artifact.yaml")
+
+    # importing the artifact using a relative path
+    artifact = project.import_artifact("artifact.yaml", "y")
+    assert artifact.spec.get_body() == "123"
+    assert artifact.metadata.key == "y"
+
+
+@pytest.mark.parametrize(
+    "relative_artifact_path,project_context,expected_path,expected_in_context",
+    [
+        (
+            "artifact.yml",
+            "/project/context/assets",
+            "/project/context/assets/artifact.yml",
+            True,
+        ),
+        (
+            "../../artifact.yml",
+            "/project/assets/project/context",
+            "/project/assets/artifact.yml",
+            True,
+        ),
+        ("../artifact.json", "/project/context", "/project/artifact.json", True),
+        ("v3io://artifact.zip", "/project/context", "v3io://artifact.zip", False),
+        ("/artifact.json", "/project/context", "/artifact.json", False),
+    ],
+)
+def test_get_item_absolute_path(
+    relative_artifact_path, project_context, expected_path, expected_in_context
+):
+    with unittest.mock.patch("os.path.isfile", return_value=True):
+        project = mlrun.new_project("inline", save=False)
+        project.spec.context = project_context
+        result, in_context = project.get_item_absolute_path(relative_artifact_path)
+        assert result == expected_path and in_context == expected_in_context
 
 
 def test_function_run_cli():

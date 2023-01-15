@@ -14,8 +14,6 @@
 #
 import sys
 
-import cloudpickle
-
 # import pickle5 on clients with python < 3.8 since the server is using pickle protocol 5 (python 3.9)
 # TODO: remove this when we drop support for python 3.7
 if sys.version_info < (3, 8):

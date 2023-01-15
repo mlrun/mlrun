@@ -17,7 +17,12 @@ package framework
 import (
 	"context"
 	"fmt"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"net"
+	"runtime/debug"
 	"time"
 
 	"github.com/mlrun/mlrun/proto/build/health"
@@ -45,11 +50,31 @@ type AbstractMlrunGRPCServer struct {
 }
 
 func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
-	return &AbstractMlrunGRPCServer{
-		Logger:         logger,
-		grpcServerOpts: grpcServerOpts,
-		servingStatus:  health.HealthCheckResponse_SERVING,
-	}, nil
+	server := &AbstractMlrunGRPCServer{
+		Logger:        logger,
+		servingStatus: health.HealthCheckResponse_SERVING,
+	}
+
+	// add panic recovery middleware
+	grpcServerOpts = append([]grpc.ServerOption{
+		grpc.StreamInterceptor(
+			grpc_middleware.ChainStreamServer(
+				grpc_recovery.StreamServerInterceptor(
+					grpc_recovery.WithRecoveryHandlerContext(server.recoverFromPanic),
+				),
+			),
+		),
+		grpc.UnaryInterceptor(
+			grpc_middleware.ChainUnaryServer(
+				grpc_recovery.UnaryServerInterceptor(
+					grpc_recovery.WithRecoveryHandlerContext(server.recoverFromPanic),
+				),
+			),
+		),
+	}, grpcServerOpts...)
+
+	server.grpcServerOpts = grpcServerOpts
+	return server, nil
 }
 
 func (s *AbstractMlrunGRPCServer) getLogger() logger.Logger {
@@ -62,6 +87,11 @@ func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
 
 func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 	return s.grpcServerOpts
+}
+
+func (s *AbstractMlrunGRPCServer) recoverFromPanic(ctx context.Context, p interface{}) error {
+	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", p, "stack", string(debug.Stack()))
+	return status.Errorf(codes.Internal, "%s", p)
 }
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {

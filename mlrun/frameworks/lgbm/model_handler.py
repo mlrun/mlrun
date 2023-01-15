@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import os
-import pickle
+from mlrun.utils import pickle
 from typing import Dict, List, Union
 
 import cloudpickle

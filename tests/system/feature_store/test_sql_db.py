@@ -35,7 +35,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         env = cls._get_env_from_file()
         cls.db = env["MLRUN_SQL_DB_PATH_STRING"]
         if cls.db == "" or cls.db is None:
-            pytest.skip(f"Environment variable MLRUN_SQL_DB_PATH_STRING is not defined")
+            pytest.skip("Environment variable MLRUN_SQL_DB_PATH_STRING is not defined")
         cls.source_collection = "source_collection"
         cls.target_collection = "target_collection"
 

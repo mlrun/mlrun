@@ -140,6 +140,7 @@ api_router.include_router(
     tags=["tags"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
+
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],

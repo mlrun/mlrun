@@ -58,7 +58,7 @@ def _fill_workflow_missing_fields_from_project(
     project: mlrun.api.schemas.Project,
     name: str,
     spec: mlrun.api.schemas.WorkflowSpec,
-    arguments,
+    arguments: typing.Dict,
 ) -> mlrun.api.schemas.WorkflowSpec:
     """
     Fill the workflow spec details from the project object, with favour to spec

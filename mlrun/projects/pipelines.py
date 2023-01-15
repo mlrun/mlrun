@@ -429,7 +429,7 @@ class _PipelineRunStatus:
     @property
     def state(self):
         if self._state not in mlrun.run.RunStatuses.stable_statuses():
-            self._state = self._engine.get_state(self.run_id, self.project.name)
+            self._state = self._engine.get_state(self.run_id, self.project)
         return self._state
 
     def wait_for_completion(self, timeout=None, expected_statuses=None):
@@ -591,7 +591,7 @@ class _KFPRunner(_PipelineRunner):
 
     @staticmethod
     def get_state(run_id, project=None):
-        project_name = project if project else ""
+        project_name = project.metadata.name if project else ""
         resp = mlrun.run.get_pipeline(run_id, project=project_name)
         if resp:
             return resp["run"].get("status", "")
@@ -728,12 +728,12 @@ class _RemoteRunner(_PipelineRunner):
         cls,
         project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
-        name=None,
-        workflow_handler=None,
-        secrets=None,
-        artifact_path=None,
-        namespace=None,
-        source=None,
+        name: str = None,
+        workflow_handler: typing.Union[str, typing.Callable] = None,
+        secrets: mlrun.secrets.SecretsStore = None,
+        artifact_path: str = None,
+        namespace: str = None,
+        source: str = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         workflow_action = "schedule" if workflow_spec.schedule else "run"
@@ -745,7 +745,7 @@ class _RemoteRunner(_PipelineRunner):
         inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
         try:
-            submit_workflow_result = run_db.submit_workflow(
+            workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,
                 workflow_spec=workflow_spec.to_dict(),
@@ -765,8 +765,8 @@ class _RemoteRunner(_PipelineRunner):
             while not workflow_id:
                 workflow_id = run_db.get_workflow_id(
                     project=project.name,
-                    name=submit_workflow_result.name,
-                    run_id=submit_workflow_result.run_id,
+                    name=workflow_response.name,
+                    run_id=workflow_response.run_id,
                 ).workflow_id
                 time.sleep(seconds)
                 seconds = 1
@@ -784,8 +784,8 @@ class _RemoteRunner(_PipelineRunner):
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
-                workflow_id,
-                inner_engine,
+                run_id=workflow_id,
+                engine=inner_engine,
                 project=project,
                 workflow=workflow_spec,
                 state=state,
@@ -796,8 +796,8 @@ class _RemoteRunner(_PipelineRunner):
         )
         pipeline_context.clear()
         return _PipelineRunStatus(
-            workflow_id,
-            inner_engine,
+            run_id=workflow_id,
+            engine=inner_engine,
             project=project,
             workflow=workflow_spec,
             state=state,

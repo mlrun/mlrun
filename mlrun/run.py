@@ -477,7 +477,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     return function
 
 
-def import_function_to_dict(url: object, secrets: object = None) -> object:
+def import_function_to_dict(url: object, secrets=None):
     """Load function spec from local/remote YAML file"""
     obj = get_object(url, secrets)
     runtime = yaml.load(obj, Loader=yaml.FullLoader)

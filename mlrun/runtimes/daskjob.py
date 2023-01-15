@@ -596,7 +596,8 @@ def enrich_dask_cluster(function, secrets, client_version):
         env.append(spec.extra_pip)
 
     pod_labels = get_resource_labels(function, scrape_metrics=config.scrape_metrics)
-    worker_args = ["dask worker", "--nthreads", str(spec.nthreads)]
+    # TODO: 'dask-worker' has deprecation notice, user 'dask worker' instead
+    worker_args = ["dask-worker", "--nthreads", str(spec.nthreads)]
     memory_limit = spec.resources.get("limits", {}).get("memory")
     if memory_limit:
         worker_args.extend(["--memory-limit", str(memory_limit)])

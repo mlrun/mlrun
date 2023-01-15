@@ -32,7 +32,7 @@ from sqlalchemy.orm import class_mapper, relationship
 
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
-from mlrun.utils import protocol
+from mlrun.utils import pickle
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -58,11 +58,11 @@ class BaseModel:
 class HasStruct(BaseModel):
     @property
     def struct(self):
-        return protocol.loads(self.body)
+        return pickle.loads(self.body)
 
     @struct.setter
     def struct(self, value):
-        self.body = protocol.dumps(value)
+        self.body = pickle.dumps(value)
 
     def to_dict(self, exclude=None):
         """
@@ -267,11 +267,11 @@ with warnings.catch_warnings():
 
         @property
         def scheduled_object(self):
-            return protocol.loads(self.struct)
+            return pickle.loads(self.struct)
 
         @scheduled_object.setter
         def scheduled_object(self, value):
-            self.struct = protocol.dumps(value)
+            self.struct = pickle.dumps(value)
 
         @property
         def cron_trigger(self) -> schemas.ScheduleCronTrigger:
@@ -326,11 +326,11 @@ with warnings.catch_warnings():
         @property
         def full_object(self):
             if self._full_object:
-                return protocol.loads(self._full_object)
+                return pickle.loads(self._full_object)
 
         @full_object.setter
         def full_object(self, value):
-            self._full_object = protocol.dumps(value)
+            self._full_object = pickle.dumps(value)
 
     class Feature(Base, BaseModel):
         __tablename__ = "features"

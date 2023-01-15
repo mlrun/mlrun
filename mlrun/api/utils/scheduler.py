@@ -133,7 +133,7 @@ class Scheduler:
         self._ensure_auth_info_has_access_key(auth_info, kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
-        # not the secret value itself. Therefore it can be kept in a non-secure field.
+        # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
         get_db().create_schedule(
             db_session,
@@ -201,10 +201,8 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
-        # get and ensure schedule has auth info
-        self.get_schedule(
-            db_session, project, name, ensure_auth_info=True, auth_info=auth_info
-        )
+        db_schedule = get_db().get_schedule(db_session, project, name)
+        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
 
@@ -260,19 +258,12 @@ class Scheduler:
         name: str,
         include_last_run: bool = False,
         include_credentials: bool = False,
-        transform_and_enrich: bool = False,
-        ensure_auth_info: bool = False,
-        auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        if ensure_auth_info:
-            self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
-        if transform_and_enrich:
-            db_schedule = self._transform_and_enrich_db_schedule(
-                db_session, db_schedule, include_last_run, include_credentials
-            )
-        return db_schedule
+        return self._transform_and_enrich_db_schedule(
+            db_session, db_schedule, include_last_run, include_credentials
+        )
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
     def delete_schedule(
@@ -328,8 +319,9 @@ class Scheduler:
             db_session,
             project,
             name,
-            ensure_auth_info=True,
-            auth_info=auth_info,
+        )
+        await fastapi.concurrency.run_in_threadpool(
+            self._ensure_auth_info_has_access_key, auth_info, db_schedule.kind
         )
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,

@@ -95,9 +95,7 @@ async def submit_job(
                 task=task,
             )
             chief_client = mlrun.api.utils.clients.chief.Client()
-            return await fastapi.concurrency.run_in_threadpool(
-                chief_client.submit_job, request=request, json=data
-            )
+            return await chief_client.submit_job(request=request, json=data)
 
     else:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

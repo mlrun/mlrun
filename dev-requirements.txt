@@ -1,10 +1,9 @@
-pytest~=5.4
+pytest~=6.0
 twine~=3.1
-# TODO: bump black when it become stable
 black~=22.0
 flake8~=5.0
 pytest-asyncio~=0.15.0
-pytest-alembic~=0.4.0
+pytest-alembic~=0.9.1
 pytest-httpserver~=1.0
 aioresponses~=0.7
 requests-mock~=1.8

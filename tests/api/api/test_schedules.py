@@ -93,7 +93,7 @@ def test_list_schedules(
             http.HTTPStatus.NOT_FOUND.value,
             {
                 "detail": {
-                    "reason": "MLRunNotFoundError('Project test-project does not exist')"
+                    "reason": "MLRunNotFoundError('Project {project_name} does not exist')"
                 }
             },
             False,
@@ -126,6 +126,7 @@ async def test_redirection_from_worker_to_chief_create_schedule(
     endpoint, chief_mocked_url = _prepare_test_redirection_from_worker_to_chief(
         project=project,
     )
+    _format_expected_body(expected_body, project_name=project)
 
     if create_project:
         await tests.api.api.utils.create_project_async(async_client, project)
@@ -163,7 +164,7 @@ async def test_redirection_from_worker_to_chief_create_schedule(
             http.HTTPStatus.NOT_FOUND.value,
             {
                 "detail": {
-                    "reason": "MLRunNotFoundError('Schedule not found: project={project}, name={schedule_name}')"
+                    "reason": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
                 }
             },
         ],
@@ -174,7 +175,7 @@ async def test_redirection_from_worker_to_chief_create_schedule(
             http.HTTPStatus.NOT_FOUND.value,
             {
                 "detail": {
-                    "reason": "MLRunNotFoundError('Schedule not found: project={project}, name={schedule_name}')"
+                    "reason": "MLRunNotFoundError('Schedule not found: project={project_name}, name={schedule_name}')"
                 }
             },
         ],
@@ -199,10 +200,9 @@ async def test_redirection_from_worker_to_chief_schedule(
     )
 
     # template the expected body
-    if "detail" in expected_body and "reason" in expected_body["detail"]:
-        expected_body["detail"]["reason"] = expected_body["detail"]["reason"].format(
-            project=project_name, schedule_name=schedule_name
-        )
+    _format_expected_body(
+        expected_body, project_name=project_name, schedule_name=schedule_name
+    )
 
     # what the chief will return
     aioresponses_mock.add(
@@ -315,3 +315,11 @@ def _get_and_assert_single_schedule(
     result = resp.json()["schedules"]
     assert len(result) == 1
     assert result[0]["name"] == schedule_name
+
+
+def _format_expected_body(expected_body: dict, **kwargs):
+    if "detail" in expected_body and "reason" in expected_body["detail"]:
+        expected_body["detail"]["reason"] = expected_body["detail"]["reason"].format(
+            **kwargs
+        )
+    return expected_body

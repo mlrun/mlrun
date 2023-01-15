@@ -897,7 +897,7 @@ class FeatureSet(ModelObj):
                 source = mlrun.datastore.sources.ParquetSource(path=source)
             else:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "source type not supported, use a supported source class"
+                    f"source type '{type(source)}' not supported, use a supported source class"
                 )
         if not isinstance(source, BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -18,13 +18,18 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"time"
 
 	"github.com/mlrun/mlrun/proto/build/health"
 
+	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const HealthWatchInterval = 5 * time.Second
@@ -45,11 +50,31 @@ type AbstractMlrunGRPCServer struct {
 }
 
 func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
-	return &AbstractMlrunGRPCServer{
-		Logger:         logger,
-		grpcServerOpts: grpcServerOpts,
-		servingStatus:  health.HealthCheckResponse_SERVING,
-	}, nil
+	server := &AbstractMlrunGRPCServer{
+		Logger:        logger,
+		servingStatus: health.HealthCheckResponse_SERVING,
+	}
+
+	// add panic recovery middleware
+	grpcServerOpts = append([]grpc.ServerOption{
+		grpc.StreamInterceptor(
+			grpcmiddleware.ChainStreamServer(
+				grpcrecovery.StreamServerInterceptor(
+					grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
+				),
+			),
+		),
+		grpc.UnaryInterceptor(
+			grpcmiddleware.ChainUnaryServer(
+				grpcrecovery.UnaryServerInterceptor(
+					grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
+				),
+			),
+		),
+	}, grpcServerOpts...)
+
+	server.grpcServerOpts = grpcServerOpts
+	return server, nil
 }
 
 func (s *AbstractMlrunGRPCServer) getLogger() logger.Logger {
@@ -62,6 +87,14 @@ func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {
 
 func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 	return s.grpcServerOpts
+}
+
+// recoveryHandler is a custom grpc recovery handler that logs the panic and returns an internal error.
+// This is used to prevent the server from crashing when a panic occurs. This method is passed to the
+// grpcrecovery middleware in the server options.
+func (s *AbstractMlrunGRPCServer) recoveryHandler(ctx context.Context, panicInstance interface{}) error {
+	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", panicInstance, "stack", string(debug.Stack()))
+	return status.Errorf(codes.Internal, "%s", panicInstance)
 }
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {

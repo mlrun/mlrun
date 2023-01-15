@@ -341,7 +341,7 @@ async def _synchronize_with_chief_clusterization_spec():
 
     try:
         chief_client = mlrun.api.utils.clients.chief.Client()
-        clusterization_spec = chief_client.get_clusterization_spec(
+        clusterization_spec = await chief_client.get_clusterization_spec(
             return_fastapi_response=False, raise_on_failure=True
         )
     except Exception as exc:

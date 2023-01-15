@@ -133,7 +133,7 @@ class Scheduler:
         self._ensure_auth_info_has_access_key(auth_info, kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
-        # not the secret value itself. Therefore it can be kept in a non-secure field.
+        # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
         get_db().create_schedule(
             db_session,
@@ -315,9 +315,14 @@ class Scheduler:
     ):
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
-            get_db().get_schedule, db_session, project, name
+            get_db().get_schedule,
+            db_session,
+            project,
+            name,
         )
-        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
+        await fastapi.concurrency.run_in_threadpool(
+            self._ensure_auth_info_has_access_key, auth_info, db_schedule.kind
+        )
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,

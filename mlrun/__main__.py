@@ -61,7 +61,7 @@ from .utils import (
     update_in,
 )
 from .utils.version import Version
-
+from .utils.notifications.notification import NotificationSeverity
 pd.set_option("mode.chained_assignment", None)
 
 
@@ -1087,19 +1087,15 @@ def project(
             )
         if notification:
             notifications = line2keylist(notification, keyname="type", valname="params")
-            print("notification_line2keylist=", notifications)
             for notification in notifications:
-                print("notification=", notification)
                 if notification["type"] == "file":
                     with open(notification["params"]) as fp:
                         lines = fp.read().splitlines()
                         notification = list2dict(lines)
-                        add_notification(notification, proj)
+                        add_notification2proj(notification, proj)
 
                 else:
-                    add_notification({notification['type']:notification['params']}, proj)
-            print(proj._notifiers._notifications['slack'].params,type(proj._notifiers._notifications['slack'].params))
-            print(proj._notifiers._notifications['slack'].params.get('webhook',None))
+                    add_notification2proj({notification['type']:notification['params']}, proj)
         try:
             try:
                 proj.run(
@@ -1126,13 +1122,12 @@ def project(
                         "overwrite = True", "--overwrite-schedule"
                     )
                     error.args = tuple(args_list)
-                    proj.notifiers.push(message=error.args)
+                    send_error(run,proj,error.args)
                 raise error
 
         except Exception as exc:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {err_to_str(exc)}"
-            proj.notifiers.push(message, "error")
+            send_error(run,proj,err_to_str(exc))
             exit(1)
 
     elif sync:
@@ -1409,7 +1404,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
     return runtime
 
 
-def add_notification(notification, proj):
+def add_notification2proj(notification, proj):
     print('add_notification',notification)
     for k, v in notification.items():
         notification_type = k
@@ -1426,6 +1421,12 @@ def add_notification(notification, proj):
             notification_type=notification_type, params=notification_param
         )
 
+def send_error(run,proj,error):
+    message = (
+        f":x: Failed to run scheduled workflow {run} in Project {proj.name} !\n"
+        f"error: ```{error}```"
+    )
+    proj.notifiers.push(message=message, severity=NotificationSeverity.ERROR)
 
 if __name__ == "__main__":
     main()

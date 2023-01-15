@@ -31,3 +31,7 @@ def dumps(x):
 
 def loads(x):
     return pickle.loads(x)
+
+
+def load(x):
+    return pickle.load(x)

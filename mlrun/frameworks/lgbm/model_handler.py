@@ -13,13 +13,13 @@
 # limitations under the License.
 #
 import os
-from mlrun.utils import pickle
 from typing import Dict, List, Union
 
 import cloudpickle
 import lightgbm as lgb
 
 import mlrun
+from mlrun.utils import pickle
 
 from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler

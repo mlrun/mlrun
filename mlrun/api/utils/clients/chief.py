@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import contextlib
 import copy
 import typing
 
+import aiohttp
 import fastapi
-import requests.adapters
 
 import mlrun.api.schemas
 import mlrun.api.utils.projects.remotes.follower
@@ -41,61 +42,57 @@ class Client(
 
     def __init__(self) -> None:
         super().__init__()
-        self._session = mlrun.utils.HTTPSessionWithRetry(
-            # when the request is forwarded to the chief, if we receive a 5XX error, the code will be forwarded to the
-            # client. if the client is the SDK, it will retry the request. if the client is UI, it will receive the
-            # error without retry. so no need to retry the request to the chief on status codes, only exceptions for
-            # failed handshakes.
-            retry_on_status=False,
-            verbose=True,
-        )
+        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
         self._api_url = mlrun.mlconf.resolve_chief_api_url()
-        # remove backslash from end of api url
-        self._api_url = (
-            self._api_url[:-1] if self._api_url.endswith("/") else self._api_url
-        )
+        self._api_url = self._api_url.rstrip("/")
 
-    def get_internal_background_task(
+    async def get_internal_background_task(
         self, name: str, request: fastapi.Request = None
     ) -> fastapi.Response:
         """
         internal background tasks are managed by the chief only
         """
-        return self._proxy_request_to_chief("GET", f"background-tasks/{name}", request)
+        return await self._proxy_request_to_chief(
+            "GET", f"background-tasks/{name}", request
+        )
 
-    def trigger_migrations(self, request: fastapi.Request = None) -> fastapi.Response:
+    async def trigger_migrations(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
         """
         only chief can execute migrations
         """
-        return self._proxy_request_to_chief("POST", "operations/migrations", request)
+        return await self._proxy_request_to_chief(
+            "POST", "operations/migrations", request
+        )
 
-    def create_schedule(
+    async def create_schedule(
         self, project: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules", request, json
         )
 
-    def update_schedule(
+    async def update_schedule(
         self, project: str, name: str, request: fastapi.Request, json: dict
     ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "PUT", f"projects/{project}/schedules/{name}", request, json
         )
 
-    def delete_schedule(
+    async def delete_schedule(
         self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules/{name}", request
         )
 
@@ -110,32 +107,34 @@ class Client(
             "POST", f"/projects/{project}/workflows/{name}/submit", request, json
         )
 
-    def delete_schedules(
+    async def delete_schedules(
         self, project: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules", request
         )
 
-    def invoke_schedule(
+    async def invoke_schedule(
         self, project: str, name: str, request: fastapi.Request
     ) -> fastapi.Response:
         """
         Schedules are running only on chief
         """
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
-    def submit_job(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def submit_job(
+        self, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         submit job can be responsible for creating schedules and schedules are running only on chief,
         so when the job contains a schedule, we re-route the request to chief
         """
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "POST",
             "submit_job",
             request,
@@ -143,43 +142,48 @@ class Client(
             timeout=int(mlrun.mlconf.submit_timeout),
         )
 
-    def build_function(self, request: fastapi.Request, json: dict) -> fastapi.Response:
+    async def build_function(
+        self, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
         """
         if serving function and track_models is enabled, it means that schedules will be created as part of
         building the function, then we re-route the request to chief
         """
-        return self._proxy_request_to_chief("POST", "build/function", request, json)
+        return await self._proxy_request_to_chief(
+            "POST", "build/function", request, json
+        )
 
-    def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
+    async def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
         that is why we re-route requests to chief
         """
         # timeout is greater than default as delete project can take a while because it deletes all the
         # project resources (depends on the deletion strategy)
-        return self._proxy_request_to_chief(
+        return await self._proxy_request_to_chief(
             "DELETE", f"projects/{name}", request, timeout=120
         )
 
-    def get_clusterization_spec(
+    async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
     ) -> typing.Union[fastapi.Response, mlrun.api.schemas.ClusterizationSpec]:
         """
         This method is used both for proxying requests from worker to chief and for aligning the worker state
         with the clusterization spec brought from the chief
         """
-        chief_response = self._send_request_to_api(
+        async with self._send_request_to_api(
             method="GET",
             path="clusterization-spec",
             raise_on_failure=raise_on_failure,
-        )
+        ) as chief_response:
+            if return_fastapi_response:
+                return await self._convert_requests_response_to_fastapi_response(
+                    chief_response
+                )
 
-        if return_fastapi_response:
-            return self._convert_requests_response_to_fastapi_response(chief_response)
+        return mlrun.api.schemas.ClusterizationSpec(**(await chief_response.json()))
 
-        return mlrun.api.schemas.ClusterizationSpec(**chief_response.json())
-
-    def _proxy_request_to_chief(
+    async def _proxy_request_to_chief(
         self,
         method,
         path,
@@ -192,13 +196,15 @@ class Client(
             request, json, **kwargs
         )
 
-        chief_response = self._send_request_to_api(
+        async with self._send_request_to_api(
             method=method,
             path=path,
             raise_on_failure=raise_on_failure,
             **request_kwargs,
-        )
-        return self._convert_requests_response_to_fastapi_response(chief_response)
+        ) as chief_response:
+            return await self._convert_requests_response_to_fastapi_response(
+                chief_response
+            )
 
     @staticmethod
     def _resolve_request_kwargs_from_request(
@@ -216,59 +222,84 @@ class Client(
         return request_kwargs
 
     @staticmethod
-    def _convert_requests_response_to_fastapi_response(
-        chief_response: requests.Response,
+    async def _convert_requests_response_to_fastapi_response(
+        chief_response: aiohttp.ClientResponse,
     ) -> fastapi.Response:
         # based on the way we implemented the exception handling for endpoints in MLRun we can expect the media type
         # of the response to be of type application/json, see mlrun.api.http_status_error_handler for reference
         return fastapi.responses.Response(
-            content=chief_response.content,
-            status_code=chief_response.status_code,
+            content=await chief_response.text(),
+            status_code=chief_response.status,
             headers=dict(
                 chief_response.headers
             ),  # chief_response.headers is of type CaseInsensitiveDict
             media_type="application/json",
         )
 
-    # TODO change this to use async calls
-    def _send_request_to_api(
+    @contextlib.asynccontextmanager
+    async def _send_request_to_api(
         self, method, path, raise_on_failure: bool = False, **kwargs
-    ):
+    ) -> aiohttp.ClientResponse:
+        await self._ensure_session()
         url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
             )
         logger.debug("Sending request to chief", method=method, url=url, **kwargs)
-        response = self._session.request(method, url, verify=False, **kwargs)
-        if not response.ok:
-            log_kwargs = copy.deepcopy(kwargs)
-            log_kwargs.update({"method": method, "path": path})
-            if response.content:
-                try:
-                    data = response.json()
-                    error = data.get("error")
-                    error_stack_trace = data.get("errorStackTrace")
-                except Exception:
-                    pass
-                else:
-                    log_kwargs.update(
-                        {"error": error, "error_stack_trace": error_stack_trace}
-                    )
-            logger.warning("Request to chief failed", **log_kwargs)
-            if raise_on_failure:
-                mlrun.errors.raise_for_status(response)
-            return response
-        # there are some responses like NO-CONTENT which doesn't return a json body
+        response = None
         try:
-            data = response.json()
-        except Exception:
-            data = response.text
-        logger.debug(
-            "Request to chief succeeded",
-            method=method,
-            url=url,
-            **kwargs,
-            response=data,
-        )
-        return response
+            response = await self._session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
+            if not response.ok:
+                await self._on_request_api_failure(
+                    method, path, response, raise_on_failure, **kwargs
+                )
+            else:
+                logger.debug(
+                    "Request to chief succeeded",
+                    method=method,
+                    url=url,
+                    **kwargs,
+                )
+            yield response
+        finally:
+            if response:
+                response.release()
+
+    async def _ensure_session(self):
+        if not self._session:
+            self._session = mlrun.utils.AsyncClientWithRetry(
+                # This client handles forwarding requests from worker to chief.
+                # if we receive 5XX error, the code will be returned to the client.
+                #  if client is the SDK - it will handle and retry the request itself, upon its own retry policy
+                #  if the client is UI  - it will propagate the error to the user.
+                # Thus, do not retry.
+                # only exceptions (e.g.: connection initiating).
+                raise_for_status=False,
+            )
+
+            # if we go any HTTP response, return it, do not retry.
+            # by returning `True`, we tell the client the response is "legit" and so, it returns it to its callee.
+            self._session.retry_options.evaluate_response_callback = lambda _: True
+
+    async def _on_request_api_failure(
+        self, method, path, response, raise_on_failure, **kwargs
+    ):
+        log_kwargs = copy.deepcopy(kwargs)
+        log_kwargs.update({"method": method, "path": path})
+        if response.content:
+            try:
+                data = await response.json()
+                error = data.get("error")
+                error_stack_trace = data.get("errorStackTrace")
+            except Exception:
+                pass
+            else:
+                log_kwargs.update(
+                    {"error": error, "error_stack_trace": error_stack_trace}
+                )
+        logger.warning("Request to chief failed", **log_kwargs)
+        if raise_on_failure:
+            mlrun.errors.raise_for_status(response)

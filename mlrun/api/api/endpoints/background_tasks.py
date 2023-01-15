@@ -90,8 +90,8 @@ async def get_internal_background_task(
             internal_background_task=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await run_in_threadpool(
-            chief_client.get_internal_background_task, name=name, request=request
+        return await chief_client.get_internal_background_task(
+            name=name, request=request
         )
 
     return await run_in_threadpool(

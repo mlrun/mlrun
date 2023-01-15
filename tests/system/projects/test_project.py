@@ -728,7 +728,7 @@ class TestProject(TestMLRunSystem):
         schedule = self._run_db.get_schedule(name, workflow_name)
         assert (
             schedule.scheduled_object["schedule"] == schedules[1]
-        ), "Failed to override existing schedule"
+        ), "Failed to override existing workflow"
 
         # submit schedule when one exists without override - fail:
         with pytest.raises(mlrun.errors.MLRunConflictError):
@@ -768,4 +768,144 @@ class TestProject(TestMLRunSystem):
             f"'{schedules[1]}'",
         ]
         out = exec_project(args)
-        assert "MLRunConflictError" in out
+        assert "use 'override=True' (SDK) or '--override-workflow' (CLI)" in out
+
+    def test_timeout_warning(self):
+        name = "timeout-warning-test"
+        project_dir = f"{projects_dir}/{name}"
+        workflow_name = "main"
+        bad_timeout = "6"
+        good_timeout = "12"
+        self.custom_project_names_to_delete.append(name)
+        mlrun.load_project(
+            project_dir,
+            "git://github.com/mlrun/project-demo.git",
+            name=name,
+        )
+
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--timeout",
+            bad_timeout,
+        ]
+        out = exec_project(args)
+        warning_message = (
+            "[warning] timeout ({}) should be higher than backoff (10)."
+            " Set timeout to be higher than backoff."
+        )
+        expected_warning_log = warning_message.format(bad_timeout)
+        assert expected_warning_log in out
+
+        args = [
+            project_dir,
+            "-n",
+            name,
+            "-d",
+            "-r",
+            workflow_name,
+            "--timeout",
+            good_timeout,
+        ]
+        out = exec_project(args)
+        unexpected_warning_log = warning_message.format(good_timeout)
+        assert unexpected_warning_log not in out
+
+    def test_failed_schedule_workflow_non_remote_source(self):
+        name = "non-remote-fail"
+        # Creating a local project
+        project = self._create_project(name)
+        self.custom_project_names_to_delete.append(name)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            project.run("main", schedule="*/10 * * * *")
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            project.run("main", engine="remote")
+
+    def test_remote_workflow_source(self):
+        name = "source-project"
+        project_dir = f"{projects_dir}/{name}"
+        original_source = "git://github.com/mlrun/project-demo.git"
+        temporary_source = original_source + "#yaronha-patch-1"
+        self.custom_project_names_to_delete.append(name)
+        artifact_path = f"v3io:///projects/{name}"
+
+        project = mlrun.load_project(
+            project_dir,
+            original_source,
+            name=name,
+        )
+
+        run = project.run(
+            "newflow",
+            engine="local",
+            local=True,
+            source=temporary_source,
+            artifact_path=artifact_path,
+        )
+        assert run.state == mlrun.run.RunStatuses.succeeded
+        # Ensuring that the project's source has not changed in the db:
+        project_from_db = self._run_db.get_project(name)
+        assert project_from_db.spec.source == original_source
+        assert project.spec.source == original_source
+
+        for engine in ["remote", "local", "kfp"]:
+            project.run(
+                "main",
+                engine=engine,
+                source=temporary_source,
+                artifact_path=artifact_path,
+                dirty=True,
+            )
+
+            # Ensuring that the project's source has not changed in the db:
+            project_from_db = self._run_db.get_project(name)
+            assert project_from_db.spec.source == original_source
+
+        # Ensuring that the loaded project is from the given source
+        run = project.run(
+            "newflow",
+            engine="remote",
+            source=temporary_source,
+            dirty=True,
+            artifact_path=artifact_path,
+            watch=True,
+        )
+        assert (
+            run.state == mlrun.run.RunStatuses.failed
+        ), "pipeline supposed to fail since newflow is not in the temporary source"
+
+    def _assert_scheduled(self, project_name, schedule_str):
+        schedule = self._run_db.get_schedule(project_name, "main")
+        assert schedule.scheduled_object["schedule"] == schedule_str
+
+    def test_backwards_compatibility_overwrite(self):
+        # TODO: Remove in 1.6.0 when removing overwrite from SDK
+        name = "set-workflow"
+        self.custom_project_names_to_delete.append(name)
+
+        # _create_project contains set_workflow inside:
+        project = self._create_project(name)
+
+        archive_path = f"v3io:///projects/{project.name}/archived.zip"
+        project.export(archive_path)
+        project.spec.source = archive_path
+        project.save()
+        print(project.to_yaml())
+
+        schedule = "*/20 * * * *"
+        project.run("main", schedule=schedule)
+        self._assert_scheduled(name, schedule)
+
+        schedule = "*/21 * * * *"
+        project.run("main", schedule=schedule, override=True)
+        self._assert_scheduled(name, schedule)
+
+        schedule = "*/22 * * * *"
+        project.run("main", schedule=schedule, overwrite=True)
+        self._assert_scheduled(name, schedule)

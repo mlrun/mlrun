@@ -1942,7 +1942,9 @@ class MlrunProject(ModelObj):
         local: bool = None,
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
+        overwrite: bool = False,
         override: bool = False,
+        source: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1970,8 +1972,11 @@ class MlrunProject(ModelObj):
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          for other engines the source is to validate that the code is up-to-date
         :returns: run id
         """
 
@@ -2011,7 +2016,15 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            workflow_spec.override = override or workflow_spec.override
+            if override or overwrite:
+                if overwrite:
+                    logger.warn(
+                        "Please use override (SDK) or --override-workflow (CLI) "
+                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
+                        "This will be removed in 1.6.0",
+                        # TODO: Remove in 1.6.0
+                    )
+                workflow_spec.override = True
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2039,19 +2052,18 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            source=source,
         )
         # run is None when scheduling
-        if (
-            run
-            and run.state != mlrun.run.RunStatuses.failed
-            and not workflow_spec.schedule
-        ):
+        if run and run.state == mlrun.run.RunStatuses.failed:
+            return run
+        if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
                 f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
-        if watch and not workflow_spec.schedule:
+        if (timeout or watch) and not workflow_spec.schedule:
             run._engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 

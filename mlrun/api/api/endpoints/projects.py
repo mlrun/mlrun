@@ -165,7 +165,7 @@ async def get_project(
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def delete_project(
+async def delete_project(
     name: str,
     request: fastapi.Request,
     deletion_strategy: mlrun.api.schemas.DeletionStrategy = fastapi.Header(
@@ -194,9 +194,10 @@ def delete_project(
             deletion_strategy=deletion_strategy,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return chief_client.delete_project(name=name, request=request)
+        return await chief_client.delete_project(name=name, request=request)
 
-    is_running_in_background = get_project_member().delete_project(
+    is_running_in_background = await run_in_threadpool(
+        get_project_member().delete_project,
         db_session,
         name,
         deletion_strategy,

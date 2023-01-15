@@ -405,7 +405,21 @@ def enrich_function_object(
 class _PipelineRunStatus:
     """pipeline run result (status)"""
 
-    def __init__(self, run_id, engine, project, workflow=None, state=""):
+    def __init__(
+        self,
+        run_id: str,
+        engine: typing.Type["_PipelineRunner"],
+        project: "mlrun.projects.MlrunProject",
+        workflow: WorkflowSpec = None,
+        state: str = "",
+    ):
+        """
+        :param run_id:      unique id of the pipeline run
+        :param engine:      pipeline runner
+        :param project:     mlrun project
+        :param workflow:    workflow with spec on how to run the pipeline
+        :param state:       the current state of the pipeline run
+        """
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
@@ -457,23 +471,19 @@ class _PipelineRunner(abc.ABC):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> _PipelineRunStatus:
-        return None
+        pass
 
     @staticmethod
     @abc.abstractmethod
-    def wait_for_completion(
-        run_id,
-        project=None,
-        timeout=None,
-        expected_statuses=None,
-    ):
-        return ""
+    def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
+        pass
 
     @staticmethod
     @abc.abstractmethod
     def get_state(run_id, project=None):
-        return ""
+        pass
 
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
@@ -528,18 +538,21 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def run(
         cls,
-        project,
+        project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
         name=None,
         workflow_handler=None,
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
+        if source:
+            project.set_source(source=source)
 
         namespace = namespace or config.namespace
         id = run_pipeline(
@@ -643,6 +656,7 @@ class _LocalRunner(_PipelineRunner):
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -654,6 +668,10 @@ class _LocalRunner(_PipelineRunner):
         # When using KFP, it would do this replacement. When running locally, we need to take care of it.
         if artifact_path:
             artifact_path = artifact_path.replace("{{workflow.uid}}", workflow_id)
+        original_source = None
+        if source:
+            original_source = project.spec.source
+            project.set_source(source=source)
         pipeline_context.workflow_artifact_path = artifact_path
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id
@@ -673,6 +691,10 @@ class _LocalRunner(_PipelineRunner):
             pipeline_context.runs_map.values(), state=state
         )
         pipeline_context.clear()
+
+        # Setting the source back to the original in the project object
+        if original_source:
+            project.set_source(source=original_source)
         return _PipelineRunStatus(
             workflow_id, cls, project=project, workflow=workflow_spec, state=state
         )
@@ -701,26 +723,26 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
-    @classmethod
+    @staticmethod
     def run(
         cls,
-        project,
+        project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
         name=None,
         workflow_handler=None,
         secrets=None,
         artifact_path=None,
         namespace=None,
+        source=None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = (
-            name.split("-")[-1] if f"{project.metadata.name}-" in name else name
-        )
+        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         workflow_action = "schedule" if workflow_spec.schedule else "run"
         logger.info(
             f"submitting {workflow_action} request for '{workflow_name}' workflow"
         )
 
         workflow_id = None
+        inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
         try:
             submit_workflow_result = run_db.submit_workflow(
@@ -728,16 +750,14 @@ class _RemoteRunner(_PipelineRunner):
                 name=workflow_name,
                 workflow_spec=workflow_spec.to_dict(),
                 artifact_path=artifact_path,
-                source=project.spec.source,
+                source=source,
+                run_name=mlrun.mlconf.default_workflow_runner_name.format(workflow_name),
                 namespace=namespace,
                 image=workflow_spec.image,
             )
             if workflow_spec.schedule:
                 return
 
-            project.notifiers.push_pipeline_start_message(
-                project.metadata.name,
-            )
             # Getting workflow id from run:
             seconds = 0.1
             while not workflow_id:
@@ -753,13 +773,6 @@ class _RemoteRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.succeeded
             pipeline_context.clear()
 
-            return _PipelineRunStatus(
-                workflow_id,
-                get_workflow_engine(workflow_spec.engine),
-                project=project,
-                workflow=workflow_spec,
-                state=state,
-            )
         except Exception as e:
             trace = traceback.format_exc()
             logger.error(trace)
@@ -770,11 +783,23 @@ class _RemoteRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
                 workflow_id,
-                get_workflow_engine(workflow_spec.engine),
+                inner_engine,
                 project=project,
                 workflow=workflow_spec,
                 state=state,
             )
+
+        project.notifiers.push_pipeline_start_message(
+            project.metadata.name,
+        )
+        pipeline_context.clear()
+        return _PipelineRunStatus(
+            workflow_id,
+            inner_engine,
+            project=project,
+            workflow=workflow_spec,
+            state=state,
+        )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
@@ -826,6 +851,7 @@ def load_and_run(
     init_git: bool = None,
     subpath: str = None,
     clone: bool = False,
+    save: bool = True,
     workflow_name: str = None,
     workflow_path: str = None,
     workflow_arguments: typing.Dict[str, typing.Any] = None,
@@ -840,6 +866,33 @@ def load_and_run(
     load_only: bool = False,
     schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger] = None,
 ):
+    """
+    Auxiliary function that the RemoteRunner run once or run every schedule.
+    This function loads a project from a given remote source and then runs the workflow.
+
+    :param context:             mlrun context.
+    :param url:                 remote url that represents the project's source.
+                                See 'mlrun.load_project()' for details
+    :param project_name:        project name
+    :param init_git:            if True, will git init the context dir
+    :param subpath:             project subpath (within the archive)
+    :param clone:               if True, always clone (delete any existing content)
+    :param save:                whether to save the created project and artifact in the DB
+    :param workflow_name:       name of the workflow
+    :param workflow_path:       url to a workflow file, if not a project workflow
+    :param workflow_arguments:  kubeflow pipelines arguments (parameters)
+    :param artifact_path:       target path/url for workflow artifacts, the string
+                                '{{workflow.uid}}' will be replaced by workflow id
+    :param workflow_handler:    workflow function handler (for running workflow function directly)
+    :param namespace:           kubernetes namespace if other than default
+    :param sync:                force functions sync before run
+    :param dirty:               allow running the workflow when the git repo is dirty
+    :param ttl:                 pipeline ttl in secs (after that the pods will be removed)
+    :param engine:              workflow engine running the workflow.
+                                supported values are 'kfp' (default) or 'local'
+    :param local:               run local pipeline with local functions (set local=True in function.run())
+    :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
+    """
     try:
         project = mlrun.load_project(
             context=f"./{project_name}",
@@ -848,6 +901,7 @@ def load_and_run(
             init_git=init_git,
             subpath=subpath,
             clone=clone,
+            save=save,
         )
     except Exception as error:
         if schedule:

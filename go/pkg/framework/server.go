@@ -61,7 +61,7 @@ type AbstractMlrunGRPCServer struct {
 
 func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.ServerOption) (*AbstractMlrunGRPCServer, error) {
 	server := &AbstractMlrunGRPCServer{
-		Logger:        logger.GetChild("grpcserver"),
+		Logger: logger.GetChild("grpcserver"),
 	}
 
 	// add panic recovery middleware
@@ -84,18 +84,6 @@ func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.Serv
 
 	server.grpcServerOpts = grpcServerOpts
 	return server, nil
-}
-
-func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
-	return s.grpcServerOpts
-}
-
-// recoveryHandler is a custom grpc recovery handler that logs the panic and returns an internal error.
-// This is used to prevent the server from crashing when a panic occurs. This method is passed to the
-// grpcrecovery middleware in the server options.
-func (s *AbstractMlrunGRPCServer) recoveryHandler(ctx context.Context, panicInstance interface{}) error {
-	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", panicInstance, "stack", string(debug.Stack()))
-	return status.Errorf(codes.Internal, "%s", panicInstance)
 }
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {
@@ -166,6 +154,18 @@ func StartServer(server MlrunGRPCServer, port int, logger logger.Logger) error {
 
 func (s *AbstractMlrunGRPCServer) SetServingStatus(status health.HealthCheckResponse_ServingStatus) {
 	s.servingStatus = status
+}
+
+func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
+	return s.grpcServerOpts
+}
+
+// recoveryHandler is a custom grpc recovery handler that logs the panic and returns an internal error.
+// This is used to prevent the server from crashing when a panic occurs. This method is passed to the
+// grpcrecovery middleware in the server options.
+func (s *AbstractMlrunGRPCServer) recoveryHandler(ctx context.Context, panicInstance interface{}) error {
+	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", panicInstance, "stack", string(debug.Stack()))
+	return status.Errorf(codes.Internal, "%s", panicInstance)
 }
 
 func (s *AbstractMlrunGRPCServer) setServer(server *grpc.Server) {

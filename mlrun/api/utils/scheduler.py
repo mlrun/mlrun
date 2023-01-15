@@ -201,8 +201,10 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
-        db_schedule = get_db().get_schedule(db_session, project, name)
-        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
+        # get and ensure schedule has auth info
+        self.get_schedule(
+            db_session, project, name, ensure_auth_info=True, auth_info=auth_info
+        )
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
 
@@ -258,12 +260,19 @@ class Scheduler:
         name: str,
         include_last_run: bool = False,
         include_credentials: bool = False,
+        transform_and_enrich: bool = False,
+        ensure_auth_info: bool = False,
+        auth_info: mlrun.api.schemas.AuthInfo = None,
     ) -> schemas.ScheduleOutput:
         logger.debug("Getting schedule", project=project, name=name)
         db_schedule = get_db().get_schedule(db_session, project, name)
-        return self._transform_and_enrich_db_schedule(
-            db_session, db_schedule, include_last_run, include_credentials
-        )
+        if ensure_auth_info:
+            self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
+        if transform_and_enrich:
+            db_schedule = self._transform_and_enrich_db_schedule(
+                db_session, db_schedule, include_last_run, include_credentials
+            )
+        return db_schedule
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
     def delete_schedule(
@@ -315,9 +324,13 @@ class Scheduler:
     ):
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
-            get_db().get_schedule, db_session, project, name
+            self.get_schedule,
+            db_session,
+            project,
+            name,
+            ensure_auth_info=True,
+            auth_info=auth_info,
         )
-        self._ensure_auth_info_has_access_key(auth_info, db_schedule.kind)
         function, args, kwargs = self._resolve_job_function(
             db_schedule.kind,
             db_schedule.scheduled_object,

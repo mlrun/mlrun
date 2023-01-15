@@ -1311,9 +1311,14 @@ async def test_schedule_job_next_run_time(
         concurrency_limit=1,
     )
 
-    await asyncio.sleep(1)
-    runs = get_db().list_runs(db, project=project_name)
-    assert len(runs) == 1
+    while datetime.now() < now_plus_4_seconds:
+        runs = get_db().list_runs(db, project=project_name)
+        if len(runs) == 1:
+            break
+
+        await asyncio.sleep(0.5)
+    else:
+        assert False, "No runs were created"
 
     # invoke schedule should fail due to concurrency limit
     # the next run time should be updated to the next second after the invocation failure

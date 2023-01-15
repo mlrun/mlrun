@@ -25,19 +25,13 @@ import pytest
 import requests_mock as requests_mock_package
 import starlette.datastructures
 from aioresponses import CallbackResult
-from aioresponses import aioresponses as aioresponses_
 from requests.cookies import cookiejar_from_dict
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.config
 import mlrun.errors
-
-
-@pytest.fixture
-def aioresponses():
-    with aioresponses_() as aior:
-        yield aior
+from tests.common_fixtures import aioresponses_mock
 
 
 @pytest.fixture()
@@ -52,7 +46,6 @@ async def iguazio_client(
     api_url: str,
     request,
 ) -> mlrun.api.utils.clients.iguazio.Client:
-
     if request.param == "async":
         client = mlrun.api.utils.clients.iguazio.AsyncClient()
     else:
@@ -71,7 +64,7 @@ async def iguazio_client(
 def patch_restful_request(
     is_client_sync: bool,
     requests_mock: requests_mock_package.Mocker,
-    aioresponses: aioresponses_,
+    aioresponses_mock: aioresponses_mock,
     method: str,
     url: str,
     callback: typing.Optional[typing.Callable] = None,
@@ -96,7 +89,7 @@ def patch_restful_request(
             kwargs["callback"] = callback
         if status_code:
             kwargs["status"] = status_code
-        aioresponses.add(
+        aioresponses_mock.add(
             url,
             method,
             **kwargs,
@@ -109,7 +102,7 @@ async def test_verify_request_session_success(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
-    aioresponses: aioresponses,
+    aioresponses_mock: aioresponses_mock,
 ):
     mock_request_headers = starlette.datastructures.Headers(
         {"cookie": "session=some-session-cookie"}
@@ -178,7 +171,7 @@ async def test_verify_request_session_success(
         patch_restful_request(
             iguazio_client.is_sync,
             requests_mock,
-            aioresponses,
+            aioresponses_mock,
             method="POST",
             url=url,
             callback=test_case["response_json"],
@@ -198,7 +191,7 @@ async def test_verify_request_session_failure(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
-    aioresponses: aioresponses,
+    aioresponses_mock: aioresponses_mock,
 ):
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
@@ -206,7 +199,7 @@ async def test_verify_request_session_failure(
     patch_restful_request(
         iguazio_client.is_sync,
         requests_mock,
-        aioresponses,
+        aioresponses_mock,
         method="POST",
         url=url,
         status_code=http.HTTPStatus.UNAUTHORIZED.value,
@@ -222,7 +215,7 @@ async def test_verify_session_success(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
-    aioresponses: aioresponses,
+    aioresponses_mock: aioresponses_mock,
 ):
     session = "some-session"
     mock_response_headers = _generate_session_verification_response_headers()
@@ -245,7 +238,7 @@ async def test_verify_session_success(
     patch_restful_request(
         iguazio_client.is_sync,
         requests_mock,
-        aioresponses,
+        aioresponses_mock,
         method="POST",
         url=url,
         callback=_verify_session_mock,

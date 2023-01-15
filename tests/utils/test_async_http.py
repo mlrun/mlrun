@@ -22,6 +22,7 @@ import pytest
 from aiohttp import ClientConnectorError, ServerDisconnectedError
 
 from mlrun.utils.async_http import AsyncClientWithRetry
+from tests.common_fixtures import aioresponses_mock
 
 
 @pytest.fixture
@@ -43,60 +44,63 @@ async def async_client():
         ServerDisconnectedError(),
     ],
 )
-async def test_retry_os_exception_fail(async_client: AsyncClientWithRetry, exception):
-    with aioresponses.aioresponses() as aiohttp_mock:
-        max_retries = 3
-        for i in range(max_retries):
-            aiohttp_mock.get(
-                "http://localhost:30678",
-                exception=exception,
-            )
-        with pytest.raises(exception.__class__):
-            async_client.retry_options.attempts = max_retries
-            await async_client.get("http://localhost:30678")
-        assert (
-            len(list(aiohttp_mock.requests.values())[0]) == max_retries
-        ), f"Expected {max_retries} retries"
-
-
-@pytest.mark.asyncio
-async def test_retry_os_exception_success(async_client: AsyncClientWithRetry):
-    with aioresponses.aioresponses() as aiohttp_mock:
-        max_retries = 3
-        for i in range(max_retries - 1):
-            aiohttp_mock.get(
-                "http://localhost:30678",
-                exception=ClientConnectorError(
-                    mock.MagicMock(
-                        code=500,
-                    ),
-                    ConnectionResetError(),
-                ),
-            )
-            aiohttp_mock.get(
-                "http://localhost:30678",
-                status=200,
-            )
-        response = await async_client.get("http://localhost:30678")
-        assert response.status == 200, "Expected to succeed after retries"
-        assert (
-            len(list(aiohttp_mock.requests.values())[0]) == max_retries - 1
-        ), f"Expected {max_retries-1} retries"
-
-
-@pytest.mark.asyncio
-async def test_no_retry_on_blacklisted_method(async_client: AsyncClientWithRetry):
-    with aioresponses.aioresponses() as aiohttp_mock:
-        aiohttp_mock.post(
+async def test_retry_os_exception_fail(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock, exception
+):
+    max_retries = 3
+    for i in range(max_retries):
+        aioresponses_mock.get(
             "http://localhost:30678",
-            status=500,
+            exception=exception,
         )
-        async_client.retry_options.blacklisted_methods = ["POST"]
-        response = await async_client.post("http://localhost:30678")
-        assert response.status == 500, "Expected to succeed after retries"
+    with pytest.raises(exception.__class__):
+        async_client.retry_options.attempts = max_retries
+        await async_client.get("http://localhost:30678")
+    assert (
+        aioresponses_mock.called_times() == max_retries
+    ), f"Expected {max_retries} retries"
 
-        # Do not retry because method is blacklisted
-        aiohttp_mock.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_retry_os_exception_success(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock
+):
+    max_retries = 3
+    for i in range(max_retries - 1):
+        aioresponses_mock.get(
+            "http://localhost:30678",
+            exception=ClientConnectorError(
+                mock.MagicMock(
+                    code=500,
+                ),
+                ConnectionResetError(),
+            ),
+        )
+        aioresponses_mock.get(
+            "http://localhost:30678",
+            status=200,
+        )
+    response = await async_client.get("http://localhost:30678")
+    assert response.status == 200, "Expected to succeed after retries"
+    assert (
+        aioresponses_mock.called_times() == max_retries - 1
+    ), f"Expected {max_retries - 1} retries"
+
+
+@pytest.mark.asyncio
+async def test_no_retry_on_blacklisted_method(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock
+):
+    aioresponses_mock.post(
+        "http://localhost:30678",
+        status=500,
+    )
+    async_client.retry_options.blacklisted_methods = ["POST"]
+    response = await async_client.post("http://localhost:30678")
+    assert response.status == 500, "Expected to succeed after retries"
+
+    # Do not retry because method is blacklisted
+    aioresponses_mock.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -129,21 +133,20 @@ async def test_no_retry_on_blacklisted_method(async_client: AsyncClientWithRetry
 @pytest.mark.asyncio
 async def test_retry_method_status_codes(
     async_client: AsyncClientWithRetry,
+    aioresponses_mock: aioresponses_mock,
     method: str,
     status_codes: typing.List[http.HTTPStatus],
 ):
+    for status_code in status_codes:
+        aioresponses_mock.add("http://nothinghere", method=method, status=status_code)
 
-    with aioresponses.aioresponses() as aiohttp_mock:
-        for status_code in status_codes:
-            aiohttp_mock.add("http://nothinghere", method=method, status=status_code)
+    response = await async_client.request(method, "http://nothinghere")
+    assert response.status == status_codes[-1], "response status is not as expected"
 
-        response = await async_client.request(method, "http://nothinghere")
-        assert response.status == status_codes[-1], "response status is not as expected"
-
-        # ensure we called the request the correct number of times
-        assert len(list(aiohttp_mock.requests.values())[0]) == len(
-            status_codes
-        ), "Wrong number of retries"
+    # ensure we called the request the correct number of times
+    assert aioresponses_mock.called_times() == len(
+        status_codes
+    ), "Wrong number of retries"
 
 
 @pytest.mark.asyncio

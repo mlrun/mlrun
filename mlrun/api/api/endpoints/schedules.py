@@ -63,8 +63,7 @@ async def create_schedule(
             schedule=schedule.dict(),
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await run_in_threadpool(
-            chief_client.create_schedule,
+        return await chief_client.create_schedule(
             project=project,
             request=request,
             json=schedule.dict(),
@@ -115,8 +114,7 @@ async def update_schedule(
             schedule=schedule.dict(),
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await run_in_threadpool(
-            chief_client.update_schedule,
+        return await chief_client.update_schedule(
             project=project,
             name=name,
             request=request,
@@ -232,8 +230,8 @@ async def invoke_schedule(
             name=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await run_in_threadpool(
-            chief_client.invoke_schedule, project=project, name=name, request=request
+        return await chief_client.invoke_schedule(
+            project=project, name=name, request=request
         )
 
     return await get_scheduler().invoke_schedule(db_session, auth_info, project, name)
@@ -267,8 +265,8 @@ async def delete_schedule(
             name=name,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await run_in_threadpool(
-            chief_client.delete_schedule, project=project, name=name, request=request
+        return await chief_client.delete_schedule(
+            project=project, name=name, request=request
         )
 
     await run_in_threadpool(get_scheduler().delete_schedule, db_session, project, name)
@@ -304,9 +302,7 @@ async def delete_schedules(
             project=project,
         )
         chief_client = mlrun.api.utils.clients.chief.Client()
-        return await run_in_threadpool(
-            chief_client.delete_schedules, project=project, request=request
-        )
+        return await chief_client.delete_schedules(project=project, request=request)
 
     await run_in_threadpool(get_scheduler().delete_schedules, db_session, project)
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

@@ -102,7 +102,8 @@ class FeatureSetSpec(ModelObj):
         :param function: MLRun runtime to execute the feature-set in
         :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
         :param output_path: default location where to store results (defaults to MLRun's artifact path)
-        :param passthrough: if true, ingest will skip offline targets, and get_offline will read directly from source
+        :param passthrough: if true, ingest will skip offline targets, and get_offline_features will
+               read directly from source
         """
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -315,6 +316,8 @@ class FeatureSet(ModelObj):
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
         :param label_column:  name of the label column (the one holding the target (y) values)
+        :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
+                              directly from source
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -831,7 +834,10 @@ class FeatureSet(ModelObj):
         if self.spec.passthrough:
             if not self.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
-                    "there are no offline targets for this feature set"
+                    (
+                        "passthrough feature-set with no source binded. "
+                        "this happens at ingest, was it executed on this feature-set?"
+                    )
                 )
             return self.spec.source.to_dataframe()
 

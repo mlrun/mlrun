@@ -916,9 +916,9 @@ class TestFeatureStore(TestMLRunSystem):
         fstore.ingest(measurements_set, source)
 
         # assert that online target exist (nosql) and offline target does not (parquet)
-        assert len(measurements_set.status.targets) == 1
         from mlrun.model import DataTarget
 
+        assert len(measurements_set.status.targets) == 1
         assert isinstance(
             measurements_set.status.targets._children["nosql"], DataTarget
         )

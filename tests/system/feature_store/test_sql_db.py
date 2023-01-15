@@ -36,7 +36,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     def _init_env_from_file(cls):
         env = cls._get_env_from_file()
         cls.db = env[CREDENTIALS_ENV]
-        if cls.db is "" or cls.db is None:
+        if cls.db == "" or cls.db is None:
             pytest.skip(f"Environment variable {CREDENTIALS_ENV} is not defined")
         cls.source_collection = "source_collection"
         cls.target_collection = "target_collection"

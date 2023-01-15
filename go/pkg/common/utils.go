@@ -15,14 +15,13 @@
 package common
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/nuclio/errors"
-	"github.com/nuclio/logger"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -84,9 +83,7 @@ func EnsureFileExists(filePath string) error {
 }
 
 // WriteToFile writes the given bytes to the given file path
-func WriteToFile(ctx context.Context,
-	logger logger.Logger,
-	filePath string,
+func WriteToFile(filePath string,
 	content []byte,
 	append bool) error {
 
@@ -112,10 +109,18 @@ func WriteToFile(ctx context.Context,
 
 	defer file.Close() // nolint: errcheck
 
-	logger.DebugWithCtx(ctx, "Writing contents to file", "filePath", filePath)
 	if _, err := file.Write(content); err != nil {
 		return errors.Wrapf(err, "Failed to write log contents to file - %s", filePath)
 	}
 
 	return nil
+}
+
+func SyncMapLength(m *sync.Map) int {
+	var i int
+	m.Range(func(k, v interface{}) bool {
+		i++
+		return true
+	})
+	return i
 }

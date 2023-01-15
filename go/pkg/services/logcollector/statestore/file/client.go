@@ -12,69 +12,96 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package logcollector
+package file
 
 import (
 	"context"
 	"encoding/json"
 	"os"
+	"path"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 )
 
 type FileStateStore struct {
-	state                   *State
+	state                   *statestore.State
 	logger                  logger.Logger
 	stateFilePath           string
-	lock                    sync.Locker
 	stateFileUpdateInterval time.Duration
+	lock                    sync.Locker
 }
 
-func NewStateFile(logger logger.Logger, filePath string, stateFileUpdateInterval time.Duration) *FileStateStore {
+func NewFileStateStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *FileStateStore {
 	return &FileStateStore{
-		state: &State{
-			InProgress: make(map[string]LogItem),
+		state: &statestore.State{
+			InProgress: &sync.Map{},
 		},
 		logger:                  logger.GetChild("filestatestore"),
-		stateFilePath:           filePath,
+		stateFilePath:           path.Join(baseDirPath, "state.json"),
 		stateFileUpdateInterval: stateFileUpdateInterval,
 		lock:                    &sync.Mutex{},
 	}
 }
 
-func (f *FileStateStore) AddLogItem(ctx context.Context, runId, selector string) error {
-	logItem := LogItem{
-		RunUID:        runId,
+func (f *FileStateStore) Initialize(ctx context.Context) {
+
+	// spawn a goroutine that will update the state file periodically
+	go f.stateFileUpdateLoop(ctx)
+}
+
+func (f *FileStateStore) AddLogItem(ctx context.Context, runUID, selector string) error {
+	logItem := statestore.LogItem{
+		RunUID:        runUID,
 		LabelSelector: selector,
 	}
 
-	if existingItem, exists := f.state.InProgress[runId]; exists {
+	if existingItem, exists := f.state.InProgress.Load(runUID); exists {
 		f.logger.DebugWithCtx(ctx,
 			"Item already exists in state file. Overwriting label selector",
-			"runId", runId,
+			"runUID", runUID,
 			"existingItem", existingItem)
 	}
 
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	f.state.InProgress[logItem.RunUID] = logItem
+	f.state.InProgress.Store(logItem.RunUID, logItem)
 	return nil
 }
 
-func (f *FileStateStore) RemoveLogItem(runId string) error {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	delete(f.state.InProgress, runId)
+func (f *FileStateStore) RemoveLogItem(runUID string) error {
+	f.state.InProgress.Delete(runUID)
 	return nil
 }
 
-func (f *FileStateStore) UpdateState(ctx context.Context) {
+// WriteState writes the state to file, used mainly for testing
+func (f *FileStateStore) WriteState(state *statestore.State) error {
+	return f.writeStateToFile(state)
+}
+
+func (f *FileStateStore) GetItemsInProgress() (*sync.Map, error) {
+	state, err := f.readStateFile()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to read state file")
+	}
+
+	// set the state in the file state store
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.state = state
+
+	return f.state.InProgress, nil
+}
+
+func (f *FileStateStore) GetState() *statestore.State {
+	return f.state
+}
+
+func (f *FileStateStore) stateFileUpdateLoop(ctx context.Context) {
 
 	prevState := *f.state
 
@@ -89,7 +116,7 @@ func (f *FileStateStore) UpdateState(ctx context.Context) {
 			prevState = currentState
 
 			// write state file
-			if err := f.writeStateToFile(ctx, &currentState); err != nil {
+			if err := f.writeStateToFile(&currentState); err != nil {
 				f.logger.ErrorWithCtx(ctx, "Failed to write state file", "err", err)
 				return
 			}
@@ -99,31 +126,8 @@ func (f *FileStateStore) UpdateState(ctx context.Context) {
 	}
 }
 
-// WriteState writes the state to file, used mainly for testing
-func (f *FileStateStore) WriteState(state *State) error {
-	return f.writeStateToFile(context.Background(), state)
-}
-
-func (f *FileStateStore) GetInProgress() (map[string]LogItem, error) {
-	state, err := f.readStateFile()
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to read state file")
-	}
-
-	// set the state in the file state store
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	f.state = state
-
-	return f.state.InProgress, nil
-}
-
-func (f *FileStateStore) GetState() *State {
-	return f.state
-}
-
 // writeStateToFile writes the state to file
-func (f *FileStateStore) writeStateToFile(ctx context.Context, state *State) error {
+func (f *FileStateStore) writeStateToFile(state *statestore.State) error {
 
 	// marshal state file
 	encodedState, err := json.Marshal(state)
@@ -136,13 +140,13 @@ func (f *FileStateStore) writeStateToFile(ctx context.Context, state *State) err
 	defer f.lock.Unlock()
 
 	// write to file
-	return common.WriteToFile(ctx, f.logger, f.stateFilePath, encodedState, false)
+	return common.WriteToFile(f.stateFilePath, encodedState, false)
 }
 
 // readStateFile reads the state from the file
-func (f *FileStateStore) readStateFile() (*State, error) {
+func (f *FileStateStore) readStateFile() (*statestore.State, error) {
 
-	// get lock
+	// get lock so file won't be updated while reading
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -155,13 +159,13 @@ func (f *FileStateStore) readStateFile() (*State, error) {
 		return nil, errors.Wrap(err, "Failed to read stateFile")
 	}
 
-	state := &State{}
+	state := &statestore.State{}
 
 	if len(stateFileBytes) == 0 {
 
 		// if file is empty, return the empty state instance
-		return &State{
-			InProgress: map[string]LogItem{},
+		return &statestore.State{
+			InProgress: &sync.Map{},
 		}, nil
 	}
 

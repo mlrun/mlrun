@@ -36,6 +36,7 @@ func StartServer() error {
 	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_KUBECONFIG_PATH", ""), "Path to kubeconfig file")
 	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_STATE_FILE_UPDATE_INTERVAL", "10s"), "Interval to get the logs from the pods")
 	readLogWaitTime := flag.String("read-log-wait-time", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_READ_LOG_WAIT_TIME", "3s"), "Wait time until trying to get more logs from the pod")
+	bufferPoolSize := flag.Int("buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_BUFFER_POOL_SIZE", 100), "Number of buffers in the buffer pool")
 	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_BUFFER_SIZE_BYTES", 512), "Size of buffer in bytes for reading pod logs")
 
 	// if namespace is not passed, it will be taken from env
@@ -55,6 +56,7 @@ func StartServer() error {
 		*kubeconfigPath,
 		*stateFileUpdateInterval,
 		*readLogWaitTime,
+		*bufferPoolSize,
 		*bufferSizeBytes)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")

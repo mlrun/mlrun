@@ -12,9 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package logcollector
+package statestore
 
-import "context"
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/nuclio/logger"
+)
+
+type StateStoreType string
+
+const (
+	StateStoreTypeFile StateStoreType = "file"
+	StateStoreTypeMock StateStoreType = "mock"
+)
 
 type LogItem struct {
 	RunUID        string `json:"runId"`
@@ -22,10 +35,19 @@ type LogItem struct {
 }
 
 type State struct {
-	InProgress map[string]LogItem `json:"inProgress"`
+	InProgress *sync.Map `json:"inProgress"`
+}
+
+type Config struct {
+	Logger                  logger.Logger
+	StateFileUpdateInterval time.Duration
+	BaseDir                 string
 }
 
 type StateStore interface {
+
+	// Initialize initializes the state store
+	Initialize(ctx context.Context)
 
 	// AddLogItem adds a log item to the state store
 	AddLogItem(ctx context.Context, runId, selector string) error
@@ -33,14 +55,11 @@ type StateStore interface {
 	// RemoveLogItem removes a log item from the state store
 	RemoveLogItem(runId string) error
 
-	// UpdateState updates the state periodically
-	UpdateState(ctx context.Context)
-
 	// WriteState writes the state to persistent storage
 	WriteState(state *State) error
 
-	// GetInProgress returns the in progress log items
-	GetInProgress() (map[string]LogItem, error)
+	// GetItemsInProgress returns the in progress log items
+	GetItemsInProgress() (*sync.Map, error)
 
 	// GetState returns the state store state
 	GetState() *State

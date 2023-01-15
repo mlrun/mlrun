@@ -23,15 +23,17 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/framework"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
 	protologcollector "github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
+	"github.com/oxtoacart/bpool"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -42,8 +44,8 @@ type LogCollectorServer struct {
 	namespace       string
 	baseDir         string
 	kubeClientSet   kubernetes.Interface
-	stateStore      StateStore
-	bufferPool      sync.Pool
+	stateStore      statestore.StateStore
+	bufferPool      *bpool.BytePool
 	readLogWaitTime time.Duration
 }
 
@@ -53,6 +55,7 @@ func NewLogCollectorServer(logger logger.Logger,
 	kubeconfigPath,
 	stateFileUpdateInterval,
 	readLogWaitTime string,
+	bufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
@@ -80,12 +83,25 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
 	}
 
-	stateStore := NewStateFile(abstractServer.Logger, path.Join(baseDir, "state.json"), stateFileUpdateIntervalDuration)
+	stateStore, err := factory.CreateStateStore(
+		statestore.StateStoreTypeFile,
+		&statestore.Config{
+			Logger:                  logger,
+			StateFileUpdateInterval: stateFileUpdateIntervalDuration,
+			BaseDir:                 baseDir,
+		},
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create state store")
+	}
 
 	// ensure base dir exists
 	if err := common.EnsureDirExists(baseDir, os.ModeDir); err != nil {
 		return nil, errors.Wrap(err, "Failed to ensure base dir exists")
 	}
+
+	// create a byte buffer pool - a pool of size `bufferPoolSize`, where each buffer is of size `bufferSizeBytes`
+	bufferPool := bpool.NewBytePool(bufferPoolSize, bufferSizeBytes)
 
 	return &LogCollectorServer{
 		AbstractMlrunGRPCServer: abstractServer,
@@ -94,11 +110,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		stateStore:              stateStore,
 		kubeClientSet:           kubeClientSet,
 		readLogWaitTime:         readLogTimeoutDuration,
-		bufferPool: sync.Pool{
-			New: func() interface{} {
-				return make([]byte, bufferSizeBytes)
-			},
-		},
+		bufferPool:              bufferPool,
 	}, nil
 }
 
@@ -106,23 +118,31 @@ func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 	s.Logger.DebugCtx(ctx, "Initializing Server")
 
 	// start state updating goroutine
-	go s.stateStore.UpdateState(ctx)
+	go s.stateStore.Initialize(ctx)
 
 	// if there are already log items in progress, call StartLog for each of them
-	logItemsInProgress, err := s.stateStore.GetInProgress()
+	logItemsInProgress, err := s.stateStore.GetItemsInProgress()
 	if err == nil {
-		for runUID, logItem := range logItemsInProgress {
+		logItemsInProgress.Range(func(key, value any) bool {
+			runUID, ok := key.(string)
+			if !ok {
+				s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")
+			}
+			logItem, ok := value.(statestore.LogItem)
+			if !ok {
+				s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+			}
+
 			s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
 			if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
 				RunUID:   runUID,
 				Selector: logItem.LabelSelector,
 			}); err != nil {
+				// we don't fail here, as there might be other items to start log for, just log it
 				s.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runUID", runUID)
-
-				// we don't fail here, as there might be other items
-				continue
 			}
-		}
+			return true
+		})
 	} else {
 
 		// don't fail because we still need the server to run
@@ -160,7 +180,7 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 			// we retry 3 times, as k8s might have some issues
 			if errCount <= 3 {
 				errCount++
-				s.Logger.WarnWithCtx(ctx, "Failed to list pods, retrying", "runId", request.RunUID)
+				s.Logger.WarnWithCtx(ctx, "Failed to list pods, retrying", "runUID", request.RunUID)
 			} else {
 
 				// fail on error
@@ -226,14 +246,14 @@ func (s *LogCollectorServer) GetLogs(ctx context.Context, request *protologcolle
 }
 
 // startLogStreaming streams logs from a pod and writes them into a file
-func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runId, podName string) {
+func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runUID, podName string) {
 
 	// create a log file to the pod
-	logFilePath := s.resolvePodLogFilePath(runId, podName)
+	logFilePath := s.resolvePodLogFilePath(runUID, podName)
 	if err := common.EnsureFileExists(logFilePath); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to ensure log file",
-			"runId", runId,
+			"runUID", runUID,
 			"logFilePath", logFilePath)
 		return
 	}
@@ -256,13 +276,13 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runId, podNa
 		if streamErr == nil {
 			break
 		}
-		s.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runId", runId)
+		s.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runUID", runUID)
 		time.Sleep(1 * time.Second)
 	}
 	defer stream.Close() // nolint: errcheck
 
 	for {
-		keepLogging, err := s.streamPodLogs(ctx, runId, logFilePath, stream)
+		keepLogging, err := s.streamPodLogs(ctx, runUID, logFilePath, stream)
 		if err != nil {
 			s.Logger.WarnWithCtx(ctx, "An error occurred while streaming pod logs", "err", err)
 		}
@@ -274,36 +294,30 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runId, podNa
 
 	s.Logger.DebugWithCtx(ctx,
 		"Removing item from state file",
-		"runId", runId,
+		"runUID", runUID,
 		"podName", podName)
 
 	// remove run from state file
-	if err := s.stateStore.RemoveLogItem(runId); err != nil {
+	if err := s.stateStore.RemoveLogItem(runUID); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 }
 
 func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
-	runId,
+	runUID,
 	logFilePath string,
 	stream io.ReadCloser) (bool, error) {
 
-	// create a reader from the stream
+	// create a reader from the stream, to allow peeking into it
 	streamReader := bufio.NewReader(stream)
 
-	// peek into the stream, and wait until there is something to read from it
-	for {
-		peekBuf, err := streamReader.Peek(1)
-		if err != nil {
-			s.Logger.WarnWithCtx(ctx, "Failed to peek into stream", "runId", runId)
-		}
-		if len(peekBuf) > 0 {
-			break
-		}
-		time.Sleep(s.readLogWaitTime)
+	// wait for the stream ro have logs before reading them
+	if !s.hasLogs(ctx, runUID, streamReader) {
+		s.Logger.WarnWithCtx(ctx, "Stream doesn't have logs or context has been canceled", "runUID", runUID)
+		return false, nil
 	}
 
-	// open log file
+	// open log file in read/write and append, to allow reading the logs while we write more logs to it
 	openFlags := os.O_RDWR | os.O_APPEND
 	file, err := os.OpenFile(logFilePath, openFlags, 0644)
 	if err != nil {
@@ -312,17 +326,24 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 	}
 	defer file.Close() // nolint: errcheck
 
-	// get a buffer from the pool
-	buf := s.bufferPool.Get().([]byte)
-	defer s.bufferPool.Put(&buf)
+	// spin a goroutine that will unblock `CopyBuffer` if context is dead
+	copyBufferDone := make(chan struct{}, 1)
+	go s.cancelOnContext(ctx, file, copyBufferDone)
 
-	// copy the stream into the file using the buffer.
-	// this is blocking until there is something to read / buffer is full.
+	// get a buffer from the pool - so we can share buffers across goroutines
+	buf := s.bufferPool.Get()
+	defer s.bufferPool.Put(buf)
+
+	// copy the stream into the file using the buffer, which allows us to control the size read from the file.
+	// this is blocking until there is something to read
 	numBytesWritten, err := io.CopyBuffer(file, streamReader, buf)
+
+	// signal goroutine to exit
+	close(copyBufferDone)
 
 	// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
 	if err == io.EOF {
-		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
+		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
 		return false, nil
 	}
 
@@ -335,7 +356,7 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 	if err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
 			"error", err.Error(),
-			"runId", runId)
+			"runUID", runUID)
 		return true, errors.Wrap(err, "Failed to read pod logs")
 	}
 
@@ -344,11 +365,46 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 }
 
 // resolvePodLogFilePath returns the path to the pod log file
-func (s *LogCollectorServer) resolvePodLogFilePath(runId, podName string) string {
-	return path.Join(s.baseDir, "logs", fmt.Sprintf("%s_%s.log", runId, podName))
+func (s *LogCollectorServer) resolvePodLogFilePath(runUID, podName string) string {
+	return path.Join(s.baseDir, "logs", fmt.Sprintf("%s_%s.log", runUID, podName))
 }
 
-func (s *LogCollectorServer) getLogFilePath(runId string) (string, error) {
+func (s *LogCollectorServer) hasLogs(ctx context.Context, runUID string, streamReader *bufio.Reader) bool {
+
+	// peek into the stream, and wait until there is something to read from it
+	// or until context is canceled
+	for {
+		select {
+		case <-time.After(s.readLogWaitTime):
+			peekBuf, err := streamReader.Peek(1)
+			if err != nil {
+				s.Logger.WarnWithCtx(ctx, "Failed to peek into stream", "runUID", runUID)
+			}
+			if len(peekBuf) > 0 {
+				return true
+			}
+		case <-ctx.Done():
+			s.Logger.DebugWithCtx(ctx, "Context was canceled, stopping waiting for pod log stream", "runUID", runUID)
+			return false
+		}
+		time.Sleep(s.readLogWaitTime)
+	}
+}
+
+func (s *LogCollectorServer) cancelOnContext(ctx context.Context, file *os.File, copyBufferDone chan struct{}) {
+	select {
+	case <-ctx.Done():
+
+		// context is dead, so we close the file so `CopyBuffer` won't block and fail
+		file.Close() // nolint: errcheck
+	case <-copyBufferDone:
+
+		// `CopyBuffer doesn't block anymore, we can stop the goroutine
+		return
+	}
+}
+
+func (s *LogCollectorServer) getLogFilePath(runUID string) (string, error) {
 
 	logFilePath := ""
 	var latestModTime time.Time
@@ -360,7 +416,7 @@ func (s *LogCollectorServer) getLogFilePath(runId string) (string, error) {
 		}
 
 		// if file name starts with run id, it's a log file
-		if strings.HasPrefix(info.Name(), runId) {
+		if strings.HasPrefix(info.Name(), runUID) {
 
 			// if it's the first file, set it as the log file path
 			// otherwise, check if it's the latest modified file
@@ -378,7 +434,7 @@ func (s *LogCollectorServer) getLogFilePath(runId string) (string, error) {
 
 	// if no log file was found, return error
 	if logFilePath == "" {
-		return "", errors.Errorf("Failed to find log file for run id %s", runId)
+		return "", errors.Errorf("Failed to find log file for run id %s", runUID)
 	}
 
 	return logFilePath, nil
@@ -390,8 +446,8 @@ func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
 	offset uint64,
 	size int64) ([]byte, error) {
 
-	// open log file
-	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	// open log file for reading
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to open log file for run id %s", runUID)
 	}

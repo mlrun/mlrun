@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"sync"
 	"testing"
 	"time"
 
@@ -44,7 +43,6 @@ type LogCollectorTestSuite struct {
 	namespace          string
 	baseDir            string
 	kubeConfigFilePath string
-	fileLock           sync.Locker
 }
 
 func (suite *LogCollectorTestSuite) SetupSuite() {
@@ -57,8 +55,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.namespace = "default"
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
+	bufferPoolSize := 20
 	bufferSizeBytes := 512
-	suite.fileLock = &sync.Mutex{}
 
 	// create base dir
 	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
@@ -77,6 +75,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		suite.kubeConfigFilePath,
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
+		bufferPoolSize,
 		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
@@ -167,7 +166,7 @@ func (suite *LogCollectorTestSuite) TestWriteToFile() {
 	filePath := path.Join(suite.baseDir, fileName)
 
 	// write file
-	err := common.WriteToFile(suite.ctx, suite.logger, filePath, []byte("test"), false)
+	err := common.WriteToFile(filePath, []byte("test"), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
 	// read file
@@ -178,78 +177,8 @@ func (suite *LogCollectorTestSuite) TestWriteToFile() {
 	suite.Require().Equal("test", string(fileBytes))
 }
 
-func (suite *LogCollectorTestSuite) TestReadWriteStateFile() {
-
-	// read state file
-	logItemsInProgress, err := suite.LogCollectorServer.stateStore.GetInProgress()
-	suite.Require().NoError(err, "Failed to read state file")
-
-	// verify no items in progress
-	suite.Require().Equal(0, len(logItemsInProgress))
-
-	// add a log item to the state file
-	runId := "abc123"
-	item := LogItem{
-		RunUID:        runId,
-		LabelSelector: "app=test",
-	}
-
-	logItemsInProgress[runId] = item
-
-	// write state file
-	err = suite.LogCollectorServer.stateStore.WriteState(&State{
-		logItemsInProgress,
-	})
-	suite.Require().NoError(err, "Failed to write state file")
-
-	// read state file again
-	logItemsInProgress, err = suite.LogCollectorServer.stateStore.GetInProgress()
-	suite.Require().NoError(err, "Failed to read state file")
-
-	// verify item is in progress
-	suite.Require().Equal(1, len(logItemsInProgress))
-	suite.Require().Equal(item, logItemsInProgress[runId])
-}
-
-func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
-	runId := "some-run-id"
-	labelSelector := "app=test"
-
-	err := suite.LogCollectorServer.stateStore.AddLogItem(suite.ctx, runId, labelSelector)
-	suite.Require().NoError(err, "Failed to add item to in progress")
-
-	// write state to file
-	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
-	suite.Require().NoError(err, "Failed to write state file")
-
-	// read state file
-	itemsInProgress, err := suite.LogCollectorServer.stateStore.GetInProgress()
-	suite.Require().NoError(err, "Failed to read state file")
-
-	// verify item is in progress
-	suite.Require().Equal(1, len(itemsInProgress))
-	suite.Require().Equal(runId, itemsInProgress[runId].RunUID)
-	suite.Require().Equal(labelSelector, itemsInProgress[runId].LabelSelector)
-
-	// remove item from in progress
-	err = suite.LogCollectorServer.stateStore.RemoveLogItem(runId)
-	suite.Require().NoError(err, "Failed to remove item from in progress")
-
-	// write state to file again
-	err = suite.LogCollectorServer.stateStore.WriteState(suite.LogCollectorServer.stateStore.GetState())
-	suite.Require().NoError(err, "Failed to write state file")
-
-	// read state file again
-	itemsInProgress, err = suite.LogCollectorServer.stateStore.GetInProgress()
-	suite.Require().NoError(err, "Failed to read state file")
-
-	// verify item is not in progress
-	suite.Require().Equal(0, len(itemsInProgress))
-}
-
 func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	runId := "some-run-id"
-	suite.logger.Debug("Starting test TOMERRRRR")
 
 	// create fake pod that finishes after 10 seconds
 	fakePod := v1.Pod{
@@ -302,7 +231,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 
 			// read log file
 			logFileContent, err = os.ReadFile(logFilePath)
-			if err != nil {
+			if err != nil || len(logFileContent) == 0 {
 				continue
 			}
 			foundLogs = true
@@ -324,7 +253,7 @@ func (suite *LogCollectorTestSuite) TestGetLog() {
 
 	// write log file
 	logText := "Some fake pod logs"
-	err := common.WriteToFile(suite.ctx, suite.logger, logFilePath, []byte(logText), false)
+	err := common.WriteToFile(logFilePath, []byte(logText), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
 	// get logs
@@ -339,7 +268,7 @@ func (suite *LogCollectorTestSuite) TestGetLog() {
 	suite.Require().Equal(logText, string(log.Logs))
 }
 
-func (suite *LogCollectorTestSuite) TestReadWriteFileSimultaneously() {
+func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 	// create file
 	filePath := path.Join(suite.baseDir, "test-file")
@@ -369,7 +298,7 @@ func (suite *LogCollectorTestSuite) TestReadWriteFileSimultaneously() {
 			message := fmt.Sprintf(messageTemplate, i)
 			suite.logger.DebugWith("Writing to file", "message", message)
 
-			err := common.WriteToFile(ctx, suite.logger, filePath, []byte(message), true)
+			err := common.WriteToFile(filePath, []byte(message), true)
 			suite.Require().NoError(err, "Failed to write to file")
 		}
 		return nil

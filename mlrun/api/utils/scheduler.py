@@ -315,7 +315,7 @@ class Scheduler:
     ):
         logger.debug("Invoking schedule", project=project, name=name)
         db_schedule = await fastapi.concurrency.run_in_threadpool(
-            self.get_schedule,
+            get_db().get_schedule,
             db_session,
             project,
             name,

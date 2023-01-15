@@ -117,11 +117,11 @@ class TestMpiV1Runtime(TestMpiJob):
             watch=False,
         )
 
-        # TODO: understand why the kind is not added to the labels
-        print(run.to_dict())
+        initial_run_uid = run.metadata.uid
 
         # simulate the workers
         for _ in range(workers):
+            run.metadata.uid = ""
             run = mpijob_function.run(
                 runspec=run,
                 artifact_path="v3io:///mypath",
@@ -132,6 +132,6 @@ class TestMpiV1Runtime(TestMpiJob):
             assert run.status.state == "completed"
 
         # read run
-        # db = mlrun.get_run_db()
-        # run = db.read_run(run.metadata.uid)
-        # assert run["status"]["state"] == "running", "run status was updated in db"
+        db = mlrun.get_run_db()
+        run = db.read_run(initial_run_uid)
+        assert run["status"]["state"] == "running", "run status was updated in db"

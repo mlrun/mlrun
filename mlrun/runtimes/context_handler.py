@@ -229,9 +229,7 @@ class OutputsLogger:
 
         # Verify the path is of an existing directory:
         if not os.path.isfile(obj):
-            raise MLRunInvalidArgumentError(
-                f"The given path is not a file: '{obj}'"
-            )
+            raise MLRunInvalidArgumentError(f"The given path is not a file: '{obj}'")
         if not os.path.exists(obj):
             raise MLRunInvalidArgumentError(
                 f"The given directory path do not exist: '{obj}'"
@@ -478,8 +476,9 @@ class ContextHandler:
         # Index 1: the decorator's frame.
         # Index 2-...: If it is from mlrun.runtimes we can be sure it ran via MLRun, otherwise not.
         for callstack_frame in inspect.getouterframes(inspect.currentframe()):
-            if os.path.join("mlrun", "runtimes") in callstack_frame.filename:
+            if os.path.join("mlrun", "runtimes", "local") in callstack_frame.filename:
                 import mlrun
+
                 self._context = mlrun.get_or_create_ctx("context")
                 break
 

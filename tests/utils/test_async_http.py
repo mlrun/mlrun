@@ -21,7 +21,7 @@ import aioresponses
 import pytest
 from aiohttp import ClientConnectorError, ServerDisconnectedError
 
-from mlrun.utils.async_http import AsyncClientWithRetry, _CustomRequestContext
+from mlrun.utils.async_http import AsyncClientWithRetry
 
 
 @pytest.fixture

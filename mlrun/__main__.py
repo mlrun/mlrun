@@ -1122,7 +1122,6 @@ def project(
                         "overwrite = True", "--overwrite-schedule"
                     )
                     error.args = tuple(args_list)
-                    send_error(run,proj,error)
                 raise error
 
         except Exception as exc:

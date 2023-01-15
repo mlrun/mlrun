@@ -901,7 +901,7 @@ class FeatureSet(ModelObj):
                 )
         if not isinstance(source, BaseSourceDriver):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "source must be a valid BaseSourceDriver class"
+                "source must be an instance of a subclass of BaseSourceDriver"
             )
         if isinstance(source, OnlineSource):
             raise mlrun.errors.MLRunInvalidArgumentError(

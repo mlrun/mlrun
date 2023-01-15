@@ -276,7 +276,7 @@ async def _collect_runs_logs():
                     class_mode=RuntimeClassMode.run,
                 )
                 success, _ = await logs_collector_client.start_logs(
-                    run_uid, label_selector, raise_on_error=True
+                    run_uid=run_uid, selector=label_selector, raise_on_error=True
                 )
                 if success:
                     # update the run to mark that we requested logs collection for it

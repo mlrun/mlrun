@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import mlrun.errors
+import mlrun.utils.singleton
 from mlrun.utils import logger
 
 from .base import BaseGRPCClient
 
 
-class LogCollectorClient(BaseGRPCClient):
+class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singleton):
     name = "log_collector"
 
     def __init__(self):
@@ -37,17 +38,26 @@ class LogCollectorClient(BaseGRPCClient):
 
     async def start_logs(
         self,
-        run_id: str,
+        run_uid: str,
         selector: str,
         verbose: bool = True,
         raise_on_error: bool = True,
     ) -> (bool, str):
+        """
+        Start logs streaming from the log collector service
+        :param run_uid: The run uid
+        :param selector: The selector to filter the logs by (e.g. "application=mlrun,job-name=job")
+            format is key1=value1,key2=value2
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return:
+        """
         request = self._log_collector_pb2.StartLogRequest(
-            runId=run_id, selector=selector
+            runId=run_uid, selector=selector
         )
         response = await self._call("StartLog", request)
         if not response.success:
-            msg = f"Failed to start logs for run {run_id}"
+            msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
                     msg,
@@ -56,3 +66,40 @@ class LogCollectorClient(BaseGRPCClient):
             if verbose:
                 logger.warning(msg, error=response.error)
         return response.success, response.error
+
+    async def get_logs(
+        self,
+        run_uid: str,
+        project: str,
+        offset: int = 0,
+        size: int = -1,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> bytes:
+        """
+        Get logs from the log collector service
+        :param run_uid: The run uid
+        :param project: The project name
+        :param offset: The offset to start reading from
+        :param size: The number of bytes to read (-1 for all)
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: The logs bytes
+        """
+        request = self._log_collector_pb2.GetLogsRequest(
+            runUid=run_uid,
+            project=project,
+            offset=offset,
+            size=size,
+        )
+        response = await self._call("GetLogs", request)
+        if not response.success:
+            msg = f"Failed to get logs for run {run_uid}"
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    msg,
+                    error=response.error,
+                )
+            if verbose:
+                logger.warning(msg, error=response.error)
+        return response.logs

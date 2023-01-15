@@ -20,6 +20,7 @@ from http import HTTPStatus
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
+import mlrun.api.utils.clients.sidecar.log_collector as log_collector
 import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
@@ -64,18 +65,17 @@ class Logs(
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
     ) -> typing.Tuple[str, bytes]:
+        project = project or mlrun.mlconf.default_project
         if (
             mlrun.mlconf.sidecar.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.best_effort
         ):
             try:
                 self._get_logs_from_logs_collector(
-                    db_session,
                     project,
                     uid,
                     size,
                     offset,
-                    source,
                 )
             except Exception as exc:
                 if mlrun.mlconf.sidecar.logs_collector.verbose:
@@ -96,12 +96,10 @@ class Logs(
             == mlrun.api.schemas.LogsCollectorMode.sidecar
         ):
             return self._get_logs_from_logs_collector(
-                db_session,
                 project,
                 uid,
                 size,
                 offset,
-                source,
             )
         elif (
             mlrun.mlconf.sidecar.logs_collector.mode
@@ -118,22 +116,18 @@ class Logs(
 
     def _get_logs_from_logs_collector(
         self,
-        db_session: Session,
         project: str,
         uid: str,
         size: int = -1,
         offset: int = 0,
-        source: LogSources = LogSources.AUTO,
-    ) -> typing.Tuple[str, bytes]:
-        pod_name = get_db().get_log_pod_name(db_session, project, uid)
-        if not pod_name:
-            return "", b""
-        return self._get_logs_from_pod(
-            pod_name,
-            size,
-            offset,
-            source,
+    ) -> bytes:
+        logs = log_collector.LogCollectorClient().get_logs(
+            run_uid=uid,
+            project=project,
+            size=size,
+            offset=offset,
         )
+        return logs
 
     @staticmethod
     def _get_logs_legacy_method(

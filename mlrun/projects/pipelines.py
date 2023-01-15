@@ -723,7 +723,7 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
-    @staticmethod
+    @classmethod
     def run(
         cls,
         project: "mlrun.projects.MlrunProject",

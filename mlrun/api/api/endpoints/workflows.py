@@ -175,7 +175,7 @@ def submit_workflow(
         function_name=workflow_runner.metadata.name,
         workflow_name=workflow_spec.name,
         arguments=workflow_spec.args,
-        source=project.spec.source,
+        source=updated_request.source or project.spec.source,
         kind=workflow_runner.kind,
         image=workflow_runner.spec.image,
     )

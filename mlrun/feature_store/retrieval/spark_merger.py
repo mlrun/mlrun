@@ -57,30 +57,41 @@ class SparkFeatureMerger(BaseMerger):
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             column_names = [name for name, alias in columns]
-            target = get_offline_target(feature_set)
-            if not target:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Feature set {name} does not have offline targets"
-                )
+
+            if feature_set.spec.passthrough:
+                if not self.spec.source:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"passthrough feature set {name} with no source bounded"
+                    )
+                source_kind = feature_set.spec.source.kind
+                source_path = feature_set.spec.source.path
+            else:
+                target = get_offline_target(feature_set)
+                if not target:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Feature set {name} does not have offline targets"
+                    )
+                source_kind = target.kind
+                source_path = target.get_target_path()
 
             # handling case where there are multiple feature sets and user creates vector where
             # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
-            source_driver = mlrun.datastore.sources.source_kind_to_driver[target.kind]
+            source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
             if (
                 entity_timestamp_column in column_names
                 or feature_set.spec.timestamp_key == entity_timestamp_column
             ):
                 source = source_driver(
-                    self.vector.metadata.name,
-                    target.get_target_path(),
+                    name=self.vector.metadata.name,
+                    path=source_path,
                     time_field=entity_timestamp_column,
                     start_time=start_time,
                     end_time=end_time,
                 )
             else:
                 source = source_driver(
-                    self.vector.metadata.name,
-                    target.get_target_path(),
+                    name=self.vector.metadata.name,
+                    path=source_path,
                     time_field=entity_timestamp_column,
                 )
 

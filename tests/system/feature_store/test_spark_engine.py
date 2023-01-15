@@ -858,13 +858,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df[["bad", "department"]].equals(expected_df)
 
     # ML-2802
-    def test_get_offline_features_with_spark_engine(self):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_get_offline_features_with_spark_engine(self, passthrough):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
+            passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         fstore.ingest(

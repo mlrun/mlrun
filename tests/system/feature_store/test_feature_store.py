@@ -898,7 +898,7 @@ class TestFeatureStore(TestMLRunSystem):
         name = f"measurements_set_{uuid.uuid4()}"
         key = "patient_id"
         measurements_set = fstore.FeatureSet(
-            name, entities=[Entity(key)], timestamp_key="timestamp"
+            name, entities=[Entity(key)], timestamp_key="timestamp", passthrough=True
         )
         source = CSVSource(
             "mycsv",
@@ -906,27 +906,22 @@ class TestFeatureStore(TestMLRunSystem):
             time_field="timestamp",
         )
 
-        # set fset to passthrough
-        measurements_set.set_passthrough_source(source)
-
         preview_pd = fstore.preview(
             measurements_set,
             source=source,
         )
+        # preview does not do set_index on the entity
         preview_pd.set_index("patient_id", inplace=True)
 
         fstore.ingest(measurements_set, source)
 
         # assert that online target exist (nosql) and offline target does not (parquet)
         assert len(measurements_set.status.targets) == 1
-        from mlrun.model import DataTarget
-
-        assert isinstance(
-            measurements_set.status.targets._children["nosql"], DataTarget
-        )
+        from mlrun.model  import DataTarget
+        assert isinstance(measurements_set.status.targets._children['nosql'], DataTarget)
 
         # verify that get_offline (and preview) equals the source
-        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        vector = fstore.FeatureVector("myvector", features = [ f"{name}.*"])
         resp = fstore.get_offline_features(
             vector, entity_timestamp_column="timestamp", with_indexes=True
         )

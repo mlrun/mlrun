@@ -466,7 +466,9 @@ def ingest(
         )
         return_df = False
 
-    featureset.spec.validate_no_processing_for_passthrough()
+    if featureset.spec.passthrough:
+        featureset.spec.source = source
+        featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
 

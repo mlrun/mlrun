@@ -83,7 +83,7 @@ class FeatureSetSpec(ModelObj):
         analysis=None,
         engine=None,
         output_path=None,
-        is_passthrough=False,
+        passthrough=False,
     ):
         """Feature set spec object, defines the feature-set's configuration.
 
@@ -102,6 +102,7 @@ class FeatureSetSpec(ModelObj):
         :param function: MLRun runtime to execute the feature-set in
         :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
         :param output_path: default location where to store results (defaults to MLRun's artifact path)
+        :param passthrough: if true, ingest will skip offline targets, and get_offline will read directly from source
         """
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -126,7 +127,7 @@ class FeatureSetSpec(ModelObj):
         self.analysis = analysis or {}
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
-        self.is_passthrough = is_passthrough
+        self.passthrough = passthrough
 
     @property
     def entities(self) -> List[Entity]:
@@ -212,7 +213,7 @@ class FeatureSetSpec(ModelObj):
         return len(self._graph.steps) > 0
 
     def validate_no_processing_for_passthrough(self):
-        if self.is_passthrough and self.require_processing():
+        if self.passthrough and self.require_processing():
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "passthrough fset can not have graph transformations"
             )
@@ -298,6 +299,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
+        passthrough: bool = False,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -326,6 +328,7 @@ class FeatureSet(ModelObj):
             timestamp_key=timestamp_key,
             engine=engine,
             label_column=label_column,
+            passthrough=passthrough,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -825,10 +828,10 @@ class FeatureSet(ModelObj):
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
 
-        if self.spec.is_passthrough:
+        if self.spec.passthrough:
             if not self.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
-                    "when fset is in passthrough mode, offline data source must be provided"
+                "there are no offline targets for this feature set"
                 )
             return self.spec.source.to_dataframe()
 
@@ -886,33 +889,6 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
-
-    def set_passthrough_source(self, source: Union[str, BaseSourceDriver]):
-        """sets the fset to passthrough. must be called before ingestion.
-        create source by provided source path (if str) or provided source object (otherwise)"""
-        if isinstance(source, str):
-            if source.lower().endswith(".csv"):
-                source = mlrun.datastore.sources.CSVSource(path=source)
-            elif source.lower().endswith(".parquet"):
-                source = mlrun.datastore.sources.ParquetSource(path=source)
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "source type not supported, use a supported source class"
-                )
-        if not isinstance(source, BaseSourceDriver):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "source must be a valid BaseSourceDriver class"
-            )
-        if isinstance(source, OnlineSource):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "source must not be an online source"
-            )
-        self.spec.is_passthrough = True
-        self.spec.source = source
-
-        self.spec.validate_no_processing_for_passthrough()
-
-        self.save()
 
 
 class SparkAggregateByKey(StepToDict):

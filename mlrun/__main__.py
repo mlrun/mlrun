@@ -1125,8 +1125,9 @@ def project(
                 raise error
 
         except Exception as exc:
-            print(traceback.format_exc())
-            send_error(run,proj,err_to_str(exc))
+            print("SEND")
+            trace = traceback.format_exc()
+            send_error(run,proj,err_to_str(exc),trace)
             exit(1)
 
     elif sync:
@@ -1412,10 +1413,10 @@ def add_notification2proj(notification, proj):
             notification_type=notification_type, params=notification_param
         )
 
-def send_error(run,proj,error):
+def send_error(run,proj,error,trace):
     message = (
         f":x: Failed to run scheduled workflow {run} in Project {proj.name} !\n"
-        f"error: ```{error}```"
+        f"error: ```{error}```\n{trace}"
     )
     proj.notifiers.push(message=message, severity=NotificationSeverity.ERROR)
 

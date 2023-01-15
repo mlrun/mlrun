@@ -83,7 +83,7 @@ class FeatureSetSpec(ModelObj):
         analysis=None,
         engine=None,
         output_path=None,
-        passthrough=False,
+        passthrough=None,
     ):
         """Feature set spec object, defines the feature-set's configuration.
 
@@ -215,7 +215,7 @@ class FeatureSetSpec(ModelObj):
     def validate_no_processing_for_passthrough(self):
         if self.passthrough and self.require_processing():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "passthrough fset can not have graph transformations"
+                "passthrough feature set can not have graph transformations"
             )
 
 
@@ -299,7 +299,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        passthrough: bool = False,
+        passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 

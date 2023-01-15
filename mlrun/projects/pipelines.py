@@ -751,7 +751,9 @@ class _RemoteRunner(_PipelineRunner):
                 workflow_spec=workflow_spec.to_dict(),
                 artifact_path=artifact_path,
                 source=source,
-                run_name=mlrun.mlconf.default_workflow_runner_name.format(workflow_name),
+                run_name=mlrun.mlconf.default_workflow_runner_name.format(
+                    workflow_name
+                ),
                 namespace=namespace,
                 image=workflow_spec.image,
             )

@@ -40,6 +40,7 @@ class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singlet
         self,
         run_uid: str,
         selector: str,
+        project: str = "",
         verbose: bool = True,
         raise_on_error: bool = True,
     ) -> (bool, str):
@@ -48,12 +49,13 @@ class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singlet
         :param run_uid: The run uid
         :param selector: The selector to filter the logs by (e.g. "application=mlrun,job-name=job")
             format is key1=value1,key2=value2
+        :param project: The project name
         :param verbose: Whether to log errors
         :param raise_on_error: Whether to raise an exception on error
         :return:
         """
         request = self._log_collector_pb2.StartLogRequest(
-            runId=run_uid, selector=selector
+            runId=run_uid, selector=selector, project=project
         )
         response = await self._call("StartLog", request)
         if not response.success:

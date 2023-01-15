@@ -606,7 +606,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code (using black and isort)
 	@echo "Running black fmt..."
-	python -m black . --exclude=/mlrun/api/proto
+	python -m black .
 	python -m isort .
 
 .PHONY: lint

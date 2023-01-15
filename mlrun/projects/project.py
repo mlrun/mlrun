@@ -1692,7 +1692,7 @@ class MlrunProject(ModelObj):
         return FunctionsDict(self)
 
     def get_function_names(self) -> typing.List[str]:
-        """get a list of all the project functions' names"""
+        """get a list of all the project function names"""
         return [func["name"] for func in self.spec.functions]
 
     def pull(self, branch=None, remote=None):

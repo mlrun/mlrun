@@ -1125,7 +1125,6 @@ def project(
                 raise error
 
         except Exception as exc:
-            print("SEND")
             trace = traceback.format_exc()
             send_error(run,proj,trace)
             exit(1)

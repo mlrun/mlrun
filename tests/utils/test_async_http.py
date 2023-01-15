@@ -150,11 +150,14 @@ async def test_retry_method_status_codes(
 
 
 @pytest.mark.asyncio
-async def test_headers_filtering(async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock):
+async def test_headers_filtering(
+    async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock
+):
     """
     Header keys/values type must be str to be serializable
     This tests ensures we drop headers with 'None' values
     """
+
     def callback(url, **kwargs):
         return aioresponses.CallbackResult(headers=kwargs["headers"])
 

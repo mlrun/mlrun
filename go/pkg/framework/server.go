@@ -60,14 +60,14 @@ func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.Serv
 		grpc.StreamInterceptor(
 			grpc_middleware.ChainStreamServer(
 				grpc_recovery.StreamServerInterceptor(
-					grpc_recovery.WithRecoveryHandlerContext(server.recoverFromPanic),
+					grpc_recovery.WithRecoveryHandlerContext(server.recoveryHandler),
 				),
 			),
 		),
 		grpc.UnaryInterceptor(
 			grpc_middleware.ChainUnaryServer(
 				grpc_recovery.UnaryServerInterceptor(
-					grpc_recovery.WithRecoveryHandlerContext(server.recoverFromPanic),
+					grpc_recovery.WithRecoveryHandlerContext(server.recoveryHandler),
 				),
 			),
 		),
@@ -89,9 +89,12 @@ func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 	return s.grpcServerOpts
 }
 
-func (s *AbstractMlrunGRPCServer) recoverFromPanic(ctx context.Context, p interface{}) error {
-	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", p, "stack", string(debug.Stack()))
-	return status.Errorf(codes.Internal, "%s", p)
+// recoveryHandler is a custom grpc recovery handler that logs the panic and returns an internal error.
+// This is used to prevent the server from crashing when a panic occurs. This method is passed to the
+// grpc_recovery middleware in the server options.
+func (s *AbstractMlrunGRPCServer) recoveryHandler(ctx context.Context, panicInstance interface{}) error {
+	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", panicInstance, "stack", string(debug.Stack()))
+	return status.Errorf(codes.Internal, "%s", panicInstance)
 }
 
 func (s *AbstractMlrunGRPCServer) RegisterRoutes(ctx context.Context) {

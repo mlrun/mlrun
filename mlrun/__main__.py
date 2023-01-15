@@ -1122,7 +1122,7 @@ def project(
                         "overwrite = True", "--overwrite-schedule"
                     )
                     error.args = tuple(args_list)
-                    send_error(run,proj,error.args)
+                    send_error(run,proj,error)
                 raise error
 
         except Exception as exc:
@@ -1405,18 +1405,10 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
 
 def add_notification2proj(notification, proj):
-    print('add_notification',notification)
     for k, v in notification.items():
         notification_type = k
         list_prams = v.replace("{","").replace("}","").split(":",1)
-        print('list_prams', notification)
         notification_param = {list_prams[0]:list_prams[1]}
-        print(
-            "notification_type=",
-            notification_type,
-            "notification_param=",
-            notification_param,"type=",type(notification_param)
-        )
         proj.notifiers.add_notification(
             notification_type=notification_type, params=notification_param
         )

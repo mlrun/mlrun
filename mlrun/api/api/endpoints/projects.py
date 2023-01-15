@@ -376,7 +376,8 @@ async def load_project(
 
     # We must create the project before we run the remote load_project function because
     # we want this function will be running under the project itself instead of the default project.
-    project, _ = get_project_member().create_project(
+    project, _ = await fastapi.concurrency.run_in_threadpool(
+        get_project_member().create_project,
         db_session=db_session,
         project=project,
         projects_role=auth_info.projects_role,
@@ -384,7 +385,8 @@ async def load_project(
     )
 
     # Creating the auxiliary function for loading the project:
-    load_project_runner = mlrun.api.crud.WorkflowRunners().create_runner(
+    load_project_runner = await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.crud.WorkflowRunners().create_runner,
         run_name=f"load-{name}",
         project=name,
         db_session=db_session,

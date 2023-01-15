@@ -96,14 +96,17 @@ class Client(
             "DELETE", f"projects/{project}/schedules/{name}", request
         )
 
-    def submit_workflow(
+    async def submit_workflow(
         self,
         project: str,
         name: str,
         request: fastapi.Request = None,
         json: dict = None,
     ) -> fastapi.Response:
-        return self._proxy_request_to_chief(
+        """
+        Workflow schedules are running only on chief
+        """
+        return await self._proxy_request_to_chief(
             "POST", f"/projects/{project}/workflows/{name}/submit", request, json
         )
 

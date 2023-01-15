@@ -19,6 +19,7 @@ from http import HTTPStatus
 from typing import Dict
 
 import fastapi
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun
@@ -96,7 +97,7 @@ def _fill_workflow_missing_fields_from_project(
     status_code=HTTPStatus.ACCEPTED.value,
     response_model=mlrun.api.schemas.WorkflowResponse,
 )
-def submit_workflow(
+async def submit_workflow(
     project: str,
     name: str,
     workflow_request: mlrun.api.schemas.WorkflowRequest = mlrun.api.schemas.WorkflowRequest(),
@@ -128,14 +129,15 @@ def submit_workflow(
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
     # Getting project
-    project = (
-        mlrun.api.utils.singletons.project_member.get_project_member().get_project(
-            db_session=db_session, name=project, leader_session=auth_info.session
-        )
+    project = await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().get_project,
+        db_session=db_session,
+        name=project,
+        leader_session=auth_info.session,
     )
 
     # check permission CREATE run
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.run,
         project_name=project.metadata.name,
         resource_name=workflow_request.run_name or "",
@@ -143,7 +145,7 @@ def submit_workflow(
         auth_info=auth_info,
     )
     # check permission READ workflow
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.api.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
         resource_name=name,
@@ -162,13 +164,15 @@ def submit_workflow(
 
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
-    workflow_runner = mlrun.api.crud.WorkflowRunners().create_runner(
+    workflow_runner = await run_in_threadpool(
+        mlrun.api.crud.WorkflowRunners().create_runner,
         run_name=updated_request.run_name or f"workflow-runner-{workflow_spec.name}",
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
         image=workflow_spec.image or mlrun.mlconf.default_base_image,
     )
+
     logger.debug(
         "saved function for running workflow",
         project_name=workflow_runner.metadata.project,
@@ -191,13 +195,15 @@ def submit_workflow(
                 != mlrun.api.schemas.ClusterizationRole.chief
             ):
                 chief_client = mlrun.api.utils.clients.chief.Client()
-                return chief_client.submit_workflow(
+                return await chief_client.submit_workflow(
                     project=project.metadata.name,
                     name=name,
                     json=workflow_request.dict(),
                 )
             workflow_action = "schedule"
-            mlrun.api.crud.WorkflowRunners().schedule(
+
+            await run_in_threadpool(
+                mlrun.api.crud.WorkflowRunners().schedule,
                 runner=workflow_runner,
                 project=project,
                 workflow_request=updated_request,
@@ -208,7 +214,8 @@ def submit_workflow(
 
         else:
             workflow_action = "run"
-            run = mlrun.api.crud.WorkflowRunners().run(
+            run = await run_in_threadpool(
+                mlrun.api.crud.WorkflowRunners().run,
                 runner=workflow_runner,
                 project=project,
                 workflow_request=updated_request,
@@ -234,7 +241,7 @@ def submit_workflow(
     "/projects/{project}/{name}/{uid}",
     response_model=mlrun.api.schemas.GetWorkflowResponse,
 )
-def get_workflow_id(
+async def get_workflow_id(
     project: str,
     name: str,
     uid: str,
@@ -264,7 +271,7 @@ def get_workflow_id(
     :returns: workflow id
     """
     # Check permission READ run:
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,
         project,
         uid,
@@ -272,7 +279,7 @@ def get_workflow_id(
         auth_info,
     )
     # Check permission READ workflow:
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.workflow,
         project,
         name,
@@ -280,7 +287,8 @@ def get_workflow_id(
         auth_info,
     )
 
-    return mlrun.api.crud.WorkflowRunners().get_workflow_id(
+    return await run_in_threadpool(
+        mlrun.api.crud.WorkflowRunners().get_workflow_id,
         uid=uid,
         project=project,
         db_session=db_session,

@@ -109,8 +109,8 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
 
     # no grafana (None returned) so no url
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.Client().verify_request_session = (
-        unittest.mock.Mock(
+    mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
             return_value=(
                 mlrun.api.schemas.AuthInfo(
                     username=None,

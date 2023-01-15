@@ -463,6 +463,7 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
+    "default_workflow_runner_name": "workflow-runner-{}",
     "sidecar": {
         "log_collector": {
             "address": "",

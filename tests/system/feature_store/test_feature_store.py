@@ -58,6 +58,7 @@ from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
 from .data_sample import quotes, stocks, trades
@@ -916,8 +917,6 @@ class TestFeatureStore(TestMLRunSystem):
         fstore.ingest(measurements_set, source)
 
         # assert that online target exist (nosql) and offline target does not (parquet)
-        from mlrun.model import DataTarget
-
         assert len(measurements_set.status.targets) == 1
         assert isinstance(
             measurements_set.status.targets._children["nosql"], DataTarget

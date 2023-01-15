@@ -150,20 +150,18 @@ async def test_retry_method_status_codes(
 
 
 @pytest.mark.asyncio
-async def test_headers_filtering(async_client: AsyncClientWithRetry):
+async def test_headers_filtering(async_client: AsyncClientWithRetry, aioresponses_mock: aioresponses_mock):
     """
     Header keys/values type must be str to be serializable
     This tests ensures we drop headers with 'None' values
     """
-    with aioresponses.aioresponses() as aiohttp_mock:
+    def callback(url, **kwargs):
+        return aioresponses.CallbackResult(headers=kwargs["headers"])
 
-        def callback(url, **kwargs):
-            return aioresponses.CallbackResult(headers=kwargs["headers"])
+    aioresponses_mock.add("http://nothinghere", method="GET", callback=callback)
 
-        aiohttp_mock.add("http://nothinghere", method="GET", callback=callback)
-
-        response = await async_client.get(
-            "http://nothinghere", headers={"x": None, "y": "z"}
-        )
-        assert response.headers["y"] == "z", "header should not have been filtered"
-        assert "x" not in response.headers, "header with 'None' value was not filtered"
+    response = await async_client.get(
+        "http://nothinghere", headers={"x": None, "y": "z"}
+    )
+    assert response.headers["y"] == "z", "header should not have been filtered"
+    assert "x" not in response.headers, "header with 'None' value was not filtered"

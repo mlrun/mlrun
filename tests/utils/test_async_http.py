@@ -155,7 +155,7 @@ async def test_headers_filtering(async_client: AsyncClientWithRetry):
     with aioresponses.aioresponses() as aiohttp_mock:
 
         def callback(url, **kwargs):
-            return aioresponses.CallbackResult(status=200, headers=kwargs["headers"])
+            return aioresponses.CallbackResult(headers=kwargs["headers"])
 
         aiohttp_mock.add("http://nothinghere", method="GET", callback=callback)
 

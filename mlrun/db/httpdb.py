@@ -327,6 +327,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("ui_projects_prefix") or config.ui.projects_prefix
             )
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
+            config.kfp_url = server_cfg.get("kfp_url") or config.kfp_url
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )

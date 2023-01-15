@@ -50,7 +50,7 @@ func NewStateFile(logger logger.Logger, filePath string, stateFileUpdateInterval
 
 func (f *FileStateStore) AddLogItem(ctx context.Context, runId, selector string) error {
 	logItem := LogItem{
-		RunId:         runId,
+		RunUID:        runId,
 		LabelSelector: selector,
 	}
 
@@ -63,7 +63,7 @@ func (f *FileStateStore) AddLogItem(ctx context.Context, runId, selector string)
 
 	f.lock.Lock()
 	defer f.lock.Unlock()
-	f.state.InProgress[logItem.RunId] = logItem
+	f.state.InProgress[logItem.RunUID] = logItem
 	return nil
 }
 
@@ -136,7 +136,7 @@ func (f *FileStateStore) writeStateToFile(ctx context.Context, state *State) err
 	defer f.lock.Unlock()
 
 	// write to file
-	return common.WriteToFile(ctx, f.logger, f.stateFilePath, f.lock, encodedState, false)
+	return common.WriteToFile(ctx, f.logger, f.stateFilePath, encodedState, false)
 }
 
 // readStateFile reads the state from the file

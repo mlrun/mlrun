@@ -15,7 +15,7 @@
 package logcollector
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -28,7 +28,7 @@ import (
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/framework"
-	"github.com/mlrun/mlrun/proto/build/log_collector"
+	protologcollector "github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
@@ -39,18 +39,21 @@ import (
 
 type LogCollectorServer struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace     string
-	baseDir       string
-	kubeClientSet kubernetes.Interface
-	stateStore    StateStore
-	logFileLocks  map[string]sync.Locker
+	namespace       string
+	baseDir         string
+	kubeClientSet   kubernetes.Interface
+	stateStore      StateStore
+	bufferPool      sync.Pool
+	readLogWaitTime time.Duration
 }
 
 func NewLogCollectorServer(logger logger.Logger,
 	namespace,
 	baseDir,
 	kubeconfigPath,
-	stateFileUpdateInterval string) (*LogCollectorServer, error) {
+	stateFileUpdateInterval,
+	readLogWaitTime string,
+	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -72,6 +75,11 @@ func NewLogCollectorServer(logger logger.Logger,
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
 	}
 
+	readLogTimeoutDuration, err := time.ParseDuration(readLogWaitTime)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
+	}
+
 	stateStore := NewStateFile(abstractServer.Logger, path.Join(baseDir, "state.json"), stateFileUpdateIntervalDuration)
 
 	// ensure base dir exists
@@ -85,7 +93,12 @@ func NewLogCollectorServer(logger logger.Logger,
 		baseDir:                 baseDir,
 		stateStore:              stateStore,
 		kubeClientSet:           kubeClientSet,
-		logFileLocks:            map[string]sync.Locker{},
+		readLogWaitTime:         readLogTimeoutDuration,
+		bufferPool: sync.Pool{
+			New: func() interface{} {
+				return make([]byte, bufferSizeBytes)
+			},
+		},
 	}, nil
 }
 
@@ -98,13 +111,13 @@ func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 	// if there are already log items in progress, call StartLog for each of them
 	logItemsInProgress, err := s.stateStore.GetInProgress()
 	if err == nil {
-		for runId, logItem := range logItemsInProgress {
-			s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runId", runId)
-			if _, err := s.StartLog(ctx, &log_collector.StartLogRequest{
-				RunId:    runId,
+		for runUID, logItem := range logItemsInProgress {
+			s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
+			if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
+				RunUID:   runUID,
 				Selector: logItem.LabelSelector,
 			}); err != nil {
-				s.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runId", runId)
+				s.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runUID", runUID)
 
 				// we don't fail here, as there might be other items
 				continue
@@ -121,16 +134,16 @@ func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 
 func (s *LogCollectorServer) RegisterRoutes(ctx context.Context) {
 	s.AbstractMlrunGRPCServer.RegisterRoutes(ctx)
-	log_collector.RegisterLogCollectorServer(s.Server, s)
+	protologcollector.RegisterLogCollectorServer(s.Server, s)
 }
 
 // StartLog writes the log item info to the state file, gets the pod using the label selector,
 // triggers `monitorPod` and `streamLogs` goroutines.
-func (s *LogCollectorServer) StartLog(ctx context.Context, request *log_collector.StartLogRequest) (*log_collector.StartLogResponse, error) {
+func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcollector.StartLogRequest) (*protologcollector.StartLogResponse, error) {
 
 	s.Logger.DebugWithCtx(ctx,
 		"Received Start Log request",
-		"RunId", request.RunId,
+		"RunUID", request.RunUID,
 		"Selector", request.Selector)
 
 	var pods *v1.PodList
@@ -147,12 +160,12 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *log_collecto
 			// we retry 3 times, as k8s might have some issues
 			if errCount <= 3 {
 				errCount++
-				s.Logger.WarnWithCtx(ctx, "Failed to list pods, retrying", "runId", request.RunId)
+				s.Logger.WarnWithCtx(ctx, "Failed to list pods, retrying", "runId", request.RunUID)
 			} else {
 
 				// fail on error
-				err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunId)
-				return &log_collector.StartLogResponse{
+				err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
+				return &protologcollector.StartLogResponse{
 					Success: false,
 					Error:   err.Error(),
 				}, err
@@ -164,107 +177,64 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *log_collecto
 	pod := pods.Items[0]
 
 	// write log item in progress to file
-	if err := s.stateStore.AddLogItem(ctx, request.RunId, request.Selector); err != nil {
-		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunId)
-		return &log_collector.StartLogResponse{
+	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
+		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
+		return &protologcollector.StartLogResponse{
 			Success: false,
 			Error:   err.Error(),
 		}, err
 	}
-
-	// add lock for the run's log file
-	s.logFileLocks[request.RunId] = &sync.Mutex{}
 
 	// TODO: create a child context before calling goroutines, so it won't be canceled
 
 	// stream logs to file
-	go s.streamPodLogs(ctx, request.RunId, pod.Name)
+	go s.startLogStreaming(ctx, request.RunUID, pod.Name)
 
-	return &log_collector.StartLogResponse{
+	return &protologcollector.StartLogResponse{
 		Success: true,
 	}, nil
 }
 
-// GetLog returns the log file contents of length size from an offset, for a given run id
-func (s *LogCollectorServer) GetLog(ctx context.Context, request *log_collector.GetLogRequest) (*log_collector.GetLogResponse, error) {
+// GetLogs returns the log file contents of length size from an offset, for a given run id
+func (s *LogCollectorServer) GetLogs(ctx context.Context, request *protologcollector.GetLogsRequest) (*protologcollector.GetLogsResponse, error) {
 	s.Logger.DebugWithCtx(ctx, "Received Get Log request", "request", request)
 
 	// get log file path
-	filePath, err := s.getLogFilePath(request.RunId)
+	filePath, err := s.getLogFilePath(request.RunUID)
 	if err != nil {
-		err := errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunId)
-		return &log_collector.GetLogResponse{
+		err := errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
+		return &protologcollector.GetLogsResponse{
 			Success: false,
 			Error:   err.Error(),
 		}, err
 	}
 
-	// open log file
-	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	// read log from file
+	buffer, err := s.readLogsFromFile(ctx, request.RunUID, filePath, request.Offset, request.Size)
 	if err != nil {
-		err := errors.Wrapf(err, "Failed to open log file for run id %s", request.RunId)
-		return &log_collector.GetLogResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
-	}
-	defer file.Close() // nolint: errcheck
-
-	// get file size
-	fileInfo, err := file.Stat()
-	if err != nil {
-		err := errors.Wrapf(err, "Failed to get file info for run id %s", request.RunId)
-		return &log_collector.GetLogResponse{
+		err := errors.Wrapf(err, "Failed to read logs for run id %s", request.RunUID)
+		return &protologcollector.GetLogsResponse{
 			Success: false,
 			Error:   err.Error(),
 		}, err
 	}
 
-	offset, size := s.validateOffsetAndSize(request.Offset, request.Size, uint64(fileInfo.Size()))
-	if size == 0 {
-		s.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", request.RunId)
-		return &log_collector.GetLogResponse{
-			Success: true,
-			Log:     []byte{},
-		}, nil
-	}
-
-	// read size bytes from offset
-	buffer := make([]byte, size)
-	if _, err := file.ReadAt(buffer, int64(offset)); err != nil {
-
-		// if error is EOF, return empty bytes
-		if err == io.EOF {
-			return &log_collector.GetLogResponse{
-				Success: true,
-				Log:     buffer,
-			}, nil
-		}
-
-		// else return error
-		err := errors.Wrapf(err, "Failed to read log file for run id %s", request.RunId)
-		return &log_collector.GetLogResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
-	}
-
-	return &log_collector.GetLogResponse{
+	return &protologcollector.GetLogsResponse{
 		Success: true,
-		Log:     buffer,
+		Logs:    buffer,
 	}, nil
 }
 
-// streamPodLogs streams logs from a pod and writes them into a file
-func (s *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName string) {
+// startLogStreaming streams logs from a pod and writes them into a file
+func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runId, podName string) {
 
 	// create a log file to the pod
-	filePath := s.resolvePodLogFilePath(runId, podName)
-	if err := common.EnsureFileExists(filePath); err != nil {
+	logFilePath := s.resolvePodLogFilePath(runId, podName)
+	if err := common.EnsureFileExists(logFilePath); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to ensure log file",
 			"runId", runId,
-			"filePath", filePath)
+			"logFilePath", logFilePath)
 		return
 	}
 
@@ -291,55 +261,15 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName s
 	}
 	defer stream.Close() // nolint: errcheck
 
-	// create a buffer pool, which enables us to reuse memory without constantly allocating
-	bufferPool := sync.Pool{
-		New: func() interface{} {
-			return new(bytes.Buffer)
-		},
-	}
-
-	var buf *bytes.Buffer
-	resetBuffer := func() {
-		if buf != nil {
-			buf.Reset()
-			bufferPool.Put(buf)
-		}
-	}
-
 	for {
-		resetBuffer()
-		buf = bufferPool.Get().(*bytes.Buffer)
-
-		// This is blocking until there is something to read
-		numBytes, err := stream.Read(buf.Bytes())
-
-		// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
-		if err == io.EOF {
-			s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
-			resetBuffer()
-			break
-		}
-
-		// nothing read, continue
-		if numBytes == 0 {
-			continue
-		}
-
-		// if error is not EOF, log it and continue
+		keepLogging, err := s.streamPodLogs(ctx, runId, logFilePath, stream)
 		if err != nil {
-			s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
-				"error", err.Error(),
-				"runId", runId)
+			s.Logger.WarnWithCtx(ctx, "An error occurred while streaming pod logs", "err", err)
+		}
+		if keepLogging {
 			continue
 		}
-
-		// write log contents to file
-		if err := common.WriteToFile(ctx, s.Logger, filePath, s.logFileLocks[runId], buf.Bytes()[:numBytes], true); err != nil {
-			s.Logger.ErrorWithCtx(ctx,
-				"Failed to write log contents to file",
-				"runId", runId,
-				"podName", podName)
-		}
+		break
 	}
 
 	s.Logger.DebugWithCtx(ctx,
@@ -351,9 +281,66 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context, runId, podName s
 	if err := s.stateStore.RemoveLogItem(runId); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
+}
 
-	// remove run lock
-	delete(s.logFileLocks, runId)
+func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
+	runId,
+	logFilePath string,
+	stream io.ReadCloser) (bool, error) {
+
+	// create a reader from the stream
+	streamReader := bufio.NewReader(stream)
+
+	// peek into the stream, and wait until there is something to read from it
+	for {
+		peekBuf, err := streamReader.Peek(1)
+		if err != nil {
+			s.Logger.WarnWithCtx(ctx, "Failed to peek into stream", "runId", runId)
+		}
+		if len(peekBuf) > 0 {
+			break
+		}
+		time.Sleep(s.readLogWaitTime)
+	}
+
+	// open log file
+	openFlags := os.O_RDWR | os.O_APPEND
+	file, err := os.OpenFile(logFilePath, openFlags, 0644)
+	if err != nil {
+		s.Logger.WarnWithCtx(ctx, "Failed to open file", "err", err, "logFilePath", logFilePath)
+		return true, err
+	}
+	defer file.Close() // nolint: errcheck
+
+	// get a buffer from the pool
+	buf := s.bufferPool.Get().([]byte)
+	defer s.bufferPool.Put(&buf)
+
+	// copy the stream into the file using the buffer.
+	// this is blocking until there is something to read / buffer is full.
+	numBytesWritten, err := io.CopyBuffer(file, streamReader, buf)
+
+	// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
+	if err == io.EOF {
+		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runId", runId)
+		return false, nil
+	}
+
+	// nothing read, continue
+	if numBytesWritten == 0 {
+		return true, nil
+	}
+
+	// if error is not EOF, log it and continue
+	if err != nil {
+		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
+			"error", err.Error(),
+			"runId", runId)
+		return true, errors.Wrap(err, "Failed to read pod logs")
+	}
+
+	// sanity
+	return true, nil
 }
 
 // resolvePodLogFilePath returns the path to the pod log file
@@ -397,26 +384,63 @@ func (s *LogCollectorServer) getLogFilePath(runId string) (string, error) {
 	return logFilePath, nil
 }
 
-func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size uint64, fileSize uint64) (uint64, uint64) {
+func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
+	runUID,
+	filePath string,
+	offset uint64,
+	size int64) ([]byte, error) {
 
-	// set size to fileSize if size is bigger than fileSize
-	if size > fileSize {
-		size = fileSize
+	// open log file
+	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to open log file for run id %s", runUID)
+	}
+	defer file.Close() // nolint: errcheck
+
+	// get file size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to get file info for run id %s", runUID)
 	}
 
-	// set size to file size - offset if size is bigger than file size - offset
-	if size > fileSize-offset {
-		size = fileSize - offset
-	}
-
-	// if size is zero, read the whole file
+	offset, size = s.validateOffsetAndSize(offset, size, fileInfo.Size())
 	if size == 0 {
+		s.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", runUID)
+		return nil, nil
+	}
+
+	// read size bytes from offset
+	buffer := make([]byte, size)
+	if _, err := file.ReadAt(buffer, int64(offset)); err != nil {
+
+		// if error is EOF, return empty bytes
+		if err == io.EOF {
+			return buffer, nil
+		}
+
+		// else return error
+		err := errors.Wrapf(err, "Failed to read log file for run id %s", runUID)
+		return nil, err
+	}
+
+	return buffer, nil
+}
+
+func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize int64) (uint64, int64) {
+
+	// if size is negative, zero, or bigger than fileSize, read the whole file
+	if size <= 0 || size > fileSize {
 		size = fileSize
 	}
 
 	// if offset is bigger than file size, set offset to 0
-	if offset > fileSize {
+	if int64(offset) > fileSize {
 		offset = 0
+	}
+
+	// set size to file size - offset if size is bigger than file size - offset
+	if size > fileSize-int64(offset) {
+		size = fileSize - int64(offset)
 	}
 
 	return offset, size

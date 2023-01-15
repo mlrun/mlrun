@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
@@ -88,7 +87,6 @@ func EnsureFileExists(filePath string) error {
 func WriteToFile(ctx context.Context,
 	logger logger.Logger,
 	filePath string,
-	fileLock sync.Locker,
 	content []byte,
 	append bool) error {
 
@@ -106,10 +104,6 @@ func WriteToFile(ctx context.Context,
 		return errors.Wrap(err, "Failed to ensure file exists")
 	}
 
-	// we allow only a single writer to the file at a time
-	fileLock.Lock()
-	defer fileLock.Unlock()
-
 	// open file
 	file, err := os.OpenFile(filePath, openFlags, 0644)
 	if err != nil {
@@ -118,7 +112,7 @@ func WriteToFile(ctx context.Context,
 
 	defer file.Close() // nolint: errcheck
 
-	logger.DebugWithCtx(ctx, "Writing log contents to file", "filePath", filePath)
+	logger.DebugWithCtx(ctx, "Writing contents to file", "filePath", filePath)
 	if _, err := file.Write(content); err != nil {
 		return errors.Wrapf(err, "Failed to write log contents to file - %s", filePath)
 	}

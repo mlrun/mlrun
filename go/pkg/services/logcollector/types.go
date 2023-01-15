@@ -17,7 +17,7 @@ package logcollector
 import "context"
 
 type LogItem struct {
-	RunId         string `json:"runId"`
+	RunUID        string `json:"runId"`
 	LabelSelector string `json:"labelSelector"`
 }
 

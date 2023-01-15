@@ -855,7 +855,7 @@ class SQLSource(BaseSourceDriver):
     kind = "sqldb"
     support_storey = True
     support_spark = False
-    _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
+    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "MLRUN_SQL_DB_PATH_STRING"
 
     def __init__(
         self,
@@ -887,17 +887,17 @@ class SQLSource(BaseSourceDriver):
         :param schedule:        string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
                                     cause the job to run every 30 minutes
         :param db_path:             url string connection to sql database.
-                                    If not set, the SQL_DB_PATH_STRING environment variable will be used.
+                                    If not set, the _MLRUN_SQL_DB_PATH_STRING_ENV_VAR environment variable will be used.
         :param table_name: the name of the collection to access,
                                     from the current database
         :param spark_options:   additional spark read options
         :param time_fields :    all the field to be parsed as timestamp.
         """
 
-        db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
+        db_path = db_path or os.getenv(self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without db_path arg or secret {self._SQL_DB_PATH_STRING_ENV_VAR}"
+                f"cannot specify without db_path arg or secret {self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR}"
             )
         attrs = {
             "chunksize": chunksize,

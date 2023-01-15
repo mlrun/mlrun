@@ -1493,7 +1493,7 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
-    _SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
+    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "MLRUN_SQL_DB_PATH_STRING"
 
     def __init__(
         self,
@@ -1517,6 +1517,7 @@ class SQLTarget(BaseStoreTarget):
         create_table: bool = False,
         # create_according_to_data: bool = False,
         time_fields: List[str] = None,
+        varchar_len: int = 50,
     ):
         """
         Write to SqlDB as output target for a flow.
@@ -1539,7 +1540,8 @@ class SQLTarget(BaseStoreTarget):
         :param flush_after_seconds:
         :param storage_options:
         :param db_path:                     url string connection to sql database.
-                                            If not set, the SQL_DB_PATH_STRING environment variable will be used.
+                                            If not set, the _MLRUN_SQL_DB_PATH_STRING_ENV_VAR environment variable will
+                                            be used.
         :param table_name:                  the name of the table to access,
                                             from the current database
         :param schema:                      the schema of the table (must pass when
@@ -1553,9 +1555,10 @@ class SQLTarget(BaseStoreTarget):
                                             table_name with schema on current database.
         :param create_according_to_data:    (not valid)
         :param time_fields :    all the field to be parsed as timestamp.
+        :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         """
         create_according_to_data = False  # TODO: open for user
-        db_path = db_path or os.getenv(self._SQL_DB_PATH_STRING_ENV_VAR)
+        db_path = db_path or os.getenv(self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR)
         if db_path is None or table_name is None:
             attr = {}
         else:
@@ -1568,6 +1571,7 @@ class SQLTarget(BaseStoreTarget):
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
                 "time_fields": time_fields,
+                "varchar_len": varchar_len,
             }
             path = (
                 f"mlrunSql://@{db_path}//@{table_name}"
@@ -1659,10 +1663,10 @@ class SQLTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        import sqlalchemy as db
+        import sqlalchemy
 
         db_path, table_name, _, _, _, _ = self._parse_url()
-        engine = db.create_engine(db_path)
+        engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
             df = pd.read_sql(
                 f"SELECT * FROM {self.attributes.get('table_name')}",
@@ -1678,7 +1682,7 @@ class SQLTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
-        import sqlalchemy as db
+        import sqlalchemy
 
         self._create_sql_table()
 
@@ -1694,7 +1698,7 @@ class SQLTarget(BaseStoreTarget):
                 _,
             ) = self._parse_url()
             create_according_to_data = bool(create_according_to_data)
-            engine = db.create_engine(
+            engine = sqlalchemy.create_engine(
                 db_path,
             )
             connection = engine.connect()
@@ -1716,7 +1720,7 @@ class SQLTarget(BaseStoreTarget):
         pass
 
     def _create_sql_table(self):
-        import sqlalchemy as db
+        import sqlalchemy
 
         (
             db_path,
@@ -1731,23 +1735,23 @@ class SQLTarget(BaseStoreTarget):
             primary_key_for_check = primary_key
         except Exception:
             primary_key_for_check = [primary_key]
-        engine = db.create_engine(db_path)
+        engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
-            metadata = db.MetaData()
+            metadata = sqlalchemy.MetaData()
             table_exists = engine.dialect.has_table(conn, table_name)
             if not table_exists and not create_table:
                 raise ValueError(f"Table named {table_name} is not exist")
 
             elif not table_exists and create_table:
                 TYPE_TO_SQL_TYPE = {
-                    int: db.Integer,
-                    str: db.String,
-                    datetime.datetime: db.DateTime,
-                    pd.Timestamp: db.DateTime,
-                    bool: db.Boolean,
-                    float: db.Float,
-                    datetime.timedelta: db.Interval,
-                    pd.Timedelta: db.Interval,
+                    int: sqlalchemy.Integer,
+                    str: sqlalchemy.String(self.attributes.get("varchar_len")),
+                    datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    pd.Timestamp: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    bool: sqlalchemy.Boolean,
+                    float: sqlalchemy.Float,
+                    datetime.timedelta: sqlalchemy.Interval,
+                    pd.Timedelta: sqlalchemy.Interval,
                 }
                 # creat new table with the given name
                 columns = []
@@ -1756,12 +1760,12 @@ class SQLTarget(BaseStoreTarget):
                     if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
-                        db.Column(
+                        sqlalchemy.Column(
                             col, col_type, primary_key=(col in primary_key_for_check)
                         )
                     )
 
-                db.Table(table_name, metadata, *columns)
+                sqlalchemy.Table(table_name, metadata, *columns)
                 metadata.create_all(engine)
                 if_exists = "append"
                 self.path = (

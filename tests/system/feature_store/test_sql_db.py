@@ -25,19 +25,9 @@ from mlrun.datastore.targets import SQLTarget
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
 
-CREDENTIALS_ENV = "SQL_DB_PATH_STRING"
+CREDENTIALS_ENV = "MLRUN_SQL_DB_PATH_STRING"
 
 
-def _are_sql_connection_string_set() -> bool:
-    return True
-
-
-# Marked as enterprise because of v3io mount and pipelines
-@TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.skipif(
-    not _are_sql_connection_string_set(),
-    reason=f"Environment variable {CREDENTIALS_ENV} is not defined",
-)
 @pytest.mark.enterprise
 class TestFeatureStoreSqlDB(TestMLRunSystem):
     project_name = "fs-system-test-sqldb"
@@ -45,7 +35,9 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     @classmethod
     def _init_env_from_file(cls):
         env = cls._get_env_from_file()
-        cls.db = env["SQL_DB_PATH_STRING"]
+        cls.db = env[CREDENTIALS_ENV]
+        if cls.db is "" or cls.db is None:
+            pytest.skip(f"Environment variable {CREDENTIALS_ENV} is not defined")
         cls.source_collection = "source_collection"
         cls.target_collection = "target_collection"
 
@@ -88,23 +80,34 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
     @pytest.fixture(autouse=True)
     def run_around_tests(self):
+        # create db if wasn't exist
+        from sqlalchemy_utils import create_database, database_exists
+
+        engine = db.create_engine(self.db)
+        if not database_exists(engine.url):
+            create_database(engine.url)
+
         yield
+
         # drop all the collection on self.db
         engine = db.create_engine(self.db)
-        with engine.connect() as conn:
+        with engine.connect():
             metadata = db.MetaData()
             metadata.reflect(bind=engine)
             # and drop them, if they exist
             metadata.drop_all(bind=engine, checkfirst=True)
             engine.dispose()
-            conn.close()
 
     @pytest.mark.parametrize(
         "source_name, key, time_fields",
         [("stocks", "ticker", None), ("trades", "ind", ["time"])],
     )
     def test_sql_source_basic(self, source_name: str, key: str, time_fields: List[str]):
+        from sqlalchemy_utils import create_database, database_exists
+
         engine = db.create_engine(self.db)
+        if not database_exists(engine.url):
+            create_database(engine.url)
         with engine.connect() as conn:
             origin_df = self.get_data(source_name)
             origin_df.to_sql(
@@ -138,7 +141,15 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         engine = db.create_engine(self.db)
         with engine.connect() as conn:
             origin_df = self.get_data(source_name)
-            origin_df.to_sql(source_name, conn, if_exists="replace", index=False)
+            origin_df.to_sql(
+                source_name,
+                conn,
+                if_exists="replace",
+                index=False,
+                dtype={"time": db.dialects.mysql.DATETIME(fsp=6)}
+                if source_name == "quotes"
+                else None,
+            )
             conn.close()
 
         # test source
@@ -174,7 +185,15 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         engine = db.create_engine(self.db)
         with engine.connect() as conn:
             origin_df = self.get_data(source_name)
-            origin_df.to_sql(source_name, conn, if_exists="replace", index=False)
+            origin_df.to_sql(
+                source_name,
+                conn,
+                if_exists="replace",
+                index=False,
+                dtype={"time": db.dialects.mysql.DATETIME(fsp=6)}
+                if source_name == "quotes"
+                else None,
+            )
             conn.close()
 
         # test source
@@ -403,11 +422,11 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             if col_type == int:
                 col_type = db.Integer
             elif col_type == str:
-                col_type = db.String
+                col_type = db.String(50)
             elif col_type == datetime.timedelta or col_type == pd.Timedelta:
                 col_type = db.Interval
             elif col_type == datetime.datetime or col_type == pd.Timestamp:
-                col_type = db.DateTime
+                col_type = db.dialects.mysql.DATETIME(fsp=6)
             elif col_type == bool:
                 col_type = db.Boolean
             elif col_type == float:

@@ -242,7 +242,7 @@ async def build_function(
                 function=function,
             )
             chief_client = mlrun.api.utils.clients.chief.Client()
-            return chief_client.build_function(request=request, json=data)
+            return await chief_client.build_function(request=request, json=data)
 
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")

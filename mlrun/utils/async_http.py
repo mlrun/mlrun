@@ -100,7 +100,7 @@ class ExponentialRetryOverride(ExponentialRetry):
     def __init__(
         self,
         retry_on_exception: bool,
-        blacklisted_methods: typing.List[int],
+        blacklisted_methods: typing.List[str],
         *args,
         **kwargs,
     ):
@@ -156,26 +156,20 @@ class _CustomRequestContext(_RequestContext):
                     self._response = response
                     return response
 
-                # check if status code is retryable (given by the retry options) or last attempt
-                if (
-                    self._is_status_code_ok(response.status)
-                    or current_attempt == self._retry_options.attempts
+                # allow user to provide a callback to decide if retry is needed
+                if await self._check_response_callback(
+                    params, current_attempt, retry_wait, response
                 ):
+                    self._response = response
+                    return response
+
+                last_attempt = current_attempt == self._retry_options.attempts
+                if self._is_status_code_ok(response.status) or last_attempt:
                     if self._raise_for_status:
                         response.raise_for_status()
 
-                    # allow user to provide a callback to decide if retry is needed
-                    is_response_correct = await self._check_response_callback(
-                        params, current_attempt, retry_wait, response
-                    )
-
-                    # response is correct or last attempt, return it
-                    if (
-                        is_response_correct
-                        or current_attempt == self._retry_options.attempts
-                    ):
-                        self._response = response
-                        return response
+                    self._response = response
+                    return response
                 else:
                     self._logger.debug(
                         "Request failed on retryable http code, retrying",
@@ -234,7 +228,7 @@ class _CustomRequestContext(_RequestContext):
         self,
         params: RequestParams,
         retry_count: int,
-        retry_wait_secs: int,
+        retry_wait_secs: float,
         response: aiohttp.ClientResponse,
     ):
         if self._retry_options.evaluate_response_callback is not None:
@@ -258,7 +252,7 @@ class _CustomRequestContext(_RequestContext):
                     exc=err_to_str(exc),
                 )
                 return False
-        return True
+        return False
 
     def verify_exception_type(self, exc):
         for exc_type in self._retry_options.exceptions:

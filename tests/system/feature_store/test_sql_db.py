@@ -25,8 +25,6 @@ from mlrun.datastore.targets import SQLTarget
 from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
 
-CREDENTIALS_ENV = "MLRUN_SQL_DB_PATH_STRING"
-
 
 @pytest.mark.enterprise
 class TestFeatureStoreSqlDB(TestMLRunSystem):
@@ -35,9 +33,9 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     @classmethod
     def _init_env_from_file(cls):
         env = cls._get_env_from_file()
-        cls.db = env[CREDENTIALS_ENV]
+        cls.db = env["MLRUN_SQL_DB_PATH_STRING"]
         if cls.db == "" or cls.db is None:
-            pytest.skip(f"Environment variable {CREDENTIALS_ENV} is not defined")
+            pytest.skip(f"Environment variable MLRUN_SQL_DB_PATH_STRING is not defined")
         cls.source_collection = "source_collection"
         cls.target_collection = "target_collection"
 

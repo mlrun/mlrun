@@ -23,7 +23,7 @@ import mlrun.api.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
-from ..datastore.sources import BaseSourceDriver, OnlineSource, source_kind_to_driver
+from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
     TargetTypes,
     get_default_targets,
@@ -831,7 +831,7 @@ class FeatureSet(ModelObj):
         if self.spec.passthrough:
             if not self.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
-                "there are no offline targets for this feature set"
+                    "there are no offline targets for this feature set"
                 )
             return self.spec.source.to_dataframe()
 

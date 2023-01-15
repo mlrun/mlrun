@@ -214,7 +214,7 @@ class FeatureSetSpec(ModelObj):
     def validate_no_processing_for_passthrough(self):
         if self.is_passthrough and self.require_processing():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "passthrough fset can not have graph transformations"
+                "passthrough feature set can not have graph transformations"
             )
 
 

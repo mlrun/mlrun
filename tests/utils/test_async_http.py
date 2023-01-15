@@ -17,12 +17,11 @@ import http.server
 import typing
 from unittest import mock
 
-import aiohttp.client_exceptions
 import aioresponses
 import pytest
-from aiohttp import BaseConnector, ClientConnectorError, ServerDisconnectedError
+from aiohttp import ClientConnectorError, ServerDisconnectedError
 
-from mlrun.utils.async_http import AsyncClientWithRetry
+from mlrun.utils.async_http import AsyncClientWithRetry, _CustomRequestContext
 
 
 @pytest.fixture
@@ -148,14 +147,20 @@ async def test_retry_method_status_codes(
 
 
 @pytest.mark.asyncio
-async def test_headers_serialization(async_client: AsyncClientWithRetry):
+async def test_headers_filtering(async_client: AsyncClientWithRetry):
     """
     Header keys/values type must be str to be serializable
     This tests ensures we drop headers with 'None' values
     """
-    BaseConnector.connect = mock.AsyncMock()
-    with pytest.raises(aiohttp.client_exceptions.ClientOSError) as e:
-        await async_client.get("http://nothinghere", headers={"x": None, "y": "z"})
+    with aioresponses.aioresponses() as aiohttp_mock:
 
-    # assert the client tried to write the headers to the socket which means they were serialized successfully
-    assert "Cannot write to closing transport" in str(e.value)
+        def callback(url, **kwargs):
+            return aioresponses.CallbackResult(status=200, headers=kwargs["headers"])
+
+        aiohttp_mock.add("http://nothinghere", method="GET", callback=callback)
+
+        response = await async_client.get(
+            "http://nothinghere", headers={"x": None, "y": "z"}
+        )
+        assert response.headers["y"] == "z", "header should not have been filtered"
+        assert "x" not in response.headers, "header with 'None' value was not filtered"

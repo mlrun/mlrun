@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 import os
+import pickle
 from typing import Dict, List, Union
 
 import cloudpickle
 
 import mlrun
-from mlrun.utils import pickle
 
 from .._common import without_mlrun_interface
 from .._ml_common import MLModelHandler

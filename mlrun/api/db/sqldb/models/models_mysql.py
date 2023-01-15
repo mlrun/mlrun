@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import pickle
 import warnings
 from datetime import datetime, timezone
 
@@ -32,7 +33,6 @@ from sqlalchemy.orm import class_mapper, relationship
 
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
-from mlrun.utils import pickle
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter

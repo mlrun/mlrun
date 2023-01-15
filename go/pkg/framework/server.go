@@ -23,8 +23,8 @@ import (
 
 	"github.com/mlrun/mlrun/proto/build/health"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
+	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 	"google.golang.org/grpc"
@@ -58,16 +58,16 @@ func NewAbstractMlrunGRPCServer(logger logger.Logger, grpcServerOpts []grpc.Serv
 	// add panic recovery middleware
 	grpcServerOpts = append([]grpc.ServerOption{
 		grpc.StreamInterceptor(
-			grpc_middleware.ChainStreamServer(
-				grpc_recovery.StreamServerInterceptor(
-					grpc_recovery.WithRecoveryHandlerContext(server.recoveryHandler),
+			grpcmiddleware.ChainStreamServer(
+				grpcrecovery.StreamServerInterceptor(
+					grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
 				),
 			),
 		),
 		grpc.UnaryInterceptor(
-			grpc_middleware.ChainUnaryServer(
-				grpc_recovery.UnaryServerInterceptor(
-					grpc_recovery.WithRecoveryHandlerContext(server.recoveryHandler),
+			grpcmiddleware.ChainUnaryServer(
+				grpcrecovery.UnaryServerInterceptor(
+					grpcrecovery.WithRecoveryHandlerContext(server.recoveryHandler),
 				),
 			),
 		),
@@ -91,7 +91,7 @@ func (s *AbstractMlrunGRPCServer) getServerOpts() []grpc.ServerOption {
 
 // recoveryHandler is a custom grpc recovery handler that logs the panic and returns an internal error.
 // This is used to prevent the server from crashing when a panic occurs. This method is passed to the
-// grpc_recovery middleware in the server options.
+// grpcrecovery middleware in the server options.
 func (s *AbstractMlrunGRPCServer) recoveryHandler(ctx context.Context, panicInstance interface{}) error {
 	s.Logger.ErrorWithCtx(ctx, "Request panicked", "panic", panicInstance, "stack", string(debug.Stack()))
 	return status.Errorf(codes.Internal, "%s", panicInstance)

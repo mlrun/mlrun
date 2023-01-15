@@ -35,20 +35,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        # 3.9 is the current >= 1.3.0 python version
+        python-version: [3.9]
     steps:
     - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/dev-requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-${{ matrix.python-version }}-
-          ${{ runner.os }}-pip-
+        cache: pip
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip~=22.3.0
@@ -118,20 +113,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8]
+        # 3.9 is the current >= 1.3.0 python version
+        python-version: [3.9]
     steps:
     - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    - uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-${{ matrix.python-version }}-
-          ${{ runner.os }}-pip-
+        cache: 'pip'
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Test package
@@ -156,13 +146,12 @@ jobs:
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: docs
           path: docs/_build/html
 
-
-  backward-compatibilty-tests:
+  backward-compatibility-tests:
     name: Run Backward Compatibility Tests
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -227,14 +216,15 @@ jobs:
     name: Verify compatible requirements (one after one)
     runs-on: ubuntu-latest
     steps:
-    - name: Set up python 3.7
+    - uses: actions/checkout@v3
+    - name: Set up python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
-    - uses: actions/checkout@v3
-    - name: Run make install-requirements
+        python-version: 3.9
+        cache: 'pip'
+    - name: Install requirements
       run: make install-requirements
-    - name: Run make install-complete-requirements
+    - name: Install Complete Requirements
       run: make install-complete-requirements
-    - name: Run make install-all-requirements
+    - name: Install All Requirements
       run: make install-all-requirements

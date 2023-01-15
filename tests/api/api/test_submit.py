@@ -94,7 +94,7 @@ def pod_create_mock():
         mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
-        unittest.mock.Mock(return_value=auth_info_mock)
+        unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
     yield get_k8s().create_pod
@@ -336,12 +336,14 @@ def test_submit_job_with_hyper_params_file(
         function, project_name, with_output_path=False
     )
 
+    async def auth_info_mock(*args, **kwargs):
+        return mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
+
     # Create test-specific mocks
-    auth_info = mlrun.api.schemas.AuthInfo(username="user", data_session=access_key)
     monkeypatch.setattr(
         mlrun.api.utils.auth.verifier.AuthVerifier(),
         "authenticate_request",
-        lambda *args, **kwargs: auth_info,
+        auth_info_mock,
     )
     project_secrets = {"SECRET1": "VALUE1"}
     k8s_secrets_mock.store_project_secrets(project_name, project_secrets)
@@ -387,7 +389,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     )
 
     handler_mock = mlrun.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.Mock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(

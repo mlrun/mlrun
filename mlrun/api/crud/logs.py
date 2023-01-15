@@ -17,6 +17,7 @@ import shutil
 import typing
 from http import HTTPStatus
 
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
@@ -56,7 +57,7 @@ class Logs(
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
 
-    def get_logs(
+    async def get_logs(
         self,
         db_session: Session,
         project: str,
@@ -65,13 +66,28 @@ class Logs(
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
     ) -> typing.Tuple[str, bytes]:
+        """
+        Get logs
+        :param db_session: db session
+        :param project: project name
+        :param uid: run uid
+        :param size: number of bytes to return (default -1, return all)
+        :param offset: number of bytes to skip (default 0)
+        :param source: log source (default auto) Relevant only for legacy log_collector mode
+        :return:
+        """
         project = project or mlrun.mlconf.default_project
+        run = get_db().read_run(db_session, uid, project)
+        logs = b""
+        if not run:
+            log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+        run_state = run.get("status", {}).get("state", "")
         if (
             mlrun.mlconf.sidecar.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.best_effort
         ):
             try:
-                self._get_logs_from_logs_collector(
+                logs = await self._get_logs_from_logs_collector(
                     project,
                     uid,
                     size,
@@ -83,19 +99,21 @@ class Logs(
                         "Failed to get logs from logs collector, falling back to legacy method",
                         exc=exc,
                     )
-                return self._get_logs_legacy_method(
+                logs = await run_in_threadpool(
+                    self._get_logs_legacy_method,
                     db_session,
                     project,
                     uid,
                     size,
                     offset,
                     source,
+                    run,
                 )
         elif (
             mlrun.mlconf.sidecar.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.sidecar
         ):
-            return self._get_logs_from_logs_collector(
+            logs = await self._get_logs_from_logs_collector(
                 project,
                 uid,
                 size,
@@ -105,24 +123,27 @@ class Logs(
             mlrun.mlconf.sidecar.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.legacy
         ):
-            return self._get_logs_legacy_method(
+            logs = await run_in_threadpool(
+                self._get_logs_legacy_method,
                 db_session,
                 project,
                 uid,
                 size,
                 offset,
                 source,
+                run,
             )
+        return run_state, logs
 
-    def _get_logs_from_logs_collector(
-        self,
+    @staticmethod
+    async def _get_logs_from_logs_collector(
         project: str,
-        uid: str,
+        run_uid: str,
         size: int = -1,
         offset: int = 0,
     ) -> bytes:
-        logs = log_collector.LogCollectorClient().get_logs(
-            run_uid=uid,
+        logs = await log_collector.LogCollectorClient().get_logs(
+            run_uid=run_uid,
             project=project,
             size=size,
             offset=offset,
@@ -137,7 +158,8 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-    ) -> typing.Tuple[str, bytes]:
+        run: dict = None,
+    ) -> bytes:
         """
         :return: Tuple with:
             1. str of the run state (so watchers will know whether to continue polling for logs)
@@ -146,10 +168,10 @@ class Logs(
         project = project or mlrun.mlconf.default_project
         out = b""
         log_file = log_path(project, uid)
-        data = get_db().read_run(db_session, uid, project)
-        if not data:
+        if not run:
+            run = get_db().read_run(db_session, uid, project)
+        if not run:
             log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
-        run_state = data.get("status", {}).get("state", "")
         if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)
@@ -157,7 +179,7 @@ class Logs(
         elif source in [LogSources.AUTO, LogSources.K8S]:
             k8s = get_k8s()
             if k8s and k8s.is_running_inside_kubernetes_cluster():
-                run_kind = data.get("metadata", {}).get("labels", {}).get("kind")
+                run_kind = run.get("metadata", {}).get("labels", {}).get("kind")
                 pods = get_k8s().get_logger_pods(project, uid, run_kind)
                 if pods:
                     if len(pods) > 1:
@@ -175,7 +197,7 @@ class Logs(
                         resp = get_k8s().logs(pod)
                         if resp:
                             out = resp.encode()[offset:]
-        return run_state, out
+        return out
 
     def get_log_mtime(self, project: str, uid: str) -> int:
         log_file = log_path(project, uid)

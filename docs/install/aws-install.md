@@ -5,29 +5,29 @@ For AWS users, the easiest way to install MLRun is to use a native AWS deploymen
 
 ## Prerequisites
 
-An AWS account with permissions that include the ability to: 
-- Run a CloudFormation stack
-- Create an EKS cluster
-- Create EC2 instances
-- Create VPC
-- Create S3 buckets
-- Deploy and pull images from ECR
+1. An AWS account with permissions that include the ability to: 
+   - Run a CloudFormation stack
+   - Create an EKS cluster
+   - Create EC2 instances
+   - Create VPC
+   - Create S3 buckets
+   - Deploy and pull images from ECR
 
-For the full set of required permissions, **{Download}`download the IAM policy<./aws_policy.json>`** or expand & copy the IAM policy below:
+   For the full set of required permissions, **{Download}`download the IAM policy<./aws_policy.json>`** or expand & copy the IAM policy below:
 
-````{dropdown} show the IAM policy
-   ```{literalinclude} ./aws_policy.json
-   :language: json
-   ```
-````
+   ````{dropdown} show the IAM policy
+      ```{literalinclude} ./aws_policy.json
+      :language: json
+      ```
+   ````
 
-  For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) and [policies and permissions in IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html).
+     For more information, see [how to create a new AWS account](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/) and [policies and permissions in IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html).
 
+
+2. You need to have a Route53 domain configured in the same AWS account and specify the full domain name in **Route 53 hosted DNS domain** configuration (See [Step 11](#route53_config) below). External domain registration is currently not supported. For more information see [What is Amazon Route 53?](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
 
 ```{admonition} Notes
-- To access the instances, you need to have at least one key pair for SSH keys (**See step 9** in [Configuration settings](#configuration-settings)). For more information see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
-- You need to have a Route53 domain configured (**See step 11** in [Configuration settings](#configuration-settings) in Configuration settings). External domain registration is currently not supported. For more information see [What is Amazon Route 53?](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html).
-- The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example, reserved instance configuration, saving plan, and AWS credits you have associated with your account. It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor and set-up alerts.
+The MLRun software is free of charge, however, there is a cost for the AWS infrastructure services such as EKS, EC2, S3 and ECR. The actual pricing depends on a large set of factors including, for example, the region, the number of EC2 instances, the amount of storage consumed, and the data transfer costs. Other factors include, for example, reserved instance configuration, saving plan, and AWS credits you have associated with your account. It is recommended to use the [AWS pricing calculator](https://calculator.aws) to calculate the expected cost, as well as the [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to manage the cost, monitor and set-up alerts.
 ```
 
 ## Post deployment expectations
@@ -48,7 +48,7 @@ Make sure you are logged in to the correct AWS account.
 
 **Click the button below to deploy MLRun.**
 
-<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateUrl=https%3A%2F%2Fmlrun-ce-cfn.s3.us-east-2.amazonaws.com%2Fquickstart-amazon-eks%2Ftemplates%2Figuazio-mlrun-kit-entrypoint-new-vpc.template.yaml&stackName=MLrun-community&param_AdditionalEKSAdminUserArn=&param_AvailabilityZones%5B%5D=&param_ClusterDomain=&param_DeployMLRunKit=true&param_EKSClusterName=&param_KeyPairName=&param_MLrunKitVersion=&param_NodeInstanceFamily=Standard&param_NodeInstanceType=m5.2xlarge&param_NumberOfAZs=3&param_MaxNumberOfNodes=3&param_ProvisionBastionHost=Enabled&param_RegistryDomainName=index.docker.io&param_RegistryEmail=&param_RegistrySuffix=%2Fv1%2F&param_RegistryUsername=&param_RemoteAccessCIDR="><img src="../_static/images/aws_launch_stack.png"></img></a>
+<a href="https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateUrl=https%3A%2F%2Fmlrun-ce-cfn.s3.us-east-2.amazonaws.com%2Fquickstart-amazon-eks%2Ftemplates%2Figuazio-mlrun-kit-entrypoint-new-vpc.template.yaml&stackName=mlrun-community"><img src="../_static/images/aws_launch_stack.png"></img></a>
 
 After clicking the icon, the browser directs you to the CloudFormation stack page in your AWS account, or redirects you to the AWS login page if you are not currently logged in.
 
@@ -77,11 +77,13 @@ You must fill in fields marked as mandatory (m) for the configuration to complet
 
 **Amazon EC2 configuration**
 
-9. **SSH key name** (m) &mdash; select from the stored keys in the dropdown. The list is based on the SSH keys that are in your account. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
+9. **SSH key name** (o) &mdash; Users who wish to access the EC2 instance via SSH can enter an existing key. If left empty, it is possible to access the EC2 instance using the AWS Systems Manager Session Manager. For more information about SSH Keys see [Amazon EC2 key pairs and Linux instances](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html).
 
 10. **Provision bastion host** (m) &mdash; create a bastion host for SSH access to the Kubernetes nodes. The default is enabled. This allows ssh access to your EKS EC2 instances through a public IP.
 
 **Iguazio MLRun configuration**
+
+<a id="route53_config" />
 
 11. **Route 53 hosted DNS domain** (m) &mdash; Enter the name of your registered Route53 domain. **Only route53 domains are acceptable.**
 
@@ -89,7 +91,7 @@ You must fill in fields marked as mandatory (m) for the configuration to complet
 
 **Other parameters**
 
-13. **MLrunCeVersion** (m) &mdash; the MLRun Community Edition version to install. Leave the default value for the latest CE release.
+13. **MLRunCE Helm Chart version** (m) &mdash; the MLRun Community Edition version to install. Leave the default value for the latest CE release.
 
 **Capabilities**
 

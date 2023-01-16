@@ -45,7 +45,14 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
+from ..utils import (
+    is_ipython,
+    is_legacy_artifact,
+    is_relative_path,
+    is_yaml_path,
+    logger,
+    update_in,
+)
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
@@ -207,6 +214,7 @@ def load_project(
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
+    sync_functions: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -218,20 +226,21 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:      project local directory path
-    :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
-                         git://github.com/mlrun/demo-xgb-project.git
-                         http://mysite/archived-project.zip
-                         <project-name>
-                         The git project should include the project yaml file.
-                         If the project yaml file is in a sub-directory, must specify the sub-directory.
-    :param name:         project name
-    :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will git init the context dir
-    :param subpath:      project subpath (within the archive)
-    :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current user name to the project name (for db:// prefixes)
-    :param save:         whether to save the created project and artifact in the DB
+    :param context:        project local directory path
+    :param url:            name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                           git://github.com/mlrun/demo-xgb-project.git
+                           http://mysite/archived-project.zip
+                           <project-name>
+                           The git project should include the project yaml file.
+                           If the project yaml file is in a sub-directory, must specify the sub-directory.
+    :param name:           project name
+    :param secrets:        key:secret dict or SecretsStore used to download sources
+    :param init_git:       if True, will git init the context dir
+    :param subpath:        project subpath (within the archive)
+    :param clone:          if True, always clone (delete any existing content)
+    :param user_project:   add the current user name to the project name (for db:// prefixes)
+    :param save:           whether to save the created project and artifact in the DB
+    :param sync_functions: sync the project's functions into the project object (will be saved to the DB if save=True)
 
     :returns: project object
     """
@@ -246,7 +255,7 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
-        if url.endswith(".yaml"):
+        if is_yaml_path(url):
             project = _load_project_file(url, name, secrets)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -280,9 +289,15 @@ def load_project(
             project.spec.branch = repo.active_branch.name
         except Exception:
             pass
+
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
+        if sync_functions:
+            project.sync_functions(names=project.get_function_names(), save=True)
+
+    elif sync_functions:
+        project.sync_functions(names=project.get_function_names(), save=False)
 
     _set_as_current_default_project(project)
 
@@ -1227,6 +1242,19 @@ class MlrunProject(ModelObj):
             pass
         return None
 
+    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
+        in_context = False
+        # If the URL is for a remote location, we do not want to change it
+        if url and "://" not in url:
+            # We don't want to change the url if the project has no cntext or if it is already absolute
+            if self.spec.context and not url.startswith("/"):
+                in_context = True
+                url = path.normpath(path.join(self.spec.get_code_path(), url))
+                return url, in_context
+            if not path.isfile(url):
+                raise OSError(f"{url} not found")
+        return url, in_context
+
     def log_artifact(
         self,
         item,
@@ -1483,8 +1511,11 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        # Obtaining the item's absolute path from the project context, in case the user provided a relative path
+        item_path, _ = self.get_item_absolute_path(item_path)
         dataitem = mlrun.get_dataitem(item_path)
-        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+
+        if is_yaml_path(item_path):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
         elif item_path.endswith(".json"):
@@ -1686,6 +1717,10 @@ class MlrunProject(ModelObj):
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
+
+    def get_function_names(self) -> typing.List[str]:
+        """get a list of all the project function names"""
+        return [func["name"] for func in self.spec.functions]
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
@@ -2807,19 +2842,13 @@ def _init_function_from_dict(f, project, name=None):
     requirements = f.get("requirements", None)
     tag = f.get("tag", None)
 
-    in_context = False
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
-    if url and "://" not in url:
-        if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.get_code_path(), url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2827,12 +2856,13 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
             )
-        func = import_function(url)
+        func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
@@ -2905,7 +2935,8 @@ def _init_function_from_dict_legacy(f, project):
     in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
-
+    # We are not using the project method to obtain an absolute path here,
+    # because legacy projects are built differently, and we cannot rely on them to have a spec
     if url and "://" not in url:
         if project.context and not url.startswith("/"):
             url = path.join(project.context, url)
@@ -2915,7 +2946,7 @@ def _init_function_from_dict_legacy(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
             func.spec.image = image

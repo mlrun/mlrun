@@ -66,4 +66,8 @@ This section lists the data stores, development tools, services, platforms, etc.
 - Jenkins 
 - Github Actions 
 - Gitlab CI/CD 
-- KFP 
+- KFP
+
+## Browser
+
+MLRun runs on Chrome and Firefox.

@@ -51,7 +51,7 @@ from ..utils import (
     is_relative_path,
     logger,
     update_in,
-    url_suffix_is_yaml,
+    is_yaml_path,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
@@ -253,7 +253,7 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
-        if url_suffix_is_yaml(url):
+        if is_yaml_path(url):
             project = _load_project_file(url, name, secrets)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -1487,7 +1487,7 @@ class MlrunProject(ModelObj):
             return artifact
 
         dataitem = mlrun.get_dataitem(item_path)
-        if url_suffix_is_yaml(item_path):
+        if is_yaml_path(item_path):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
         elif item_path.endswith(".json"):
@@ -2818,7 +2818,7 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
-    elif url_suffix_is_yaml(url) or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
@@ -2906,7 +2906,7 @@ def _init_function_from_dict_legacy(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif url_suffix_is_yaml(url) or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
             func.spec.image = image

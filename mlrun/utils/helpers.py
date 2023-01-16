@@ -182,7 +182,7 @@ def tag_name_regex_as_string() -> str:
     return get_regex_list_as_string(mlrun.utils.regex.tag_name)
 
 
-def url_suffix_is_yaml(url):
+def is_yaml_path(url):
     return url.endswith(".yaml") or url.endswith(".yml")
 
 

@@ -21,18 +21,17 @@
 - Supports ingesting Avro-encoded Kafka records. [View in Git](https://github.com/mlrun/mlrun/issues/2649).
 
 ### Closed issues
-- When running a workflow with `local=True`, the serving function is updated. [View in Git](https://github.com/mlrun/mlrun/issues/2716).
+
 - The Kubernetes **Pods** tab in **Monitor Workflows** now shows the complete pod details. [View in Git](https://github.com/mlrun/mlrun/pull/1576).
-- When selecting **All** in the **Tag** dropdown list of the **Projects | Feature Store | Feature Vectors** tab, 
-all of the vectors display correctly. [View in Git](https://github.com/mlrun/ui/pull/1549).
-- MLRun API returns the correct `next_run_time` value. [View in Git](https://github.com/mlrun/mlrun/pull/2862).
-- Filtering in **Projects | Jobs | Monitor Workflows** returns correct results for all ranges. (Previously was not accurate 
-for > 1 hour.) [View in Git](https://github.com/mlrun/mlrun/pull/2786).
-- The updated tooltips in **Projects | Jobs | Schedule** explain that day 0 (for cron jobs) is Monday, and not Sunday. 
+- Fix UI crash when selecting **All** in the **Tag** dropdown list of the **Projects | Feature Store | Feature Vectors** tab. [View in Git](https://github.com/mlrun/ui/pull/1549).
+- Fix: now updates `next_run_time` when skipping scheduling due to concurrent runs. [View in Git](https://github.com/mlrun/mlrun/pull/2862).
+- Fix: the view is now accurate when filtering for > 1 hour in **Projects | Jobs | Monitor Workflows**. [View in Git](https://github.com/mlrun/mlrun/pull/2786).
+- Update the tooltips in **Projects | Jobs | Schedule** to explain that day 0 (for cron jobs) is Monday, and not Sunday. 
 [View in Git](https://github.com/mlrun/ui/pull/1571).
 - When creating a project, the error `NotImplementedError` was updated to explain that MLRun does not have a 
 DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
-- Previewing artifacts in the UI was fixed. [View in Git](https://github.com/mlrun/mlrun/pull/2592).
+- When previewing a **DirArtifact** in the UI, it now returns the requested directory. Previously it was returning the directory list from the root of the container. [View in Git](https://github.com/mlrun/mlrun/pull/2592).
+- Load source at runtime or build time now fully supports .zip files, which were not fully supported previously.
 
 
 ### See more

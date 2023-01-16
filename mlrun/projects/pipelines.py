@@ -904,6 +904,7 @@ def load_and_run(
             subpath=subpath,
             clone=clone,
             save=save,
+            sync_functions=True,
         )
     except Exception as error:
         if schedule:
@@ -931,8 +932,6 @@ def load_and_run(
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
     if load_only:
-        functions_names = [func["name"] for func in project.spec.functions]
-        project.sync_functions(names=functions_names, save=True)
         return
 
     workflow_log_message = workflow_name or workflow_path

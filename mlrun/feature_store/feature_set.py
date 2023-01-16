@@ -834,7 +834,7 @@ class FeatureSet(ModelObj):
         if self.spec.passthrough:
             if not self.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
-                    "passthrough feature set with no source bounded"
+                    "passthrough feature set {self.metadata.name} with no source"
                 )
             return self.spec.source.to_dataframe()
 

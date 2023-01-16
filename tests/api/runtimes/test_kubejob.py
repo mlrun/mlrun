@@ -482,6 +482,24 @@ def my_func(context):
         self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(expected_labels=labels)
 
+    def test_with_image_pull_configuration(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        policy = "IfNotPresent"
+        secret = "some_secret"
+        runtime.set_image_pull_configuration(
+            image_pull_policy=policy, image_pull_secret_name=secret
+        )
+        assert (
+            runtime.spec.image_pull_policy == policy
+            and runtime.spec.image_pull_secret == secret
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Image pull policy must be one of",
+        ):
+            runtime.set_image_pull_configuration(image_pull_policy="invalidPolicy")
+
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
         runtime.with_requirements(self.requirements_file)

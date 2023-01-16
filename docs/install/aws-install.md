@@ -91,7 +91,7 @@ You must fill in fields marked as mandatory (m) for the configuration to complet
 
 **Other parameters**
 
-13. **MLRunCE Helm Chart version** (m) &mdash; the MLRun Community Edition version to install. Leave the default value for the latest CE release.
+13. **MLRun CE Helm Chart version** (m) &mdash; the MLRun Community Edition version to install. Leave the default value for the latest CE release.
 
 **Capabilities**
 

@@ -13,23 +13,10 @@
 # limitations under the License.
 #
 import json
-import os
-import time
-import uuid
-
-import pandas as pd
-import pytest
-import requests
-import v3io
-from storey import MapClass
-from v3io.dataplane import RaiseForStatus
-from mlrun.runtimes.constants import RunStates
 
 import mlrun
 import tests.system.base
-from mlrun import feature_store as fstore
-from mlrun.datastore.sources import KafkaSource
-from mlrun.datastore.targets import ParquetTarget
+from mlrun.runtimes.constants import RunStates
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

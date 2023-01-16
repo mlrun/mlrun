@@ -126,7 +126,7 @@ def new_project(
 
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
@@ -218,7 +218,7 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:      project local directory path
+    :param context:      project local directory path (default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -311,7 +311,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path (Default value = "./")
+    :param context:      project local directory path (default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip

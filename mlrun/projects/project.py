@@ -207,6 +207,7 @@ def load_project(
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
+    sync_functions: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -218,20 +219,21 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:      project local directory path
-    :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
-                         git://github.com/mlrun/demo-xgb-project.git
-                         http://mysite/archived-project.zip
-                         <project-name>
-                         The git project should include the project yaml file.
-                         If the project yaml file is in a sub-directory, must specify the sub-directory.
-    :param name:         project name
-    :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will git init the context dir
-    :param subpath:      project subpath (within the archive)
-    :param clone:        if True, always clone (delete any existing content)
-    :param user_project: add the current user name to the project name (for db:// prefixes)
-    :param save:         whether to save the created project and artifact in the DB
+    :param context:        project local directory path
+    :param url:            name (in DB) or git or tar.gz or .zip sources archive path e.g.:
+                           git://github.com/mlrun/demo-xgb-project.git
+                           http://mysite/archived-project.zip
+                           <project-name>
+                           The git project should include the project yaml file.
+                           If the project yaml file is in a sub-directory, must specify the sub-directory.
+    :param name:           project name
+    :param secrets:        key:secret dict or SecretsStore used to download sources
+    :param init_git:       if True, will git init the context dir
+    :param subpath:        project subpath (within the archive)
+    :param clone:          if True, always clone (delete any existing content)
+    :param user_project:   add the current user name to the project name (for db:// prefixes)
+    :param save:           whether to save the created project and artifact in the DB
+    :param sync_functions: sync the project's functions into the project object (will be saved to the DB if save=True)
 
     :returns: project object
     """
@@ -280,9 +282,15 @@ def load_project(
             project.spec.branch = repo.active_branch.name
         except Exception:
             pass
+
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
+        if sync_functions:
+            project.sync_functions(names=project.get_function_names(), save=True)
+
+    elif sync_functions:
+        project.sync_functions(names=project.get_function_names(), save=False)
 
     _set_as_current_default_project(project)
 
@@ -1699,6 +1707,10 @@ class MlrunProject(ModelObj):
         self.sync_functions()
         return FunctionsDict(self)
 
+    def get_function_names(self) -> typing.List[str]:
+        """get a list of all the project function names"""
+        return [func["name"] for func in self.spec.functions]
+
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
 
@@ -2839,7 +2851,7 @@ def _init_function_from_dict(f, project, name=None):
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
             )
-        func = import_function(url)
+        func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):

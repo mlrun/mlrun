@@ -434,6 +434,46 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
+@pytest.mark.parametrize(
+    "sync,expected_num_of_funcs, save",
+    [
+        (
+            False,
+            0,
+            False,
+        ),
+        (
+            True,
+            4,
+            False,
+        ),
+        (
+            True,
+            4,
+            True,
+        ),
+    ],
+)
+def test_load_project_and_sync_functions(
+    context, rundb_mock, sync, expected_num_of_funcs, save
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(
+        context=str(context), url=url, sync_functions=sync, save=save
+    )
+    assert len(project.spec._function_objects) == expected_num_of_funcs
+
+    if sync:
+        function_names = project.get_function_names()
+        assert len(function_names) == expected_num_of_funcs
+        for func in function_names:
+            fn = project.get_function(func)
+            assert fn.metadata.name == func, "func did not return"
+
+    if save:
+        assert rundb_mock._function is not None
+
+
 def _assert_project_function_objects(project, expected_function_objects):
     project_function_objects = project.spec._function_objects
     assert len(project_function_objects) == len(expected_function_objects)

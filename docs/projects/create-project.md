@@ -29,8 +29,8 @@ my-project           # Parent directory of the project (context)
 
 
 To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`. You must specify a `name`. 
-The `context` dir holds the configuration, code, and workflow files. Its default value is "./". File paths in the project are 
-relative to the context root.
+The `context` dir holds the configuration, code, and workflow files. Its default value is "./", which is the directory 
+the MLRun client runs from. File paths in the project are relative to the context root.
 There are additional, optional parameters.
 The `user_project` flag indicates that the project name is unique per user, and the `init_git` flag is used to initialize git in the context dir.
 

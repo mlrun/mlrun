@@ -21,7 +21,8 @@ When a project is already created and stored in a local dir, git, or archive, yo
 {py:meth}`~mlrun.projects.load_project` method. `load_project` uses a local context directory (with initialized `git`) 
 or clones a remote repo into the local dir and returns a project object.
 
-You need to provide the git/zip/tar archive `url`. The `context` dir is, by default, "./". The `name` can be specified or taken 
+You need to provide the git/zip/tar archive `url`. The `context` dir, by default, is "./", which is the directory the MLRun client 
+runs from. The `name` can be specified or taken 
 from the project object. The project can also specify `secrets` (dict with repo credentials), `init_git` flag (initializes Git in the context dir), 
 `clone` flag (project is cloned into the context dir, and the local copy is ignored/deleted), and `user_project` 
 flag (indicates the project name is unique to the user).

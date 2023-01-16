@@ -12,3 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import fastapi.testclient
+import sqlalchemy.orm.session
+
+
+class TestLogCollector:
+    def test_start_log(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        pass

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import abc
-from typing import List
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget

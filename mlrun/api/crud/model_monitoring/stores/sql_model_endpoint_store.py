@@ -64,13 +64,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
         if not self._engine:
             self._engine = self._db_connection.get_engine()
             if not self._engine.has_table(self.table_name):
-                with self._engine.connect():
+                with self._engine.connect() as connection:
                     logger.info("Creating new model endpoints table in DB")
                     # Define schema and table for the model endpoints table as required by the SQL table structure
                     self._get_table(self.table_name, self.metadata)
 
                     # Create the table that stored in the MetaData object (if not exist)
-                    self.metadata.create_all(self._engine)
+                    self.metadata.create_all(connection)
 
     def init_model_endpoints_table(self):
         # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
@@ -86,7 +86,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         :param endpoint: `ModelEndpoint` object that will be written into the DB.
         """
 
-        with self._engine.connect():
+        with self._engine.connect() as connection:
 
             # Retrieving the relevant attributes from the model endpoint object
             endpoint_dict = self.get_params(endpoint=endpoint)
@@ -94,7 +94,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
             # Convert the result into a pandas Dataframe and write it into the database
             endpoint_df = pd.DataFrame([endpoint_dict])
             endpoint_df.to_sql(
-                self.table_name, con=self._engine, index=False, if_exists="append"
+                self.table_name, con=connection, index=False, if_exists="append"
             )
 
     def update_model_endpoint(self, endpoint_id: str, attributes: typing.Dict):
@@ -107,7 +107,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         """
 
-        with self._engine.connect():
+        with self._engine.connect() as connection:
 
             # Define and execute the query with the given attributes and the related model endpoint id
             update_query = (
@@ -120,7 +120,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
                     == endpoint_id
                 )
             )
-            self._engine.execute(update_query)
+            connection.execute(update_query)
+            connection.commit()
 
     def delete_model_endpoint(self, endpoint_id: str):
         """

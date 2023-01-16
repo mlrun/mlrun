@@ -40,7 +40,7 @@ from mlrun.features import Entity
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
-
+from mlrun.model import DataTarget
 
 def read_and_assert(csv_path_spark, csv_path_storey):
     read_back_df_spark = None
@@ -876,6 +876,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        if passthrough:
+            assert len(measurements.status.targets) == 1
+            assert isinstance(
+                measurements.status.targets._children["nosql"], DataTarget
+            )
+
         fv_name = "measurements-fv"
         features = [
             "measurements.bad",

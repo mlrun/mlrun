@@ -1493,7 +1493,7 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
-    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "MLRUN_SQL_DB_PATH_STRING"
+    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
 
     def __init__(
         self,

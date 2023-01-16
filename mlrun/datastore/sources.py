@@ -855,7 +855,7 @@ class SQLSource(BaseSourceDriver):
     kind = "sqldb"
     support_storey = True
     support_spark = False
-    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "MLRUN_SQL_DB_PATH_STRING"
+    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
 
     def __init__(
         self,

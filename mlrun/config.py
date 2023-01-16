@@ -464,7 +464,7 @@ default_config = {
         "expose_internal_api_endpoints": False,
     },
     "default_workflow_runner_name": "workflow-runner-{}",
-    "logs_collector": {
+    "log_collector": {
         "address": "",
         # log collection mode can be one of: "sidecar", "legacy", "best-effort"
         # "sidecar" - use the sidecar to collect logs

@@ -174,5 +174,5 @@ class ClusterizationRole:
 
 class LogsCollectorMode:
     legacy = "legacy"
-    sidecar = "mlrun_services"
+    sidecar = "sidecar"
     best_effort = "best-effort"

@@ -230,28 +230,26 @@ async def move_api_to_online():
 
 
 def _start_logs_collection():
-    if config.logs_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+    if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
         logger.info(
             "Using legacy logs collection method, skipping logs collection periodic function",
-            mode=config.logs_collector.mode,
+            mode=config.log_collector.mode,
         )
         return
     logger.info(
         "Starting logs collection periodic function",
-        mode=config.logs_collector.mode,
-        interval=config.logs_collector.interval,
+        mode=config.log_collector.mode,
+        interval=config.log_collector.interval,
     )
     run_function_periodically(
-        config.logs_collector.interval,
+        config.log_collector.interval,
         _collect_runs_logs.__name__,
         False,
         _collect_runs_logs,
     )
 
 
-start_logs_limit = asyncio.Semaphore(
-    config.logs_collector.concurrent_start_logs_workers
-)
+start_logs_limit = asyncio.Semaphore(config.log_collector.concurrent_start_logs_workers)
 
 
 async def _collect_runs_logs():

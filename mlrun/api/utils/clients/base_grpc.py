@@ -14,6 +14,7 @@
 
 import grpc
 
+import mlrun.api.schemas
 import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger
@@ -35,8 +36,10 @@ class BaseGRPCClient(object):
     def _initialize(self):
         if not self.name:
             return
-        sidecar_config = getattr(mlrun.config.config.sidecar, self.name)
-        if not sidecar_config.enabled:
+        # get the config for the relevant client ( e.g "log_collector" ) meaning the name of the config needs to be
+        # in the root of the config
+        sidecar_config = getattr(mlrun.config.config, self.name)
+        if sidecar_config.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
             return
         self._channel = grpc.aio.insecure_channel(sidecar_config.address)
         if self.stub_class:

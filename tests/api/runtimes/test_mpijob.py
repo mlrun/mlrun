@@ -119,37 +119,3 @@ class TestMpiV1Runtime(TestMpiJob):
         )
 
         assert run.status.state == "running"
-
-    def test_run_state_completion(self):
-        workers = 4
-        self._mock_list_pods(workers=workers)
-        self._mock_create_namespaced_custom_object()
-        self._mock_get_namespaced_custom_object(workers=workers)
-        mpijob_function = self._generate_runtime(self.runtime_kind)
-        mpijob_function.spec.replicas = 4
-        mpijob_function.deploy()
-        run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
-            watch=False,
-        )
-
-        initial_run_uid = run.metadata.uid
-
-        # simulate the workers
-        for _ in range(workers):
-            run.metadata.uid = ""
-            run = mpijob_function.run(
-                runspec=run,
-                artifact_path="v3io:///mypath",
-                local=True,
-                params={"p1": 1},
-            )
-
-            assert run.status.state == "completed"
-
-        # read run
-        db = mlrun.get_run_db()
-        run = db.read_run(initial_run_uid)
-        assert run["status"]["state"] == "running", "run status was updated in db"
-
-        # mock launcher completion

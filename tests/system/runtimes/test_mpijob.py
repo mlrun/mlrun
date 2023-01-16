@@ -23,6 +23,7 @@ import requests
 import v3io
 from storey import MapClass
 from v3io.dataplane import RaiseForStatus
+from mlrun.runtimes.constants import RunStates
 
 import mlrun
 import tests.system.base
@@ -51,9 +52,10 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             requirements=["mpi4py"],
         )
         mpijob_function.spec.replicas = 4
-        mpijob_function.deploy()  # In order to build the image with `mpi4py`.
+        mpijob_function.deploy()  # In order to build the image with `mpi4py`
 
         mpijob_run = mpijob_function.run()
+        assert mpijob_run.status.state == RunStates.completed
 
         mpijob_time = mpijob_run.status.results["time"]
         mpijob_result = mpijob_run.status.results["result"]

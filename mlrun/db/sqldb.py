@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import warnings
 from typing import List, Optional, Union
 
 import mlrun.api.schemas
@@ -63,8 +64,19 @@ class SQLDB(RunDBInterface):
     def get_log(self, uid, project="", offset=0, size=0):
         import mlrun.api.crud
 
+        # TODO: this is method which is not being called through the API (only through the SDK), but due to changes in
+        #  the API we changed the get_log method to async so we cannot call it here, and in this PR we won't change the
+        #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
+        #  we will change it.
+        warnings.warn(
+            "This should be changed to async call, if you are running in the API, please execute the `crud.get_log`"
+            " method directly and not through the get_db().get_log() method"
+            "This will be removed in 1.5.0",
+            # TODO: Remove this API in 1.5.0
+            PendingDeprecationWarning,
+        )
         return self._transform_db_error(
-            mlrun.api.crud.Logs().get_logs,
+            mlrun.api.crud.Logs()._get_logs_legacy_method,
             self.session,
             project,
             uid,

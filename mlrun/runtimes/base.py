@@ -427,7 +427,7 @@ class BaseRuntime(ModelObj):
             db,
             autocommit=False,
             is_api=self._is_api_server,
-            store_run=True,
+            store_run=False,
         )
 
         self._verify_run_params(run.spec.parameters)
@@ -459,6 +459,8 @@ class BaseRuntime(ModelObj):
             results = runner(task_generator, execution, run)
             results_to_iter(results, run, execution)
             result = execution.to_dict()
+            if execution.state == RunStates.completed:
+                result = self._update_run_state(result, task=run)
 
         else:
             # single run

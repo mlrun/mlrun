@@ -333,6 +333,11 @@ class MLClientCtx(object):
         return self._labels.get("workflow") or self._uid
 
     @property
+    def state(self):
+        """execuition state"""
+        return self._state
+
+    @property
     def iteration(self):
         """child iteration index, for hyper parameters"""
         return self._iteration

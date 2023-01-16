@@ -45,7 +45,14 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
+from ..utils import (
+    is_ipython,
+    is_legacy_artifact,
+    is_relative_path,
+    is_yaml_path,
+    logger,
+    update_in,
+)
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
@@ -246,7 +253,7 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
-        if url.endswith(".yaml"):
+        if is_yaml_path(url):
             project = _load_project_file(url, name, secrets)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -1496,7 +1503,7 @@ class MlrunProject(ModelObj):
         item_path, _ = self.get_item_absolute_path(item_path)
         dataitem = mlrun.get_dataitem(item_path)
 
-        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+        if is_yaml_path(item_path):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
         elif item_path.endswith(".json"):
@@ -2834,7 +2841,7 @@ def _init_function_from_dict(f, project, name=None):
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
 
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
@@ -2923,7 +2930,7 @@ def _init_function_from_dict_legacy(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
             func.spec.image = image

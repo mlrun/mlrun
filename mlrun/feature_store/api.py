@@ -838,7 +838,7 @@ def _ingest_with_spark(
         for target in targets_to_ingest or []:
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
-            logger.info(f"passthrough={featureset.spec.passthrough}, target.kind={target.kind}")
+            logger.warn(f"passthrough={featureset.spec.passthrough}, target.kind={target.kind}")
             if featureset.spec.passthrough and target.is_offline:
                 continue
             if target.path and urlparse(target.path).scheme == "":

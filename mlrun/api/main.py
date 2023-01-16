@@ -281,7 +281,7 @@ async def _collect_runs_logs():
         close_session(db_session)
 
 
-def _start_log_for_run(run: dict) -> typing.Union[str, None]:
+async def _start_log_for_run(run: dict) -> typing.Union[str, None]:
     """
     Starts log collection for a specific run
     :param run: run object

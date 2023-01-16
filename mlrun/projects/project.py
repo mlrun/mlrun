@@ -1223,6 +1223,19 @@ class MlrunProject(ModelObj):
             pass
         return None
 
+    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
+        in_context = False
+        # If the URL is for a remote location, we do not want to change it
+        if url and "://" not in url:
+            # We don't want to change the url if the project has no cntext or if it is already absolute
+            if self.spec.context and not url.startswith("/"):
+                in_context = True
+                url = path.normpath(path.join(self.spec.get_code_path(), url))
+                return url, in_context
+            if not path.isfile(url):
+                raise OSError(f"{url} not found")
+        return url, in_context
+
     def log_artifact(
         self,
         item,
@@ -1479,7 +1492,10 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        # Obtaining the item's absolute path from the project context, in case the user provided a relative path
+        item_path, _ = self.get_item_absolute_path(item_path)
         dataitem = mlrun.get_dataitem(item_path)
+
         if item_path.endswith(".yaml") or item_path.endswith(".yml"):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
@@ -2803,19 +2819,13 @@ def _init_function_from_dict(f, project, name=None):
     requirements = f.get("requirements", None)
     tag = f.get("tag", None)
 
-    in_context = False
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
-    if url and "://" not in url:
-        if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.get_code_path(), url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2823,6 +2833,7 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
+
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
@@ -2901,7 +2912,8 @@ def _init_function_from_dict_legacy(f, project):
     in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
-
+    # We are not using the project method to obtain an absolute path here,
+    # because legacy projects are built differently, and we cannot rely on them to have a spec
     if url and "://" not in url:
         if project.context and not url.startswith("/"):
             url = path.join(project.context, url)

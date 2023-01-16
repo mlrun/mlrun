@@ -138,35 +138,6 @@ func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 	// start logging monitor
 	go s.monitorLogCollection(ctx)
 
-	// if there are already log items in progress, call StartLog for each of them
-	logItemsInProgress, err := s.stateStore.GetItemsInProgress()
-	if err == nil {
-		logItemsInProgress.Range(func(key, value any) bool {
-			runUID, ok := key.(string)
-			if !ok {
-				s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")
-			}
-			logItem, ok := value.(statestore.LogItem)
-			if !ok {
-				s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
-			}
-
-			s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
-			if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
-				RunUID:   runUID,
-				Selector: logItem.LabelSelector,
-			}); err != nil {
-				// we don't fail here, as there might be other items to start log for, just log it
-				s.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runUID", runUID)
-			}
-			return true
-		})
-	} else {
-
-		// don't fail because we still need the server to run
-		s.Logger.WarnWithCtx(ctx, "Failed to get log items in progress")
-	}
-
 	return nil
 }
 
@@ -474,7 +445,7 @@ func (s *LogCollectorServer) cancelOnContext(ctx context.Context, file *os.File,
 		file.Close() // nolint: errcheck
 	case <-copyBufferDone:
 
-		// `CopyBuffer doesn't block anymore, we can stop the goroutine
+		// `CopyBuffer` doesn't block anymore, we can stop the goroutine
 		return
 	}
 }

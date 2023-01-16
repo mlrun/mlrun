@@ -330,7 +330,7 @@ class BaseMerger(abc.ABC):
                 if node.name == target_node_name:
                     return node
 
-        def concat(self, other: List[str]):
+        def concat(self, other):
             other_iter = other.__iter__()
             other_head = other_iter.__next__()
             node = self.find_node(other_head.name)
@@ -392,12 +392,12 @@ class BaseMerger(abc.ABC):
             relations.add_first(main_node)
             return relations
 
-        def _finish_relation(name_in: str, name_in_order, relations, head_order):
-            name_head = relations.head.name
-            if name_head == name_in:
-                return None
+        def _build_relation(fs_name_in: str, name_in_order, linked_list_relation, head_order):
+            name_head = linked_list_relation.head.name
+            if name_head == fs_name_in:
+                return linked_list_relation
 
-            feature_set_in_entity_list = feature_set_entity_list_dict[name_in]
+            feature_set_in_entity_list = feature_set_entity_list_dict[fs_name_in]
             feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
             entity_relation_list = entity_relation_val_list[name_head]
             col_relation_list = entity_relation_key_list[name_head]
@@ -417,9 +417,9 @@ class BaseMerger(abc.ABC):
 
             if relation_wise:
                 # add to the link list feature set according to the defined relation
-                relations.add_last(
+                linked_list_relation.add_last(
                     BaseMerger._Node(
-                        name_in,
+                        fs_name_in,
                         data={
                             "left_keys": curr_col_relation_list,
                             "right_keys": feature_set_in_entity_list_names,
@@ -429,15 +429,15 @@ class BaseMerger(abc.ABC):
                         order=name_in_order,
                     )
                 )
-                relations.head.data["save_cols"].append(*curr_col_relation_list)
+                linked_list_relation.head.data["save_cols"].append(*curr_col_relation_list)
             elif name_in_order > head_order and sorted(
                 feature_set_in_entity_list_names
             ) == sorted(feature_set_entity_list_dict[name_head].keys()):
                 # add to the link list feature set according to indexes match
                 keys = feature_set_in_entity_list_names
-                relations.add_last(
+                linked_list_relation.add_last(
                     BaseMerger._Node(
-                        name_in,
+                        fs_name_in,
                         data={
                             "left_keys": keys,
                             "right_keys": keys,
@@ -447,24 +447,14 @@ class BaseMerger(abc.ABC):
                         order=name_in_order,
                     )
                 )
-                relations.head.data["save_index"] = keys
-            else:
-                return None
-            return relations
+                linked_list_relation.head.data["save_index"] = keys
+            return linked_list_relation
 
-        list(
-            map(
-                lambda func: relation_linked_lists.extend(
-                    map(func, enumerate(feature_set_fields.keys()))
-                ),
-                map(
-                    lambda arg: lambda arg_2: _finish_relation(
-                        arg[1], arg[0], _create_relation(arg_2[1], arg_2[0]), arg_2[0]
-                    ),
-                    enumerate(feature_set_fields.keys()),
-                ),
-            )
-        )
+        for i, name in enumerate(feature_set_names):
+            linked_relation = _create_relation(name, i)
+            for j, name_in in enumerate(feature_set_names):
+                linked_relation = _build_relation(name_in, j, linked_relation, i)
+            relation_linked_lists.append(linked_relation)
 
         # filter None from relation_linked_lists
         relation_linked_lists = list(
@@ -475,8 +465,7 @@ class BaseMerger(abc.ABC):
         link_list_iter = relation_linked_lists.__iter__()
         return_relation = link_list_iter.__next__()
         for relation_list in link_list_iter:
-            if relation_list is not None:
-                return_relation.concat(relation_list)
+            return_relation.concat(relation_list)
         if return_relation.len != len(feature_set_objects):
             raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 

@@ -304,11 +304,8 @@ class BaseMerger(abc.ABC):
                 node = node.next
 
         def add_first(self, node):
-            if self.head is None:
-                self.head = node
-            else:
-                node.next = self.head
-                self.head = node
+            node.next = self.head
+            self.head = node
             self.len += 1
 
         def add_last(self, node):
@@ -352,10 +349,11 @@ class BaseMerger(abc.ABC):
 
     @staticmethod
     def _create_linked_relation_list(feature_set_objects, feature_set_fields):
-        if len(list(feature_set_fields.keys())) == 1:
+        feature_set_names = list(feature_set_fields.keys())
+        if len(feature_set_names) == 1:
             return BaseMerger._LinkedList(
                 head=BaseMerger._Node(
-                    name=list(feature_set_fields.keys())[0],
+                    name=feature_set_names[0],
                     order=0,
                     data={
                         "left_keys": [],
@@ -368,15 +366,15 @@ class BaseMerger(abc.ABC):
         relation_linked_lists = []
         feature_set_entity_list_dict = {
             name: feature_set_objects[name].spec.entities
-            for name in feature_set_fields.keys()
+            for name in feature_set_names
         }
         entity_relation_val_list = {
             name: list(feature_set_objects[name].spec.relations.values())
-            for name in feature_set_fields.keys()
+            for name in feature_set_names
         }
         entity_relation_key_list = {
             name: list(feature_set_objects[name].spec.relations.keys())
-            for name in feature_set_fields.keys()
+            for name in feature_set_names
         }
 
         def _create_relation(name: str, order):

@@ -874,7 +874,7 @@ class SQLSource(BaseSourceDriver):
         """
         Reads SqlDB as input source for a flow.
         example::
-            db_path = "sqlite:///stockmarket.db"
+            db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
             source = SqlDBSource(
                 collection_name='source_name', db_path=self.db, key_field='key'
             )
@@ -884,12 +884,13 @@ class SQLSource(BaseSourceDriver):
         :param time_field:      the column to be parsed as timestamp for events. Defaults to None
         :param start_time:      filters out data before this time
         :param end_time:        filters out data after this time
-        :param schedule:        string to configure scheduling of the ingestion job. For example '*/30 * * * *' will
-                                    cause the job to run every 30 minutes
-        :param db_path:             url string connection to sql database.
-                                    If not set, the _MLRUN_SQL_DB_PATH_STRING_ENV_VAR environment variable will be used.
-        :param table_name: the name of the collection to access,
-                                    from the current database
+        :param schedule:        string to configure scheduling of the ingestion job.
+                                For example '*/30 * * * *' will
+                                cause the job to run every 30 minutes
+        :param db_path:         url string connection to sql database.
+                                If not set, the _MLRUN_SQL_DB_PATH_STRING_ENV_VAR environment variable will be used.
+        :param table_name:      the name of the collection to access,
+                                from the current database
         :param spark_options:   additional spark read options
         :param time_fields :    all the field to be parsed as timestamp.
         """

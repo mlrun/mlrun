@@ -136,7 +136,7 @@ func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 	go s.stateStore.Initialize(ctx)
 
 	// start logging monitor
-	go s.monitorLogs(ctx)
+	go s.monitorLogCollection(ctx)
 
 	// if there are already log items in progress, call StartLog for each of them
 	logItemsInProgress, err := s.stateStore.GetItemsInProgress()
@@ -577,7 +577,7 @@ func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize
 	return offset, size
 }
 
-func (s *LogCollectorServer) monitorLogs(ctx context.Context) {
+func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 
 	s.Logger.DebugWithCtx(ctx,
 		"Monitoring log streaming goroutines periodically",

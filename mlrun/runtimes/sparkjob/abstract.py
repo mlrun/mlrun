@@ -672,8 +672,14 @@ with ctx:
                 "file://" + config.spark_history_server_path
             )
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu",        patch: bool = False,
-):
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_limits & with_executor_limits"
         )

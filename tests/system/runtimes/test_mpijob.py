@@ -48,14 +48,14 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             project=self.project_name,
             filename=code_path,
             image="mlrun/ml-models",
-            requirements=["mpi4py"]
+            requirements=["mpi4py"],
         )
         mpijob_function.spec.replicas = 4
         mpijob_function.deploy()  # In order to build the image with `mpi4py`.
 
         mpijob_run = mpijob_function.run()
 
-        mpijob_time = mpijob_run.status.results['time']
-        mpijob_result = mpijob_run.status.results['result']
+        mpijob_time = mpijob_run.status.results["time"]
+        mpijob_result = mpijob_run.status.results["result"]
         assert mpijob_time is not None
         assert mpijob_result == 1000

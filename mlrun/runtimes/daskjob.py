@@ -464,7 +464,7 @@ class DaskCluster(KubejobRuntime):
             "worker_resources", mem, cpu, gpus, gpu_type, patch=patch
         )
 
-    def with_requests(self, mem=None, cpu=None):
+    def with_requests(self, mem=None, cpu=None, patch: bool = False):
         # TODO: In 1.4.0 change to NotImplementedError
         raise DeprecationWarning(
             "Dask's with_requests is deprecated and will be removed in 1.4.0, use "

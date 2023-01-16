@@ -24,7 +24,7 @@ class LogCollectorClient(BaseGRPCClient):
 
     async def start_logs(self, run_id: str, selector: dict) -> bool:
         request = mlrun.api.proto.log_collector_pb2.StartLogRequest(
-            runId=run_id, selector=selector
+            runUID=run_id, selector=selector
         )
         response = await self._call("StartLog", request)
         if not response.success:

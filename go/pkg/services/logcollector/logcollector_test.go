@@ -55,6 +55,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.namespace = "default"
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
+	monitoringInterval := "30s"
 	bufferPoolSize := 20
 	bufferSizeBytes := 512
 
@@ -75,6 +76,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		suite.kubeConfigFilePath,
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
+		monitoringInterval,
 		bufferPoolSize,
 		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
@@ -210,8 +212,15 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
 	suite.Require().NoError(err, "Failed to create pod")
 
+	ctx, cancel := context.WithCancel(suite.ctx)
+	startedChan := make(chan bool)
+
 	// stream pod logs
-	go suite.LogCollectorServer.startLogStreaming(suite.ctx, runId, pod.Name)
+	go suite.LogCollectorServer.startLogStreaming(ctx, runId, pod.Name, startedChan, cancel)
+
+	// wait for log streaming to start
+	started := <-startedChan
+	suite.Require().True(started, "Log streaming didn't start")
 
 	// resolve log file path
 	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, pod.Name)

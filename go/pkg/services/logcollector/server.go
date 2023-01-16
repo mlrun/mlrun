@@ -22,10 +22,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
+	mlruncontext "github.com/mlrun/mlrun/pkg/context"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
@@ -41,12 +43,14 @@ import (
 
 type LogCollectorServer struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace       string
-	baseDir         string
-	kubeClientSet   kubernetes.Interface
-	stateStore      statestore.StateStore
-	bufferPool      *bpool.BytePool
-	readLogWaitTime time.Duration
+	namespace          string
+	baseDir            string
+	kubeClientSet      kubernetes.Interface
+	stateStore         statestore.StateStore
+	bufferPool         *bpool.BytePool
+	readLogWaitTime    time.Duration
+	monitoringInterval time.Duration
+	inMemoryState      statestore.StateStore
 }
 
 func NewLogCollectorServer(logger logger.Logger,
@@ -54,7 +58,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	baseDir,
 	kubeconfigPath,
 	stateFileUpdateInterval,
-	readLogWaitTime string,
+	readLogWaitTime,
+	monitoringInterval string,
 	bufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
@@ -75,10 +80,13 @@ func NewLogCollectorServer(logger logger.Logger,
 	// parse interval durations
 	stateFileUpdateIntervalDuration, err := time.ParseDuration(stateFileUpdateInterval)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
+		return nil, errors.Wrap(err, "Failed to state file updating interval")
 	}
-
 	readLogTimeoutDuration, err := time.ParseDuration(readLogWaitTime)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to parse read log wait time duration")
+	}
+	monitoringIntervalDuration, err := time.ParseDuration(monitoringInterval)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
 	}
@@ -93,6 +101,11 @@ func NewLogCollectorServer(logger logger.Logger,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create state store")
+	}
+
+	inMemoryState, err := factory.CreateStateStore(statestore.StateStoreTypeInMemory, &statestore.Config{})
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to create in-memory state")
 	}
 
 	// ensure base dir exists
@@ -110,7 +123,9 @@ func NewLogCollectorServer(logger logger.Logger,
 		stateStore:              stateStore,
 		kubeClientSet:           kubeClientSet,
 		readLogWaitTime:         readLogTimeoutDuration,
+		monitoringInterval:      monitoringIntervalDuration,
 		bufferPool:              bufferPool,
+		inMemoryState:           inMemoryState,
 	}, nil
 }
 
@@ -119,6 +134,9 @@ func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 
 	// start state updating goroutine
 	go s.stateStore.Initialize(ctx)
+
+	// start logging monitor
+	go s.monitorLogs(ctx)
 
 	// if there are already log items in progress, call StartLog for each of them
 	logItemsInProgress, err := s.stateStore.GetItemsInProgress()
@@ -166,8 +184,23 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 		"RunUID", request.RunUID,
 		"Selector", request.Selector)
 
+	// check if the requested run uid's logs are already being collected
+	itemsInProgress, err := s.inMemoryState.GetItemsInProgress()
+	if err != nil {
+		err := errors.Wrap(err, "Failed to get items in progress from in memory state")
+		return &protologcollector.StartLogResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, err
+	}
+	if _, running := itemsInProgress.Load(request.RunUID); running {
+		s.Logger.DebugWithCtx(ctx, "Logs are already being collected for this run uid", "runUID", request.RunUID)
+		return &protologcollector.StartLogResponse{
+			Success: true,
+		}, nil
+	}
+
 	var pods *v1.PodList
-	var err error
 
 	// list pods using label selector until a pod is found
 	errCount := 0
@@ -196,7 +229,7 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 	// found a pod. for now, we only assume each run has a single pod.
 	pod := pods.Items[0]
 
-	// write log item in progress to file
+	// write log item in progress to state store
 	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
 		return &protologcollector.StartLogResponse{
@@ -205,10 +238,23 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 		}, err
 	}
 
-	// TODO: create a child context before calling goroutines, so it won't be canceled
+	// create a child context before calling goroutines, so it won't be canceled
+	logStreamCtx, cancelCtxFunc := mlruncontext.NewDetachedWithCancel(ctx)
+	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(ctx, request.RunUID, pod.Name)
+	go s.startLogStreaming(logStreamCtx, request.RunUID, pod.Name, startedStreamingGoroutine, cancelCtxFunc)
+
+	// add Item to in-memory state
+	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
+		err := errors.Wrapf(err, "Failed to add run id %s to in memory state", request.RunUID)
+		return &protologcollector.StartLogResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, err
+	}
+
+	<-startedStreamingGoroutine
 
 	return &protologcollector.StartLogResponse{
 		Success: true,
@@ -246,7 +292,33 @@ func (s *LogCollectorServer) GetLogs(ctx context.Context, request *protologcolle
 }
 
 // startLogStreaming streams logs from a pod and writes them into a file
-func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runUID, podName string) {
+func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
+	runUID,
+	podName string,
+	startedStreamingGoroutine chan bool,
+	cancelCtxFunc context.CancelFunc) {
+
+	// in case of a panic, remove this goroutine from the in-memory state, so the
+	// monitoring loop will start logging again for this runUID.
+	defer func() {
+		if err := recover(); err != nil {
+			callStack := debug.Stack()
+			s.Logger.ErrorWithCtx(ctx, "Panic caught while creating function",
+				"err", err,
+				"stack", string(callStack))
+
+			// remove this goroutine from in-memory state
+			if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
+				s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
+			}
+
+			// cancel all other goroutines spawned from this one
+			cancelCtxFunc()
+		}
+	}()
+
+	// signal "main" function that goroutine is up
+	startedStreamingGoroutine <- true
 
 	// create a log file to the pod
 	logFilePath := s.resolvePodLogFilePath(runUID, podName)
@@ -276,7 +348,7 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context, runUID, podN
 		if streamErr == nil {
 			break
 		}
-		s.Logger.WarnWithCtx(ctx, "Failed to get pod log read/closer", "runUID", runUID)
+		s.Logger.WarnWithCtx(ctx, "Failed to get pod log stream read/closer, retrying", "runUID", runUID, "err", streamErr.Error())
 		time.Sleep(1 * time.Second)
 	}
 	defer stream.Close() // nolint: errcheck
@@ -355,7 +427,7 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 	// if error is not EOF, log it and continue
 	if err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
-			"error", err.Error(),
+			"err", err.Error(),
 			"runUID", runUID)
 		return true, errors.Wrap(err, "Failed to read pod logs")
 	}
@@ -377,11 +449,14 @@ func (s *LogCollectorServer) hasLogs(ctx context.Context, runUID string, streamR
 		select {
 		case <-time.After(s.readLogWaitTime):
 			peekBuf, err := streamReader.Peek(1)
-			if err != nil {
-				s.Logger.WarnWithCtx(ctx, "Failed to peek into stream", "runUID", runUID)
-			}
-			if len(peekBuf) > 0 {
+
+			// if there is something to read, return true
+			// if error is EOF, the pod has logs but not new ones
+			if err == io.EOF || len(peekBuf) > 0 {
 				return true
+			}
+			if err != nil {
+				s.Logger.WarnWithCtx(ctx, "Failed to peek into stream", "runUID", runUID, "err", err.Error())
 			}
 		case <-ctx.Done():
 			s.Logger.DebugWithCtx(ctx, "Context was canceled, stopping waiting for pod log stream", "runUID", runUID)
@@ -500,4 +575,60 @@ func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize
 	}
 
 	return offset, size
+}
+
+func (s *LogCollectorServer) monitorLogs(ctx context.Context) {
+
+	s.Logger.DebugWithCtx(ctx,
+		"Monitoring log streaming goroutines periodically",
+		"monitoringInterval", s.monitoringInterval)
+
+	monitoringTicker := time.NewTicker(s.monitoringInterval)
+
+	// Check the items in the inMemoryState against the items in the state store.
+	// If an item is written in the state store but not in the in memory state - call StartLog for it,
+	// as the state store is the source of truth
+	for range monitoringTicker.C {
+
+		// if there are already log items in progress, call StartLog for each of them
+		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
+		if err == nil {
+			logItemsInProgress.Range(func(key, value any) bool {
+				runUID, ok := key.(string)
+				if !ok {
+					s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")
+				}
+				logItem, ok := value.(statestore.LogItem)
+				if !ok {
+					s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+				}
+
+				inMemoryInProgress, err := s.inMemoryState.GetItemsInProgress()
+				if err != nil {
+					s.Logger.WarnWithCtx(ctx, "Failed to get in progress items from in memory state", "err", err)
+					return true
+				}
+
+				// check if the log streaming is already running for this runUID
+				if _, running := inMemoryInProgress.Load(runUID); !running {
+
+					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
+					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
+						RunUID:   runUID,
+						Selector: logItem.LabelSelector,
+					}); err != nil {
+
+						// we don't fail here, as there might be other items to start log for, just log it
+						s.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runUID", runUID)
+					}
+				}
+
+				return true
+			})
+		} else {
+
+			// don't fail because we still need the server to run
+			s.Logger.WarnWithCtx(ctx, "Failed to get log items in progress")
+		}
+	}
 }

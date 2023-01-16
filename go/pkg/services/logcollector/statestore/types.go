@@ -25,8 +25,8 @@ import (
 type StateStoreType string
 
 const (
-	StateStoreTypeFile StateStoreType = "file"
-	StateStoreTypeMock StateStoreType = "mock"
+	StateStoreTypeFile     StateStoreType = "file"
+	StateStoreTypeInMemory StateStoreType = "inMemory"
 )
 
 type LogItem struct {

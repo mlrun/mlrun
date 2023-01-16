@@ -17,6 +17,7 @@ package factory
 import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/file"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/inmemory"
 
 	"github.com/nuclio/errors"
 )
@@ -28,9 +29,8 @@ func CreateStateStore(
 	switch stateStoreType {
 	case statestore.StateStoreTypeFile:
 		return file.NewFileStateStore(configuration.Logger, configuration.BaseDir, configuration.StateFileUpdateInterval), nil
-	// TODO: add mock state store for testing
-	//case statestore.StateStoreTypeMock:
-	//	return mock.NewMockStateStore(), nil
+	case statestore.StateStoreTypeInMemory:
+		return inmemory.NewInMemoryStateStore(), nil
 	default:
 		return nil, errors.New("Unknown state store type")
 	}

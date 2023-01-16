@@ -22,9 +22,7 @@ import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
-from mlrun.api.crud.model_monitoring._model_endpoint_stores import (  # noqa: F401
-    ModelEndpointStore,
-)
+from mlrun.api.crud.model_monitoring.stores import ModelEndpointStore  # noqa: F401
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,

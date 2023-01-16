@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 from mlrun import mlconf
-from mlrun.api.db.sqldb.session import _init_engine, create_session
+from mlrun.api.db.sqldb.session import DBEngine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
 from mlrun.api.utils.singletons.db import initialize_db
@@ -49,7 +49,7 @@ def db() -> Generator:
 
     # TODO: make it simpler - doesn't make sense to call 3 different functions to initialize the db
     # we need to force re-init the engine cause otherwise it is cached between tests
-    _init_engine(config.httpdb.dsn)
+    DBEngine(dsn=config.httpdb.dsn)._init_engine()
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)

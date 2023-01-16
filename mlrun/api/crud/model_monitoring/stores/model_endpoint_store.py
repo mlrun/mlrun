@@ -17,8 +17,6 @@ import json
 import typing
 from abc import ABC, abstractmethod
 
-import v3io_frames
-
 import mlrun
 import mlrun.api.schemas
 import mlrun.model_monitoring.constants as model_monitoring_constants
@@ -91,7 +89,7 @@ class ModelEndpointStore(ABC):
         end: str = "now",
         feature_analysis: bool = False,
         convert_to_endpoint_object: bool = True,
-    ) -> mlrun.api.schemas.ModelEndpoint:
+    ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
         """
         Get a single model endpoint object. You can apply different time series metrics that will be added to the
         result.
@@ -115,7 +113,7 @@ class ModelEndpointStore(ABC):
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
                                            into a `ModelEndpoint` or not. True by default.
 
-        :return: A `ModelEndpoint` object.
+        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
         """
         pass
 
@@ -262,7 +260,7 @@ class ModelEndpointStore(ABC):
         metrics: typing.List[str],
         start: str = "now-1h",
         end: str = "now",
-        access_key: str = mlrun.mlconf.get_v3io_access_key(),
+        access_key: str = None,
     ) -> typing.Dict[str, typing.List]:
         """
         Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
@@ -278,64 +276,11 @@ class ModelEndpointStore(ABC):
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
                                  `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
                                  earliest time.
-        :param access_key:       V3IO access key that will be used for generating Frames client object. By default,
-                                 the access key will be retrieved from the environment variables.
+        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
+                                 provided, the access key will be retrieved from the environment variables.
 
         :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
                  includes timestamps and the values.
         """
 
-        if not metrics:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Metric names must be provided"
-            )
-
-        # Initialize metrics mapping dictionary
-        metrics_mapping = {}
-
-        # Getting the path for the time series DB
-        events_path = (
-            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=self.project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
-            )
-        )
-        (
-            _,
-            container,
-            events_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(events_path)
-
-        # Retrieve the raw data from the time series DB based on the provided metrics and time ranges
-        frames_client = mlrun.utils.v3io_clients.get_frames_client(
-            token=access_key,
-            address=mlrun.mlconf.v3io_framesd,
-            container=container,
-        )
-
-        try:
-            data = frames_client.read(
-                backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
-                table=events_path,
-                columns=["endpoint_id", *metrics],
-                filter=f"endpoint_id=='{endpoint_id}'",
-                start=start,
-                end=end,
-            )
-
-            # Fill the metrics mapping dictionary with the metric name and values
-            data_dict = data.to_dict()
-            for metric in metrics:
-                metric_data = data_dict.get(metric)
-                if metric_data is None:
-                    continue
-
-                values = [
-                    (str(timestamp), value) for timestamp, value in metric_data.items()
-                ]
-                metrics_mapping[metric] = values
-
-        except v3io_frames.errors.ReadError:
-            logger.warn("Failed to read tsdb", endpoint=endpoint_id)
-
-        return metrics_mapping
+        pass

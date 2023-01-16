@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import json
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, Union
@@ -19,8 +20,8 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 import mlrun.api.crud
 import mlrun.api.schemas
@@ -80,8 +81,12 @@ async def grafana_proxy_model_endpoints_query(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_QUERY_FUNCTION_DICTIONARY[target_endpoint]
-    result = await run_in_threadpool(function, body, query_parameters, auth_info)
-    return result
+    if asyncio.iscoroutinefunction(function):
+        result = await function(body, query_parameters, auth_info)
+    else:
+        result = await run_in_threadpool(function, body, query_parameters, auth_info)
+    # If the result is a GrafanaTable object, wrap it in a list
+    return [result] if isinstance(result, GrafanaTable) else result
 
 
 @router.post("/grafana-proxy/model-endpoints/search", response_model=List[str])
@@ -112,8 +117,11 @@ async def grafana_proxy_model_endpoints_search(
     # checks again.
     target_endpoint = query_parameters["target_endpoint"]
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
-    result = await run_in_threadpool(function, db_session, auth_info, query_parameters)
 
+    if asyncio.iscoroutinefunction(function):
+        result = await function(db_session, auth_info)
+    else:
+        result = await run_in_threadpool(function, db_session, auth_info)
     return result
 
 
@@ -139,7 +147,7 @@ def grafana_list_projects(
     return projects_output.projects
 
 
-def grafana_list_endpoints_ids(
+async def grafana_list_endpoints_ids(
     db_session: Session,
     auth_info: mlrun.api.schemas.AuthInfo,
     query_parameters: Dict[str, str],
@@ -162,16 +170,16 @@ def grafana_list_endpoints_ids(
     endpoint_target = mlrun.api.crud.model_monitoring.get_model_endpoint_store(
         project=project
     )
-    endpoint_list = endpoint_target.list_model_endpoints()
+    endpoint_list = await run_in_threadpool(endpoint_target.list_model_endpoints())
     endpoint_ids = [endpoint_id.metadata.uid for endpoint_id in endpoint_list.endpoints]
     return endpoint_ids
 
 
-def grafana_list_endpoints(
+async def grafana_list_endpoints(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
-) -> List[GrafanaTable]:
+) -> GrafanaTable:
     """
     List model endpoints records from the database into a list of GrafanaTable object. Will be used across all the
     model monitoring dashboards. In addition, the user can filter the model endpoints using the query parameters.
@@ -182,7 +190,7 @@ def grafana_list_endpoints(
                               the relevant project name along with potential filters.
     :param auth_info:         The auth info of the request.
 
-    :return: List with a single GrafanaTable object that represents the model endpoints records.
+    :return: GrafanaTable object that represents the model endpoints records.
     """
     project = query_parameters.get("project")
 
@@ -201,14 +209,15 @@ def grafana_list_endpoints(
     end = body.get("rangeRaw", {}).get("end", "now")
 
     if project:
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
 
     # Generate a list of model endpoints based on user permissions
-    endpoint_list = mlrun.api.crud.ModelEndpoints().list_model_endpoints(
+    endpoint_list = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().list_model_endpoints,
         auth_info=auth_info,
         project=project,
         model=model,
@@ -218,7 +227,7 @@ def grafana_list_endpoints(
         start=start,
         end=end,
     )
-    allowed_endpoints = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_endpoints = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         endpoint_list.endpoints,
         lambda _endpoint: (
@@ -232,14 +241,14 @@ def grafana_list_endpoints(
     # Generate GrafanaTable object based on to the model endpoints list
     table = generate_model_endpoints_grafana_table(endpoint_list.endpoints)
 
-    return [table]
+    return table
 
 
-def grafana_get_model_endpoint(
+async def grafana_get_model_endpoint(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
-) -> List[GrafanaTable]:
+) -> GrafanaTable:
     """
     Get a model endpoint record from the database and return it as a GrafanaTable object. Will be used in Performance
     and Details model monitoring dashboards. In addition, the user can filter the model endpoint data using the
@@ -251,7 +260,7 @@ def grafana_get_model_endpoint(
                               the relevant project name along with potential filters.
     :param auth_info:         The auth info of the request.
 
-    :return: List with a single GrafanaTable object that represents the model endpoint record.
+    :return: GrafanaTable object that represents the model endpoint record.
     """
     # Get project name and model endpoint id from the query parameters
     project = query_parameters.get("project")
@@ -266,26 +275,28 @@ def grafana_get_model_endpoint(
     end = body.get("rangeRaw", {}).get("end", "now")
 
     if project:
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
         )
 
     # Generate model endpoint object
-    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
-        endpoint_id=endpoint_id,
-        auth_info=auth_info,
-        project=project,
-        metrics=metrics,
-        start=start,
-        end=end,
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint(
+            endpoint_id=endpoint_id,
+            auth_info=auth_info,
+            project=project,
+            metrics=metrics,
+            start=start,
+            end=end,
+        )
     )
 
     # Generate GrafanaTable object based on the endpoint object
     table = generate_model_endpoints_grafana_table([endpoint])
 
-    return [table]
+    return table
 
 
 def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
@@ -338,14 +349,14 @@ def generate_model_endpoints_grafana_table(endpoint_list: list) -> GrafanaTable:
     return table
 
 
-def grafana_individual_feature_analysis(
+async def grafana_individual_feature_analysis(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -353,7 +364,8 @@ def grafana_individual_feature_analysis(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -397,24 +409,25 @@ def grafana_individual_feature_analysis(
             drift_measure.get("kld"),
         )
 
-    return [table]
+    return table
 
 
-def grafana_overall_feature_analysis(
+async def grafana_overall_feature_analysis(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
 ):
     endpoint_id = query_parameters.get("endpoint_id")
     project = query_parameters.get("project")
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -442,10 +455,10 @@ def grafana_overall_feature_analysis(
             endpoint.status.drift_measures.get("kld_mean"),
         )
 
-    return [table]
+    return table
 
 
-def grafana_incoming_features(
+async def grafana_incoming_features(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.api.schemas.AuthInfo,
@@ -455,7 +468,7 @@ def grafana_incoming_features(
     start = body.get("rangeRaw", {}).get("from", "now-1h")
     end = body.get("rangeRaw", {}).get("to", "now")
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,
         project,
         endpoint_id,
@@ -463,8 +476,11 @@ def grafana_incoming_features(
         auth_info,
     )
 
-    endpoint = mlrun.api.crud.ModelEndpoints().get_model_endpoint(
-        auth_info=auth_info, project=project, endpoint_id=endpoint_id
+    endpoint = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
+        auth_info=auth_info,
+        project=project,
+        endpoint_id=endpoint_id,
     )
 
     time_series = []
@@ -489,7 +505,8 @@ def grafana_incoming_features(
         container=container,
     )
 
-    data: pd.DataFrame = client.read(
+    data: pd.DataFrame = await run_in_threadpool(
+        client.read,
         backend="tsdb",
         table=path,
         columns=feature_names,

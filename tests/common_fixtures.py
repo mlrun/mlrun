@@ -24,6 +24,7 @@ import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+from aioresponses import aioresponses as aioresponses_
 
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -37,7 +38,7 @@ import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.singleton
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import _init_engine, create_session
+from mlrun.api.db.sqldb.session import DBEngine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
@@ -96,13 +97,22 @@ def config_test_base():
 
 
 @pytest.fixture
+def aioresponses_mock():
+    with aioresponses_() as aior:
+
+        # handy function to get how many times requests were made using this specific mock
+        aior.called_times = lambda: len(list(aior.requests.values())[0])
+        yield aior
+
+
+@pytest.fixture
 def db():
     global session_maker
     dsn = "sqlite:///:memory:?check_same_thread=false"
     db_session = None
     try:
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        DBEngine(dsn=dsn)._init_engine()
         init_data()
         initialize_db()
         db_session = create_session()

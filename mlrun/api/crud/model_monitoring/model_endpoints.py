@@ -37,7 +37,7 @@ import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
-from ._model_endpoint_stores import get_model_endpoint_store
+from .stores import get_model_endpoint_store
 
 
 class ModelEndpoints:
@@ -50,7 +50,8 @@ class ModelEndpoints:
         model_endpoint: mlrun.api.schemas.ModelEndpoint,
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.ModelEndpoint:
-        # TODO: deprecated, remove in 1.5.0.
+        # TODO: deprecated in 1.3.0, remove in 1.5.0.
+        logger.warning("This is deprecated in 1.3.0, and will be removed in 1.5.0", FutureWarning)
         """
         Either create or updates the record of a given `ModelEndpoint` object.
         Leaving here for backwards compatibility, remove in 1.5.0.
@@ -372,7 +373,7 @@ class ModelEndpoints:
         end: str = "now",
         feature_analysis: bool = False,
         convert_to_endpoint_object: bool = True,
-    ) -> mlrun.api.schemas.ModelEndpoint:
+    ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
         """Get a single model endpoint object. You can apply different time series metrics that will be added to the
            result.
 
@@ -397,7 +398,7 @@ class ModelEndpoints:
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
                                            into a `ModelEndpoint` or not. True by default.
 
-        :return: A `ModelEndpoint` object.
+        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
         """
 
         logger.info(
@@ -424,7 +425,7 @@ class ModelEndpoints:
         project: str,
         model: str = None,
         function: str = None,
-        labels: typing.Union[typing.List[str], str] = "{}",
+        labels: typing.Union[typing.List[str], str] = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
@@ -468,6 +469,8 @@ class ModelEndpoints:
                  To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
+        labels = labels or "{}"
+
         logger.info(
             "Listing endpoints",
             project=project,
@@ -483,6 +486,11 @@ class ModelEndpoints:
 
         # Labels from type list won't be supported from 1.4.0, only str that will be converted into dictionary
         # TODO: Remove in 1.4.0 the following 2 lines and uncomment the last line
+        logger.warning(
+            "This is deprecated in 1.3.0, and will be removed in 1.4.0",
+            FutureWarning,
+            labels=labels,
+        )
         if labels and isinstance(labels, str):
             labels = json.loads(labels)
         # labels = json.loads(labels)

@@ -55,9 +55,7 @@ class ModelEndpointStoreType(enum.Enum):
             from .kv_model_endpoint_store import KVModelEndpointStore
 
             # Get V3IO access key from env
-            access_key = (
-                mlrun.mlconf.get_v3io_access_key() if access_key is None else access_key
-            )
+            access_key = access_key or mlrun.mlconf.get_v3io_access_key()
 
             return KVModelEndpointStore(project=project, access_key=access_key)
 
@@ -65,8 +63,7 @@ class ModelEndpointStoreType(enum.Enum):
         # Update these lines once there are more than two store target types.
         sql_connection_string = (
             connection_string
-            if connection_string is not None
-            else mlrun.mlconf.model_endpoint_monitoring.connection_string
+            or mlrun.mlconf.model_endpoint_monitoring.connection_string
         )
         from .sql_model_endpoint_store import SQLModelEndpointStore
 

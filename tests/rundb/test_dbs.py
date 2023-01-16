@@ -19,7 +19,7 @@ import pytest
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
-from mlrun.api.db.sqldb.session import _init_engine, create_session
+from mlrun.api.db.sqldb.session import DBEngine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
@@ -42,7 +42,7 @@ def db(request):
         db_file = f"{path}/mlrun.db"
         dsn = f"sqlite:///{db_file}?check_same_thread=false"
         config.httpdb.dsn = dsn
-        _init_engine(dsn)
+        DBEngine(dsn=dsn)._init_engine()
         init_data()
         initialize_db()
         db_session = create_session()

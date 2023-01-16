@@ -135,8 +135,7 @@ def _initialize_db_without_migrations() -> typing.Tuple[
 ]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
-    mlrun.api.db.sqldb.session._init_engine(dsn)
-
+    mlrun.api.db.sqldb.session.DBEngine(dsn=dsn)._init_engine()
     mlrun.api.utils.singletons.db.initialize_db()
     db_session = mlrun.api.db.sqldb.session.create_session()
     db = mlrun.api.db.sqldb.db.SQLDB(dsn)

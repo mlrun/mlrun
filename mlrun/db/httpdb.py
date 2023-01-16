@@ -329,6 +329,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("ui_projects_prefix") or config.ui.projects_prefix
             )
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
+            config.kfp_url = server_cfg.get("kfp_url") or config.kfp_url
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
@@ -2633,8 +2634,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
-        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a label
-            (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+        :param labels: A list or a dictionary of labels to filter by. Label filters work by either filtering a
+        specific value of a label (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or

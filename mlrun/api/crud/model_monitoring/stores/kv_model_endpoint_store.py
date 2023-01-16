@@ -34,7 +34,7 @@ class KVModelEndpointStore(ModelEndpointStore):
     client and usually the KV table can be found under v3io:///users/pipelines/project-name/model-endpoints/endpoints/.
     """
 
-    def __init__(self, access_key: str, project: str):
+    def __init__(self, project: str, access_key: str):
         super().__init__(project=project)
         # Initialize a V3IO client instance
         self.access_key = access_key
@@ -102,7 +102,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         metrics: typing.List[str] = None,
         feature_analysis: bool = False,
         convert_to_endpoint_object: bool = True,
-    ):
+    ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
         """
         Get a single model endpoint object. You can apply different time series metrics that will be added to the
         result.
@@ -126,7 +126,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
                                            into a `ModelEndpoint` or not. True by default.
 
-        :return: A `ModelEndpoint` object.
+        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
 
         :raise MLRunNotFoundError: If the endpoint was not found.
         """
@@ -233,9 +233,11 @@ class KVModelEndpointStore(ModelEndpointStore):
         if labels and isinstance(labels, typing.List):
             logger.warning(
                 "Labels should be from type dictionary, not list,"
-                "Will be deprecated in 1.4.0.",
+                "This is deprecated in 1.3.0, and will be removed in 1.4.0",
+                FutureWarning,
                 labels=labels,
             )
+
         if labels and isinstance(labels, dict):
             labels = [f"{key}={value}" for key, value in labels.items()]
 
@@ -337,6 +339,93 @@ class KVModelEndpointStore(ModelEndpointStore):
         tsdb_path.replace("://u", ":///u")
         store, _ = mlrun.store_manager.get_or_create_store(tsdb_path)
         store.rm(tsdb_path, recursive=True)
+
+    def get_endpoint_real_time_metrics(
+        self,
+        endpoint_id: str,
+        metrics: typing.List[str],
+        start: str = "now-1h",
+        end: str = "now",
+        access_key: str = None,
+    ) -> typing.Dict[str, typing.List]:
+        """
+        Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
+        `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
+
+        :param endpoint_id:      The unique id of the model endpoint.
+        :param metrics:          A list of real-time metrics to return for the model endpoint.
+        :param start:            The start time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
+                                 earliest time.
+        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
+                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
+                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
+                                 earliest time.
+        :param access_key:       V3IO access key that will be used for generating Frames client object. If not
+                                 provided, the access key will be retrieved from the environment variables.
+
+        :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
+                 includes timestamps and the values.
+        """
+
+        # Initialize access key
+        access_key = access_key or mlrun.mlconf.get_v3io_access_key()
+
+        if not metrics:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Metric names must be provided"
+            )
+
+        # Initialize metrics mapping dictionary
+        metrics_mapping = {}
+
+        # Getting the path for the time series DB
+        events_path = (
+            mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
+                project=self.project,
+                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+            )
+        )
+        (
+            _,
+            container,
+            events_path,
+        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(events_path)
+
+        # Retrieve the raw data from the time series DB based on the provided metrics and time ranges
+        frames_client = mlrun.utils.v3io_clients.get_frames_client(
+            token=access_key,
+            address=mlrun.mlconf.v3io_framesd,
+            container=container,
+        )
+
+        try:
+            data = frames_client.read(
+                backend=model_monitoring_constants.TimeSeriesTarget.TSDB,
+                table=events_path,
+                columns=["endpoint_id", *metrics],
+                filter=f"endpoint_id=='{endpoint_id}'",
+                start=start,
+                end=end,
+            )
+
+            # Fill the metrics mapping dictionary with the metric name and values
+            data_dict = data.to_dict()
+            for metric in metrics:
+                metric_data = data_dict.get(metric)
+                if metric_data is None:
+                    continue
+
+                values = [
+                    (str(timestamp), value) for timestamp, value in metric_data.items()
+                ]
+                metrics_mapping[metric] = values
+
+        except v3io_frames.errors.ReadError:
+            logger.warn("Failed to read tsdb", endpoint=endpoint_id)
+
+        return metrics_mapping
 
     def _generate_tsdb_paths(self) -> typing.Tuple[str, str]:
         """Generate a short path to the TSDB resources and a filtered path for the frames object

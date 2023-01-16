@@ -20,7 +20,7 @@ import pytest
 from mlrun.api.db.filedb.db import FileDB
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import _init_engine
+from mlrun.api.db.sqldb.session import DBEngine
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.api.utils.singletons.project_member import initialize_project_member
@@ -37,7 +37,7 @@ def db(request) -> Generator:
     if request.param == "sqldb":
         dsn = "sqlite:///:memory:?check_same_thread=false"
         config.httpdb.dsn = dsn
-        _init_engine()
+        DBEngine()._init_engine()
 
         # memory sqldb remove it self when all session closed, this session will keep it up during all test
         db_session = create_session()
@@ -74,7 +74,7 @@ def data_migration_db(request) -> Generator:
     if request.param == "sqldb":
         dsn = "sqlite:///:memory:?check_same_thread=false"
         config.httpdb.dsn = dsn
-        _init_engine()
+        DBEngine()._init_engine()
 
         # memory sqldb remove it self when all session closed, this session will keep it up during all test
         db_session = create_session()

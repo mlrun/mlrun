@@ -2355,7 +2355,7 @@ class BaseRuntimeHandler(ABC):
         if not log_file_exists:
             # this stays for now for backwards compatibility in case we would not use the log collector but rather
             # the legacy method to pull logs
-            _, logs_from_k8s = crud.Logs()._get_logs_legacy_method(
+            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
                 db_session, project, uid, source=LogSources.K8S
             )
             if logs_from_k8s:

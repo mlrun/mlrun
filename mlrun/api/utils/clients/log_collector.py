@@ -54,7 +54,7 @@ class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singlet
         :return:
         """
         request = self._log_collector_pb2.StartLogRequest(
-            runId=run_uid, selector=selector, project=project
+            runUID=run_uid, selector=selector, projectName=project
         )
         response = await self._call("StartLog", request)
         if not response.success:
@@ -88,8 +88,8 @@ class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singlet
         :return: The logs bytes
         """
         request = self._log_collector_pb2.GetLogsRequest(
-            runUid=run_uid,
-            project=project,
+            runUID=run_uid,
+            projectName=project,
             offset=offset,
             size=size,
         )

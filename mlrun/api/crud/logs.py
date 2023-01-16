@@ -77,10 +77,7 @@ class Logs(
         :return:
         """
         project = project or mlrun.mlconf.default_project
-        run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
-        logs = b""
-        if not run:
-            log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+        run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
         if (
             mlrun.mlconf.logs_collector.mode
@@ -161,9 +158,7 @@ class Logs(
         run: dict = None,
     ) -> bytes:
         """
-        :return: Tuple with:
-            1. str of the run state (so watchers will know whether to continue polling for logs)
-            2. bytes of the logs themselves
+        :return: bytes of the logs themselves
         """
         project = project or mlrun.mlconf.default_project
         log_contents = b""
@@ -198,6 +193,13 @@ class Logs(
                         if resp:
                             log_contents = resp.encode()[offset:]
         return log_contents
+
+    @staticmethod
+    async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
+        run = await run_in_threadpool(get_db().read_run,db_session, uid, project)
+        if not run:
+            log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+        return run
 
     def get_log_mtime(self, project: str, uid: str) -> int:
         log_file = log_path(project, uid)

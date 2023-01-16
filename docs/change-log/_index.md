@@ -32,8 +32,6 @@
 DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - When previewing a **DirArtifact** in the UI, it now returns the requested directory. Previously it was returning the directory list from the root of the container. [View in Git](https://github.com/mlrun/mlrun/pull/2592).
 - Load source at runtime or build time now fully supports .zip files, which were not fully supported previously.
-- Serving graphs: a workflow with `local=True`, now updates the serving function. [View in Git](https://github.com/mlrun/mlrun/issues/2716).
-
 
 ### See more
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.2.1)

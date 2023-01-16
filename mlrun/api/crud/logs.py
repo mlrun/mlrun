@@ -21,7 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.schemas
-import mlrun.api.utils.clients.sidecar.log_collector as log_collector
+import mlrun.api.utils.clients.log_collector as log_collector
 import mlrun.utils.singleton
 from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
@@ -77,13 +77,13 @@ class Logs(
         :return:
         """
         project = project or mlrun.mlconf.default_project
-        run = get_db().read_run(db_session, uid, project)
+        run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
         logs = b""
         if not run:
             log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
         run_state = run.get("status", {}).get("state", "")
         if (
-            mlrun.mlconf.sidecar.logs_collector.mode
+            mlrun.mlconf.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.best_effort
         ):
             try:
@@ -94,7 +94,7 @@ class Logs(
                     offset,
                 )
             except Exception as exc:
-                if mlrun.mlconf.sidecar.logs_collector.verbose:
+                if mlrun.mlconf.logs_collector.verbose:
                     logger.warning(
                         "Failed to get logs from logs collector, falling back to legacy method",
                         exc=exc,
@@ -110,7 +110,7 @@ class Logs(
                     run,
                 )
         elif (
-            mlrun.mlconf.sidecar.logs_collector.mode
+            mlrun.mlconf.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.sidecar
         ):
             logs = await self._get_logs_from_logs_collector(
@@ -120,7 +120,7 @@ class Logs(
                 offset,
             )
         elif (
-            mlrun.mlconf.sidecar.logs_collector.mode
+            mlrun.mlconf.logs_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.legacy
         ):
             logs = await run_in_threadpool(
@@ -166,7 +166,7 @@ class Logs(
             2. bytes of the logs themselves
         """
         project = project or mlrun.mlconf.default_project
-        out = b""
+        log_contents = b""
         log_file = log_path(project, uid)
         if not run:
             run = get_db().read_run(db_session, uid, project)
@@ -175,7 +175,7 @@ class Logs(
         if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)
-                out = fp.read(size)
+                log_contents = fp.read(size)
         elif source in [LogSources.AUTO, LogSources.K8S]:
             k8s = get_k8s()
             if k8s and k8s.is_running_inside_kubernetes_cluster():
@@ -196,8 +196,8 @@ class Logs(
                     if pod_phase != PodPhases.pending:
                         resp = get_k8s().logs(pod)
                         if resp:
-                            out = resp.encode()[offset:]
-        return out
+                            log_contents = resp.encode()[offset:]
+        return log_contents
 
     def get_log_mtime(self, project: str, uid: str) -> int:
         log_file = log_path(project, uid)

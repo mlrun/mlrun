@@ -263,11 +263,13 @@ class SQLDB(DBInterface):
 
             return runs
 
-        return [uid for uid, in query.all()]
+        return [uid for uid in query.all()]
 
     def update_runs_requested_logs(
-        self, session, uids: List[str], requested_logs: bool = False
+        self, session, uids: List[str], requested_logs: bool = True
     ):
+        # note that you should commit right after the synchronize_session=False
+        # https://stackoverflow.com/questions/70350298/what-does-synchronize-session-false-do-exactly-in-update-functions-for-sqlalch
         self._query(session, Run).filter(Run.id.in_(uids)).update(
             {Run.requested_logs: requested_logs}, synchronize_session=False
         )
@@ -327,7 +329,7 @@ class SQLDB(DBInterface):
         if not iter:
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
-            query = query.filter(Run.requested_log == requested_logs)
+            query = query.filter(Run.requested_logs == requested_logs)
         if partition_by:
             self._assert_partition_by_parameters(
                 schemas.RunPartitionByField, partition_by, partition_sort_by

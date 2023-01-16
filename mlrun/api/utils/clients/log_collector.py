@@ -14,9 +14,8 @@
 
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.api.utils.clients.base_grpc import BaseGRPCClient
 from mlrun.utils import logger
-
-from .base import BaseGRPCClient
 
 
 class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singleton):

@@ -70,7 +70,7 @@ class FileDB(DBInterface):
         raise NotImplementedError()
 
     def update_runs_requested_logs(
-        self, session, uids: List[str], requested_logs: bool = False
+        self, session, uids: List[str], requested_logs: bool = True
     ):
         raise NotImplementedError()
 

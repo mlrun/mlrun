@@ -75,7 +75,6 @@ from .generators import get_generator
 from .utils import RunError, calc_hash, results_to_iter
 
 run_modes = ["pass"]
-runtime_class_modes = ["run", "build"]
 spec_fields = [
     "command",
     "args",

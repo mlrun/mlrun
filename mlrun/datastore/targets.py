@@ -382,6 +382,7 @@ class BaseStoreTarget(DataTargetBase):
         max_events: typing.Optional[int] = None,
         flush_after_seconds: typing.Optional[int] = None,
         storage_options: typing.Dict[str, str] = None,
+        credentials_prefix=None,
     ):
         super().__init__(
             self.kind,
@@ -421,6 +422,15 @@ class BaseStoreTarget(DataTargetBase):
         self._target = None
         self._resource = None
         self._secrets = {}
+        self._credentials_prefix = credentials_prefix
+
+    def _get_credential(self, key, default_value=None):
+        return mlrun.get_secret_or_env(
+            key,
+            secret_provider=self._secrets,
+            default=default_value,
+            prefix=self._credentials_prefix,
+        )
 
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
@@ -1127,9 +1137,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
         else:
             # To prevent modification of the original dataframe
             df = df.copy(deep=False)
-            access_key = mlrun.get_secret_or_env(
-                "V3IO_ACCESS_KEY", secret_provider=self._secrets
-            )
+            access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())
             container, path = split_path(path_with_container)
@@ -1169,16 +1177,12 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
         endpoint, uri, prefix = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        host = mlrun.get_secret_or_env(
-            "REDIS_HOST",
-            secret_provider=self._secrets,
-            default="REDIS_HOST must be set",
+        host = self._get_credential(
+            "REDIS_HOST", default_value="REDIS_HOST must be set"
         )
-        port = mlrun.get_secret_or_env(
-            "REDIS_PORT", secret_provider=self._secrets, default="6379"
-        )
-        user = mlrun.get_secret_or_env("REDIS_USER", secret_provider=self._secrets)
-        auth = mlrun.get_secret_or_env("REDIS_AUTH", secret_provider=self._secrets)
+        port = self._get_credential("REDIS_PORT", default_value="6379")
+        user = self._get_credential("REDIS_USER")
+        auth = self._get_credential("REDIS_AUTH")
 
         redis_url = f"{prefix}://{user}:{auth}@{host}:{port}/{uri}"
 
@@ -1189,24 +1193,20 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        host = self._get_credential(
+            "REDIS_HOST", default_value="REDIS_HOST must be set"
+        )
+        port = self._get_credential("REDIS_PORT", default_value="6379")
+        user = self._get_credential("REDIS_USER")
+        auth = self._get_credential("REDIS_AUTH")
         return {
             "key.column": "_spark_object_name",
             "table": "{" + store_path_to_spark(self.get_target_path()),
             "format": "org.apache.spark.sql.redis",
-            "host": mlrun.get_secret_or_env(
-                "REDIS_HOST",
-                secret_provider=self._secrets,
-                default="REDIS_HOST must be set",
-            ),
-            "port": mlrun.get_secret_or_env(
-                "REDIS_PORT", secret_provider=self._secrets, default="6379"
-            ),
-            "user": mlrun.get_secret_or_env(
-                "REDIS_USER", secret_provider=self._secrets
-            ),
-            "auth": mlrun.get_secret_or_env(
-                "REDIS_AUTH", secret_provider=self._secrets
-            ),
+            "host": host,
+            "port": port,
+            "user": user,
+            "auth": auth,
         }
 
     def prepare_spark_df(self, df, key_columns):

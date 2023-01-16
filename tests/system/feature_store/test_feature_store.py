@@ -918,9 +918,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # assert that online target exist (nosql) and offline target does not (parquet)
         assert len(measurements_set.status.targets) == 1
-        assert isinstance(
-            measurements_set.status.targets._children["nosql"], DataTarget
-        )
+        assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
 
         # verify that get_offline (and preview) equals the source
         vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])

@@ -881,9 +881,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         # assert that online target exist (nosql) and offline target does not (parquet)
         if passthrough:
             assert len(measurements.status.targets) == 1
-            assert isinstance(
-                measurements.status.targets._children["nosql"], DataTarget
-            )
+            assert isinstance(measurements.status.targets["nosql"], DataTarget)
 
         fv_name = "measurements-fv"
         features = [

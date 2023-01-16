@@ -1223,6 +1223,19 @@ class MlrunProject(ModelObj):
             pass
         return None
 
+    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
+        in_context = False
+        # If the URL is for a remote location, we do not want to change it
+        if url and "://" not in url:
+            # We don't want to change the url if the project has no cntext or if it is already absolute
+            if self.spec.context and not url.startswith("/"):
+                in_context = True
+                url = path.normpath(path.join(self.spec.get_code_path(), url))
+                return url, in_context
+            if not path.isfile(url):
+                raise OSError(f"{url} not found")
+        return url, in_context
+
     def log_artifact(
         self,
         item,
@@ -1479,7 +1492,10 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        # Obtaining the item's absolute path from the project context, in case the user provided a relative path
+        item_path, _ = self.get_item_absolute_path(item_path)
         dataitem = mlrun.get_dataitem(item_path)
+
         if item_path.endswith(".yaml") or item_path.endswith(".yml"):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
@@ -1939,6 +1955,8 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         overwrite: bool = False,
+        override: bool = False,
+        source: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1966,8 +1984,11 @@ class MlrunProject(ModelObj):
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          for other engines the source is to validate that the code is up-to-date
         :returns: run id
         """
 
@@ -2007,7 +2028,15 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
+            if override or overwrite:
+                if overwrite:
+                    logger.warn(
+                        "Please use override (SDK) or --override-workflow (CLI) "
+                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
+                        "This will be removed in 1.6.0",
+                        # TODO: Remove in 1.6.0
+                    )
+                workflow_spec.override = True
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2035,20 +2064,19 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            source=source,
         )
         # run is None when scheduling
-        if (
-            run
-            and run.state != mlrun.run.RunStatuses.failed
-            and not workflow_spec.schedule
-        ):
+        if run and run.state == mlrun.run.RunStatuses.failed:
+            return run
+        if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
                 f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
-        if watch and not workflow_spec.schedule:
-            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
+        if (timeout or watch) and not workflow_spec.schedule:
+            run._engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -2791,19 +2819,13 @@ def _init_function_from_dict(f, project, name=None):
     requirements = f.get("requirements", None)
     tag = f.get("tag", None)
 
-    in_context = False
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
-    if url and "://" not in url:
-        if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.get_code_path(), url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2811,6 +2833,7 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
+
     elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
@@ -2889,7 +2912,8 @@ def _init_function_from_dict_legacy(f, project):
     in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
-
+    # We are not using the project method to obtain an absolute path here,
+    # because legacy projects are built differently, and we cannot rely on them to have a spec
     if url and "://" not in url:
         if project.context and not url.startswith("/"):
             url = path.join(project.context, url)

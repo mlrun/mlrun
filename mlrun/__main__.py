@@ -982,11 +982,20 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+# TODO: Remove in 1.6.0 --overwrite-schedule and -os, keep --override-workflow and -ow
 @click.option(
+    "--override-workflow",
     "--overwrite-schedule",
+    "-ow",
     "-os",
+    "override_workflow",
     is_flag=True,
-    help="Overwrite a schedule when submitting a new one with the same name.",
+    help="Override a schedule when submitting a new one with the same name.",
+)
+@click.option(
+    "--save-secrets",
+    is_flag=True,
+    help="Store the project secrets as k8s secrets",
 )
 def project(
     context,
@@ -1013,7 +1022,8 @@ def project(
     timeout,
     ensure_project,
     schedule,
-    overwrite_schedule,
+    override_workflow,
+    save_secrets,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1045,7 +1055,13 @@ def project(
         proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
-        proj._secrets = SecretsStore.from_list(secrets)
+        secret_store = SecretsStore.from_list(secrets)
+        # Used to run a workflow with secrets in runtime, without using or storing k8s secrets.
+        # To run a scheduled workflow or to use those secrets in other runs, save
+        # the secrets in k8s and use the --save-secret flag
+        proj._secrets = secret_store
+        if save_secrets:
+            proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())
 
     if run:
@@ -1076,32 +1092,22 @@ def project(
                 },
             )
         try:
-            try:
-                proj.run(
-                    run,
-                    workflow_path,
-                    arguments=args,
-                    artifact_path=artifact_path,
-                    namespace=namespace,
-                    sync=sync,
-                    watch=watch,
-                    dirty=dirty,
-                    workflow_handler=handler,
-                    engine=engine,
-                    local=local,
-                    schedule=schedule,
-                    timeout=timeout,
-                    overwrite=overwrite_schedule,
-                )
-            except mlrun.errors.MLRunConflictError as error:
-                if error.args:
-                    # error.args is a tuple, so need to convert to list for changing its value.
-                    args_list = list(error.args)
-                    args_list[0] = args_list[0].replace(
-                        "overwrite = True", "--overwrite-schedule"
-                    )
-                    error.args = tuple(args_list)
-                raise error
+            proj.run(
+                name=run,
+                workflow_path=workflow_path,
+                arguments=args,
+                artifact_path=artifact_path,
+                namespace=namespace,
+                sync=sync,
+                watch=watch,
+                dirty=dirty,
+                workflow_handler=handler,
+                engine=engine,
+                local=local,
+                schedule=schedule,
+                timeout=timeout,
+                override=override_workflow,
+            )
 
         except Exception as exc:
             print(traceback.format_exc())

@@ -214,7 +214,7 @@ def test_get_background_task_auth_skip(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ):
     mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions = (
-        unittest.mock.Mock()
+        unittest.mock.AsyncMock()
     )
     mlrun.mlconf.igz_version = "3.2.0-b26.20210904121245"
     response = client.post("/test/internal-background-tasks")
@@ -247,7 +247,7 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     name = "task-name"
     expected_background_task = _generate_background_task(name)
     handler_mock = mlrun.api.utils.clients.chief.Client()
-    handler_mock.get_internal_background_task = unittest.mock.Mock(
+    handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         return_value=expected_background_task
     )
     monkeypatch.setattr(
@@ -267,7 +267,7 @@ def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exist
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
     handler_mock = mlrun.api.utils.clients.chief.Client()
-    handler_mock.get_internal_background_task = unittest.mock.Mock(
+    handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         side_effect=mlrun.errors.MLRunHTTPError()
     )
     monkeypatch.setattr(
@@ -323,7 +323,7 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
             status_code=test_case.get("status_code"), content=test_case.get("content")
         )
         handler_mock = mlrun.api.utils.clients.chief.Client()
-        handler_mock.trigger_migrations = unittest.mock.Mock(
+        handler_mock.trigger_migrations = unittest.mock.AsyncMock(
             return_value=expected_response
         )
         monkeypatch.setattr(

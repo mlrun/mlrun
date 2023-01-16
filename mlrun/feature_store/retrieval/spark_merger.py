@@ -59,9 +59,9 @@ class SparkFeatureMerger(BaseMerger):
             column_names = [name for name, alias in columns]
 
             if feature_set.spec.passthrough:
-                if not self.spec.source:
+                if not feature_set.spec.source:
                     raise mlrun.errors.MLRunNotFoundError(
-                        f"passthrough feature set {name} with no source bounded"
+                        f"passthrough feature set {name} with no source"
                     )
                 source_kind = feature_set.spec.source.kind
                 source_path = feature_set.spec.source.path
@@ -69,7 +69,7 @@ class SparkFeatureMerger(BaseMerger):
                 target = get_offline_target(feature_set)
                 if not target:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Feature set {name} does not have offline targets"
+                        f"feature set {name} does not have offline targets"
                     )
                 source_kind = target.kind
                 source_path = target.get_target_path()

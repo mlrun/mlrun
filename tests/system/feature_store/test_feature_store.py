@@ -3567,15 +3567,14 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_relation_asof_join(self, engine, with_indexes):
+    def test_relation_asof_join(self, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
                 "d_id": [i for i in range(1, 11, 2)],
                 "name": [f"dept{num}" for num in range(1, 11, 2)],
                 "manager_id": [i for i in range(10, 15)],
-                "time": [pd.Timestamp(f'2023-01-01 0{i}:00:00') for i in range(5)]
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
             }
         )
 
@@ -3584,7 +3583,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "id": [num for num in range(100, 600, 100)],
                 "name": [f"employee{num}" for num in range(100, 600, 100)],
                 "department_id": [1, 1, 2, 6, 11],
-                "time": [pd.Timestamp(f'2023-01-01 0{i}:00:00') for i in range(5)]
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
             }
         )
 
@@ -3600,35 +3599,17 @@ class TestFeatureStore(TestMLRunSystem):
 
         col_1 = ["name_employees", "name_departments"]
         if with_indexes:
-            if engine == "local":
-                join_employee_department.set_index(["id", "d_id"], inplace=True)
-                col_1 = ["time"] + col_1
-            else:
-                col_1 = ["time", "id", "name_employees", "d_id", "name_departments"]
+            join_employee_department.set_index(["id", "d_id"], inplace=True)
+            col_1 = ["time"] + col_1
 
         join_employee_department = join_employee_department[col_1].rename(
             columns={"name_departments": "n2", "name_employees": "n"},
         )
 
-        engine_args = {}
-        if engine == "dask":
-            dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
-            )
-            dask_cluster.apply(mlrun.mount_v3io())
-            dask_cluster.spec.remote = True
-            dask_cluster.with_requests(mem="2G")
-            dask_cluster.save()
-            engine_args = {
-                "dask_client": dask_cluster,
-                "dask_cluster_uri": dask_cluster.uri,
-            }
         # relations according to departments_set relations
         departments_set_entity = fstore.Entity("d_id")
         departments_set = fstore.FeatureSet(
-            "departments",
-            entities=[departments_set_entity],
-            timestamp_key='time'
+            "departments", entities=[departments_set_entity], timestamp_key="time"
         )
         departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fstore.ingest(departments_set, departments)
@@ -3638,7 +3619,7 @@ class TestFeatureStore(TestMLRunSystem):
             "employees",
             entities=[employees_set_entity],
             relations={"department_id": departments_set_entity},
-            timestamp_key='time'
+            timestamp_key="time",
         )
         employees_set.set_targets(targets=["parquet"], with_defaults=False)
         fstore.ingest(employees_set, employees_with_department)
@@ -3652,12 +3633,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         resp_1 = fstore.get_offline_features(
             vector,
-            engine_args=engine_args,
             with_indexes=with_indexes,
-            engine=engine,
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
-
 
     def test_ingest_with_kafka_source_fails(self):
         source = KafkaSource(

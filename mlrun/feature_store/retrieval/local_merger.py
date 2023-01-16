@@ -78,9 +78,14 @@ class LocalFeatureMerger(BaseMerger):
             df.reset_index(inplace=True)
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
-            if feature_set.spec.timestamp_key:
-                column_names += feature_set.spec.timestamp_key
-                node.data["save_cols"] += feature_set.spec.timestamp_key
+            entity_timestamp_column_list = (
+                [entity_timestamp_column]
+                if entity_timestamp_column
+                else feature_set.spec.timestamp_key
+            )
+            if entity_timestamp_column_list:
+                column_names += entity_timestamp_column_list
+                node.data["save_cols"] += entity_timestamp_column_list
             # rename columns to be unique for each feature set
             rename_col_dict = {
                 col: f"{col}_{name}"

@@ -365,8 +365,7 @@ class BaseMerger(abc.ABC):
             )
         relation_linked_lists = []
         feature_set_entity_list_dict = {
-            name: feature_set_objects[name].spec.entities
-            for name in feature_set_names
+            name: feature_set_objects[name].spec.entities for name in feature_set_names
         }
         entity_relation_val_list = {
             name: list(feature_set_objects[name].spec.relations.values())
@@ -392,7 +391,9 @@ class BaseMerger(abc.ABC):
             relations.add_first(main_node)
             return relations
 
-        def _build_relation(fs_name_in: str, name_in_order, linked_list_relation, head_order):
+        def _build_relation(
+            fs_name_in: str, name_in_order, linked_list_relation, head_order
+        ):
             name_head = linked_list_relation.head.name
             if name_head == fs_name_in:
                 return linked_list_relation
@@ -429,7 +430,9 @@ class BaseMerger(abc.ABC):
                         order=name_in_order,
                     )
                 )
-                linked_list_relation.head.data["save_cols"].append(*curr_col_relation_list)
+                linked_list_relation.head.data["save_cols"].append(
+                    *curr_col_relation_list
+                )
             elif name_in_order > head_order and sorted(
                 feature_set_in_entity_list_names
             ) == sorted(feature_set_entity_list_dict[name_head].keys()):

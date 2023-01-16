@@ -92,6 +92,8 @@ def init_featureset_graph(
     data_result = None
     total_rows = 0
     targets = [get_target_driver(target, featureset) for target in targets]
+    if featureset.spec.passthrough:
+        targets = [target for target in targets if not target.is_offline]
     for chunk in chunks:
         event = MockEvent(body=chunk)
         if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):

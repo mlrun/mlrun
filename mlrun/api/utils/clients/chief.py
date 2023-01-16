@@ -170,7 +170,7 @@ class Client(
                     chief_response
                 )
 
-        return mlrun.api.schemas.ClusterizationSpec(**(await chief_response.json()))
+            return mlrun.api.schemas.ClusterizationSpec(**(await chief_response.json()))
 
     async def _proxy_request_to_chief(
         self,

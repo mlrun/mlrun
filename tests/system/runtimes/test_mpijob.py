@@ -33,7 +33,29 @@ from mlrun.datastore.targets import ParquetTarget
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
-    project_name = "does-not-exist-3"
+    project_name = "does-not-exist-mpijob"
 
     def test_run_state_completion(self):
-        pass
+        code_path = str(self.assets_path / "mpijob_function.py")
+
+        # project = mlrun.get_or_create_project(name=self.project_name, context="./", user_project=False)
+
+        # Create the open mpi function:
+        mpijob_function = mlrun.code_to_function(
+            name="mpijob_test",
+            kind="mpijob",
+            handler="handler",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/ml-models",
+            requirements=["mpi4py"]
+        )
+        mpijob_function.spec.replicas = 4
+        mpijob_function.deploy()  # In order to build the image with `mpi4py`.
+
+        mpijob_run = mpijob_function.run()
+
+        mpijob_time = mpijob_run.status.results['time']
+        mpijob_result = mpijob_run.status.results['result']
+        assert mpijob_time is not None
+        assert mpijob_result == 1000

@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
-
 import mlrun
 import tests.system.base
 from mlrun.runtimes.constants import RunStates
@@ -25,8 +23,6 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_run_state_completion(self):
         code_path = str(self.assets_path / "mpijob_function.py")
-
-        # project = mlrun.get_or_create_project(name=self.project_name, context="./", user_project=False)
 
         # Create the open mpi function:
         mpijob_function = mlrun.code_to_function(

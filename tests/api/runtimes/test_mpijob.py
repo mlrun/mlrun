@@ -153,4 +153,3 @@ class TestMpiV1Runtime(TestMpiJob):
         assert run["status"]["state"] == "running", "run status was updated in db"
 
         # mock launcher completion
-

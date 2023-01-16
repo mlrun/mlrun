@@ -49,9 +49,9 @@ from ..utils import (
     is_ipython,
     is_legacy_artifact,
     is_relative_path,
+    is_yaml_path,
     logger,
     update_in,
-    is_yaml_path,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials

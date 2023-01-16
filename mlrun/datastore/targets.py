@@ -1175,7 +1175,8 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri, prefix = parse_path(self.get_target_path())
+        endpoint, uri = parse_path(self.get_target_path())
+
         endpoint = endpoint or mlrun.mlconf.redis.url
         host = self._get_credential(
             "REDIS_HOST", default_value="REDIS_HOST must be set"
@@ -1184,7 +1185,10 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         user = self._get_credential("REDIS_USER")
         auth = self._get_credential("REDIS_AUTH")
 
-        redis_url = f"{prefix}://{user}:{auth}@{host}:{port}/{uri}"
+        parsed_url = urlparse(self.get_target_path())
+        scheme = parsed_url.scheme.lower()
+
+        redis_url = f"{scheme}://{user}:{auth}@{host}:{port}/{uri}"
 
         return Table(
             uri,

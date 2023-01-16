@@ -676,7 +676,7 @@ def parse_path(url, suffix="/"):
         endpoint = f"{prefix}://{parsed_url.netloc}"
     else:
         endpoint = None
-    return endpoint, parsed_url.path.strip("/") + suffix, prefix
+    return endpoint, parsed_url.path.strip("/") + suffix
 
 
 def sanitize_username(username: str):

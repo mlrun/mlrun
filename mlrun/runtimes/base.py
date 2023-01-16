@@ -1450,11 +1450,6 @@ class BaseRuntimeHandler(ABC):
         )
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
-    # def start_collecting_logs_for_run(self,
-    #                                   db: DBInterface,
-    #                                     db_session: Session):
-    #     pass
-    #
     def monitor_runs(self, db: DBInterface, db_session: Session):
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()

@@ -18,7 +18,9 @@ import sqlalchemy.orm
 import mlrun.api.crud
 
 
-def test_legacy_log_mechanism(db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient):
+def test_legacy_log_mechanism(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+):
     project = "project-name"
     uid = "m33"
     data1, data2 = b"ab", b"cd"

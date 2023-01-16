@@ -196,7 +196,7 @@ class Logs(
 
     @staticmethod
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
-        run = await run_in_threadpool(get_db().read_run,db_session, uid, project)
+        run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
         if not run:
             log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
         return run

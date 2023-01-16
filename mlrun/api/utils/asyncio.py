@@ -12,19 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from fastapi import APIRouter
 
-import mlrun.api.crud
-import mlrun.api.schemas
-
-router = APIRouter()
+import asyncio
+import typing
 
 
-@router.get(
-    "/client-spec",
-    response_model=mlrun.api.schemas.ClientSpec,
-)
-def get_client_spec():
-
-    # TODO: cache me
-    return mlrun.api.crud.ClientSpec().get_client_spec()
+async def maybe_coroutine(function_results: typing.Union[typing.Coroutine, typing.Any]):
+    """
+    If function_results is a coroutine, await it and return the result. Otherwise, return results.
+    This is useful for when function callee is not sure if the response should be awaited or not.
+    It is required for the function callee to be async. (e.g.: async def).
+    """
+    if asyncio.iscoroutine(function_results):
+        return await function_results
+    return function_results

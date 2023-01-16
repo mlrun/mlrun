@@ -28,7 +28,7 @@ def test_verify_authorization(
         resource="/some-resource", action=mlrun.api.schemas.AuthorizationAction.create
     )
 
-    def _mock_successful_query_permissions(resource, action, *args):
+    async def _mock_successful_query_permissions(resource, action, *args):
         assert authorization_verification_input.resource == resource
         assert authorization_verification_input.action == action
 

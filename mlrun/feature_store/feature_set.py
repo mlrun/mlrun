@@ -23,6 +23,7 @@ import mlrun.api.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
+from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
     TargetTypes,
     get_default_targets,
@@ -83,6 +84,7 @@ class FeatureSetSpec(ModelObj):
         analysis=None,
         engine=None,
         output_path=None,
+        passthrough=None,
     ):
         """Feature set spec object, defines the feature-set's configuration.
         .. warning::
@@ -99,6 +101,8 @@ class FeatureSetSpec(ModelObj):
         :param function: MLRun runtime to execute the feature-set in
         :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
         :param output_path: default location where to store results (defaults to MLRun's artifact path)
+        :param passthrough: if true, ingest will skip offline targets, and get_offline_features will
+               read directly from source
         """
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -124,6 +128,7 @@ class FeatureSetSpec(ModelObj):
         self.analysis = analysis or {}
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
+        self.passthrough = passthrough
 
     @property
     def entities(self) -> List[Entity]:
@@ -199,8 +204,11 @@ class FeatureSetSpec(ModelObj):
         return self._source
 
     @source.setter
-    def source(self, source: DataSource):
-        self._source = self._verify_dict(source, "source", DataSource)
+    def source(self, source: Union[BaseSourceDriver, dict]):
+        if isinstance(source, dict):
+            kind = source.get("kind", "")
+            source = source_kind_to_driver[kind].from_dict(source)
+        self._source = source
 
     @property
     def relations(self) -> Dict[str, Entity]:
@@ -213,6 +221,12 @@ class FeatureSetSpec(ModelObj):
 
     def require_processing(self):
         return len(self._graph.steps) > 0
+
+    def validate_no_processing_for_passthrough(self):
+        if self.passthrough and self.require_processing():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "passthrough feature set can not have graph transformations"
+            )
 
 
 class FeatureSetStatus(ModelObj):
@@ -294,6 +308,7 @@ class FeatureSet(ModelObj):
         engine: str = None,
         label_column: str = None,
         relations: Dict[str, Entity] = None,
+        passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -312,6 +327,8 @@ class FeatureSet(ModelObj):
         :param relations:     dictionary that indicates all the relations this feature set
                               have with another feature sets. The format of this dictionary is
                               {"my_column":Entity, ...}
+        :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
+                              directly from source
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -326,6 +343,7 @@ class FeatureSet(ModelObj):
             engine=engine,
             label_column=label_column,
             relations=relations,
+            passthrough=passthrough,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -824,6 +842,14 @@ class FeatureSet(ModelObj):
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
+
+        if self.spec.passthrough:
+            if not self.spec.source:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "passthrough feature set {self.metadata.name} with no source"
+                )
+            return self.spec.source.to_dataframe()
+
         target = get_offline_target(self, name=target_name)
         if not target:
             raise mlrun.errors.MLRunNotFoundError(

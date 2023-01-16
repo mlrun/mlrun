@@ -455,7 +455,7 @@ def ingest(
 
     if isinstance(source, DataSource) and source.schedule:
         min_time = datetime.max
-        for target in targets or featureset.status.targets:
+        for target in featureset.status.targets:
             if target.last_written:
                 cur_last_written = target.last_written
                 if isinstance(cur_last_written, str):
@@ -476,6 +476,10 @@ def ingest(
             f"starting ingestion task to {featureset.uri}.{filter_time_string}"
         )
         return_df = False
+
+    if featureset.spec.passthrough:
+        featureset.spec.source = source
+        featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
 
@@ -652,6 +656,8 @@ def preview(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -843,6 +849,8 @@ def _ingest_with_spark(
         for target in targets_to_ingest or []:
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
+            if featureset.spec.passthrough and target.is_offline:
+                continue
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(

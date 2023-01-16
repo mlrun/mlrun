@@ -142,7 +142,7 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     function = _generate_function(function_name)
 
     handler_mock = mlrun.api.utils.clients.chief.Client()
-    handler_mock._proxy_request_to_chief = unittest.mock.Mock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(

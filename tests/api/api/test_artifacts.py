@@ -55,6 +55,38 @@ def _create_project(client: TestClient, project_name: str = PROJECT):
     return resp
 
 
+def test_store_artifact_with_invalid_tag(db: Session, client: TestClient):
+    _create_project(client)
+    tag = "test_tag_with_characters@#$#%^"
+
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+        data="{}",
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # test overwriting tags object with an invalid tag
+    resp = client.post(
+        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
+        json={
+            "kind": "artifact",
+            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
+        },
+    )
+
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+
+    # test append invalid tag to artifact's tags
+    resp = client.put(
+        "projects/{project}/tags/{tag}".format(project=PROJECT, tag=tag),
+        json={
+            "kind": "artifact",
+            "identifiers": [(mlrun.api.schemas.ArtifactIdentifier(key=KEY).dict())],
+        },
+    )
+    assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
+
+
 def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
     _create_project(client)
 

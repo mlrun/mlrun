@@ -29,22 +29,38 @@ class TestMpiJob(TestRuntimeBase):
         self.runtime_kind = "mpijob"
         self.code_handler = "test_func"
 
-    def _get_pod(self, phase="Running"):
+    def _get_worker_pod(self, phase="Running"):
         return k8s_client.V1Pod(
             metadata=k8s_client.V1ObjectMeta(
                 labels={
                     "kind": "mpijob",
                     "owner": "tester",
                     "v3io_user": "tester",
+                    "mpijob": "v1/mpi-job-role=worker",
                 },
                 name=self.name,
             ),
-            status=k8s_client.V1PodStatus(phase="Running"),
+            status=k8s_client.V1PodStatus(phase=phase),
+        )
+
+    def _get_launcher_pod(self, phase="Running"):
+        return k8s_client.V1Pod(
+            metadata=k8s_client.V1ObjectMeta(
+                labels={
+                    "kind": "mpijob",
+                    "owner": "tester",
+                    "v3io_user": "tester",
+                    "mpijob": "v1/mpi-job-role=launcher",
+                },
+                name=self.name,
+            ),
+            status=k8s_client.V1PodStatus(phase=phase),
         )
 
     def _mock_list_pods(self, workers=1, pods=None, phase="Running"):
         if pods is None:
-            pods = [self._get_pod(phase=phase)] * workers
+            pods = [self._get_worker_pod(phase=phase)] * workers
+            pods += [self._get_launcher_pod(phase=phase)]
         get_k8s().list_pods = unittest.mock.Mock(return_value=pods)
 
     def _mock_get_namespaced_custom_object(self):
@@ -135,3 +151,6 @@ class TestMpiV1Runtime(TestMpiJob):
         db = mlrun.get_run_db()
         run = db.read_run(initial_run_uid)
         assert run["status"]["state"] == "running", "run status was updated in db"
+
+        # mock launcher completion
+

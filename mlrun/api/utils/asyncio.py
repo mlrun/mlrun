@@ -14,14 +14,16 @@
 #
 
 import asyncio
+import typing
 
 
-async def maybe_coroutine(o):
+async def maybe_coroutine(function_results: typing.Union[typing.Coroutine, typing.Any]):
     """
-    If o is a coroutine, await it and return the result. Otherwise, return results.
+    If function_results is a coroutine, await it and return the result. Otherwise, return results.
     This is useful for when function callee is not sure if the response should be awaited or not.
     It is required for the function callee to be async. (e.g.: async def).
     """
-    if asyncio.iscoroutine(o):
-        return await o
-    return o
+    asyncio.run_coroutine_threadsafe()
+    if asyncio.iscoroutine(function_results):
+        return await function_results
+    return function_results

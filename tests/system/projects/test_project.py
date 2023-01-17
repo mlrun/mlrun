@@ -643,7 +643,7 @@ class TestProject(TestMLRunSystem):
                 dirty=True,
             )
 
-        # overwriting workflow from cli:
+        # overwriting schedule from cli:
         args = [
             project_dir,
             "-n",

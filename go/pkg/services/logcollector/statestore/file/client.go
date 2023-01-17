@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"os"
 	"path"
-	"reflect"
 	"sync"
 	"time"
 
@@ -101,28 +100,21 @@ func (f *FileStateStore) GetState() *statestore.State {
 	return f.state
 }
 
+// stateFileUpdateLoop updates the state file periodically
 func (f *FileStateStore) stateFileUpdateLoop(ctx context.Context) {
 
-	prevState := *f.state
+	// create ticker
+	ticker := time.NewTicker(f.stateFileUpdateInterval)
 
-	for {
+	for range ticker.C {
 
 		// get state
-		currentState := *f.state
+		state := f.GetState()
 
-		// if state changed, write it to file
-		if !reflect.DeepEqual(currentState, prevState) {
-
-			prevState = currentState
-
-			// write state file
-			if err := f.writeStateToFile(&currentState); err != nil {
-				f.logger.ErrorWithCtx(ctx, "Failed to write state file", "err", err)
-				return
-			}
+		// write state to file
+		if err := f.writeStateToFile(state); err != nil {
+			f.logger.WarnWithCtx(ctx, "Failed to write state file", "err", err)
 		}
-
-		time.Sleep(f.stateFileUpdateInterval)
 	}
 }
 

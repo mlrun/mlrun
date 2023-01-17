@@ -14,7 +14,9 @@
 #
 import contextlib
 import copy
+import http.cookies
 import typing
+import urllib.parse
 
 import aiohttp
 import fastapi
@@ -207,6 +209,31 @@ class Client(
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
 
+        # mask clients host with worker's host
+        origin_host = request_kwargs.get("headers", {}).pop("host", None)
+        if origin_host:
+            # original host requested by client
+            request_kwargs["headers"]["x-forwarded-host"] = origin_host
+
+        # let the http client calculate it itself
+        # or we will hit serious issues with reverse-proxying (client<->worker<->chief) requests
+        request_kwargs.get("headers", {}).pop("content-length", None)
+
+        for cookie_name in list(request_kwargs.get("cookies", {}).keys()):
+
+            # defensive programming - to avoid setting reserved cookie names and explode
+            # e.g.: when setting "domain" cookie, it will explode, see python internal http client for more details.
+            if http.cookies.Morsel().isReservedKey(cookie_name):
+                del request_kwargs["cookies"][cookie_name]
+
+            # iguazio auth cookies might include special characters. to ensure the http client wont escape them
+            # we will url-encode them (aka quote), so the value would be safe against such escaping.
+            # e.g.: instead of having "x":"y" being escaped to "\"x\":\"y\"", it will be escaped to "%22x%22:%22y%22"
+            elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
+                request_kwargs["cookies"][cookie_name] = urllib.parse.quote(
+                    request_kwargs["cookies"][cookie_name]
+                )
+
         request_kwargs.update(**kwargs)
         return request_kwargs
 
@@ -278,6 +305,13 @@ class Client(
     ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.update({"method": method, "path": path})
+        log_kwargs.update(
+            {
+                "status_code": response.status,
+                "reason": response.reason,
+                "real_url": response.real_url,
+            }
+        )
         if response.content:
             try:
                 data = await response.json()

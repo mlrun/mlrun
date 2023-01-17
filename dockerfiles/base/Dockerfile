@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 ARG MLRUN_PYTHON_VERSION=3.9.13
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION=-py39
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
@@ -41,6 +40,8 @@ WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
+
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
 
 # install miniconda
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \

@@ -29,6 +29,7 @@ import mlrun.runtimes.pod
 import tests.api.runtimes.base
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
+
 pytestmark = pytest.mark.usefixtures("get_logs_api_mock")
 
 

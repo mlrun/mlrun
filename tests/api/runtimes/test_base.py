@@ -20,8 +20,6 @@ import mlrun.errors
 from mlrun.runtimes.base import BaseRuntime
 from tests.api.runtimes.base import TestRuntimeBase
 
-pytestmark = pytest.mark.usefixtures("get_logs_api_mock")
-
 
 class TestBaseRunTime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):

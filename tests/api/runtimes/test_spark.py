@@ -30,8 +30,6 @@ import tests.api.runtimes.base
 from mlrun.datastore import ParquetTarget
 from mlrun.feature_store import RunConfig
 
-pytestmark = pytest.mark.usefixtures("get_logs_api_mock")
-
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def custom_setup_after_fixtures(self):

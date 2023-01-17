@@ -31,8 +31,6 @@ from mlrun.runtimes.utils import generate_resources
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
-pytestmark = pytest.mark.usefixtures("get_logs_api_mock")
-
 
 class TestKubejobRuntime(TestRuntimeBase):
     def custom_setup_after_fixtures(self):

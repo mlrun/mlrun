@@ -200,8 +200,12 @@ class BaseMerger(abc.ABC):
         for featureset, featureset_df, lr_key, columns in zip(
             featuresets, featureset_dfs, keys, all_columns
         ):
-            if featureset.spec.timestamp_key:
+            if entity_timestamp_column:
                 merge_func = self._asof_join
+                logger.warn(
+                    f"Merge all the features with as_of_join and don't "
+                    f"take into account the join_type that was given"
+                )
             else:
                 merge_func = self._join
 
@@ -394,9 +398,6 @@ class BaseMerger(abc.ABC):
             fs_name_in: str, name_in_order, linked_list_relation, head_order
         ):
             name_head = linked_list_relation.head.name
-            if name_head == fs_name_in:
-                return linked_list_relation
-
             feature_set_in_entity_list = feature_set_entity_list_dict[fs_name_in]
             feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
             entity_relation_list = entity_relation_val_list[name_head]
@@ -455,17 +456,13 @@ class BaseMerger(abc.ABC):
         for i, name in enumerate(feature_set_names):
             linked_relation = _create_relation(name, i)
             for j, name_in in enumerate(feature_set_names):
-                linked_relation = _build_relation(name_in, j, linked_relation, i)
+                if name != name_in:
+                    linked_relation = _build_relation(name_in, j, linked_relation, i)
             relation_linked_lists.append(linked_relation)
 
-        # filter None from relation_linked_lists
-        relation_linked_lists = list(
-            filter(lambda item: item is not None, relation_linked_lists)
-        )
-
         # concat all the link lists to one, for the merging process
-        link_list_iter = relation_linked_lists.__iter__()
-        return_relation = link_list_iter.__next__()
+        link_list_iter = iter(relation_linked_lists)
+        return_relation = next(link_list_iter)
         for relation_list in link_list_iter:
             return_relation.concat(relation_list)
         if return_relation.len != len(feature_set_objects):

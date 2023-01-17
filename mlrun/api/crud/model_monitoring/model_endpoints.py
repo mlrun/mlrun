@@ -30,11 +30,14 @@ import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring.constants as model_monitoring_constants
-import mlrun.model_monitoring.helpers
 import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.model_monitoring.helpers import (
+    get_model_monitoring_batch_function,
+    initial_model_monitoring_stream_processing_function,
+)
 from mlrun.utils import logger
 
 from .stores import get_model_endpoint_store
@@ -51,7 +54,9 @@ class ModelEndpoints:
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.ModelEndpoint:
         # TODO: deprecated in 1.3.0, remove in 1.5.0.
-        logger.warning("This is deprecated in 1.3.0, and will be removed in 1.5.0", FutureWarning)
+        logger.warning(
+            "This is deprecated in 1.3.0, and will be removed in 1.5.0", FutureWarning
+        )
         """
         Either create or updates the record of a given `ModelEndpoint` object.
         Leaving here for backwards compatibility, remove in 1.5.0.
@@ -617,7 +622,7 @@ class ModelEndpoints:
                 "Deploying model monitoring stream processing function", project=project
             )
 
-        fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
+        fn = initial_model_monitoring_stream_processing_function(
             project, model_monitoring_access_key, db_session, tracking_policy
         )
 
@@ -665,7 +670,7 @@ class ModelEndpoints:
             return
 
         # Create a monitoring batch job function object
-        fn = mlrun.model_monitoring.helpers.get_model_monitoring_batch_function(
+        fn = get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,

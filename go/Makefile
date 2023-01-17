@@ -35,7 +35,7 @@ docker-images: compile-schemas $(DOCKER_IMAGES)
 log-collector: compile-schemas
 	@echo Building log-collector image
 	docker build \
-		--file cmd/log_collector/docker/Dockerfile \
+		--file cmd/logcollector/docker/Dockerfile \
 		--build-arg GO_VERSION=$(GO_VERSION) \
 		--tag $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG) \
 		.

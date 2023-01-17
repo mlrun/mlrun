@@ -22,12 +22,13 @@ import "google/protobuf/empty.proto";
 
 service LogCollector {
   rpc StartLog(StartLogRequest) returns (StartLogResponse) {}
-  rpc GetLog(GetLogRequest) returns (GetLogResponse) {}
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {}
 }
 
 message StartLogRequest {
-  string runId = 1;
+  string runUID = 1;
   string selector = 2;
+  string projectName = 3;
 }
 
 message StartLogResponse {
@@ -35,14 +36,15 @@ message StartLogResponse {
   string error = 2;
 }
 
-message GetLogRequest {
-  string runId = 1;
+message GetLogsRequest {
+  string runUID = 1;
   uint64 offset = 2;
-  uint64 size = 3;
+  int64 size = 3;
+  string projectName = 4;
 }
 
-message GetLogResponse {
+message GetLogsResponse {
   bool success = 1;
   string error = 2;
-  bytes log = 3;
+  bytes logs = 3;
 }

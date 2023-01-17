@@ -31,10 +31,10 @@ class StartLogResponse:
 
 
 class GetLogResponse:
-    def __init__(self, success, error, log):
+    def __init__(self, success, error, logs):
         self.success = success
         self.error = error
-        self.log = log
+        self.logs = logs
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"

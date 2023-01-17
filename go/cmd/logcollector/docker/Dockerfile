@@ -26,7 +26,7 @@ COPY go.mod go.sum /app/
 RUN go mod download
 
 ADD . /app/
-RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -installsuffix cgo -o main cmd/log_collector/main.go
+RUN CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -a -installsuffix cgo -o main cmd/logcollector/main.go
 
 FROM alpine:latest as install-health-probe
 

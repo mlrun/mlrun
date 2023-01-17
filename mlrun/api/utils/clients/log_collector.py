@@ -104,4 +104,4 @@ class LogCollectorClient(
                 )
             if verbose:
                 logger.warning(msg, error=response.error)
-        return response.log
+        return response.logs

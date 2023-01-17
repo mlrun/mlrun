@@ -914,7 +914,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected = source.to_dataframe().set_index("patient_id")
 
-        if engine != "pandas":  # pandas engine does not support preview
+        if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
                 measurements_set,
                 source=source,
@@ -940,8 +940,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
         # assert get_online correctness
-        if engine == "pandas":
-            return  # TBD ML-3251 - investigate pandas get_online response
         with fstore.get_online_feature_service(vector) as svc:
             resp = svc.get([{"patient_id": "305-90-1613"}])
             assert resp == [

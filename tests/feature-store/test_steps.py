@@ -16,6 +16,7 @@ import tempfile
 import time
 import unittest.mock
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -614,6 +615,40 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
         check_like=True,
         check_names=True,
     )
+
+
+def test_imputer_default_value(rundb_mock):
+    data_with_nones = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4],
+            "height": [None, 160, pd.NA, np.nan],
+            "age": [20, pd.NaT, 19, 18],
+        }
+    )
+    # Building graph with Imputer:
+    feature_set = fstore.FeatureSet(
+        "fs-default-value",
+        entities=["id"],
+        description="feature set with nones",
+    )
+    feature_set.graph.to(Imputer(default_value=1))
+
+    # Mocking
+    output_path = tempfile.TemporaryDirectory()
+    feature_set._run_db = rundb_mock
+    feature_set.reload = unittest.mock.Mock()
+    feature_set.save = unittest.mock.Mock()
+    feature_set.purge_targets = unittest.mock.Mock()
+
+    imputed_df = fstore.ingest(
+        featureset=feature_set,
+        source=data_with_nones,
+        targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+    )
+    print(imputed_df)
+
+    # Checking that the ingested dataframe is none-free:
+    assert not imputed_df.isnull().values.any()
 
 
 def get_data(with_none=False):

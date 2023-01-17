@@ -223,10 +223,6 @@ def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
     "tag_name,expected",
     [
         (
-            "tag_name",
-            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
-        ),
-        (
             "tag_with_char!@#",
             pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
         ),
@@ -245,6 +241,7 @@ def test_get_regex_list_as_string(regex_list, value, expected_str, expected):
         ("tagname2.0", does_not_raise()),
         ("tag-name", does_not_raise()),
         ("tag-NAME", does_not_raise()),
+        ("tag_name", does_not_raise()),
     ],
 )
 def test_validate_tag_name(tag_name, expected):

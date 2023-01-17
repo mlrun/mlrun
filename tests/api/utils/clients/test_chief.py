@@ -15,15 +15,18 @@
 import datetime
 import http
 import json
+import unittest.mock
 
+import aiohttp
 import fastapi.encoders
 import pytest
-import requests_mock as requests_mock_package
+from aiohttp import ClientConnectorError
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
 import mlrun.config
 import mlrun.errors
+from tests.common_fixtures import aioresponses_mock
 
 
 @pytest.fixture()
@@ -40,23 +43,29 @@ async def chief_client(
     client = mlrun.api.utils.clients.chief.Client()
     # force running init again so the configured api url will be used
     client.__init__()
-    return client
+
+    try:
+        yield client
+    finally:
+        if client._session:
+            await client._session.close()
 
 
-def test_get_background_task_from_chief_success(
+@pytest.mark.asyncio
+async def test_get_background_task_from_chief_success(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
-    requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-for-chief"
     background_schema = _generate_background_task(task_name)
     # using jsonable_encoder because datetime isn't json serializable object
     # https://fastapi.tiangolo.com/tutorial/encoder/
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.get(
-        f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -66,10 +75,10 @@ def test_get_background_task_from_chief_success(
     background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.succeeded
     background_schema.metadata.updated = datetime.datetime.utcnow()
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.get(
-        f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -81,36 +90,69 @@ def test_get_background_task_from_chief_success(
     assert background_task.metadata.updated > background_task.metadata.created
 
 
-def test_get_background_task_from_chief_failed(
+@pytest.mark.asyncio
+async def test_get_background_task_from_chief_failed(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
-    requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-for-chief"
-    requests_mock.get(
+    aioresponses_mock.get(
         f"{api_url}/api/v1/background-tasks/{task_name}",
-        status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+        status=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
 
+    # request did not retry
+    aioresponses_mock.assert_called_once()
 
-def test_trigger_migration_succeeded(
+
+@pytest.mark.asyncio
+async def test_retry_on_exception(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
-    requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
+):
+
+    # ensure the session to make sure the retry options are set
+    await chief_client._ensure_session()
+    retry_attempts = chief_client._session.retry_options.attempts
+
+    task_name = "test-for-chief"
+    for i in range(retry_attempts):
+        aioresponses_mock.get(
+            f"{api_url}/api/v1/background-tasks/{task_name}",
+            exception=ClientConnectorError(
+                unittest.mock.MagicMock(
+                    code=500,
+                ),
+                ConnectionResetError(),
+            ),
+        )
+    with pytest.raises(aiohttp.ClientConnectionError):
+        await chief_client.get_internal_background_task(task_name)
+
+    assert aioresponses_mock.called_times() == retry_attempts, "request did not retry"
+
+
+@pytest.mark.asyncio
+async def test_trigger_migration_succeeded(
+    api_url: str,
+    chief_client: mlrun.api.utils.clients.chief.Client,
+    aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-for-chief"
     background_schema = _generate_background_task(task_name)
     # using jsonable_encoder because datetime isn't json serializable object
     # https://fastapi.tiangolo.com/tutorial/encoder/
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.post(
+    aioresponses_mock.post(
         f"{api_url}/api/v1/operations/migrations",
-        json=response_body,
-        status_code=http.HTTPStatus.ACCEPTED,
+        payload=response_body,
+        status=http.HTTPStatus.ACCEPTED,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -120,12 +162,12 @@ def test_trigger_migration_succeeded(
     background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.succeeded
     background_schema.metadata.updated = datetime.datetime.utcnow()
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.post(
+    aioresponses_mock.post(
         f"{api_url}/api/v1/operations/migrations",
-        json=response_body,
-        status_code=http.HTTPStatus.ACCEPTED,
+        payload=response_body,
+        status=http.HTTPStatus.ACCEPTED,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -137,35 +179,37 @@ def test_trigger_migration_succeeded(
     assert background_task.metadata.updated > background_task.metadata.created
 
 
-def test_trigger_migrations_from_chief_failures(
+@pytest.mark.asyncio
+async def test_trigger_migrations_from_chief_failures(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
-    requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
-    requests_mock.post(
+    aioresponses_mock.post(
         f"{api_url}/api/v1/operations/migrations",
-        status_code=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+        status=http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
     assert not response.body
 
-    requests_mock.post(
+    aioresponses_mock.post(
         f"{api_url}/api/v1/operations/migrations",
-        status_code=http.HTTPStatus.PRECONDITION_FAILED.value,
-        text="Migrations were already triggered and failed. Restart the API to retry",
+        status=http.HTTPStatus.PRECONDITION_FAILED.value,
+        body="Migrations were already triggered and failed. Restart the API to retry",
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.PRECONDITION_FAILED.value
     assert "Migrations were already triggered and failed" in response.body.decode(
         "utf-8"
     )
 
 
-def test_trigger_migrations_chief_restarted_while_executing_migrations(
+@pytest.mark.asyncio
+async def test_trigger_migrations_chief_restarted_while_executing_migrations(
     api_url: str,
     chief_client: mlrun.api.utils.clients.chief.Client,
-    requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-bg-failed"
 
@@ -173,12 +217,12 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
     # using jsonable_encoder because datetime isn't json serializable object
     # https://fastapi.tiangolo.com/tutorial/encoder/
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.post(
+    aioresponses_mock.post(
         f"{api_url}/api/v1/operations/migrations",
-        json=response_body,
-        status_code=http.HTTPStatus.ACCEPTED,
+        payload=response_body,
+        status=http.HTTPStatus.ACCEPTED,
     )
-    response = chief_client.trigger_migrations()
+    response = await chief_client.trigger_migrations()
     assert response.status_code == http.HTTPStatus.ACCEPTED
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name
@@ -189,10 +233,10 @@ def test_trigger_migrations_chief_restarted_while_executing_migrations(
     # which means the api was restarted
     background_schema.status.state = mlrun.api.schemas.BackgroundTaskState.failed
     response_body = fastapi.encoders.jsonable_encoder(background_schema)
-    requests_mock.get(
-        f"{api_url}/api/v1/background-tasks/{task_name}", json=response_body
+    aioresponses_mock.get(
+        f"{api_url}/api/v1/background-tasks/{task_name}", payload=response_body
     )
-    response = chief_client.get_internal_background_task(task_name)
+    response = await chief_client.get_internal_background_task(task_name)
     assert response.status_code == http.HTTPStatus.OK
     background_task = _transform_response_to_background_task(response)
     assert background_task.metadata.name == task_name

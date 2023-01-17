@@ -39,3 +39,9 @@ Table of Contents
    api/index
    cli
    glossary
+   
+.. toctree::
+   :maxdepth: 1
+   :caption: Change log
+   
+   change-log/_index

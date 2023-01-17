@@ -24,6 +24,7 @@ import deepdiff
 import pytest
 import requests
 import v3io.dataplane
+from aioresponses import aioresponses as aioresponses_
 
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -93,6 +94,15 @@ def config_test_base():
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
+
+
+@pytest.fixture
+def aioresponses_mock():
+    with aioresponses_() as aior:
+
+        # handy function to get how many times requests were made using this specific mock
+        aior.called_times = lambda: len(list(aior.requests.values())[0])
+        yield aior
 
 
 @pytest.fixture
@@ -177,12 +187,14 @@ class RunDBMock:
         self.kind = "http"
         self._pipeline = None
         self._function = None
+        self._artifact = None
 
     def reset(self):
         self._function = None
         self._pipeline = None
         self._project_name = None
         self._project = None
+        self._artifact = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -197,6 +209,9 @@ class RunDBMock:
                 "iter": iter,
             }
         }
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifact = artifact
 
     def get_function(self, function, project, tag):
         return {

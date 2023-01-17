@@ -38,13 +38,9 @@ MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}'),)
+MLRUN_ANACONDA_PYTHON_DISTRIBUTION =$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}')
+MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 MLRUN_PIP_VERSION ?= 22.3.0
-# MLRUN_GPU_PIP_VERSION is used because pip declaration in the dockerfile of gpu image is almost at the start of the file
-# which will cause the cache to be mostly invalidated if we change the pip version, because we are unable to rebuild
-# the image until we will move to newer python version, we will use the old one which is 22.0.0
-# TODO: remove this variable when we will move to newer python version
-MLRUN_GPU_PIP_VERSION ?= 22.0.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -233,6 +229,7 @@ base-core: pull-cache update-version-file ## Build base core docker image
 	docker build \
 		--file dockerfiles/base/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \

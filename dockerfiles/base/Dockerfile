@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 ARG MLRUN_PYTHON_VERSION=3.9.13
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
 
 FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
 
@@ -42,7 +43,7 @@ WORKDIR /mlrun
 RUN chmod 777 /mlrun
 
 # install miniconda
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \

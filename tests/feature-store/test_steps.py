@@ -617,7 +617,8 @@ def test_pandas_step_drop_feature(rundb_mock, entities, set_index_before):
     )
 
 
-def test_imputer_default_value(rundb_mock):
+@pytest.mark.parametrize("engine", ["storey", "pandas"])
+def test_imputer_default_value(rundb_mock, engine):
     data_with_nones = pd.DataFrame(
         {
             "id": [1, 2, 3, 4],
@@ -630,6 +631,7 @@ def test_imputer_default_value(rundb_mock):
         "fs-default-value",
         entities=["id"],
         description="feature set with nones",
+        engine=engine,
     )
     feature_set.graph.to(Imputer(default_value=1))
 

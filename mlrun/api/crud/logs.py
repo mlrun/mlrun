@@ -80,7 +80,7 @@ class Logs(
         run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
         if (
-            mlrun.mlconf.logs_collector.mode
+            mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.best_effort
         ):
             try:
@@ -91,7 +91,7 @@ class Logs(
                     offset,
                 )
             except Exception as exc:
-                if mlrun.mlconf.logs_collector.verbose:
+                if mlrun.mlconf.log_collector.verbose:
                     logger.warning(
                         "Failed to get logs from logs collector, falling back to legacy method",
                         exc=exc,
@@ -107,7 +107,7 @@ class Logs(
                     run,
                 )
         elif (
-            mlrun.mlconf.logs_collector.mode
+            mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.sidecar
         ):
             logs = await self._get_logs_from_logs_collector(
@@ -117,7 +117,7 @@ class Logs(
                 offset,
             )
         elif (
-            mlrun.mlconf.logs_collector.mode
+            mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.legacy
         ):
             logs = await run_in_threadpool(

@@ -19,6 +19,7 @@ import mlrun.api.crud
 
 
 class TestLogs:
+    @staticmethod
     def test_legacy_log_mechanism(
         db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):

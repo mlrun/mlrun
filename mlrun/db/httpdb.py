@@ -2949,13 +2949,14 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         name: str,
-        workflow_spec: Union[dict, schemas.WorkflowSpec],
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec, schemas.WorkflowSpec, dict
+        ],
         arguments: Optional[Dict] = None,
         artifact_path: Optional[str] = None,
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
-        image: Optional[str] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -2968,10 +2969,14 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
-        :param image:           image for the workflow runner job
 
         :returns:    :py:class:`~mlrun.api.schemas.WorkflowResponse`.
         """
+        image = (
+            workflow_spec.image
+            if hasattr(workflow_spec, "image")
+            else workflow_spec.get("image", None)
+        )
         req = {
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -2981,8 +2986,11 @@ class HTTPRunDB(RunDBInterface):
             "image": image or mlrun.mlconf.default_base_image,
         }
         if isinstance(workflow_spec, schemas.WorkflowSpec):
-            workflow_spec = workflow_spec.dict()
-        req["spec"] = workflow_spec
+            req["spec"] = workflow_spec.dict()
+        elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
+            req["spec"] = workflow_spec.to_dict()
+        else:
+            req["spec"] = workflow_spec
 
         response = self.api_call(
             "POST",

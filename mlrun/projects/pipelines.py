@@ -748,14 +748,13 @@ class _RemoteRunner(_PipelineRunner):
             workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,
-                workflow_spec=workflow_spec.to_dict(),
+                workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
                 source=source,
                 run_name=mlrun.mlconf.default_workflow_runner_name.format(
                     workflow_name
                 ),
                 namespace=namespace,
-                image=workflow_spec.image,
             )
             if workflow_spec.schedule:
                 return

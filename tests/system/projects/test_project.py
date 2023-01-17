@@ -814,3 +814,25 @@ class TestProject(TestMLRunSystem):
         schedule = "*/22 * * * *"
         project.run("main", schedule=schedule, overwrite=True)
         self._assert_scheduled(name, schedule)
+
+    def test_workflow_image_fails(self):
+        name = "test-image"
+        self.custom_project_names_to_delete.append(name)
+
+        # _create_project contains set_workflow inside:
+        project = self._create_project(name)
+        new_workflow = project.workflows[0]
+        new_workflow["image"] = "not-existed"
+        new_workflow["name"] = "bad-image"
+        project.spec.workflows = project.spec.workflows + [new_workflow]
+
+        archive_path = f"v3io:///projects/{project.name}/archived.zip"
+        project.export(archive_path)
+        project.spec.source = archive_path
+        project.save()
+
+        run = project.run(
+            "bad-image",
+            engine="remote",
+        )
+        assert run.state == mlrun.run.RunStatuses.failed

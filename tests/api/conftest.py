@@ -266,3 +266,10 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         )
 
     yield k8s_secrets_mock
+
+
+@pytest.fixture()
+def get_logs_api_mock(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.db.sqldb.SQLDB, "get_log", lambda *args, **kwargs: ("completed", b"")
+    )

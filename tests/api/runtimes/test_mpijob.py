@@ -24,10 +24,47 @@ from mlrun.runtimes.constants import MPIJobCRDVersions
 from tests.api.runtimes.base import TestRuntimeBase
 
 
-class TestMpiJob(TestRuntimeBase):
+class TestMpiV1Runtime(TestRuntimeBase):
     def custom_setup(self):
         self.runtime_kind = "mpijob"
         self.code_handler = "test_func"
+        self.name = "test-mpi-v1"
+        mlconf.mpijob_crd_version = MPIJobCRDVersions.v1
+
+    def test_run_v1_sanity(self):
+        self._mock_list_pods()
+        self._mock_create_namespaced_custom_object()
+        self._mock_get_namespaced_custom_object()
+        mpijob_function = self._generate_runtime(self.runtime_kind)
+        mpijob_function.deploy()
+        run = mpijob_function.run(
+            artifact_path="v3io:///mypath",
+            watch=False,
+        )
+
+        assert run.status.state == "running"
+
+    def _mock_get_namespaced_custom_object(self, workers=1):
+        get_k8s().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
+            return_value={
+                "status": {
+                    "replicaStatuses": {
+                        "Launcher": {
+                            "active": 1,
+                        },
+                        "Worker": {
+                            "active": workers,
+                        },
+                    }
+                },
+            }
+        )
+
+    def _mock_list_pods(self, workers=1, pods=None, phase="Running"):
+        if pods is None:
+            pods = [self._get_worker_pod(phase=phase)] * workers
+            pods += [self._get_launcher_pod(phase=phase)]
+        get_k8s().list_pods = unittest.mock.Mock(return_value=pods)
 
     def _get_worker_pod(self, phase="Running"):
         return k8s_client.V1Pod(
@@ -57,15 +94,6 @@ class TestMpiJob(TestRuntimeBase):
             status=k8s_client.V1PodStatus(phase=phase),
         )
 
-    def _mock_list_pods(self, workers=1, pods=None, phase="Running"):
-        if pods is None:
-            pods = [self._get_worker_pod(phase=phase)] * workers
-            pods += [self._get_launcher_pod(phase=phase)]
-        get_k8s().list_pods = unittest.mock.Mock(return_value=pods)
-
-    def _mock_get_namespaced_custom_object(self):
-        pass
-
     def _generate_runtime(
         self, kind=None, labels=None
     ) -> typing.Union[mlrun.runtimes.MpiRuntimeV1, mlrun.runtimes.MpiRuntimeV1Alpha1]:
@@ -80,42 +108,3 @@ class TestMpiJob(TestRuntimeBase):
             labels=labels,
         )
         return runtime
-
-
-class TestMpiV1Runtime(TestMpiJob):
-    def custom_setup(self):
-        super(TestMpiV1Runtime, self).custom_setup()
-        self.name = "test-mpi-v1"
-        mlconf.mpijob_crd_version = MPIJobCRDVersions.v1
-
-    def custom_teardown(self):
-        pass
-
-    def _mock_get_namespaced_custom_object(self, workers=1):
-        get_k8s().crdapi.get_namespaced_custom_object = unittest.mock.Mock(
-            return_value={
-                "status": {
-                    "replicaStatuses": {
-                        "Launcher": {
-                            "active": 1,
-                        },
-                        "Worker": {
-                            "active": workers,
-                        },
-                    }
-                },
-            }
-        )
-
-    def test_run_v1_sanity(self):
-        self._mock_list_pods()
-        self._mock_create_namespaced_custom_object()
-        self._mock_get_namespaced_custom_object()
-        mpijob_function = self._generate_runtime(self.runtime_kind)
-        mpijob_function.deploy()
-        run = mpijob_function.run(
-            artifact_path="v3io:///mypath",
-            watch=False,
-        )
-
-        assert run.status.state == "running"

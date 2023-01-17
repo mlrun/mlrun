@@ -912,9 +912,9 @@ class MLClientCtx(object):
     def to_dict(self):
         """convert the run context to a dictionary"""
 
-        def set_if_valid(struct, key, val):
+        def set_if_not_none(_struct, key, val):
             if val:
-                struct[key] = val
+                _struct[key] = val
 
         struct = {
             "kind": "run",
@@ -950,19 +950,18 @@ class MLClientCtx(object):
             struct["spec"]["hyperparams"] = self._hyperparams
             struct["spec"]["hyper_param_options"] = self._hyper_param_options.to_dict()
 
-        set_if_valid(struct["status"], "error", self._error)
-        set_if_valid(struct["status"], "commit", self._commit)
+        set_if_not_none(struct["status"], "error", self._error)
+        set_if_not_none(struct["status"], "commit", self._commit)
+        set_if_not_none(struct["status"], "iterations", self._iteration_results)
 
-        if self._iteration_results:
-            struct["status"]["iterations"] = self._iteration_results
         struct["status"][run_keys.artifacts] = self._artifacts_manager.artifact_list()
         self._data_stores.to_dict(struct["spec"])
         return struct
 
     def _get_updates(self):
-        def set_if_valid(struct, key, val):
+        def set_if_not_none(_struct, key, val):
             if val:
-                struct[key] = val
+                _struct[key] = val
 
         struct = {
             "status.results": self._results,
@@ -974,11 +973,10 @@ class MLClientCtx(object):
         if self._state != "completed":
             struct["status.state"] = self._state
 
-        set_if_valid(struct, "status.error", self._error)
-        set_if_valid(struct, "status.commit", self._commit)
+        set_if_not_none(struct, "status.error", self._error)
+        set_if_not_none(struct, "status.commit", self._commit)
+        set_if_not_none(struct, "status.iterations", self._iteration_results)
 
-        if self._iteration_results:
-            struct["status.iterations"] = self._iteration_results
         struct[f"status.{run_keys.artifacts}"] = self._artifacts_manager.artifact_list()
         return struct
 
@@ -998,6 +996,10 @@ class MLClientCtx(object):
             )
 
     def _update_run(self, commit=False, message=""):
+        """
+        update the required fields in the run object (using mlrun.utils.helpers.update_in)
+        instead of overwriting existing
+        """
         self._merge_tmpfile()
         if commit or self._autocommit:
             self._commit = message

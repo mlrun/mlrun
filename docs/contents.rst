@@ -44,4 +44,4 @@ Table of Contents
    :maxdepth: 1
    :caption: Change log
    
-   change-log/_index
+   change-log/index

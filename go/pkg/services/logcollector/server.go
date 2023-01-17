@@ -132,8 +132,8 @@ func NewLogCollectorServer(logger logger.Logger,
 func (s *LogCollectorServer) OnBeforeStart(ctx context.Context) error {
 	s.Logger.DebugCtx(ctx, "Initializing Server")
 
-	// start state updating goroutine
-	go s.stateStore.Initialize(ctx)
+	// initialize the state store (load state from file, start state file update loop)
+	s.stateStore.Initialize(ctx)
 
 	// start logging monitor
 	go s.monitorLogCollection(ctx)
@@ -164,6 +164,8 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 			Error:   err.Error(),
 		}, err
 	}
+
+	// to make start log idempotent, if the requested run uid is already being collected, return success
 	if _, running := itemsInProgress.Load(request.RunUID); running {
 		s.Logger.DebugWithCtx(ctx, "Logs are already being collected for this run uid", "runUID", request.RunUID)
 		return &protologcollector.StartLogResponse{
@@ -184,7 +186,10 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 			// we retry 3 times, as k8s might have some issues
 			if errCount <= 3 {
 				errCount++
-				s.Logger.WarnWithCtx(ctx, "Failed to list pods, retrying", "runUID", request.RunUID)
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to list pods, retrying",
+					"runUID", request.RunUID,
+					"err", err, "errCount", errCount)
 			} else {
 
 				// fail on error
@@ -210,13 +215,17 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 	}
 
 	// create a child context before calling goroutines, so it won't be canceled
+	// TODO: use https://pkg.go.dev/golang.org/x/tools@v0.5.0/internal/xcontext
 	logStreamCtx, cancelCtxFunc := mlruncontext.NewDetachedWithCancel(ctx)
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
 	go s.startLogStreaming(logStreamCtx, request.RunUID, pod.Name, startedStreamingGoroutine, cancelCtxFunc)
 
-	// add Item to in-memory state
+	// wait for the streaming goroutine to start
+	<-startedStreamingGoroutine
+
+	// add log item to in-memory state, so we can monitor it
 	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to in memory state", request.RunUID)
 		return &protologcollector.StartLogResponse{
@@ -224,8 +233,6 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 			Error:   err.Error(),
 		}, err
 	}
-
-	<-startedStreamingGoroutine
 
 	return &protologcollector.StartLogResponse{
 		Success: true,
@@ -272,19 +279,21 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 	// in case of a panic, remove this goroutine from the in-memory state, so the
 	// monitoring loop will start logging again for this runUID.
 	defer func() {
+
+		// cancel all other goroutines spawned from this one
+		defer cancelCtxFunc()
+
+		// remove this goroutine from in-memory state
+		if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
+			s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
+		}
+
 		if err := recover(); err != nil {
 			callStack := debug.Stack()
-			s.Logger.ErrorWithCtx(ctx, "Panic caught while creating function",
+			s.Logger.ErrorWithCtx(ctx,
+				"Panic caught while creating function",
 				"err", err,
 				"stack", string(callStack))
-
-			// remove this goroutine from in-memory state
-			if err := s.inMemoryState.RemoveLogItem(runUID); err != nil {
-				s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
-			}
-
-			// cancel all other goroutines spawned from this one
-			cancelCtxFunc()
 		}
 	}()
 
@@ -365,13 +374,24 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 	file, err := os.OpenFile(logFilePath, openFlags, 0644)
 	if err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to open file", "err", err, "logFilePath", logFilePath)
-		return true, err
+		return true, errors.Wrapf(err, "Failed to open file in path %s", logFilePath)
 	}
 	defer file.Close() // nolint: errcheck
 
 	// spin a goroutine that will unblock `CopyBuffer` if context is dead
 	copyBufferDone := make(chan struct{}, 1)
-	go s.cancelOnContext(ctx, file, copyBufferDone)
+	go func() {
+		select {
+		case <-ctx.Done():
+
+			// context is dead, so we close the file so `CopyBuffer` won't block and fail
+			file.Close() // nolint: errcheck
+		case <-copyBufferDone:
+
+			// `CopyBuffer` doesn't block anymore, we can stop the goroutine
+			return
+		}
+	}()
 
 	// get a buffer from the pool - so we can share buffers across goroutines
 	buf := s.bufferPool.Get()
@@ -434,19 +454,6 @@ func (s *LogCollectorServer) hasLogs(ctx context.Context, runUID string, streamR
 			return false
 		}
 		time.Sleep(s.readLogWaitTime)
-	}
-}
-
-func (s *LogCollectorServer) cancelOnContext(ctx context.Context, file *os.File, copyBufferDone chan struct{}) {
-	select {
-	case <-ctx.Done():
-
-		// context is dead, so we close the file so `CopyBuffer` won't block and fail
-		file.Close() // nolint: errcheck
-	case <-copyBufferDone:
-
-		// `CopyBuffer` doesn't block anymore, we can stop the goroutine
-		return
 	}
 }
 
@@ -568,10 +575,12 @@ func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 				runUID, ok := key.(string)
 				if !ok {
 					s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")
+					return true
 				}
 				logItem, ok := value.(statestore.LogItem)
 				if !ok {
 					s.Logger.WarnWithCtx(ctx, "Failed to convert in progress item to logItem")
+					return true
 				}
 
 				inMemoryInProgress, err := s.inMemoryState.GetItemsInProgress()

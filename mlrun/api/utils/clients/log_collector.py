@@ -100,8 +100,7 @@ class LogCollectorClient(
             msg = f"Failed to get logs for run {run_uid}"
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
-                    msg,
-                    error=response.error,
+                    f"{msg},error= {response.error}"
                 )
             if verbose:
                 logger.warning(msg, error=response.error)

@@ -100,6 +100,7 @@ class DBInterface(ABC):
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
+        return_only_run_structs: bool = True,
     ):
         pass
 

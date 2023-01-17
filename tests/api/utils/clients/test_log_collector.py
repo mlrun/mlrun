@@ -91,3 +91,14 @@ class TestLogCollector:
         )
         log = await log_collector.get_logs(run_uid=run_uid, project=project_name)
         assert log == b"some log"
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogResponse(False, "Failed to get logs", b"")
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            await log_collector.get_logs(run_uid=run_uid, project=project_name)
+
+        log = await log_collector.get_logs(
+            run_uid=run_uid, project=project_name, raise_on_error=False
+        )
+        assert log == b""

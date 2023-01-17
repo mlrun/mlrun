@@ -263,7 +263,8 @@ class SQLDB(DBInterface):
 
             return runs
 
-        return [uid for uid in query.all()]
+        # from each row we expect to get a tuple of (uid,) so we need to extract the uid from the tuple
+        return [uid for uid, in query.all()]
 
     def update_runs_requested_logs(
         self, session, uids: List[str], requested_logs: bool = True
@@ -303,6 +304,7 @@ class SQLDB(DBInterface):
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -344,6 +346,8 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+        if not return_as_run_structs:
+            return query.all()
 
         runs = RunList()
         for run in query:

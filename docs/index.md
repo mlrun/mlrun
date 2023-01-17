@@ -5,9 +5,10 @@
 MLRun is an open MLOps platform for quickly building and managing continuous ML applications across their lifecycle. MLRun integrates into your development and CI/CD environment and automates the delivery of production data, ML pipelines, and online applications. MLRun significantly reduces engineering efforts, time to production, and computation resources.
 With MLRun, you can choose any IDE on your local machine or on the cloud. MLRun breaks the silos between data, ML, software, and DevOps/MLOps teams, enabling collaboration and fast continuous improvements.
 
-Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Installation and setup guide <install-setup-guide>`**, or read about **{ref}`architecture`**.
+Get started with MLRun **{ref}`Tutorials and examples <tutorial>`**, **{ref}`Installation and setup guide <install-setup-guide>`**, 
 
-This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks) and presents the [**MLRun core components**](#core-components).
+
+This page explains how MLRun addresses the [**MLOps tasks**](#mlops-tasks), and presents the [**MLRun core components**](#core-components).
 
 See the supported data stores, development tools, services, platforms, etc., supported by MLRun's open architecture in **{ref}`ecosystem`**.
 
@@ -49,7 +50,6 @@ See the supported data stores, development tools, services, platforms, etc., sup
 ```
 
 ````
-`````
 
 The [**MLOps development workflow**](./mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -79,7 +79,7 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Feature store <./feature-store/feature-store.html>`
-{bdg-link-info}`Data & artifacts <./concepts/data-feature-store.html>`
+{bdg-link-info}`Data & artifacts <./concepts/data.html>`
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`quick start <./tutorial/01-mlrun-basics.html>`
 {bdg-link-primary}`Feature store <./feature-store/basic-demo.html>`
@@ -106,7 +106,7 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Realtime pipelines <./serving/serving-graph.html>`
-{bdg-link-info}`Batch inference <./concepts/TBD.html>`
+{bdg-link-info}`Batch inference <./deployment/batch_inference.html>`
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Realtime serving <./tutorial/03-model-serving.html>`
 {bdg-link-primary}`Batch inference <./tutorial/07-batch-infer.html>`
@@ -124,7 +124,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 , {octicon}`code-square` **Tutorials:**
 {bdg-link-primary}`Model monitoring & drift detection <./tutorial/05-model-monitoring.html>`
 
-
+`````
 
 <a id="core-components"></a>
 ## MLRun core components

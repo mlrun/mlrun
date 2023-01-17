@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 import click
 import dotenv
 import pandas as pd
+import simplejson
 import yaml
 from tabulate import tabulate
 
@@ -60,8 +61,9 @@ from .utils import (
     run_keys,
     update_in,
 )
-from .utils.version import Version
 from .utils.notifications.notification import NotificationSeverity
+from .utils.version import Version
+
 pd.set_option("mode.chained_assignment", None)
 
 
@@ -1108,11 +1110,13 @@ def project(
                 if notification["type"] == "file":
                     with open(notification["params"]) as fp:
                         lines = fp.read().splitlines()
-                        notification = list2dict(lines)
-                        add_notification2proj(notification, proj)
+                        notification_from_file = list2dict(lines)
+                        add_notification_to_project(notification_from_file, proj)
 
                 else:
-                    add_notification2proj({notification['type']:notification['params']}, proj)
+                    add_notification_to_project(
+                        {notification["type"]: notification["params"]}, proj
+                    )
         try:
             proj.run(
                 name=run,
@@ -1131,9 +1135,9 @@ def project(
                 override=override_workflow,
             )
 
-        except Exception as exc:
+        except Exception:
             trace = traceback.format_exc()
-            send_error(run,proj,trace)
+            send_workflow_error_notification(run, proj, trace)
             exit(1)
 
     elif sync:
@@ -1410,21 +1414,21 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
     return runtime
 
 
-def add_notification2proj(notification, proj):
-    for k, v in notification.items():
-        notification_type = k
-        list_prams = v.replace("{","").replace("}","").split(":",1)
-        notification_param = {list_prams[0]:list_prams[1]}
+def add_notification_to_project(notification, proj):
+    for notification_type, notification_text in notification.items():
+        notification_params = simplejson.loads(notification_text)
         proj.notifiers.add_notification(
-            notification_type=notification_type, params=notification_param
+            notification_type=notification_type, params=notification_params
         )
 
-def send_error(run,proj,trace):
+
+def send_workflow_error_notification(run_id, project, trace):
     message = (
-        f":x: Failed to run scheduled workflow {run} in Project {proj.name} !\n"
+        f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
         f"error: ```{trace}```"
     )
-    proj.notifiers.push(message=message, severity=NotificationSeverity.ERROR)
+    project.notifiers.push(message=message, severity=NotificationSeverity.ERROR)
+
 
 if __name__ == "__main__":
     main()

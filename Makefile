@@ -38,8 +38,8 @@ MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_ANACONDA_PYTHON_DISTRIBUTION =$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1""$$2}')
-MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}'),)
+MLRUN_ANACONDA_PYTHON_DISTRIBUTION =$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "py"$1$2}')
+MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$1"."$2}'),)
 MLRUN_PIP_VERSION ?= 22.3.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:

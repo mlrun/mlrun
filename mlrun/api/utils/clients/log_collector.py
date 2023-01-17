@@ -54,7 +54,7 @@ class LogCollectorClient(
         :param project: The project name
         :param verbose: Whether to log errors
         :param raise_on_error: Whether to raise an exception on error
-        :return:
+        :return: A tuple of (success, error)
         """
         request = self._log_collector_pb2.StartLogRequest(
             runUID=run_uid, selector=selector, projectName=project
@@ -64,8 +64,7 @@ class LogCollectorClient(
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
-                    msg,
-                    error=response.error,
+                    f"{msg},error= {response.error}"
                 )
             if verbose:
                 logger.warning(msg, error=response.error)
@@ -106,4 +105,4 @@ class LogCollectorClient(
                 )
             if verbose:
                 logger.warning(msg, error=response.error)
-        return response.logs
+        return response.log

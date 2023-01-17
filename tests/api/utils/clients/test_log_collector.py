@@ -13,12 +13,81 @@
 # limitations under the License.
 #
 
+import unittest.mock
+
 import fastapi.testclient
+import pytest
 import sqlalchemy.orm.session
+
+import mlrun
+import mlrun.api.schemas
+import mlrun.api.utils.clients.log_collector
+
+
+class StartLogResponse:
+    def __init__(self, success, error):
+        self.success = success
+        self.error = error
+
+
+class GetLogResponse:
+    def __init__(self, success, error, log):
+        self.success = success
+        self.error = error
+        self.log = log
+
+
+mlrun.mlconf.log_collector.address = "http://localhost:8080"
+mlrun.mlconf.log_collector.mode = mlrun.api.schemas.LogsCollectorMode.sidecar
 
 
 class TestLogCollector:
-    def test_start_log(
+    @pytest.mark.asyncio
+    async def test_start_log(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        run_uid = "123"
+        project_name = "some-project"
+        selector = f"mlrun/project={project_name},mlrun/uid={run_uid}"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=StartLogResponse(True, "")
+        )
+        success, error = await log_collector.start_logs(
+            run_uid=run_uid, project=project_name, selector=selector
+        )
+        assert success is True and not error
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=StartLogResponse(False, "Failed to start logs")
+        )
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            await log_collector.start_logs(
+                run_uid=run_uid, project=project_name, selector=selector
+            )
+
+        success, error = await log_collector.start_logs(
+            run_uid=run_uid,
+            project=project_name,
+            selector=selector,
+            raise_on_error=False,
+        )
+        assert success is False and error == "Failed to start logs"
+
+    @pytest.mark.asyncio
+    async def test_get_logs(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
-        pass
+        run_uid = "123"
+        project_name = "some-project"
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogResponse(True, "", b"some log")
+        )
+        log = await log_collector.get_logs(run_uid=run_uid, project=project_name)
+        assert log == b"some log"

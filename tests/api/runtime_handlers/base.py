@@ -505,7 +505,9 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s().resolve_namespace(),
             )
-        _, log = await crud.Logs().get_logs(db, project, uid, source=LogSources.PERSISTENCY)
+        _, log = await crud.Logs().get_logs(
+            db, project, uid, source=LogSources.PERSISTENCY
+        )
         assert log == expected_log.encode()
 
     @staticmethod

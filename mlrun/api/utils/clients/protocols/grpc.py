@@ -25,8 +25,10 @@ class BaseGRPCClient(object):
     name = None
     stub_class = None
 
-    def __init__(self):
+    def __init__(self, address: str = None):
+        self._address = address
         self._channel = None
+        # A module acting as the interface for gRPC clients to call service methods.
         self._stub = None
         self._initialize()
 
@@ -36,12 +38,15 @@ class BaseGRPCClient(object):
     def _initialize(self):
         if not self.name:
             return
-        # get the config for the relevant client ( e.g "log_collector" ) meaning the name of the config needs to be
-        # in the root of the config
-        sidecar_config = getattr(mlrun.config.config, self.name)
-        if sidecar_config.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+
+        if not self._address:
+            logger.warning(
+                "No address was provided for client, skipping stub initialization",
+                client_name=self.name,
+            )
             return
-        self._channel = grpc.aio.insecure_channel(sidecar_config.address)
+
+        self._channel = grpc.aio.insecure_channel(self._address)
         if self.stub_class:
             self._stub = self.stub_class(self._channel)
 

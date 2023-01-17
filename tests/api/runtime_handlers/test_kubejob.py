@@ -13,9 +13,9 @@
 # limitations under the License.
 #
 import typing
-import pytest
 from datetime import timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -105,7 +105,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         assert "" in resources
 
     @pytest.mark.asyncio
-    async def test_delete_resources_completed_pod(self, db: Session, client: TestClient):
+    async def test_delete_resources_completed_pod(
+        self, db: Session, client: TestClient
+    ):
         list_namespaced_pods_calls = [
             [self.completed_job_pod],
             # additional time for the get_logger_pods
@@ -524,7 +526,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
     @pytest.mark.asyncio
-    async def test_monitor_run_run_does_not_exists(self, db: Session, client: TestClient):
+    async def test_monitor_run_run_does_not_exists(
+        self, db: Session, client: TestClient
+    ):
         get_db().del_run(db, self.run_uid, self.project)
         list_namespaced_pods_calls = [
             [self.completed_job_pod],

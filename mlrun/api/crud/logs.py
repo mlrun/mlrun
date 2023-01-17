@@ -74,14 +74,18 @@ class Logs(
         :param size: number of bytes to return (default -1, return all)
         :param offset: number of bytes to skip (default 0)
         :param source: log source (default auto) Relevant only for legacy log_collector mode
-        :return:
+          if auto, it will use the mode configured in `mlrun.mlconf.log_collector.mode`
+          if other than auto, it will fall back to legacy log_collector mode
+        :return: run state and logs
         """
         project = project or mlrun.mlconf.default_project
+        logs = b""
         run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
         if (
             mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.best_effort
+            and source == LogSources.AUTO
         ):
             try:
                 logs = await self._get_logs_from_logs_collector(
@@ -109,6 +113,7 @@ class Logs(
         elif (
             mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.sidecar
+            and source == LogSources.AUTO
         ):
             logs = await self._get_logs_from_logs_collector(
                 project,
@@ -119,6 +124,7 @@ class Logs(
         elif (
             mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.legacy
+            or source != LogSources.AUTO
         ):
             logs = await run_in_threadpool(
                 self._get_logs_legacy_method,

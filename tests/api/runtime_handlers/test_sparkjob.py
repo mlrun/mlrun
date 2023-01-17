@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -129,7 +130,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             )
 
     @pytest.mark.asyncio
-    async def test_delete_resources_completed_crd(self, db: Session, client: TestClient):
+    async def test_delete_resources_completed_crd(
+        self, db: Session, client: TestClient
+    ):
         list_namespaced_crds_calls = [
             [self.completed_crd_dict],
             # 2 additional time for wait for pods deletion

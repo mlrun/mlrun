@@ -12,19 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import mlrun.api.utils.clients.protocols.grpc
 import mlrun.errors
 import mlrun.utils.singleton
-from mlrun.api.utils.clients.base_grpc import BaseGRPCClient
 from mlrun.utils import logger
 
 
-class LogCollectorClient(BaseGRPCClient, metaclass=mlrun.utils.singleton.Singleton):
+class LogCollectorClient(
+    mlrun.api.utils.clients.protocols.grpc.BaseGRPCClient,
+    metaclass=mlrun.utils.singleton.Singleton,
+):
     name = "log_collector"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, address: str = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
+        super().__init__(address=address or mlrun.mlconf.log_collector.address)
 
     def _initialize_proto_client_imports(self):
         # Importing the proto client classes here and not at the top of the file to avoid raising an import error

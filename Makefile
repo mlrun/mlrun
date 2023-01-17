@@ -324,7 +324,7 @@ prebake-models-gpu: ## Build prebake models GPU docker image
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		--tag $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED)
+		--tag $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED) \
 		.
 
 .PHONY: push-prebake-models-gpu
@@ -332,14 +332,14 @@ push-prebake-models-gpu: ## Push prebake models GPU docker image
 	docker push $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED)
 
 .PHONY: prebake-models-gpu-py37
-prebake-models-gpu: ## Build prebake models GPU docker image
+prebake-models-gpu-py37: ## Build prebake models GPU docker image
 	docker build \
 		--file dockerfiles/models-gpu/prebaked.Dockerfile \
-		--tag $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED)
+		--tag $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED) \
 		.
 
 .PHONY: push-prebake-models-gpu-py37
-push-prebake-models-gpu: ## Push prebake models GPU docker image
+push-prebake-models-gpu-py37: ## Push prebake models GPU docker image
 	docker push $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED)
 
 

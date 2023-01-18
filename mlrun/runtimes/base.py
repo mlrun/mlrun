@@ -459,8 +459,7 @@ class BaseRuntime(ModelObj):
             results = runner(task_generator, execution, run)
             results_to_iter(results, run, execution)
             result = execution.to_dict()
-            if execution.state == RunStates.completed:
-                result = self._update_run_state(result, task=run)
+            result = self._update_run_state(result, task=run)
 
         else:
             # single run

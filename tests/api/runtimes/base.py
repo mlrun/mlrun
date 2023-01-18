@@ -340,7 +340,9 @@ class TestRuntimeBase:
         get_k8s().v1api.list_namespaced_pod = unittest.mock.Mock(
             return_value=client.V1PodList(items=[])
         )
-        get_k8s().logs = unittest.mock.Mock(return_value="Mocked pod logs")
+        get_k8s().v1api.read_namespaced_pod_log = unittest.mock.Mock(
+            return_value="Mocked pod logs"
+        )
 
     def _mock_create_namespaced_custom_object(self):
         def _generate_custom_object(
@@ -389,6 +391,7 @@ class TestRuntimeBase:
     def _reset_mocks(self):
         get_k8s().v1api.create_namespaced_pod.reset_mock()
         get_k8s().v1api.list_namespaced_pod.reset_mock()
+        get_k8s().v1api.read_namespaced_pod_log.reset_mock()
 
     def _reset_custom_object_mocks(self):
         mlrun.api.utils.singletons.k8s.get_k8s().crdapi.create_namespaced_custom_object.reset_mock()

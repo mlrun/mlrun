@@ -94,7 +94,8 @@ class MLClientCtx(object):
         self._outputs = []
 
         self._results = {}
-        # tracks the execution state, completion of runs is decided by the API
+        # tracks the execution state, completion of runs is not decided by the execution
+        # as there may be multiple executions for a single run
         self._state = "created"
         self._error = None
         self._commit = ""
@@ -334,7 +335,7 @@ class MLClientCtx(object):
 
     @property
     def state(self):
-        """execuition state"""
+        """execution state"""
         return self._state
 
     @property
@@ -883,6 +884,7 @@ class MLClientCtx(object):
         """
         # TODO: The execution context should not set the run state to completed.
         #  Create a separate state for the execution in the run object.
+
         updates = {"status.last_update": now_date().isoformat()}
 
         if error:
@@ -942,7 +944,7 @@ class MLClientCtx(object):
             },
         }
 
-        # completion of runs is decided by the API
+        # completion of runs is not decided by the execution as there may be multiple executions for a single run
         if self._state != "completed":
             struct["status"]["state"] = self._state
 
@@ -969,7 +971,7 @@ class MLClientCtx(object):
             "status.last_update": to_date_str(self._last_update),
         }
 
-        # completion of runs is decided by the API
+        # completion of runs is not decided by the execution as there may be multiple executions for a single run
         if self._state != "completed":
             struct["status.state"] = self._state
 

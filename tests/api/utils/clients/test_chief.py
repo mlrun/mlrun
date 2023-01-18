@@ -20,10 +20,10 @@ import unittest.mock
 import aiohttp
 import aiohttp.web
 import fastapi.encoders
-from aiohttp.test_utils import TestClient, TestServer
-import starlette.datastructures
 import pytest
+import starlette.datastructures
 from aiohttp import ClientConnectorError
+from aiohttp.test_utils import TestClient, TestServer
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
@@ -270,26 +270,27 @@ def _generate_background_task(
 
 
 @pytest.mark.parametrize(
-    "session_cookie, expected_cookie_header", [
+    "session_cookie, expected_cookie_header",
+    [
         # no escape is needed, sanity
         ("j", "j"),
-
         # escape is needed
-        ("j:{\"", "j%3A%7B%22"),
-
+        ('j:{"', "j%3A%7B%22"),
         # do not double escape
         ("j%3A%7B%22", "j%3A%7B%22"),
-    ]
+    ],
 )
 @pytest.mark.asyncio
-async def test_do_not_escape_cookie(chief_client, session_cookie, expected_cookie_header):
+async def test_do_not_escape_cookie(
+    chief_client, session_cookie, expected_cookie_header
+):
     async def handler(request):
-        assert request.headers["cookie"] == f'session={expected_cookie_header}', (
-            "Cookie header escaping is malfunctioning"
-        )
-        assert request.cookies["session"] == expected_cookie_header, (
-            "Cookie session escaping is malfunctioning"
-        )
+        assert (
+            request.headers["cookie"] == f"session={expected_cookie_header}"
+        ), "Cookie header escaping is malfunctioning"
+        assert (
+            request.cookies["session"] == expected_cookie_header
+        ), "Cookie session escaping is malfunctioning"
         return aiohttp.web.Response(status=200)
 
     mock_request = fastapi.Request({"type": "http"})
@@ -298,7 +299,7 @@ async def test_do_not_escape_cookie(chief_client, session_cookie, expected_cooki
     mock_request._query_params = starlette.datastructures.QueryParams()
 
     app = aiohttp.web.Application()
-    app.router.add_post('/api/v1/operations/migrations', handler)
+    app.router.add_post("/api/v1/operations/migrations", handler)
     server = TestServer(app, skip_url_asserts=True)
     async with TestClient(server) as client:
         chief_client._api_url = ""

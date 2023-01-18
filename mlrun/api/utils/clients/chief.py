@@ -232,7 +232,9 @@ class Client(
             elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
 
                 # unquote first, to avoid double quoting ourselves, in case the cookie is already quoted
-                unquoted_session = urllib.parse.unquote(request_kwargs["cookies"][cookie_name])
+                unquoted_session = urllib.parse.unquote(
+                    request_kwargs["cookies"][cookie_name]
+                )
                 request_kwargs["cookies"][cookie_name] = urllib.parse.quote(
                     unquoted_session
                 )

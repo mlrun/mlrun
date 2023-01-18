@@ -457,7 +457,9 @@ class Client(
                 response_body = response.json()
             except Exception:
                 response_body = {}
-            self._handle_error_response(method, path, response, response_body, error_message, kwargs)
+            self._handle_error_response(
+                method, path, response, response_body, error_message, kwargs
+            )
         return response
 
     def _generate_auth_info_from_session_verification_response(
@@ -690,7 +692,9 @@ class Client(
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
 
-    def _handle_error_response(self, method, path, response, response_body, error_message, kwargs):
+    def _handle_error_response(
+        self, method, path, response, response_body, error_message, kwargs
+    ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.update({"method": method, "path": path})
         try:
@@ -699,8 +703,10 @@ class Client(
         except Exception:
             pass
         else:
-            error_message = f"{error_message}: {str(errors)}"
-            log_kwargs.update({"ctx": ctx, "errors": errors})
+            if errors:
+                error_message = f"{error_message}: {str(errors)}"
+            if errors or ctx:
+                log_kwargs.update({"ctx": ctx, "errors": errors})
 
         logger.warning("Request to iguazio failed", **log_kwargs)
         mlrun.errors.raise_for_status(response, error_message)

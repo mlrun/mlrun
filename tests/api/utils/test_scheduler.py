@@ -1257,7 +1257,8 @@ async def test_schedule_job_concurrency_limit(
     )
     if schedule.next_run_time is None:
         # next run time may be none if the job was completed (i.e. end date was reached)
-        assert after_sleep_timestamp >= now_plus_5_seconds
+        # scrub the microseconds to reduce noise
+        assert after_sleep_timestamp >= now_plus_5_seconds.replace(microsecond=0)
 
     else:
         # scrub the microseconds to reduce noise

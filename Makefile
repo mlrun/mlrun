@@ -334,7 +334,7 @@ push-prebake-models-gpu: ## Push prebake models GPU docker image
 .PHONY: prebake-models-gpu-py37
 prebake-models-gpu-py37: ## Build prebake models GPU docker image
 	docker build \
-		--file dockerfiles/models-gpu/prebaked.Dockerfile \
+		--file dockerfiles/models-gpu/py37/prebaked.Dockerfile \
 		--tag $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED) \
 		.
 

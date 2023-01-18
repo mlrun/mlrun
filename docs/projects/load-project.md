@@ -40,6 +40,10 @@ If the `url` parameter is not specified it searches for Git repo inside the cont
 or if the flag init_git=True, it initializes a Git repo in the target context directory.
 ```
 
+```{admonition} Note
+When working with a private Git, set the project secrets. See [MLRun-managed secrets](../secrets.html#mlrun-managed-secrets).
+```
+
 After the project object is loaded use the {py:meth}`~mlrun.projects.MlrunProject.run` method to execute workflows. See details on [**building and running workflows**](./build-run-workflows-pipelines.html)), 
 and how to [**run, build, or deploy**](./run-build-deploy.html) individual functions. 
 

@@ -304,7 +304,6 @@ models-gpu: update-version-file ## Build models-gpu docker image
 	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_MODELS_GPU_BASE_IMAGE) \
 		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \

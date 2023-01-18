@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG CUDA_VER=11.7.0
-ARG MLRUN_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:${CUDA_VER}-base-ubuntu20.04
+ARG MLRUN_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.0-base-ubuntu20.04
 
 FROM ${MLRUN_BASE_IMAGE}
 

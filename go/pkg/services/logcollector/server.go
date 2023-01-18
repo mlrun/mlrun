@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -43,14 +44,16 @@ import (
 
 type LogCollectorServer struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace          string
-	baseDir            string
-	kubeClientSet      kubernetes.Interface
-	stateStore         statestore.StateStore
-	bufferPool         *bpool.BytePool
-	readLogWaitTime    time.Duration
-	monitoringInterval time.Duration
-	inMemoryState      statestore.StateStore
+	namespace               string
+	baseDir                 string
+	kubeClientSet           kubernetes.Interface
+	stateStore              statestore.StateStore
+	inMemoryState           statestore.StateStore
+	logCollectionBufferPool *bpool.BytePool
+	getLogsBufferPool       *bpool.BytePool
+	readLogWaitTime         time.Duration
+	monitoringInterval      time.Duration
+	bufferSizeBytes         int
 }
 
 func NewLogCollectorServer(logger logger.Logger,
@@ -60,7 +63,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval string,
-	bufferPoolSize,
+	logCollectionbufferPoolSize,
+	getLogsBufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
@@ -114,18 +118,21 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 
 	// create a byte buffer pool - a pool of size `bufferPoolSize`, where each buffer is of size `bufferSizeBytes`
-	bufferPool := bpool.NewBytePool(bufferPoolSize, bufferSizeBytes)
+	logCollectionBufferPool := bpool.NewBytePool(logCollectionbufferPoolSize, bufferSizeBytes)
+	getLogsBufferPool := bpool.NewBytePool(getLogsBufferPoolSize, bufferSizeBytes)
 
 	return &LogCollectorServer{
 		AbstractMlrunGRPCServer: abstractServer,
 		namespace:               namespace,
 		baseDir:                 baseDir,
 		stateStore:              stateStore,
+		inMemoryState:           inMemoryState,
 		kubeClientSet:           kubeClientSet,
 		readLogWaitTime:         readLogTimeoutDuration,
 		monitoringInterval:      monitoringIntervalDuration,
-		bufferPool:              bufferPool,
-		inMemoryState:           inMemoryState,
+		logCollectionBufferPool: logCollectionBufferPool,
+		getLogsBufferPool:       getLogsBufferPool,
+		bufferSizeBytes:         bufferSizeBytes,
 	}, nil
 }
 
@@ -242,6 +249,16 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 // GetLogs returns the log file contents of length size from an offset, for a given run id
 func (s *LogCollectorServer) GetLogs(ctx context.Context, request *protologcollector.GetLogsRequest) (*protologcollector.GetLogsResponse, error) {
 	s.Logger.DebugWithCtx(ctx, "Received Get Log request", "request", request)
+
+	// validate size is not bigger than the buffer size.
+	// if it is, caller will need to call get logs multiple times
+	if int(request.Size) > s.bufferSizeBytes {
+		err := errors.Errorf("Request size is bigger than buffer size %d", s.bufferSizeBytes)
+		return &protologcollector.GetLogsResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, err
+	}
 
 	// get log file path
 	filePath, err := s.getLogFilePath(request.RunUID)
@@ -363,7 +380,7 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 	// create a reader from the stream, to allow peeking into it
 	streamReader := bufio.NewReader(stream)
 
-	// wait for the stream ro have logs before reading them
+	// wait for the stream to have logs before reading them
 	if !s.hasLogs(ctx, runUID, streamReader) {
 		s.Logger.WarnWithCtx(ctx, "Stream doesn't have logs or context has been canceled", "runUID", runUID)
 		return false, nil
@@ -394,8 +411,8 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 	}()
 
 	// get a buffer from the pool - so we can share buffers across goroutines
-	buf := s.bufferPool.Get()
-	defer s.bufferPool.Put(buf)
+	buf := s.logCollectionBufferPool.Get()
+	defer s.logCollectionBufferPool.Put(buf)
 
 	// copy the stream into the file using the buffer, which allows us to control the size read from the file.
 	// this is blocking until there is something to read
@@ -519,12 +536,13 @@ func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
 	}
 
 	// read size bytes from offset
-	buffer := make([]byte, size)
+	buffer := s.getLogsBufferPool.Get()
+	defer s.getLogsBufferPool.Put(buffer)
 	if _, err := file.ReadAt(buffer, int64(offset)); err != nil {
 
 		// if error is EOF, return empty bytes
 		if err == io.EOF {
-			return buffer, nil
+			return buffer[:size], nil
 		}
 
 		// else return error
@@ -532,19 +550,19 @@ func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
 		return nil, err
 	}
 
-	return buffer, nil
+	return buffer[:size], nil
 }
 
 func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize int64) (uint64, int64) {
 
-	// if size is negative, zero, or bigger than fileSize, read the whole file
+	// if size is negative, zero, or bigger than fileSize, read the whole file or the allowed size
 	if size <= 0 || size > fileSize {
-		size = fileSize
+		size = int64(math.Min(float64(fileSize), float64(s.bufferSizeBytes)))
 	}
 
 	// if offset is bigger than file size, set offset to 0
 	if int64(offset) > fileSize {
-		offset = 0
+		size = 0
 	}
 
 	// set size to file size - offset if size is bigger than file size - offset

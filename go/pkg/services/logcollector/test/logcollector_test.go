@@ -60,8 +60,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
 	monitoringInterval := "30s"
-	bufferPoolSize := 20
-	bufferSizeBytes := 512
+	bufferPoolSize := 30
+	bufferSizeBytes := 1024
 	listenPort := 8282
 
 	// get kube config file path
@@ -82,6 +82,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
 		monitoringInterval,
+		bufferPoolSize,
 		bufferPoolSize,
 		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
@@ -151,15 +152,16 @@ func (suite *LogCollectorTestSuite) TestStartLog() {
 	suite.logger.InfoWith("Waiting for logs to be collected")
 	time.Sleep(10 * time.Second)
 
-	var logs string
+	var logs []string
 	startedGettingLogsTime := time.Now()
+	offset := 0
 
 	for {
 
 		// get logs until everything is read
 		getLogsResponse, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
 			RunUID: runUID,
-			Offset: 0,
+			Offset: uint64(offset),
 			Size:   0,
 		})
 		suite.Require().NoError(err, "Failed to get logs")
@@ -168,13 +170,14 @@ func (suite *LogCollectorTestSuite) TestStartLog() {
 		// make sure logs have at least 100 lines
 		logLines := strings.Split(string(getLogsResponse.Logs), "\n")
 		suite.logger.InfoWith("Got logs", "numLines", len(logLines))
-		if len(logLines) >= 100 {
-			logs = string(getLogsResponse.Logs)
+		logs = append(logs, logLines...)
+		if len(logs) >= 100 {
 			break
 		}
 		if time.Since(startedGettingLogsTime) > 2*time.Minute {
 			suite.Require().Fail("Timed out waiting to get all logs")
 		}
+		offset += len(getLogsResponse.Logs)
 
 		// let some more logs be collected
 		time.Sleep(3 * time.Second)

@@ -11,27 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import pathlib
 import simplejson
 import mlrun.projects
-from mlrun.__main__ import line2keylist
+from mlrun.__main__ import line2keylist,add_notification_to_project
 from mlrun.utils import list2dict
 
 
-def add_notification_to_project(notification, proj):
-    for notification_type, notification_text in notification.items():
-        notification_params = simplejson.loads(notification_text)
-        proj.notifiers.add_notification(
-            notification_type=notification_type, params=notification_params
-        )
-
-
 def test_add_notification_to_cli_from_file():
-    input_file_path = str(pathlib.Path(__file__).parent / "tests" / "notification")
+    input_file_path = str(pathlib.Path(__file__).parent / "notification")
     notification = (f"file={input_file_path}",)
     notifications = line2keylist(notification, keyname="type", valname="params")
-    print(notifications)
     project = mlrun.projects.MlrunProject(name="test")
     for notification in notifications:
         if notification["type"] == "file":

@@ -30,48 +30,15 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import class_mapper, relationship
+from sqlalchemy.orm import relationship
 
 from mlrun.api import schemas
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
+from mlrun.api.utils.helpers import BaseModel, HasStruct
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
-
-
-class BaseModel:
-    def to_dict(self, exclude=None):
-        """
-        NOTE - this function (currently) does not handle serializing relationships
-        """
-        exclude = exclude or []
-        mapper = class_mapper(self.__class__)
-        columns = [column.key for column in mapper.columns if column.key not in exclude]
-        get_key_value = (
-            lambda c: (c, getattr(self, c).isoformat())
-            if isinstance(getattr(self, c), datetime)
-            else (c, getattr(self, c))
-        )
-        return dict(map(get_key_value, columns))
-
-
-class HasStruct(BaseModel):
-    @property
-    def struct(self):
-        return pickle.loads(self.body)
-
-    @struct.setter
-    def struct(self, value):
-        self.body = pickle.dumps(value)
-
-    def to_dict(self, exclude=None):
-        """
-        NOTE - this function (currently) does not handle serializing relationships
-        """
-        exclude = exclude or []
-        exclude.append("body")
-        return super().to_dict(exclude)
 
 
 def make_label(table):

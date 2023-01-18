@@ -262,7 +262,7 @@ async def list_model_endpoints(
     :param model:     The name of the model to filter by.
     :param function:  The name of the function to filter by.
     :param labels:    A list of labels to filter by. Label filters work by either filtering a specific value of a label
-                      (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key").
+                      (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key").
     :param metrics:   A list of real-time metrics to return for each endpoint. There are pre-defined real-time metrics
                       for model endpoints such as predictions_per_second and latency_avg_5m but also custom metrics
                       defined by the user. Please note that these metrics are stored in the time series DB and the

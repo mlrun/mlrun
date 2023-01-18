@@ -14,6 +14,10 @@
 #
 import asyncio
 import enum
+import pickle
+from datetime import datetime
+
+from sqlalchemy.orm import class_mapper
 
 import mlrun
 import mlrun.api.schemas
@@ -68,3 +72,37 @@ def ensure_running_on_chief(function):
     if asyncio.iscoroutinefunction(function):
         return async_wrapper
     return wrapper
+
+
+class BaseModel:
+    def to_dict(self, exclude=None):
+        """
+        NOTE - this function (currently) does not handle serializing relationships
+        """
+        exclude = exclude or []
+        mapper = class_mapper(self.__class__)
+        columns = [column.key for column in mapper.columns if column.key not in exclude]
+        get_key_value = (
+            lambda c: (c, getattr(self, c).isoformat())
+            if isinstance(getattr(self, c), datetime)
+            else (c, getattr(self, c))
+        )
+        return dict(map(get_key_value, columns))
+
+
+class HasStruct(BaseModel):
+    @property
+    def struct(self):
+        return pickle.loads(self.body)
+
+    @struct.setter
+    def struct(self, value):
+        self.body = pickle.dumps(value)
+
+    def to_dict(self, exclude=None):
+        """
+        NOTE - this function (currently) does not handle serializing relationships
+        """
+        exclude = exclude or []
+        exclude.append("body")
+        return super().to_dict(exclude)

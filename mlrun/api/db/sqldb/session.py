@@ -27,14 +27,15 @@ _session_makers: typing.Dict[str, SessionMaker] = {}
 
 
 # doing lazy load to allow tests to initialize the engine
-def get_engine(dsn=config.httpdb.dsn) -> Engine:
+def get_engine(dsn=None) -> Engine:
     global _engines
+    dsn = dsn or config.httpdb.dsn
     if dsn not in _engines:
         _init_engine(dsn=dsn)
     return _engines[dsn]
 
 
-def create_session(dsn=config.httpdb.dsn) -> Session:
+def create_session(dsn=None) -> Session:
     session_maker = _get_session_maker(dsn=dsn)
     return session_maker()
 
@@ -70,5 +71,4 @@ def _init_engine(dsn=None):
 
 def _init_session_maker(dsn):
     global _session_makers
-    _session_maker = SessionMaker(bind=get_engine(dsn=dsn))
-    _session_makers[dsn] = _session_maker
+    _session_makers[dsn] = SessionMaker(bind=get_engine(dsn=dsn))

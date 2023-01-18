@@ -33,7 +33,6 @@ from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 
 TEST_PROJECT = "test_model_endpoints"
 CONNECTION_STRING = "sqlite:///test.db"
-TEST_TABLE = "test_table_model_endpoints"
 # Set a default v3io access key env variable
 V3IO_ACCESS_KEY = "1111-2222-3333-4444"
 os.environ["V3IO_ACCESS_KEY"] = V3IO_ACCESS_KEY
@@ -337,8 +336,6 @@ def test_sql_target_list_model_endpoints():
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
-    endpoint_store.table_name = TEST_TABLE
-
     # First, validate that there are no model endpoints records at the moment
     list_of_endpoints = endpoint_store.list_model_endpoints()
     endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
@@ -387,8 +384,6 @@ def test_sql_target_patch_endpoint():
     endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
-
-    endpoint_store.table_name = TEST_TABLE
 
     # First, validate that there are no model endpoints records at the moment
     list_of_endpoints = endpoint_store.list_model_endpoints()

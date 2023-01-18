@@ -15,13 +15,10 @@
 
 import json
 import typing
-from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as db
-import sqlalchemy.dialects.mysql
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import class_mapper
 
 import mlrun
 import mlrun.api.schemas
@@ -29,6 +26,7 @@ import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.api.db.sqldb.session import create_session, get_engine
+from mlrun.api.utils.helpers import BaseModel
 from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
@@ -59,12 +57,15 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         super().__init__(project=project)
-        self.connection_string = connection_string
+        self.connection_string = (
+            connection_string
+            or mlrun.mlconf.model_endpoint_monitoring.connection_string
+        )
         self.table_name = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
 
         self._engine = get_engine(dsn=connection_string)
 
-        # Create table if not exist
+        # Create table if not exist. The `metadata` contains the `ModelEndpointsTable` defined later
         if not self._engine.has_table(self.table_name):
             Base.metadata.create_all(bind=self._engine)
 
@@ -100,15 +101,14 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         # Update the model endpoint record using sqlalchemy ORM
-        session = create_session(dsn=self.connection_string)
+        with create_session(dsn=self.connection_string) as session:
 
-        # Generate and commit the update session query
-        session.query(ModelEndpointsTable).filter(
-            ModelEndpointsTable.endpoint_id == endpoint_id
-        ).update(attributes)
+            # Generate and commit the update session query
+            session.query(ModelEndpointsTable).filter(
+                ModelEndpointsTable.endpoint_id == endpoint_id
+            ).update(attributes)
 
-        session.commit()
-        session.close()
+            session.commit()
 
     def delete_model_endpoint(self, endpoint_id: str):
         """
@@ -118,12 +118,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         # Delete the model endpoint record using sqlalchemy ORM
-        session = create_session(dsn=self.connection_string)
+        with create_session(dsn=self.connection_string) as session:
 
-        # Generate and commit the delete query
-        session.query(ModelEndpointsTable).filter_by(endpoint_id=endpoint_id).delete()
-        session.commit()
-        session.close()
+            # Generate and commit the delete query
+            session.query(ModelEndpointsTable).filter_by(
+                endpoint_id=endpoint_id
+            ).delete()
+            session.commit()
 
     def get_model_endpoint(
         self,
@@ -163,20 +164,15 @@ class SQLModelEndpointStore(ModelEndpointStore):
         :raise MLRunNotFoundError: If the model endpoints table was not found or the model endpoint id was not found.
         """
 
-        # Validate that the model endpoints table exists
-        if not self._engine.has_table(self.table_name):
-            raise mlrun.errors.MLRunNotFoundError(f"Table {self.table_name} not found")
-
         # Get the model endpoint record using sqlalchemy ORM
-        session = create_session(dsn=self.connection_string)
+        with create_session(dsn=self.connection_string) as session:
 
-        # Generate the get query
-        endpoint_record = (
-            session.query(ModelEndpointsTable)
-            .filter_by(endpoint_id=endpoint_id)
-            .one_or_none()
-        )
-        session.close()
+            # Generate the get query
+            endpoint_record = (
+                session.query(ModelEndpointsTable)
+                .filter_by(endpoint_id=endpoint_id)
+                .one_or_none()
+            )
 
         if not endpoint_record:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
@@ -227,7 +223,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         :param model:           The name of the model to filter by.
         :param function:        The name of the function to filter by.
         :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key==value")) or by looking for the existence of a given
+                                of a label (i.e. list("key=value")) or by looking for the existence of a given
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param metrics:         A list of real-time metrics to return for each model endpoint. There are pre-defined
@@ -254,89 +250,76 @@ class SQLModelEndpointStore(ModelEndpointStore):
             endpoints=[]
         )
 
-        # Validate that the model endpoints table exists
-        if not self._engine.has_table(self.table_name):
-            logger.warn(
-                "Table not found, return an empty ModelEndpointList",
-                table=self.table_name,
-            )
-            return endpoint_list
-
         # Get the model endpoints records using sqlalchemy ORM
-        session = create_session(dsn=self.connection_string)
+        with create_session(dsn=self.connection_string) as session:
 
-        # Generate the list query
-        query = session.query(ModelEndpointsTable).filter_by(project=self.project)
+            # Generate the list query
+            query = session.query(ModelEndpointsTable).filter_by(project=self.project)
 
-        # Apply filters
-        if model:
-            query = self._filter_values(
-                query=query,
-                model_endpoints_table=self.model_endpoints_table,
-                key_filter=model_monitoring_constants.EventFieldType.MODEL,
-                filtered_values=[model],
-            )
-        if function:
-            query = self._filter_values(
-                query=query,
-                model_endpoints_table=self.model_endpoints_table,
-                key_filter=model_monitoring_constants.EventFieldType.FUNCTION,
-                filtered_values=[function],
-            )
-        if uids:
-            query = self._filter_values(
-                query=query,
-                model_endpoints_table=self.model_endpoints_table,
-                key_filter=model_monitoring_constants.EventFieldType.ENDPOINT_ID,
-                filtered_values=uids,
-                combined=False,
-            )
-        if top_level:
-            node_ep = str(mlrun.model_monitoring.EndpointType.NODE_EP.value)
-            router_ep = str(mlrun.model_monitoring.EndpointType.ROUTER.value)
-            endpoint_types = [node_ep, router_ep]
-            query = self._filter_values(
-                query=query,
-                model_endpoints_table=self.model_endpoints_table,
-                key_filter=model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
-                filtered_values=endpoint_types,
-                combined=False,
-            )
-
-        if labels and labels[0].startswith("{") and labels[0].endswith("}"):
-            # Convert labels into a dictionary (provided in JSON format)
-            labels = json.loads(labels[0])
-
-        # Convert the results from the DB into a ModelEndpoint object and append it to the ModelEndpointList
-        for endpoint_record in query.all():
-            endpoint_dict = endpoint_record.to_dict()
-
-            # Filter labels
-            if labels and not self._validate_labels(
-                endpoint_dict=endpoint_dict, labels=labels
-            ):
-                continue
-
-            endpoint_obj = self._convert_into_model_endpoint_object(endpoint_dict)
-
-            # If time metrics were provided, retrieve the results from the time series DB
-            if metrics:
-                if endpoint_obj.status.metrics is None:
-                    endpoint_obj.status.metrics = {}
-                endpoint_metrics = self.get_endpoint_real_time_metrics(
-                    endpoint_id=endpoint_obj.metadata.uid,
-                    start=start,
-                    end=end,
-                    metrics=metrics,
+            # Apply filters
+            if model:
+                query = self._filter_values(
+                    query=query,
+                    model_endpoints_table=self.model_endpoints_table,
+                    key_filter=model_monitoring_constants.EventFieldType.MODEL,
+                    filtered_values=[model],
                 )
-                if endpoint_metrics:
+            if function:
+                query = self._filter_values(
+                    query=query,
+                    model_endpoints_table=self.model_endpoints_table,
+                    key_filter=model_monitoring_constants.EventFieldType.FUNCTION,
+                    filtered_values=[function],
+                )
+            if uids:
+                query = self._filter_values(
+                    query=query,
+                    model_endpoints_table=self.model_endpoints_table,
+                    key_filter=model_monitoring_constants.EventFieldType.ENDPOINT_ID,
+                    filtered_values=uids,
+                    combined=False,
+                )
+            if top_level:
+                node_ep = str(mlrun.model_monitoring.EndpointType.NODE_EP.value)
+                router_ep = str(mlrun.model_monitoring.EndpointType.ROUTER.value)
+                endpoint_types = [node_ep, router_ep]
+                query = self._filter_values(
+                    query=query,
+                    model_endpoints_table=self.model_endpoints_table,
+                    key_filter=model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
+                    filtered_values=endpoint_types,
+                    combined=False,
+                )
 
-                    endpoint_obj.status.metrics[
-                        model_monitoring_constants.EventKeyMetrics.REAL_TIME
-                    ] = endpoint_metrics
+            # Convert the results from the DB into a ModelEndpoint object and append it to the ModelEndpointList
+            for endpoint_record in query.all():
+                endpoint_dict = endpoint_record.to_dict()
 
-            endpoint_list.endpoints.append(endpoint_obj)
-        session.close()
+                # Filter labels
+                if labels and not self._validate_labels(
+                    endpoint_dict=endpoint_dict, labels=labels
+                ):
+                    continue
+
+                endpoint_obj = self._convert_into_model_endpoint_object(endpoint_dict)
+
+                # If time metrics were provided, retrieve the results from the time series DB
+                if metrics:
+                    if endpoint_obj.status.metrics is None:
+                        endpoint_obj.status.metrics = {}
+                    endpoint_metrics = self.get_endpoint_real_time_metrics(
+                        endpoint_id=endpoint_obj.metadata.uid,
+                        start=start,
+                        end=end,
+                        metrics=metrics,
+                    )
+                    if endpoint_metrics:
+
+                        endpoint_obj.status.metrics[
+                            model_monitoring_constants.EventKeyMetrics.REAL_TIME
+                        ] = endpoint_metrics
+
+                endpoint_list.endpoints.append(endpoint_obj)
         return endpoint_list
 
     @staticmethod
@@ -372,7 +355,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
             )
 
         # Generating a tuple with the relevant filters
-        filter_query = ()
+        filter_query = []
         for _filter in filtered_values:
             filter_query += (model_endpoints_table.c[key_filter] == _filter,)
 
@@ -382,14 +365,12 @@ class SQLModelEndpointStore(ModelEndpointStore):
     @staticmethod
     def _validate_labels(
         endpoint_dict: dict,
-        labels: typing.Union[typing.List, typing.Dict[str, typing.Any]],
+        labels: typing.List,
     ) -> bool:
-        """Validate that the model endpoint dictionary has the provided labels. There are 3 possible cases:
-        1 - Labels were provided as a dictionary (e.g. {'label_1': 'value_1', 'label_2': 'value_2'}: Validate that the
-            labels dictionary is a subset of the endpoint labels dictionary.
-        2 - Labels were provided as a list of key-values pairs (e.g. ['label_1=value_1', 'label_2=value_2']): Validate
+        """Validate that the model endpoint dictionary has the provided labels. There are 2 possible cases:
+        1 - Labels were provided as a list of key-values pairs (e.g. ['label_1=value_1', 'label_2=value_2']): Validate
             that each pair exist in the endpoint dictionary.
-        3 - Labels were provided as a list of key labels (e.g. ['label_1', 'label_2']): Validate that each key exist in
+        2 - Labels were provided as a list of key labels (e.g. ['label_1', 'label_2']): Validate that each key exist in
             the endpoint labels dictionary.
 
         :param endpoint_dict: Dictionary of the model endpoint records.
@@ -403,19 +384,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
             endpoint_dict.get(model_monitoring_constants.EventFieldType.LABELS)
         )
 
-        # Case 1 - labels are dictionary
-        if (
-            isinstance(labels, typing.Dict)
-            and not labels.items() <= endpoint_labels.items()
-        ):
-            return False
         for label in labels:
-            # Case 2 - labels are a list of key-value pairs
+            # Case 1 - labels are a list of key-value pairs
             if "=" in label:
                 lbl, value = list(map(lambda x: x.strip(), label.split("=")))
                 if lbl not in endpoint_labels or str(endpoint_labels[lbl]) != value:
                     return False
-            # Case 3 - labels are a list of keys
+            # Case 2 - labels are a list of keys
             else:
                 if label not in endpoint_labels:
                     return False
@@ -440,7 +415,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
             )
 
         # Drop the SQL table if it's empty
-        self._drop_table_if_not_empty()
+        self._drop_table_if_empty()
 
     def get_endpoint_real_time_metrics(
         self,
@@ -476,7 +451,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         )
         return {}
 
-    def _drop_table_if_not_empty(self):
+    def _drop_table_if_empty(self):
         """Delete model endpoints SQL table. If table is not empty, then it won't be deleted."""
 
         if not self._engine.has_table(self.table_name):
@@ -487,9 +462,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
             return
 
         # Count the model endpoint records using sqlalchemy ORM
-        session = create_session(dsn=self.connection_string)
-        rows = session.query(ModelEndpointsTable).count()
-        session.close()
+        with create_session(dsn=self.connection_string) as session:
+            rows = session.query(ModelEndpointsTable).count()
 
         # Drop the table if no records have been found
         if rows > 0:
@@ -504,19 +478,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
             )
             logger.info("Table has been deleted from SQL", table_name=self.table_name)
         return
-
-
-class BaseModel:
-    def to_dict(self, exclude=None):
-        exclude = exclude or []
-        mapper = class_mapper(self.__class__)
-        columns = [column.key for column in mapper.columns if column.key not in exclude]
-        get_key_value = (
-            lambda c: (c, getattr(self, c).isoformat())
-            if isinstance(getattr(self, c), datetime)
-            else (c, getattr(self, c))
-        )
-        return dict(map(get_key_value, columns))
 
 
 class ModelEndpointsTable(Base, BaseModel):
@@ -571,7 +532,7 @@ class ModelEndpointsTable(Base, BaseModel):
     )
     timestamp = db.Column(
         model_monitoring_constants.EventFieldType.TIMESTAMP,
-        db.dialects.mysql.TIMESTAMP(fsp=3),
+        db.DateTime,
     )
     endpoint_type = db.Column(
         model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,

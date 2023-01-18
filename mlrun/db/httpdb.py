@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import json
 import tempfile
 import time
 import traceback
@@ -2635,7 +2634,7 @@ class HTTPRunDB(RunDBInterface):
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
         :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
-         label (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+         label (i.e. list("key=value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or
@@ -2652,7 +2651,7 @@ class HTTPRunDB(RunDBInterface):
         path = f"projects/{project}/model-endpoints"
 
         if labels and isinstance(labels, dict):
-            labels = json.dumps(labels)
+            labels = [f"{key}={value}" for key, value in labels.items()]
 
         response = self.api_call(
             method="GET",

@@ -137,7 +137,7 @@ class ModelEndpointStore(ABC):
         :param model:           The name of the model to filter by.
         :param function:        The name of the function to filter by.
         :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
-                                of a label (i.e. list("key==value")) or by looking for the existence of a given
+                                of a label (i.e. list("key=value")) or by looking for the existence of a given
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param metrics:         A list of real-time metrics to return for each model endpoint. There are pre-defined

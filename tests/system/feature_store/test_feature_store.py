@@ -58,6 +58,7 @@ from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
 from .data_sample import quotes, stocks, trades
@@ -894,6 +895,73 @@ class TestFeatureStore(TestMLRunSystem):
         orig_columns.remove("patient_id")
         assert result_columns.sort() == orig_columns.sort()
 
+    @pytest.mark.parametrize("engine", ["storey", "pandas"])
+    def test_passthrough_feature_set(self, engine):
+        name = f"measurements_set_{uuid.uuid4()}"
+        key = "patient_id"
+        measurements_set = fstore.FeatureSet(
+            name,
+            entities=[Entity(key)],
+            timestamp_key="timestamp",
+            passthrough=True,
+            engine=engine,
+        )
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+
+        expected = source.to_dataframe().set_index("patient_id")
+
+        if engine != "pandas":  # pandas engine does not support preview (ML-2694)
+            preview_pd = fstore.preview(
+                measurements_set,
+                source=source,
+            )
+            # preview does not do set_index on the entity
+            preview_pd.set_index("patient_id", inplace=True)
+            assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
+
+        fstore.ingest(measurements_set, source)
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        assert len(measurements_set.status.targets) == 1
+        assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+
+        # verify that get_offline (and preview) equals the source
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        resp = fstore.get_offline_features(
+            vector, entity_timestamp_column="timestamp", with_indexes=True
+        )
+        get_offline_pd = resp.to_dataframe()
+        get_offline_pd["timestamp"] = pd.to_datetime(get_offline_pd["timestamp"])
+
+        assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
+
+        # assert get_online correctness
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"patient_id": "305-90-1613"}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
+
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
         key = "key"
@@ -1075,7 +1143,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -1086,9 +1156,8 @@ class TestFeatureStore(TestMLRunSystem):
         )
         fstore.preview(
             data_set,
-            data,  # source
+            source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
 
@@ -1372,11 +1441,11 @@ class TestFeatureStore(TestMLRunSystem):
                 NoSqlTarget(),
             ]
 
+        feature_set.set_targets(targets, with_defaults=False)
+
         fstore.ingest(
             feature_set,
             source,
-            run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
-            targets=targets,
         )
 
         features = [f"{name}.*"]
@@ -1406,8 +1475,6 @@ class TestFeatureStore(TestMLRunSystem):
             fstore.ingest(
                 feature_set,
                 source,
-                run_config=fstore.RunConfig(local=False).apply(mlrun.mount_v3io()),
-                targets=targets,
             )
 
             resp = svc.get(
@@ -2524,7 +2591,6 @@ class TestFeatureStore(TestMLRunSystem):
             featureset=fset,
             source=quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
         )
 
         filename = str(
@@ -2804,7 +2870,7 @@ class TestFeatureStore(TestMLRunSystem):
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
-            dask_cluster.with_requests(mem="2G")
+            dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
             engine_args = {
                 "dask_client": dask_cluster,
@@ -3198,6 +3264,24 @@ class TestFeatureStore(TestMLRunSystem):
 
         expected_stat = pd.DataFrame(
             {
+                "25%": {
+                    "myfloat1": -4221170668631284.0,
+                    "myfloat2": 0.06144396608214944,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "50%": {
+                    "myfloat1": -422870927452637.0,
+                    "myfloat2": 0.08649994306936987,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
+                "75%": {
+                    "myfloat1": 3375428813726010.0,
+                    "myfloat2": 0.11155592005659029,
+                    "mystr1": math.nan,
+                    "mystr2": math.nan,
+                },
                 "count": {
                     "myfloat1": 2.0,
                     "myfloat2": 2.0,
@@ -3268,6 +3352,71 @@ class TestFeatureStore(TestMLRunSystem):
                 fset,
                 source,
             )
+
+    # ML-3099
+    def test_preview_timestamp_key(self):
+        name = f"measurements_{uuid.uuid4()}"
+        base_time = pd.Timestamp(2021, 1, 1)
+        data = pd.DataFrame(
+            {
+                "time": [
+                    base_time,
+                    base_time - pd.Timedelta(minutes=1),
+                    base_time - pd.Timedelta(minutes=2),
+                    base_time - pd.Timedelta(minutes=3),
+                    base_time - pd.Timedelta(minutes=4),
+                    base_time - pd.Timedelta(minutes=5),
+                ],
+                "first_name": ["moshe", None, "yosi", "yosi", "moshe", "yosi"],
+                "last_name": ["cohen", "levi", "levi", "levi", "cohen", "levi"],
+                "bid": [2000, 10, 11, 12, 2500, 14],
+            }
+        )
+
+        # write to kv
+        data_set = fstore.FeatureSet(
+            name, entities=[Entity("first_name"), Entity("last_name")]
+        )
+
+        data_set.add_aggregation(
+            column="bid",
+            operations=["sum", "max"],
+            windows="1h",
+            period="10m",
+        )
+        res_df = fstore.preview(
+            data_set,
+            source=data,
+            entity_columns=["first_name", "last_name"],
+            timestamp_key="time",
+            options=fstore.InferOptions.default(),
+        )
+        expected_df = pd.DataFrame(
+            [
+                ("moshe", "cohen", 2000.0, 2000.0, base_time, 2000),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=2), 11),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=3), 12),
+                (
+                    "moshe",
+                    "cohen",
+                    2000.0,
+                    2000.0,
+                    base_time - pd.Timedelta(minutes=4),
+                    2500,
+                ),
+                ("yosi", "levi", 11.0, 11.0, base_time - pd.Timedelta(minutes=5), 14),
+            ],
+            columns=[
+                "first_name",
+                "last_name",
+                "bid_sum_1h",
+                "bid_max_1h",
+                "time",
+                "bid",
+            ],
+        )
+        expected_df.set_index(["first_name", "last_name"], inplace=True)
+        assert res_df.equals(expected_df), f"unexpected result: {res_df}"
 
 
 def verify_purge(fset, targets):

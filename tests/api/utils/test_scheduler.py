@@ -14,6 +14,7 @@
 #
 import asyncio
 import pathlib
+import random
 import time
 import typing
 import unittest.mock
@@ -65,6 +66,7 @@ async def bump_counter():
 
 async def bump_counter_and_wait():
     global call_counter
+    logger.debug("Bumping counter", call_counter=call_counter)
     call_counter += 1
     await asyncio.sleep(2)
 
@@ -1143,7 +1145,9 @@ async def test_update_schedule(
 
 
 @pytest.mark.asyncio
-async def test_update_schedule_failure_not_found(db: Session, scheduler: Scheduler):
+async def test_update_schedule_failure_not_found_in_db(
+    db: Session, scheduler: Scheduler
+):
     schedule_name = "schedule-name"
     project = config.default_project
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
@@ -1151,6 +1155,40 @@ async def test_update_schedule_failure_not_found(db: Session, scheduler: Schedul
             db, mlrun.api.schemas.AuthInfo(), project, schedule_name
         )
     assert "Schedule not found" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_failure_not_found_in_scheduler(
+    db: Session, scheduler: Scheduler
+):
+    schedule_name = "schedule-name"
+    project_name = config.default_project
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+
+    # create the schedule only in the db
+    inactive_cron_trigger = schemas.ScheduleCronTrigger(year="1999")
+    get_db().create_schedule(
+        db,
+        project_name,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        inactive_cron_trigger,
+        1,
+    )
+
+    # update schedule should fail since the schedule job was not created in the scheduler
+    with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
+        scheduler.update_schedule(
+            db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
+        )
+    job_id = scheduler._resolve_job_id(project_name, schedule_name)
+    assert (
+        f"Schedule job with id {job_id} not found in scheduler. Reload schedules is required."
+        in str(excinfo.value)
+    )
 
 
 @pytest.mark.asyncio
@@ -1176,7 +1214,7 @@ async def test_schedule_job_concurrency_limit(
     global call_counter
     call_counter = 0
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     now_plus_1_seconds = now + timedelta(seconds=1)
     now_plus_5_seconds = now + timedelta(seconds=5)
     cron_trigger = schemas.ScheduleCronTrigger(
@@ -1208,13 +1246,104 @@ async def test_schedule_job_concurrency_limit(
         concurrency_limit=concurrency_limit,
     )
 
+    random_sleep_time = random.randint(1, 5)
+    await asyncio.sleep(random_sleep_time)
+    after_sleep_timestamp = datetime.now(timezone.utc)
+
+    schedule = scheduler.get_schedule(
+        db,
+        project_name,
+        schedule_name,
+    )
+    if schedule.next_run_time is None:
+        # next run time may be none if the job was completed (i.e. end date was reached)
+        assert after_sleep_timestamp >= now_plus_5_seconds
+
+    else:
+        # scrub the microseconds to reduce noise
+        assert schedule.next_run_time >= after_sleep_timestamp.replace(microsecond=0)
+
     # wait so all runs will complete
-    await asyncio.sleep(7)
+    await asyncio.sleep(7 - random_sleep_time)
     if schedule_kind == schemas.ScheduleKinds.job:
         runs = get_db().list_runs(db, project=project_name)
         assert len(runs) == run_amount
     else:
         assert call_counter == run_amount
+
+
+@pytest.mark.asyncio
+async def test_schedule_job_next_run_time(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    """
+    This test checks that the next run time is updated after a schedule was skipped due to concurrency limit.
+    It creates a schedule that runs every second for 4 seconds with concurrency limit of 1.
+    The run takes 2 seconds to complete so the function should be triggered twice in that time frame.
+    While the 1st run is still running, manually invoke the schedule (should fail due to concurrency limit)
+    and check that the next run time is updated.
+    """
+    now = datetime.now(timezone.utc)
+    now_plus_1_seconds = now + timedelta(seconds=1)
+    now_plus_5_seconds = now + timedelta(seconds=5)
+    cron_trigger = schemas.ScheduleCronTrigger(
+        second="*/1", start_date=now_plus_1_seconds, end_date=now_plus_5_seconds
+    )
+    schedule_name = "schedule-name"
+    project_name = config.default_project
+    mlrun.new_project(project_name, save=False)
+
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name, handler="sleep_two_seconds"
+    )
+
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 0
+
+    scheduler.create_schedule(
+        db,
+        mlrun.api.schemas.AuthInfo(),
+        project_name,
+        schedule_name,
+        schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+        concurrency_limit=1,
+    )
+
+    while datetime.now(timezone.utc) < now_plus_5_seconds:
+        runs = get_db().list_runs(db, project=project_name)
+        if len(runs) == 1:
+            break
+
+        await asyncio.sleep(0.5)
+    else:
+        assert False, "No runs were created"
+
+    # invoke schedule should fail due to concurrency limit
+    # the next run time should be updated to the next second after the invocation failure
+    schedule_invocation_timestamp = datetime.now(timezone.utc)
+    await scheduler.invoke_schedule(
+        db, mlrun.api.schemas.AuthInfo(), project_name, schedule_name
+    )
+
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 1
+
+    # assert next run time was updated
+    schedule = scheduler.get_schedule(
+        db,
+        project_name,
+        schedule_name,
+    )
+    assert schedule.next_run_time > schedule_invocation_timestamp
+
+    # wait so all runs will complete
+    await asyncio.sleep(5)
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 2
 
 
 def _assert_schedule_get_and_list_credentials_enrichment(

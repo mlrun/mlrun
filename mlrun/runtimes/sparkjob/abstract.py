@@ -278,9 +278,11 @@ class AbstractSparkRuntime(KubejobRuntime):
     ):
         """deploy function, build container with dependencies
 
-        :param watch:      wait for the deploy to complete (and print build logs)
+        :param watch:      wait for the deployment to complete (and print build logs)
         :param with_mlrun: add the current mlrun package to the container build
         :param skip_deployed: skip the build if we already have an image for the function
+        :param is_kfp:  whether running inside KFP step (no need to use,
+                        being enriched automatically if running inside one)
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
                               e.g. builder_env={"GIT_TOKEN": token}
@@ -670,12 +672,19 @@ with ctx:
                 "file://" + config.spark_history_server_path
             )
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_limits & with_executor_limits"
         )
 
-    def with_requests(self, mem=None, cpu=None):
+    def with_requests(self, mem=None, cpu=None, patch: bool = False):
         raise NotImplementedError(
             "In spark runtimes, please use with_driver_requests & with_executor_requests"
         )

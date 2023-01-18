@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
 import typing
 
 import pydantic
 
+import mlrun.api.utils.helpers
 
-class ArtifactCategories(str, enum.Enum):
+
+class ArtifactCategories(mlrun.api.utils.helpers.StrEnum):
     model = "model"
     dataset = "dataset"
     other = "other"
@@ -55,6 +56,6 @@ class ArtifactIdentifier(pydantic.BaseModel):
     # hash: typing.Optional[str]
 
 
-class ArtifactsFormat(str, enum.Enum):
+class ArtifactsFormat(mlrun.api.utils.helpers.StrEnum):
     full = "full"
     legacy = "legacy"

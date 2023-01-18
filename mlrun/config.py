@@ -301,7 +301,7 @@ default_config = {
         },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
-            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
+            # allowed to be scheduled to run more than 2 times in X. Can't be less than 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
             # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
@@ -456,10 +456,14 @@ default_config = {
     "ce": {
         # ce mode can be one of: "", lite, full
         "mode": "",
+        # not possible to call this "version" because the Config class has a "version" property
+        # which returns the version from the version.json file
+        "release": "",
     },
     "debug": {
         "expose_internal_api_endpoints": False,
     },
+    "default_workflow_runner_name": "workflow-runner-{}",
 }
 
 _is_running_as_api = None

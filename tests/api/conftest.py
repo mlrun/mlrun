@@ -68,15 +68,7 @@ def set_base_url_for_test_client(
     client: typing.Union[httpx.AsyncClient, TestClient],
     prefix: str = BASE_VERSIONED_API_PREFIX,
 ):
-    if isinstance(client, httpx.AsyncClient):
-        client.base_url = client.base_url.join(prefix)
-    elif isinstance(client, TestClient):
-        client.base_url = client.base_url + prefix
-
-        # https://stackoverflow.com/questions/10893374/python-confusions-with-urljoin/10893427#10893427
-        client.base_url = client.base_url.rstrip("/") + "/"
-    else:
-        raise NotImplementedError(f"Unknown test client type: {type(client)}")
+    client.base_url = client.base_url.join(prefix)
 
 
 @pytest.fixture()
@@ -147,9 +139,14 @@ class K8sSecretsMock:
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         del self.auth_secrets_map[secret_ref]
 
-    def read_auth_secret(self, secret_name, namespace=""):
+    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         secret = self.auth_secrets_map.get(secret_name)
         if not secret:
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Secret '{secret_name}' was not found in auth secrets map"
+                )
+
             return None, None
         username = secret[
             mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")

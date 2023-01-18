@@ -109,8 +109,8 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
 
     # no grafana (None returned) so no url
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.Client().verify_request_session = (
-        unittest.mock.Mock(
+    mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
             return_value=(
                 mlrun.api.schemas.AuthInfo(
                     username=None,
@@ -200,3 +200,47 @@ def test_get_frontend_spec_nuclio_streams(
         assert frontend_spec.feature_flags.nuclio_streams == test_case.get(
             "expected_feature_flag"
         )
+
+
+def test_get_frontend_spec_ce(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    ce_mode = "some-ce-mode"
+    ce_release = "y.y.y"
+    mlrun.mlconf.ce.mode = ce_mode
+    mlrun.mlconf.ce.release = ce_release
+
+    response = client.get("frontend-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+
+    assert frontend_spec.ce["release"] == ce_release
+    assert frontend_spec.ce["mode"] == frontend_spec.ce_mode == ce_mode
+
+
+def test_get_frontend_spec_feature_store_data_prefixes(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    feature_store_data_prefix_default = "feature-store-data-prefix-default"
+    feature_store_data_prefix_nosql = "feature-store-data-prefix-nosql"
+    feature_store_data_prefix_redisnosql = "feature-store-data-prefix-redisnosql"
+    mlrun.mlconf.feature_store.data_prefixes.default = feature_store_data_prefix_default
+    mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
+    mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
+        feature_store_data_prefix_redisnosql
+    )
+    response = client.get("frontend-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    frontend_spec = mlrun.api.schemas.FrontendSpec(**response.json())
+    assert (
+        frontend_spec.feature_store_data_prefixes["default"]
+        == feature_store_data_prefix_default
+    )
+    assert (
+        frontend_spec.feature_store_data_prefixes["nosql"]
+        == feature_store_data_prefix_nosql
+    )
+    assert (
+        frontend_spec.feature_store_data_prefixes["redisnosql"]
+        == feature_store_data_prefix_redisnosql
+    )

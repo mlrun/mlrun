@@ -37,6 +37,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -209,7 +210,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = [f"{name}.*"]
         vec = fstore.FeatureVector("test-vec", features)
 
-        resp = fstore.get_offline_features(vec)
+        resp = fstore.get_offline_features(vec, with_indexes=True)
         df = resp.to_dataframe()
         assert type(df["timestamp"][0]).__name__ == "Timestamp"
 
@@ -854,6 +855,58 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         source_df = source.to_dataframe()
         source_df.set_index(key, drop=True, inplace=True)
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        assert resp_df.equals(target_df)
+        assert resp_df[["bad", "department"]].equals(expected_df)
+
+    # ML-2802
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_get_offline_features_with_spark_engine(self, passthrough):
+        key = "patient_id"
+        measurements = fstore.FeatureSet(
+            "measurements",
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+            passthrough=passthrough,
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(local=False),
+        )
+        assert measurements.status.targets[0].run_id is not None
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        if passthrough:
+            assert len(measurements.status.targets) == 1
+            assert isinstance(measurements.status.targets["nosql"], DataTarget)
+
+        fv_name = "measurements-fv"
+        features = [
+            "measurements.bad",
+            "measurements.department",
+        ]
+        my_fv = fstore.FeatureVector(
+            fv_name,
+            features,
+        )
+        my_fv.save()
+        target = ParquetTarget("mytarget", path=self.get_remote_pq_target_path())
+        resp = fstore.get_offline_features(
+            fv_name,
+            target=target,
+            query="bad>6 and bad<8",
+            run_config=fstore.RunConfig(local=False, kind="remote-spark"),
+            engine="spark",
+            spark_service=self.spark_service,
+        )
+        resp_df = resp.to_dataframe()
+        target_df = target.as_df()
+        source_df = source.to_dataframe()
+        expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
+        expected_df.reset_index(drop=True, inplace=True)
         assert resp_df.equals(target_df)
         assert resp_df[["bad", "department"]].equals(expected_df)
 

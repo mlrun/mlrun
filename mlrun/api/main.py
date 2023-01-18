@@ -253,7 +253,7 @@ start_logs_limit = asyncio.Semaphore(config.log_collector.concurrent_start_logs_
 
 
 async def _collect_runs_logs():
-    db_session = create_session()
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
@@ -278,7 +278,7 @@ async def _collect_runs_logs():
             )
 
     finally:
-        close_session(db_session)
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 async def _start_log_for_run(run: dict) -> typing.Union[str, None]:

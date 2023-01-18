@@ -161,6 +161,32 @@ class TestCollectRunSLogs:
         assert run_uid is None
         assert log_collector._call.call_count == 1
 
+    @pytest.mark.asyncio
+    async def test_fufu_real_log_collector(
+        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
+    ):
+        _, _, uid, _, run = _create_new_run(
+            db,
+            "default",
+            uid="cde099c6724742859b8b2115eb767429",
+            name="handler",
+            kind="job",
+            store=False,
+        )
+        run_uid = await mlrun.api.main._start_log_for_run(run)
+        assert run_uid == uid
+
+        logs = await mlrun.api.utils.clients.log_collector.LogCollectorClient().get_logs(
+            run_uid=uid, project="default", offset=0, size=-1
+        )
+        # assert len(logs) < 95000
+
+        logs = await mlrun.api.utils.clients.log_collector.LogCollectorClient().get_logs(
+            run_uid=uid, project="default", offset=95000, size=-1
+        )
+        assert len(logs) > 0
+
+
 
 def _create_new_run(
     db_session: sqlalchemy.orm.session.Session,
@@ -170,6 +196,7 @@ def _create_new_run(
     iteration=0,
     kind="",
     state=mlrun.runtimes.constants.RunStates.created,
+    store: bool = True,
 ):
     labels = {"kind": kind}
     run = {

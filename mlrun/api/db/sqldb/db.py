@@ -235,8 +235,8 @@ class SQLDB(DBInterface):
         """
         List all runs uids in the DB
         :param session: DB session
-        :param project: Project name
-        :param requested_logs: If True, will return only runs that have requested logs
+        :param project: Project name, `*` or `None` lists across all projects
+        :param requested_logs: If not `None`, will return only runs for which logs were requested (or not)
         :param only_uids: If True, will return only the uids of the runs as list of strings
                           If False, will return the full run objects as RunList
         :return: List of runs uids or RunList

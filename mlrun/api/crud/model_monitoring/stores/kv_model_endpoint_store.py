@@ -185,7 +185,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         self,
         model: str = None,
         function: str = None,
-        labels: typing.Union[typing.List[str], typing.Dict] = None,
+        labels: typing.List[str] = None,
         top_level: bool = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
@@ -227,19 +227,6 @@ class KVModelEndpointStore(ModelEndpointStore):
         endpoint_list = mlrun.api.schemas.model_endpoints.ModelEndpointList(
             endpoints=[]
         )
-
-        # Labels from type list won't be supported from 1.4.0
-        # TODO: Remove in 1.4.0
-        if labels and isinstance(labels, typing.List):
-            logger.warning(
-                "Labels should be from type dictionary, not list,"
-                "This is deprecated in 1.3.0, and will be removed in 1.4.0",
-                FutureWarning,
-                labels=labels,
-            )
-
-        if labels and isinstance(labels, dict):
-            labels = [f"{key}={value}" for key, value in labels.items()]
 
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:

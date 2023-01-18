@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 import os
 import typing
+import warnings
 
 import nuclio.utils
 import sqlalchemy.orm
@@ -54,7 +54,7 @@ class ModelEndpoints:
         auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
     ) -> mlrun.api.schemas.ModelEndpoint:
         # TODO: deprecated in 1.3.0, remove in 1.5.0.
-        logger.warning(
+        warnings.warn(
             "This is deprecated in 1.3.0, and will be removed in 1.5.0", FutureWarning
         )
         """
@@ -114,9 +114,8 @@ class ModelEndpoints:
                 model_obj, "feature_stats"
             ):
                 model_endpoint.status.feature_stats = model_obj.spec.feature_stats
-
             # Get labels from model object if not found in model endpoint object
-            if not model_endpoint.spec.label_names and hasattr(model_obj, "outputs"):
+            if not model_endpoint.spec.label_names and model_obj.spec.outputs:
                 model_label_names = [
                     self._clean_feature_name(f.name) for f in model_obj.spec.outputs
                 ]
@@ -164,10 +163,10 @@ class ModelEndpoints:
         logger.info("Creating model endpoint", endpoint_id=model_endpoint.metadata.uid)
 
         # Write the new model endpoint
-        model_endpoint_target = get_model_endpoint_store(
+        model_endpoint_store = get_model_endpoint_store(
             project=model_endpoint.metadata.project,
         )
-        model_endpoint_target.write_model_endpoint(endpoint=model_endpoint)
+        model_endpoint_store.write_model_endpoint(endpoint=model_endpoint)
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -337,16 +336,16 @@ class ModelEndpoints:
         :return: A patched `ModelEndpoint` object.
         """
 
-        model_endpoint_target = get_model_endpoint_store(
+        model_endpoint_store = get_model_endpoint_store(
             project=project,
         )
-        model_endpoint_target.update_model_endpoint(
+        model_endpoint_store.update_model_endpoint(
             endpoint_id=endpoint_id, attributes=attributes
         )
 
         logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
-        return model_endpoint_target.get_model_endpoint(
+        return model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id, start="now-1h", end="now"
         )
 
@@ -361,10 +360,10 @@ class ModelEndpoints:
         :param project:     The name of the project.
         :param endpoint_id: The id of the endpoint.
         """
-        model_endpoint_target = get_model_endpoint_store(
+        model_endpoint_store = get_model_endpoint_store(
             project=project,
         )
-        model_endpoint_target.delete_model_endpoint(endpoint_id=endpoint_id)
+        model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
@@ -411,11 +410,11 @@ class ModelEndpoints:
             endpoint_id=endpoint_id,
         )
 
-        model_endpoint_target = get_model_endpoint_store(
+        model_endpoint_store = get_model_endpoint_store(
             project=project, access_key=auth_info.data_session
         )
 
-        return model_endpoint_target.get_model_endpoint(
+        return model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,
             metrics=metrics,
             start=start,
@@ -430,7 +429,7 @@ class ModelEndpoints:
         project: str,
         model: str = None,
         function: str = None,
-        labels: typing.Union[typing.List[str], str] = None,
+        labels: typing.List[str] = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
         end: str = "now",
@@ -474,8 +473,6 @@ class ModelEndpoints:
                  To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
         """
 
-        labels = labels or "{}"
-
         logger.info(
             "Listing endpoints",
             project=project,
@@ -489,22 +486,11 @@ class ModelEndpoints:
             uids=uids,
         )
 
-        # Labels from type list won't be supported from 1.4.0, only str that will be converted into dictionary
-        # TODO: Remove in 1.4.0 the following 2 lines and uncomment the last line
-        logger.warning(
-            "This is deprecated in 1.3.0, and will be removed in 1.4.0",
-            FutureWarning,
-            labels=labels,
-        )
-        if labels and isinstance(labels, str):
-            labels = json.loads(labels)
-        # labels = json.loads(labels)
-
-        endpoint_target = get_model_endpoint_store(
+        endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session, project=project
         )
 
-        return endpoint_target.list_model_endpoints(
+        return endpoint_store.list_model_endpoints(
             function=function,
             model=model,
             labels=labels,
@@ -578,10 +564,10 @@ class ModelEndpoints:
 
         endpoints = self.list_model_endpoints(auth_info, project_name)
 
-        endpoint_target = get_model_endpoint_store(
+        endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session, project=project_name
         )
-        endpoint_target.delete_model_endpoints_resources(endpoints)
+        endpoint_store.delete_model_endpoints_resources(endpoints)
 
     @staticmethod
     def deploy_model_monitoring_stream_processing(

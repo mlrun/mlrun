@@ -119,9 +119,11 @@ async def grafana_proxy_model_endpoints_search(
     function = NAME_TO_SEARCH_FUNCTION_DICTIONARY[target_endpoint]
 
     if asyncio.iscoroutinefunction(function):
-        result = await function(db_session, auth_info)
+        result = await function(db_session, auth_info, query_parameters)
     else:
-        result = await run_in_threadpool(function, db_session, auth_info)
+        result = await run_in_threadpool(
+            function, db_session, auth_info, query_parameters
+        )
     return result
 
 
@@ -167,10 +169,11 @@ async def grafana_list_endpoints_ids(
     project = query_parameters.get("project")
 
     # Create model endpoint target object and list the model endpoints unique ids.
-    endpoint_target = mlrun.api.crud.model_monitoring.get_model_endpoint_store(
-        project=project
+    endpoint_list = await run_in_threadpool(
+        mlrun.api.crud.ModelEndpoints().list_model_endpoints,
+        auth_info=auth_info,
+        project=project,
     )
-    endpoint_list = await run_in_threadpool(endpoint_target.list_model_endpoints())
     endpoint_ids = [endpoint_id.metadata.uid for endpoint_id in endpoint_list.endpoints]
     return endpoint_ids
 
@@ -262,6 +265,7 @@ async def grafana_get_model_endpoint(
 
     :return: GrafanaTable object that represents the model endpoint record.
     """
+
     # Get project name and model endpoint id from the query parameters
     project = query_parameters.get("project")
     endpoint_id = query_parameters.get("endpoint_id")
@@ -283,14 +287,13 @@ async def grafana_get_model_endpoint(
 
     # Generate model endpoint object
     endpoint = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().get_model_endpoint(
-            endpoint_id=endpoint_id,
-            auth_info=auth_info,
-            project=project,
-            metrics=metrics,
-            start=start,
-            end=end,
-        )
+        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
+        endpoint_id=endpoint_id,
+        auth_info=auth_info,
+        project=project,
+        metrics=metrics,
+        start=start,
+        end=end,
     )
 
     # Generate GrafanaTable object based on the endpoint object

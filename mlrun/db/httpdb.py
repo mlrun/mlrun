@@ -2611,7 +2611,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: Union[List[str], Dict] = None,
+        labels: List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
@@ -2634,8 +2634,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project
         :param model: The name of the model to filter by
         :param function: The name of the function to filter by
-        :param labels: A list or a dictionary of labels to filter by. Label filters work by either filtering a
-        specific value of a label (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
+        :param labels: A list of labels to filter by. Label filters work by either filtering a specific value of a
+         label (i.e. list("key==value")) or by looking for the existence of a given key (i.e. "key")
         :param metrics: A list of metrics to return for each endpoint, read more in 'TimeMetric'
         :param start: The start time of the metrics. Can be represented by a string containing an RFC 3339
                                  time, a Unix timestamp in milliseconds, a relative time (`'now'` or

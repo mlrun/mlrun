@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import typing
 
 from sqlalchemy import create_engine
@@ -21,51 +22,53 @@ from sqlalchemy.orm import sessionmaker as SessionMaker
 
 from mlrun.config import config
 
+_engines: typing.Dict[str, Engine] = {}
+_session_makers: typing.Dict[str, SessionMaker] = {}
 
-def create_session(dsn=None) -> Session:
-    session_maker = DBEngine(dsn=dsn)._get_session_maker()
+
+# doing lazy load to allow tests to initialize the engine
+def get_engine(dsn=config.httpdb.dsn) -> Engine:
+    global _engines
+    if dsn not in _engines:
+        _init_engine(dsn=dsn)
+    return _engines[dsn]
+
+
+def create_session(dsn=config.httpdb.dsn) -> Session:
+    session_maker = _get_session_maker(dsn=dsn)
     return session_maker()
 
 
-class DBEngine:
+# doing lazy load to allow tests to initialize the engine
+def _get_session_maker(dsn) -> SessionMaker:
+    global _session_makers
+    if dsn not in _session_makers:
+        _init_session_maker(dsn=dsn)
+    return _session_makers[dsn]
 
-    _engines: typing.Dict[str, Engine] = {}
-    _session_makers: typing.Dict[str, SessionMaker] = {}
 
-    def __init__(self, dsn=None):
-        self._dsn = dsn or config.httpdb.dsn
+# TODO: we accept the dsn here to enable tests to override it, the "right" thing will be that config will be easily
+#  overridable by tests (today when you import the config it is already being initialized.. should be lazy load)
+def _init_engine(dsn=None):
+    global _engines
+    dsn = dsn or config.httpdb.dsn
+    kwargs = {}
+    if "mysql" in dsn:
+        pool_size = config.httpdb.db.connections_pool_size
+        if pool_size is None:
+            pool_size = config.httpdb.max_workers
+        max_overflow = config.httpdb.db.connections_pool_max_overflow
+        if max_overflow is None:
+            max_overflow = config.httpdb.max_workers
+        kwargs = {
+            "pool_size": pool_size,
+            "max_overflow": max_overflow,
+        }
+    engine = create_engine(dsn, **kwargs)
+    _engines[dsn] = engine
 
-    # doing lazy load to allow tests to initialize the engine
-    def get_engine(self) -> Engine:
-        if self._dsn not in self._engines:
-            self._init_engine()
-        return self._engines[self._dsn]
 
-    # TODO: we accept the dsn here to enable tests to override it, the "right" thing will be that config will be easily
-    #  overridable by tests (today when you import the config it is already being initialized.. should be lazy load)
-    def _init_engine(self):
-        kwargs = {}
-        if "mysql" in self._dsn:
-            pool_size = config.httpdb.db.connections_pool_size
-            if pool_size is None:
-                pool_size = config.httpdb.max_workers
-            max_overflow = config.httpdb.db.connections_pool_max_overflow
-            if max_overflow is None:
-                max_overflow = config.httpdb.max_workers
-            kwargs = {
-                "pool_size": pool_size,
-                "max_overflow": max_overflow,
-            }
-        engine = create_engine(self._dsn, **kwargs)
-        self._engines[self._dsn] = engine
-        self._init_session_maker()
-
-    # doing lazy load to allow tests to initialize the engine
-    def _get_session_maker(self) -> SessionMaker:
-        if self._dsn not in self._session_makers:
-            self._init_session_maker()
-        return self._session_makers[self._dsn]
-
-    def _init_session_maker(self):
-        _session_maker = SessionMaker(bind=self.get_engine())
-        self._session_makers[self._dsn] = _session_maker
+def _init_session_maker(dsn):
+    global _session_makers
+    _session_maker = SessionMaker(bind=get_engine(dsn=dsn))
+    _session_makers[dsn] = _session_maker

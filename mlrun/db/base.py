@@ -15,7 +15,7 @@
 import datetime
 import warnings
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 from mlrun.api import schemas
 from mlrun.api.schemas import ModelEndpoint
@@ -497,7 +497,7 @@ class RunDBInterface(ABC):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: Union[List[str], Dict] = None,
+        labels: List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,

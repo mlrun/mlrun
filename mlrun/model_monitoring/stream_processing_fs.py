@@ -28,7 +28,7 @@ import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.api.crud.model_monitoring import get_model_endpoint_store
+from mlrun.api.crud.model_monitoring.stores import get_model_endpoint_store
 from mlrun.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
@@ -1037,18 +1037,18 @@ def update_endpoint_record(
     endpoint_id: str,
     attributes: dict,
 ):
-    model_endpoint_target = get_model_endpoint_store(
+    model_endpoint_store = get_model_endpoint_store(
         project=project,
     )
-    model_endpoint_target.update_model_endpoint(
+    model_endpoint_store.update_model_endpoint(
         endpoint_id=endpoint_id, attributes=attributes
     )
 
 
 def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_target = get_model_endpoint_store(
+    model_endpoint_store = get_model_endpoint_store(
         project=project,
     )
-    return model_endpoint_target.get_model_endpoint(
+    return model_endpoint_store.get_model_endpoint(
         endpoint_id=endpoint_id, convert_to_endpoint_object=False
     )

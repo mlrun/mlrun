@@ -15,19 +15,25 @@
 
 import json
 import typing
+from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as db
+import sqlalchemy.dialects.mysql
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import class_mapper
 
 import mlrun
 import mlrun.api.schemas
 import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.api.db.sqldb.session import DBEngine, create_session
+from mlrun.api.db.sqldb.session import create_session, get_engine
 from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
+
+Base = declarative_base()
 
 
 class SQLModelEndpointStore(ModelEndpointStore):
@@ -55,28 +61,14 @@ class SQLModelEndpointStore(ModelEndpointStore):
         super().__init__(project=project)
         self.connection_string = connection_string
         self.table_name = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
-        self.metadata = db.MetaData()
-        self._db_connection = DBEngine(dsn=connection_string)
-        self.init_engine()
-        self.model_endpoints_table = self.init_model_endpoints_table()
 
-    def init_engine(self):
-        if not self._engine:
-            self._engine = self._db_connection.get_engine()
-            if not self._engine.has_table(self.table_name):
-                with self._engine.connect() as connection:
-                    logger.info("Creating new model endpoints table in DB")
-                    # Define schema and table for the model endpoints table as required by the SQL table structure
-                    self._get_table(self.table_name, self.metadata)
+        self._engine = get_engine(dsn=connection_string)
 
-                    # Create the table that stored in the MetaData object (if not exist)
-                    self.metadata.create_all(connection)
+        # Create table if not exist
+        if not self._engine.has_table(self.table_name):
+            Base.metadata.create_all(bind=self._engine)
 
-    def init_model_endpoints_table(self):
-        # Generate the sqlalchemy.schema.Table object that represents the model endpoints table
-        return db.Table(
-            self.table_name, self.metadata, autoload=True, autoload_with=self._engine
-        )
+        self.model_endpoints_table = ModelEndpointsTable.__table__
 
     def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
         """
@@ -107,21 +99,16 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         """
 
-        with self._engine.connect() as connection:
+        # Update the model endpoint record using sqlalchemy ORM
+        session = create_session(dsn=self.connection_string)
 
-            # Define and execute the query with the given attributes and the related model endpoint id
-            update_query = (
-                db.update(self.model_endpoints_table)
-                .values(attributes)
-                .where(
-                    self.model_endpoints_table.c[
-                        model_monitoring_constants.EventFieldType.ENDPOINT_ID
-                    ]
-                    == endpoint_id
-                )
-            )
-            connection.execute(update_query)
-            connection.commit()
+        # Generate and commit the update session query
+        session.query(ModelEndpointsTable).filter(
+            ModelEndpointsTable.endpoint_id == endpoint_id
+        ).update(attributes)
+
+        session.commit()
+        session.close()
 
     def delete_model_endpoint(self, endpoint_id: str):
         """
@@ -133,9 +120,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Delete the model endpoint record using sqlalchemy ORM
         session = create_session(dsn=self.connection_string)
 
-        session.query(self.model_endpoints_table).filter_by(
-            endpoint_id=endpoint_id
-        ).delete()
+        # Generate and commit the delete query
+        session.query(ModelEndpointsTable).filter_by(endpoint_id=endpoint_id).delete()
         session.commit()
         session.close()
 
@@ -184,11 +170,10 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Get the model endpoint record using sqlalchemy ORM
         session = create_session(dsn=self.connection_string)
 
-        columns = self.model_endpoints_table.columns.keys()
+        # Generate the get query
         endpoint_record = (
-            session.query(self.model_endpoints_table)
+            session.query(ModelEndpointsTable)
             .filter_by(endpoint_id=endpoint_id)
-            .filter_by()
             .one_or_none()
         )
         session.close()
@@ -197,7 +182,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         # Convert the database values and the table columns into a python dictionary
-        endpoint = dict(zip(columns, endpoint_record))
+        endpoint = endpoint_record.to_dict()
 
         if convert_to_endpoint_object:
             # Convert the model endpoint dictionary into a ModelEndpont object
@@ -227,7 +212,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         self,
         model: str = None,
         function: str = None,
-        labels: typing.Union[typing.List[str], typing.Dict] = None,
+        labels: typing.List[str] = None,
         top_level: bool = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
@@ -241,9 +226,9 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         :param model:           The name of the model to filter by.
         :param function:        The name of the function to filter by.
-        :param labels:          A list or a dictionary of labels to filter by. Label filters work by either filtering
-                                a specific value of a label (i.e. list("key==value")) or by looking for the
-                                existence of a given key (i.e. "key").
+        :param labels:          A list of labels to filter by. Label filters work by either filtering a specific value
+                                of a label (i.e. list("key==value")) or by looking for the existence of a given
+                                key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
         :param metrics:         A list of real-time metrics to return for each model endpoint. There are pre-defined
                                 real-time metrics for model endpoints such as predictions_per_second and latency_avg_5m
@@ -280,10 +265,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Get the model endpoints records using sqlalchemy ORM
         session = create_session(dsn=self.connection_string)
 
-        columns = self.model_endpoints_table.columns.keys()
-        query = session.query(self.model_endpoints_table).filter_by(
-            project=self.project
-        )
+        # Generate the list query
+        query = session.query(ModelEndpointsTable).filter_by(project=self.project)
 
         # Apply filters
         if model:
@@ -319,25 +302,21 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 filtered_values=endpoint_types,
                 combined=False,
             )
-        # Labels from type list won't be supported from 1.4.0
-        # TODO: Remove in 1.4.0
-        if labels and isinstance(labels, typing.List):
-            logger.warning(
-                "Labels should be from type dictionary, not list,"
-                "This is deprecated in 1.3.0, and will be removed in 1.4.0",
-                FutureWarning,
-                labels=labels,
-            )
+
+        if labels and labels[0].startswith("{") and labels[0].endswith("}"):
+            # Convert labels into a dictionary (provided in JSON format)
+            labels = json.loads(labels[0])
 
         # Convert the results from the DB into a ModelEndpoint object and append it to the ModelEndpointList
-        for endpoint_values in query.all():
-            endpoint_dict = dict(zip(columns, endpoint_values))
+        for endpoint_record in query.all():
+            endpoint_dict = endpoint_record.to_dict()
 
             # Filter labels
-            if labels and labels != json.loads(
-                endpoint_dict.get(model_monitoring_constants.EventFieldType.LABELS)
+            if labels and not self._validate_labels(
+                endpoint_dict=endpoint_dict, labels=labels
             ):
                 continue
+
             endpoint_obj = self._convert_into_model_endpoint_object(endpoint_dict)
 
             # If time metrics were provided, retrieve the results from the time series DB
@@ -401,92 +380,47 @@ class SQLModelEndpointStore(ModelEndpointStore):
         return query.filter(db.and_(*filter_query))
 
     @staticmethod
-    def _get_table(table_name: str, metadata: db.MetaData):
-        """Declaring a new SQL table object with the required model endpoints columns. Below you can find the list
-        of columns:
+    def _validate_labels(
+        endpoint_dict: dict,
+        labels: typing.Union[typing.List, typing.Dict[str, typing.Any]],
+    ) -> bool:
+        """Validate that the model endpoint dictionary has the provided labels. There are 3 possible cases:
+        1 - Labels were provided as a dictionary (e.g. {'label_1': 'value_1', 'label_2': 'value_2'}: Validate that the
+            labels dictionary is a subset of the endpoint labels dictionary.
+        2 - Labels were provided as a list of key-values pairs (e.g. ['label_1=value_1', 'label_2=value_2']): Validate
+            that each pair exist in the endpoint dictionary.
+        3 - Labels were provided as a list of key labels (e.g. ['label_1', 'label_2']): Validate that each key exist in
+            the endpoint labels dictionary.
 
-        [endpoint_id, state, project, function_uri, model, model_class, labels, model_uri, stream_path, active,
-        monitoring_mode, feature_stats, current_stats, feature_names, children, label_names, timestamp, endpoint_type,
-        children_uids, drift_measures, drift_status, monitor_configuration, monitoring_feature_set_uri, first_request,
-        last_request, error_count, metrics]
+        :param endpoint_dict: Dictionary of the model endpoint records.
+        :param labels:        List of dictionary of required labels.
 
-        :param table_name: Model endpoints SQL table name.
-        :param metadata:   SQLAlchemy MetaData object that used to describe the SQL DataBase. The below method uses the
-                           MetaData object for declaring a table.
+        :return: True if the labels exist in the endpoint labels dictionary, otherwise False.
         """
 
-        db.Table(
-            table_name,
-            metadata,
-            db.Column(
-                model_monitoring_constants.EventFieldType.ENDPOINT_ID,
-                db.String(40),
-                primary_key=True,
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.STATE, db.String(10)),
-            db.Column(model_monitoring_constants.EventFieldType.PROJECT, db.String(40)),
-            db.Column(
-                model_monitoring_constants.EventFieldType.FUNCTION_URI,
-                db.String(255),
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.MODEL, db.String(255)),
-            db.Column(
-                model_monitoring_constants.EventFieldType.MODEL_CLASS,
-                db.String(255),
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.LABELS, db.Text),
-            db.Column(
-                model_monitoring_constants.EventFieldType.MODEL_URI, db.String(255)
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.STREAM_PATH, db.Text),
-            db.Column(
-                model_monitoring_constants.EventFieldType.ALGORITHM,
-                db.String(255),
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.ACTIVE, db.Boolean),
-            db.Column(
-                model_monitoring_constants.EventFieldType.MONITORING_MODE,
-                db.String(10),
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.FEATURE_STATS, db.Text),
-            db.Column(model_monitoring_constants.EventFieldType.CURRENT_STATS, db.Text),
-            db.Column(model_monitoring_constants.EventFieldType.FEATURE_NAMES, db.Text),
-            db.Column(model_monitoring_constants.EventFieldType.CHILDREN, db.Text),
-            db.Column(model_monitoring_constants.EventFieldType.LABEL_NAMES, db.Text),
-            db.Column(model_monitoring_constants.EventFieldType.TIMESTAMP, db.DateTime),
-            db.Column(
-                model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
-                db.String(10),
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.CHILDREN_UIDS, db.Text),
-            db.Column(
-                model_monitoring_constants.EventFieldType.DRIFT_MEASURES, db.Text
-            ),
-            db.Column(
-                model_monitoring_constants.EventFieldType.DRIFT_STATUS,
-                db.String(40),
-            ),
-            db.Column(
-                model_monitoring_constants.EventFieldType.MONITOR_CONFIGURATION,
-                db.Text,
-            ),
-            db.Column(
-                model_monitoring_constants.EventFieldType.FEATURE_SET_URI,
-                db.String(255),
-            ),
-            db.Column(
-                model_monitoring_constants.EventFieldType.FIRST_REQUEST,
-                db.String(40),
-            ),
-            db.Column(
-                model_monitoring_constants.EventFieldType.LAST_REQUEST,
-                db.String(40),
-            ),
-            db.Column(
-                model_monitoring_constants.EventFieldType.ERROR_COUNT, db.Integer
-            ),
-            db.Column(model_monitoring_constants.EventFieldType.METRICS, db.Text),
+        # Convert endpoint labels into dictionary
+        endpoint_labels = json.loads(
+            endpoint_dict.get(model_monitoring_constants.EventFieldType.LABELS)
         )
+
+        # Case 1 - labels are dictionary
+        if (
+            isinstance(labels, typing.Dict)
+            and not labels.items() <= endpoint_labels.items()
+        ):
+            return False
+        for label in labels:
+            # Case 2 - labels are a list of key-value pairs
+            if "=" in label:
+                lbl, value = list(map(lambda x: x.strip(), label.split("=")))
+                if lbl not in endpoint_labels or str(endpoint_labels[lbl]) != value:
+                    return False
+            # Case 3 - labels are a list of keys
+            else:
+                if label not in endpoint_labels:
+                    return False
+
+        return True
 
     def delete_model_endpoints_resources(
         self, endpoints: mlrun.api.schemas.model_endpoints.ModelEndpointList
@@ -554,7 +488,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         # Count the model endpoint records using sqlalchemy ORM
         session = create_session(dsn=self.connection_string)
-        rows = session.query(self.model_endpoints_table).count()
+        rows = session.query(ModelEndpointsTable).count()
         session.close()
 
         # Drop the table if no records have been found
@@ -564,8 +498,112 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 table_name=self.table_name,
             )
         else:
-            self.metadata.drop_all(
+
+            Base.metadata.drop_all(
                 bind=self._engine, tables=[self.model_endpoints_table]
             )
             logger.info("Table has been deleted from SQL", table_name=self.table_name)
         return
+
+
+class BaseModel:
+    def to_dict(self, exclude=None):
+        exclude = exclude or []
+        mapper = class_mapper(self.__class__)
+        columns = [column.key for column in mapper.columns if column.key not in exclude]
+        get_key_value = (
+            lambda c: (c, getattr(self, c).isoformat())
+            if isinstance(getattr(self, c), datetime)
+            else (c, getattr(self, c))
+        )
+        return dict(map(get_key_value, columns))
+
+
+class ModelEndpointsTable(Base, BaseModel):
+    __tablename__ = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
+
+    endpoint_id = db.Column(
+        model_monitoring_constants.EventFieldType.ENDPOINT_ID,
+        db.String(40),
+        primary_key=True,
+    )
+    state = db.Column(model_monitoring_constants.EventFieldType.STATE, db.String(10))
+    project = db.Column(
+        model_monitoring_constants.EventFieldType.PROJECT, db.String(40)
+    )
+    function_uri = db.Column(
+        model_monitoring_constants.EventFieldType.FUNCTION_URI,
+        db.String(255),
+    )
+    model = db.Column(model_monitoring_constants.EventFieldType.MODEL, db.String(255))
+    model_class = db.Column(
+        model_monitoring_constants.EventFieldType.MODEL_CLASS,
+        db.String(255),
+    )
+    labels = db.Column(model_monitoring_constants.EventFieldType.LABELS, db.Text)
+    model_uri = db.Column(
+        model_monitoring_constants.EventFieldType.MODEL_URI, db.String(255)
+    )
+    stream_path = db.Column(
+        model_monitoring_constants.EventFieldType.STREAM_PATH, db.Text
+    )
+    algorithm = db.Column(
+        model_monitoring_constants.EventFieldType.ALGORITHM,
+        db.String(255),
+    )
+    active = db.Column(model_monitoring_constants.EventFieldType.ACTIVE, db.Boolean)
+    monitoring_mode = db.Column(
+        model_monitoring_constants.EventFieldType.MONITORING_MODE,
+        db.String(10),
+    )
+    feature_stats = db.Column(
+        model_monitoring_constants.EventFieldType.FEATURE_STATS, db.Text
+    )
+    current_stats = db.Column(
+        model_monitoring_constants.EventFieldType.CURRENT_STATS, db.Text
+    )
+    feature_names = db.Column(
+        model_monitoring_constants.EventFieldType.FEATURE_NAMES, db.Text
+    )
+    children = db.Column(model_monitoring_constants.EventFieldType.CHILDREN, db.Text)
+    label_names = db.Column(
+        model_monitoring_constants.EventFieldType.LABEL_NAMES, db.Text
+    )
+    timestamp = db.Column(
+        model_monitoring_constants.EventFieldType.TIMESTAMP,
+        db.dialects.mysql.TIMESTAMP(fsp=3),
+    )
+    endpoint_type = db.Column(
+        model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
+        db.String(10),
+    )
+    children_uids = db.Column(
+        model_monitoring_constants.EventFieldType.CHILDREN_UIDS, db.Text
+    )
+    drift_measures = db.Column(
+        model_monitoring_constants.EventFieldType.DRIFT_MEASURES, db.Text
+    )
+    drift_status = db.Column(
+        model_monitoring_constants.EventFieldType.DRIFT_STATUS,
+        db.String(40),
+    )
+    monitor_configuration = db.Column(
+        model_monitoring_constants.EventFieldType.MONITOR_CONFIGURATION,
+        db.Text,
+    )
+    monitoring_feature_set_uri = db.Column(
+        model_monitoring_constants.EventFieldType.FEATURE_SET_URI,
+        db.String(255),
+    )
+    first_request = db.Column(
+        model_monitoring_constants.EventFieldType.FIRST_REQUEST,
+        db.String(40),
+    )
+    last_request = db.Column(
+        model_monitoring_constants.EventFieldType.LAST_REQUEST,
+        db.String(40),
+    )
+    error_count = db.Column(
+        model_monitoring_constants.EventFieldType.ERROR_COUNT, db.Integer
+    )
+    metrics = db.Column(model_monitoring_constants.EventFieldType.METRICS, db.Text)

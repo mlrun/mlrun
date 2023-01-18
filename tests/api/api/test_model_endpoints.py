@@ -50,25 +50,25 @@ def test_build_kv_cursor_filter_expression():
         value="kv"
     )
 
-    endpoint_target: KVmodelType = store_type_object.to_endpoint_store(
+    endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
     with pytest.raises(MLRunInvalidArgumentError):
-        endpoint_target._build_kv_cursor_filter_expression("")
+        endpoint_store._build_kv_cursor_filter_expression("")
 
-    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
+    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
         project=TEST_PROJECT
     )
     assert filter_expression == f"project=='{TEST_PROJECT}'"
 
-    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
+    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
         project=TEST_PROJECT, function="test_function", model="test_model"
     )
     expected = f"project=='{TEST_PROJECT}' AND function=='test_function' AND model=='test_model'"
     assert filter_expression == expected
 
-    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
+    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
         project=TEST_PROJECT, labels=["lbl1", "lbl2"]
     )
     assert (
@@ -76,7 +76,7 @@ def test_build_kv_cursor_filter_expression():
         == f"project=='{TEST_PROJECT}' AND exists(_lbl1) AND exists(_lbl2)"
     )
 
-    filter_expression = endpoint_target._build_kv_cursor_filter_expression(
+    filter_expression = endpoint_store._build_kv_cursor_filter_expression(
         project=TEST_PROJECT, labels=["lbl1=1", "lbl2=2"]
     )
     assert (
@@ -236,11 +236,11 @@ def test_get_endpoint_features_function():
         value="kv"
     )
 
-    endpoint_target = store_type_object.to_endpoint_store(
+    endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
-    features = endpoint_target.get_endpoint_features(feature_names, stats, stats)
+    features = endpoint_store.get_endpoint_features(feature_names, stats, stats)
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
     for feature in features:
@@ -253,7 +253,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = endpoint_target.get_endpoint_features(feature_names, stats, None)
+    features = endpoint_store.get_endpoint_features(feature_names, stats, None)
     assert len(features) == 4
     for feature in features:
         assert feature.expected is not None
@@ -262,7 +262,7 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = endpoint_target.get_endpoint_features(feature_names, None, stats)
+    features = endpoint_store.get_endpoint_features(feature_names, None, stats)
     assert len(features) == 4
     for feature in features:
         assert feature.expected is None
@@ -271,7 +271,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = endpoint_target.get_endpoint_features(feature_names[1:], None, stats)
+    features = endpoint_store.get_endpoint_features(feature_names[1:], None, stats)
     assert len(features) == 3
 
 
@@ -283,12 +283,12 @@ def test_generating_tsdb_paths():
     store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
         value="kv"
     )
-    endpoint_target: KVmodelType = store_type_object.to_endpoint_store(
+    endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
 
     # Generating the required tsdb paths
-    tsdb_path, filtered_path = endpoint_target._generate_tsdb_paths()
+    tsdb_path, filtered_path = endpoint_store._generate_tsdb_paths()
 
     # Validate the expected results based on the full path to the TSDB events directory
     full_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
@@ -333,46 +333,44 @@ def test_sql_target_list_model_endpoints():
     store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
         value="sql"
     )
-    endpoint_target = store_type_object.to_endpoint_store(
+    endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
-    endpoint_target.table_name = TEST_TABLE
+    endpoint_store.table_name = TEST_TABLE
 
     # First, validate that there are no model endpoints records at the moment
-    list_of_endpoints = endpoint_target.list_model_endpoints()
-    endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+    list_of_endpoints = endpoint_store.list_model_endpoints()
+    endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
 
-    list_of_endpoints = endpoint_target.list_model_endpoints()
+    list_of_endpoints = endpoint_store.list_model_endpoints()
     assert len(list_of_endpoints.endpoints) == 0
 
     # Generate and write the 1st model endpoint into the DB table
     mock_endpoint_1 = _mock_random_endpoint()
-    endpoint_target.write_model_endpoint(endpoint=mock_endpoint_1)
+    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_1)
 
     # Validate that there is a single model endpoint
-    list_of_endpoints = endpoint_target.list_model_endpoints()
+    list_of_endpoints = endpoint_store.list_model_endpoints()
     assert len(list_of_endpoints.endpoints) == 1
 
     # Generate and write the 2nd model endpoint into the DB table
     mock_endpoint_2 = _mock_random_endpoint()
     mock_endpoint_2.spec.model = "test_model"
     mock_endpoint_2.metadata.uid = "12345"
-    endpoint_target.write_model_endpoint(endpoint=mock_endpoint_2)
+    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_2)
 
     # Validate that there are exactly two model endpoints within the DB
-    list_of_endpoints = endpoint_target.list_model_endpoints()
+    list_of_endpoints = endpoint_store.list_model_endpoints()
     assert len(list_of_endpoints.endpoints) == 2
 
     # List only the model endpoint that has the model test_model
-    filtered_list_of_endpoints = endpoint_target.list_model_endpoints(
-        model="test_model"
-    )
+    filtered_list_of_endpoints = endpoint_store.list_model_endpoints(model="test_model")
     assert len(filtered_list_of_endpoints.endpoints) == 1
 
     # Clean model endpoints from DB
-    endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
-    list_of_endpoints = endpoint_target.list_model_endpoints()
+    endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+    list_of_endpoints = endpoint_store.list_model_endpoints()
     assert (len(list_of_endpoints.endpoints)) == 0
 
 
@@ -386,41 +384,39 @@ def test_sql_target_patch_endpoint():
     store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
         value="sql"
     )
-    endpoint_target = store_type_object.to_endpoint_store(
+    endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, connection_string=CONNECTION_STRING
     )
 
-    endpoint_target.table_name = TEST_TABLE
+    endpoint_store.table_name = TEST_TABLE
 
     # First, validate that there are no model endpoints records at the moment
-    list_of_endpoints = endpoint_target.list_model_endpoints()
+    list_of_endpoints = endpoint_store.list_model_endpoints()
     if len(list_of_endpoints.endpoints) > 0:
         # Delete old model endpoints records
-        endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
-        list_of_endpoints = endpoint_target.list_model_endpoints()
+        endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+        list_of_endpoints = endpoint_store.list_model_endpoints()
         assert len(list_of_endpoints.endpoints) == 0
 
     # Generate and write the model endpoint into the DB table
     mock_endpoint = _mock_random_endpoint()
     mock_endpoint.metadata.uid = "1234"
-    endpoint_target.write_model_endpoint(mock_endpoint)
+    endpoint_store.write_model_endpoint(mock_endpoint)
 
     # Generate dictionary of attributes and update the model endpoint
     updated_attributes = {"model": "test_model", "error_count": 2}
-    endpoint_target.update_model_endpoint(
+    endpoint_store.update_model_endpoint(
         endpoint_id=mock_endpoint.metadata.uid, attributes=updated_attributes
     )
 
     # Validate that these attributes were actually updated
-    endpoint = endpoint_target.get_model_endpoint(
-        endpoint_id=mock_endpoint.metadata.uid
-    )
+    endpoint = endpoint_store.get_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
     assert endpoint.spec.model == "test_model"
     assert endpoint.status.error_count == 2
 
     # Clear model endpoint from DB
-    endpoint_target.delete_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
+    endpoint_store.delete_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
 
     # Drop model endpoints test table from DB
-    list_of_endpoints = endpoint_target.list_model_endpoints()
-    endpoint_target.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+    list_of_endpoints = endpoint_store.list_model_endpoints()
+    endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)

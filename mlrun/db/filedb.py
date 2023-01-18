@@ -16,7 +16,7 @@ import json
 import pathlib
 from datetime import datetime, timedelta, timezone
 from os import listdir, makedirs, path, remove, scandir
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import yaml
 from dateutil.parser import parse as parse_time
@@ -797,7 +797,7 @@ class FileRunDB(RunDBInterface):
         project: str,
         model: Optional[str] = None,
         function: Optional[str] = None,
-        labels: Union[List[str], Dict] = None,
+        labels: List[str] = None,
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,

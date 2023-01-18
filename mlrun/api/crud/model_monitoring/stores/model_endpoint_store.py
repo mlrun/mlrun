@@ -122,7 +122,7 @@ class ModelEndpointStore(ABC):
         self,
         model: str = None,
         function: str = None,
-        labels: typing.Union[typing.List[str], typing.Dict] = None,
+        labels: typing.List[str] = None,
         top_level: bool = None,
         metrics: typing.List[str] = None,
         start: str = "now-1h",
@@ -254,6 +254,7 @@ class ModelEndpointStore(ABC):
 
         return endpoint_obj
 
+    @abstractmethod
     def get_endpoint_real_time_metrics(
         self,
         endpoint_id: str,

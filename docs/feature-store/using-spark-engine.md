@@ -1,3 +1,4 @@
+(ingest-features-spark)=
 # Ingest features with Spark
 
 The feature store supports using Spark for ingesting, transforming, and writing results to data targets. When 

@@ -466,6 +466,10 @@ def ingest(
         )
         return_df = False
 
+    if featureset.spec.passthrough:
+        featureset.spec.source = source
+        featureset.spec.validate_no_processing_for_passthrough()
+
     namespace = namespace or get_caller_globals()
 
     targets_to_ingest = targets or featureset.spec.targets or get_default_targets()
@@ -641,6 +645,8 @@ def preview(
     verify_feature_set_permissions(
         featureset, mlrun.api.schemas.AuthorizationAction.update
     )
+
+    featureset.spec.validate_no_processing_for_passthrough()
 
     namespace = namespace or get_caller_globals()
     if featureset.spec.require_processing():
@@ -832,6 +838,8 @@ def _ingest_with_spark(
         for target in targets_to_ingest or []:
             if type(target) is DataTargetBase:
                 target = get_target_driver(target, featureset)
+            if featureset.spec.passthrough and target.is_offline:
+                continue
             if target.path and urlparse(target.path).scheme == "":
                 if mlrun_context:
                     mlrun_context.logger.error(

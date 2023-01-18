@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 import mlrun.api.crud
 import mlrun.api.schemas

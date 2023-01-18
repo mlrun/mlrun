@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package log_collector
+package logcollector
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -27,21 +28,21 @@ import (
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
-	v1 "k8s.io/api/core/v1"
+	"golang.org/x/sync/errgroup"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
 type LogCollectorTestSuite struct {
 	suite.Suite
-	LogCollectorServer         *LogCollectorServer
-	logger                     logger.Logger
-	ctx                        context.Context
-	kubeClientSet              fake.Clientset
-	namespace                  string
-	baseDir                    string
-	kubeConfigFilePath         string
-	stateFileUpdateIntervalStr string
+	LogCollectorServer *LogCollectorServer
+	logger             logger.Logger
+	ctx                context.Context
+	kubeClientSet      fake.Clientset
+	namespace          string
+	baseDir            string
+	kubeConfigFilePath string
 }
 
 func (suite *LogCollectorTestSuite) SetupSuite() {
@@ -52,14 +53,14 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.kubeClientSet = *fake.NewSimpleClientset()
 	suite.ctx = context.Background()
 	suite.namespace = "default"
-	suite.stateFileUpdateIntervalStr = "5s"
-
-	// get cwd
-	cwd, err := os.Getwd()
-	suite.Require().NoError(err, "Failed to get cwd")
+	stateFileUpdateIntervalStr := "5s"
+	readLogWaitTime := "3s"
+	monitoringInterval := "30s"
+	bufferPoolSize := 20
+	bufferSizeBytes := 512
 
 	// create base dir
-	suite.baseDir = path.Join(cwd, "/log_collector_test")
+	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
 	err = os.MkdirAll(suite.baseDir, 0777)
 	suite.Require().NoError(err, "Failed to create base dir")
 
@@ -73,13 +74,12 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		suite.namespace,
 		suite.baseDir,
 		suite.kubeConfigFilePath,
-		suite.stateFileUpdateIntervalStr)
+		stateFileUpdateIntervalStr,
+		readLogWaitTime,
+		monitoringInterval,
+		bufferPoolSize,
+		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
-
-	// initialize log collector state
-	suite.LogCollectorServer.state = &State{
-		InProgress: map[string]LogItem{},
-	}
 
 	// overwrite log collector server's kube client set with the fake one
 	suite.LogCollectorServer.kubeClientSet = &suite.kubeClientSet
@@ -101,10 +101,10 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 	for _, testCase := range []struct {
 		name           string
 		offset         uint64
-		size           uint64
-		fileSize       uint64
+		size           int64
+		fileSize       int64
 		expectedOffset uint64
-		expectedSize   uint64
+		expectedSize   int64
 	}{
 		{
 			name:           "offset and size are valid",
@@ -136,7 +136,7 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 			size:           0,
 			fileSize:       100,
 			expectedOffset: 10,
-			expectedSize:   100,
+			expectedSize:   90,
 		},
 		{
 			name:           "offset is larger than file size",
@@ -144,6 +144,14 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 			size:           50,
 			fileSize:       100,
 			expectedOffset: 0,
+			expectedSize:   50,
+		},
+		{
+			name:           "size is negative",
+			offset:         50,
+			size:           -1,
+			fileSize:       100,
+			expectedOffset: 50,
 			expectedSize:   50,
 		},
 	} {
@@ -160,7 +168,7 @@ func (suite *LogCollectorTestSuite) TestWriteToFile() {
 	filePath := path.Join(suite.baseDir, fileName)
 
 	// write file
-	err := common.WriteToFile(suite.ctx, suite.logger, filePath, []byte("test"), false)
+	err := common.WriteToFile(filePath, []byte("test"), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
 	// read file
@@ -171,67 +179,10 @@ func (suite *LogCollectorTestSuite) TestWriteToFile() {
 	suite.Require().Equal("test", string(fileBytes))
 }
 
-func (suite *LogCollectorTestSuite) TestReadWriteStateFile() {
-
-	// read state file
-	state, err := suite.LogCollectorServer.readStateFile()
-	suite.Require().NoError(err, "Failed to read state file")
-
-	// verify state is empty
-	suite.Require().Equal(0, len(state.InProgress))
-
-	// add item to InProgress
-	runId := "abc123"
-	item := LogItem{
-		RunId:         runId,
-		LabelSelector: "app=test",
-	}
-
-	state.InProgress[runId] = item
-
-	// write state file
-	err = suite.LogCollectorServer.writeStateToFile(suite.ctx, state)
-	suite.Require().NoError(err, "Failed to write state file")
-
-	// read state file again
-
-	state, err = suite.LogCollectorServer.readStateFile()
-	suite.Require().NoError(err, "Failed to read state file")
-
-	// verify item is in progress
-	suite.Require().Equal(1, len(state.InProgress))
-	suite.Require().Equal(item, state.InProgress[runId])
-}
-
-func (suite *LogCollectorTestSuite) TestAddRemoveItemFromInProgress() {
-	runId := "some-run-id"
-	labelSelector := "app=test"
-
-	err := suite.LogCollectorServer.addItemToInProgress(suite.ctx, runId, labelSelector)
-	suite.Require().NoError(err, "Failed to add item to in progress")
-
-	// read state file
-	state := suite.LogCollectorServer.getState()
-
-	// verify item is in progress
-	suite.Require().Equal(1, len(state.InProgress))
-	suite.Require().Equal(runId, state.InProgress[runId].RunId)
-	suite.Require().Equal(labelSelector, state.InProgress[runId].LabelSelector)
-
-	// remove item from in progress
-	suite.LogCollectorServer.removeItemFromInProgress(runId)
-
-	// read state file again
-	state = suite.LogCollectorServer.getState()
-
-	// verify item is not in progress
-	suite.Require().Equal(0, len(state.InProgress))
-}
-
 func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	runId := "some-run-id"
 
-	// create fake pod
+	// create fake pod that finishes after 10 seconds
 	fakePod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
@@ -261,24 +212,44 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
 	suite.Require().NoError(err, "Failed to create pod")
 
+	ctx, cancel := context.WithCancel(suite.ctx)
+	startedChan := make(chan bool)
+
 	// stream pod logs
-	go suite.LogCollectorServer.streamPodLogs(suite.ctx, runId, pod.Name)
+	go suite.LogCollectorServer.startLogStreaming(ctx, runId, pod.Name, startedChan, cancel)
 
-	// let the stream run and log some lines
-	time.Sleep(5 * time.Second)
+	// wait for log streaming to start
+	started := <-startedChan
+	suite.Require().True(started, "Log streaming didn't start")
 
+	// resolve log file path
 	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, pod.Name)
 
-	// make sure log file exists
-	_, err = os.Stat(logFilePath)
-	suite.Require().NoError(err, "Failed to find log file")
+	// read log file until it has content, or timeout
+	timeout := time.After(30 * time.Second)
+	var logFileContent []byte
+	foundLogs := false
+	for {
+		if foundLogs {
+			break
+		}
+		select {
+		case <-timeout:
+			suite.Require().Fail("Timed out waiting for log file to have content")
+		case <-time.Tick(1 * time.Second):
 
-	// read log file
-	logBytes, err := os.ReadFile(logFilePath)
-	suite.Require().NoError(err, "Failed to read log file")
+			// read log file
+			logFileContent, err = os.ReadFile(logFilePath)
+			if err != nil || len(logFileContent) == 0 {
+				continue
+			}
+			foundLogs = true
+			break
+		}
+	}
 
 	// verify log file content
-	suite.Require().Equal("fake logs", string(logBytes))
+	suite.Require().Equal("fake logs", string(logFileContent))
 }
 
 func (suite *LogCollectorTestSuite) TestGetLog() {
@@ -291,19 +262,89 @@ func (suite *LogCollectorTestSuite) TestGetLog() {
 
 	// write log file
 	logText := "Some fake pod logs"
-	err := common.WriteToFile(suite.ctx, suite.logger, logFilePath, []byte(logText), false)
+	err := common.WriteToFile(logFilePath, []byte(logText), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
 	// get logs
-	log, err := suite.LogCollectorServer.GetLog(suite.ctx, &log_collector.GetLogRequest{
-		RunId:  runId,
+	log, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
+		RunUID: runId,
 		Offset: 0,
 		Size:   100,
 	})
 	suite.Require().NoError(err, "Failed to get logs")
 
 	// verify logs
-	suite.Require().Equal(logText, string(log.Log))
+	suite.Require().Equal(logText, string(log.Logs))
+}
+
+func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
+
+	// create file
+	filePath := path.Join(suite.baseDir, "test-file")
+	suite.logger.DebugWith("Creating file", "path", filePath)
+	err := common.EnsureFileExists(filePath)
+	suite.Require().NoError(err, "Failed to create file")
+
+	messageTemplate := "This is a test message %d\n"
+
+	errGroup, ctx := errgroup.WithContext(suite.ctx)
+
+	startedWriting := make(chan bool)
+
+	// write to file
+	errGroup.Go(func() error {
+		signaled := false
+		for i := 0; i < 100; i++ {
+			if i > 5 && !signaled {
+				startedWriting <- true
+				signaled = true
+			}
+
+			// sleep for a bit to let the other goroutine read from the file
+			if i%10 == 0 {
+				time.Sleep(1 * time.Second)
+			}
+			message := fmt.Sprintf(messageTemplate, i)
+			suite.logger.DebugWith("Writing to file", "message", message)
+
+			err := common.WriteToFile(filePath, []byte(message), true)
+			suite.Require().NoError(err, "Failed to write to file")
+		}
+		return nil
+	})
+
+	// read from file
+	errGroup.Go(func() error {
+
+		// let some logs be written
+		<-startedWriting
+		time.Sleep(500 * time.Millisecond)
+
+		offset := 0
+		for j := 0; j < 100; j++ {
+
+			// sleep for a bit to let the other goroutine write to the file
+			if j%10 == 0 {
+				time.Sleep(1 * time.Second)
+			}
+
+			message := fmt.Sprintf(messageTemplate, j)
+			size := int64(len(message))
+			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx, "1", filePath, uint64(offset), size)
+			suite.Require().NoError(err, "Failed to read logs from file")
+
+			// verify logs
+			suite.logger.DebugWith("Read from file", "offset", offset, "logs", string(logs))
+			suite.Require().Equal(message, string(logs))
+			offset += len(message)
+		}
+
+		return nil
+	})
+
+	// wait for goroutines to finish
+	err = errGroup.Wait()
+	suite.Require().NoError(err, "Failed to wait for goroutines to finish")
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

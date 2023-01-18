@@ -895,7 +895,7 @@ class SQLSource(BaseSourceDriver):
         :param time_fields :    all the field to be parsed as timestamp.
         """
 
-        db_path = db_path or os.getenv(self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR)
+        db_path = db_path or mlrun.mlconf.sql_db_path_string
         if db_path is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"cannot specify without db_path arg or secret {self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR}"

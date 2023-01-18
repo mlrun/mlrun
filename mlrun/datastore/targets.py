@@ -1558,7 +1558,7 @@ class SQLTarget(BaseStoreTarget):
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         """
         create_according_to_data = False  # TODO: open for user
-        db_path = db_path or os.getenv(self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR)
+        db_path = db_path or mlrun.mlconf.sql_db_path_string
         if db_path is None or table_name is None:
             attr = {}
         else:
@@ -1614,7 +1614,6 @@ class SQLTarget(BaseStoreTarget):
     def get_table_object(self):
         from storey import SQLDriver, Table
 
-        # TODO use options/cred
         (db_path, table_name, _, _, primary_key, _) = self._parse_url()
         try:
             primary_key = ast.literal_eval(primary_key)
@@ -1703,7 +1702,7 @@ class SQLTarget(BaseStoreTarget):
             )
             connection = engine.connect()
             if create_according_to_data:
-                # todo : create according to fist row.
+                # todo : create according to first row.
                 pass
             try:
                 primary_key = ast.literal_eval(primary_key)

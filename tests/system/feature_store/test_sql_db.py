@@ -117,7 +117,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             conn.close()
         source = SQLSource(
             table_name=source_name,
-            db_path=self.db,
             key_field=key,
             time_fields=time_fields,
         )
@@ -153,7 +152,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         # test source
         source = SQLSource(
             table_name=source_name,
-            db_path=self.db,
             key_field=key,
             time_fields=["time"] if source_name == "quotes" else None,
         )
@@ -196,7 +194,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         # test source
         source = SQLSource(
-            table_name=source_name, db_path=self.db, key_field=key, time_fields=["time"]
+            table_name=source_name,  key_field=key, time_fields=["time"]
         )
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
@@ -224,7 +222,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         target = SQLTarget(
             table_name=target_name,
-            db_path=self.db,
             create_table=True,
             schema=schema,
             primary_key_column=key,
@@ -255,7 +252,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         target = SQLTarget(
             table_name=target_name,
-            db_path=self.db,
             create_table=False,
             primary_key_column=key,
             time_fields=["time"] if target_name == "trades" else None,
@@ -278,7 +274,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         target = SQLTarget(
             table_name=target_name,
-            db_path=self.db,
             create_table=True,
             schema=schema,
             primary_key_column=key,
@@ -330,14 +325,12 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         source = SQLSource(
             table_name=table_name,
-            db_path=self.db,
             key_field=key,
             time_fields=["time"] if name == "trades" else None,
         )
 
         target = SQLTarget(
             table_name=table_name,
-            db_path=self.db,
             create_table=True,
             schema=schema,
             primary_key_column=key,

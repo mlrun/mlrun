@@ -43,13 +43,33 @@ Example:
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 ```
 
-To learn more about Feature Sets go to {py:class}`~mlrun.feature_store.FeatureSet`.
 
-```{admonition} Note 
-Feature sets can also be created in the UI. To create a feature set:
+### Create a feature set without ingesting its data
+
+You can define and register a feature set, and use it in a feature vector, without ingesting its data. This method is 
+useful, for example, when you have a very large amount of data. You can create an online target for this feature set and 
+ingest data to it however, you cannot create a graph from it. (Transformations are not allowed: the offline source and 
+online targets hold the same features, and the online target represents a timeslice of the offline source.)  
+Enable this feature by including `passthrough=True` in the feature set definition. This feature supports ingesting data 
+from the local DB and Spark.
+
+Typical code, from defining the feature set through ingesting its data:
+```
+# Flag the feature-set as passthrough
+my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
+csv_source = CSVSource("my_csv", path="data.csv"), time_field="timestamp")
+# Ingest the source data - but only to online/nosql target
+fstore.ingest(my_fset, csv_source) 
+vector = fstore.FeatureVector("myvector", features=[f"my_fset"])
+# Read the offline data directly from the csv source
+resp = fstore.get_offline_features(vector, entity_timestamp_column="timestamp", with_indexes=True) 
+```
+
+### Create a feature set in the UI
+
 1. Select a project and press **Feature store**, then press **Create Set**.
 3. After completing the form, press **Save and Ingest** to start the process, or **Save** to save the set for later ingestion.
-```
+
 
 ## Add transformations 
 

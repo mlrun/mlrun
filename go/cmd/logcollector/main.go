@@ -39,7 +39,7 @@ func StartServer() error {
 	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_MONITORING_INTERVAL", "30s"), "Periodic interval for monitoring the goroutines collecting logs")
 	logCollectionbufferPoolSize := flag.Int("log-collection-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_LOG_COLLECTION_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for collecting logs")
 	getLogsBufferPoolSize := flag.Int("get-logs-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_GET_LOGS_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for getting logs")
-	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_BUFFER_SIZE_BYTES", 1024), "Size of buffer in bytes for reading pod logs")
+	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_BUFFER_SIZE_BYTES", 10485760), "Size of buffer in bytes for reading pod logs")
 
 	// if namespace is not passed, it will be taken from env
 	namespace := flag.String("namespace", "", "The namespace to collect logs from")

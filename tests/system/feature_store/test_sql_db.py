@@ -193,9 +193,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             conn.close()
 
         # test source
-        source = SQLSource(
-            table_name=source_name,  key_field=key, time_fields=["time"]
-        )
+        source = SQLSource(table_name=source_name, key_field=key, time_fields=["time"])
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"

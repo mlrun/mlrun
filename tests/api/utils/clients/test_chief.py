@@ -300,8 +300,7 @@ async def test_do_not_escape_cookie(
 
     app = aiohttp.web.Application()
     app.router.add_post("/api/v1/operations/migrations", handler)
-    server = TestServer(app, skip_url_asserts=True)
-    async with TestClient(server) as client:
+    async with TestClient(TestServer(app)) as client:
         chief_client._api_url = ""
         await chief_client._ensure_session()
         chief_client._session._client = client

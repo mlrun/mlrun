@@ -37,6 +37,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -858,13 +859,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df[["bad", "department"]].equals(expected_df)
 
     # ML-2802
-    def test_get_offline_features_with_spark_engine(self):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_get_offline_features_with_spark_engine(self, passthrough):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
+            passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         fstore.ingest(
@@ -874,6 +877,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        if passthrough:
+            assert len(measurements.status.targets) == 1
+            assert isinstance(measurements.status.targets["nosql"], DataTarget)
+
         fv_name = "measurements-fv"
         features = [
             "measurements.bad",

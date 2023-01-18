@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import simplejson
+
 import mlrun.projects
-from mlrun.__main__ import line2keylist,add_notification_to_project
+from mlrun.__main__ import add_notification_to_project, line2keylist
 from mlrun.utils import list2dict
 
 

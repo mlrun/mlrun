@@ -18,7 +18,10 @@ import json
 import unittest.mock
 
 import aiohttp
+import aiohttp.web
 import fastapi.encoders
+from aiohttp.test_utils import TestClient, TestServer
+import starlette.datastructures
 import pytest
 from aiohttp import ClientConnectorError
 
@@ -264,3 +267,46 @@ def _generate_background_task(
         status=mlrun.api.schemas.BackgroundTaskStatus(state=state.value),
         spec=mlrun.api.schemas.BackgroundTaskSpec(),
     )
+
+
+@pytest.mark.parametrize(
+    "session_cookie, expected_cookie_header", [
+        # no escape is needed, sanity
+        ("j", "j"),
+
+        # escape is needed
+        ("j:{\"", "j%3A%7B%22"),
+
+        # do not double escape
+        ("j%3A%7B%22", "j%3A%7B%22"),
+    ]
+)
+@pytest.mark.asyncio
+async def test_do_not_escape_cookie(chief_client, session_cookie, expected_cookie_header):
+    async def handler(request):
+        assert request.headers["cookie"] == f'session={expected_cookie_header}', (
+            "Cookie header escaping is malfunctioning"
+        )
+        assert request.cookies["session"] == expected_cookie_header, (
+            "Cookie session escaping is malfunctioning"
+        )
+        return aiohttp.web.Response(status=200)
+
+    mock_request = fastapi.Request({"type": "http"})
+    mock_request._headers = starlette.datastructures.Headers()
+    mock_request._cookies = {"session": session_cookie}
+    mock_request._query_params = starlette.datastructures.QueryParams()
+
+    app = aiohttp.web.Application()
+    app.router.add_post('/api/v1/operations/migrations', handler)
+    server = TestServer(app, skip_url_asserts=True)
+    async with TestClient(server) as client:
+        chief_client._api_url = ""
+        await chief_client._ensure_session()
+        chief_client._session._client = client
+
+        # set that to make sure session escaping is on
+        # coupled with chief_client._resolve_request_kwargs_from_request logic.
+        mlrun.mlconf.igz_version = "0.5.0"
+        response = await chief_client.trigger_migrations(mock_request)
+        assert response.status_code == 200

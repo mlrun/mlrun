@@ -35,9 +35,8 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             requirements=["mpi4py"],
         )
         mpijob_function.spec.replicas = 4
-        mpijob_function.deploy()  # In order to build the image with `mpi4py`
 
-        mpijob_run = mpijob_function.run()
+        mpijob_run = mpijob_function.run(auto_build=True)
         assert mpijob_run.status.state == RunStates.completed
 
         mpijob_time = mpijob_run.status.results["time"]

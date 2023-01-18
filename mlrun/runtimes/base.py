@@ -719,7 +719,7 @@ class BaseRuntime(ModelObj):
             )
         return runspec
 
-    def _submit_job(self, run, schedule, db, watch):
+    def _submit_job(self, run: RunObject, schedule, db, watch):
         if self._secrets:
             run.spec.secret_sources = self._secrets.to_serial()
         try:

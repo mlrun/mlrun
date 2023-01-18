@@ -1708,7 +1708,8 @@ class SQLTarget(BaseStoreTarget):
                 primary_key = ast.literal_eval(primary_key)
             except Exception:
                 pass
-            df.set_index(primary_key, inplace=True)
+            if primary_key in df:
+                df.set_index(primary_key, inplace=True)
             df.to_sql(table_name, connection, if_exists=if_exists)
 
     def _parse_url(self):

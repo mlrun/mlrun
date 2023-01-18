@@ -41,12 +41,18 @@ from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifa
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..datastore import store_manager
 from ..features import Feature
-from ..k8s_utils import sanitize_function_volumes
 from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
-from ..runtimes.utils import add_code_metadata, get_item_name, set_item_attribute
+from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
+from ..utils import (
+    is_ipython,
+    is_legacy_artifact,
+    is_relative_path,
+    is_yaml_path,
+    logger,
+    update_in,
+)
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
@@ -108,7 +114,7 @@ def new_project(
         # create a project with local and marketplace functions, a workflow, and an artifact
         project = mlrun.new_project("myproj", "./", init_git=True, description="my new project")
         project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
-        project.set_function('hub://sklearn_classifier', 'train')
+        project.set_function('hub://auto_trainer', 'train')
         project.set_artifact('data', Artifact(target_path=data_url))
         project.set_workflow('main', "./myflow.py")
         project.save()
@@ -127,7 +133,7 @@ def new_project(
 
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
@@ -208,6 +214,7 @@ def load_project(
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
+    sync_functions: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -219,7 +226,7 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:      project local directory path
+    :param context:      project local directory path (default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -233,6 +240,7 @@ def load_project(
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
     :param save:         whether to save the created project and artifact in the DB
+    :param sync_functions: sync the project's functions into the project object (will be saved to the DB if save=True)
 
     :returns: project object
     """
@@ -247,7 +255,7 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
-        if url.endswith(".yaml"):
+        if is_yaml_path(url):
             project = _load_project_file(url, name, secrets)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -281,9 +289,15 @@ def load_project(
             project.spec.branch = repo.active_branch.name
         except Exception:
             pass
+
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
+        if sync_functions:
+            project.sync_functions(names=project.get_function_names(), save=True)
+
+    elif sync_functions:
+        project.sync_functions(names=project.get_function_names(), save=False)
 
     _set_as_current_default_project(project)
 
@@ -312,7 +326,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path (Default value = "./")
+    :param context:      project local directory path (default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -1224,6 +1238,19 @@ class MlrunProject(ModelObj):
             pass
         return None
 
+    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
+        in_context = False
+        # If the URL is for a remote location, we do not want to change it
+        if url and "://" not in url:
+            # We don't want to change the url if the project has no cntext or if it is already absolute
+            if self.spec.context and not url.startswith("/"):
+                in_context = True
+                url = path.normpath(path.join(self.spec.get_code_path(), url))
+                return url, in_context
+            if not path.isfile(url):
+                raise OSError(f"{url} not found")
+        return url, in_context
+
     def log_artifact(
         self,
         item,
@@ -1333,7 +1360,7 @@ class MlrunProject(ModelObj):
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
         :param tag:           version tag
-        :param format:        optional, format to use (e.g. csv, parquet, ..)
+        :param format:        optional, format to use (`csv`, `parquet`, `pq`, `tsdb`, `kv`)
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
         :param preview:       number of lines to store as preview in the artifact metadata
         :param stats:         calculate and store dataset stats in the artifact metadata
@@ -1480,8 +1507,11 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        # Obtaining the item's absolute path from the project context, in case the user provided a relative path
+        item_path, _ = self.get_item_absolute_path(item_path)
         dataitem = mlrun.get_dataitem(item_path)
-        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+
+        if is_yaml_path(item_path):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
         elif item_path.endswith(".json"):
@@ -1552,7 +1582,7 @@ class MlrunProject(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://sklearn_classifier:master
+            functions hub/market: e.g. hub://auto_trainer:master
 
         examples::
 
@@ -1614,7 +1644,6 @@ class MlrunProject(ModelObj):
                 raise ValueError(
                     "default handler cannot be set for existing function object"
                 )
-            _mask_credentials_in_function_object(function_object)
             if image:
                 function_object.spec.image = image
             if with_repo:
@@ -1684,6 +1713,10 @@ class MlrunProject(ModelObj):
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
+
+    def get_function_names(self) -> typing.List[str]:
+        """get a list of all the project function names"""
+        return [func["name"] for func in self.spec.functions]
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
@@ -1941,6 +1974,8 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         overwrite: bool = False,
+        override: bool = False,
+        source: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1968,8 +2003,11 @@ class MlrunProject(ModelObj):
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          for other engines the source is to validate that the code is up-to-date
         :returns: run id
         """
 
@@ -2009,7 +2047,15 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
+            if override or overwrite:
+                if overwrite:
+                    logger.warn(
+                        "Please use override (SDK) or --override-workflow (CLI) "
+                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
+                        "This will be removed in 1.6.0",
+                        # TODO: Remove in 1.6.0
+                    )
+                workflow_spec.override = True
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2037,20 +2083,19 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            source=source,
         )
         # run is None when scheduling
-        if (
-            run
-            and run.state != mlrun.run.RunStatuses.failed
-            and not workflow_spec.schedule
-        ):
+        if run and run.state == mlrun.run.RunStatuses.failed:
+            return run
+        if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
                 f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
-        if watch and not workflow_spec.schedule:
-            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
+        if (timeout or watch) and not workflow_spec.schedule:
+            run._engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -2196,11 +2241,12 @@ class MlrunProject(ModelObj):
             # create a project with two functions (local and from marketplace)
             project = mlrun.new_project(project_name, "./proj")
             project.set_function("mycode.py", "myfunc", image="mlrun/mlrun")
-            project.set_function("hub://sklearn_classifier", "train")
+            project.set_function("hub://auto_trainer", "train")
 
             # run functions (refer to them by name)
             run1 = project.run_function("myfunc", params={"x": 7})
-            run2 = project.run_function("train", params={"data": run1.outputs["data"]})
+            run2 = project.run_function("train", params={"label_columns": LABELS},
+                                                 inputs={"dataset":run1.outputs["data"]})
 
         :param function:        name of the function (in the project) or function object
         :param handler:         name of the function handler
@@ -2223,7 +2269,7 @@ class MlrunProject(ModelObj):
         :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
-                                https://apscheduler.readthedocs.io/en/v3.6.3/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param artifact_path:   path to store artifacts, when running in a workflow this will be set automatically
 
         :return: MLRun RunObject or KubeFlow containerOp
@@ -2723,7 +2769,7 @@ class MlrunProjectLegacy(ModelObj):
 
             object (s3://, v3io://, ..)
             MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://sklearn_classifier:master
+            functions hub/market: e.g. hub://auto_trainer:master
 
         examples::
 
@@ -2792,19 +2838,13 @@ def _init_function_from_dict(f, project, name=None):
     requirements = f.get("requirements", None)
     tag = f.get("tag", None)
 
-    in_context = False
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
-    if url and "://" not in url:
-        if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.get_code_path(), url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2812,12 +2852,13 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
             )
-        func = import_function(url)
+        func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
@@ -2877,82 +2918,6 @@ def _init_function_from_obj(func, project, name=None):
     return name or func.metadata.name, func
 
 
-def _mask_credentials_in_function_object(function):
-    env_to_mask = [
-        "V3IO_ACCESS_KEY",
-        "V3IO_USERNAME",
-        "V3IO_PASSWORD",
-        "V3IO_API",
-        "V3IO_FRAMESD",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-    ]
-    # some function spec might not have env (e.g. BaseRuntime) so skip if not exist
-    if not hasattr(function, "spec") or not hasattr(function.spec, "env"):
-        return function
-
-    for env in function.spec.env:
-        # if env contain a value and not value_from, this means it wasn't masked then we remove it
-        # if env contain a value_from, this means it was masked then no need to remove it
-        env_name = get_item_name(env, "name")
-        env_value_from = get_item_name(env, "value_from")
-        if env_name in env_to_mask and not env_value_from:
-            set_item_attribute(env, "value", None)
-
-    if (
-        function.metadata.credentials
-        and function.metadata.credentials.access_key
-        and not function.metadata.credentials.access_key.startswith(
-            mlrun.model.Credentials.secret_reference_prefix
-        )
-    ):
-        function.metadata.credentials.access_key = None
-
-    _mask_volumes_in_function_object(function)
-
-    return function
-
-
-def _mask_volumes_in_function_object(function):
-    should_remove_v3io_mounts = False
-    v3io_flex_volume_name = None
-    volumes = []
-
-    sanitize_function_volumes(function)
-
-    for volume in function.spec.volumes:
-        flex_volume = get_item_name(volume, "flexVolume")
-        if flex_volume and get_item_name(flex_volume, "driver") == "v3io/fuse":
-            # set the flex volume name to be used later when removing the volume mount
-            v3io_flex_volume_name = get_item_name(volume, "name")
-            # if it has a secret reference, then it was masked then no need to remove it
-            # just remove the plane access key reference
-            if get_item_name(flex_volume, "secretRef"):
-                if get_item_name(flex_volume, "options"):
-                    # mainly for sanity that we don't leave any access key not masked
-                    options = get_item_name(flex_volume, "options")
-                    if get_item_name(options, "accessKey"):
-                        set_item_attribute(options, "accessKey", None)
-            # if it doesn't has a secret reference, then it wasn't masked then we remove it
-            else:
-                should_remove_v3io_mounts = True
-                continue
-        volumes.append(volume)
-
-    function.spec.volumes = volumes
-    # currently this is checked before entering the loop because we only have that option with v3io flex volume
-    # and it more efficient to check it once and not for each volume, but if we will have more options in the future
-    # we should check it inside the loop
-    if should_remove_v3io_mounts:
-        volume_mounts = []
-        for volume_mount in function.spec.volume_mounts:
-            if get_item_name(volume_mount, "name") == v3io_flex_volume_name:
-                continue
-            volume_mounts.append(volume_mount)
-
-        function.spec.volume_mounts = volume_mounts
-
-
 def _init_function_from_dict_legacy(f, project):
     name = f.get("name", "")
     url = f.get("url", "")
@@ -2966,7 +2931,8 @@ def _init_function_from_dict_legacy(f, project):
     in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
-
+    # We are not using the project method to obtain an absolute path here,
+    # because legacy projects are built differently, and we cannot rely on them to have a spec
     if url and "://" not in url:
         if project.context and not url.startswith("/"):
             url = path.join(project.context, url)
@@ -2976,7 +2942,7 @@ def _init_function_from_dict_legacy(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
             func.spec.image = image

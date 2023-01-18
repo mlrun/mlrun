@@ -41,12 +41,13 @@ def pytest_runtest_makereport(item: Function, call: CallInfo) -> TestReport:
     if report.when == "call":
         item.session.results[item] = report
 
-    try:
-        post_report_failed_to_slack(
-            report, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
-        )
-    except Exception as exc:
-        print(f"Failed to post test report to slack: {exc}")
+    # commented due to spamming
+    # try:
+    #     post_report_failed_to_slack(
+    #         report, os.getenv("MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL")
+    #     )
+    # except Exception as exc:
+    #     print(f"Failed to post test report to slack: {exc}")
 
 
 def pytest_sessionfinish(session: Session, exitstatus: ExitCode):
@@ -92,6 +93,11 @@ def post_report_session_finish_to_slack(
 
     data = {"text": text, "attachments": []}
     for item, test_report in session.results.items():
+        # currently do not send information about passed tests
+        # it spams the slack channel and makes message big enough for API to allow it
+        if test_report.passed:
+            continue
+
         item: Function = item
         test_report: TestReport = test_report
         test_failed = test_report.failed

@@ -285,6 +285,11 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
     table = None
 
     for target in targets:
+
+        # if fset is in passthrough mode, ingest skips writing the data to offline targets
+        if resource.spec.passthrough and kind_to_driver[target.kind].is_offline:
+            continue
+
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
@@ -1132,8 +1137,9 @@ class NoSqlBaseTarget(BaseStoreTarget):
             df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
-            # To prevent modification of the original dataframe
-            df = df.copy(deep=False)
+            # To prevent modification of the original dataframe and make sure
+            # that the last event of a key is the one being persisted
+            df = df.groupby(df.index).last()
             access_key = self._secrets.get(
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )

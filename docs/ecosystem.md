@@ -5,7 +5,7 @@ This section lists the data stores, development tools, services, platforms, etc.
 
 ## Data stores 
 
-- Object (S3, gs, az) 
+- Object (S3, GS, az) 
 - Files, NFS 
 - Pandas/Spark DF 
 - BigQuery 
@@ -66,4 +66,8 @@ This section lists the data stores, development tools, services, platforms, etc.
 - Jenkins 
 - Github Actions 
 - Gitlab CI/CD 
-- KFP 
+- KFP
+
+## Browser
+
+MLRun runs on Chrome and Firefox.

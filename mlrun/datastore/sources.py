@@ -86,7 +86,7 @@ class BaseSourceDriver(DataSource):
             )
         return df
 
-    def to_spark_df(self, session, named_view=False):
+    def to_spark_df(self, session, named_view=False, time_field=None):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
             if named_view:
@@ -131,8 +131,11 @@ class CSVSource(BaseSourceDriver):
         time_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        **kwargs,
     ):
-        super().__init__(name, path, attributes, key_field, time_field, schedule)
+        super().__init__(
+            name, path, attributes, key_field, time_field, schedule, **kwargs
+        )
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated, use parse_dates instead",
@@ -177,12 +180,17 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
-    def to_spark_df(self, session, named_view=False):
+    def to_spark_df(self, session, named_view=False, time_field=None):
         import pyspark.sql.functions as funcs
 
         df = session.read.load(**self.get_spark_options())
+
+        parse_dates = self._parse_dates or []
+        if time_field and time_field not in parse_dates:
+            parse_dates.append(time_field)
+
         for col_name, col_type in df.dtypes:
-            if self._parse_dates and col_name in self._parse_dates:
+            if parse_dates and col_name in parse_dates:
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)
@@ -460,7 +468,7 @@ class BigQuerySource(BaseSourceDriver):
     def is_iterator(self):
         return True if self.attributes.get("chunksize") else False
 
-    def to_spark_df(self, session, named_view=False):
+    def to_spark_df(self, session, named_view=False, time_field=None):
         options = copy(self.attributes.get("spark_options", {}))
         credentials, gcp_project = self._get_credentials_string()
         if credentials:

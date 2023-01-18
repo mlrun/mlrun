@@ -28,9 +28,10 @@ my-project           # Parent directory of the project (context)
 ```
 
 
-To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`. You must specify a `name` and a 
-location for the `context` directory (e.g. `"./"`). There are additional, optional parameters.
-The `context` dir holds the configuration, code, and workflow files. File paths in the project are relative to the context root.
+To define a new project from scratch, use {py:meth}`~mlrun.projects.new_project`. You must specify a `name`. 
+The `context` dir holds the configuration, code, and workflow files. Its default value is "./", which is the directory 
+the MLRun client runs from. File paths in the project are relative to the context root.
+There are additional, optional parameters.
 The `user_project` flag indicates that the project name is unique per user, and the `init_git` flag is used to initialize git in the context dir.
 
 ```python
@@ -210,16 +211,13 @@ Alternatively you can use MLRun SDK calls:
 - {py:meth}`~mlrun.projects.MlrunProject.create_remote` - to register the remote Git path
 - {py:meth}`~mlrun.projects.MlrunProject.push` - save project spec (`project.yaml`) and commit/push updates to remote repo
 
+```{admonition} Note
+If you are using containerized Jupyter you might need to first set your Git parameters, e.g. using the following commands:</b>
 ```
-{admonition} Note
-If you are using containerized Jupyter you might need to first set your Git parameters, e.g. using the following commands:
-```
+    git config --global user.email "<my@email.com>"
+    git config --global user.name "<name>"
+    git config --global credential.helper store
 
-```
-git config --global user.email "<my@email.com>"
-git config --global user.name "<name>"
-git config --global credential.helper store
-```
 
 
 You can also save the project content and metadata into a local or remote `.zip` archive, for example:

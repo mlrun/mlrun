@@ -424,13 +424,26 @@ class K8sHelper:
         secret_name = self.get_project_secret_name(project)
         self.store_secrets(secret_name, secrets, namespace)
 
-    def read_auth_secret(self, secret_name, namespace=""):
+    def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         namespace = self.resolve_namespace(namespace)
 
         try:
             secret_data = self.v1api.read_namespaced_secret(secret_name, namespace).data
-        except ApiException:
-            return None
+        except ApiException as exc:
+            logger.error(
+                "Failed to read secret",
+                secret_name=secret_name,
+                namespace=namespace,
+                exc=err_to_str(exc),
+            )
+            if exc.status != 404:
+                raise exc
+            elif raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Secret '{secret_name}' was not found in namespace '{namespace}'"
+                ) from exc
+
+            return None, None
 
         def _get_secret_value(key):
             if secret_data.get(key):
@@ -742,51 +755,6 @@ def format_labels(labels):
         return ",".join([f"{k}={v}" for k, v in labels.items()])
     else:
         return ""
-
-
-def sanitize_function_volumes(function):
-    """
-    to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
-    (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
-    :param function: function object
-    :return: function object
-    """
-    # to prevent the code from having to deal both with the scenario of the volume as V1Volume object and both as
-    # (sanitized) dict (it's also snake case vs camel case), transforming all to dicts
-    new_volumes = []
-    k8s_api_client = kubernetes.client.ApiClient()
-
-    # some function spec might not have volumes (e.g. BaseRuntime) so skip if not exist
-    if not hasattr(function, "spec") or not hasattr(function.spec, "volumes"):
-        return function
-
-    for volume in function.spec.volumes:
-        if isinstance(volume, dict):
-            if "flexVolume" in volume:
-                # mlrun.platforms.iguazio.v3io_to_vol generates a dict with a class in the flexVolume field
-                if not isinstance(volume["flexVolume"], dict):
-                    # sanity
-                    if isinstance(
-                        volume["flexVolume"], kubernetes.client.V1FlexVolumeSource
-                    ):
-                        volume[
-                            "flexVolume"
-                        ] = k8s_api_client.sanitize_for_serialization(
-                            volume["flexVolume"]
-                        )
-                    else:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Unexpected flex volume type: {type(volume['flexVolume'])}"
-                        )
-            new_volumes.append(volume)
-        elif isinstance(volume, kubernetes.client.V1Volume):
-            new_volumes.append(k8s_api_client.sanitize_for_serialization(volume))
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unexpected volume type: {type(volume)}"
-            )
-    function.spec.volumes = new_volumes
-    return function
 
 
 def verify_gpu_requests_and_limits(requests_gpu: str = None, limits_gpu: str = None):

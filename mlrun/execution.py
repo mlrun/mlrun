@@ -854,7 +854,10 @@ class MLClientCtx(object):
         :param message:   commit message to save in the run
         :param completed: mark run as completed
         """
-        completed = completed and self._state == "running"
+        # changing state to completed is allowed only when the run is in running state
+        if self._state != "running":
+            completed = False
+
         if message:
             self._annotations["message"] = message
         if completed:

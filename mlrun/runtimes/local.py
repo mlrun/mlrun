@@ -456,6 +456,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     context.set_logger_stream(sys.stdout)
     if val:
         context.log_result("return", val)
+
+    # completed will be ignored if error is set
     context.commit(completed=True)
     logger.set_logger_level(old_level)
     return stdout.buf.getvalue(), err

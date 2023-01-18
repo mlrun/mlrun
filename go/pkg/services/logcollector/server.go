@@ -339,7 +339,6 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 		streamErr error
 		stream    io.ReadCloser
 	)
-	defer stream.Close() // nolint: errcheck
 
 	// stream logs - retry if failed
 	err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
@@ -360,6 +359,7 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 			"err", err)
 		return
 	}
+	defer stream.Close() // nolint: errcheck
 
 	for {
 		keepLogging, err := s.streamPodLogs(ctx, runUID, logFilePath, stream)
@@ -640,9 +640,7 @@ func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 				}
 
 				// check if the log streaming is already running for this runUID
-				logCollectionStarted := s.isLogCollectionStarted(ctx, runUID)
-
-				if !logCollectionStarted {
+				if logCollectionStarted := s.isLogCollectionStarted(ctx, runUID); !logCollectionStarted {
 
 					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
 					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{

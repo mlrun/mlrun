@@ -16,6 +16,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -43,6 +44,7 @@ type LogCollectorTestSuite struct {
 	kubeClientSet      kubernetes.Interface
 	namespace          string
 	baseDir            string
+	bufferSizeBytes    int
 }
 
 func (suite *LogCollectorTestSuite) SetupSuite() {
@@ -57,11 +59,11 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 
 	suite.ctx = context.Background()
 	suite.namespace = "mlrun"
+	suite.bufferSizeBytes = 1024
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
 	monitoringInterval := "30s"
 	bufferPoolSize := 30
-	bufferSizeBytes := 1024
 	listenPort := 8282
 
 	// get kube config file path
@@ -84,7 +86,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		monitoringInterval,
 		bufferPoolSize,
 		bufferPoolSize,
-		bufferSizeBytes)
+		suite.bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test
@@ -105,9 +107,10 @@ func (suite *LogCollectorTestSuite) TearDownSuite() {
 func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 	// create pod that prints logs
+	expectedLogLines := 100
 	podName := "test-pod"
 	runUID := "some-uid"
-	pod := suite.getDummyPodSpec(podName)
+	pod := suite.getDummyPodSpec(podName, expectedLogLines)
 
 	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})
 	suite.Require().NoError(err, "Failed to create pod")
@@ -141,7 +144,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		getLogsResponse, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
 			RunUID: runUID,
 			Offset: uint64(offset),
-			Size:   0,
+			Size:   int64(suite.bufferSizeBytes),
 		})
 		suite.Require().NoError(err, "Failed to get logs")
 		suite.Require().True(getLogsResponse.Success, "Failed to get logs")
@@ -150,7 +153,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 		logLines := strings.Split(string(getLogsResponse.Logs), "\n")
 		suite.logger.InfoWith("Got logs", "numLines", len(logLines))
 		logs = append(logs, logLines...)
-		if len(logs) >= 100 {
+		if len(logs) >= expectedLogLines {
 			break
 		}
 		if time.Since(startedGettingLogsTime) > 2*time.Minute {
@@ -170,7 +173,7 @@ func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 	// create pod that prints logs
 	podName := "some-pod"
 	runUID := "some-uid"
-	pod := suite.getDummyPodSpec(podName)
+	pod := suite.getDummyPodSpec(podName, 100)
 
 	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})
 	suite.Require().NoError(err, "Failed to create pod")
@@ -199,7 +202,7 @@ func (suite *LogCollectorTestSuite) startLogCollectorServer(listenPort int) {
 	suite.Require().NoError(err, "Failed to start log collector server")
 }
 
-func (suite *LogCollectorTestSuite) getDummyPodSpec(podName string) *v1.Pod {
+func (suite *LogCollectorTestSuite) getDummyPodSpec(podName string, lifeCycleSeconds int) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
@@ -216,7 +219,7 @@ func (suite *LogCollectorTestSuite) getDummyPodSpec(podName string) *v1.Pod {
 					Command: []string{
 						"/bin/sh",
 						"-c",
-						"for i in $(seq 1 100); do echo 'Test log line: ' $i; sleep 1; done",
+						fmt.Sprintf("for i in $(seq 1 %d); do echo 'Test log line: ' $i; sleep 1; done", lifeCycleSeconds),
 					},
 				},
 			},

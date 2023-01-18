@@ -130,16 +130,36 @@ func SyncMapLength(m *sync.Map) int {
 func RetryUntilSuccessful(duration time.Duration,
 	interval time.Duration,
 	callback func() (bool, error)) error {
-	var lastErr error
+
+	wrapFunctionNoResult := func() (interface{}, bool, error) {
+		retry, err := callback()
+		return nil, retry, err
+	}
+
+	_, err := RetryUntilSuccessfulWithResult(duration, interval, wrapFunctionNoResult)
+	return err
+}
+
+// RetryUntilSuccessfulWithResult calls callback every interval until duration until it returns false (to not retry),
+// and returns the result of the callback
+func RetryUntilSuccessfulWithResult(duration time.Duration,
+	interval time.Duration,
+	callback func() (interface{}, bool, error)) (interface{}, error) {
+	var (
+		lastErr, err error
+		result       interface{}
+		shouldRetry  bool
+	)
+
 	timedOutErrorMessage := "Timed out waiting until successful"
 	deadline := time.Now().Add(duration)
 
 	// while we haven't passed the deadline
 	for !time.Now().After(deadline) {
-		shouldRetry, err := callback()
+		result, shouldRetry, err = callback()
 		lastErr = err
 		if !shouldRetry {
-			return err
+			return result, err
 		}
 		time.Sleep(interval)
 		continue
@@ -148,9 +168,9 @@ func RetryUntilSuccessful(duration time.Duration,
 	if lastErr != nil {
 
 		// wrap last error
-		return errors.Wrapf(lastErr, timedOutErrorMessage)
+		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
 	}
 
 	// duration expired without any last error
-	return errors.Errorf(timedOutErrorMessage)
+	return result, errors.Errorf(timedOutErrorMessage)
 }

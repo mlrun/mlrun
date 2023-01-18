@@ -34,8 +34,8 @@ def test_add_notification_to_cli_from_file():
                 {notification["type"]: notification["params"]}, project
             )
 
-    assert project._notifiers._notifications["slack"].params.get('webhook') == "123234"
-    assert project._notifiers._notifications["ipython"].params.get('webhook') == "1232"
+    assert project._notifiers._notifications["slack"].params.get("webhook") == "123234"
+    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1232"
 
 
 def test_add_notification_to_cli_from_dict():
@@ -55,5 +55,5 @@ def test_add_notification_to_cli_from_dict():
                 {notification["type"]: notification["params"]}, project
             )
 
-    assert project._notifiers._notifications["slack"].params.get('webhook') == "123234"
-    assert project._notifiers._notifications["ipython"].params.get('webhook') == "1232"
+    assert project._notifiers._notifications["slack"].params.get("webhook") == "123234"
+    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1232"

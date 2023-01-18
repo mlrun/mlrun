@@ -101,7 +101,7 @@ func (suite *LogCollectorTestSuite) TearDownSuite() {
 	suite.logger.InfoWith("Tear down complete")
 }
 
-func (suite *LogCollectorTestSuite) TestStartLog() {
+func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 	// create pod that prints logs
 	podName := "test-pod"

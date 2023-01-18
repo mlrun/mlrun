@@ -21,6 +21,10 @@ on:
     - development
     - '[0-9]+.[0-9]+.x'
 
+  pull_request:
+    branches:
+    - development
+
   workflow_dispatch:
     inputs:
       docker_registries:
@@ -134,7 +138,7 @@ jobs:
             MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
             MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \
           done;
 
@@ -153,7 +157,7 @@ jobs:
             MLRUN_VERSION=unstable \
             MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
             MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.python-version }} \
+            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
             make push-${{ matrix.image-name }}; \
           done;
     - name: Pull cache, build and push test image
@@ -168,5 +172,5 @@ jobs:
         MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
         MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.python-version }} \
+        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
         make push-${{ matrix.image-name }}

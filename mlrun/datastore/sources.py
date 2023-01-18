@@ -130,8 +130,11 @@ class CSVSource(BaseSourceDriver):
         time_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        **kwargs,
     ):
-        super().__init__(name, path, attributes, key_field, time_field, schedule)
+        super().__init__(
+            name, path, attributes, key_field, time_field, schedule, **kwargs
+        )
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated, use parse_dates instead",

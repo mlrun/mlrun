@@ -697,7 +697,7 @@ class ModelEndpoints:
         )
 
         # Add job schedule policy (every hour by default)
-        mlrun.api.api.utils._submit_run(
+        mlrun.api.api.utils.submit_run_sync(
             db_session=db_session, auth_info=auth_info, data=data
         )
 

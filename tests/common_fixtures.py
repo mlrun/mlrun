@@ -188,12 +188,14 @@ class RunDBMock:
         self.kind = "http"
         self._pipeline = None
         self._function = None
+        self._artifact = None
 
     def reset(self):
         self._function = None
         self._pipeline = None
         self._project_name = None
         self._project = None
+        self._artifact = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -208,6 +210,9 @@ class RunDBMock:
                 "iter": iter,
             }
         }
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifact = artifact
 
     def get_function(self, function, project, tag):
         return {

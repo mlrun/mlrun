@@ -32,12 +32,12 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 
 ## Inferring data
 
-There are two types of inferring: 
+There are 2 types of infer options:
 - Metadata/schema: This is responsible for describing the dataset and generating its meta-data, such as deducing the 
 data-types of the features and listing the entities that are involved. Options belonging to this type are 
 `Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value 
 containing all the options of this type.
--  Stats/preview: This related to calculating statistics and generating a preview of the actual data in the dataset. 
+- Stats/preview: This relates to calculating statistics and generating a preview of the actual data in the dataset. 
 Options of this type are `Stats`, `Histogram` and `Preview`. 
 
 The `InferOptions class` has the following values:<br>
@@ -53,7 +53,6 @@ class InferOptions:<br>
 The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
 
 When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
-
 
 ## Ingest data locally
 
@@ -137,6 +136,7 @@ When defining a source, it maps to nuclio event triggers. <br>
 You can also create a custom `source` to access various databases or data sources.
 
 ## Target stores
+
 By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
 The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
 
@@ -144,7 +144,13 @@ The parquet file is ideal for fetching large set of data for training while the 
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage, Redis, and on Iguazio DB/FS.
 ```
-### Redis target store 
+
+### Redis target store
+
+```{admonition} Note
+Tech Preview
+```
+
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).
 - The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>

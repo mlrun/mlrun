@@ -182,6 +182,10 @@ def tag_name_regex_as_string() -> str:
     return get_regex_list_as_string(mlrun.utils.regex.tag_name)
 
 
+def is_yaml_path(url):
+    return url.endswith(".yaml") or url.endswith(".yml")
+
+
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):

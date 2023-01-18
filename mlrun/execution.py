@@ -854,7 +854,7 @@ class MLClientCtx(object):
         :param message:   commit message to save in the run
         :param completed: mark run as completed
         """
-        # changing state to completed is allowed only when the run is in running state
+        # changing state to completed is allowed only when the execution is in running state
         if self._state != "running":
             completed = False
 

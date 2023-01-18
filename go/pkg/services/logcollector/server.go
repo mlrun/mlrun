@@ -162,18 +162,8 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 		"RunUID", request.RunUID,
 		"Selector", request.Selector)
 
-	// check if the requested run uid's logs are already being collected
-	itemsInProgress, err := s.inMemoryState.GetItemsInProgress()
-	if err != nil {
-		err := errors.Wrap(err, "Failed to get items in progress from in memory state")
-		return &protologcollector.StartLogResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
-	}
-
-	// to make start log idempotent, if the requested run uid is already being collected, return success
-	if _, running := itemsInProgress.Load(request.RunUID); running {
+	// to make start log idempotent, if log collection has already started for this run uid, return success
+	if s.isLogCollectionStarted(ctx, request.RunUID) {
 		s.Logger.DebugWithCtx(ctx, "Logs are already being collected for this run uid", "runUID", request.RunUID)
 		return &protologcollector.StartLogResponse{
 			Success: true,
@@ -181,34 +171,29 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 	}
 
 	var pods *v1.PodList
+	var err error
+
+	s.Logger.DebugWithCtx(ctx, "Getting run pod using label selector", "selector", request.Selector)
 
 	// list pods using label selector until a pod is found
-	errCount := 0
-	for pods == nil || len(pods.Items) == 0 {
+	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
 		pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: request.Selector,
 		})
-		if err != nil {
 
-			// we retry 3 times, as k8s might have some issues
-			if errCount <= 3 {
-				errCount++
-				s.Logger.WarnWithCtx(ctx,
-					"Failed to list pods, retrying",
-					"runUID", request.RunUID,
-					"err", err,
-					"errCount", errCount)
-				time.Sleep(1 * time.Second)
-			} else {
-
-				// fail on error
-				err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
-				return &protologcollector.StartLogResponse{
-					Success: false,
-					Error:   err.Error(),
-				}, err
-			}
+		// if no pods were found, retry
+		if err != nil || pods == nil || len(pods.Items) == 0 {
+			return true, errors.Wrap(err, "Failed to list pods")
 		}
+
+		// if pods were found, stop retrying
+		return false, nil
+	}); err != nil {
+		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
+		return &protologcollector.StartLogResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, err
 	}
 
 	// found a pod. for now, we only assume each run has a single pod.
@@ -243,6 +228,8 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 		}, err
 	}
 
+	s.Logger.DebugWithCtx(ctx, "Successfully started collecting log", "runUID", request.RunUID)
+
 	return &protologcollector.StartLogResponse{
 		Success: true,
 	}, nil
@@ -258,7 +245,7 @@ func (s *LogCollectorServer) GetLogs(ctx context.Context, request *protologcolle
 
 	// validate size is not bigger than the buffer size.
 	// if it is, caller will need to call get logs multiple times
-	if int(request.Size) > s.bufferSizeBytes {
+	if int(request.Size) > s.bufferSizeBytes || request.Size < 0 {
 		err := errors.Errorf("Request size is bigger than buffer size %d", s.bufferSizeBytes)
 		return &protologcollector.GetLogsResponse{
 			Success: false,
@@ -326,6 +313,8 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 		}
 	}()
 
+	s.Logger.DebugWithCtx(ctx, "Starting log streaming", "runUID", runUID, "podName", podName)
+
 	// signal "main" function that goroutine is up
 	startedStreamingGoroutine <- true
 
@@ -350,17 +339,27 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 		streamErr error
 		stream    io.ReadCloser
 	)
+	defer stream.Close() // nolint: errcheck
 
 	// stream logs - retry if failed
-	for {
+	err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
 		stream, streamErr = restClientRequest.Stream(ctx)
-		if streamErr == nil {
-			break
+		if streamErr != nil {
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to get pod log stream",
+				"runUID", runUID,
+				"err", streamErr)
+			return true, streamErr
 		}
-		s.Logger.WarnWithCtx(ctx, "Failed to get pod log stream read/closer, retrying", "runUID", runUID, "err", streamErr.Error())
-		time.Sleep(1 * time.Second)
+		return false, nil
+	})
+	if err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get pod log stream",
+			"runUID", runUID,
+			"err", err)
+		return
 	}
-	defer stream.Close() // nolint: errcheck
 
 	for {
 		keepLogging, err := s.streamPodLogs(ctx, runUID, logFilePath, stream)
@@ -382,6 +381,8 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 	if err := s.stateStore.RemoveLogItem(runUID); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
+
+	s.Logger.DebugWithCtx(ctx, "Finished log streaming", "runUID", runUID, "podName", podName)
 }
 
 func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
@@ -492,9 +493,8 @@ func (s *LogCollectorServer) getLogFilePath(ctx context.Context, runUID string) 
 
 	logFilePath := ""
 	var latestModTime time.Time
-	tryCount := 0
 
-	for tryCount < 3 {
+	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
 
 		// list all files in base directory
 		err := filepath.Walk(s.baseDir, func(path string, info os.FileInfo, err error) error {
@@ -516,7 +516,7 @@ func (s *LogCollectorServer) getLogFilePath(ctx context.Context, runUID string) 
 			return nil
 		})
 		if err != nil {
-			return "", errors.Wrap(err, "Failed to list files in base directory")
+			return false, errors.Wrap(err, "Failed to list files in base directory")
 		}
 
 		if logFilePath == "" {
@@ -524,15 +524,18 @@ func (s *LogCollectorServer) getLogFilePath(ctx context.Context, runUID string) 
 			// if log collection for this runUID has already started, sleep and retry,
 			// as the log file might not have been created yet
 			if s.isLogCollectionStarted(ctx, runUID) {
-				tryCount++
-				time.Sleep(1 * time.Second)
-				continue
+				return true, nil
 			}
 
 			// otherwise fail
-			return "", errors.Errorf("Failed to find log file for run id %s", runUID)
+			return false, errors.Errorf("Failed to find log file for run id %s", runUID)
 		}
-		break
+
+		// found log file
+		return false, nil
+
+	}); err != nil {
+		return "", errors.Wrap(err, "Failed to get log file path")
 	}
 
 	return logFilePath, nil

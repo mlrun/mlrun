@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nuclio/errors"
 	"k8s.io/client-go/rest"
@@ -123,4 +124,33 @@ func SyncMapLength(m *sync.Map) int {
 		return true
 	})
 	return i
+}
+
+// RetryUntilSuccessful calls callback every interval until duration until it returns false (to not retry)
+func RetryUntilSuccessful(duration time.Duration,
+	interval time.Duration,
+	callback func() (bool, error)) error {
+	var lastErr error
+	timedOutErrorMessage := "Timed out waiting until successful"
+	deadline := time.Now().Add(duration)
+
+	// while we haven't passed the deadline
+	for !time.Now().After(deadline) {
+		shouldRetry, err := callback()
+		lastErr = err
+		if !shouldRetry {
+			return err
+		}
+		time.Sleep(interval)
+		continue
+
+	}
+	if lastErr != nil {
+
+		// wrap last error
+		return errors.Wrapf(lastErr, timedOutErrorMessage)
+	}
+
+	// duration expired without any last error
+	return errors.Errorf(timedOutErrorMessage)
 }

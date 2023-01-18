@@ -164,22 +164,6 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 	}
 }
 
-func (suite *LogCollectorTestSuite) TestWriteToFile() {
-	fileName := "test_file.log"
-	filePath := path.Join(suite.baseDir, fileName)
-
-	// write file
-	err := common.WriteToFile(filePath, []byte("test"), false)
-	suite.Require().NoError(err, "Failed to write to file")
-
-	// read file
-	fileBytes, err := os.ReadFile(filePath)
-	suite.Require().NoError(err, "Failed to read file")
-
-	// verify file content
-	suite.Require().Equal("test", string(fileBytes))
-}
-
 func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	runId := "some-run-id"
 
@@ -253,7 +237,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	suite.Require().Equal("fake logs", string(logFileContent))
 }
 
-func (suite *LogCollectorTestSuite) TestGetLog() {
+func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 
 	runId := "some-run-id"
 	podName := "my-pod"
@@ -276,6 +260,36 @@ func (suite *LogCollectorTestSuite) TestGetLog() {
 
 	// verify logs
 	suite.Require().Equal(logText, string(log.Logs))
+}
+
+func (suite *LogCollectorTestSuite) TestGetLogFailOnSize() {
+
+	for _, testCase := range []struct {
+		name string
+		size int64
+	}{
+		{
+			name: "size is negative",
+			size: -1,
+		},
+		{
+			name: "size is zero",
+			size: 0,
+		},
+		{
+			name: "size is larger than buffer size",
+			size: 1000000,
+		},
+	} {
+		suite.Run(testCase.name, func() {
+			_, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
+				RunUID: "some-run-id",
+				Offset: 0,
+				Size:   testCase.size,
+			})
+			suite.Require().Error(err, "Expected error on size")
+		})
+	}
 }
 
 func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {

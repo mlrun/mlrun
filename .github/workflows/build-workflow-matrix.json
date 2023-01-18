@@ -1,57 +1,57 @@
 [
   {
     "image-name":"mlrun",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   },
   {
     "image-name":"mlrun",
-    "python-version":"3.7.13",
+    "python-version":"3.7",
     "include-suffix":"true"
   },
   {
     "image-name":"api",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   },
   {
     "image-name":"base",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   },
   {
     "image-name":"base",
-    "python-version":"3.7.13",
+    "python-version":"3.7",
     "include-suffix":"true"
   },
   {
     "image-name":"models",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   },
   {
     "image-name":"models",
-    "python-version":"3.7.13",
+    "python-version":"3.7",
     "include-suffix":"true"
   },
   {
     "image-name":"models-gpu",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   },
   {
     "image-name":"models-gpu",
-    "python-version":"3.7.13",
+    "python-version":"3.7",
     "include-suffix":"true"
   },
   {
     "image-name":"jupyter",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   },
   {
     "image-name":"test",
-    "python-version":"3.9.13",
-    "include-suffix":"false"
+    "python-version":"3.9",
+    "include-suffix":""
   }
 ]

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-ARG MLRUN_PYTHON_VERSION=3.9.13
+ARG MLRUN_PYTHON_VERSION=3.9
 
-FROM quay.io/mlrun/python:${MLRUN_PYTHON_VERSION}-slim
+FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \

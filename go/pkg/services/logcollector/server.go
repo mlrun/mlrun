@@ -598,12 +598,12 @@ func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize
 		size = int64(math.Min(float64(fileSize), float64(s.bufferSizeBytes)))
 	}
 
-	// if offset is bigger than file size, set offset to 0
+	// if offset is bigger than file size, don't read anything.
 	if int64(offset) > fileSize {
 		size = 0
 	}
 
-	// set size to file size - offset if size is bigger than file size - offset
+	// if size is bigger than what's left to read, only read the rest of the file
 	if size > fileSize-int64(offset) {
 		size = fileSize - int64(offset)
 	}

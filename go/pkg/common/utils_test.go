@@ -66,6 +66,37 @@ func (suite *RetryUntilSuccessfulTestSuite) TestPositive() {
 	suite.Require().Error(err)
 }
 
+func (suite *RetryUntilSuccessfulTestSuite) TestNoErrorOnTimeout() {
+	callCount := 0
+
+	err := RetryUntilSuccessful(25*time.Millisecond, 10*time.Millisecond, func() (bool, error) {
+		if callCount == 0 {
+			callCount++
+			return true, errors.New("test")
+		}
+		callCount++
+		return true, nil
+	})
+
+	suite.Require().NoError(err)
+}
+
+func (suite *RetryUntilSuccessfulTestSuite) TestRetryWithResult() {
+	callCount := 0
+	result, err := RetryUntilSuccessfulWithResult(50*time.Millisecond, 10*time.Millisecond, func() (interface{}, bool, error) {
+		if callCount == 0 {
+			callCount++
+			return 0, true, errors.New("test")
+		}
+		return 1, false, nil
+	})
+	suite.Require().NoError(err)
+
+	intResult, ok := result.(int)
+	suite.Require().True(ok)
+	suite.Require().Equal(1, intResult)
+}
+
 func TestHelperTestSuite(t *testing.T) {
 	suite.Run(t, new(WriteToFileTestSuite))
 	suite.Run(t, new(RetryUntilSuccessfulTestSuite))

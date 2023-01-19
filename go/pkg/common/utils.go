@@ -126,22 +126,22 @@ func SyncMapLength(m *sync.Map) int {
 	return i
 }
 
-// RetryUntilSuccessful calls callback every interval until duration until it returns false (to not retry)
+// RetryUntilSuccessful calls callback every interval until duration is exceeded, or until it returns false (to not retry)
 func RetryUntilSuccessful(duration time.Duration,
 	interval time.Duration,
 	callback func() (bool, error)) error {
 
 	wrapFunctionNoResult := func() (interface{}, bool, error) {
-		retry, err := callback()
-		return nil, retry, err
+		shouldRetry, err := callback()
+		return nil, shouldRetry, err
 	}
 
 	_, err := RetryUntilSuccessfulWithResult(duration, interval, wrapFunctionNoResult)
 	return err
 }
 
-// RetryUntilSuccessfulWithResult calls callback every interval until duration until it returns false (to not retry),
-// and returns the result of the callback
+// RetryUntilSuccessfulWithResult calls callback every interval until duration is exceeded,
+// or until it returns false (to not retry), and returns the result of the callback
 func RetryUntilSuccessfulWithResult(duration time.Duration,
 	interval time.Duration,
 	callback func() (interface{}, bool, error)) (interface{}, error) {
@@ -171,6 +171,6 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
 	}
 
-	// duration expired without any last error
-	return result, errors.Errorf(timedOutErrorMessage)
+	// duration expired but no error
+	return result, lastErr
 }

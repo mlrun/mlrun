@@ -854,12 +854,13 @@ class TestFeatureStore(TestMLRunSystem):
         assert resp1 == resp2
 
         file_system = fsspec.filesystem("v3io")
-        path = measurements.get_target_path("parquet")
+        # using ParquetDatasetV2
+        path = measurements.get_target_path("parquet")[7:]
         dataset = pq.ParquetDataset(
             path,
             filesystem=file_system,
         )
-        partitions = [key for key, _ in dataset.pieces[0].partition_keys]
+        partitions = dataset.partitioning.schema.names
 
         if key_bucketing_number is None:
             expected_partitions = []

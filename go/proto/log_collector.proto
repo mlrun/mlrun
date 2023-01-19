@@ -22,7 +22,7 @@ import "google/protobuf/empty.proto";
 
 service LogCollector {
   rpc StartLog(StartLogRequest) returns (StartLogResponse) {}
-  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse) {}
+  rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
 }
 
 message StartLogRequest {

@@ -236,53 +236,80 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 }
 
 // GetLogs returns the log file contents of length size from an offset, for a given run id
-func (s *LogCollectorServer) GetLogs(ctx context.Context, request *protologcollector.GetLogsRequest) (*protologcollector.GetLogsResponse, error) {
+func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, responseStream protologcollector.LogCollector_GetLogsServer) error {
+
+	ctx := responseStream.Context()
+
 	s.Logger.DebugWithCtx(ctx,
 		"Received Get Log request",
 		"runUID", request.RunUID,
 		"size", request.Size,
 		"offset", request.Offset)
 
-	// validate size is not bigger than the buffer size.
-	// if it is, caller will need to call get logs multiple times
-	if int(request.Size) > s.bufferSizeBytes || request.Size < 0 {
-		err := errors.Errorf("Request size is bigger than buffer size %d", s.bufferSizeBytes)
-		return &protologcollector.GetLogsResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
-	}
-
 	// get log file path
 	filePath, err := s.getLogFilePath(ctx, request.RunUID)
 	if err != nil {
-		err := errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
-		return &protologcollector.GetLogsResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
+		return errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
 	}
 
-	// read log from file
-	buffer, err := s.readLogsFromFile(ctx, request.RunUID, filePath, request.Offset, request.Size)
-	if err != nil {
-		err := errors.Wrapf(err, "Failed to read logs for run id %s", request.RunUID)
-		return &protologcollector.GetLogsResponse{
-			Success: false,
-			Error:   err.Error(),
-		}, err
+	if request.Size == 0 {
+		s.Logger.DebugWithCtx(ctx, "Size is 0, returning empty response")
+		if err := responseStream.Send(&protologcollector.GetLogsResponse{
+			Success: true,
+			Logs:    []byte{},
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send empty logs to stream for run id %s", request.RunUID)
+		}
+		return nil
+	}
+
+	if request.Size < 0 || request.Size > int64(s.bufferSizeBytes) {
+		offset := request.Offset
+		size := int64(s.bufferSizeBytes)
+		for {
+
+			// read logs from file in chunks of buffer size
+			logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, size)
+			if err != nil {
+				return errors.Wrapf(err, "Failed to read logs from file for run id %s", request.RunUID)
+			}
+
+			// send logs to stream
+			if err := responseStream.Send(&protologcollector.GetLogsResponse{
+				Success: true,
+				Logs:    logs,
+			}); err != nil {
+				return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
+			}
+
+			// if the chunk is smaller than the buffer size, we reached the end of the file
+			if len(logs) < s.bufferSizeBytes {
+				break
+			}
+
+			// increase offset by the read size
+			offset += uint64(s.bufferSizeBytes)
+		}
+	} else {
+		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, request.Offset, request.Size)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to read logs from file for run id %s", request.RunUID)
+		}
+		// send logs to stream
+		if err := responseStream.Send(&protologcollector.GetLogsResponse{
+			Success: true,
+			Logs:    logs,
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
+		}
 	}
 
 	s.Logger.DebugWithCtx(ctx,
 		"Successfully read logs from file",
 		"runUID", request.RunUID,
-		"size", len(buffer),
 		"offset", request.Offset)
 
-	return &protologcollector.GetLogsResponse{
-		Success: true,
-		Logs:    buffer,
-	}, nil
+	return nil
 }
 
 // startLogStreaming streams logs from a pod and writes them into a file

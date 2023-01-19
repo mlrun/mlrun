@@ -26,8 +26,10 @@ import (
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/test/mock"
 	"github.com/mlrun/mlrun/proto/build/log_collector"
 
+	"github.com/google/uuid"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
@@ -109,7 +111,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	// create pod that prints logs
 	expectedLogLines := 100
 	podName := "test-pod"
-	runUID := "some-uid"
+	runUID := uuid.New().String()
 	pod := suite.getDummyPodSpec(podName, expectedLogLines)
 
 	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})
@@ -134,32 +136,35 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	suite.logger.InfoWith("Waiting for logs to be collected")
 	time.Sleep(10 * time.Second)
 
+	// mock the get logs server stream
+	mockStream := &mock.GetLogsServerMock{}
+
 	var logs []string
 	startedGettingLogsTime := time.Now()
-	offset := 0
 
 	for {
 
+		// clear logs from mock stream
+		mockStream.Logs = []byte{}
+
 		// get logs until everything is read
-		getLogsResponse, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
+		err := suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
 			RunUID: runUID,
-			Offset: uint64(offset),
-			Size:   int64(suite.bufferSizeBytes),
-		})
+			Offset: 0,
+			Size:   -1,
+		}, mockStream)
 		suite.Require().NoError(err, "Failed to get logs")
-		suite.Require().True(getLogsResponse.Success, "Failed to get logs")
 
 		// make sure logs have at least 100 lines
-		logLines := strings.Split(string(getLogsResponse.Logs), "\n")
-		suite.logger.InfoWith("Got logs", "numLines", len(logLines))
-		logs = append(logs, logLines...)
+		logs = strings.Split(string(mockStream.Logs), "\n")
 		if len(logs) >= expectedLogLines {
 			break
 		}
 		if time.Since(startedGettingLogsTime) > 2*time.Minute {
 			suite.Require().Fail("Timed out waiting to get all logs")
 		}
-		offset += len(getLogsResponse.Logs)
+
+		suite.logger.DebugWith("Waiting for more logs to be collected", "currentLogLines", len(logs))
 
 		// let some more logs be collected
 		time.Sleep(3 * time.Second)

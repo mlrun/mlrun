@@ -198,6 +198,7 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
     def _get_run_completion_updates(run: dict) -> dict:
         # TODO: add a 'workers' section in run objects state, each worker will update its state while
         #  the run state will be resolved by the server.
+        update_in(run, "status.state", "running", append=False, replace=False)
         return {}
 
     @staticmethod

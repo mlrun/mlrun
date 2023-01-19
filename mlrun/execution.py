@@ -951,7 +951,8 @@ class MLClientCtx(object):
             },
         }
 
-        # completion of runs is not decided by the execution as there may be multiple executions for a single run
+        # completion of runs is not decided by the execution as there may be
+        # multiple executions for a single run (e.g. mpi)
         if self._state != "completed":
             struct["status"]["state"] = self._state
 
@@ -978,7 +979,8 @@ class MLClientCtx(object):
             "status.last_update": to_date_str(self._last_update),
         }
 
-        # completion of runs is not decided by the execution as there may be multiple executions for a single run
+        # completion of runs is not decided by the execution as there may be
+        # multiple executions for a single run (e.g. mpi)
         if self._state != "completed":
             struct["status.state"] = self._state
 

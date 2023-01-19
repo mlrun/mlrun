@@ -576,6 +576,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
     def test_get_offline_features(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
+        # TODO - this test needs to be moved outside of the api runtimes tests and into the spark runtime sdk tests
+        #   once moved, the `watch=False` can be removed
         import mlrun.feature_store as fstore
 
         fv = fstore.FeatureVector("my-vector", features=[])
@@ -595,7 +597,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             with_indexes=True,
             entity_timestamp_column="timestamp",
             engine="spark",
-            run_config=RunConfig(local=False, function=runtime),
+            # setting watch=False, because we don't want to wait for the job to complete when running in API
+            run_config=RunConfig(local=False, function=runtime, watch=False),
             target=ParquetTarget(),
         )
         runspec = resp.run.spec.to_dict()

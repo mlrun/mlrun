@@ -130,19 +130,6 @@ async def submit_workflow(
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
-    # Re-route to chief in case of schedule:
-    if (
-        workflow_request.spec.schedule
-        and mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.api.schemas.ClusterizationRole.chief
-    ):
-        chief_client = mlrun.api.utils.clients.chief.Client()
-        return await chief_client.submit_workflow(
-            project=project,
-            name=name,
-            json=workflow_request.dict(),
-        )
-
     # Getting project
     project = await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().get_project,
@@ -177,6 +164,20 @@ async def submit_workflow(
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
+    # Re-route to chief in case of schedule
+    # must be done after getting data from project regarding the workflow,
+    # since it may contain information about scheduling.
+    if (
+        workflow_request.spec.schedule
+        and mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return await chief_client.submit_workflow(
+            project=project.metadata.name,
+            name=name,
+            json=workflow_request.dict(),
+        )
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
     workflow_runner = await run_in_threadpool(

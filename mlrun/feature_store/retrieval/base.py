@@ -334,8 +334,8 @@ class BaseMerger(abc.ABC):
                     return node
 
         def concat(self, other):
-            other_iter = other.__iter__()
-            other_head = other_iter.__next__()
+            other_iter = iter(other)
+            other_head = next(other_iter)
             node = self.find_node(other_head.name)
             if node is None:
                 return

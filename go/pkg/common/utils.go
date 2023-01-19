@@ -117,6 +117,21 @@ func WriteToFile(filePath string,
 	return nil
 }
 
+func GetFileSize(filePath string) (int64, error) {
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return 0, errors.Wrapf(err, "Failed to open log file - %s", filePath)
+	}
+	defer file.Close() // nolint: errcheck
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, errors.Wrapf(err, "Failed to get file info for file - %s", filePath)
+	}
+
+	return fileInfo.Size(), nil
+}
+
 func SyncMapLength(m *sync.Map) int {
 	var i int
 	m.Range(func(k, v interface{}) bool {

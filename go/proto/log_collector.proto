@@ -38,7 +38,7 @@ message StartLogResponse {
 
 message GetLogsRequest {
   string runUID = 1;
-  uint64 offset = 2;
+  int64 offset = 2;
   int64 size = 3;
   string projectName = 4;
 }

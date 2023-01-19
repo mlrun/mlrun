@@ -43,6 +43,7 @@ type LogCollectorTestSuite struct {
 	ctx                context.Context
 	kubeClientSet      fake.Clientset
 	namespace          string
+	projectName        string
 	baseDir            string
 	kubeConfigFilePath string
 }
@@ -55,6 +56,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.kubeClientSet = *fake.NewSimpleClientset()
 	suite.ctx = context.Background()
 	suite.namespace = "default"
+	suite.projectName = "test-project"
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
 	monitoringInterval := "30s"
@@ -103,10 +105,10 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 
 	for _, testCase := range []struct {
 		name           string
-		offset         uint64
+		offset         int64
 		size           int64
 		fileSize       int64
-		expectedOffset uint64
+		expectedOffset int64
 		expectedSize   int64
 	}{
 		{
@@ -146,8 +148,8 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 			offset:         200,
 			size:           50,
 			fileSize:       100,
-			expectedOffset: 0,
-			expectedSize:   50,
+			expectedOffset: 200,
+			expectedSize:   0,
 		},
 		{
 			name:           "size is negative",
@@ -203,14 +205,14 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	startedChan := make(chan bool)
 
 	// stream pod logs
-	go suite.LogCollectorServer.startLogStreaming(ctx, runId, pod.Name, startedChan, cancel)
+	go suite.LogCollectorServer.startLogStreaming(ctx, runId, pod.Name, suite.projectName, startedChan, cancel)
 
 	// wait for log streaming to start
 	started := <-startedChan
 	suite.Require().True(started, "Log streaming didn't start")
 
 	// resolve log file path
-	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, pod.Name)
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(suite.projectName, runId, pod.Name)
 
 	// read log file until it has content, or timeout
 	timeout := time.After(30 * time.Second)
@@ -245,7 +247,7 @@ func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 	podName := "my-pod"
 
 	// creat log file for runUID and pod
-	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runUID, podName)
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(suite.projectName, runUID, podName)
 
 	// write log file
 	logText := "Some fake pod logs\n"
@@ -348,7 +350,7 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 			message := fmt.Sprintf(messageTemplate, j)
 			size := int64(len(message))
-			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx, "1", filePath, uint64(offset), size)
+			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx, "1", filePath, int64(offset), size)
 			suite.Require().NoError(err, "Failed to read logs from file")
 
 			// verify logs

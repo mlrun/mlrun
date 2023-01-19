@@ -214,7 +214,7 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(logStreamCtx, request.RunUID, pod.Name, startedStreamingGoroutine, cancelCtxFunc)
+	go s.startLogStreaming(logStreamCtx, request.RunUID, pod.Name, request.ProjectName, startedStreamingGoroutine, cancelCtxFunc)
 
 	// wait for the streaming goroutine to start
 	<-startedStreamingGoroutine
@@ -263,16 +263,31 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 		return nil
 	}
 
-	if request.Size < 0 || request.Size > int64(s.bufferSizeBytes) {
+	// open log file and calc its size
+	currentLogFileSize, err := common.GetFileSize(filePath)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to get log file size for run id %s", request.RunUID)
+	}
+
+	// We read only the logs for this moment in time, so GetLogs will be finite.
+	// TODO: when the sdk/UI will support streaming, we can remove this limitation, and stream the logs continuously
+	endSize := currentLogFileSize - request.Offset
+
+	if request.Size < 0 || endSize > int64(s.bufferSizeBytes) {
 		offset := request.Offset
 		size := int64(s.bufferSizeBytes)
+		totalLogsSize := int64(0)
 		for {
+			if totalLogsSize-offset < size {
+				size = totalLogsSize - offset
+			}
 
 			// read logs from file in chunks of buffer size
 			logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, size)
 			if err != nil {
 				return errors.Wrapf(err, "Failed to read logs from file for run id %s", request.RunUID)
 			}
+			totalLogsSize += int64(len(logs))
 
 			// send logs to stream
 			if err := responseStream.Send(&protologcollector.GetLogsResponse{
@@ -282,13 +297,14 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 				return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
 			}
 
-			// if the chunk is smaller than the buffer size, we reached the end of the file
-			if len(logs) < s.bufferSizeBytes {
+			// if the chunk is smaller than the buffer size (we reached the end of the file),
+			// or we reached the requested size, stop reading
+			if len(logs) < s.bufferSizeBytes || totalLogsSize >= endSize {
 				break
 			}
 
 			// increase offset by the read size
-			offset += uint64(s.bufferSizeBytes)
+			offset += int64(s.bufferSizeBytes)
 		}
 	} else {
 		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, request.Offset, request.Size)
@@ -315,7 +331,8 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 // startLogStreaming streams logs from a pod and writes them into a file
 func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 	runUID,
-	podName string,
+	podName,
+	projectName string,
 	startedStreamingGoroutine chan bool,
 	cancelCtxFunc context.CancelFunc) {
 
@@ -346,7 +363,7 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 	startedStreamingGoroutine <- true
 
 	// create a log file to the pod
-	logFilePath := s.resolvePodLogFilePath(runUID, podName)
+	logFilePath := s.resolvePodLogFilePath(projectName, runUID, podName)
 	if err := common.EnsureFileExists(logFilePath); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to ensure log file",
@@ -485,8 +502,8 @@ func (s *LogCollectorServer) streamPodLogs(ctx context.Context,
 }
 
 // resolvePodLogFilePath returns the path to the pod log file
-func (s *LogCollectorServer) resolvePodLogFilePath(runUID, podName string) string {
-	return path.Join(s.baseDir, "logs", fmt.Sprintf("%s_%s.log", runUID, podName))
+func (s *LogCollectorServer) resolvePodLogFilePath(projectName, runUID, podName string) string {
+	return path.Join(s.baseDir, "logs", projectName, fmt.Sprintf("%s_%s.log", runUID, podName))
 }
 
 func (s *LogCollectorServer) hasLogs(ctx context.Context, runUID string, streamReader *bufio.Reader) bool {
@@ -571,7 +588,7 @@ func (s *LogCollectorServer) getLogFilePath(ctx context.Context, runUID string) 
 func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
 	runUID,
 	filePath string,
-	offset uint64,
+	offset,
 	size int64) ([]byte, error) {
 
 	s.Logger.DebugWithCtx(ctx,
@@ -581,24 +598,23 @@ func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
 		"offset", offset,
 		"size", size)
 
+	fileSize, err := common.GetFileSize(filePath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to get file size for run id %s", runUID)
+	}
+
+	offset, size = s.validateOffsetAndSize(offset, size, fileSize)
+	if size == 0 {
+		s.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", runUID)
+		return nil, nil
+	}
+
 	// open log file for reading
 	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to open log file for run id %s", runUID)
 	}
 	defer file.Close() // nolint: errcheck
-
-	// get file size
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to get file info for run id %s", runUID)
-	}
-
-	offset, size = s.validateOffsetAndSize(offset, size, fileInfo.Size())
-	if size == 0 {
-		s.Logger.DebugWithCtx(ctx, "No logs to return", "run_id", runUID)
-		return nil, nil
-	}
 
 	// read size bytes from offset
 	buffer := s.getLogsBufferPool.Get()
@@ -618,21 +634,21 @@ func (s *LogCollectorServer) readLogsFromFile(ctx context.Context,
 	return buffer[:size], nil
 }
 
-func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize int64) (uint64, int64) {
+func (s *LogCollectorServer) validateOffsetAndSize(offset, size, fileSize int64) (int64, int64) {
 
 	// if size is negative, zero, or bigger than fileSize, read the whole file or the allowed size
 	if size <= 0 || size > fileSize {
 		size = int64(math.Min(float64(fileSize), float64(s.bufferSizeBytes)))
 	}
 
-	// if offset is bigger than file size, don't read anything.
-	if int64(offset) > fileSize {
-		size = 0
+	// if size is bigger than what's left to read, only read the rest of the file
+	if size > fileSize-offset {
+		size = fileSize - offset
 	}
 
-	// if size is bigger than what's left to read, only read the rest of the file
-	if size > fileSize-int64(offset) {
-		size = fileSize - int64(offset)
+	// if offset is bigger than file size, don't read anything.
+	if offset > fileSize {
+		size = 0
 	}
 
 	return offset, size

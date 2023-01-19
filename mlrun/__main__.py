@@ -1415,8 +1415,8 @@ def load_notification(notifications,project):
                 add_notification_to_project(notification_from_file, project)
 
         else:
-            notification_from_input = simplejson.loads(notification)
-            add_notification_to_project(notification_from_input, project)
+            # notification_from_input = simplejson.loads(notification)
+            add_notification_to_project(notification, project)
 def add_notification_to_project(notification, proj):
     for notification_type, notification_params in notification.items():
         proj.notifiers.add_notification(

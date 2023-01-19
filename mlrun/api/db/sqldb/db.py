@@ -192,6 +192,7 @@ class SQLDB(DBInterface):
                 iteration=iter,
                 state=run_state(run_data),
                 start_time=run_start_time(run_data) or now,
+                requested_logs=False,
             )
         self._ensure_run_name_on_update(run, run_data)
         labels = run_labels(run_data)
@@ -228,6 +229,53 @@ class SQLDB(DBInterface):
         self._upsert(session, [run])
         self._delete_empty_labels(session, Run.Label)
 
+    def list_distinct_runs_uids(
+        self, session, project: str = None, requested_logs: bool = None, only_uids=True
+    ) -> typing.Union[List[str], RunList]:
+        """
+        List all runs uids in the DB
+        :param session: DB session
+        :param project: Project name, `*` or `None` lists across all projects
+        :param requested_logs: If not `None`, will return only runs for which logs were requested (or not)
+        :param only_uids: If True, will return only the uids of the runs as list of strings
+                          If False, will return the full run objects as RunList
+        :return: List of runs uids or RunList
+        """
+        if only_uids:
+            # using distinct to avoid duplicates as there could be multiple runs with the same uid(different iterations)
+            query = self._query(session, distinct(Run.uid))
+        else:
+            query = self._query(session, Run)
+
+        if project and project != "*":
+            query = query.filter(Run.project == project)
+        if requested_logs is not None:
+            query = query.filter(Run.requested_logs == requested_logs)
+
+        if not only_uids:
+            # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)
+            # note we cannot promise that the same row will be returned each time per uid as the order is not guaranteed
+            query = query.group_by(Run.uid)
+
+            runs = RunList()
+            for run in query:
+                runs.append(run.struct)
+
+            return runs
+
+        # from each row we expect to get a tuple of (uid,) so we need to extract the uid from the tuple
+        return [uid for uid, in query.all()]
+
+    def update_runs_requested_logs(
+        self, session, uids: List[str], requested_logs: bool = True
+    ):
+        # note that you should commit right after the synchronize_session=False
+        # https://stackoverflow.com/questions/70350298/what-does-synchronize-session-false-do-exactly-in-update-functions-for-sqlalch
+        self._query(session, Run).filter(Run.id.in_(uids)).update(
+            {Run.requested_logs: requested_logs}, synchronize_session=False
+        )
+        session.commit()
+
     def read_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
@@ -255,6 +303,8 @@ class SQLDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -280,7 +330,8 @@ class SQLDB(DBInterface):
             query = query.limit(last)
         if not iter:
             query = query.filter(Run.iteration == 0)
-
+        if requested_logs is not None:
+            query = query.filter(Run.requested_logs == requested_logs)
         if partition_by:
             self._assert_partition_by_parameters(
                 schemas.RunPartitionByField, partition_by, partition_sort_by
@@ -295,6 +346,8 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+        if not return_as_run_structs:
+            return query.all()
 
         runs = RunList()
         for run in query:

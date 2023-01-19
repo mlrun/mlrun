@@ -14,6 +14,7 @@
 
 import grpc
 
+import mlrun.api.schemas
 import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger
@@ -24,8 +25,10 @@ class BaseGRPCClient(object):
     name = None
     stub_class = None
 
-    def __init__(self):
+    def __init__(self, address: str):
+        self._address = address
         self._channel = None
+        # A module acting as the interface for gRPC clients to call service methods.
         self._stub = None
         self._initialize()
 
@@ -35,10 +38,13 @@ class BaseGRPCClient(object):
     def _initialize(self):
         if not self.name:
             return
-        sidecar_config = getattr(mlrun.config.config.sidecar, self.name)
-        if not sidecar_config.enabled:
-            return
-        self._channel = grpc.aio.insecure_channel(sidecar_config.address)
+
+        if not self._address:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "No address was provided, Unable to initialize client"
+            )
+
+        self._channel = grpc.aio.insecure_channel(self._address)
         if self.stub_class:
             self._stub = self.stub_class(self._channel)
 

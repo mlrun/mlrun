@@ -22,6 +22,7 @@ from copy import copy
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
+import sqlalchemy
 
 import mlrun
 import mlrun.utils.helpers
@@ -427,7 +428,7 @@ class BaseStoreTarget(DataTargetBase):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
-        self.schema = schema
+        self.schema = schema or {}
 
         self._target = None
         self._resource = None
@@ -1499,7 +1500,6 @@ class SQLTarget(BaseStoreTarget):
     is_online = True
     support_spark = False
     support_storey = True
-    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
 
     def __init__(
         self,
@@ -1515,9 +1515,9 @@ class SQLTarget(BaseStoreTarget):
         max_events: Optional[int] = None,
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
-        db_path: str = None,
+        db_url: str = None,
         table_name: str = None,
-        schema: Dict[str, Any] = {},
+        schema: Dict[str, Any] = None,
         primary_key_column: str = "",
         if_exists: str = "append",
         create_table: bool = False,
@@ -1545,8 +1545,8 @@ class SQLTarget(BaseStoreTarget):
         :param max_events:
         :param flush_after_seconds:
         :param storage_options:
-        :param db_path:                     url string connection to sql database.
-                                            If not set, the _MLRUN_SQL_DB_PATH_STRING_ENV_VAR environment variable will
+        :param db_url:                     url string connection to sql database.
+                                            If not set, the MLRUN_SQL__URL environment variable will
                                             be used.
         :param table_name:                  the name of the table to access,
                                             from the current database
@@ -1564,8 +1564,8 @@ class SQLTarget(BaseStoreTarget):
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         """
         create_according_to_data = False  # TODO: open for user
-        db_path = db_path or mlrun.mlconf.sql_db_path_string
-        if db_path is None or table_name is None:
+        db_url = db_url or mlrun.mlconf.sql.url
+        if db_url is None or table_name is None:
             attr = {}
         else:
             # check for table existence and acts according to the user input
@@ -1573,14 +1573,14 @@ class SQLTarget(BaseStoreTarget):
 
             attr = {
                 "table_name": table_name,
-                "db_path": db_path,
+                "db_path": db_url,
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
                 "time_fields": time_fields,
                 "varchar_len": varchar_len,
             }
             path = (
-                f"mlrunSql://@{db_path}//@{table_name}"
+                f"mlrunSql://@{db_url}//@{table_name}"
                 f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}//@{create_table}"
             )
 
@@ -1594,7 +1594,7 @@ class SQLTarget(BaseStoreTarget):
             path,
             attributes,
             after_step,
-            [*schema.keys()] if schema is not None else None,
+            list(schema.keys()) if schema else None,
             partitioned,
             key_bucketing_number,
             partition_cols,
@@ -1668,8 +1668,6 @@ class SQLTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        import sqlalchemy
-
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
@@ -1687,8 +1685,6 @@ class SQLTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
-        import sqlalchemy
-
         self._create_sql_table()
 
         if hasattr(df, "rdd"):
@@ -1710,12 +1706,6 @@ class SQLTarget(BaseStoreTarget):
             if create_according_to_data:
                 # todo : create according to first row.
                 pass
-            try:
-                primary_key = ast.literal_eval(primary_key)
-            except Exception:
-                pass
-            if primary_key in df:
-                df.set_index(primary_key, inplace=True)
             df.to_sql(table_name, connection, if_exists=if_exists)
 
     def _parse_url(self):
@@ -1726,8 +1716,6 @@ class SQLTarget(BaseStoreTarget):
         pass
 
     def _create_sql_table(self):
-        import sqlalchemy
-
         (
             db_path,
             table_name,

@@ -33,7 +33,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     @classmethod
     def _init_env_from_file(cls):
         env = cls._get_env_from_file()
-        cls.db = env["MLRUN_SQL_DB_PATH_STRING"]
+        cls.db = env["MLRUN_SQL__URL"]
         if cls.db == "" or cls.db is None:
             pytest.skip("Environment variable MLRUN_SQL_DB_PATH_STRING is not defined")
         cls.source_collection = "source_collection"
@@ -100,9 +100,9 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         "source_name, key, time_fields",
         [("stocks", "ticker", None), ("trades", "ind", ["time"])],
     )
-    @pytest.mark.parametrize("fs_engine", ["pandas", "storey"])
+    @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
     def test_sql_source_basic(
-        self, source_name: str, key: str, time_fields: List[str], fs_engine: str
+        self, source_name: str, key: str, time_fields: List[str], fset_engine: str
     ):
         from sqlalchemy_utils import create_database, database_exists
 
@@ -125,7 +125,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         )
 
         feature_set = fs.FeatureSet(
-            f"fs-{source_name}", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{source_name}", entities=[fs.Entity(key)], engine=fset_engine
         )
         feature_set.set_targets([])
         df = fs.ingest(feature_set, source=source)
@@ -139,9 +139,9 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             ("quotes", "ind", "ticker"),
         ],
     )
-    @pytest.mark.parametrize("fs_engine", ["pandas", "storey"])
+    @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
     def test_sql_source_with_step(
-        self, source_name: str, key: str, encoder_col: str, fs_engine: str
+        self, source_name: str, key: str, encoder_col: str, fset_engine: str
     ):
         engine = db.create_engine(self.db)
         with engine.connect() as conn:
@@ -164,7 +164,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             time_fields=["time"] if source_name == "quotes" else None,
         )
         feature_set = fs.FeatureSet(
-            f"fs-{source_name}", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{source_name}", entities=[fs.Entity(key)], engine=fset_engine
         )
         one_hot_encoder_mapping = {
             encoder_col: list(origin_df[encoder_col].unique()),
@@ -174,7 +174,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
         # reference source
         feature_set_ref = fs.FeatureSet(
-            f"fs-{source_name}-ref", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{source_name}-ref", entities=[fs.Entity(key)], engine=fset_engine
         )
         feature_set_ref.graph.to(OneHotEncoder(mapping=one_hot_encoder_mapping))
         df_ref = fs.ingest(feature_set_ref, origin_df)
@@ -228,8 +228,8 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     @pytest.mark.parametrize(
         "target_name, key", [("stocks", "ticker"), ("quotes", "ind")]
     )
-    @pytest.mark.parametrize("fs_engine", ["pandas", "storey"])
-    def test_sql_target_basic(self, target_name: str, key: str, fs_engine: str):
+    @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
+    def test_sql_target_basic(self, target_name: str, key: str, fset_engine: str):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
@@ -241,7 +241,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             time_fields=["time"],
         )
         feature_set = fs.FeatureSet(
-            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
         )
         fs.ingest(feature_set, source=origin_df, targets=[target])
         df = target.as_df()
@@ -256,9 +256,9 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
     @pytest.mark.parametrize(
         "target_name, key", [("stocks", "ticker"), ("trades", "ind")]
     )
-    @pytest.mark.parametrize("fs_engine", ["pandas", "storey"])
+    @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
     def test_sql_target_without_create(
-        self, target_name: str, key: str, fs_engine: str
+        self, target_name: str, key: str, fset_engine: str
     ):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
@@ -275,7 +275,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             time_fields=["time"] if target_name == "trades" else None,
         )
         feature_set = fs.FeatureSet(
-            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
         )
         fs.ingest(feature_set, source=origin_df, targets=[target])
         df = target.as_df()
@@ -288,8 +288,10 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         assert df[columns].equals(origin_df[columns])
 
     @pytest.mark.parametrize("target_name, key", [("quotes", "ind")])
-    @pytest.mark.parametrize("fs_engine", ["pandas", "storey"])
-    def test_sql_get_online_feature_basic(self, target_name: str, key: str, fs_engine):
+    @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
+    def test_sql_get_online_feature_basic(
+        self, target_name: str, key: str, fset_engine
+    ):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
 
@@ -301,10 +303,10 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             time_fields=["time"],
         )
         feature_set = fs.FeatureSet(
-            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
         )
         feature_set_ref = fs.FeatureSet(
-            f"fs-{target_name}-ref", entities=[fs.Entity(key)], engine=fs_engine
+            f"fs-{target_name}-ref", entities=[fs.Entity(key)], engine=fset_engine
         )
         fs.ingest(feature_set, source=origin_df, targets=[target])
         fs.ingest(feature_set_ref, source=origin_df)
@@ -335,8 +337,8 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             assert ref_output == output
 
     @pytest.mark.parametrize("name, key", [("stocks", "ticker"), ("trades", "ind")])
-    @pytest.mark.parametrize("fs_engine", ["pandas", "storey"])
-    def test_sql_source_and_target_basic(self, name: str, key: str, fs_engine: str):
+    @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
+    def test_sql_source_and_target_basic(self, name: str, key: str, fset_engine: str):
         origin_df = self.get_data(name)
         schema = self.get_schema(name)
         table_name = f"{name}_target"
@@ -365,7 +367,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             "sample_training_posts",
             entities=[fs.Entity(key)],
             description="feature set",
-            engine=fs_engine,
+            engine=fset_engine,
         )
 
         ingest_df = fs.ingest(

@@ -117,7 +117,9 @@ default_config = {
         "url": "",
         "type": "standalone",  # deprecated.
     },
-    "sql_db_path_string": "",
+    "sql": {
+        "url": "",
+    },
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
     # default node selector to be applied to all functions - json string base64 encoded format

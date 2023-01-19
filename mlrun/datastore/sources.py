@@ -863,7 +863,6 @@ class SQLSource(BaseSourceDriver):
     kind = "sqldb"
     support_storey = True
     support_spark = False
-    _MLRUN_SQL_DB_PATH_STRING_ENV_VAR = "SQL_DB_PATH_STRING"
 
     def __init__(
         self,
@@ -874,7 +873,7 @@ class SQLSource(BaseSourceDriver):
         schedule: str = None,
         start_time: Optional[Union[datetime, str]] = None,
         end_time: Optional[Union[datetime, str]] = None,
-        db_path: str = None,
+        db_url: str = None,
         table_name: str = None,
         spark_options: dict = None,
         time_fields: List[str] = None,
@@ -895,24 +894,24 @@ class SQLSource(BaseSourceDriver):
         :param schedule:        string to configure scheduling of the ingestion job.
                                 For example '*/30 * * * *' will
                                 cause the job to run every 30 minutes
-        :param db_path:         url string connection to sql database.
-                                If not set, the _MLRUN_SQL_DB_PATH_STRING_ENV_VAR environment variable will be used.
+        :param db_url:         url string connection to sql database.
+                                If not set, the MLRUN_SQL__URL environment variable will be used.
         :param table_name:      the name of the collection to access,
                                 from the current database
         :param spark_options:   additional spark read options
         :param time_fields :    all the field to be parsed as timestamp.
         """
 
-        db_path = db_path or mlrun.mlconf.sql_db_path_string
-        if db_path is None:
+        db_url = db_url or mlrun.mlconf.sql.url
+        if db_url is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"cannot specify without db_path arg or secret {self._MLRUN_SQL_DB_PATH_STRING_ENV_VAR}"
+                "cannot specify without db_path arg or secret MLRUN_SQL__URL"
             )
         attrs = {
             "chunksize": chunksize,
             "spark_options": spark_options,
             "table_name": table_name,
-            "db_path": db_path,
+            "db_path": db_url,
             "time_fields": time_fields,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}

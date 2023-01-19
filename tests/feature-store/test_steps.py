@@ -647,7 +647,6 @@ def test_imputer_default_value(rundb_mock, engine):
         source=data_with_nones,
         targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
     )
-    print(imputed_df)
 
     # Checking that the ingested dataframe is none-free:
     assert not imputed_df.isnull().values.any()

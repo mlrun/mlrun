@@ -276,7 +276,7 @@ class Imputer(StepToDict, MLRunStep):
         self.method = method
         self.default_value = default_value
 
-    def _impute(self, feature: str, value):
+    def _impute(self, feature: str, value: Any):
         if pd.isna(value):
             return self.mapping.get(feature, self.default_value)
         return value

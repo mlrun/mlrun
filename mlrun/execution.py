@@ -95,7 +95,7 @@ class MLClientCtx(object):
 
         self._results = {}
         # tracks the execution state, completion of runs is not decided by the execution
-        # as there may be multiple executions for a single run
+        # as there may be multiple executions for a single run (e.g mpi)
         self._state = "created"
         self._error = None
         self._commit = ""
@@ -875,15 +875,15 @@ class MLClientCtx(object):
         if completed and not self.iteration:
             mlrun.runtimes.utils.global_context.set(None)
 
-    def set_state(self, state: str = None, error: str = None, commit=True):
+    def set_state(self, execution_state: str = None, error: str = None, commit=True):
         """
-        Modify and store the run state or mark an error
-        This method allows to set the run state to completed in the DB which is discouraged.
-        Completion of runs should be decided in the server.
+        Modify and store the execution state or mark an error and update the run state accordingly.
+        This method allows to set the run state to 'completed' in the DB which is discouraged.
+        Completion of runs should be decided externally to the execution context.
 
-        :param state:   set execution state
-        :param error:   error message (if exist will set the state to error)
-        :param commit:  will immediately update the state in the DB
+        :param execution_state:     set execution state
+        :param error:               error message (if exist will set the state to error)
+        :param commit:              will immediately update the state in the DB
         """
         # TODO: The execution context should not set the run state to completed.
         #  Create a separate state for the execution in the run object.
@@ -895,9 +895,13 @@ class MLClientCtx(object):
             self._error = str(error)
             updates["status.state"] = "error"
             updates["status.error"] = error
-        elif state and state != self._state and self._state != "error":
-            self._state = state
-            updates["status.state"] = state
+        elif (
+            execution_state
+            and execution_state != self._state
+            and self._state != "error"
+        ):
+            self._state = execution_state
+            updates["status.state"] = execution_state
         self._last_update = now_date()
 
         if self._rundb and commit:

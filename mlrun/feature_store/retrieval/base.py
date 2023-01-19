@@ -202,7 +202,7 @@ class BaseMerger(abc.ABC):
         ):
             if entity_timestamp_column:
                 merge_func = self._asof_join
-                if self._join_type == "inner":
+                if self._join_type != "inner":
                     logger.warn(
                         "Merge all the features with as_of_join and don't "
                         "take into account the join_type that was given"

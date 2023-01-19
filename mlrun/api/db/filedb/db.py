@@ -60,6 +60,20 @@ class FileDB(DBInterface):
             self.db.update_run, updates, uid, project, iter
         )
 
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs: bool = None,
+        only_uids: bool = False,
+    ):
+        raise NotImplementedError()
+
+    def update_runs_requested_logs(
+        self, session, uids: List[str], requested_logs: bool = True
+    ):
+        raise NotImplementedError()
+
     def read_run(self, session, uid, project="", iter=0):
         return self._transform_run_db_error(self.db.read_run, uid, project, iter)
 
@@ -83,6 +97,8 @@ class FileDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_only_run_structs: bool = True,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,

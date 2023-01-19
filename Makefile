@@ -36,6 +36,7 @@ MLRUN_DOCKER_REGISTRY ?=
 # disable caching)
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
+MLRUN_SKIP_COMPILE_SCHEMAS ?=
 MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1"."$$2}'),)
@@ -368,6 +369,16 @@ push-log-collector: log-collector
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
 		make push-log-collector
 
+
+.PHONY: compile-schemas
+compile-schemas: ## Compile schemas
+ifdef MLRUN_SKIP_COMPILE_SCHEMAS
+	@echo "Skipping compile schemas"
+else
+	cd go && \
+	  make compile-schemas
+endif
+
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_IMAGE_NAME_TAGGED := $(MLRUN_API_IMAGE_NAME)$(MLRUN_PYTHON_VERSION_SUFFIX):$(MLRUN_DOCKER_TAG)
@@ -378,7 +389,7 @@ MLRUN_API_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: api
-api: update-version-file ## Build mlrun-api docker image
+api: compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
@@ -403,7 +414,7 @@ MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
-build-test: update-version-file ## Build test docker image
+build-test: compile-schemas update-version-file ## Build test docker image
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
@@ -421,7 +432,7 @@ push-test: build-test ## Push test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: update-version-file ## Build system tests docker image
+build-test-system: compile-schemas update-version-file ## Build system tests docker image
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -543,7 +554,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		-m "not enterprise" \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
-.PHONY: test-package
+.PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run
 
@@ -563,6 +574,8 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: run-test-db
 run-test-db:
+	# clean up any previous test db container
+	docker rm test-db --force || true
 	docker run \
 		--name=test-db \
 		-v $(shell pwd):/mlrun \

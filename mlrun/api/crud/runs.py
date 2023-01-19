@@ -125,6 +125,8 @@ class Runs(
         partition_sort_by: mlrun.api.schemas.SortField = None,
         partition_order: mlrun.api.schemas.OrderType = mlrun.api.schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_as_run_structs: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_runs(
@@ -146,6 +148,8 @@ class Runs(
             partition_sort_by,
             partition_order,
             max_partitions,
+            requested_logs,
+            return_as_run_structs,
         )
 
     def delete_run(

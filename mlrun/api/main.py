@@ -16,6 +16,7 @@ import asyncio
 import concurrent.futures
 import time
 import traceback
+import typing
 import uuid
 
 import fastapi
@@ -26,6 +27,7 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.clients.log_collector
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.version
@@ -47,7 +49,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_sched
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -224,6 +226,125 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+            _start_logs_collection()
+
+
+def _start_logs_collection():
+    if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+        logger.info(
+            "Using legacy logs collection method, skipping logs collection periodic function",
+            mode=config.log_collector.mode,
+        )
+        return
+    logger.info(
+        "Starting logs collection periodic function",
+        mode=config.log_collector.mode,
+        interval=config.log_collector.periodic_start_log_interval,
+    )
+    start_logs_limit = asyncio.Semaphore(
+        config.log_collector.concurrent_start_logs_workers
+    )
+    run_function_periodically(
+        interval=config.log_collector.periodic_start_log_interval,
+        name=_initiate_logs_collection.__name__,
+        replace=False,
+        function=_initiate_logs_collection,
+        start_logs_limit=start_logs_limit,
+    )
+
+
+async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
+    """
+    This function is responsible for initiating the logs collection process. It will get a list of all runs which are
+    in a state which requires logs collection and will initiate the logs collection process for each of them.
+    :param start_logs_limit: a semaphore which limits the number of concurrent logs collection processes
+    """
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    try:
+        # list all the runs in the system which we didn't request logs collection for yet
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs=False,
+            only_uids=False,
+        )
+        # each result contains either run_uid or None
+        # if it's None it means something went wrong and we should skip it
+        # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
+        results = await asyncio.gather(
+            *[
+                _start_log_for_run(run, start_logs_limit, raise_on_error=False)
+                for run in runs
+            ]
+        )
+        runs_to_update_requested_logs = [result for result in results if result]
+
+        if len(runs_to_update_requested_logs) > 0:
+            # update the runs to indicate that we have requested log collection for them
+            await fastapi.concurrency.run_in_threadpool(
+                get_db().update_runs_requested_logs,
+                db_session,
+                uids=runs_to_update_requested_logs,
+            )
+
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+
+async def _start_log_for_run(
+    run: dict, start_logs_limit: asyncio.Semaphore = None, raise_on_error: bool = True
+) -> typing.Union[str, None]:
+    """
+    Starts log collection for a specific run
+    :param run: run object
+    :param start_logs_limit: semaphore to limit the number of concurrent log collection requests
+    :param raise_on_error: if True, will raise an exception if something went wrong, otherwise will return None and
+    log the error
+    :return: the run_uid of the run if log collection was started, None otherwise
+    """
+    # using semaphore to limit the number of concurrent log collection requests
+    # this is to prevent opening too many connections to many connections
+    async with start_logs_limit:
+        logs_collector_client = (
+            mlrun.api.utils.clients.log_collector.LogCollectorClient()
+        )
+        run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
+        project_name = run.get("metadata", {}).get("project", None)
+        run_uid = run.get("metadata", {}).get("uid", None)
+        # if local run, the log collector doesn't support it
+        # we mark the run as requested logs collection so we won't iterate over it again
+        if mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind):
+            return run_uid
+        try:
+            runtime_handler = await fastapi.concurrency.run_in_threadpool(
+                get_runtime_handler, run_kind
+            )
+            label_selector = runtime_handler.resolve_label_selector(
+                project=project_name,
+                object_id=run_uid,
+                class_mode=RuntimeClassMode.run,
+            )
+            success, _ = await logs_collector_client.start_logs(
+                run_uid=run_uid,
+                selector=label_selector,
+                project=project_name,
+                raise_on_error=True,
+            )
+            if success:
+                # update the run to mark that we requested logs collection for it
+                return run_uid
+
+        except Exception as exc:
+            if raise_on_error:
+                raise exc
+
+            logger.warning(
+                "Failed to start logs for run",
+                run_uid=run_uid,
+                exc=exc,
+                traceback=traceback.format_exc(),
+            )
+            return None
 
 
 def _start_periodic_cleanup():

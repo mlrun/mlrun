@@ -818,6 +818,9 @@ with ctx:
 
 class SparkRuntimeHandler(BaseRuntimeHandler):
     kind = "spark"
+    class_modes = {
+        "run": "spark",
+    }
 
     def _resolve_crd_object_status_info(
         self, db: DBInterface, db_session: Session, crd_object
@@ -881,10 +884,6 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["spark"]
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

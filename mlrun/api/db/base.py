@@ -59,6 +59,22 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_distinct_runs_uids(
+        self,
+        session,
+        project: str = None,
+        requested_logs: bool = None,
+        only_uids: bool = False,
+    ):
+        pass
+
+    @abstractmethod
+    def update_runs_requested_logs(
+        self, session, uids: List[str], requested_logs: bool = True
+    ):
+        pass
+
+    @abstractmethod
     def read_run(self, session, uid, project="", iter=0):
         pass
 
@@ -83,6 +99,8 @@ class DBInterface(ABC):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
+        requested_logs: bool = None,
+        return_only_run_structs: bool = True,
     ):
         pass
 

@@ -1032,7 +1032,6 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
-    notification,
     notifications,
     override_workflow,
     save_secrets,
@@ -1120,7 +1119,7 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
-                override=override_workflow,
+                override=override_workflow or overwrite_schedule,
             )
 
         except Exception:

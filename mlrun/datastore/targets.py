@@ -1194,6 +1194,12 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         from urllib.parse import urlparse
 
         parsed_url = urlparse(self.get_target_path())
+        if parsed_url.hostname is None:
+            self.path = self._secrets.get(
+                "MLRUN_REDIS__URL", os.getenv("MLRUN_REDIS__URL")
+            )
+            parsed_url = urlparse(self.get_target_path())
+
         return {
             "key.column": "_spark_object_name",
             "table": "{" + store_path_to_spark(self.get_target_path()),

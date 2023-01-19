@@ -230,8 +230,13 @@ class Client(
             # we will url-encode them (aka quote), so the value would be safe against such escaping.
             # e.g.: instead of having "x":"y" being escaped to "\"x\":\"y\"", it will be escaped to "%22x%22:%22y%22"
             elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
-                request_kwargs["cookies"][cookie_name] = urllib.parse.quote(
+
+                # unquote first, to avoid double quoting ourselves, in case the cookie is already quoted
+                unquoted_session = urllib.parse.unquote(
                     request_kwargs["cookies"][cookie_name]
+                )
+                request_kwargs["cookies"][cookie_name] = urllib.parse.quote(
+                    unquoted_session
                 )
 
         request_kwargs.update(**kwargs)

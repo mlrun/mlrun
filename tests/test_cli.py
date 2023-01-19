@@ -13,48 +13,44 @@
 # limitations under the License.
 import pathlib
 
+import simplejson
+
 import mlrun.projects
-from mlrun.__main__ import add_notification_to_project, line2keylist
-from mlrun.utils import list2dict
+from mlrun.__main__ import add_notification_to_project
 
 
 def test_add_notification_to_cli_from_file():
-    input_file_path = str(pathlib.Path(__file__).parent / "notification")
-    notification = (f"file={input_file_path}",)
-    notifications = line2keylist(notification, keyname="type", valname="params")
+    input_file_path = str(pathlib.Path(__file__).parent / "notification.json")
+    notifications = (f"file={input_file_path}",)
     project = mlrun.projects.MlrunProject(name="test")
     for notification in notifications:
-        if notification["type"] == "file":
-            with open(notification["params"]) as fp:
-                lines = fp.read().splitlines()
-                notification = list2dict(lines)
-                add_notification_to_project(notification, project)
+        if "=" in notification:
+            file_path = notification.split("=")[-1]
+            with open(file_path) as fp:
+                notification_from_file = simplejson.load(fp)
+                add_notification_to_project(notification_from_file, project)
 
         else:
-            add_notification_to_project(
-                {notification["type"]: notification["params"]}, project
-            )
+            notification_from_input = simplejson.loads(notification)
+            add_notification_to_project(notification_from_input, project)
 
-    assert project._notifiers._notifications["slack"].params.get("webhook") == "123234"
-    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1232"
+    assert project._notifiers._notifications["slack"].params.get("webhook") == "123456"
+    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1234"
 
 
 def test_add_notification_to_cli_from_dict():
-    notification = ('slack={"webhook":"123234"}', 'ipython={"webhook":"1232"}')
-    notifications = line2keylist(notification, keyname="type", valname="params")
-    print(notifications)
+    notifications = ('{"slack":{"webhook":"123456"}}', '{"ipython":{"webhook":"1234"}}')
     project = mlrun.projects.MlrunProject(name="test")
     for notification in notifications:
-        if notification["type"] == "file":
-            with open(notification["params"]) as fp:
-                lines = fp.read().splitlines()
-                notification = list2dict(lines)
-                add_notification_to_project(notification, project)
+        if "=" in notification:
+            file_path = notification.split("=")[-1]
+            with open(file_path) as fp:
+                notification_from_file = simplejson.load(fp)
+                add_notification_to_project(notification_from_file, project)
 
         else:
-            add_notification_to_project(
-                {notification["type"]: notification["params"]}, project
-            )
+            notification_from_input = simplejson.loads(notification)
+            add_notification_to_project(notification_from_input, project)
 
-    assert project._notifiers._notifications["slack"].params.get("webhook") == "123234"
-    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1232"
+    assert project._notifiers._notifications["slack"].params.get("webhook") == "123456"
+    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1234"

@@ -1000,12 +1000,10 @@ def logs(uid, project, offset, db, watch):
     help="Store the project secrets as k8s secrets",
 )
 @click.option(
-    "--notification",
+    "--notifications",
     "-nt",
     multiple=True,
-    help="Allow to set a project notifier in runtime, by text file or a dictionary.\n"
-    "--notification 'notification_type'={param_key:param_value}\n"
-    "--notification file=notification.txt\n"
+    help="Allow to set a project notifier in runtime, by json file or a dictionary."
     "For using notifications in other runs in a project please store them as env or project secrets.",
 )
 def project(
@@ -1034,7 +1032,7 @@ def project(
     ensure_project,
     schedule,
     overwrite_schedule,
-    notification,
+    notifications,
     override_workflow,
     save_secrets,
 ):
@@ -1104,19 +1102,17 @@ def project(
                     "token": proj.get_param("GIT_TOKEN"),
                 },
             )
-        if notification:
-            notifications = line2keylist(notification, keyname="type", valname="params")
+        if notifications:
             for notification in notifications:
-                if notification["type"] == "file":
-                    with open(notification["params"]) as fp:
-                        lines = fp.read().splitlines()
-                        notification_from_file = list2dict(lines)
+                if "=" in notification:
+                    file_path = notification.split("=")[-1]
+                    with open(file_path) as fp:
+                        notification_from_file = simplejson.load(fp)
                         add_notification_to_project(notification_from_file, proj)
 
                 else:
-                    add_notification_to_project(
-                        {notification["type"]: notification["params"]}, proj
-                    )
+                    notification_from_input = simplejson.loads(notification)
+                    add_notification_to_project(notification_from_input, proj)
         try:
             proj.run(
                 name=run,
@@ -1415,8 +1411,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
 
 def add_notification_to_project(notification, proj):
-    for notification_type, notification_text in notification.items():
-        notification_params = simplejson.loads(notification_text)
+    for notification_type, notification_params in notification.items():
         proj.notifiers.add_notification(
             notification_type=notification_type, params=notification_params
         )

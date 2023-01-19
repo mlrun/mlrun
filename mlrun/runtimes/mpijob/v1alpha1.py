@@ -23,7 +23,7 @@ from mlrun.api.db.base import DBInterface
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
-from mlrun.runtimes.base import BaseRuntimeHandler, RunStates
+from mlrun.runtimes.base import BaseRuntimeHandler, RunStates, RuntimeClassMode
 from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1Alpha1States
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import get_in, update_in
@@ -158,7 +158,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
 class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
     kind = "mpijob"
     class_modes = {
-        "run": "mpijob",
+        RuntimeClassMode.run: "mpijob",
     }
 
     def _resolve_crd_object_status_info(

@@ -249,24 +249,28 @@ def _start_logs_collection():
     )
 
 
-start_logs_limit = asyncio.Semaphore(config.log_collector.concurrent_start_logs_workers)
-
-
 async def _collect_runs_logs():
+    start_logs_limit = asyncio.Semaphore(
+        config.log_collector.concurrent_start_logs_workers
+    )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
         # list all the runs in the system which we didn't request logs collection for yet
         runs = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
-            project="*",
             requested_logs=False,
             only_uids=False,
         )
         # each result contains either run_uid or None
         # if it's None it means something went wrong and we should skip it
         # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
-        results = await asyncio.gather(*[_start_log_for_run(run) for run in runs])
+        results = await asyncio.gather(
+            *[
+                _start_log_for_run(run, start_logs_limit, raise_on_error=False)
+                for run in runs
+            ]
+        )
         runs_to_update_requested_logs = [result for result in results if result]
 
         if len(runs_to_update_requested_logs) > 0:
@@ -281,10 +285,15 @@ async def _collect_runs_logs():
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
-async def _start_log_for_run(run: dict) -> typing.Union[str, None]:
+async def _start_log_for_run(
+    run: dict, start_logs_limit: asyncio.Semaphore = None, raise_on_error: bool = True
+) -> typing.Union[str, None]:
     """
     Starts log collection for a specific run
     :param run: run object
+    :param start_logs_limit: semaphore to limit the number of concurrent log collection requests
+    :param raise_on_error: if True, will raise an exception if something went wrong, otherwise will return None and
+    log the error
     :return: the run_uid of the run if log collection was started, None otherwise
     """
     # using semaphore to limit the number of concurrent log collection requests
@@ -296,12 +305,14 @@ async def _start_log_for_run(run: dict) -> typing.Union[str, None]:
         run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)
-        # empty kind means it's a local run, the log collector doesn't support it
-        if not run_kind:
-            # we mark the run as requested logs collection so we won't iterate over it again
+        # if local run, the log collector doesn't support it
+        # we mark the run as requested logs collection so we won't iterate over it again
+        if mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind):
             return run_uid
         try:
-            runtime_handler = get_runtime_handler(run_kind)
+            runtime_handler = await fastapi.concurrency.run_in_threadpool(
+                get_runtime_handler, run_kind
+            )
             label_selector = runtime_handler.resolve_label_selector(
                 project=project_name,
                 object_id=run_uid,
@@ -318,6 +329,9 @@ async def _start_log_for_run(run: dict) -> typing.Union[str, None]:
                 return run_uid
 
         except Exception as exc:
+            if raise_on_error:
+                raise exc
+
             logger.warning(
                 "Failed to start logs for run",
                 run_uid=run_uid,

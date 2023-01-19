@@ -1,3 +1,4 @@
+import asyncio
 import unittest.mock
 
 import fastapi.testclient
@@ -12,8 +13,10 @@ from tests.api.utils.clients.test_log_collector import StartLogResponse
 
 
 class TestCollectRunSLogs:
+    start_log_limit = asyncio.Semaphore(1)
+
     @pytest.mark.asyncio
-    async def test_collect_runs_with_runs(
+    async def test_collect_logs_with_runs(
         self,
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
@@ -57,7 +60,7 @@ class TestCollectRunSLogs:
         )
 
     @pytest.mark.asyncio
-    async def test_collect_runs_with_no_runs(
+    async def test_collect_logs_with_no_runs(
         self,
         db: sqlalchemy.orm.session.Session,
         client: fastapi.testclient.TestClient,
@@ -131,7 +134,9 @@ class TestCollectRunSLogs:
             return_value=StartLogResponse(True, "")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project")
-        run_uid = await mlrun.api.main._start_log_for_run(run)
+        run_uid = await mlrun.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid == uid
         assert log_collector._call.call_count == 0
 
@@ -144,7 +149,9 @@ class TestCollectRunSLogs:
             return_value=StartLogResponse(True, "")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await mlrun.api.main._start_log_for_run(run)
+        run_uid = await mlrun.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid == uid
         assert log_collector._call.call_count == 1
 
@@ -157,35 +164,11 @@ class TestCollectRunSLogs:
             return_value=StartLogResponse(False, "some error")
         )
         _, _, uid, _, run = _create_new_run(db, "some-project", kind="job")
-        run_uid = await mlrun.api.main._start_log_for_run(run)
+        run_uid = await mlrun.api.main._start_log_for_run(
+            run, self.start_log_limit, raise_on_error=False
+        )
         assert run_uid is None
         assert log_collector._call.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_fufu_real_log_collector(
-        self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
-    ):
-        _, _, uid, _, run = _create_new_run(
-            db,
-            "default",
-            uid="cde099c6724742859b8b2115eb767429",
-            name="handler",
-            kind="job",
-            store=False,
-        )
-        run_uid = await mlrun.api.main._start_log_for_run(run)
-        assert run_uid == uid
-
-        logs = await mlrun.api.utils.clients.log_collector.LogCollectorClient().get_logs(
-            run_uid=uid, project="default", offset=0, size=-1
-        )
-        # assert len(logs) < 95000
-
-        logs = await mlrun.api.utils.clients.log_collector.LogCollectorClient().get_logs(
-            run_uid=uid, project="default", offset=95000, size=-1
-        )
-        assert len(logs) > 0
-
 
 
 def _create_new_run(
@@ -209,8 +192,8 @@ def _create_new_run(
         },
         "status": {"state": state},
     }
-
-    mlrun.api.crud.Runs().store_run(
-        db_session, run, uid, iter=iteration, project=project
-    )
+    if store:
+        mlrun.api.crud.Runs().store_run(
+            db_session, run, uid, iter=iteration, project=project
+        )
     return project, name, uid, iteration, run

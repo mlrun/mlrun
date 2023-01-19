@@ -36,7 +36,7 @@ from ..k8s_utils import get_k8s_helper
 from ..model import RunObject
 from ..render import ipython_display
 from ..utils import logger, normalize_name, update_in
-from .base import FunctionStatus
+from .base import FunctionStatus, RuntimeClassMode
 from .kubejob import KubejobRuntime
 from .local import exec_from_params, load_module
 from .pod import KubeResourceSpec, kube_resource_spec_to_pod_spec
@@ -683,7 +683,7 @@ def get_obj_status(selector=[], namespace=None):
 
 class DaskRuntimeHandler(BaseRuntimeHandler):
     kind = "dask"
-    class_modes = {"run": "dask"}
+    class_modes = {RuntimeClassMode.run: "dask"}
 
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.

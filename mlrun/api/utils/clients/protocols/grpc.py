@@ -25,7 +25,7 @@ class BaseGRPCClient(object):
     name = None
     stub_class = None
 
-    def __init__(self, address: str = None):
+    def __init__(self, address: str):
         self._address = address
         self._channel = None
         # A module acting as the interface for gRPC clients to call service methods.
@@ -40,11 +40,9 @@ class BaseGRPCClient(object):
             return
 
         if not self._address:
-            logger.warning(
-                "No address was provided for client, skipping stub initialization",
-                client_name=self.name,
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "No address was provided, Unable to initialize client"
             )
-            return
 
         self._channel = grpc.aio.insecure_channel(self._address)
         if self.stub_class:

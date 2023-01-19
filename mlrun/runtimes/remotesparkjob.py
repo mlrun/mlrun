@@ -21,6 +21,7 @@ from mlrun.config import config
 
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io_extended, mount_v3iod
+from .base import RuntimeClassMode
 from .kubejob import KubejobRuntime, KubeRuntimeHandler
 from .pod import KubeResourceSpec
 
@@ -206,7 +207,7 @@ class RemoteSparkRuntime(KubejobRuntime):
 
 class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     kind = "remote-spark"
-    class_modes = {"run": "remote-spark"}
+    class_modes = {RuntimeClassMode.run: "remote-spark"}
 
     @staticmethod
     def _are_resources_coupled_to_run_object() -> bool:

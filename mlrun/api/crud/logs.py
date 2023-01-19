@@ -197,7 +197,7 @@ class Logs(
                     if pod_phase != PodPhases.pending:
                         resp = get_k8s().logs(pod)
                         if resp:
-                            log_contents = resp.encode()[offset:]
+                            log_contents = resp.encode()[offset : offset + size]
         return log_contents
 
     @staticmethod

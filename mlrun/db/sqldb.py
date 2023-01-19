@@ -66,8 +66,8 @@ class SQLDB(RunDBInterface):
         #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
         #  we will change it.
         raise NotImplementedError(
-            "This should be changed to async call, if you are running in the API, please execute the `crud.get_log`"
-            " method directly and not through the get_db().get_log() method"
+            "This should be changed to async call, if you are running in the API, use `crud.get_log`"
+            " method directly instead and not through the get_db().get_log() method"
             "This will be removed in 1.5.0",
         )
 

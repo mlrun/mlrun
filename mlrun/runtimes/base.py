@@ -1316,7 +1316,7 @@ def is_local(url):
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
     kind = "base"
-    class_modes: typing.Dict[typing.Union[RuntimeClassMode, str], str] = {}
+    class_modes: typing.Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1336,11 +1336,7 @@ class BaseRuntimeHandler(ABC):
         """
         if not class_mode:
             return list(self.class_modes.values())
-        return [
-            self.class_modes.get(
-                class_mode if type(class_mode) == str else class_mode.value, []
-            )
-        ]
+        return [self.class_modes.get(class_mode, [])]
 
     def list_resources(
         self,

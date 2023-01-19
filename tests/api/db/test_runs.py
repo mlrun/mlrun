@@ -63,9 +63,10 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
 )
 def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     project_name = "project"
+    uid = "run-uid"
     # create 3 runs with same uid but different iterations
     for i in range(3):
-        _create_new_run(db, db_session, project=project_name, iteration=i)
+        _create_new_run(db, db_session, project=project_name, iteration=i, uid=uid)
 
     runs = db.list_runs(db_session, project=project_name, iter=True)
     assert len(runs) == 3
@@ -75,12 +76,14 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     )
     assert len(distinct_runs) == 1
     assert type(distinct_runs[0]) == dict
+    assert distinct_runs[0]["metadata"]["uid"] == uid
 
     only_uids = db.list_distinct_runs_uids(
         db_session, project=project_name, only_uids=True
     )
     assert len(only_uids) == 1
     assert type(only_uids[0]) == str
+    assert only_uids[0] == uid
 
     only_uids_requested_true = db.list_distinct_runs_uids(
         db_session, project=project_name, only_uids=True, requested_logs=True

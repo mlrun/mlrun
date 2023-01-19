@@ -130,6 +130,7 @@ def test_requirement_specifiers_convention():
         "protobuf": {">=3.13, <3.20"},
         "pandas": {"~=1.2, <1.5.0"},
         "importlib_metadata": {">=3.6"},
+        "plotly": {"~=5.4, <5.12.0"},
         # used in tests
         "aioresponses": {"~=0.7"},
     }

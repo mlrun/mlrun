@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nuclio/errors"
 	"k8s.io/client-go/rest"
@@ -123,4 +124,53 @@ func SyncMapLength(m *sync.Map) int {
 		return true
 	})
 	return i
+}
+
+// RetryUntilSuccessful calls callback every interval until duration is exceeded, or until it returns false (to not retry)
+func RetryUntilSuccessful(duration time.Duration,
+	interval time.Duration,
+	callback func() (bool, error)) error {
+
+	wrapFunctionNoResult := func() (interface{}, bool, error) {
+		shouldRetry, err := callback()
+		return nil, shouldRetry, err
+	}
+
+	_, err := RetryUntilSuccessfulWithResult(duration, interval, wrapFunctionNoResult)
+	return err
+}
+
+// RetryUntilSuccessfulWithResult calls callback every interval until duration is exceeded,
+// or until it returns false (to not retry), and returns the result of the callback
+func RetryUntilSuccessfulWithResult(duration time.Duration,
+	interval time.Duration,
+	callback func() (interface{}, bool, error)) (interface{}, error) {
+	var (
+		lastErr, err error
+		result       interface{}
+		shouldRetry  bool
+	)
+
+	timedOutErrorMessage := "Timed out waiting until successful"
+	deadline := time.Now().Add(duration)
+
+	// while we haven't passed the deadline
+	for !time.Now().After(deadline) {
+		result, shouldRetry, err = callback()
+		lastErr = err
+		if !shouldRetry {
+			return result, err
+		}
+		time.Sleep(interval)
+		continue
+
+	}
+	if lastErr != nil {
+
+		// wrap last error
+		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
+	}
+
+	// duration expired but no error
+	return result, lastErr
 }

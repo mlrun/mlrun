@@ -13,7 +13,7 @@
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.9
 
-FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}
+FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
 ENV PIP_NO_CACHE_DIR=1
 

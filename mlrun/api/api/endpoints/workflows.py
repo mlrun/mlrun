@@ -81,7 +81,9 @@ def _fill_workflow_missing_fields_from_project(
         # Merge between the workflow spec provided in the request with existing
         # workflow while the provided workflow takes precedence over the existing workflow params
         workflow = copy.deepcopy(workflow)
-        workflow = {key: val or workflow.get(key) for key, val in spec.dict().items()}
+        for key, val in spec.dict().items():
+            if val:
+                workflow[key] = val
 
     workflow_spec = mlrun.api.schemas.WorkflowSpec(**workflow)
     # Overriding arguments of the existing workflow:
@@ -128,6 +130,19 @@ async def submit_workflow(
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
+    # Re-route to chief in case of schedule:
+    if (
+        workflow_request.spec.schedule
+        and mlrun.mlconf.httpdb.clusterization.role
+        != mlrun.api.schemas.ClusterizationRole.chief
+    ):
+        chief_client = mlrun.api.utils.clients.chief.Client()
+        return await chief_client.submit_workflow(
+            project=project,
+            name=name,
+            json=workflow_request.dict(),
+        )
+
     # Getting project
     project = await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().get_project,
@@ -186,22 +201,9 @@ async def submit_workflow(
 
     run_uid = None
     status = None
-    workflow_action = ""
+    workflow_action = "schedule" if workflow_spec.schedule else "run"
     try:
         if workflow_spec.schedule:
-            # Re-route to chief in case of schedule:
-            if (
-                mlrun.mlconf.httpdb.clusterization.role
-                != mlrun.api.schemas.ClusterizationRole.chief
-            ):
-                chief_client = mlrun.api.utils.clients.chief.Client()
-                return await chief_client.submit_workflow(
-                    project=project.metadata.name,
-                    name=name,
-                    json=workflow_request.dict(),
-                )
-            workflow_action = "schedule"
-
             await run_in_threadpool(
                 mlrun.api.crud.WorkflowRunners().schedule,
                 runner=workflow_runner,
@@ -213,7 +215,6 @@ async def submit_workflow(
             status = "scheduled"
 
         else:
-            workflow_action = "run"
             run = await run_in_threadpool(
                 mlrun.api.crud.WorkflowRunners().run,
                 runner=workflow_runner,
@@ -238,7 +239,7 @@ async def submit_workflow(
 
 
 @router.get(
-    "/projects/{project}/{name}/{uid}",
+    "/projects/{project}/workflows/{name}/references/{uid}",
     response_model=mlrun.api.schemas.GetWorkflowResponse,
 )
 async def get_workflow_id(

@@ -351,24 +351,6 @@ async def load_project(
     :returns: a BackgroundTask object, with details on execution process and its status
     """
 
-    def _run_load_project(
-        runner: mlrun.run.KubejobRuntime,
-        project_: mlrun.api.schemas.Project,
-    ):
-        """
-        Wrapper function to load project for running as a background task
-
-        :param runner:  load project function runner object
-        :param project_: MLRun project
-
-        :returns: run context object (RunObject) with run metadata, results and status
-        """
-        return mlrun.api.crud.WorkflowRunners().run(
-            runner=runner,
-            project=project_,
-            load_only=True,
-        )
-
     project = mlrun.api.schemas.Project(
         metadata=mlrun.api.schemas.ProjectMetadata(name=name),
         spec=mlrun.api.schemas.ProjectSpec(source=url),
@@ -401,18 +383,23 @@ async def load_project(
         source=project.spec.source,
     )
 
-    background_timeout = mlrun.mlconf.background_tasks.default_timeouts.runtimes.dask
+    background_timeout = (
+        mlrun.mlconf.background_tasks.default_timeouts.operations.load_project
+    )
 
     background_task = await fastapi.concurrency.run_in_threadpool(
         mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
         name,
         background_tasks,
-        _run_load_project,
+        mlrun.api.crud.WorkflowRunners().run,
         background_timeout,
         # arguments for execute_function
         load_project_runner,
         project,
+        # only this one is passed by name, because project arg is in both
+        # create_background_task and mlrun.api.crud.WorkflowRunners().run
+        load_only=True,
     )
 
     return background_task

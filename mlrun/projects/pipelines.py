@@ -16,7 +16,6 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
-import time
 import traceback
 import typing
 import uuid
@@ -29,7 +28,13 @@ import mlrun
 import mlrun.api.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
-from mlrun.utils import get_ui_url, logger, new_pipe_meta, parse_versioned_object_uri
+from mlrun.utils import (
+    get_ui_url,
+    logger,
+    new_pipe_meta,
+    parse_versioned_object_uri,
+    retry_until_successful,
+)
 
 from ..config import config
 from ..run import run_pipeline, wait_for_pipeline_completion
@@ -760,16 +765,17 @@ class _RemoteRunner(_PipelineRunner):
                 return
 
             # Getting workflow id from run:
-            seconds = 0.1
-            while not workflow_id:
-                workflow_id = run_db.get_workflow_id(
-                    project=project.name,
-                    name=workflow_response.name,
-                    run_id=workflow_response.run_id,
-                ).workflow_id
-                time.sleep(seconds)
-                seconds = 1
-
+            response = retry_until_successful(
+                10,
+                30,
+                logger,
+                False,
+                run_db.get_workflow_id,
+                project=project.name,
+                name=workflow_response.name,
+                run_id=workflow_response.run_id,
+            )
+            workflow_id = response.workflow_id
             # After fetching the workflow_id the workflow executed successfully
             state = mlrun.run.RunStatuses.succeeded
             pipeline_context.clear()
@@ -892,6 +898,7 @@ def load_and_run(
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
+    :param load_only:           for just loading the project, inner use.
     :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
     """
     try:

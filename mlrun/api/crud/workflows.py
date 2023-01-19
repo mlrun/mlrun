@@ -202,8 +202,9 @@ class WorkflowRunners(
         if isinstance(run_object.status.results, dict):
             workflow_id = run_object.status.results.get("workflow_id", "")
         else:
-            # in case the run object did not instantiate with the "results" field at this point
-            workflow_id = None
+            raise mlrun.errors.MLRunNotFoundError(
+                f"workflow id of run {uid}:{project} not found"
+            )
 
         return mlrun.api.schemas.GetWorkflowResponse(workflow_id=workflow_id)
 
@@ -317,12 +318,14 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
+        save = self._set_source(project, workflow_request.source)
         run_object = RunObject(
             spec=RunSpec(
                 parameters=dict(
                     url=project.spec.source,
                     project_name=project.metadata.name,
                     load_only=load_only,
+                    save=save,
                 ),
                 handler="mlrun.projects.load_and_run",
             ),

@@ -3014,7 +3014,9 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:   :py:class:`~mlrun.api.schemas.GetWorkflowResponse`.
         """
-        response = self.api_call("GET", f"projects/{project}/{name}/{run_id}")
+        response = self.api_call(
+            "GET", f"projects/{project}/workflows/{name}/references/{run_id}"
+        )
         return schemas.GetWorkflowResponse(**response.json())
 
     def load_project(

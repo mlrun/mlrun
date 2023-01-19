@@ -141,7 +141,7 @@ default_config = {
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600"},
+            "operations": {"migrations": "3600", "load_project": "600"},
             "runtimes": {"dask": "600"},
         },
     },

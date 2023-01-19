@@ -1731,7 +1731,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def _get_run_completion_updates(run: dict) -> dict:
         """
-        Get the required updates for the run object when it's completed
+        Get the required updates for the run object when it's completed and update the run object state
         Override this if the run completion is not resolved by a single execution
         """
         updates = {

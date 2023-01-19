@@ -21,6 +21,8 @@ azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 bokeh~=2.4, >=2.4.2
 gcsfs~=2021.8.1
+# plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+# so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly~=5.4, <5.12.0
 google-cloud-bigquery[pandas]~=3.2
 kafka-python~=2.0

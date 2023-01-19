@@ -956,12 +956,13 @@ class BaseRuntime(ModelObj):
                 updates["status.error"] = err_to_str(err)
 
         elif not was_none and last_state != "completed":
-            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
-            updates = runtime_handler._get_run_completion_updates(resp)
-            logger.debug(
-                "Run updates", kind=kind, last_state=last_state, updates=updates
-            )
+            try:
+                runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+                updates = runtime_handler._get_run_completion_updates(resp)
+            except KeyError:
+                updates = BaseRuntimeHandler._get_run_completion_updates(resp)
 
+        logger.info("Run updates", kind=kind, last_state=last_state, updates=updates)
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")
             uid = get_in(resp, "metadata.uid")

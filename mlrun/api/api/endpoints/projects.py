@@ -373,6 +373,7 @@ async def load_project(
         project=name,
         db_session=db_session,
         auth_info=auth_info,
+        image=mlrun.mlconf.default_base_image,
     )
 
     logger.debug(

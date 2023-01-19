@@ -453,7 +453,13 @@ class Client(
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         response = self._session.request(method, url, verify=False, **kwargs)
         if not response.ok:
-            self._handle_error_response(method, path, response, error_message, kwargs)
+            try:
+                response_body = response.json()
+            except Exception:
+                response_body = {}
+            self._handle_error_response(
+                method, path, response, response_body, error_message, kwargs
+            )
         return response
 
     def _generate_auth_info_from_session_verification_response(
@@ -686,19 +692,22 @@ class Client(
                 if isinstance(dict_[key], enum.Enum):
                     dict_[key] = dict_[key].value
 
-    def _handle_error_response(self, method, path, response, error_message, kwargs):
+    def _handle_error_response(
+        self, method, path, response, response_body, error_message, kwargs
+    ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.update({"method": method, "path": path})
-        if response.content:
-            try:
-                data = response.json()
-                ctx = data.get("meta", {}).get("ctx")
-                errors = data.get("errors", [])
-            except Exception:
-                pass
-            else:
+        try:
+            ctx = response_body.get("meta", {}).get("ctx")
+            errors = response_body.get("errors", [])
+        except Exception:
+            pass
+        else:
+            if errors:
                 error_message = f"{error_message}: {str(errors)}"
+            if errors or ctx:
                 log_kwargs.update({"ctx": ctx, "errors": errors})
+
         logger.warning("Request to iguazio failed", **log_kwargs)
         mlrun.errors.raise_for_status(response, error_message)
 
@@ -787,8 +796,12 @@ class AsyncClient(Client):
                 method, url, verify_ssl=False, **kwargs
             )
             if not response.ok:
+                try:
+                    response_body = await response.json()
+                except Exception:
+                    response_body = {}
                 self._handle_error_response(
-                    method, path, response, error_message, kwargs
+                    method, path, response, response_body, error_message, kwargs
                 )
             yield response
         finally:

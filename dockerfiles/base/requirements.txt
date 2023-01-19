@@ -6,7 +6,7 @@ lz4~=3.0
 vaex~=4.0
 yellowbrick~=1.1
 lifelines~=0.25.0
-plotly~=5.4
+plotly~=5.4, <=5.11.0
 pyod~=0.8.1
 pytest~=6.0
 scikit-multiflow~=0.5.3

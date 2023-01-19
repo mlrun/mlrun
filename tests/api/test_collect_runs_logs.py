@@ -26,7 +26,9 @@ from tests.api.utils.clients.test_log_collector import StartLogResponse
 
 
 class TestCollectRunSLogs:
-    start_log_limit = asyncio.Semaphore(1)
+    def setup_method(self):
+        # setting semaphore for each setup to ensure event loop is already running
+        self.start_log_limit = asyncio.Semaphore(1)
 
     @pytest.mark.asyncio
     async def test_collect_logs_with_runs(
@@ -58,7 +60,7 @@ class TestCollectRunSLogs:
             unittest.mock.Mock()
         )
 
-        await mlrun.api.main._collect_runs_logs()
+        await mlrun.api.main._initiate_logs_collection(self.start_log_limit)
 
         assert (
             mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
@@ -93,7 +95,7 @@ class TestCollectRunSLogs:
             unittest.mock.Mock()
         )
 
-        await mlrun.api.main._collect_runs_logs()
+        await mlrun.api.main._initiate_logs_collection(self.start_log_limit)
 
         assert (
             mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
@@ -128,7 +130,7 @@ class TestCollectRunSLogs:
             unittest.mock.Mock()
         )
 
-        await mlrun.api.main._collect_runs_logs()
+        await mlrun.api.main._initiate_logs_collection(self.start_log_limit)
 
         assert (
             mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count

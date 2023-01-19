@@ -239,20 +239,26 @@ def _start_logs_collection():
     logger.info(
         "Starting logs collection periodic function",
         mode=config.log_collector.mode,
-        interval=config.log_collector.interval,
+        interval=config.log_collector.periodic_start_log_interval,
     )
-    run_function_periodically(
-        config.log_collector.interval,
-        _collect_runs_logs.__name__,
-        False,
-        _collect_runs_logs,
-    )
-
-
-async def _collect_runs_logs():
     start_logs_limit = asyncio.Semaphore(
         config.log_collector.concurrent_start_logs_workers
     )
+    run_function_periodically(
+        interval=config.log_collector.periodic_start_log_interval,
+        name=_initiate_logs_collection.__name__,
+        replace=False,
+        function=_initiate_logs_collection,
+        start_logs_limit=start_logs_limit,
+    )
+
+
+async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
+    """
+    This function is responsible for initiating the logs collection process. It will get a list of all runs which are
+    in a state which requires logs collection and will initiate the logs collection process for each of them.
+    :param start_logs_limit: a semaphore which limits the number of concurrent logs collection processes
+    """
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:
         # list all the runs in the system which we didn't request logs collection for yet

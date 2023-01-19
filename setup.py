@@ -94,6 +94,8 @@ extras_require = {
         # >=2.4.2 to force having a security fix done in 2.4.2
         "bokeh~=2.4, >=2.4.2",
     ],
+    # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+    # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
     "plotly": ["plotly~=5.4, <5.12.0"],
     # google-cloud is mainly used for QA, that is why we are not including it in complete
     "google-cloud": [

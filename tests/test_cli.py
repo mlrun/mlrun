@@ -16,23 +16,14 @@ import pathlib
 import simplejson
 
 import mlrun.projects
-from mlrun.__main__ import add_notification_to_project
+from mlrun.__main__ import load_notification
 
 
 def test_add_notification_to_cli_from_file():
     input_file_path = str(pathlib.Path(__file__).parent / "notification.json")
     notifications = (f"file={input_file_path}",)
     project = mlrun.projects.MlrunProject(name="test")
-    for notification in notifications:
-        if notification.startswith("file="):
-            file_path = notification.split("=")[-1]
-            with open(file_path) as fp:
-                notification_from_file = simplejson.load(fp)
-                add_notification_to_project(notification_from_file, project)
-
-        else:
-            notification_from_input = simplejson.loads(notification)
-            add_notification_to_project(notification_from_input, project)
+    load_notification(notifications, project)
 
     assert project._notifiers._notifications["slack"].params.get("webhook") == "123456"
     assert project._notifiers._notifications["ipython"].params.get("webhook") == "1234"
@@ -41,16 +32,7 @@ def test_add_notification_to_cli_from_file():
 def test_add_notification_to_cli_from_dict():
     notifications = ('{"slack":{"webhook":"123456"}}', '{"ipython":{"webhook":"1234"}}')
     project = mlrun.projects.MlrunProject(name="test")
-    for notification in notifications:
-        if notification.startswith("file="):
-            file_path = notification.split("=")[-1]
-            with open(file_path) as fp:
-                notification_from_file = simplejson.load(fp)
-                add_notification_to_project(notification_from_file, project)
-
-        else:
-            notification_from_input = simplejson.loads(notification)
-            add_notification_to_project(notification_from_input, project)
+    load_notification(notifications, project)
 
     assert project._notifiers._notifications["slack"].params.get("webhook") == "123456"
     assert project._notifiers._notifications["ipython"].params.get("webhook") == "1234"

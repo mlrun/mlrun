@@ -33,7 +33,6 @@ class TestCollectRunSLogs:
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
-            project="*",
             requested_logs=False,
             only_uids=False,
         )
@@ -69,7 +68,6 @@ class TestCollectRunSLogs:
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
-            project="*",
             requested_logs=False,
             only_uids=False,
         )
@@ -105,7 +103,6 @@ class TestCollectRunSLogs:
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
-            project="*",
             requested_logs=False,
             only_uids=False,
         )

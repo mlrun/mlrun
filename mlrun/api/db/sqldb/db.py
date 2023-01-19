@@ -247,7 +247,7 @@ class SQLDB(DBInterface):
         else:
             query = self._query(session, Run)
 
-        if project:
+        if project and project != "*":
             query = query.filter(Run.project == project)
         if requested_logs is not None:
             query = query.filter(Run.requested_logs == requested_logs)

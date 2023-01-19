@@ -1336,7 +1336,8 @@ class BaseRuntimeHandler(ABC):
         """
         if not class_mode:
             return list(self.class_modes.values())
-        return [self.class_modes.get(class_mode, [])]
+        class_mode = self.class_modes.get(class_mode, None)
+        return [class_mode] if class_mode else []
 
     def list_resources(
         self,

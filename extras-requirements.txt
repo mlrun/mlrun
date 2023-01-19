@@ -21,7 +21,7 @@ azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 bokeh~=2.4, >=2.4.2
 gcsfs~=2021.8.1
-plotly~=5.4, <=5.11.0
+plotly~=5.4, <5.12.0
 google-cloud-bigquery[pandas]~=3.2
 kafka-python~=2.0
 redis~=4.3

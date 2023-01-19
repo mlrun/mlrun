@@ -94,7 +94,7 @@ extras_require = {
         # >=2.4.2 to force having a security fix done in 2.4.2
         "bokeh~=2.4, >=2.4.2",
     ],
-    "plotly": ["plotly~=5.4, <=5.11.0"],
+    "plotly": ["plotly~=5.4, <5.12.0"],
     # google-cloud is mainly used for QA, that is why we are not including it in complete
     "google-cloud": [
         # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0

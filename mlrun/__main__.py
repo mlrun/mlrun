@@ -1104,7 +1104,7 @@ def project(
             )
         if notifications:
             for notification in notifications:
-                if "=" in notification:
+                if notification.startswith("file="):
                     file_path = notification.split("=")[-1]
                     with open(file_path) as fp:
                         notification_from_file = simplejson.load(fp)

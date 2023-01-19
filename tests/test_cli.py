@@ -24,7 +24,7 @@ def test_add_notification_to_cli_from_file():
     notifications = (f"file={input_file_path}",)
     project = mlrun.projects.MlrunProject(name="test")
     for notification in notifications:
-        if "=" in notification:
+        if notification.startswith("file="):
             file_path = notification.split("=")[-1]
             with open(file_path) as fp:
                 notification_from_file = simplejson.load(fp)
@@ -42,7 +42,7 @@ def test_add_notification_to_cli_from_dict():
     notifications = ('{"slack":{"webhook":"123456"}}', '{"ipython":{"webhook":"1234"}}')
     project = mlrun.projects.MlrunProject(name="test")
     for notification in notifications:
-        if "=" in notification:
+        if notification.startswith("file="):
             file_path = notification.split("=")[-1]
             with open(file_path) as fp:
                 notification_from_file = simplejson.load(fp)

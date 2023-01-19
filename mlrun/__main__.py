@@ -1000,7 +1000,6 @@ def logs(uid, project, offset, db, watch):
     help="Store the project secrets as k8s secrets",
 )
 @click.option(
-    "--notification",
     "--notifications",
     "-nt",
     multiple=True,
@@ -1104,7 +1103,7 @@ def project(
                     "token": proj.get_param("GIT_TOKEN"),
                 },
             )
-        if notifications or notification:
+        if notifications:
             load_notification(notifications,proj)
         try:
             proj.run(

@@ -956,18 +956,11 @@ class BaseRuntime(ModelObj):
                 updates["status.error"] = err_to_str(err)
 
         elif not was_none and last_state != "completed":
-
-            # TODO: add a 'workers' section in run objects state, each worker will update its state while
-            #  the run state will be resolved by the server.
-            if kind != "mpijob":
-                logger.debug(
-                    "Updating run state to completed", kind=kind, last_state=last_state
-                )
-                updates = {
-                    "status.last_update": now_date().isoformat(),
-                    "status.state": "completed",
-                }
-                update_in(resp, "status.state", "completed")
+            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            updates = runtime_handler._get_run_completion_updates(resp)
+            logger.debug(
+                "Run updates", kind=kind, last_state=last_state, updates=updates
+            )
 
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")
@@ -1728,6 +1721,19 @@ class BaseRuntimeHandler(ABC):
         if len(class_values) == 1:
             return f"mlrun/class={class_values[0]}"
         return f"mlrun/class in ({', '.join(class_values)})"
+
+    @staticmethod
+    def _get_run_completion_updates(run: dict) -> dict:
+        """
+        Get the required updates for the run object when it's completed
+        Override this if the run completion is not resolved by a single execution
+        """
+        updates = {
+            "status.last_update": now_date().isoformat(),
+            "status.state": "completed",
+        }
+        update_in(run, "status.state", "completed")
+        return updates
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

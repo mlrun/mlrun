@@ -195,6 +195,12 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return ["mpijob"]
 
     @staticmethod
+    def _get_run_completion_updates(run: dict) -> dict:
+        # TODO: add a 'workers' section in run objects state, each worker will update its state while
+        #  the run state will be resolved by the server.
+        return {}
+
+    @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
         return (
             MpiRuntimeV1Alpha1.crd_group,

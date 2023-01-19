@@ -77,7 +77,9 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
     mlrun.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
-    good_resp = client.get(f"projects/{PROJECT_NAME}/{WORKFLOW_NAME}/{right_id}").json()
+    good_resp = client.get(
+        f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/references/{right_id}"
+    ).json()
 
     assert (
         good_resp.get("workflow_id", "") == expected_workflow_id

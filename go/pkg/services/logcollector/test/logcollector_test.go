@@ -16,6 +16,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -43,6 +44,7 @@ type LogCollectorTestSuite struct {
 	kubeClientSet      kubernetes.Interface
 	namespace          string
 	baseDir            string
+	bufferSizeBytes    int
 }
 
 func (suite *LogCollectorTestSuite) SetupSuite() {
@@ -57,11 +59,11 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 
 	suite.ctx = context.Background()
 	suite.namespace = "mlrun"
+	suite.bufferSizeBytes = 1024
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
 	monitoringInterval := "30s"
-	bufferPoolSize := 20
-	bufferSizeBytes := 512
+	bufferPoolSize := 30
 	listenPort := 8282
 
 	// get kube config file path
@@ -83,7 +85,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		readLogWaitTime,
 		monitoringInterval,
 		bufferPoolSize,
-		bufferSizeBytes)
+		bufferPoolSize,
+		suite.bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test
@@ -101,35 +104,15 @@ func (suite *LogCollectorTestSuite) TearDownSuite() {
 	suite.logger.InfoWith("Tear down complete")
 }
 
-func (suite *LogCollectorTestSuite) TestStartLog() {
+func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 	// create pod that prints logs
+	expectedLogLines := 100
 	podName := "test-pod"
 	runUID := "some-uid"
-	pod := v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: suite.namespace,
-			Labels: map[string]string{
-				"app": "test",
-			},
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:  "test-container",
-					Image: "alpine",
-					Command: []string{
-						"/bin/sh",
-						"-c",
-						"for i in $(seq 1 100); do echo 'Test log line: ' $i; sleep 1; done",
-					},
-				},
-			},
-		},
-	}
+	pod := suite.getDummyPodSpec(podName, expectedLogLines)
 
-	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &pod, metav1.CreateOptions{})
+	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})
 	suite.Require().NoError(err, "Failed to create pod")
 
 	// delete pod when done
@@ -151,16 +134,17 @@ func (suite *LogCollectorTestSuite) TestStartLog() {
 	suite.logger.InfoWith("Waiting for logs to be collected")
 	time.Sleep(10 * time.Second)
 
-	var logs string
+	var logs []string
 	startedGettingLogsTime := time.Now()
+	offset := 0
 
 	for {
 
 		// get logs until everything is read
 		getLogsResponse, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
 			RunUID: runUID,
-			Offset: 0,
-			Size:   0,
+			Offset: uint64(offset),
+			Size:   int64(suite.bufferSizeBytes),
 		})
 		suite.Require().NoError(err, "Failed to get logs")
 		suite.Require().True(getLogsResponse.Success, "Failed to get logs")
@@ -168,13 +152,14 @@ func (suite *LogCollectorTestSuite) TestStartLog() {
 		// make sure logs have at least 100 lines
 		logLines := strings.Split(string(getLogsResponse.Logs), "\n")
 		suite.logger.InfoWith("Got logs", "numLines", len(logLines))
-		if len(logLines) >= 100 {
-			logs = string(getLogsResponse.Logs)
+		logs = append(logs, logLines...)
+		if len(logs) >= expectedLogLines {
 			break
 		}
 		if time.Since(startedGettingLogsTime) > 2*time.Minute {
 			suite.Require().Fail("Timed out waiting to get all logs")
 		}
+		offset += len(getLogsResponse.Logs)
 
 		// let some more logs be collected
 		time.Sleep(3 * time.Second)
@@ -183,9 +168,63 @@ func (suite *LogCollectorTestSuite) TestStartLog() {
 	suite.logger.InfoWith("Got logs", "logs", logs)
 }
 
+func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
+
+	// create pod that prints logs
+	podName := "some-pod"
+	runUID := "some-uid"
+	pod := suite.getDummyPodSpec(podName, 100)
+
+	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})
+	suite.Require().NoError(err, "Failed to create pod")
+
+	// delete pod when done
+	defer func() {
+		err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Delete(suite.ctx, podName, metav1.DeleteOptions{})
+		suite.Require().NoError(err, "Failed to delete pod")
+	}()
+
+	selector := "mlrun/uid=cde099c6724742859b8b2115eb767429,mlrun/class in (j, o, b),mlrun/project=default"
+
+	// start log collection
+	startLogResponse, err := suite.LogCollectorServer.StartLog(suite.ctx, &log_collector.StartLogRequest{
+		RunUID:   runUID,
+		Selector: selector,
+	})
+
+	suite.Require().False(startLogResponse.Success)
+	suite.Require().Error(err)
+	suite.Require().Contains(err.Error(), "Failed to list pods")
+}
+
 func (suite *LogCollectorTestSuite) startLogCollectorServer(listenPort int) {
 	err := framework.StartServer(suite.LogCollectorServer, listenPort, suite.logger)
 	suite.Require().NoError(err, "Failed to start log collector server")
+}
+
+func (suite *LogCollectorTestSuite) getDummyPodSpec(podName string, lifeCycleSeconds int) *v1.Pod {
+	return &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: suite.namespace,
+			Labels: map[string]string{
+				"app": "test",
+			},
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  "test-container",
+					Image: "alpine",
+					Command: []string{
+						"/bin/sh",
+						"-c",
+						fmt.Sprintf("for i in $(seq 1 %d); do echo 'Test log line: ' $i; sleep 1; done", lifeCycleSeconds),
+					},
+				},
+			},
+		},
+	}
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

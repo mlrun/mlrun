@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-
-import simplejson
-
 import mlrun.projects
 from mlrun.__main__ import load_notification
 

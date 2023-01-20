@@ -774,8 +774,7 @@ class FeatureSet(ModelObj):
         example::
 
             import mlrun.feature_store as fstore
-            from mlrun.features import Feature
-
+            ...
             ticks = fstore.FeatureSet("ticks",
                             entities=["stock"],
                             timestamp_key="timestamp")
@@ -788,7 +787,7 @@ class FeatureSet(ModelObj):
 
         :param filename:    target filepath for the image (None for the notebook)
         :param format:      the output format used for rendering ('pdf', 'png', etc.)
-        :with_targets:      show target in graph
+        :param with_targets:      show target in graph
         :param kw:          kwargs passed to graphviz, e.g. rankdir=”LR” (see https://graphviz.org/doc/info/attrs.html)
         :return:            graphviz graph object
         """

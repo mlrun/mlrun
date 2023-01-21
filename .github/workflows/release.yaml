@@ -114,7 +114,8 @@ jobs:
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          prerelease: ${{ github.event.inputs.pre_release }}
+          # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
+          # prerelease: ${{ github.event.inputs.pre_release }}
 
   update-release-notes:
     name: Update release notes

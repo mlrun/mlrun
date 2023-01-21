@@ -44,6 +44,26 @@ jobs:
       run: |
         git log --pretty=format:"%h %s" v1.3.0-rc7..v1.3.0-rc8
 
+  cbeck-release-notes:
+    name: Update release notes
+    runs-on: ubuntu-latest
+    if: github.event.inputs.generate_release_notes == 'true'
+    needs: create-releases
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r automation/requirements.txt -r dev-requirements.txt && pip install -e .
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          - echo "body=$(make release-notes MLRUN_OLD_VERSION=v1.3.0-rc7 MLRUN_NEW_VERSION=v1.3.0-rc8 MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_PATH=release_notes.md MLRUN_SKIP_CLONE=true || cat release_notes.md)" >> $GITHUB_OUTPUT
+
   lint:
     name: Lint code (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest

@@ -50,7 +50,6 @@ jobs:
     name: Create release & tag v${{ github.event.inputs.version }}
     runs-on: ubuntu-latest
     if: github.event.inputs.skip_create_tag_release != 'true'
-    needs: publish-to-pypi
     steps:
       - uses: ncipollo/release-action@v1
         with:

@@ -63,24 +63,13 @@ jobs:
         id: release-notes
         run: |
           make release-notes MLRUN_OLD_VERSION=v1.3.0-rc7 MLRUN_VERSION=v1.3.0-rc8 MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_PATH=release_notes.md MLRUN_SKIP_CLONE=true
-
-  check-release-notes:
-    name: Check release notes
-    runs-on: ubuntu-latest
-    needs: [cbeck-release-notes]
-    steps:
-      - name: Check release notes
+      - name: resolve release notes
+        id: resolve-release-notes
         run: |
           echo "body=$(cat release_notes.md)" >> $GITHUB_OUTPUT
-
-  use-release-notes-body:
-    name: Use release notes body
-    runs-on: ubuntu-latest
-    needs: [check-release-notes]
-    steps:
-      - name: Use release notes body
+      - name: echo release notes
         run: |
-          echo ${{ steps.check-release-notes.outputs.body }}
+          echo ${{ steps.resolve-release-notes.outputs.body }}
 
   lint:
     name: Lint code (Python ${{ matrix.python-version }})

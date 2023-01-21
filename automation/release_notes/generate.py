@@ -278,8 +278,8 @@ def run(
     previous_release: str,
     release_branch: str,
     raise_on_failed_parsing: bool,
-    tmp_file_path: str = None,
-    skip_clone: bool = False,
+    tmp_file_path: str,
+    skip_clone: bool,
 ):
     release_notes_generator = ReleaseNotesGenerator(
         release,

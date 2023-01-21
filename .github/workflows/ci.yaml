@@ -47,8 +47,6 @@ jobs:
   cbeck-release-notes:
     name: Update release notes
     runs-on: ubuntu-latest
-    if: github.event.inputs.generate_release_notes == 'true'
-    needs: create-releases
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4

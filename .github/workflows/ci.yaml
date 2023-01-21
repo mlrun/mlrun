@@ -44,7 +44,7 @@ jobs:
       run: |
         git log --pretty=format:"%h %s" v1.3.0-rc7..v1.3.0-rc8
 
-  cbeck-release-notes:
+  check-release-notes:
     name: Update release notes
     runs-on: ubuntu-latest
     steps:
@@ -71,7 +71,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       - name: echo release notes
         run: |
-          echo ${{ steps.resolve-release-notes.outputs.body }}
+          echo ${{ steps.resolve-release-notes.outputs.body }} && echo "done"
 
   lint:
     name: Lint code (Python ${{ matrix.python-version }})

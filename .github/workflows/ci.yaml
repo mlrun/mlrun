@@ -69,9 +69,15 @@ jobs:
           echo "body<<EOF" >> $GITHUB_OUTPUT
           cat release_notes.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-      - name: echo release notes
-        run: |
-          echo ${{ steps.resolve-release-notes.outputs.body }} && echo "done"
+      - uses: ncipollo/release-action@v1
+        with:
+          tag: 1.3.0-rc12
+          commit: master
+          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          allowUpdates: true
+          prerelease: ${{ github.event.inputs.pre_release }}
+          body: ${{ steps.resolve-release-notes.outputs.body }}
+
 
   lint:
     name: Lint code (Python ${{ matrix.python-version }})

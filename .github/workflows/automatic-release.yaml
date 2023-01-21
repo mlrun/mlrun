@@ -90,4 +90,4 @@ jobs:
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           allowUpdates: true
           prerelease: ${{ github.event.inputs.pre_release }}
-          body: ${{ steps.release-notes.outputs.body }}
+          body: ${{ steps.resolve-release-notes.outputs.body }}

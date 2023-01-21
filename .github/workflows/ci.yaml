@@ -62,7 +62,7 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          make release-notes MLRUN_OLD_VERSION=v1.3.0-rc7 MLRUN_VERSION=v1.3.0-rc8 MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_PATH=release_notes.md MLRUN_SKIP_CLONE=true && ls -l
+          make release-notes MLRUN_OLD_VERSION=v1.3.0-rc7 MLRUN_VERSION=v1.3.0-rc8 MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
       - name: resolve release notes
         id: resolve-release-notes
         run: |

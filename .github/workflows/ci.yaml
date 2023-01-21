@@ -62,7 +62,7 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          make release-notes MLRUN_OLD_VERSION=v1.3.0-rc7 MLRUN_VERSION=v1.3.0-rc8 MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
+          make release-notes MLRUN_OLD_VERSION=v1.3.0-rc11 MLRUN_VERSION=v1.3.0-rc12 MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
       - name: resolve release notes
         id: resolve-release-notes
         run: |
@@ -71,8 +71,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       - uses: ncipollo/release-action@v1
         with:
-          tag: v1.3.0-rc12
-          commit: master
+          name: v1.3.0-rc12
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           allowUpdates: true
           prerelease: ${{ github.event.inputs.pre_release }}

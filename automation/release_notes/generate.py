@@ -49,13 +49,15 @@ class ReleaseNotesGenerator:
         release_branch: str,
         raise_on_failed_parsing: bool = True,
         tmp_file_path: str = None,
+        skip_clone: bool = False,
     ):
         self._logger = logger
         self._release = release
         self._previous_release = previous_release
         self._release_branch = release_branch
         self._raise_on_failed_parsing = raise_on_failed_parsing
-        self.tmp_file_path = tmp_file_path
+        self._tmp_file_path = tmp_file_path
+        self._skip_clone = skip_clone
         # adding a map with the common contributors to prevent going to github API on every commit (better performance,
         # and prevent rate limiting)
         self._git_to_github_usernames_map = {
@@ -86,17 +88,24 @@ class ReleaseNotesGenerator:
         with tempfile.TemporaryDirectory(
             suffix="mlrun-release-notes-clone"
         ) as repo_dir:
-            self._logger.info("Cloning repo", repo_dir=repo_dir)
-            self._run_command(
-                "git",
-                args=[
-                    "clone",
-                    "--branch",
-                    self._release_branch,
-                    "git@github.com:mlrun/mlrun.git",
-                    repo_dir,
-                ],
-            )
+            current_working_dir = repo_dir
+            if self._skip_clone:
+                current_working_dir = None
+                self._logger.info(
+                    "Skipping cloning repo, assuming already cloned, using current working dir"
+                )
+            else:
+                self._logger.info("Cloning repo", repo_dir=current_working_dir)
+                self._run_command(
+                    "git",
+                    args=[
+                        "clone",
+                        "--branch",
+                        self._release_branch,
+                        "git@github.com:mlrun/mlrun.git",
+                        current_working_dir,
+                    ],
+                )
 
             commits_for_highlights = self._run_command(
                 "git",
@@ -105,7 +114,7 @@ class ReleaseNotesGenerator:
                     '--pretty=format:"%h {%an} %s"',
                     f"{self._previous_release}..{self._release}",
                 ],
-                cwd=repo_dir,
+                cwd=current_working_dir,
             )
 
             commits_for_pull_requests = self._run_command(
@@ -115,7 +124,7 @@ class ReleaseNotesGenerator:
                     '--pretty=format:"%h %s"',
                     f"{self._previous_release}..{self._release}",
                 ],
-                cwd=repo_dir,
+                cwd=current_working_dir,
             )
 
         self._generate_release_notes_from_commits(
@@ -168,9 +177,9 @@ class ReleaseNotesGenerator:
 
     def output_release_notes(self, release_notes: str):
         print(release_notes)
-        if self.tmp_file_path:
-            logger.info("Writing release notes to file", path=self.tmp_file_path)
-            with open(self.tmp_file_path, "w") as f:
+        if self._tmp_file_path:
+            logger.info("Writing release notes to file", path=self._tmp_file_path)
+            with open(self._tmp_file_path, "w") as f:
                 f.write(release_notes)
 
     def _generate_highlight_notes_from_commits(self, commits: str):
@@ -263,12 +272,14 @@ def main():
 @click.argument("release-branch", type=str, required=False, default="master")
 @click.argument("raise-on-failed-parsing", type=bool, required=False, default=True)
 @click.argument("tmp-file-path", type=str, required=False, default=None)
+@click.argument("skip-clone", type=bool, required=False, default=True)
 def run(
     release: str,
     previous_release: str,
     release_branch: str,
     raise_on_failed_parsing: bool,
-    tmp_file_path: str = None,
+    tmp_file_path: str,
+    skip_clone: bool,
 ):
     release_notes_generator = ReleaseNotesGenerator(
         release,
@@ -276,6 +287,7 @@ def run(
         release_branch,
         raise_on_failed_parsing,
         tmp_file_path,
+        skip_clone,
     )
     try:
         release_notes_generator.run()

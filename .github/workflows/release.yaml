@@ -18,8 +18,19 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'The version to release, without prefix v (e.g. 1.1.0)'
+        description: 'The version to release, without prefix v (e.g. 1.1.0-rc10)'
         required: true
+      previous_version:
+        description: 'The previous version, without prefix v (e.g. 1.1.0-rc9)'
+        required: true
+      pre_release:
+        description: 'Whether to mark release as pre-release or not (default: false)'
+        required: false
+        default: 'true'
+      generate_release_notes:
+        description: 'Whether to generate release notes or not (default: true)'
+        required: false
+        default: 'true'
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
@@ -96,9 +107,31 @@ jobs:
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          prerelease: ${{ github.event.inputs.pre_release }}
       - uses: ncipollo/release-action@v1
         with:
           repo: ui
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          prerelease: ${{ github.event.inputs.pre_release }}
+
+  update-release-notes:
+    name: Update release notes
+    runs-on: ubuntu-latest
+    if: github.event.inputs.generate_release_notes == 'true'
+    needs: create-releases
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          - echo "body=$(make release-notes MLRUN_OLD_VERSION=v${{ github.event.inputs.previous_version }} MLRUN_NEW_VERSION=v${{ github.event.inputs.version }} MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_PATH=release_notes.md || cat release_notes.md)" >> $GITHUB_OUTPUT
+      - uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ github.event.inputs.version }}
+          commit: ${{ github.ref_name }}
+          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          allowUpdates: true
+          prerelease: ${{ github.event.inputs.pre_release }}
+          body: ${{ steps.release-notes.outputs.body }}

@@ -40,6 +40,9 @@ jobs:
     - name: Check git
       run: |
         git log --pretty=format:"%h {%an} %s" v1.3.0-rc7..v1.3.0-rc8
+    - name: Now
+      run: |
+        git log --pretty=format:"%h %s" v1.3.0-rc7..v1.3.0-rc8
 
   lint:
     name: Lint code (Python ${{ matrix.python-version }})

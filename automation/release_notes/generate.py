@@ -272,7 +272,7 @@ def main():
 @click.argument("release-branch", type=str, required=False, default="master")
 @click.argument("raise-on-failed-parsing", type=bool, required=False, default=True)
 @click.argument("tmp-file-path", type=str, required=False, default=None)
-@click.argument("skip-clone", type=bool, required=False, default=None)
+@click.argument("skip-clone", type=bool, required=False, default=True)
 def run(
     release: str,
     previous_release: str,

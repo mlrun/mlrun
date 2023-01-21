@@ -39,7 +39,7 @@ jobs:
         fetch-depth: 0
     - name: Check git
       run: |
-         git log --pretty=format:"%h %s" 1.3.0-rc9..1.3.0-rc11
+        git log --pretty=format:"%h {%an} %s" v1.3.0-rc7..v1.3.0-rc8
 
   lint:
     name: Lint code (Python ${{ matrix.python-version }})

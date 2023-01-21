@@ -66,7 +66,9 @@ jobs:
       - name: resolve release notes
         id: resolve-release-notes
         run: |
-          echo "body=$(cat release_notes.md)" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
       - name: echo release notes
         run: |
           echo ${{ steps.resolve-release-notes.outputs.body }}

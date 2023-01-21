@@ -1102,7 +1102,7 @@ def project(
                 },
             )
         if notifications:
-            load_notification(notifications,proj)
+            load_notification(notifications, proj)
         try:
             proj.run(
                 name=run,
@@ -1399,7 +1399,8 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
 
     return runtime
 
-def load_notification(notifications,project):
+
+def load_notification(notifications, project):
     # A dictionary or json file containing notification dictionaries can be used by the user to set notifications.
     # Each notification is stored in a tuple called notifications.
     # The code then goes through each value in the notifications tuple and check
@@ -1417,6 +1418,8 @@ def load_notification(notifications,project):
         else:
             notification = simplejson.loads(notification)
             add_notification_to_project(notification, project)
+
+
 def add_notification_to_project(notification, proj):
     for notification_type, notification_params in notification.items():
         proj.notifiers.add_notification(

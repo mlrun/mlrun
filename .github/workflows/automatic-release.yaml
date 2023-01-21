@@ -76,7 +76,7 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          - echo "body=$(make release-notes MLRUN_OLD_VERSION=v${{ github.event.inputs.previous_version }} MLRUN_NEW_VERSION=v${{ github.event.inputs.version }} MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_PATH=release_notes.md || cat release_notes.md)" >> $GITHUB_OUTPUT
+          - echo "body=$(make release-notes MLRUN_OLD_VERSION=v${{ github.event.inputs.previous_version }} MLRUN_NEW_VERSION=v${{ github.event.inputs.version }} MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_PATH=release_notes.md MLRUN_SKIP_CLONE=true || cat release_notes.md)" >> $GITHUB_OUTPUT
       - uses: ncipollo/release-action@v1
         with:
           tag: v${{ github.event.inputs.version }}

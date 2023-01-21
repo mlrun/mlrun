@@ -71,7 +71,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       - uses: ncipollo/release-action@v1
         with:
-          tag: 1.3.0-rc12
+          tag: v1.3.0-rc12
           commit: master
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           allowUpdates: true

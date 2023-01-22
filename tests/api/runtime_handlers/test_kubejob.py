@@ -15,6 +15,7 @@
 import typing
 from datetime import timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -103,7 +104,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # so it will be removed on cleanup
         assert "" in resources
 
-    def test_delete_resources_completed_pod(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_completed_pod(
+        self, db: Session, client: TestClient
+    ):
         list_namespaced_pods_calls = [
             [self.completed_job_pod],
             # additional time for the get_logger_pods
@@ -127,7 +131,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -314,7 +318,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                     )
                 get_db().del_run(db, self.run_uid, self.project)
 
-    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.running_job_pod],
             # additional time for the get_logger_pods
@@ -336,7 +341,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -344,7 +349,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.running_job_pod.metadata.name,
         )
 
-    def test_monitor_run_completed_pod(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_completed_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],
@@ -366,7 +372,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -374,7 +380,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.completed_job_pod.metadata.name,
         )
 
-    def test_monitor_run_failed_pod(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_failed_pod(self, db: Session, client: TestClient):
         list_namespaced_pods_calls = [
             [self.pending_job_pod],
             [self.running_job_pod],
@@ -394,7 +401,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -402,7 +409,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.failed_job_pod.metadata.name,
         )
 
-    def test_monitor_run_overriding_terminal_state(
+    @pytest.mark.asyncio
+    async def test_monitor_run_overriding_terminal_state(
         self, db: Session, client: TestClient
     ):
         list_namespaced_pods_calls = [
@@ -426,7 +434,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.runtime_handler, expected_number_of_list_pods_calls
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -434,7 +442,8 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.completed_job_pod.metadata.name,
         )
 
-    def test_monitor_run_debouncing_non_terminal_state(
+    @pytest.mark.asyncio
+    async def test_monitor_run_debouncing_non_terminal_state(
         self, db: Session, client: TestClient
     ):
         # set monitoring interval so debouncing will be active
@@ -508,7 +517,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             db, self.project, self.run_uid, RunStates.completed
         )
 
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -516,7 +525,10 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.completed_job_pod.metadata.name,
         )
 
-    def test_monitor_run_run_does_not_exists(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_run_does_not_exists(
+        self, db: Session, client: TestClient
+    ):
         get_db().del_run(db, self.run_uid, self.project)
         list_namespaced_pods_calls = [
             [self.completed_job_pod],
@@ -537,7 +549,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,

@@ -61,15 +61,14 @@ class SQLDB(RunDBInterface):
         )
 
     def get_log(self, uid, project="", offset=0, size=0):
-        import mlrun.api.crud
-
-        return self._transform_db_error(
-            mlrun.api.crud.Logs().get_logs,
-            self.session,
-            project,
-            uid,
-            size,
-            offset,
+        # TODO: this is method which is not being called through the API (only through the SDK), but due to changes in
+        #  the API we changed the get_log method to async so we cannot call it here, and in this PR we won't change the
+        #  SDK to run async, we will use the legacy method for now, and later when we will have a better solution
+        #  we will change it.
+        raise NotImplementedError(
+            "This should be changed to async call, if you are running in the API, use `crud.get_log`"
+            " method directly instead and not through the get_db().get_log() method"
+            "This will be removed in 1.5.0",
         )
 
     def store_run(self, struct, uid, project="", iter=0):

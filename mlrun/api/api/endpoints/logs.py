@@ -72,8 +72,8 @@ async def get_log(
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    run_state, log = await run_in_threadpool(
-        mlrun.api.crud.Logs().get_logs, db_session, project, uid, size, offset
+    run_state, log = await mlrun.api.crud.Logs().get_logs(
+        db_session, project, uid, size, offset
     )
     headers = {
         "x-mlrun-run-state": run_state,

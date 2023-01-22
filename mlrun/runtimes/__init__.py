@@ -31,7 +31,7 @@ from mlrun.runtimes.utils import (
     resolve_spark_operator_version,
 )
 
-from .base import BaseRuntime, BaseRuntimeHandler, RunError  # noqa
+from .base import BaseRuntime, BaseRuntimeHandler, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime

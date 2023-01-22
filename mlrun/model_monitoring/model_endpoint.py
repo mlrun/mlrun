@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import mlrun.model
 
-from .common import EndpointType, ModelMonitoringMode, create_model_endpoint_id
+from .common import EndpointType, ModelMonitoringMode
 from .constants import EventKeyMetrics, EventLiveStats
 
 
@@ -91,13 +91,12 @@ class ModelEndpoint(mlrun.model.ModelObj):
     kind = "model-endpoint"
     _dict_fields = ["kind", "metadata", "spec", "status"]
 
-    def __init__(self, uid: str = None):
+    def __init__(self):
         self._status: ModelEndpointStatus = ModelEndpointStatus()
         self._spec: ModelEndpointSpec = ModelEndpointSpec()
         self._metadata: mlrun.model.VersionedObjMetadata = (
             mlrun.model.VersionedObjMetadata()
         )
-        self.uid = uid
 
     @property
     def status(self) -> ModelEndpointStatus:
@@ -117,12 +116,6 @@ class ModelEndpoint(mlrun.model.ModelObj):
 
     @property
     def metadata(self) -> mlrun.model.VersionedObjMetadata:
-        if not self.uid:
-            self.uid = create_model_endpoint_id(
-                function_uri=self.spec.function_uri, versioned_model=self.spec.model
-            )
-            self.uid = str(self.uid)
-        self._metadata.uid = self.uid
         return self._metadata
 
     @metadata.setter

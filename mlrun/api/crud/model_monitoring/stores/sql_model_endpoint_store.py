@@ -357,9 +357,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Generating a tuple with the relevant filters
         filter_query = []
         for _filter in filtered_values:
-            filter_query.append(
-                model_endpoints_table.c[key_filter] == _filter,
-            )
+            filter_query.append(model_endpoints_table.c[key_filter] == _filter)
 
         # Apply AND operator on the SQL query object with the filters tuple
         return query.filter(db.and_(*filter_query))
@@ -387,12 +385,12 @@ class SQLModelEndpointStore(ModelEndpointStore):
         )
 
         for label in labels:
-            # Case 1 - labels are a list of key-value pairs
+            # Case 1 - label is a key=value pair
             if "=" in label:
                 lbl, value = list(map(lambda x: x.strip(), label.split("=")))
                 if lbl not in endpoint_labels or str(endpoint_labels[lbl]) != value:
                     return False
-            # Case 2 - labels are a list of keys
+            # Case 2 - label is just a key
             else:
                 if label not in endpoint_labels:
                     return False

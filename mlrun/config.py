@@ -463,7 +463,10 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
-    "default_workflow_runner_name": "workflow-runner-{}",
+    "workflows": {
+        "default_workflow_runner_name": "workflow-runner-{}",
+        "timeouts": {"local": 120, "kfp": 30},
+    },
 }
 
 _is_running_as_api = None

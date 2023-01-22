@@ -88,7 +88,9 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function("hub://auto_trainer", "auto_trainer")
+        proj.set_function(
+            "hub://auto_trainer", "auto_trainer", image="yonishelach/mlrun:plotly"
+        )
         proj.set_function("hub://v2_model_server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_columns": "label"}
@@ -299,7 +301,9 @@ class TestProject(TestMLRunSystem):
             project_dir,
         ]
         out = exec_project(args)
-        self._assert_cli_output(out, name)
+        assert re.search(
+            "Workflow (.+) finished, state=Succeeded", out
+        ), "workflow did not finished successfully"
 
     def test_inline_pipeline(self):
         name = "pipe5"

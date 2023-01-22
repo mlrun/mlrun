@@ -756,7 +756,7 @@ class _RemoteRunner(_PipelineRunner):
                 workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
                 source=source,
-                run_name=mlrun.mlconf.default_workflow_runner_name.format(
+                run_name=mlrun.mlconf.workflows.default_workflow_runner_name.format(
                     workflow_name
                 ),
                 namespace=namespace,
@@ -767,7 +767,7 @@ class _RemoteRunner(_PipelineRunner):
             # Getting workflow id from run:
             response = retry_until_successful(
                 1,
-                30,
+                getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine),
                 logger,
                 False,
                 run_db.get_workflow_id,

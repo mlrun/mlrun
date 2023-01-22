@@ -28,7 +28,12 @@ import mlrun
 import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
 from mlrun.datastore.sources import CSVSource, ParquetSource
-from mlrun.datastore.targets import CSVTarget, NoSqlTarget, ParquetTarget
+from mlrun.datastore.targets import (
+    CSVTarget,
+    NoSqlTarget,
+    ParquetTarget,
+    RedisNoSqlTarget,
+)
 from mlrun.feature_store import FeatureSet
 from mlrun.feature_store.steps import (
     DateExtractor,
@@ -37,6 +42,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -291,6 +297,50 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert read_back_df_spark.sort_index(axis=1).equals(
             read_back_df_storey.sort_index(axis=1)
         )
+
+    def test_ingest_to_redis(self):
+        key = "patient_id"
+        name = "measurements_spark"
+
+        measurements = fstore.FeatureSet(
+            name,
+            entities=[fstore.Entity(key)],
+            timestamp_key="timestamp",
+            engine="spark",
+        )
+        source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
+        targets = [RedisNoSqlTarget()]
+        measurements.set_targets(targets, with_defaults=False)
+        fstore.ingest(
+            measurements,
+            source,
+            spark_context=self.spark_service,
+            run_config=fstore.RunConfig(False),
+            overwrite=True,
+        )
+        # read the dataframe from the redis back
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"patient_id": "305-90-1613"}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
 
     # tests that data is filtered by time in scheduled jobs
     @pytest.mark.parametrize("partitioned", [True, False])
@@ -858,13 +908,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert resp_df[["bad", "department"]].equals(expected_df)
 
     # ML-2802
-    def test_get_offline_features_with_spark_engine(self):
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_get_offline_features_with_spark_engine(self, passthrough):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
             timestamp_key="timestamp",
             engine="spark",
+            passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_remote_pq_source_path())
         fstore.ingest(
@@ -874,6 +926,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=False),
         )
         assert measurements.status.targets[0].run_id is not None
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        if passthrough:
+            assert len(measurements.status.targets) == 1
+            assert isinstance(measurements.status.targets["nosql"], DataTarget)
+
         fv_name = "measurements-fv"
         features = [
             "measurements.bad",

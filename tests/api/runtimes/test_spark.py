@@ -585,7 +585,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
 
         self._reset_mocks()
         runtime = self._generate_runtime()
-        runtime.spec.output_path = "v3io:///mypath"
+
+        mlrun.config.config.artifact_path = "v3io:///mypath"
 
         runtime.with_driver_limits(cpu="1")
         runtime.with_driver_requests(cpu="1", mem="1G")

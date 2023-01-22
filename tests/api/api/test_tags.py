@@ -249,7 +249,7 @@ class TestArtifactTags:
         """
 
         self._create_project(client)
-        valid_tag_name = "valid-tag"
+        valid_tag_name = "valid_tag"
         invalid_tag_name = "tag$%^#"
         artifact1_labels = {"artifact_name": "artifact1"}
 

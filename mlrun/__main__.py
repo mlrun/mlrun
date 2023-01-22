@@ -710,7 +710,7 @@ def watch(pod, namespace, timeout):
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class.
 
-    KIND - resource type to list/get: run | runtime | artifact | function
+    KIND - resource type to list/get: run | runtime | workflow | artifact | function
     NAME - optional, resource name or category
     """
 
@@ -783,9 +783,38 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             ]
             lines.append(line)
         print(tabulate(lines, headers=headers))
+
+    elif kind.startswith("workflow"):
+        run_db = get_run_db()
+        if project == "*":
+            print("warning, reading workflows for all projects may take a long time !")
+            pipelines = run_db.list_pipelines(project=project, page_size=200)
+            pipe_runs = pipelines.runs
+            while pipelines.next_page_token is not None:
+                pipelines = run_db.list_pipelines(
+                    project=project, page_token=pipelines.next_page_token
+                )
+                pipe_runs.extend(pipelines.runs)
+        else:
+            pipelines = run_db.list_pipelines(project=project)
+            pipe_runs = pipelines.runs
+
+        lines = []
+        headers = ["project", "name", "status", "created at", "finished at"]
+        for pipe_run in pipe_runs:
+            line = [
+                pipe_run["project"],
+                pipe_run["name"],
+                pipe_run["status"],
+                pipe_run["created_at"],
+                pipe_run["finished_at"],
+            ]
+            lines.append(line)
+        print(tabulate(lines, headers=headers))
+
     else:
         print(
-            "currently only get runs | runtimes | artifacts | func [name] | runtime are supported"
+            "currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
         )
 
 

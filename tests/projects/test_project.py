@@ -693,28 +693,32 @@ def test_function_receives_project_default_image():
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
 
-    # Without a project default image, set_function for remote kind must get an image
+    # Without a project default image, set_function with file-path for remote kind must get an image
     with pytest.raises(ValueError, match="image must be provided"):
         proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
 
     proj1.default_image = default_image
+    proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
 
+    enriched_function = proj1.get_function("func")
+    assert enriched_function.spec.image == default_image
+
+    # When using a function object, it is kept without the image. Only when enriching the default image is added
     func1 = mlrun.code_to_function(
-        "func", kind="job", handler="myhandler", filename=func_path
+        "func2", kind="job", handler="myhandler", filename=func_path
     )
-    proj1.set_function(func1, name="func")
+    proj1.set_function(func1, name="func2")
 
-    # Function is kept without the image, only when enriching the default image is added
-    enriched_function = proj1.get_function("func", enrich=False)
+    enriched_function = proj1.get_function("func2", enrich=False)
     assert enriched_function.spec.image == ""
 
-    enriched_function = proj1.get_function("func", enrich=True)
+    enriched_function = proj1.get_function("func2", enrich=True)
     assert enriched_function.spec.image == default_image
 
     # If function already had an image, the default image should not override
     func1.spec.image = "some/other_image"
-    proj1.set_function(func1, name="func2")
-    enriched_function = proj1.get_function("func2", enrich=True)
+    proj1.set_function(func1, name="func3")
+    enriched_function = proj1.get_function("func3", enrich=True)
     assert enriched_function.spec.image == "some/other_image"
 
 

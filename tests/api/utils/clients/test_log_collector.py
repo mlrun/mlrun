@@ -30,11 +30,22 @@ class StartLogResponse:
         self.error = error
 
 
-class GetLogResponse:
+class GetLogsResponse:
     def __init__(self, success, error, logs):
         self.success = success
         self.error = error
         self.logs = logs
+        self.call = 0
+
+    # the following methods are required for the async iterator protocol
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.call == 0:
+            self.call += 1
+            return self
+        raise StopAsyncIteration
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"
@@ -86,14 +97,15 @@ class TestLogCollector:
         project_name = "some-project"
         log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
-        log_collector._call = unittest.mock.AsyncMock(
-            return_value=GetLogResponse(True, "", b"some log")
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=GetLogsResponse(True, "", b"some log")
         )
+
         log = await log_collector.get_logs(run_uid=run_uid, project=project_name)
         assert log == b"some log"
 
-        log_collector._call = unittest.mock.AsyncMock(
-            return_value=GetLogResponse(False, "Failed to get logs", b"")
+        log_collector._call_stream = unittest.mock.MagicMock(
+            return_value=GetLogsResponse(False, "Failed to get logs", b"")
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
             await log_collector.get_logs(run_uid=run_uid, project=project_name)

@@ -118,7 +118,7 @@ func WriteToFile(filePath string,
 }
 
 func GetFileSize(filePath string) (int64, error) {
-	file, err := os.OpenFile(filePath, os.O_RDWR, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return 0, errors.Wrapf(err, "Failed to open log file - %s", filePath)
 	}
@@ -186,6 +186,11 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
 	}
 
-	// duration expired but no error
+	// duration expired, but last callback failed
+	if shouldRetry {
+		return result, errors.New(timedOutErrorMessage)
+	}
+
+	// duration expired, but last callback succeeded
 	return result, lastErr
 }

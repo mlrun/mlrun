@@ -177,20 +177,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 
-	// create pod that prints logs
-	podName := "some-pod"
 	runUID := "some-uid"
-	pod := suite.getDummyPodSpec(podName, 100)
-
-	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})
-	suite.Require().NoError(err, "Failed to create pod")
-
-	// delete pod when done
-	defer func() {
-		err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Delete(suite.ctx, podName, metav1.DeleteOptions{})
-		suite.Require().NoError(err, "Failed to delete pod")
-	}()
-
 	selector := "mlrun/uid=cde099c6724742859b8b2115eb767429,mlrun/class in (j, o, b),mlrun/project=default"
 
 	// start log collection

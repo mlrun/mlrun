@@ -54,3 +54,10 @@ class BaseGRPCClient(object):
         logger.debug("Calling endpoint", endpoint=endpoint, request=request)
         response = await getattr(self._stub, endpoint)(request)
         return response
+
+    def _call_stream(self, endpoint, request):
+        if not self._stub:
+            raise mlrun.errors.MLRunRuntimeError("Client not initialized")
+        logger.debug("Calling stream endpoint", endpoint=endpoint, request=request)
+        response_stream = getattr(self._stub, endpoint)(request)
+        return response_stream

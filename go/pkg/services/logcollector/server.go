@@ -189,6 +189,10 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 		// if pods were found, stop retrying
 		return false, nil
 	}); err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get pod using label selector",
+			"runUID", request.RunUID,
+			"selector", request.Selector)
 		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
 		return &protologcollector.StartLogResponse{
 			Success: false,

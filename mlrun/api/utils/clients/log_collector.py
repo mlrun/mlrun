@@ -95,13 +95,16 @@ class LogCollectorClient(
             offset=offset,
             size=size,
         )
-        response = await self._call("GetLogs", request)
-        if not response.success:
-            msg = f"Failed to get logs for run {run_uid}"
-            if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.error}"
-                )
-            if verbose:
-                logger.warning(msg, error=response.error)
-        return response.logs
+        response_stream = self._call_stream("GetLogs", request)
+        logs = b""
+        async for chunk in response_stream:
+            if not chunk.success:
+                msg = f"Failed to get logs for run {run_uid}"
+                if raise_on_error:
+                    raise mlrun.errors.MLRunInternalServerError(
+                        f"{msg},error= {chunk.error}"
+                    )
+                if verbose:
+                    logger.warning(msg, error=chunk.error)
+            logs += chunk.logs
+        return logs

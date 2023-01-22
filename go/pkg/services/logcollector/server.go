@@ -257,7 +257,6 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 	}
 
 	if request.Size == 0 {
-		s.Logger.DebugWithCtx(ctx, "Size is 0, returning empty response")
 		if err := responseStream.Send(&protologcollector.GetLogsResponse{
 			Success: true,
 			Logs:    []byte{},
@@ -275,7 +274,7 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 
 	// if size < 0 - we read only the logs we have for this moment in time starting from offset, so GetLogs will be finite.
 	// otherwise, we read the only the request size from the offset
-	// TODO: when the sdk/UI will support streaming, we can remove this limitation, and stream the logs continuously
+	// TODO: when the sdk/UI will support streaming, we can remove `endSize`, and stream the logs continuously
 	endSize := currentLogFileSize - request.Offset
 	if request.Size > 0 && endSize > request.Size {
 		endSize = request.Size
@@ -283,7 +282,6 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 
 	// if the offset is bigger than the current log file size, return empty response
 	if endSize <= 0 {
-		s.Logger.DebugWithCtx(ctx, "Offset is bigger than log file size, returning empty response")
 		if err := responseStream.Send(&protologcollector.GetLogsResponse{
 			Success: true,
 			Logs:    []byte{},

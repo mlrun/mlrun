@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import google.protobuf.reflection
 import grpc
 
 import mlrun.api.schemas
@@ -48,14 +49,34 @@ class BaseGRPCClient(object):
         if self.stub_class:
             self._stub = self.stub_class(self._channel)
 
-    async def _call(self, endpoint, request):
+    async def _call(
+        self,
+        endpoint: str,
+        request: google.protobuf.reflection.GeneratedProtocolMessageType,
+    ):
+        """
+        Call a unary endpoint of the gRPC server
+        :param endpoint: The server endpoint to call
+        :param request: The request to send to the server
+        :return: The server response
+        """
         if not self._stub:
             raise mlrun.errors.MLRunRuntimeError("Client not initialized")
         logger.debug("Calling endpoint", endpoint=endpoint, request=request)
         response = await getattr(self._stub, endpoint)(request)
         return response
 
-    def _call_stream(self, endpoint, request):
+    def _call_stream(
+        self,
+        endpoint: str,
+        request: google.protobuf.reflection.GeneratedProtocolMessageType,
+    ):
+        """
+        Call a streaming endpoint of the gRPC server
+        :param endpoint: The server endpoint to call
+        :param request: The request to send to the server
+        :return: A generator stream of the server responses
+        """
         if not self._stub:
             raise mlrun.errors.MLRunRuntimeError("Client not initialized")
         logger.debug("Calling stream endpoint", endpoint=endpoint, request=request)

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mock
+package nop
 
 import (
 	"context"
@@ -22,16 +22,16 @@ import (
 	"google.golang.org/grpc"
 )
 
-type GetLogsServerMock struct {
+type GetLogsServerNop struct {
 	grpc.ServerStream
 	Logs []byte
 }
 
-func (m *GetLogsServerMock) Send(response *log_collector.GetLogsResponse) error {
+func (m *GetLogsServerNop) Send(response *log_collector.GetLogsResponse) error {
 	m.Logs = append(m.Logs, response.Logs...)
 	return nil
 }
 
-func (m *GetLogsServerMock) Context() context.Context {
+func (m *GetLogsServerNop) Context() context.Context {
 	return context.Background()
 }

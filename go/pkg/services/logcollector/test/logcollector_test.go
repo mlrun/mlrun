@@ -26,7 +26,7 @@ import (
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector"
-	"github.com/mlrun/mlrun/pkg/services/logcollector/test/mock"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/test/nop"
 	"github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/google/uuid"
@@ -139,7 +139,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	time.Sleep(10 * time.Second)
 
 	// mock the get logs server stream
-	mockStream := &mock.GetLogsServerMock{}
+	nopStream := &nop.GetLogsServerNop{}
 
 	var logs []string
 	startedGettingLogsTime := time.Now()
@@ -147,18 +147,18 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	for {
 
 		// clear logs from mock stream
-		mockStream.Logs = []byte{}
+		nopStream.Logs = []byte{}
 
 		// get logs until everything is read
 		err := suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
 			RunUID: runUID,
 			Offset: 0,
 			Size:   -1,
-		}, mockStream)
+		}, nopStream)
 		suite.Require().NoError(err, "Failed to get logs")
 
 		// make sure logs have at least 100 lines
-		logs = strings.Split(string(mockStream.Logs), "\n")
+		logs = strings.Split(string(nopStream.Logs), "\n")
 		if len(logs) >= expectedLogLines {
 			break
 		}

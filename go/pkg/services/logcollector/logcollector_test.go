@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
-	"github.com/mlrun/mlrun/pkg/services/logcollector/test/mock"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/test/nop"
 	"github.com/mlrun/mlrun/proto/build/log_collector"
 
 	"github.com/google/uuid"
@@ -255,21 +255,21 @@ func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 	suite.Require().NoError(err, "Failed to write to file")
 
 	// initialize stream
-	mockStream := &mock.GetLogsServerMock{}
+	nopStream := &nop.GetLogsServerNop{}
 
 	// get logs
 	err = suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
 		RunUID: runUID,
 		Offset: 0,
 		Size:   100,
-	}, mockStream)
+	}, nopStream)
 	suite.Require().NoError(err, "Failed to get logs")
 
 	// verify logs
-	suite.Require().Equal(logText, string(mockStream.Logs))
+	suite.Require().Equal(logText, string(nopStream.Logs))
 
 	// clean mock stream logs
-	mockStream.Logs = []byte{}
+	nopStream.Logs = []byte{}
 
 	expectedResultLogs := []byte(logText)
 
@@ -282,19 +282,19 @@ func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 		suite.Require().NoError(err, "Failed to write to file")
 	}
 
-	// get logs with offset and size -1
+	// get logs with offset and size -1, to get all logs at once
 	err = suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
 		RunUID: runUID,
 		Offset: 1,
 		Size:   -1,
-	}, mockStream)
+	}, nopStream)
 	suite.Require().NoError(err, "Failed to get logs")
 
 	// truncate expected logs to offset
 	expectedResultLogs = expectedResultLogs[1:]
 
 	// verify logs
-	suite.Require().Equal(expectedResultLogs, mockStream.Logs)
+	suite.Require().Equal(expectedResultLogs, nopStream.Logs)
 }
 
 func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {

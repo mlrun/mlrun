@@ -95,6 +95,8 @@ def config_test_base():
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
 
+    mlrun.config.config.log_collector.mode = "legacy"
+
 
 @pytest.fixture
 def aioresponses_mock():

@@ -137,20 +137,18 @@ def get_offline_features(
     :param target:         where to write the results to
     :param drop_columns:   list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
-
-    :param run_config:              function and/or run configuration
-                                    see :py:class:`~mlrun.feature_store.RunConfig`
-    :param start_time:              datetime, low limit of time needed to be filtered. Optional.
-                                    entity_timestamp_column must be passed when using time filtering.
-    :param end_time:                datetime, high limit of time needed to be filtered. Optional.
-                                    entity_timestamp_column must be passed when using time filtering.
-    :param with_indexes:            return vector with index columns and timestamp_key from the feature sets
-                                    (default False)
-    :param update_stats:            update features statistics from the requested feature sets on the vector.
-                                    Default is False.
-    :param engine:                  processing engine kind ("local", "dask", or "spark")
-    :param engine_args:             kwargs for the processing engine
-    :param query:                   The query string used to filter rows
+    :param run_config:     function and/or run configuration
+                           see :py:class:`~mlrun.feature_store.RunConfig`
+    :param start_time:      datetime, low limit of time needed to be filtered. Optional.
+        entity_timestamp_column must be passed when using time filtering.
+    :param end_time:        datetime, high limit of time needed to be filtered. Optional.
+        entity_timestamp_column must be passed when using time filtering.
+    :param with_indexes:    return vector with index columns and timestamp_key from the feature sets (default False)
+    :param update_stats:    update features statistics from the requested feature sets on the vector. Default is False.
+    :param engine:          processing engine kind ("local", "dask", or "spark")
+    :param engine_args:     kwargs for the processing engine
+    :param query:           The query string used to filter rows
+    :param spark_service:   Name of the spark service to be used (when using a remote-spark runtime)
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
                                     Supported retrieval engines: "dask", "local"
                                     This parameter is in use when entity_timestamp_column and
@@ -161,7 +159,6 @@ def get_offline_features(
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)
                                     * inner: use intersection of keys from both frames (SQL: inner join).
-    :param spark_service:           Name of the spark service to be used (when using a remote-spark runtime)
     """
     if isinstance(feature_vector, FeatureVector):
         update_stats = True

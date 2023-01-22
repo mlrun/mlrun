@@ -87,9 +87,11 @@ class FeatureSetSpec(ModelObj):
         passthrough=None,
     ):
         """Feature set spec object, defines the feature-set's configuration.
+
         .. warning::
             This class should not be modified directly. It is managed by the parent feature-set object or using
             feature-store APIs. Modifying the spec manually may result in unpredictable behaviour.
+
         :param description:   text description (copied from parent feature-set)
         :param entities:      list of entity (index key) names or :py:class:`~mlrun.features.FeatureSet.Entity`
         :param features: list of features - :py:class:`~mlrun.features.FeatureSet.Feature`
@@ -231,9 +233,11 @@ class FeatureSetSpec(ModelObj):
 
 class FeatureSetStatus(ModelObj):
     """Feature set status object, containing the current feature-set's status.
+
     .. warning::
         This class should not be modified directly. It is managed by the parent feature-set object or using
         feature-store APIs. Modifying the status manually may result in unpredictable behaviour.
+
     :param state: object's current state
     :param targets: list of the data targets used in the last ingestion operation
     :param stats: feature statistics calculated in the last ingestion (if stats calculation was requested)

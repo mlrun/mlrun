@@ -224,6 +224,7 @@ class SparkFeatureMerger(BaseMerger):
 
         """
         spark dataframes join
+
         Args:
         entity_df (DataFrame): Spark dataframe representing the entities, to be joined with
             the feature tables.
@@ -232,10 +233,12 @@ class SparkFeatureMerger(BaseMerger):
         featureset_df (Dataframe): Spark dataframe representing the feature table.
         featureset (FeatureSet): Feature set specification, which provide information on
             how the join should be performed, such as the entity primary keys.
+
         Returns:
             DataFrame: Join result, which contains all the original columns from entity_df, as well
                 as all the features specified in featureset, where the feature columns will
                 be prefixed with featureset_df name.
+
         """
         indexes = list(featureset.spec.entities.keys())
         merged_df = entity_df.join(featureset_df, on=indexes)

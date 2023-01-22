@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import time
+import asyncio
 
 import fastapi
 import sqlalchemy.orm
@@ -52,9 +52,6 @@ async def store_log(
         append,
     )
     return {}
-
-
-import asyncio
 
 
 async def fake_log_streamer():

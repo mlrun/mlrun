@@ -134,11 +134,24 @@ class HTTPSessionWithRetry(requests.Session):
                 retry_count += 1
                 time.sleep(self.retry_backoff_factor)
 
-    def stream_request(self, method, url, **kwargs):
+    def stream_request(self, method: str, url: str, to_stdout: bool = True, **kwargs):
+        """
+        Stream a request to stdout or return the
+        :param method: HTTP method
+        :param url: URL to request
+        :param to_stdout: If True, stream to stdout. If False, return the response.
+        :param kwargs: Additional arguments to pass to requests
+        :return: response body if to_stdout is False, else empty string
+        """
+        response_body = ""
         with super().request(method, url, stream=True, **kwargs) as resp:
             for line in resp.iter_lines():
                 if line:
-                    print(line.decode())
+                    if to_stdout:
+                        print(line.decode())
+                    else:
+                        response_body += line.decode()
+        return response_body
 
     @staticmethod
     def _get_retry_methods(retry_on_post=False):

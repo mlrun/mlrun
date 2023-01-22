@@ -57,6 +57,24 @@ class Logs(
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
 
+    async def get_log_stream(
+        self,
+        db_session: Session,
+        project: str,
+        uid: str,
+        offset: int = 0,
+        size: int = -1,
+        auth_info: mlrun.api.schemas.AuthInfo = mlrun.api.schemas.AuthInfo(),
+    ):
+        project = project or mlrun.mlconf.default_project
+        return self._get_log_stream_from_logs_collector(
+            project,
+            uid,
+            offset,
+            size,
+        )
+
+
     async def get_logs(
         self,
         db_session: Session,
@@ -152,6 +170,22 @@ class Logs(
             offset=offset,
         )
         return logs
+
+    @staticmethod
+    async def _get_log_stream_from_logs_collector(
+        project: str,
+        run_uid: str,
+        size: int = -1,
+        offset: int = 0,
+    ) -> bytes:
+        log_stream = await log_collector.LogCollectorClient().get_logs(
+            run_uid=run_uid,
+            project=project,
+            size=size,
+            offset=offset,
+            stream=True,
+        )
+        return log_stream
 
     @staticmethod
     def _get_logs_legacy_method(

@@ -41,6 +41,7 @@ message GetLogsRequest {
   int64 offset = 2;
   int64 size = 3;
   string projectName = 4;
+  bool stream = 5;
 }
 
 message GetLogsResponse {

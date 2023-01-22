@@ -63,7 +63,7 @@ func NewLogCollectorServer(logger logger.Logger,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval string,
-	logCollectionbufferPoolSize,
+	logCollectionBufferPoolSize,
 	getLogsBufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
@@ -118,7 +118,7 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 
 	// create a byte buffer pool - a pool of size `bufferPoolSize`, where each buffer is of size `bufferSizeBytes`
-	logCollectionBufferPool := bpool.NewBytePool(logCollectionbufferPoolSize, bufferSizeBytes)
+	logCollectionBufferPool := bpool.NewBytePool(logCollectionBufferPoolSize, bufferSizeBytes)
 	getLogsBufferPool := bpool.NewBytePool(getLogsBufferPoolSize, bufferSizeBytes)
 
 	return &LogCollectorServer{
@@ -163,7 +163,7 @@ func (s *LogCollectorServer) StartLog(ctx context.Context, request *protologcoll
 		"Selector", request.Selector)
 
 	// to make start log idempotent, if log collection has already started for this run uid, return success
-	if s.isLogCollectionStarted(ctx, request.RunUID) {
+	if s.isLogCollectionRunning(ctx, request.RunUID) {
 		s.Logger.DebugWithCtx(ctx, "Logs are already being collected for this run uid", "runUID", request.RunUID)
 		return &protologcollector.StartLogResponse{
 			Success: true,
@@ -273,8 +273,7 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 	}
 
 	// if size < 0 - we read only the logs we have for this moment in time starting from offset, so GetLogs will be finite.
-	// otherwise, we read the only the request size from the offset
-	// TODO: when the sdk/UI will support streaming, we can remove `endSize`, and stream the logs continuously
+	// otherwise, we read only the request size from the offset
 	endSize := currentLogFileSize - request.Offset
 	if request.Size > 0 && endSize > request.Size {
 		endSize = request.Size
@@ -313,10 +312,22 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 			return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
 		}
 
-		// if we reached the end size, or the chunk is smaller than the chunk size
-		// (we reached the end of the file), stop reading
-		if totalLogsSize >= endSize || len(logs) < int(chunkSize) {
-			break
+		if request.Stream {
+
+			// we stop streaming only if the run's logs are no longer being collected
+			if !s.isLogCollectionRunning(ctx, request.RunUID) {
+				s.Logger.DebugWithCtx(ctx,
+					"Run logs are no longer collected, stopping streaming logs",
+					"runUID", request.RunUID)
+				break
+			}
+		} else {
+
+			// if we reached the end size, or the chunk is smaller than the chunk size
+			// (we reached the end of the file), stop reading
+			if totalLogsSize >= endSize || len(logs) < int(chunkSize) {
+				break
+			}
 		}
 
 		// increase offset by the read size
@@ -570,7 +581,7 @@ func (s *LogCollectorServer) getLogFilePath(ctx context.Context, runUID string) 
 
 			// if log collection for this runUID has already started, sleep and retry,
 			// as the log file might not have been created yet
-			if s.isLogCollectionStarted(ctx, runUID) {
+			if s.isLogCollectionRunning(ctx, runUID) {
 				return true, nil
 			}
 
@@ -686,7 +697,7 @@ func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 				}
 
 				// check if the log streaming is already running for this runUID
-				if logCollectionStarted := s.isLogCollectionStarted(ctx, runUID); !logCollectionStarted {
+				if logCollectionStarted := s.isLogCollectionRunning(ctx, runUID); !logCollectionStarted {
 
 					s.Logger.DebugWithCtx(ctx, "Starting log collection for log item", "runUID", runUID)
 					if _, err := s.StartLog(ctx, &protologcollector.StartLogRequest{
@@ -709,7 +720,7 @@ func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 	}
 }
 
-func (s *LogCollectorServer) isLogCollectionStarted(ctx context.Context, runUID string) bool {
+func (s *LogCollectorServer) isLogCollectionRunning(ctx context.Context, runUID string) bool {
 	inMemoryInProgress, err := s.inMemoryState.GetItemsInProgress()
 	if err != nil {
 
@@ -718,8 +729,8 @@ func (s *LogCollectorServer) isLogCollectionStarted(ctx context.Context, runUID 
 		return false
 	}
 
-	_, started := inMemoryInProgress.Load(runUID)
-	return started
+	_, running := inMemoryInProgress.Load(runUID)
+	return running
 }
 
 // getChunkSuze returns the minimum between the request size, buffer size and the remaining size to read
@@ -738,5 +749,4 @@ func (s *LogCollectorServer) getChunkSize(requestSize, endSize, currentOffset in
 	}
 
 	return chunkSize
-
 }

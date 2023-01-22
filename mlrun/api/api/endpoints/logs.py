@@ -83,3 +83,34 @@ async def get_log(
         "pod_status": run_state,
     }
     return fastapi.Response(content=log, media_type="text/plain", headers=headers)
+
+
+@router.get("/log-stream/{project}/{uid}")
+async def stream_log(
+    project: str,
+    uid: str,
+    size: int = -1,
+    offset: int = 0,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.log,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    log_stream = await mlrun.api.crud.Logs().get_log_stream(
+        db_session, project, uid, size, offset
+    )
+
+    return fastapi.responses.StreamingResponse(
+        log_stream,
+        media_type="text/plain",
+    )
+

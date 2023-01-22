@@ -137,6 +137,8 @@ class HTTPRunDB(RunDBInterface):
         headers=None,
         timeout=45,
         version=None,
+        stream: bool = False,
+        to_stdout: bool = False,
     ):
         """Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
@@ -154,6 +156,9 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: API call timeout
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
+        :param stream: If True, the response will be streamed, otherwise it will be read into memory
+        :param to_stdout: If True, the response will be streamed to stdout, otherwise it will be read into memory
+           and returned as a string
 
         :return: Python HTTP response object
         """
@@ -205,6 +210,10 @@ class HTTPRunDB(RunDBInterface):
             )
 
         try:
+            if stream:
+                return self.session.stream_request(
+                    method, url, to_stdout=to_stdout, timeout=timeout, **kw
+                )
             response = self.session.request(
                 method, url, timeout=timeout, verify=False, **kw
             )
@@ -404,6 +413,15 @@ class HTTPRunDB(RunDBInterface):
         params = {"append": bool2str(append)}
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
+
+    def stream_log(self, uid: str, project: str = ""):
+        """Stream a log from the API
+        :param uid: Log unique ID
+        :param project: Project name for which this log belongs
+        """
+        path = self._path_of("log-stream", project, uid)
+        error = f"stream log {project}/{uid}"
+        self.api_call("GET", path, error, stream=True, to_stdout=True)
 
     def get_log(self, uid, project="", offset=0, size=-1):
         """Retrieve a log.

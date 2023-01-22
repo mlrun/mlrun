@@ -134,6 +134,12 @@ class HTTPSessionWithRetry(requests.Session):
                 retry_count += 1
                 time.sleep(self.retry_backoff_factor)
 
+    def stream_request(self, method, url, **kwargs):
+        with super().request(method, url, stream=True, **kwargs) as resp:
+            for line in resp.iter_lines():
+                if line:
+                    print(line.decode())
+
     @staticmethod
     def _get_retry_methods(retry_on_post=False):
         return (

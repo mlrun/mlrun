@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import time
+
 import fastapi
 import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
@@ -50,6 +52,37 @@ async def store_log(
         append,
     )
     return {}
+
+
+import asyncio
+
+
+async def fake_log_streamer():
+    for i in range(100):
+        msg = f"message {i} \n"
+        await asyncio.sleep(1)
+        yield msg.encode("utf-8")
+
+
+@router.get("/log-stream/{project}/{uid}")
+async def get_log_stream(
+    project: str,
+    uid: str,
+    offset: int = 0,
+    auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+):
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.api.schemas.AuthorizationResourceTypes.log,
+        project,
+        uid,
+        mlrun.api.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    return fastapi.responses.StreamingResponse(
+        fake_log_streamer(), media_type="text/plain"
+    )
 
 
 @router.get("/log/{project}/{uid}")

@@ -58,6 +58,7 @@ from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
 from mlrun.features import MinMaxValidator
+from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
 from .data_sample import quotes, stocks, trades
@@ -893,6 +894,73 @@ class TestFeatureStore(TestMLRunSystem):
         result_columns = list(resp2.columns)
         orig_columns.remove("patient_id")
         assert result_columns.sort() == orig_columns.sort()
+
+    @pytest.mark.parametrize("engine", ["storey", "pandas"])
+    def test_passthrough_feature_set(self, engine):
+        name = f"measurements_set_{uuid.uuid4()}"
+        key = "patient_id"
+        measurements_set = fstore.FeatureSet(
+            name,
+            entities=[Entity(key)],
+            timestamp_key="timestamp",
+            passthrough=True,
+            engine=engine,
+        )
+        source = CSVSource(
+            "mycsv",
+            path=os.path.relpath(str(self.assets_path / "testdata.csv")),
+            time_field="timestamp",
+        )
+
+        expected = source.to_dataframe().set_index("patient_id")
+
+        if engine != "pandas":  # pandas engine does not support preview (ML-2694)
+            preview_pd = fstore.preview(
+                measurements_set,
+                source=source,
+            )
+            # preview does not do set_index on the entity
+            preview_pd.set_index("patient_id", inplace=True)
+            assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
+
+        fstore.ingest(measurements_set, source)
+
+        # assert that online target exist (nosql) and offline target does not (parquet)
+        assert len(measurements_set.status.targets) == 1
+        assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+
+        # verify that get_offline (and preview) equals the source
+        vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
+        resp = fstore.get_offline_features(
+            vector, entity_timestamp_column="timestamp", with_indexes=True
+        )
+        get_offline_pd = resp.to_dataframe()
+        get_offline_pd["timestamp"] = pd.to_datetime(get_offline_pd["timestamp"])
+
+        assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
+
+        # assert get_online correctness
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get([{"patient_id": "305-90-1613"}])
+            assert resp == [
+                {
+                    "bad": 95,
+                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                    "room": 2,
+                    "hr": 220.0,
+                    "hr_is_error": False,
+                    "rr": 25,
+                    "rr_is_error": False,
+                    "spo2": 99,
+                    "spo2_is_error": False,
+                    "movements": 4.614601941071927,
+                    "movements_is_error": False,
+                    "turn_count": 0.3582583538239813,
+                    "turn_count_is_error": False,
+                    "is_in_bed": 1,
+                    "is_in_bed_is_error": False,
+                }
+            ]
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -2802,7 +2870,7 @@ class TestFeatureStore(TestMLRunSystem):
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
-            dask_cluster.with_requests(mem="2G")
+            dask_cluster.with_worker_requests(mem="2G")
             dask_cluster.save()
             engine_args = {
                 "dask_client": dask_cluster,

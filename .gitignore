@@ -29,3 +29,5 @@ tests/system/env.yml
 *.bak
 docs/contributing.md
 mlrun/api/proto/*pb2*.py
+docs/tutorial/colab/01-mlrun-basics-colab.ipynb
+

@@ -1001,6 +1001,7 @@ def logs(uid, project, offset, db, watch):
 )
 @click.option(
     "--notifications",
+    "--notification",
     "-nt",
     multiple=True,
     help="Allow to set a project notifier in runtime, by json file or a dictionary."

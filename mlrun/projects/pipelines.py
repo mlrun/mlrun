@@ -766,7 +766,7 @@ class _RemoteRunner(_PipelineRunner):
 
             # Getting workflow id from run:
             response = retry_until_successful(
-                10,
+                1,
                 30,
                 logger,
                 False,

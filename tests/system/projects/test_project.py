@@ -24,6 +24,7 @@ import pytest
 from kfp import dsl
 
 import mlrun
+from mlrun.api.schemas.background_task import BackgroundTaskState
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
 from mlrun.utils import logger
@@ -839,9 +840,8 @@ class TestProject(TestMLRunSystem):
         assert run.state == mlrun.run.RunStatuses.failed
 
     def test_load_project_endpoint(self):
-        from mlrun.api.schemas.background_task import BackgroundTaskState
-
         name = "test-load-project-endpoint"
+        self.custom_project_names_to_delete.append(name)
         bg_task = self._run_db.load_project(
             name=name, url="git://github.com/mlrun/project-demo.git"
         )

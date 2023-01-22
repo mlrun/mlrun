@@ -133,6 +133,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     ):
         logger.debug(
             "Received request",
+            headers=request.headers,
             method=request.method,
             client_address=get_client_address(request.scope),
             http_version=request.scope["http_version"],
@@ -145,7 +146,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         logger.warning(
             "Request handling failed. Sending response",
             # User middleware (like this one) runs after the exception handling middleware, the only thing running after
-            # it is Starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
+            # it is starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
             # and transforming it to 500 response. therefore we can statically assign status code to 500
             status_code=500,
             request_id=request_id,
@@ -156,7 +157,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         )
         raise
     else:
-        # convert from nano seconds to milliseconds
+        # convert from nanoseconds to milliseconds
         elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
         if not any(
             silent_logging_path in path_with_query_string
@@ -169,6 +170,7 @@ async def log_request_response(request: fastapi.Request, call_next):
                 elapsed_time=elapsed_time_in_ms,
                 uri=path_with_query_string,
                 method=request.method,
+                headers=response.headers,
             )
         return response
 

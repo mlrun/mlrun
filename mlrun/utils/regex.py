@@ -73,6 +73,6 @@ project_name = dns_1123_label
 
 # Special characters are not permitted in tag names because they can be included in the url and cause problems.
 # We only accept letters, capital letters, numbers, dots, and hyphens, with a k8s character limit.
-tag_name = k8s_character_limit + [r"^(([A-Za-z0-9][-A-Za-z0-9.]*)?[A-Za-z0-9])?$"]
+tag_name = label_value
 
 secret_key = k8s_secret_and_config_map_key

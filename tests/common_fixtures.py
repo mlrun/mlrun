@@ -45,6 +45,7 @@ from mlrun.config import config
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function import NuclioStatus
 from mlrun.runtimes.utils import global_context
+from mlrun.utils import update_in
 from tests.conftest import logs_path, results, root_path, rundb_path
 
 session_maker: Callable
@@ -190,12 +191,14 @@ class RunDBMock:
         self.kind = "http"
         self._pipeline = None
         self._function = None
+        self._artifact = None
 
     def reset(self):
         self._function = None
         self._pipeline = None
         self._project_name = None
         self._project = None
+        self._artifact = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):
@@ -210,6 +213,9 @@ class RunDBMock:
                 "iter": iter,
             }
         }
+
+    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+        self._artifact = artifact
 
     def get_function(self, function, project, tag):
         return {
@@ -277,6 +283,17 @@ class RunDBMock:
         verbose=False,
     ):
         return "ready", last_log_timestamp
+
+    def update_run(self, updates: dict, uid, project="", iter=0):
+        state = self._function.get("state", {})
+        update_in(state, "status.state", updates)
+        update_in(state, "status.results", updates)
+        update_in(state, "status.start_time", updates)
+        update_in(state, "status.last_update", updates)
+        update_in(state, "status.error", updates)
+        update_in(state, "status.commit", updates)
+        update_in(state, "status.iterations", updates)
+        self._function["state"] = state
 
     def assert_no_mount_or_creds_configured(self):
         env_list = self._function["spec"]["env"]

@@ -19,3 +19,4 @@ scikit-learn~=1.0
 # needed for frameworks tests
 lightgbm~=3.0
 xgboost~=1.1
+sqlalchemy_utils~=0.39.0

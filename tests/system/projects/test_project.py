@@ -88,9 +88,7 @@ class TestProject(TestMLRunSystem):
             with_repo=with_repo,
         )
         proj.set_function("hub://describe")
-        proj.set_function(
-            "hub://auto_trainer", "auto_trainer", image="yonishelach/mlrun:plotly"
-        )
+        proj.set_function("hub://auto_trainer", "auto_trainer")
         proj.set_function("hub://v2_model_server", "serving")
         proj.set_artifact("data", Artifact(target_path=data_url))
         proj.spec.params = {"label_columns": "label"}

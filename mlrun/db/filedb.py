@@ -111,7 +111,6 @@ class FileRunDB(RunDBInterface):
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         run = self.read_run(uid, project, iter=iter)
-        # TODO: Should we raise if run not found?
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)

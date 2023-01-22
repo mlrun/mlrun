@@ -126,7 +126,7 @@ class _CustomRequestContext(_RequestContext):
         while True:
             current_attempt += 1
             response = None
-            params = None
+            params: typing.Optional[RequestParams] = None
             try:
                 try:
                     params = self._params_list[current_attempt - 1]

@@ -322,6 +322,7 @@ class HTTPRunDB(RunDBInterface):
             # allow client to set the default partial WA for lack of support of per-target auxiliary options
             config.redis.type = config.redis.type or server_cfg.get("redis_type")
 
+            config.sql.url = config.sql.url or server_cfg.get("sql_url")
             # These have a default value, therefore local config will always have a value, prioritize the
             # API value first
             config.ui.projects_prefix = (

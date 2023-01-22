@@ -1409,7 +1409,6 @@ def load_notification(notifications, project):
     # notification.json file and uses add_notification_to_project to add the notifications from the file to
     # the project. If not, it adds the notification dictionary to the project.
     for notification in notifications:
-        print(notification)
         if notification.startswith("file="):
             file_path = notification.split("=")[-1]
             with open(file_path) as fp:

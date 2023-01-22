@@ -105,9 +105,11 @@ def get_offline_features(
     spark_service: str = None,
 ) -> OfflineVectorResponse:
     """retrieve offline feature vector results
+
     specify a feature vector object/uri and retrieve the desired features, their metadata
     and statistics. returns :py:class:`~mlrun.feature_store.OfflineVectorResponse`,
     results can be returned as a dataframe or written to a target
+
     The start_time and end_time attributes allow filtering the data to a given time range, they accept
     string values or pandas `Timestamp` objects, string values can also be relative, for example:
     "now", "now - 1d2h", "now+5m", where a valid pandas Timedelta string follows the verb "now",
@@ -115,6 +117,7 @@ def get_offline_features(
     (the floor string is passed to pandas.Timestamp.floor(), can use D, H, T, S for day, hour, min, sec alignment).
     Another option to filter the data is by the `query` argument - can be seen in the example.
     example::
+
         features = [
             "stock-quotes.bid",
             "stock-quotes.asks_sum_5h",
@@ -123,16 +126,16 @@ def get_offline_features(
         ]
         vector = FeatureVector(features=features)
         resp = get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100",
+            vector, entity_rows=trades, entity_timestamp_column="time", query="ticker in ['GOOG'] and bid>100"
         )
         print(resp.to_dataframe())
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
-    :param feature_vector:          feature vector uri or FeatureVector object. passing feature vector obj requires
-                                    update permissions
-    :param entity_rows:             dataframe with entity rows to join with
-    :param target:                  where to write the results to
-    :param drop_columns:            list of columns to drop from the final result
+    :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
+                            permissions
+    :param entity_rows:    dataframe with entity rows to join with
+    :param target:         where to write the results to
+    :param drop_columns:   list of columns to drop from the final result
     :param entity_timestamp_column: timestamp column name in the entity rows dataframe
 
     :param run_config:              function and/or run configuration
@@ -149,10 +152,11 @@ def get_offline_features(
     :param engine_args:             kwargs for the processing engine
     :param query:                   The query string used to filter rows
     :param join_type:               {'left', 'right', 'outer', 'inner'}, default 'inner'
-                                    Only for dask and local engines (not for spark)
-                                    Used for regular join when timestemp and feature_vector.spec.timestamp_field
-                                    are None.
-                                    Indicate join type such as :
+                                    Supported retrieval engines: "dask", "local"
+                                    This parameter is in use when entity_timestamp_column and
+                                    feature_vector.spec.timestamp_field are None, if one of them
+                                    isn't none we're preforming as_of join.
+                                    Possible values :
                                     * left: use only keys from left frame (SQL: left outer join)
                                     * right: use only keys from right frame (SQL: right outer join)
                                     * outer: use union of keys from both frames (SQL: full outer join)

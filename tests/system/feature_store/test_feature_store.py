@@ -57,7 +57,7 @@ from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
-from mlrun.features import MinMaxValidator
+from mlrun.features import RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
@@ -3423,7 +3423,7 @@ class TestFeatureStore(TestMLRunSystem):
         df = pd.DataFrame(
             {
                 "key": [1, 2, 3, 4, 5, 6, 7],
-                "key1": [1, 2, 3, 4, 5, 6, 7],
+                "key1": ["1", "2", "3", "4", "5", "6", "7"],
                 "key2": ["C", "F", "I", "W", "X", "J", "K"],
             }
         )
@@ -3433,7 +3433,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "myfset", entities=[fstore.Entity("key")], engine=engine
             )
             feature_set["key1"] = fstore.Feature(
-                validator=MinMaxValidator(max=5, min=1, severity="info")
+                validator=RegexValidator(regex=".[A-Za-z]", severity="info")
             )
             feature_set.graph.to(
                 FeaturesetValidator(),

@@ -321,7 +321,8 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
-        save = self._set_source(project, workflow_request.source, load_only)
+        source = workflow_request.source if workflow_request else ""
+        save = self._set_source(project, source, load_only)
         run_object = RunObject(
             spec=RunSpec(
                 parameters=dict(

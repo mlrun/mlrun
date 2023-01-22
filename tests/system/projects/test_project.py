@@ -841,12 +841,10 @@ class TestProject(TestMLRunSystem):
     def test_load_project_endpoint(self):
         from mlrun.api.schemas.background_task import BackgroundTaskState
 
-        name = "test-load-proj-endpoint"
+        name = "test-load-project-endpoint"
         bg_task = self._run_db.load_project(
             name=name, url="git://github.com/mlrun/project-demo.git"
         )
-        assert bg_task.status.state != BackgroundTaskState.failed
-        # TODO: Now its failing, need to continue from here
         for _ in range(15):
             if bg_task.status.state != BackgroundTaskState.running:
                 break

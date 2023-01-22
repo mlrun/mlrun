@@ -398,9 +398,8 @@ async def load_project(
         # arguments for execute_function
         load_project_runner,
         project,
-        # only this one is passed by name, because project arg is in both
-        # create_background_task and mlrun.api.crud.WorkflowRunners().run
-        load_only=True,
+        None,
+        True,
     )
 
     return background_task

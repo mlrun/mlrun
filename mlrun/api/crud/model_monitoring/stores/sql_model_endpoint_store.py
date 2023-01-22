@@ -357,7 +357,9 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Generating a tuple with the relevant filters
         filter_query = []
         for _filter in filtered_values:
-            filter_query += (model_endpoints_table.c[key_filter] == _filter,)
+            filter_query.append(
+                model_endpoints_table.c[key_filter] == _filter,
+            )
 
         # Apply AND operator on the SQL query object with the filters tuple
         return query.filter(db.and_(*filter_query))
@@ -414,9 +416,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 endpoint.metadata.uid,
             )
 
-        # Drop the SQL table if it's empty
-        self._drop_table_if_empty()
-
     def get_endpoint_real_time_metrics(
         self,
         endpoint_id: str,
@@ -450,34 +449,6 @@ class SQLModelEndpointStore(ModelEndpointStore):
             "Real time metrics service using Prometheus will be implemented in 1.4.0"
         )
         return {}
-
-    def _drop_table_if_empty(self):
-        """Delete model endpoints SQL table. If table is not empty, then it won't be deleted."""
-
-        if not self._engine.has_table(self.table_name):
-            logger.warn(
-                "Table not found",
-                table=self.table_name,
-            )
-            return
-
-        # Count the model endpoint records using sqlalchemy ORM
-        with create_session(dsn=self.connection_string) as session:
-            rows = session.query(ModelEndpointsTable).count()
-
-        # Drop the table if no records have been found
-        if rows > 0:
-            logger.info(
-                "Table is not empty and therefore won't be deleted from DB",
-                table_name=self.table_name,
-            )
-        else:
-
-            Base.metadata.drop_all(
-                bind=self._engine, tables=[self.model_endpoints_table]
-            )
-            logger.info("Table has been deleted from SQL", table_name=self.table_name)
-        return
 
 
 class ModelEndpointsTable(Base, BaseModel):

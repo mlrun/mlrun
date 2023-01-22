@@ -199,9 +199,11 @@ class WorkflowRunners(
             db_session=db_session, uid=uid, iter=0, project=project
         )
         run_object = RunObject.from_dict(run)
+
+        workflow_id = None
         if isinstance(run_object.status.results, dict):
-            workflow_id = run_object.status.results.get("workflow_id", "")
-        else:
+            workflow_id = run_object.status.results.get("workflow_id")
+        if not workflow_id:
             raise mlrun.errors.MLRunNotFoundError(
                 f"workflow id of run {uid}:{project} not found"
             )

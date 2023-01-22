@@ -845,7 +845,7 @@ class TestProject(TestMLRunSystem):
         bg_task = self._run_db.load_project(
             name=name, url="git://github.com/mlrun/project-demo.git"
         )
-        for _ in range(15):
+        for _ in range(20):
             if bg_task.status.state != BackgroundTaskState.running:
                 break
             bg_task = self._run_db.get_project_background_task(

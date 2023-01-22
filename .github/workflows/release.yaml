@@ -18,8 +18,19 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'The version to release, without prefix v (e.g. 1.1.0)'
+        description: 'The version to release, without prefix v (e.g. 1.1.0-rc10)'
         required: true
+      previous_version:
+        description: 'The previous version, without prefix v (e.g. 1.1.0-rc9)'
+        required: true
+      pre_release:
+        description: 'Whether to mark release as pre-release or not (default: false)'
+        required: false
+        default: 'true'
+      generate_release_notes:
+        description: 'Whether to generate release notes or not (default: true)'
+        required: false
+        default: 'true'
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
@@ -39,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.3
+      - uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: mlrun
           repo: mlrun
@@ -55,7 +66,7 @@ jobs:
     if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
 
     steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.3
+      - uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: mlrun
           repo: ui
@@ -96,9 +107,48 @@ jobs:
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          prerelease: ${{ github.event.inputs.pre_release }}
       - uses: ncipollo/release-action@v1
         with:
           repo: ui
           tag: v${{ github.event.inputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
+          # prerelease: ${{ github.event.inputs.pre_release }}
+
+  update-release-notes:
+    name: Update release notes
+    runs-on: ubuntu-latest
+    if: github.event.inputs.generate_release_notes == 'true'
+    needs: create-releases
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r automation/requirements.txt -r dev-requirements.txt && pip install -e .
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          make release-notes MLRUN_OLD_VERSION=v${{ github.event.inputs.previous_version }} MLRUN_VERSION=v${{ github.event.inputs.version }} MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
+      - name: resolve release notes
+        id: resolve-release-notes
+        run: |
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ github.event.inputs.version }}
+          commit: ${{ github.ref_name }}
+          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          allowUpdates: true
+          prerelease: ${{ github.event.inputs.pre_release }}
+          body: ${{ steps.resolve-release-notes.outputs.body }}

@@ -147,7 +147,8 @@ The default location can be modified in mlrun config or specified per ingest ope
 
 ### Redis target store
 
-```{admonition} Tech preview
+```{admonition} Note
+Tech Preview
 ```
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:

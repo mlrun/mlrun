@@ -11,16 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import ast
+import datetime
 import os
 import random
 import time
-import typing
 import warnings
 from collections import Counter
 from copy import copy
-from typing import Union
+from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 import pandas as pd
+import sqlalchemy
 
 import mlrun
 import mlrun.utils.helpers
@@ -45,6 +48,7 @@ class TargetTypes:
     kafka = "kafka"
     dataframe = "dataframe"
     custom = "custom"
+    sql = "sql"
 
     @staticmethod
     def all():
@@ -58,6 +62,7 @@ class TargetTypes:
             TargetTypes.kafka,
             TargetTypes.dataframe,
             TargetTypes.custom,
+            TargetTypes.sql,
         ]
 
 
@@ -376,17 +381,18 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
+        attributes: Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
         after_state=None,
-        max_events: typing.Optional[int] = None,
-        flush_after_seconds: typing.Optional[int] = None,
-        storage_options: typing.Dict[str, str] = None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: Dict[str, str] = None,
+        schema: Dict[str, Any] = None,
     ):
         super().__init__(
             self.kind,
@@ -401,6 +407,7 @@ class BaseStoreTarget(DataTargetBase):
             max_events,
             flush_after_seconds,
             after_state,
+            schema=schema,
         )
         if after_state:
             warnings.warn(
@@ -422,6 +429,7 @@ class BaseStoreTarget(DataTargetBase):
         self.max_events = max_events
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
+        self.schema = schema or {}
 
         self._target = None
         self._resource = None
@@ -470,7 +478,7 @@ class BaseStoreTarget(DataTargetBase):
         timestamp_key=None,
         chunk_id=0,
         **kwargs,
-    ) -> typing.Optional[int]:
+    ) -> Optional[int]:
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -559,6 +567,7 @@ class BaseStoreTarget(DataTargetBase):
         driver.name = spec.name
         driver.path = spec.path
         driver.attributes = spec.attributes
+        driver.schema = spec.schema
 
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
@@ -676,7 +685,7 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         return df
 
     def get_dask_options(self):
@@ -719,17 +728,17 @@ class ParquetTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: typing.Dict[str, str] = None,
+        attributes: Dict[str, str] = None,
         after_step=None,
         columns=None,
         partitioned: bool = None,
-        key_bucketing_number: typing.Optional[int] = None,
-        partition_cols: typing.Optional[typing.List[str]] = None,
-        time_partitioning_granularity: typing.Optional[str] = None,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
         after_state=None,
-        max_events: typing.Optional[int] = 10000,
-        flush_after_seconds: typing.Optional[int] = 900,
-        storage_options: typing.Dict[str, str] = None,
+        max_events: Optional[int] = 10000,
+        flush_after_seconds: Optional[int] = 900,
+        storage_options: Dict[str, str] = None,
     ):
         if after_state:
             warnings.warn(
@@ -990,7 +999,7 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1112,7 +1121,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df):
+    def prepare_spark_df(self, df, key_columns):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1130,8 +1139,9 @@ class NoSqlBaseTarget(BaseStoreTarget):
             df = self.prepare_spark_df(df)
             df.write.mode("overwrite").save(**options)
         else:
-            # To prevent modification of the original dataframe
-            df = df.copy(deep=False)
+            # To prevent modification of the original dataframe and make sure
+            # that the last event of a key is the one being persisted
+            df = df.groupby(df.index).last()
             access_key = self._secrets.get(
                 "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
             )
@@ -1165,7 +1175,7 @@ class NoSqlTarget(NoSqlBaseTarget):
 
 class RedisNoSqlTarget(NoSqlBaseTarget):
     kind = TargetTypes.redisnosql
-    support_spark = False
+    support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
     def get_table_object(self):
@@ -1180,6 +1190,29 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             RedisDriver(redis_url=endpoint, key_prefix="/"),
             flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
         )
+
+    def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
+        parsed_url = urlparse(self.get_target_path())
+        if parsed_url.hostname is None:
+            self.path = mlrun.mlconf.redis.url
+            parsed_url = urlparse(self.get_target_path())
+
+        return {
+            "key.column": "_spark_object_name",
+            "table": "{" + store_path_to_spark(self.get_target_path()),
+            "format": "org.apache.spark.sql.redis",
+            "host": parsed_url.hostname,
+            "port": parsed_url.port if parsed_url.port else "6379",
+            "user": parsed_url.username,
+            "auth": parsed_url.password,
+        }
+
+    def prepare_spark_df(self, df, key_columns):
+        from pyspark.sql.functions import udf
+        from pyspark.sql.types import StringType
+
+        udf1 = udf(lambda x: x + "}:static", StringType())
+        return df.withColumn("_spark_object_name", udf1(key_columns[0]))
 
 
 class StreamTarget(BaseStoreTarget):
@@ -1486,6 +1519,280 @@ class DFTarget(BaseStoreTarget):
         return self._df
 
 
+class SQLTarget(BaseStoreTarget):
+    kind = TargetTypes.sql
+    is_online = True
+    support_spark = False
+    support_storey = True
+
+    def __init__(
+        self,
+        name: str = "",
+        path=None,
+        attributes: Dict[str, str] = None,
+        after_step=None,
+        partitioned: bool = False,
+        key_bucketing_number: Optional[int] = None,
+        partition_cols: Optional[List[str]] = None,
+        time_partitioning_granularity: Optional[str] = None,
+        after_state=None,
+        max_events: Optional[int] = None,
+        flush_after_seconds: Optional[int] = None,
+        storage_options: Dict[str, str] = None,
+        db_url: str = None,
+        table_name: str = None,
+        schema: Dict[str, Any] = None,
+        primary_key_column: str = "",
+        if_exists: str = "append",
+        create_table: bool = False,
+        # create_according_to_data: bool = False,
+        time_fields: List[str] = None,
+        varchar_len: int = 50,
+    ):
+        """
+        Write to SqlDB as output target for a flow.
+        example::
+             db_path = "sqlite:///stockmarket.db"
+             schema = {'time': datetime.datetime, 'ticker': str,
+                    'bid': float, 'ask': float, 'ind': int}
+             target = SqlDBTarget(table_name=f'{name}-tatget', db_path=db_path, create_table=True,
+                                   schema=schema, primary_key_column=key)
+        :param name:
+        :param path:
+        :param attributes:
+        :param after_step:
+        :param partitioned:
+        :param key_bucketing_number:
+        :param partition_cols:
+        :param time_partitioning_granularity:
+        :param after_state:
+        :param max_events:
+        :param flush_after_seconds:
+        :param storage_options:
+        :param db_url:                     url string connection to sql database.
+                                            If not set, the MLRUN_SQL__URL environment variable will
+                                            be used.
+        :param table_name:                  the name of the table to access,
+                                            from the current database
+        :param schema:                      the schema of the table (must pass when
+                                            create_table=True)
+        :param primary_key_column:          the primary key of the table (must pass always)
+        :param if_exists:                   {'fail', 'replace', 'append'}, default 'append'
+                                            - fail: If table exists, do nothing.
+                                            - replace: If table exists, drop it, recreate it, and insert data.
+                                            - append: If table exists, insert data. Create if does not exist.
+        :param create_table:                pass True if you want to create new table named by
+                                            table_name with schema on current database.
+        :param create_according_to_data:    (not valid)
+        :param time_fields :    all the field to be parsed as timestamp.
+        :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
+        """
+        create_according_to_data = False  # TODO: open for user
+        db_url = db_url or mlrun.mlconf.sql.url
+        if db_url is None or table_name is None:
+            attr = {}
+        else:
+            # check for table existence and acts according to the user input
+            self._primary_key_column = primary_key_column
+
+            attr = {
+                "table_name": table_name,
+                "db_path": db_url,
+                "create_according_to_data": create_according_to_data,
+                "if_exists": if_exists,
+                "time_fields": time_fields,
+                "varchar_len": varchar_len,
+            }
+            path = (
+                f"mlrunSql://@{db_url}//@{table_name}"
+                f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key_column}//@{create_table}"
+            )
+
+        if attributes:
+            attributes.update(attr)
+        else:
+            attributes = attr
+
+        super().__init__(
+            name,
+            path,
+            attributes,
+            after_step,
+            list(schema.keys()) if schema else None,
+            partitioned,
+            key_bucketing_number,
+            partition_cols,
+            time_partitioning_granularity,
+            max_events=max_events,
+            flush_after_seconds=flush_after_seconds,
+            storage_options=storage_options,
+            after_state=after_state,
+            schema=schema,
+        )
+
+    def add_writer_state(
+        self, graph, after, features, key_columns=None, timestamp_key=None
+    ):
+        warnings.warn(
+            "This method is deprecated. Use add_writer_step instead",
+            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
+            PendingDeprecationWarning,
+        )
+        """add storey writer state to graph"""
+        self.add_writer_step(graph, after, features, key_columns, timestamp_key)
+
+    def get_table_object(self):
+        from storey import SQLDriver, Table
+
+        (db_path, table_name, _, _, primary_key, _) = self._parse_url()
+        try:
+            primary_key = ast.literal_eval(primary_key)
+        except Exception:
+            pass
+        return Table(
+            f"{db_path}/{table_name}",
+            SQLDriver(db_path=db_path, primary_key=primary_key),
+            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+        )
+
+    def add_writer_step(
+        self,
+        graph,
+        after,
+        features,
+        key_columns=None,
+        timestamp_key=None,
+        featureset_status=None,
+    ):
+        key_columns = list(key_columns.keys())
+        column_list = self._get_column_list(
+            features=features, timestamp_key=timestamp_key, key_columns=key_columns
+        )
+        table = self._resource.uri
+        self._create_sql_table()
+        graph.add_step(
+            name=self.name or "SqlTarget",
+            after=after,
+            graph_shape="cylinder",
+            class_name="storey.NoSqlTarget",
+            columns=column_list,
+            header=True,
+            table=table,
+            index_cols=key_columns,
+            **self.attributes,
+        )
+
+    def as_df(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        **kwargs,
+    ):
+        db_path, table_name, _, _, _, _ = self._parse_url()
+        engine = sqlalchemy.create_engine(db_path)
+        with engine.connect() as conn:
+            df = pd.read_sql(
+                f"SELECT * FROM {self.attributes.get('table_name')}",
+                con=conn,
+                parse_dates=self.attributes.get("time_fields"),
+            )
+            if self._primary_key_column:
+                df.set_index(self._primary_key_column, inplace=True)
+            if columns:
+                df = df[columns]
+        return df
+
+    def write_dataframe(
+        self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
+    ):
+        self._create_sql_table()
+
+        if hasattr(df, "rdd"):
+            raise ValueError("Spark is not supported")
+        else:
+            (
+                db_path,
+                table_name,
+                create_according_to_data,
+                if_exists,
+                primary_key,
+                _,
+            ) = self._parse_url()
+            create_according_to_data = bool(create_according_to_data)
+            engine = sqlalchemy.create_engine(
+                db_path,
+            )
+            connection = engine.connect()
+            if create_according_to_data:
+                # todo : create according to first row.
+                pass
+            df.to_sql(table_name, connection, if_exists=if_exists)
+
+    def _parse_url(self):
+        path = self.path[len("mlrunSql:///") :]
+        return path.split("//@")
+
+    def purge(self):
+        pass
+
+    def _create_sql_table(self):
+        (
+            db_path,
+            table_name,
+            create_according_to_data,
+            if_exists,
+            primary_key,
+            create_table,
+        ) = self._parse_url()
+        try:
+            primary_key = ast.literal_eval(primary_key)
+            primary_key_for_check = primary_key
+        except Exception:
+            primary_key_for_check = [primary_key]
+        engine = sqlalchemy.create_engine(db_path)
+        with engine.connect() as conn:
+            metadata = sqlalchemy.MetaData()
+            table_exists = engine.dialect.has_table(conn, table_name)
+            if not table_exists and not create_table:
+                raise ValueError(f"Table named {table_name} is not exist")
+
+            elif not table_exists and create_table:
+                TYPE_TO_SQL_TYPE = {
+                    int: sqlalchemy.Integer,
+                    str: sqlalchemy.String(self.attributes.get("varchar_len")),
+                    datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    pd.Timestamp: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    bool: sqlalchemy.Boolean,
+                    float: sqlalchemy.Float,
+                    datetime.timedelta: sqlalchemy.Interval,
+                    pd.Timedelta: sqlalchemy.Interval,
+                }
+                # creat new table with the given name
+                columns = []
+                for col, col_type in self.schema.items():
+                    col_type = TYPE_TO_SQL_TYPE.get(col_type)
+                    if col_type is None:
+                        raise TypeError(f"{col_type} unsupported type")
+                    columns.append(
+                        sqlalchemy.Column(
+                            col, col_type, primary_key=(col in primary_key_for_check)
+                        )
+                    )
+
+                sqlalchemy.Table(table_name, metadata, *columns)
+                metadata.create_all(engine)
+                if_exists = "append"
+                self.path = (
+                    f"mlrunSql://@{db_path}//@{table_name}"
+                    f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key}//@{create_table}"
+                )
+                conn.close()
+
+
 kind_to_driver = {
     TargetTypes.parquet: ParquetTarget,
     TargetTypes.csv: CSVTarget,
@@ -1496,6 +1803,7 @@ kind_to_driver = {
     TargetTypes.kafka: KafkaTarget,
     TargetTypes.tsdb: TSDBTarget,
     TargetTypes.custom: CustomTarget,
+    TargetTypes.sql: SQLTarget,
 }
 
 

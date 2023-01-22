@@ -895,11 +895,16 @@ class TestFeatureStore(TestMLRunSystem):
         orig_columns.remove("patient_id")
         assert result_columns.sort() == orig_columns.sort()
 
-    def test_passthrough_feature_set(self):
+    @pytest.mark.parametrize("engine", ["storey", "pandas"])
+    def test_passthrough_feature_set(self, engine):
         name = f"measurements_set_{uuid.uuid4()}"
         key = "patient_id"
         measurements_set = fstore.FeatureSet(
-            name, entities=[Entity(key)], timestamp_key="timestamp", passthrough=True
+            name,
+            entities=[Entity(key)],
+            timestamp_key="timestamp",
+            passthrough=True,
+            engine=engine,
         )
         source = CSVSource(
             "mycsv",
@@ -907,12 +912,16 @@ class TestFeatureStore(TestMLRunSystem):
             time_field="timestamp",
         )
 
-        preview_pd = fstore.preview(
-            measurements_set,
-            source=source,
-        )
-        # preview does not do set_index on the entity
-        preview_pd.set_index("patient_id", inplace=True)
+        expected = source.to_dataframe().set_index("patient_id")
+
+        if engine != "pandas":  # pandas engine does not support preview (ML-2694)
+            preview_pd = fstore.preview(
+                measurements_set,
+                source=source,
+            )
+            # preview does not do set_index on the entity
+            preview_pd.set_index("patient_id", inplace=True)
+            assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
 
         fstore.ingest(measurements_set, source)
 
@@ -928,10 +937,7 @@ class TestFeatureStore(TestMLRunSystem):
         get_offline_pd = resp.to_dataframe()
         get_offline_pd["timestamp"] = pd.to_datetime(get_offline_pd["timestamp"])
 
-        expected = source.to_dataframe().set_index("patient_id")
-
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
-        assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
 
         # assert get_online correctness
         with fstore.get_online_feature_service(vector) as svc:

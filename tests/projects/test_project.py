@@ -718,6 +718,17 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == "some/other_image"
 
 
+def test_project_exports_default_image():
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    default_image = "myrepo/myimage1"
+    project = mlrun.new_project("proj1", save=False)
+    project.default_image = default_image
+
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert imported_project.default_image == default_image
+
+
 def test_run_function_passes_project_artifact_path(rundb_mock):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"

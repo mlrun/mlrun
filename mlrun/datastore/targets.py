@@ -20,6 +20,7 @@ import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 import pandas as pd
 import sqlalchemy
@@ -1191,13 +1192,9 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        from urllib.parse import urlparse
-
         parsed_url = urlparse(self.get_target_path())
         if parsed_url.hostname is None:
-            self.path = self._secrets.get(
-                "MLRUN_REDIS__URL", os.getenv("MLRUN_REDIS__URL")
-            )
+            self.path = mlrun.mlconf.redis.url
             parsed_url = urlparse(self.get_target_path())
 
         return {

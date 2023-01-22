@@ -19,7 +19,7 @@ def store_path_to_spark(path):
     if path.startswith("redis://") or path.startswith("rediss://"):
         url = urlparse(path)
         if url.path:
-            return url.path
+            path = url.path
     elif path.startswith("v3io:///"):
         path = "v3io:" + path[len("v3io:/") :]
     elif path.startswith("s3://"):

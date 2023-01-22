@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.3
+      - uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: mlrun
           repo: mlrun
@@ -66,7 +66,7 @@ jobs:
     if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
 
     steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.3
+      - uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: mlrun
           repo: ui

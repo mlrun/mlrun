@@ -269,48 +269,40 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 		return errors.Wrapf(err, "Failed to get log file size for run id %s", request.RunUID)
 	}
 
-	// We read only the logs for this moment in time, so GetLogs will be finite.
+	// if size < 0 - we read only the logs we have for this moment in time starting from offset, so GetLogs will be finite.
+	// otherwise, we read the only the request size from the offset
 	// TODO: when the sdk/UI will support streaming, we can remove this limitation, and stream the logs continuously
 	endSize := currentLogFileSize - request.Offset
+	if request.Size > 0 && endSize > request.Size {
+		endSize = request.Size
+	}
 
-	if request.Size < 0 || endSize > int64(s.bufferSizeBytes) {
-		offset := request.Offset
-		size := int64(s.bufferSizeBytes)
-		totalLogsSize := int64(0)
-		for {
-			if totalLogsSize-offset < size {
-				size = totalLogsSize - offset
-			}
-
-			// read logs from file in chunks of buffer size
-			logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, size)
-			if err != nil {
-				return errors.Wrapf(err, "Failed to read logs from file for run id %s", request.RunUID)
-			}
-			totalLogsSize += int64(len(logs))
-
-			// send logs to stream
-			if err := responseStream.Send(&protologcollector.GetLogsResponse{
-				Success: true,
-				Logs:    logs,
-			}); err != nil {
-				return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
-			}
-
-			// if the chunk is smaller than the buffer size (we reached the end of the file),
-			// or we reached the requested size, stop reading
-			if len(logs) < s.bufferSizeBytes || totalLogsSize >= endSize {
-				break
-			}
-
-			// increase offset by the read size
-			offset += int64(s.bufferSizeBytes)
+	// if the offset is bigger than the current log file size, return empty response
+	if endSize <= 0 {
+		s.Logger.DebugWithCtx(ctx, "Offset is bigger than log file size, returning empty response")
+		if err := responseStream.Send(&protologcollector.GetLogsResponse{
+			Success: true,
+			Logs:    []byte{},
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send empty logs to stream for run id %s", request.RunUID)
 		}
-	} else {
-		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, request.Offset, request.Size)
+		return nil
+	}
+
+	offset := request.Offset
+	totalLogsSize := int64(0)
+
+	// start reading the log file until we reach the end size
+	for {
+		chunkSize := s.getChunkSize(request.Size, endSize, offset)
+
+		// read logs from file in chunks
+		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, chunkSize)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to read logs from file for run id %s", request.RunUID)
 		}
+		totalLogsSize += int64(len(logs))
+
 		// send logs to stream
 		if err := responseStream.Send(&protologcollector.GetLogsResponse{
 			Success: true,
@@ -318,6 +310,15 @@ func (s *LogCollectorServer) GetLogs(request *protologcollector.GetLogsRequest, 
 		}); err != nil {
 			return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
 		}
+
+		// if we reached the end size, or the chunk is smaller than the chunk size
+		// (we reached the end of the file), stop reading
+		if totalLogsSize >= endSize || len(logs) < int(chunkSize) {
+			break
+		}
+
+		// increase offset by the read size
+		offset += int64(len(logs))
 	}
 
 	s.Logger.DebugWithCtx(ctx,
@@ -389,7 +390,7 @@ func (s *LogCollectorServer) startLogStreaming(ctx context.Context,
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 			s.Logger.WarnWithCtx(ctx,
-				"Failed to get pod log stream",
+				"Failed to get pod log stream, retrying",
 				"runUID", runUID,
 				"err", streamErr)
 			return true, streamErr
@@ -717,4 +718,23 @@ func (s *LogCollectorServer) isLogCollectionStarted(ctx context.Context, runUID 
 
 	_, started := inMemoryInProgress.Load(runUID)
 	return started
+}
+
+// getChunkSuze returns the minimum between the request size, buffer size and the remaining size to read
+func (s *LogCollectorServer) getChunkSize(requestSize, endSize, currentOffset int64) int64 {
+
+	chunkSize := int64(s.bufferSizeBytes)
+
+	// if the request size is smaller than the buffer size, use the request size
+	if requestSize > 0 && requestSize < chunkSize {
+		chunkSize = requestSize
+	}
+
+	// if the remaining size is smaller than the buffer size, use the remaining size
+	if endSize-currentOffset < chunkSize {
+		chunkSize = endSize - currentOffset
+	}
+
+	return chunkSize
+
 }

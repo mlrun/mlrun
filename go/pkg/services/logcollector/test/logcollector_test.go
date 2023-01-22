@@ -111,6 +111,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	// create pod that prints logs
 	expectedLogLines := 100
 	podName := "test-pod"
+	projectName := "test-project"
 	runUID := uuid.New().String()
 	pod := suite.getDummyPodSpec(podName, expectedLogLines)
 
@@ -125,8 +126,9 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 	// start log collection
 	startLogResponse, err := suite.LogCollectorServer.StartLog(suite.ctx, &log_collector.StartLogRequest{
-		RunUID:   runUID,
-		Selector: "app=test",
+		RunUID:      runUID,
+		Selector:    "app=test",
+		ProjectName: projectName,
 	})
 
 	suite.Require().NoError(err, "Failed to start log collection")

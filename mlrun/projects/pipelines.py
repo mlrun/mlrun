@@ -370,6 +370,10 @@ def enrich_function_object(
     f = function.copy() if copy_function else function
     f.metadata.project = project.metadata.name
     setattr(f, "_enriched", True)
+
+    # set project default image if defined and function does not have an image specified
+    f.spec.image = f.spec.image or project.default_image
+
     src = f.spec.build.source
     if src and src in [".", "./"]:
         if not project.spec.source and not project.spec.mountdir:

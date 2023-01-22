@@ -784,7 +784,12 @@ class FeatureSet(ModelObj):
         return self._spec.features[name]
 
     def __setitem__(self, key, item):
-        self._spec.features.update(item, key)
+        if key not in self._spec.entities.keys():
+            self._spec.features.update(item, key)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"FeatureSet can't have entity and " f"feature with the same name."
+            )
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         """generate graphviz plot"""

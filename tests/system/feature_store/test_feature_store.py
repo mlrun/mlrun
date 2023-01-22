@@ -3418,6 +3418,39 @@ class TestFeatureStore(TestMLRunSystem):
         expected_df.set_index(["first_name", "last_name"], inplace=True)
         assert res_df.equals(expected_df), f"unexpected result: {res_df}"
 
+    @pytest.mark.parametrize("engine", ["storey", "pandas"])
+    def test_ingest_twice_with_setting_feature(self, engine):
+        df = pd.DataFrame(
+            {
+                "key": [1, 2, 3, 4, 5, 6, 7],
+                "key1": [1, 2, 3, 4, 5, 6, 7],
+                "key2": ["C", "F", "I", "W", "X", "J", "K"],
+            }
+        )
+
+        for _ in range(2):
+            feature_set = fstore.FeatureSet(
+                "myfset", entities=[fstore.Entity("key")], engine=engine
+            )
+            feature_set["key1"] = fstore.Feature(
+                validator=MinMaxValidator(max=5, min=1, severity="info")
+            )
+            feature_set.graph.to(
+                FeaturesetValidator(),
+                name="validator",
+                columns=["key1"],
+                after=["do_nothing"],
+                full_event=True,
+            )
+            output_path = tempfile.TemporaryDirectory()
+            df = fstore.ingest(
+                feature_set,
+                df,
+                targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+            )
+
+        assert isinstance(df, pd.DataFrame)
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

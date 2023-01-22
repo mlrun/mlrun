@@ -108,6 +108,14 @@ class Feature(ModelObj):
         self.aggregate = aggregate
         self.origin = None  # used to link the feature to the feature set origin (inside vector.status)
         self._validator = validator
+        # bypass DB bug - self.value_type have to be set when saving fs
+        if not self.value_type:
+            if isinstance(self._validator, MinMaxValidator):
+                self.value_type = "int"
+            elif isinstance(self._validator, MinMaxLenValidator):
+                self.value_type = "list"
+            else:  # including regex validator
+                self.value_type = "str"
 
     @property
     def validator(self):
@@ -410,9 +418,12 @@ class RegexValidator(Validator):
         """
         super().__init__(check_type, severity)
         self.regex = regex
-        self.regex_compile = re.compile(self.regex)
+        self.regex_compile = None
 
     def check(self, value):
+        self.regex_compile = (
+            self.regex_compile if self.regex_compile else re.compile(self.regex)
+        )
         ok, args = super().check(value)
         if ok:
             try:

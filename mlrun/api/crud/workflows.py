@@ -226,20 +226,23 @@ class WorkflowRunners(
         return run_object
 
     @staticmethod
-    def _set_source(project: mlrun.api.schemas.Project, source: str) -> bool:
+    def _set_source(
+        project: mlrun.api.schemas.Project, source: str, load_only: bool = False
+    ) -> bool:
         """
         Setting the project source.
         In case the user provided a source we want to load the project from the source
         (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
 
-        :param project: MLRun project
-        :param source:  the source of the project, needs to be a remote URL that contains the project yaml file.
+        :param project:     MLRun project
+        :param source:      the source of the project, needs to be a remote URL that contains the project yaml file.
+        :param load_only:   if we only load the project, the project must be saved.
 
         :returns: True if the project need to be saved afterwards.
         """
 
         save = True
-        if source:
+        if source and not load_only:
             save = False
             project.spec.source = source
 
@@ -318,7 +321,7 @@ class WorkflowRunners(
 
         :returns: RunObject ready for execution.
         """
-        save = self._set_source(project, workflow_request.source)
+        save = self._set_source(project, workflow_request.source, load_only)
         run_object = RunObject(
             spec=RunSpec(
                 parameters=dict(

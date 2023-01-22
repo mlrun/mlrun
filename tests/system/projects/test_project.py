@@ -17,6 +17,7 @@ import pathlib
 import re
 import shutil
 import sys
+import time
 from sys import executable
 
 import pytest
@@ -836,3 +837,21 @@ class TestProject(TestMLRunSystem):
             engine="remote",
         )
         assert run.state == mlrun.run.RunStatuses.failed
+
+    def test_load_project_endpoint(self):
+        from mlrun.api.schemas.background_task import BackgroundTaskState
+
+        name = "test-load-proj-endpoint"
+        bg_task = self._run_db.load_project(
+            name=name, url="git://github.com/mlrun/project-demo.git"
+        )
+        assert bg_task.status.state != BackgroundTaskState.failed
+        # TODO: Now its failing, need to continue from here
+        for _ in range(15):
+            if bg_task.status.state != BackgroundTaskState.running:
+                break
+            bg_task = self._run_db.get_project_background_task(
+                project=name, name=bg_task.metadata.name
+            )
+            time.sleep(1)
+        assert bg_task.status.state == BackgroundTaskState.succeeded

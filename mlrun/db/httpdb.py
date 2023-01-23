@@ -420,7 +420,8 @@ class HTTPRunDB(RunDBInterface):
         """
         path = self._path_of("log-stream", project, uid)
         error = f"stream log {project}/{uid}"
-        self.api_call("GET", path, error, stream=True, to_stdout=True)
+        response = self.api_call("GET", path, error)
+        print(response.content.decode())
 
     def get_log(self, uid, project="", offset=0, size=-1):
         """Retrieve a log.

@@ -1557,7 +1557,6 @@ class MlrunProject(ModelObj):
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
                 raise ValueError("function name must be specified")
-            image = image or self.default_image
             function_dict = {
                 "url": func,
                 "name": name,
@@ -2773,7 +2772,7 @@ def _init_function_from_dict(f, project, name=None):
             name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
     elif url.endswith(".py"):
-        if not image and kind != "local":
+        if not image and not project.default_image and kind != "local":
             raise ValueError(
                 "image must be provided with py code files which do not "
                 "run on 'local' engine kind"

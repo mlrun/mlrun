@@ -700,24 +700,28 @@ def test_function_receives_project_default_image():
     proj1.default_image = default_image
     proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
 
-    enriched_function = proj1.get_function("func")
+    # Functions should remain without the default image in the project cache (i.e. without enrichment). Only with
+    # enrichment, the default image should apply
+    non_enriched_function = proj1.get_function("func", enrich=False)
+    assert non_enriched_function.spec.image == ""
+    enriched_function = proj1.get_function("func", enrich=True)
     assert enriched_function.spec.image == default_image
 
-    # When using a function object, it is kept without the image. Only when enriching the default image is added
+    # Same check - with a function object
     func1 = mlrun.code_to_function(
         "func2", kind="job", handler="myhandler", filename=func_path
     )
     proj1.set_function(func1, name="func2")
 
-    enriched_function = proj1.get_function("func2", enrich=False)
-    assert enriched_function.spec.image == ""
-
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.image == ""
     enriched_function = proj1.get_function("func2", enrich=True)
     assert enriched_function.spec.image == default_image
 
-    # If function already had an image, the default image should not override
+    # If function already had an image, the default image must not override
     func1.spec.image = "some/other_image"
     proj1.set_function(func1, name="func3")
+
     enriched_function = proj1.get_function("func3", enrich=True)
     assert enriched_function.spec.image == "some/other_image"
 

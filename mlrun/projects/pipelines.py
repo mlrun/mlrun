@@ -372,7 +372,9 @@ def enrich_function_object(
     setattr(f, "_enriched", True)
 
     # set project default image if defined and function does not have an image specified
-    f.spec.image = f.spec.image or project.default_image
+    if project.spec.default_image and not f.spec.image:
+        setattr(f, "_enriched_image", True)
+        f.spec.image = project.spec.default_image
 
     src = f.spec.build.source
     if src and src in [".", "./"]:

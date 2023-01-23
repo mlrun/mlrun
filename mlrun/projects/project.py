@@ -767,16 +767,16 @@ class ProjectSpec(ModelObj):
 
     def _replace_default_image_in_enriched_functions(self, previous_image, new_image):
         """
-        Set a new project-default-image in functions that were already enriched. This is done on functions that didn't
-        have an image prior to this change or used the previous default image.
+        Set a new project-default-image in functions that were already enriched.
         """
         if previous_image == new_image:
             return
         for key in self._function_objects:
             function = self._function_objects[key]
-            if hasattr(function, "_enriched") and getattr(function, "_enriched", False):
-                if not function.spec.image or function.spec.image == previous_image:
-                    function.spec.image = new_image
+            if hasattr(function, "_enriched_image") and getattr(
+                function, "_enriched_image", False
+            ):
+                function.spec.image = new_image
 
 
 class ProjectStatus(ModelObj):
@@ -1012,8 +1012,7 @@ class MlrunProject(ModelObj):
     def default_image(self) -> str:
         return self.spec.default_image
 
-    @default_image.setter
-    def default_image(self, default_image: str):
+    def set_default_image(self, default_image: str):
         current_default_image = self.spec.default_image
         if current_default_image:
             self.spec._replace_default_image_in_enriched_functions(
@@ -1657,7 +1656,10 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         if enrich:
-            return enrich_function_object(self, function, copy_function=copy_function)
+            function = enrich_function_object(
+                self, function, copy_function=copy_function
+            )
+            self.spec._function_objects[key] = function
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:

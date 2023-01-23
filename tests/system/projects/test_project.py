@@ -598,7 +598,7 @@ class TestProject(TestMLRunSystem):
         assert run_result.output("score")
 
         # Use project default image to run function, don't specify image when calling set_function
-        project.default_image = fn.spec.image
+        project.set_default_image(fn.spec.image)
         project.set_function(
             "./sentiment.py",
             "scores4",

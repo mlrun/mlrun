@@ -22,6 +22,8 @@ GOPATH ?= $(shell go env GOPATH)
 OS_NAME = $(shell uname)
 DOCKER_IMAGES = log-collector
 
+CI_BIN_DIR=$(shell pwd)/.bin
+
 #
 # Build
 #
@@ -129,26 +131,26 @@ fmt:
 .PHONY: lint
 lint: ensure-test-files-annotated
 	@echo Installing linters...
-	@test -e $(GOPATH)/bin/impi || \
-		(mkdir -p $(GOPATH)/bin && \
+	@test -e $(CI_BIN_DIR)/impi || \
+		(mkdir -p $(CI_BIN_DIR) && \
 		curl -s https://api.github.com/repos/pavius/impi/releases/latest \
 		| grep -i "browser_download_url.*impi.*$(OS_NAME)" \
 		| cut -d : -f 2,3 \
 		| tr -d \" \
-		| wget -O $(GOPATH)/bin/impi -qi - \
-		&& chmod +x $(GOPATH)/bin/impi)
+		| wget -O $(CI_BIN_DIR)/impi -qi - \
+		&& chmod +x $(CI_BIN_DIR)/impi)
 
-	@test -e $(GOPATH)/bin/golangci-lint || \
-	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v1.50.0)
+	@test -e $(CI_BIN_DIR)/golangci-lint || \
+	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.50.0)
 
 	@echo Verifying imports...
-	$(GOPATH)/bin/impi \
+	$(CI_BIN_DIR)/impi \
 		--local github.com/mlrun/mlrun/ \
 		--scheme stdLocalThirdParty \
 		./cmd/... ./pkg/...
 
 	@echo Linting...
-	$(GOPATH)/bin/golangci-lint run -v
+	$(CI_BIN_DIR)/golangci-lint run -v
 	@echo Done.
 
 .PHONY: ensure-test-files-annotated

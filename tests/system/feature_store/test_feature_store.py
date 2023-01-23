@@ -3429,7 +3429,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         feature_set = fstore.FeatureSet(
-            "myfset_232", entities=[fstore.Entity("key")], engine=engine
+            "myfset", entities=[fstore.Entity("key")], engine=engine
         )
         feature_set["key1"] = fstore.Feature(
             validator=RegexValidator(regex=".[A-Za-z]", severity="info"),

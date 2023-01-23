@@ -91,11 +91,11 @@ func WriteToFile(filePath string,
 	// this flag enables us to create the file if it doesn't exist, and open the file read/write permissions
 	openFlags := os.O_CREATE | os.O_RDWR
 	if append {
-		openFlags = openFlags | os.O_APPEND
+		openFlags |= os.O_APPEND
 	} else {
 
 		// if we're not appending, we want to truncate the file
-		openFlags = openFlags | os.O_TRUNC
+		openFlags |= os.O_TRUNC
 	}
 
 	if err := EnsureFileExists(filePath); err != nil {

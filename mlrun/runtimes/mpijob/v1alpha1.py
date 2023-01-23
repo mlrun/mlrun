@@ -194,10 +194,6 @@ class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
         return f"mlrun/uid={object_id}"
 
     @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["mpijob"]
-
-    @staticmethod
     def _get_run_completion_updates(run: dict) -> dict:
 
         # TODO: add a 'workers' section in run objects state, each worker will update its state while

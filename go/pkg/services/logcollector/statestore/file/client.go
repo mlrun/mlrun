@@ -16,6 +16,7 @@ package file
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path"
 	"sync"
@@ -121,7 +122,7 @@ func (f *FileStateStore) stateFileUpdateLoop(ctx context.Context) {
 func (f *FileStateStore) writeStateToFile(state *statestore.State) error {
 
 	// marshal state file
-	encodedState, err := common.MarshalState(state)
+	encodedState, err := json.Marshal(state)
 	if err != nil {
 		return errors.Wrap(err, "Failed to encode state file")
 	}
@@ -150,6 +151,8 @@ func (f *FileStateStore) readStateFile() (*statestore.State, error) {
 		return nil, errors.Wrap(err, "Failed to read stateFile")
 	}
 
+	state := &statestore.State{}
+
 	if len(stateFileBytes) == 0 {
 
 		// if file is empty, return the empty state instance
@@ -159,8 +162,7 @@ func (f *FileStateStore) readStateFile() (*statestore.State, error) {
 	}
 
 	// unmarshal
-	state, err := common.UnmarshalState(stateFileBytes)
-	if err != nil {
+	if err := json.Unmarshal(stateFileBytes, state); err != nil {
 		return nil, errors.Wrap(err, "Failed to unmarshal state file")
 	}
 

@@ -1,3 +1,5 @@
+//go:build test_integration
+
 // Copyright 2018 Iguazio
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package test
+package integration
 
 import (
 	"context"
@@ -228,5 +230,8 @@ func (suite *LogCollectorTestSuite) getDummyPodSpec(podName string, lifeCycleSec
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {
+	if testing.Short() {
+		return
+	}
 	suite.Run(t, new(LogCollectorTestSuite))
 }

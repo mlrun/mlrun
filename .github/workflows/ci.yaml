@@ -90,8 +90,17 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
 
-  go-tests:
-    name: Run GO Tests in Kubernetes Environment
+  go-unit-tests:
+    name: Run GO Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run GO tests
+        run: |
+          make test-go-unit-dockerized
+
+  go-integration-tests:
+    name: Run GO Integration Tests in Kubernetes Environment
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -103,7 +112,7 @@ jobs:
           github token: ${{ github.token }}
       - name: Run GO tests
         run: |
-          make test-go-dockerized
+          make test-go-integration-dockerized
 
   migrations-tests:
     name: Run Dockerized Migrations Tests

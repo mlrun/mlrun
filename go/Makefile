@@ -93,17 +93,28 @@ cleanup:
 #
 # Test
 #
-.PHONY: test-local
-test-local: compile-schemas-local
-	go test ./...
+.PHONY: test-unit-local
+test-unit-local: compile-schemas-local
+	go -race -tags=test_unit test ./... -short
 
-.PHONY: test-dockerized
-test-dockerized: schemas-compiler
+.PHONY: test-integration-local
+test-integration-local: compile-schemas-local
+	go -race -tags=test_integration test ./...
+
+.PHONY: test-unit-dockerized
+test-integration-dockerized: schemas-compiler
+	docker run \
+		-v $(shell dirname $(PWD)):/app \
+		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		make test-unit-local
+
+.PHONY: test-unit-dockerized
+test-integration-dockerized: schemas-compiler
 	docker run \
 		-v $(HOME)/.kube/config:/root/.kube/config \
 		-v $(shell dirname $(PWD)):/app \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
-		make test-local
+		make test-integration-local
 
 #
 # Misc

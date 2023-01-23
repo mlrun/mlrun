@@ -562,14 +562,24 @@ test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run
 
 .PHONY: test-go
-test-go: ## Run mlrun go tests
+test-go-unit: ## Run mlrun go unit tests
 	cd go && \
-		make test-local
+		make test-unit-local
 
 .PHONY: test-go-dockerized
-test-go-dockerized: ## Run mlrun go tests in docker container
+test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
 	cd go && \
-		make test-dockerized
+		make test-unit-dockerized
+
+.PHONY: test-go
+test-go-integration: ## Run mlrun go unit tests
+	cd go && \
+		make test-integration-local
+
+.PHONY: test-go-dockerized
+test-go-integration-dockerized: ## Run mlrun go unit tests in docker container
+	cd go && \
+		make test-integration-dockerized
 
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)

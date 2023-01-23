@@ -90,6 +90,21 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
 
+  go-tests:
+    name: Run go tests in k8s environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: manusa/actions-setup-minikube@v2.7.2
+        with:
+          minikube version: "v1.28.0"
+          kubernetes version: "v1.25.4"
+          driver: docker
+          github token: ${{ github.token }}
+      - name: Run GO tests
+        run: |
+          make test-go-dockerized
+
   migrations-tests:
     name: Run Dockerized Migrations Tests
     runs-on: ubuntu-latest

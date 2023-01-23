@@ -561,6 +561,16 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run
 
+.PHONY: test-go
+test-go: ## Run mlrun go tests
+	cd go && \
+		make test-local
+
+.PHONY: test-go-dockerized
+test-go-dockerized: ## Run mlrun go tests in docker container
+	cd go && \
+		make test-dockerized
+
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db

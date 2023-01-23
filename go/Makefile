@@ -91,6 +91,21 @@ cleanup:
 
 
 #
+# Test
+#
+.PHONY: test-local
+test-local: compile-schemas-local
+	go test ./...
+
+.PHONY: test-dockerized
+test-dockerized: schemas-compiler
+	docker run \
+		-v $(HOME)/.kube/config:/root/.kube/config \
+		-v $(shell dirname $(PWD)):/app \
+		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		make test-local
+
+#
 # Misc
 #
 .PHONY: fmt

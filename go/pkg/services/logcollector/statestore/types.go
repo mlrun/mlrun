@@ -16,9 +16,11 @@ package statestore
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
+	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
 )
 
@@ -34,8 +36,50 @@ type LogItem struct {
 	LabelSelector string `json:"labelSelector"`
 }
 
+// MarshalledState is a helper struct for marshalling the state
+type marshalledState struct {
+	InProgress map[string]LogItem `json:"inProgress"`
+}
+
 type State struct {
 	InProgress *sync.Map `json:"inProgress"`
+}
+
+func (s *State) UnmarshalJSON(data []byte) error {
+	tempState := marshalledState{
+		InProgress: map[string]LogItem{},
+	}
+
+	s.InProgress = &sync.Map{}
+
+	if err := json.Unmarshal(data, &tempState); err != nil {
+		return errors.Wrap(err, "Failed to unmarshal data")
+	}
+	for key, value := range tempState.InProgress {
+		s.InProgress.Store(key, value)
+	}
+	return nil
+}
+
+func (s *State) MarshalJSON() ([]byte, error) {
+
+	tempState := marshalledState{
+		InProgress: map[string]LogItem{},
+	}
+
+	s.InProgress.Range(func(key, value interface{}) bool {
+		keyString, ok := key.(string)
+		if !ok {
+			return false
+		}
+		valueLogItem, ok := value.(LogItem)
+		if !ok {
+			return false
+		}
+		tempState.InProgress[keyString] = valueLogItem
+		return true
+	})
+	return json.Marshal(tempState)
 }
 
 type Config struct {

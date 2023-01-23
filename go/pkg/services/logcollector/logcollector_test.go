@@ -45,7 +45,6 @@ type LogCollectorTestSuite struct {
 	namespace          string
 	projectName        string
 	baseDir            string
-	kubeConfigFilePath string
 }
 
 func (suite *LogCollectorTestSuite) SetupSuite() {
@@ -68,26 +67,18 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	err = os.MkdirAll(suite.baseDir, 0777)
 	suite.Require().NoError(err, "Failed to create base dir")
 
-	// get kube config file path
-	homeDir, err := os.UserHomeDir()
-	suite.Require().NoError(err, "Failed to get home dir")
-	suite.kubeConfigFilePath = path.Join(homeDir, ".kube", "config")
-
 	// create log collector server
 	suite.LogCollectorServer, err = NewLogCollectorServer(suite.logger,
 		suite.namespace,
 		suite.baseDir,
-		suite.kubeConfigFilePath,
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
 		monitoringInterval,
+		&suite.kubeClientSet,
 		bufferPoolSize,
 		bufferPoolSize,
 		bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
-
-	// overwrite log collector server's kube client set with the fake one
-	suite.LogCollectorServer.kubeClientSet = &suite.kubeClientSet
 
 	suite.logger.InfoWith("Setup complete")
 }

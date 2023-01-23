@@ -59,26 +59,16 @@ type LogCollectorServer struct {
 func NewLogCollectorServer(logger logger.Logger,
 	namespace,
 	baseDir,
-	kubeconfigPath,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval string,
-	logCollectionBufferPoolSize,
+	kubeClientSet kubernetes.Interface,
+	logCollectionbufferPoolSize,
 	getLogsBufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
-	}
-
-	// initialize kubernetes client
-	restConfig, err := common.GetKubernetesClientConfig(kubeconfigPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get client configuration")
-	}
-	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create kubernetes client set")
 	}
 
 	// parse interval durations
@@ -684,7 +674,7 @@ func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 		// if there are already log items in progress, call StartLog for each of them
 		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
 		if err == nil {
-			logItemsInProgress.Range(func(key, value any) bool {
+			logItemsInProgress.Range(func(key, value interface{}) bool {
 				runUID, ok := key.(string)
 				if !ok {
 					s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")

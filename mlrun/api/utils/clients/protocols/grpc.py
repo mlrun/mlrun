@@ -18,7 +18,6 @@ import grpc
 import mlrun.api.schemas
 import mlrun.config
 import mlrun.errors
-from mlrun.utils import logger
 
 
 class BaseGRPCClient(object):
@@ -49,6 +48,10 @@ class BaseGRPCClient(object):
         if self.stub_class:
             self._stub = self.stub_class(self._channel)
 
+    def _ensure_stub(self):
+        if not self._stub:
+            raise mlrun.errors.MLRunRuntimeError("Client not initialized")
+
     async def _call(
         self,
         endpoint: str,
@@ -60,9 +63,7 @@ class BaseGRPCClient(object):
         :param request: The request to send to the server
         :return: The server response
         """
-        if not self._stub:
-            raise mlrun.errors.MLRunRuntimeError("Client not initialized")
-        logger.debug("Calling endpoint", endpoint=endpoint, request=request)
+        self._ensure_stub()
         response = await getattr(self._stub, endpoint)(request)
         return response
 
@@ -77,8 +78,6 @@ class BaseGRPCClient(object):
         :param request: The request to send to the server
         :return: A generator stream of the server responses
         """
-        if not self._stub:
-            raise mlrun.errors.MLRunRuntimeError("Client not initialized")
-        logger.debug("Calling stream endpoint", endpoint=endpoint, request=request)
+        self._ensure_stub()
         response_stream = getattr(self._stub, endpoint)(request)
         return response_stream

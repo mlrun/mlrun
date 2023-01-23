@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import time
 
 import mlrun
 import tests.system.base
@@ -47,16 +46,22 @@ class TestLogCollector(tests.system.base.TestMLRunSystem):
         )
         run = function.run(params={"life_cycle_seconds": life_cycle_seconds})
 
-        # wait a bit for the log collector to start collecting logs for the function
-        time.sleep(10)
-
-        # call get logs with the run id
-        state, logs = mlrun.get_run_db().get_log(run.metadata.uid, project=proj.name)
+        # we retry getting logs in case the log collector hadn't started collecting logs for the function.
+        # since log collecting starts in a periodic task, it might take a few seconds for it to start
+        state, logs = mlrun.utils.retry_until_successful(
+            3,
+            12,
+            self._logger,
+            True,
+            mlrun.get_run_db().get_log,
+            uid=run.metadata.uid,
+            project=proj.name,
+        )
 
         # verify run state is not unknown
-        assert state != "unknown"
+        assert state != "unknown", f"Unexpected state {state}"
 
         # verify the logs are not empty
-        assert logs
+        assert logs, "Expected logs to be not empty"
 
         self._logger.debug("Finished log collector test")

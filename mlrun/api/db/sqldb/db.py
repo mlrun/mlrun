@@ -1157,7 +1157,7 @@ class SQLDB(DBInterface):
             session, project, name, raise_on_conflict
         )
         if not schedule_record:
-            return schedule_record
+            return
         schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 

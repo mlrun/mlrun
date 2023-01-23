@@ -63,7 +63,6 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cython \
         make \
         nccl \
-        python=${MLRUN_PYTHON_VERSION} \
         pytorch=1.13 \
         rapids=22.10 \
         tensorflow=2.9 \

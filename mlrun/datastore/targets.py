@@ -1197,13 +1197,20 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         else:
             return f"{scheme}://{host}:{port}"
 
+    # First it tries to fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
+    # If not set it tries to fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
+    # And if that's not set, it tries to build it from the secrets
+    def _get_server_endpoint(self):
+        endpoint, uri = parse_path(self.get_target_path())
+        endpoint = endpoint or mlrun.mlconf.redis.url
+        endpoint = endpoint or self._make_endpoint_from_secrets()
+        return endpoint, uri
+
     def get_table_object(self):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = parse_path(self.get_target_path())
-        endpoint = endpoint or mlrun.mlconf.redis.url
-        endpoint = endpoint or self._make_endpoint_from_secrets()
+        endpoint, uri = self._get_server_endpoint()
 
         return Table(
             uri,
@@ -1213,10 +1220,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
 
-        endpoint, uri = parse_path(self.get_target_path())
-        endpoint = endpoint or mlrun.mlconf.redis.url
-        endpoint = endpoint or self._make_endpoint_from_secrets()
-
+        endpoint, uri = self._get_server_endpoint()
         parsed_endpoint = urlparse(endpoint)
 
         return {

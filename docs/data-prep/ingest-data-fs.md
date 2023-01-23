@@ -1,8 +1,6 @@
 (ingest-data-fs)=
 # Ingest data using the feature store
 
-<!-- taken from feature-store/feature-sets -->
-
 Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
@@ -30,6 +28,8 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 - [Data sources](#data-sources)
 - [Target stores](#target-stores)
 
+See also {ref}`feature-store`.
+
 ## Inferring data
 
 There are 2 types of infer options:
@@ -56,10 +56,10 @@ When simultaneously ingesting data and requesting infer options, part of the dat
 
 ## Ingest data locally
 
-Use a Feature Set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
+Use a feature set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
 
 ```python
-# Simple feature set that reads a csv file as a dataframe and ingests it as is 
+# Simple feature set that reads a csv file as a dataframe and ingests it "as is" 
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 stocks = pd.read_csv("stocks.csv")
 df = ingest(stocks_set, stocks)
@@ -80,7 +80,7 @@ This option is more robust since it can leverage the cluster resources, as oppos
 It also enables you to schedule the job or use bigger/faster resources.
 
 ```python
-# Running as remote job
+# Running as a remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 config = RunConfig(image='mlrun/mlrun')
 df = ingest(stocks_set, stocks, run_config=config)
@@ -88,7 +88,7 @@ df = ingest(stocks_set, stocks, run_config=config)
 
 ## Real-time ingestion
 
-Real-time use cases (e.g. real time fraud detection) require feature engineering on live data (e.g. z-score calculation)
+Real-time use cases (e.g. real-time fraud detection) require feature engineering on live data (e.g. z-score calculation)
 while the data is coming from a streaming engine (e.g. kafka) or a live http endpoint. <br>
 The feature store enables you to start real-time ingestion service. <br>
 When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real-time serverless function 
@@ -105,22 +105,25 @@ config = RunConfig(function=func)
 fstore.deploy_ingestion_service(my_set, source, run_config=config)
 ```
 
-To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
+To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
 
 ## Incremental ingestion
 
-You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
+You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source 
+and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
 Example:
 
 ```
-cron_trigger = "* */1 * * *" #will run every hour
+cron_trigger = "* */1 * * *" #runs every hour
 source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
 feature_set = fstore.FeatureSet(name=name, entities=[fstore.Entity("first_name")], timestamp_key="time",)
 fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
 ```
 
-The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.
-For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). For Spark engine, other sources are also supported. 
+The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the 
+target from the previous ingest is not deleted.
+For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). 
+For Spark engine, other sources are also supported. 
 
 ## Data sources
 
@@ -138,11 +141,13 @@ You can also create a custom `source` to access various databases or data source
 ## Target stores
 
 By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
-The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
+The Parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application 
+since it supports low latency data retrieval based on key access. 
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
-The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage, Redis, and on Iguazio DB/FS.
+The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in 
+NFS, S3, Azure blob storage, Redis, and on Iguazio DB/FS.
 ```
 
 ### Redis target store

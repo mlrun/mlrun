@@ -18,7 +18,6 @@ import grpc
 import mlrun.api.schemas
 import mlrun.config
 import mlrun.errors
-from mlrun.utils import logger
 
 
 class BaseGRPCClient(object):

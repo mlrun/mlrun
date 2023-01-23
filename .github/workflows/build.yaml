@@ -103,7 +103,7 @@ jobs:
           echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registries=$( \
           input_docker_registries=${{ github.event.inputs.docker_registries }} && \
-          echo ${input_docker_registries:-ghcr.io/})"
+          echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
     - name: Docker login
       # all suffixed with "| true" to allow failures if secrets are not defined (fork)

@@ -80,9 +80,6 @@ with GCP clients, only compatible packages are installed.
 #### Models
 - The Labels in the **Models > Overview** tab can be edited.
 
-#### Third party integrations
-- Supports Confluent Kafka (Tech Preview).
-
 #### Internal
 - Refactor artifacts endpoints to follow the MLRun convention of `/projects/<project>/artifacts/...`. (The previous API will be deprecated in a future release.)
 - Add `/api/_internal/memory-reports/` endpoints for memory related metrics to better understand the memory consumption of the API.

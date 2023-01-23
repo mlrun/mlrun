@@ -56,6 +56,10 @@ jobs:
     name: Lint code (GO)
     runs-on: ubuntu-latest
     steps:
+      - name: Dump runner context
+        run: echo "$RUNNER_CONTEXT"
+        env:
+          RUNNER_CONTEXT: ${{ toJson(runner) }}
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
         with:

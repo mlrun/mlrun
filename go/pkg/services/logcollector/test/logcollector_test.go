@@ -82,10 +82,10 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.LogCollectorServer, err = logcollector.NewLogCollectorServer(suite.logger,
 		suite.namespace,
 		suite.baseDir,
-		kubeConfigFilePath,
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
 		monitoringInterval,
+		suite.kubeClientSet,
 		bufferPoolSize,
 		bufferPoolSize,
 		suite.bufferSizeBytes)
@@ -177,7 +177,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 
-	runUID := "some-uid"
+	runUID := "dummy-uid"
 	selector := "mlrun/uid=cde099c6724742859b8b2115eb767429,mlrun/class in (j, o, b),mlrun/project=default"
 
 	// start log collection

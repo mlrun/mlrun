@@ -63,22 +63,13 @@ func NewLogCollectorServer(logger logger.Logger,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval string,
+	kubeClientSet kubernetes.Interface,
 	logCollectionbufferPoolSize,
 	getLogsBufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
-	}
-
-	// initialize kubernetes client
-	restConfig, err := common.GetKubernetesClientConfig(kubeconfigPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get client configuration")
-	}
-	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create kubernetes client set")
 	}
 
 	// parse interval durations

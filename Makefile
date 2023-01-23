@@ -646,6 +646,16 @@ flake8: ## Run flake8 lint
 	@echo "Running flake8 lint..."
 	python -m flake8 .
 
+.PHONY: lint-go
+lint-go:
+	cd go && \
+		make lint
+
+.PHONY: fmt-go
+fmt-go:
+	cd go && \
+		make fmt
+
 .PHONY: release
 release: ## Release a version
 ifndef MLRUN_VERSION

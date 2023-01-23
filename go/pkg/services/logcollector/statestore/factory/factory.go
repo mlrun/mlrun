@@ -22,15 +22,16 @@ import (
 	"github.com/nuclio/errors"
 )
 
+// CreateStateStore creates a state store of a given kind
 func CreateStateStore(
-	stateStoreType statestore.StateStoreType,
+	stateStoreKind statestore.Kind,
 	configuration *statestore.Config) (statestore.StateStore, error) {
 
-	switch stateStoreType {
-	case statestore.StateStoreTypeFile:
-		return file.NewFileStateStore(configuration.Logger, configuration.BaseDir, configuration.StateFileUpdateInterval), nil
-	case statestore.StateStoreTypeInMemory:
-		return inmemory.NewInMemoryStateStore(), nil
+	switch stateStoreKind {
+	case statestore.KindFile:
+		return file.NewFileStore(configuration.Logger, configuration.BaseDir, configuration.StateFileUpdateInterval), nil
+	case statestore.KindInMemory:
+		return inmemory.NewInMemoryStore(), nil
 	default:
 		return nil, errors.New("Unknown state store type")
 	}

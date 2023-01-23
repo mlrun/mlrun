@@ -40,7 +40,7 @@ import (
 
 type LogCollectorTestSuite struct {
 	suite.Suite
-	LogCollectorServer *logcollector.LogCollectorServer
+	LogCollectorServer *logcollector.Server
 	logger             logger.Logger
 	ctx                context.Context
 	kubeClientSet      kubernetes.Interface
@@ -139,7 +139,7 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 	time.Sleep(10 * time.Second)
 
 	// mock the get logs server stream
-	nopStream := &nop.GetLogsServerNop{}
+	nopStream := &nop.GetLogsResponseStreamNop{}
 
 	var logs []string
 	startedGettingLogsTime := time.Now()

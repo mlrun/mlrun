@@ -726,7 +726,7 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == "some/other_image"
 
     # Enrich the function in-place. Validate that changing the default image affects this function
-    # proj1.get_function("func", enrich=True, copy_function=False)
+    proj1.get_function("func", enrich=True, copy_function=False)
     new_default_image = "mynewrepo/mynewimage1"
     proj1.default_image = new_default_image
 

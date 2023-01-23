@@ -59,26 +59,16 @@ type LogCollectorServer struct {
 func NewLogCollectorServer(logger logger.Logger,
 	namespace,
 	baseDir,
-	kubeconfigPath,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval string,
+	kubeClientSet kubernetes.Interface,
 	logCollectionbufferPoolSize,
 	getLogsBufferPoolSize,
 	bufferSizeBytes int) (*LogCollectorServer, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
-	}
-
-	// initialize kubernetes client
-	restConfig, err := common.GetKubernetesClientConfig(kubeconfigPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get client configuration")
-	}
-	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to create kubernetes client set")
 	}
 
 	// parse interval durations
@@ -598,14 +588,14 @@ func (s *LogCollectorServer) validateOffsetAndSize(offset uint64, size, fileSize
 		size = int64(math.Min(float64(fileSize), float64(s.bufferSizeBytes)))
 	}
 
-	// if offset is bigger than file size, don't read anything.
-	if int64(offset) > fileSize {
-		size = 0
-	}
-
 	// if size is bigger than what's left to read, only read the rest of the file
 	if size > fileSize-int64(offset) {
 		size = fileSize - int64(offset)
+	}
+
+	// if offset is bigger than file size, don't read anything.
+	if int64(offset) > fileSize {
+		size = 0
 	}
 
 	return offset, size

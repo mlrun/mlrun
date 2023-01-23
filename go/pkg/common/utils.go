@@ -15,12 +15,15 @@
 package common
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 
 	"github.com/nuclio/errors"
 	"k8s.io/client-go/rest"
@@ -171,6 +174,50 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
 	}
 
-	// duration expired but no error
+	// duration expired, but last callback failed
+	if shouldRetry {
+		return result, errors.New(timedOutErrorMessage)
+	}
+
+	// duration expired, but last callback succeeded
 	return result, lastErr
+}
+
+func UnmarshalState(data []byte) (*statestore.State, error) {
+	tempState := statestore.MarshalledState{
+		InProgress: map[string]statestore.LogItem{},
+	}
+
+	newState := &statestore.State{
+		InProgress: &sync.Map{},
+	}
+
+	if err := json.Unmarshal(data, &tempState); err != nil {
+		return nil, errors.Wrap(err, "Failed to unmarshal data")
+	}
+	for key, value := range tempState.InProgress {
+		newState.InProgress.Store(key, value)
+	}
+	return newState, nil
+}
+
+func MarshalState(s *statestore.State) ([]byte, error) {
+
+	tempState := statestore.MarshalledState{
+		InProgress: map[string]statestore.LogItem{},
+	}
+
+	s.InProgress.Range(func(key, value interface{}) bool {
+		keyString, ok := key.(string)
+		if !ok {
+			return false
+		}
+		valueLogItem, ok := value.(statestore.LogItem)
+		if !ok {
+			return false
+		}
+		tempState.InProgress[keyString] = valueLogItem
+		return true
+	})
+	return json.Marshal(tempState)
 }

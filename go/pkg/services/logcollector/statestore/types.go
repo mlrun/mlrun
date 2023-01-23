@@ -38,6 +38,11 @@ type State struct {
 	InProgress *sync.Map `json:"inProgress"`
 }
 
+// MarshalledState is a helper struct for marshalling the state
+type MarshalledState struct {
+	InProgress map[string]LogItem `json:"inProgress"`
+}
+
 type Config struct {
 	Logger                  logger.Logger
 	StateFileUpdateInterval time.Duration

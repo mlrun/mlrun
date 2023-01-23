@@ -80,10 +80,10 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.LogCollectorServer, err = logcollector.NewLogCollectorServer(suite.logger,
 		suite.namespace,
 		suite.baseDir,
-		kubeConfigFilePath,
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
 		monitoringInterval,
+		suite.kubeClientSet,
 		bufferPoolSize,
 		bufferPoolSize,
 		suite.bufferSizeBytes)
@@ -172,7 +172,7 @@ func (suite *LogCollectorTestSuite) TestStartLogFailureOnLabelSelector() {
 
 	// create pod that prints logs
 	podName := "some-pod"
-	runUID := "some-uid"
+	runUID := "dummy-uid"
 	pod := suite.getDummyPodSpec(podName, 100)
 
 	_, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, pod, metav1.CreateOptions{})

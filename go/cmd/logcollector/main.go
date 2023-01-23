@@ -24,6 +24,7 @@ import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector"
 
 	"github.com/nuclio/errors"
+	"k8s.io/client-go/kubernetes"
 )
 
 func StartServer() error {
@@ -48,6 +49,16 @@ func StartServer() error {
 
 	*namespace = getNamespace(*namespace)
 
+	// initialize kubernetes client
+	restConfig, err := common.GetKubernetesClientConfig(*kubeconfigPath)
+	if err != nil {
+		return errors.Wrap(err, "Failed to get client configuration")
+	}
+	kubeClientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create kubernetes client set")
+	}
+
 	logger, err := framework.NewLogger("log-collector", *logLevel, *logFormatter)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create logger")
@@ -55,10 +66,10 @@ func StartServer() error {
 	server, err := logcollector.NewLogCollectorServer(logger,
 		*namespace,
 		*baseDir,
-		*kubeconfigPath,
 		*stateFileUpdateInterval,
 		*readLogWaitTime,
 		*monitoringInterval,
+		kubeClientSet,
 		*logCollectionbufferPoolSize,
 		*getLogsBufferPoolSize,
 		*bufferSizeBytes)

@@ -171,6 +171,11 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 		return result, errors.Wrapf(lastErr, timedOutErrorMessage)
 	}
 
-	// duration expired but no error
+	// duration expired, but last callback failed
+	if shouldRetry {
+		return result, errors.New(timedOutErrorMessage)
+	}
+
+	// duration expired, but last callback succeeded
 	return result, lastErr
 }

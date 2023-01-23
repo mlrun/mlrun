@@ -787,7 +787,28 @@ class FeatureSet(ModelObj):
         self._spec.features.update(item, key)
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
-        """generate graphviz plot"""
+        """plot/save graph using graphviz
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ...
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_aggregation(name='priceN',
+                                column='price',
+                                operations=['avg'],
+                                windows=['1d'],
+                                period='1h')
+            ticks.plot(rankdir="LR", with_targets=True)
+
+        :param filename:     target filepath for the graph image (None for the notebook)
+        :param format:       the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param with_targets: show targets in the graph image
+        :param kw:           kwargs passed to graphviz, e.g. rankdir=”LR” (see https://graphviz.org/doc/info/attrs.html)
+        :return:             graphviz graph object
+        """
         graph = self.spec.graph
         _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None

@@ -52,6 +52,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip~=22.3.0
         pip install -r dev-requirements.txt
+    - uses: actions/cache@v2
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
     - name: Lint
       run: make lint lint-go
 

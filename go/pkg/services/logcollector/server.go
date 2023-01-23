@@ -59,7 +59,6 @@ type LogCollectorServer struct {
 func NewLogCollectorServer(logger logger.Logger,
 	namespace,
 	baseDir,
-	kubeconfigPath,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval string,
@@ -664,7 +663,7 @@ func (s *LogCollectorServer) monitorLogCollection(ctx context.Context) {
 		// if there are already log items in progress, call StartLog for each of them
 		logItemsInProgress, err := s.stateStore.GetItemsInProgress()
 		if err == nil {
-			logItemsInProgress.Range(func(key, value any) bool {
+			logItemsInProgress.Range(func(key, value interface{}) bool {
 				runUID, ok := key.(string)
 				if !ok {
 					s.Logger.WarnWithCtx(ctx, "Failed to convert runUID key to string")

@@ -29,6 +29,7 @@ class Version(metaclass=Singleton):
         # When installing un-released version (e.g. by doing pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane defaults
         self.version_info = {"git_commit": "unknown", "version": "0.0.0+unstable"}
+        self.python_version = self._resolve_python_version()
         try:
             self.version_info = json.loads(
                 read_text("mlrun.utils.version", "version.json")
@@ -38,5 +39,13 @@ class Version(metaclass=Singleton):
                 "Failed resolving version info. Ignoring and using defaults"
             )
 
+    def _resolve_python_version(self) -> sys.version_info:
+        self.python_version = sys.version_info
+
     def get(self):
         return self.version_info
+
+    def get_python_version(self, as_str: bool = True):
+        if as_str:
+            return f"{self.python_version.major}.{self.python_version.minor}.{self.python_version.micro}"
+        return self.python_version

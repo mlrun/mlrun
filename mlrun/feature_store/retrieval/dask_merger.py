@@ -195,8 +195,8 @@ class DaskFeatureMerger(BaseMerger):
             featureset_df,
             left_index=True,
             right_index=True,
-            left_by=left_keys,
-            right_by=right_keys,
+            left_by=left_keys or None,
+            right_by=right_keys or None,
             suffixes=("", f"_{featureset.metadata.name}_"),
         )
         for col in merged_df.columns:

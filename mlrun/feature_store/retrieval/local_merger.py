@@ -75,7 +75,8 @@ class LocalFeatureMerger(BaseMerger):
                     columns=column_names,
                     time_column=entity_timestamp_column,
                 )
-            df.reset_index(inplace=True)
+            if df.index.names[0]:
+                df.reset_index(inplace=True)
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
             entity_timestamp_column_list = (
@@ -179,8 +180,8 @@ class LocalFeatureMerger(BaseMerger):
             left_on=entity_timestamp_column,
             right_on=featureset.spec.timestamp_key,
             by=indexes,
-            left_by=left_keys,
-            right_by=right_keys,
+            left_by=left_keys or None,
+            right_by=right_keys or None,
             suffixes=("", f"_{featureset.metadata.name}_"),
         )
         for col in merged_df.columns:

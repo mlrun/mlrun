@@ -200,7 +200,7 @@ class BaseMerger(abc.ABC):
         for featureset, featureset_df, lr_key, columns in zip(
             featuresets, featureset_dfs, keys, all_columns
         ):
-            if entity_timestamp_column:
+            if featureset.spec.timestamp_key:
                 merge_func = self._asof_join
                 if self._join_type != "inner":
                     logger.warn(

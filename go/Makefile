@@ -102,13 +102,13 @@ test-integration-local: compile-schemas-local
 	go -race -tags=test_integration test ./...
 
 .PHONY: test-unit-dockerized
-test-integration-dockerized: schemas-compiler
+test-unit-dockerized: schemas-compiler
 	docker run \
 		-v $(shell dirname $(PWD)):/app \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make test-unit-local
 
-.PHONY: test-unit-dockerized
+.PHONY: test-integration-dockerized
 test-integration-dockerized: schemas-compiler
 	docker run \
 		-v $(HOME)/.kube/config:/root/.kube/config \

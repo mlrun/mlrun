@@ -108,14 +108,6 @@ class Feature(ModelObj):
         self.aggregate = aggregate
         self.origin = None  # used to link the feature to the feature set origin (inside vector.status)
         self._validator = validator
-        # bypass DB bug - self.value_type have to be set when saving fs
-        if not self.value_type:
-            if isinstance(self._validator, MinMaxValidator):
-                self.value_type = "int"
-            elif isinstance(self._validator, MinMaxLenValidator):
-                self.value_type = "list"
-            else:  # including regex validator
-                self.value_type = "str"
 
     @property
     def validator(self):

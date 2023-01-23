@@ -3419,7 +3419,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert res_df.equals(expected_df), f"unexpected result: {res_df}"
 
     @pytest.mark.parametrize("engine", ["storey", "pandas"])
-    def test_ingest_twice_with_setting_feature(self, engine):
+    def test_ingest_with_validator_from_uri(self, engine):
         df = pd.DataFrame(
             {
                 "key": [1, 2, 3, 4, 5, 6, 7],
@@ -3428,32 +3428,35 @@ class TestFeatureStore(TestMLRunSystem):
             }
         )
 
-        for _ in range(2):
-            feature_set = fstore.FeatureSet(
-                "myfset", entities=[fstore.Entity("key")], engine=engine
+        feature_set = fstore.FeatureSet(
+            "myfset_232", entities=[fstore.Entity("key")], engine=engine
+        )
+        feature_set["key1"] = fstore.Feature(
+            validator=RegexValidator(regex=".[A-Za-z]", severity="info"),
+            value_type="str",
+        )
+        try:
+            feature_set["key"] = fstore.Feature(
+                validator=RegexValidator(regex=".[A-Za-z]", severity="info"),
+                value_type="str",
             )
-            feature_set["key1"] = fstore.Feature(
-                validator=RegexValidator(regex=".[A-Za-z]", severity="info")
-            )
-            try:
-                feature_set["key"] = fstore.Feature(
-                    validator=RegexValidator(regex=".[A-Za-z]", severity="info")
-                )
-            except mlrun.errors.MLRunInvalidArgumentError:
-                pass  # test equal name for entity and feature
-            feature_set.graph.to(
-                FeaturesetValidator(),
-                name="validator",
-                columns=["key1"],
-                after=["do_nothing"],
-                full_event=True,
-            )
-            output_path = tempfile.TemporaryDirectory()
-            df = fstore.ingest(
-                feature_set,
-                df,
-                targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
-            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass  # test equal name for entity and feature
+
+        feature_set.graph.to(
+            FeaturesetValidator(),
+            name="validator",
+            columns=["key1"],
+            full_event=True,
+        )
+
+        feature_set.save()
+        output_path = tempfile.TemporaryDirectory()
+        df = fstore.ingest(
+            feature_set.uri,
+            df,
+            targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+        )
 
         assert isinstance(df, pd.DataFrame)
 

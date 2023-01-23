@@ -46,16 +46,19 @@ stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 
 ### Create a feature set without ingesting its data
 
-You can define and register a feature set, and use it in a feature vector, without ingesting its data. This method is 
-useful, for example, when you have a very large amount of data. You can create an online target for this feature set and 
-ingest data to it however, you cannot create a graph from it. (Transformations are not allowed: the offline source and 
-online targets hold the same features, and the online target represents a timeslice of the offline source.)  
-Enable this feature by including `passthrough=True` in the feature set definition. This feature supports ingesting data 
-from the local DB and Spark.
+You can define and register a feature set (and use it in a feature vector) without ingesting its data into mlrun offline targets.
+
+The use-case for this is when you have a large amount of data in a remote storage that is ready to be consumed by a model-training pipeline.
+When this feature is enabled on a feature set, data is not saved to the offline target during ingestion. Instead, when  
+`get_offline_features` is called on a vector containing that feature-set, that data is read directly from the source.
+Online targets are still ingested, and their value represents a time-slice of the offline source.
+Transformations are not allowed when this feature is enabled: no computation graph, no aggregations, etc.
+Enable this feature by including `passthrough=True` in the feature set definition. All three ingestion engines (Storey, Spark, Pandas) 
+are supported, as well as the retrieval engines "local" and "spark".
 
 Typical code, from defining the feature set through ingesting its data:
 ```
-# Flag the feature-set as passthrough
+# Flag the feature set as passthrough
 my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
 csv_source = CSVSource("my_csv", path="data.csv"), time_field="timestamp")
 # Ingest the source data - but only to online/nosql target

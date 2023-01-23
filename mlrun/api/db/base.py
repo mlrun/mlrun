@@ -240,7 +240,9 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def get_schedule(self, session, project: str, name: str) -> schemas.ScheduleRecord:
+    def get_schedule(
+        self, session, project: str, name: str, raise_on_conflict: bool = True
+    ) -> schemas.ScheduleRecord:
         pass
 
     @abstractmethod

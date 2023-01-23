@@ -111,7 +111,7 @@ class WorkflowRunners(
         }
 
         if workflow_request.spec.override:
-            get_scheduler().update_schedule(
+            get_scheduler().store_schedule(
                 db_session=db_session,
                 auth_info=auth_info,
                 project=project.metadata.name,
@@ -119,6 +119,7 @@ class WorkflowRunners(
                 scheduled_object=scheduled_object,
                 cron_trigger=schedule,
                 labels=runner.metadata.labels,
+                kind=mlrun.api.schemas.ScheduleKinds.job,
             )
         else:
             try:

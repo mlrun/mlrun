@@ -291,6 +291,47 @@ class Scheduler:
             self._remove_schedule_scheduler_resources(schedule.project, schedule.name)
         get_db().delete_schedules(db_session, project)
 
+    @mlrun.api.utils.helpers.ensure_running_on_chief
+    def store_schedule(
+        self,
+        db_session: Session,
+        auth_info: mlrun.api.schemas.AuthInfo,
+        project: str,
+        name: str,
+        scheduled_object: Union[Dict, Callable] = None,
+        cron_trigger: Union[str, schemas.ScheduleCronTrigger] = None,
+        labels: Dict = None,
+        concurrency_limit: int = None,
+        kind: schemas.ScheduleKinds = None,
+    ):
+        # raise on conflict flag is to prevent raising error when the schedule not exists, so we can create a new one
+        db_schedule = get_db().get_schedule(
+            db_session, project, name, raise_on_conflict=False
+        )
+        if db_schedule:
+            self.update_schedule(
+                db_session=db_session,
+                auth_info=auth_info,
+                project=project,
+                name=name,
+                scheduled_object=scheduled_object,
+                cron_trigger=cron_trigger,
+                labels=labels,
+                concurrency_limit=concurrency_limit,
+            )
+        else:
+            self.create_schedule(
+                db_session=db_session,
+                auth_info=auth_info,
+                project=project,
+                name=name,
+                kind=kind,
+                scheduled_object=scheduled_object,
+                cron_trigger=cron_trigger,
+                labels=labels,
+                concurrency_limit=concurrency_limit,
+            )
+
     def _remove_schedule_scheduler_resources(self, project, name):
         self._remove_schedule_from_scheduler(project, name)
         # This is kept for backwards compatibility - if schedule was using the "old" format of storing secrets, then

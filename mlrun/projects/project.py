@@ -765,6 +765,19 @@ class ProjectSpec(ModelObj):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
 
+    def _replace_default_image_in_enriched_functions(self, previous_image, new_image):
+        """
+        Set a new project-default-image in functions that were already enriched. This is done on functions that didn't
+        have an image prior to this change or used the previous default image.
+        """
+        if previous_image == new_image:
+            return
+        for key in self._function_objects:
+            function = self._function_objects[key]
+            if hasattr(function, "_enriched") and getattr(function, "_enriched", False):
+                if not function.spec.image or function.spec.image == previous_image:
+                    function.spec.image = new_image
+
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -1001,6 +1014,11 @@ class MlrunProject(ModelObj):
 
     @default_image.setter
     def default_image(self, default_image: str):
+        current_default_image = self.spec.default_image
+        if current_default_image:
+            self.spec._replace_default_image_in_enriched_functions(
+                current_default_image, default_image
+            )
         self.spec.default_image = default_image
 
     def set_workflow(

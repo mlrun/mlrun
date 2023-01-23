@@ -37,6 +37,7 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
+# mainly used for mlrun, base, models and models-gpu images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 22.3.0

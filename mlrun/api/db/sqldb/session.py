@@ -67,6 +67,7 @@ def _init_engine(dsn=None):
         }
     engine = create_engine(dsn, **kwargs)
     _engines[dsn] = engine
+    _init_session_maker(dsn=dsn)
 
 
 def _init_session_maker(dsn):

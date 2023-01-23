@@ -1151,11 +1151,13 @@ class SQLDB(DBInterface):
 
     def get_schedule(
         self, session: Session, project: str, name: str, raise_on_conflict: bool = True
-    ) -> schemas.ScheduleRecord:
+    ) -> typing.Optional[schemas.ScheduleRecord]:
         logger.debug("Getting schedule from db", project=project, name=name)
         schedule_record = self._get_schedule_record(
             session, project, name, raise_on_conflict
         )
+        if not schedule_record:
+            return schedule_record
         schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 

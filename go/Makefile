@@ -141,7 +141,7 @@ lint: ensure-test-files-annotated
 		&& chmod +x $(CI_BIN_DIR)/impi)
 
 	@test -e $(CI_BIN_DIR)/golangci-lint || \
-	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.50.0)
+	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.50.1)
 
 	@echo Verifying imports...
 	$(CI_BIN_DIR)/impi \

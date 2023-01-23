@@ -14,6 +14,7 @@
 #
 
 import asyncio
+import contextlib
 import copy
 import datetime
 import typing
@@ -95,10 +96,10 @@ class Provider(
         body = self._generate_permission_request_body(resource, action, auth_info)
         if self._log_level > 5:
             logger.debug("Sending request to OPA", body=body)
-        response = await self._send_request_to_api(
+        async with self._send_request_to_api(
             "POST", self._permission_query_path, json=body
-        )
-        response_body = await response.json()
+        ) as response:
+            response_body = await response.json()
         if self._log_level > 5:
             logger.debug("Received response from OPA", body=response_body)
         allowed = response_body["result"]
@@ -134,10 +135,10 @@ class Provider(
         body = self._generate_filter_request_body(opa_resources, action, auth_info)
         if self._log_level > 5:
             logger.debug("Sending filter request to OPA", body=body)
-        response = await self._send_request_to_api(
+        async with self._send_request_to_api(
             "POST", self._permission_filter_path, json=body
-        )
-        response_body = await response.json()
+        ) as response:
+            response_body = await response.json()
         if self._log_level > 5:
             logger.debug("Received filter response from OPA", body=response_body)
         allowed_opa_resources = response_body["result"]
@@ -204,27 +205,38 @@ class Provider(
             return True
         return False
 
+    @contextlib.asynccontextmanager
     async def _send_request_to_api(self, method, path, **kwargs):
         url = f"{self._api_url}{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self._request_timeout
         await self._ensure_session()
-        async with self._session.request(
-            method, url, verify_ssl=False, **kwargs
-        ) as response:
+        response = None
+        try:
+            response = await self._session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
             if not response.ok:
-                log_kwargs = copy.deepcopy(kwargs)
-                log_kwargs.update({"method": method, "path": path})
-                if response.content:
-                    try:
-                        data = await response.json()
-                    except Exception:
-                        pass
-                    else:
-                        log_kwargs.update({"data": data})
-                logger.warning("Request to opa failed", **log_kwargs)
-                mlrun.errors.raise_for_status(response)
-            return response
+                await self._on_request_api_failure(method, path, response, **kwargs)
+            yield response
+        finally:
+            if response:
+                response.release()
+
+    async def _on_request_api_failure(self, method, path, response, **kwargs):
+        log_kwargs = copy.deepcopy(kwargs)
+        log_kwargs.update({"method": method, "path": path})
+        if response.content:
+            try:
+                data = await response.json()
+            except Exception:
+                try:
+                    data = await response.text()
+                except Exception:
+                    data = None
+            log_kwargs.update({"data": data})
+        logger.warning("Request to opa failed", **log_kwargs)
+        mlrun.errors.raise_for_status(response)
 
     @staticmethod
     def _generate_permission_request_body(

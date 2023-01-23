@@ -36,6 +36,7 @@ MLRUN_DOCKER_REGISTRY ?=
 # disable caching)
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
+# do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
 MLRUN_PYTHON_VERSION ?= 3.9
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 22.3.0
@@ -66,6 +67,7 @@ MLRUN_DOCKER_CACHE_FROM_FLAG :=
 MLRUN_USE_CACHE := $(if $(MLRUN_NO_CACHE),,true)
 MLRUN_DOCKER_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache,)
 MLRUN_PIP_NO_CACHE_FLAG := $(if $(MLRUN_NO_CACHE),--no-cache-dir,)
+# expected to be in the form of '-py<major><minor>' e.g. '-py39'
 MLRUN_ANACONDA_PYTHON_DISTRIBUTION = $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{print "-py"$$1$$2}')
 MLRUN_PYTHON_VERSION_SUFFIX = $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION),)
 

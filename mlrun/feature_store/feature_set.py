@@ -788,7 +788,8 @@ class FeatureSet(ModelObj):
             self._spec.features.update(item, key)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "FeatureSet can't have entity and feature with the same name."
+                "A `FeatureSet` cannot have an entity and a feature with the same name. "
+                f"The feature that was given to add '{key}' has the same name of the `FeatureSet`'s entity."
             )
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):

@@ -3435,6 +3435,12 @@ class TestFeatureStore(TestMLRunSystem):
             feature_set["key1"] = fstore.Feature(
                 validator=RegexValidator(regex=".[A-Za-z]", severity="info")
             )
+            try:
+                feature_set["key"] = fstore.Feature(
+                    validator=RegexValidator(regex=".[A-Za-z]", severity="info")
+                )
+            except mlrun.errors.MLRunInvalidArgumentError:
+                pass  # test equal name for entity and feature
             feature_set.graph.to(
                 FeaturesetValidator(),
                 name="validator",

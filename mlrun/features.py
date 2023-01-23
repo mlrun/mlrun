@@ -418,17 +418,13 @@ class RegexValidator(Validator):
         """
         super().__init__(check_type, severity)
         self.regex = regex
-        self.regex_compile = None
 
     def check(self, value):
-        self.regex_compile = (
-            self.regex_compile if self.regex_compile else re.compile(self.regex)
-        )
         ok, args = super().check(value)
         if ok:
             try:
                 if self.regex is not None:
-                    if not re.fullmatch(self.regex_compile, value):
+                    if not re.fullmatch(self.regex, value):
                         return (
                             False,
                             {

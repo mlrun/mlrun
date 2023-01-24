@@ -102,6 +102,7 @@ def _fill_workflow_missing_fields_from_project(
 async def submit_workflow(
     project: str,
     name: str,
+    request: fastapi.Request,
     workflow_request: mlrun.api.schemas.WorkflowRequest = mlrun.api.schemas.WorkflowRequest(),
     auth_info: mlrun.api.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
@@ -176,6 +177,7 @@ async def submit_workflow(
         return await chief_client.submit_workflow(
             project=project.metadata.name,
             name=name,
+            request=request,
             json=workflow_request.dict(),
         )
     # This function is for loading the project and running workflow remotely.

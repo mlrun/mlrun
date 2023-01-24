@@ -175,7 +175,6 @@ Tech Preview
 ```
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
-- The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).
 - The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>
 For example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)

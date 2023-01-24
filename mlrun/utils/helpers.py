@@ -681,9 +681,12 @@ def _resolve_image_tag_suffix(
     :param client_python_version: the client python version
     :return: the suffix to append to the image tag
     """
+    if not client_python_version or not tag:
+        return ""
+
     # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
     # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
-    if tag == "1.3.0" and client_python_version <= "3.9":
+    if tag == "1.3.0" and client_python_version < "3.9":
         return "-py37"
     return ""
 

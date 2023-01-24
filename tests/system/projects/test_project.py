@@ -640,12 +640,12 @@ class TestProject(TestMLRunSystem):
         ), "Failed to override existing workflow"
 
         # submit schedule when one exists without override - fail:
-        with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            project.run(
-                workflow_name,
-                schedule=schedules[1],
-                dirty=True,
-            )
+        run = project.run(
+            workflow_name,
+            schedule=schedules[1],
+            dirty=True,
+        )
+        assert run.state == mlrun.run.RunStatuses.failed
 
         # overwriting schedule from cli:
         args = [
@@ -677,7 +677,7 @@ class TestProject(TestMLRunSystem):
             f"'{schedules[1]}'",
         ]
         out = exec_project(args)
-        assert "use 'override=True' (SDK) or '--override-workflow' (CLI)" in out
+        assert "use override=True (SDK) or --override-workflow (CLI)" in out
 
     def test_timeout_warning(self):
         name = "timeout-warning-test"

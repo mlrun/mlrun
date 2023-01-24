@@ -107,7 +107,7 @@ class Client(
         Workflow schedules are running only on chief
         """
         return await self._proxy_request_to_chief(
-            "POST", f"/projects/{project}/workflows/{name}/submit", request, json
+            "POST", f"projects/{project}/workflows/{name}/submit", request, json
         )
 
     async def delete_schedules(

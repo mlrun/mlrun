@@ -68,7 +68,7 @@ jobs:
           cache: true
       - name: Install protobuf compiler
         run: |
-          apt-get update && apt install -y protobuf-compiler
+          sudo apt-get update && sudo apt install -y protobuf-compiler
           
           # version is coupled to `go/cmd/schemas_compiler/docker/Dockerfile`
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28

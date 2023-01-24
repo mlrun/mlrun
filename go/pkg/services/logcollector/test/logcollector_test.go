@@ -35,7 +35,7 @@ import (
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -73,7 +73,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	// get kube config file path
 	homeDir, err := os.UserHomeDir()
 	suite.Require().NoError(err, "Failed to get home dir")
-	kubeConfigFilePath := path.Join(homeDir, ".kube", "config")
+	kubeConfigFilePath := common.GetEnvOrDefaultString("KUBECONFIG", path.Join(homeDir, ".kube", "config"))
 
 	restConfig, err := common.GetKubernetesClientConfig(kubeConfigFilePath)
 	suite.Require().NoError(err)

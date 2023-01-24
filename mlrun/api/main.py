@@ -381,7 +381,9 @@ def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
         for run in runs
     ]
 
-    logger.debug("Got terminal runs with configured notifications", runs_amount=len(runs))
+    logger.debug(
+        "Got terminal runs with configured notifications", runs_amount=len(runs)
+    )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
     _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)

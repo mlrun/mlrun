@@ -314,6 +314,58 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 
 		// increase offset by the read size
 		offset += int64(len(logs))
+		return errors.Wrapf(err, "Failed to get log file size for run id %s", request.RunUID)
+	}
+
+	// if size < 0 - we read only the logs we have for this moment in time starting from offset, so GetLogs will be finite.
+	// otherwise, we read the only the request size from the offset
+	// TODO: when the sdk/UI will support streaming, we can remove `endSize`, and stream the logs continuously
+	endSize := currentLogFileSize - request.Offset
+	if request.Size > 0 && endSize > request.Size {
+		endSize = request.Size
+	}
+
+	// if the offset is bigger than the current log file size, return empty response
+	if endSize <= 0 {
+		if err := responseStream.Send(&protologcollector.GetLogsResponse{
+			Success: true,
+			Logs:    []byte{},
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send empty logs to stream for run id %s", request.RunUID)
+		}
+		return nil
+	}
+
+	offset := request.Offset
+	totalLogsSize := int64(0)
+
+	// start reading the log file until we reach the end size
+	for {
+		chunkSize := s.getChunkSize(request.Size, endSize, offset)
+
+		// read logs from file in chunks
+		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, chunkSize)
+		if err != nil {
+			return errors.Wrapf(err, "Failed to read logs from file for run id %s", request.RunUID)
+		}
+		totalLogsSize += int64(len(logs))
+
+		// send logs to stream
+		if err := responseStream.Send(&protologcollector.GetLogsResponse{
+			Success: true,
+			Logs:    logs,
+		}); err != nil {
+			return errors.Wrapf(err, "Failed to send logs to stream for run id %s", request.RunUID)
+		}
+
+		// if we reached the end size, or the chunk is smaller than the chunk size
+		// (we reached the end of the file), stop reading
+		if totalLogsSize >= endSize || len(logs) < int(chunkSize) {
+			break
+		}
+
+		// increase offset by the read size
+		offset += int64(len(logs))
 	}
 
 	s.Logger.DebugWithCtx(ctx,

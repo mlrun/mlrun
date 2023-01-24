@@ -28,7 +28,7 @@ OS=$(get_os)
 SCHEMA_FILES=$(find ../mlrun/api/proto/ -name '*pb2_grpc.py')
 
 if [ "${OS}" = "Mac" ]; then
-  sed -i '' -e "${SED_REGEX}" "${SCHEMA_FILES}"
+  sed -i '' -e "${SED_REGEX}" ${SCHEMA_FILES}
 else
-  sed -i -e "${SED_REGEX}" "${SCHEMA_FILES}"
+  sed -i -e "${SED_REGEX}" ${SCHEMA_FILES}
 fi

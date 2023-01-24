@@ -259,7 +259,7 @@ class SQLDB(DBInterface):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
-        join_notifications: bool = False,
+        with_notifications: bool = False,
     ):
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
@@ -301,20 +301,27 @@ class SQLDB(DBInterface):
                 max_partitions,
             )
 
-        if join_notifications:
+        # Purposefully not using outer join to avoid returning runs without notifications
+        if with_notifications:
             query = query.join(Notification, Run.id == Notification.run)
 
         runs = RunList()
         for run in query:
             run_struct = run.struct
-            if join_notifications:
-                notifications = [
-                    self._transform_notification_record_to_schema(
+            if with_notifications:
+                for notification in run.notifications:
+                    (
+                        notification_spec,
+                        notification_status,
+                    ) = self._transform_notification_record_to_spec_and_status(
                         notification
-                    ).to_dict()
-                    for notification in run.notifications
-                ]
-                run_struct["spec"]["notifications"] = notifications
+                    )
+                    run_struct.setdefault("spec", {}).setdefault(
+                        "notifications", []
+                    ).append(notification_spec)
+                    run_struct.setdefault("status", {}).setdefault("notifications", {})[
+                        notification.name
+                    ] = notification_status
             runs.append(run_struct)
 
         return runs
@@ -3114,6 +3121,19 @@ class SQLDB(DBInterface):
         # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return schemas.Project(**project_record.full_object)
 
+    def _transform_notification_record_to_spec_and_status(
+        self,
+        notification_record: Notification,
+    ) -> typing.Tuple[dict, dict]:
+        notification_spec = self._transform_notification_record_to_schema(
+            notification_record
+        ).to_dict()
+        notification_status = {
+            "state": notification_spec.pop("state"),
+            "sent_time": notification_spec.pop("sent_time"),
+        }
+        return notification_spec, notification_status
+
     @staticmethod
     def _transform_notification_record_to_schema(
         notification_record: Notification,
@@ -3512,12 +3532,11 @@ class SQLDB(DBInterface):
         notification_models: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
-        iter: int = 0,
     ):
-        run = self._get_run(session, run_uid, project, iter)
+        run = self._get_run(session, run_uid, project, 0)
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Run not found: uid={run_uid}, project={project}, iter={iter}"
+                f"Run not found: uid={run_uid}, project={project}"
             )
 
         run_notifications = {
@@ -3572,9 +3591,8 @@ class SQLDB(DBInterface):
         session,
         run_uid: str,
         project: str = "",
-        iter: int = 0,
     ) -> typing.List[mlrun.model.Notification]:
-        run = self._get_run(session, run_uid, project, iter)
+        run = self._get_run(session, run_uid, project, 0)
         if not run:
             return []
 
@@ -3593,10 +3611,10 @@ class SQLDB(DBInterface):
     ):
         run_id = None
         if run_uid:
-            run = self._get_run(session, run_uid, project, iter)
+            run = self._get_run(session, run_uid, project, 0)
             if not run:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Run not found: uid={run_uid}, project={project}, iter={iter}"
+                    f"Run not found: uid={run_uid}, project={project}"
                 )
             run_id = run.id
 

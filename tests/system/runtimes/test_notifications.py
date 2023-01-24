@@ -28,7 +28,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         def _assert_notifications():
             runs = self._run_db.list_runs(
                 project=self.project_name,
-                join_notifications=True,
+                with_notifications=True,
             )
             assert len(runs) == 1
             assert len(runs[0]["spec"]["notifications"]) == 2

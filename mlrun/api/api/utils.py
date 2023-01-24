@@ -199,19 +199,19 @@ def apply_enrichment_and_validation_on_task(
 ):
     if mask_notification_params:
         # Masking notification config params from the task object
-        mask_notification_params_on_task(task)
+        _mask_notification_params_on_task(task)
 
 
-def mask_notification_params_on_task(task):
-    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-    if not k8s.running_inside_kubernetes_cluster:
-        logger.warning(
-            "Kubernetes cluster unavailable, skipping masking notification config params"
-        )
-        return
-
+def _mask_notification_params_on_task(task):
     notifications = task.get("spec", {}).get("notifications", [])
     if notifications:
+        k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+        if not k8s.running_inside_kubernetes_cluster:
+            logger.warning(
+                "Kubernetes cluster unavailable, skipping masking notification config params"
+            )
+            return
+
         for notification in notifications:
             params = notification.get("params", {})
             if "secret" not in params:

@@ -14,6 +14,7 @@
 #
 import asyncio
 import concurrent.futures
+import datetime
 import time
 import traceback
 import uuid
@@ -352,14 +353,23 @@ def _cleanup_runtimes():
 
 
 def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+
+    # When pushing notifications, push notifications only for runs that entered a terminal state
+    # since the last time we pushed notifications.
+    # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state.
+    global _last_notification_push_time
+
     runs = db.list_runs(
         db_session,
         project="*",
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
-        join_notifications=True,
+        last_update_time_from=_last_notification_push_time,
+        with_notifications=True,
     )
     logger.debug("Checking for run notifications", runs_amount=len(runs))
     mlrun.utils.notifications.NotificationPusher(runs).push(db)
+
+    _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
 
 
 def main():

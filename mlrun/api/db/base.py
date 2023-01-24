@@ -85,7 +85,7 @@ class DBInterface(ABC):
         partition_sort_by: schemas.SortField = None,
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
-        join_notifications: bool = False,
+        with_notifications: bool = False,
     ):
         pass
 
@@ -556,7 +556,6 @@ class DBInterface(ABC):
         notification_models: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
-        iter: int = 0,
     ):
         pass
 
@@ -566,7 +565,6 @@ class DBInterface(ABC):
         session,
         run_uid: str,
         project: str,
-        iter: int = 0,
     ) -> typing.List[mlrun.model.Notification]:
         pass
 

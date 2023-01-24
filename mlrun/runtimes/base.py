@@ -999,16 +999,24 @@ class BaseRuntime(ModelObj):
             )
             return
 
+        # TODO: add support for other notifications per run iteration
+        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
+            logger.debug(
+                "Notifications per iteration are not supported, skipping",
+                run_uid=runobj.metadata.uid,
+            )
+            return
+
         # If the run is remote, and we are in the SDK, we let the api deal with the notifications
         # so there's nothing to do here.
         # Otherwise, we continue on.
-        if local:
+        if not is_running_as_api():
 
             # If the run is local, we can assume that watch=True, therefore this code runs
             # once the run is completed, and we can just fire the notifications.
-            mlrun.utils.notifications.NotificationPusher([runobj]).push(local=True)
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()
 
-        elif self._is_api_server:
+        else:
 
             # If in the api server, we can assume that watch=False, so we save notification
             # configs to the DB, for the run monitor to later pick up and fire.
@@ -1019,7 +1027,6 @@ class BaseRuntime(ModelObj):
                 runobj.spec.notifications,
                 runobj.metadata.uid,
                 runobj.metadata.project,
-                runobj.metadata.iteration,
             )
 
     def _force_handler(self, handler):

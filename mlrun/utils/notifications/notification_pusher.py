@@ -24,6 +24,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.api.db.base
 import mlrun.api.db.session
 import mlrun.api.utils.singletons.k8s
+import mlrun.config
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -60,7 +61,6 @@ class NotificationPusher(object):
     def push(
         self,
         db: mlrun.api.db.base.DBInterface = None,
-        local: bool = False,
     ):
         async def _push():
             tasks = []
@@ -71,7 +71,6 @@ class NotificationPusher(object):
                         notification_data[0],
                         notification_data[1],
                         db,
-                        local,
                     )
                 )
             await asyncio.gather(*tasks)
@@ -158,15 +157,14 @@ class NotificationPusher(object):
         self,
         notification: NotificationBase,
         run: mlrun.model.RunObject,
-        notification_model: mlrun.model.Notification,
+        notification_object: mlrun.model.Notification,
         db: mlrun.api.db.base.DBInterface,
-        local: bool = False,
     ):
         message = self.messages.get(run.state(), "")
-        severity = notification_model.severity or NotificationSeverity.INFO
+        severity = notification_object.severity or NotificationSeverity.INFO
         logger.debug(
             "Sending notification",
-            notification=notification_model.to_dict(),
+            notification=notification_object.to_dict(),
             run_uid=run.metadata.uid,
         )
         try:
@@ -175,22 +173,22 @@ class NotificationPusher(object):
             else:
                 notification.send(message, severity, [run.to_dict()])
 
-            if not local:
+            if mlrun.config.is_running_as_api():
                 await self._update_notification_status(
                     db,
                     run.metadata.uid,
                     run.metadata.project,
-                    notification_model,
+                    notification_object,
                     status=NotificationStatus.SENT.value,
                     sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
                 )
         except Exception as exc:
-            if not local:
+            if mlrun.config.is_running_as_api():
                 await self._update_notification_status(
                     db,
                     run.metadata.uid,
                     run.metadata.project,
-                    notification_model,
+                    notification_object,
                     status=NotificationStatus.ERROR.value,
                 )
             raise exc

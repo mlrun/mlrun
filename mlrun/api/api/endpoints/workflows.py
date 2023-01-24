@@ -121,6 +121,7 @@ async def submit_workflow(
 
     :param project:             name of the project
     :param name:                name of the workflow
+    :param request:             fastapi request for supporting rerouting to chief if needed
     :param workflow_request:    the request includes: workflow spec, arguments for the workflow, artifact path
                                 as the artifact target path of the workflow, source url of the project for overriding
                                 the existing one, run name to override the default: 'workflow-runner-<workflow name>'

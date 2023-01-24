@@ -2983,7 +2983,6 @@ class HTTPRunDB(RunDBInterface):
             "source": source,
             "run_name": run_name,
             "namespace": namespace,
-            "image": image or mlrun.mlconf.default_base_image,
         }
         if isinstance(workflow_spec, schemas.WorkflowSpec):
             req["spec"] = workflow_spec.dict()
@@ -2991,7 +2990,7 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
-
+        req["spec"]["image"] = image or mlrun.mlconf.default_base_image
         response = self.api_call(
             "POST",
             f"projects/{project}/workflows/{name}/submit",

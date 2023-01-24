@@ -1130,10 +1130,15 @@ def deploy_nuclio_function(
     auth_info: AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
+    client_python_version: str = None,
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
-        function, client_version, builder_env or {}, auth_info=auth_info
+        function,
+        client_version=client_version,
+        client_python_version=client_python_version,
+        builder_env=builder_env or {},
+        auth_info=auth_info,
     )
 
     # if mode allows it, enrich function http trigger with an ingress
@@ -1180,6 +1185,7 @@ def resolve_function_http_trigger(function_spec):
 def compile_function_config(
     function: RemoteRuntime,
     client_version: str = None,
+    client_python_version: str = None,
     builder_env=None,
     auth_info=None,
 ):
@@ -1355,7 +1361,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.build.baseImage",
-                enrich_image_url(base_image, client_version),
+                enrich_image_url(base_image, client_version, client_python_version),
             )
 
         logger.info("deploy started")
@@ -1404,7 +1410,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.build.baseImage",
-                enrich_image_url(base_image, client_version),
+                enrich_image_url(base_image, client_version, client_python_version),
             )
 
         name = get_fullname(name, project, tag)

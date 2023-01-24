@@ -423,6 +423,15 @@ def test_enrich_image():
             "expected_output": "some/image",
             "images_to_enrich_registry": "",
         },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.3.0-client-version",
+            "client_python_version": "3.9",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.3.0-client-version",
+            "images_to_enrich_registry": "",
+        },
     ]
     default_images_to_enrich_registry = config.images_to_enrich_registry
     for case in cases:
@@ -439,7 +448,8 @@ def test_enrich_image():
         image = case["image"]
         expected_output = case["expected_output"]
         client_version = case.get("client_version")
-        output = enrich_image_url(image, client_version)
+        client_python_version = case.get("client_python_version")
+        output = enrich_image_url(image, client_version, client_python_version)
         assert output == expected_output
 
 

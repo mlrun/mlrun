@@ -78,7 +78,10 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
                 job,
                 "image",
                 self.full_image_path(
-                    client_version=runobj.metadata.labels.get("mlrun/client_version")
+                    client_version=runobj.metadata.labels.get("mlrun/client_version"),
+                    client_python_version=runobj.metadata.labels.get(
+                        "mlrun/client_python_version"
+                    ),
                 ),
             )
         update_in(job, "spec.template.spec.volumes", self.spec.volumes)

@@ -636,13 +636,18 @@ def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     )
 
 
-def enrich_image_url(image_url: str, client_version: str = None) -> str:
+def enrich_image_url(
+    image_url: str, client_version: str = None, client_python_version: str = None
+) -> str:
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
     image_url = image_url.strip()
     tag = config.images_tag or client_version or server_version
+    tag += _resolve_image_tag_suffix(
+        tag=tag, client_python_version=client_python_version
+    )
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -665,6 +670,22 @@ def enrich_image_url(image_url: str, client_version: str = None) -> str:
         image_url = f"{registry}{image_url}"
 
     return image_url
+
+
+def _resolve_image_tag_suffix(
+    tag: str = None, client_python_version: str = None
+) -> str:
+    """
+    resolves what suffix should be appended to the image tag
+    :param tag: the image tag version
+    :param client_python_version: the client python version
+    :return: the suffix to append to the image tag
+    """
+    # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
+    # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
+    if tag == "1.3.0" and client_python_version <= "3.9":
+        return "-py37"
+    return ""
 
 
 def get_docker_repository_or_default(repository: str) -> str:

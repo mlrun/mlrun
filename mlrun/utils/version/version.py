@@ -14,6 +14,7 @@
 #
 import json
 import sys
+import typing
 
 import mlrun.utils
 from mlrun.utils.singleton import Singleton
@@ -39,13 +40,16 @@ class Version(metaclass=Singleton):
                 "Failed resolving version info. Ignoring and using defaults"
             )
 
-    def _resolve_python_version(self) -> sys.version_info:
-        self.python_version = sys.version_info
-
     def get(self):
         return self.version_info
 
-    def get_python_version(self, as_str: bool = True):
+    def get_python_version(
+        self, as_str: bool = True
+    ) -> typing.Union[str, tuple]:
         if as_str:
             return f"{self.python_version.major}.{self.python_version.minor}.{self.python_version.micro}"
         return self.python_version
+
+    @staticmethod
+    def _resolve_python_version() -> sys.version_info:
+        return sys.version_info

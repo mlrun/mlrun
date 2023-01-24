@@ -194,7 +194,10 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
                     self.full_image_path(
                         client_version=runobj.metadata.labels.get(
                             "mlrun/client_version"
-                        )
+                        ),
+                        client_python_version=runobj.metadata.labels.get(
+                            "mlrun/client_python_version"
+                        ),
                     ),
                 )
             self._update_container(

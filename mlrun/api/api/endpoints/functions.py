@@ -200,6 +200,9 @@ async def build_function(
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
     ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
+    ),
 ):
     data = None
     try:
@@ -260,6 +263,7 @@ async def build_function(
         mlrun_version_specifier,
         data.get("builder_env"),
         client_version,
+        client_python_version,
     )
     return {
         "data": fn.to_dict(),
@@ -276,6 +280,9 @@ async def start_function(
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
     ),
 ):
     # TODO: ensure project here !!! for background task
@@ -308,6 +315,7 @@ async def start_function(
         function,
         auth_info,
         client_version,
+        client_python_version,
     )
 
     return background_task
@@ -566,6 +574,7 @@ def _build_function(
     mlrun_version_specifier=None,
     builder_env=None,
     client_version=None,
+    client_python_version=None,
 ):
     fn = None
     ready = None
@@ -623,6 +632,7 @@ def _build_function(
                 fn,
                 auth_info=auth_info,
                 client_version=client_version,
+                client_python_version=client_python_version,
                 builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
@@ -644,6 +654,7 @@ def _build_function(
                 skip_deployed,
                 builder_env=builder_env,
                 client_version=client_version,
+                client_python_version=client_python_version,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
@@ -678,7 +689,10 @@ def _parse_start_function_body(db_session, data):
 
 
 def _start_function(
-    function, auth_info: mlrun.api.schemas.AuthInfo, client_version: str = None
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
@@ -697,7 +711,11 @@ def _start_function(
             )
 
             #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](function, client_version=client_version)
+            resource["start"](
+                function,
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
             function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:

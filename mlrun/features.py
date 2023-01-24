@@ -37,6 +37,8 @@ def _limited_string(value: str, max_size: int = 40):
 class Entity(ModelObj):
     """data entity (index)"""
 
+    kind = "entity"
+
     def __init__(
         self,
         name: str = None,
@@ -57,6 +59,9 @@ class Entity(ModelObj):
         if name and not value_type:
             self.value_type = ValueType.STRING
         self.labels = labels or {}
+
+    def __eq__(self, other):
+        return self.name == other.name
 
 
 class Feature(ModelObj):

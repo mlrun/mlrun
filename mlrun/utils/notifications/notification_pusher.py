@@ -15,13 +15,11 @@
 import ast
 import asyncio
 import datetime
-import json
 import os
 import typing
 
 from fastapi.concurrency import run_in_threadpool
 
-import mlrun.api.crud
 import mlrun.api.db.base
 import mlrun.api.db.session
 import mlrun.api.schemas
@@ -115,43 +113,17 @@ class NotificationPusher(object):
             notification.kind or NotificationTypes.console
         )
         notification_key = f"{run.metadata.uid}-{name or notification_type}"
-        params = self._load_notification_params(run.metadata.project, notification)
         if notification_key not in self._notifications:
             self._notifications[
                 notification_key
-            ] = notification_type.get_notification()(name, params)
+            ] = notification_type.get_notification()(name, notification.params)
         else:
-            self._notifications[notification_key].load_notification(params)
+            self._notifications[notification_key].load_notification(notification.params)
 
         logger.debug(
             "Loaded notification", notification=self._notifications[notification_key]
         )
         return self._notifications[notification_key]
-
-    @staticmethod
-    def _load_notification_params(
-        project: str, notification: mlrun.model.Notification
-    ) -> dict:
-        params = notification.params or {}
-        params_secret = params.get("secret", "")
-        if not params_secret:
-            return params
-
-        k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-        if not k8s:
-            raise mlrun.errors.MLRunRuntimeError(
-                "Not running in k8s environment, cannot load notification params secret"
-            )
-
-        return json.loads(
-            mlrun.api.crud.Secrets().get_project_secret(
-                project,
-                mlrun.api.schemas.SecretProviderName.kubernetes,
-                secret_key=params_secret,
-                allow_internal_secrets=True,
-                allow_secrets_from_k8s=True,
-            )
-        )
 
     async def _send_notification(
         self,

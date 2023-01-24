@@ -27,6 +27,7 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.db.base
 import mlrun.api.schemas
+import mlrun.api.api.utils
 import mlrun.api.utils.clients.chief
 import mlrun.errors
 import mlrun.utils
@@ -370,8 +371,14 @@ def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
         last_update_time_from=_last_notification_push_time,
         with_notifications=True,
     )
+
+    unmasked_runs = [
+        mlrun.api.api.utils.unmask_notification_params_secret_on_task(run)
+        for run in runs
+    ]
+
     logger.debug("Checking for run notifications", runs_amount=len(runs))
-    mlrun.utils.notifications.NotificationPusher(runs).push(db)
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
     _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)
 

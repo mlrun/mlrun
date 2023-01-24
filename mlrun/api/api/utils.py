@@ -199,10 +199,10 @@ def apply_enrichment_and_validation_on_task(
 ):
     if mask_notification_params:
         # Masking notification config params from the task object
-        _mask_notification_params_on_task(task)
+        mask_notification_params_on_task(task)
 
 
-def _mask_notification_params_on_task(task):
+def mask_notification_params_on_task(task):
     run_uid = get_in(task, "metadata.uid")
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
@@ -229,6 +229,47 @@ def mask_notification_params_with_secret(
             allow_internal_secrets=True,
         )
         notification_object.params = {"secret": secret_key}
+
+    return notification_object
+
+
+def unmask_notification_params_secret_on_task(run):
+    if isinstance(run, dict):
+        run = mlrun.model.RunObject.from_dict(run)
+
+    run.spec.notifications = map(
+        unmask_notification_params_secret,
+        (
+            (run.metadata.project, mlrun.model.Notification.from_dict(notification))
+            for notification in run.spec.notifications
+        ),
+    )
+    return run
+
+
+def unmask_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    params = notification_object.params or {}
+    params_secret = params.get("secret", "")
+    if not params_secret:
+        return params
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    if not k8s:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot load notification params secret"
+        )
+
+    notification_object.params = json.loads(
+        mlrun.api.crud.Secrets().get_project_secret(
+            project,
+            mlrun.api.schemas.SecretProviderName.kubernetes,
+            secret_key=params_secret,
+            allow_internal_secrets=True,
+            allow_secrets_from_k8s=True,
+        )
+    )
 
     return notification_object
 

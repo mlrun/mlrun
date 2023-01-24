@@ -129,7 +129,7 @@ fmt:
 	golangci-lint run --fix
 
 .PHONY: lint
-lint: ensure-test-files-annotated
+lint: compile-schemas ensure-test-files-annotated
 	@echo Installing linters...
 	@test -e $(CI_BIN_DIR)/impi || \
 		(mkdir -p $(CI_BIN_DIR) && \

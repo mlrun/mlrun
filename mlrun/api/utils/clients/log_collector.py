@@ -16,6 +16,7 @@ import asyncio
 import mlrun.api.utils.clients.protocols.grpc
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -117,6 +118,6 @@ class LogCollectorClient(
                 return logs
             except Exception as exc:
                 try_count += 1
-                if try_count == 4:
+                if try_count == config.log_collector.get_logs_max_retries:
                     raise exc
                 await asyncio.sleep(3)

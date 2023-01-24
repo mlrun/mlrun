@@ -32,7 +32,6 @@ from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.api.db.sqldb.session
 import mlrun.api.utils.singletons.db
 import mlrun.errors
@@ -994,6 +993,10 @@ class BaseRuntime(ModelObj):
         return resp
 
     def _save_or_fire_notifications(self, runobj: RunObject, local: bool = False):
+
+        # import here to avoid circular imports
+        import mlrun.api.crud
+
         if not runobj.spec.notifications:
             logger.debug(
                 "No notifications to send for run", run_uid=runobj.metadata.uid

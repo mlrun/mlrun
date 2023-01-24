@@ -215,7 +215,7 @@ def mask_notification_params_on_task(task):
 def mask_notification_params_with_secret(
     project: str, run_uid: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    if not notification_object.params and "secret" in notification_object.params:
+    if notification_object.params and "secret" not in notification_object.params:
         secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.SecretsClientType.notifications,
             f"{run_uid}-{notification_object.name}",
@@ -237,13 +237,10 @@ def unmask_notification_params_secret_on_task(run):
     if isinstance(run, dict):
         run = mlrun.model.RunObject.from_dict(run)
 
-    run.spec.notifications = map(
-        unmask_notification_params_secret,
-        (
-            (run.metadata.project, mlrun.model.Notification.from_dict(notification))
-            for notification in run.spec.notifications
-        ),
-    )
+    run.spec.notifications = [
+        unmask_notification_params_secret(run.metadata.project, notification)
+        for notification in run.spec.notifications
+    ]
     return run
 
 
@@ -253,7 +250,7 @@ def unmask_notification_params_secret(
     params = notification_object.params or {}
     params_secret = params.get("secret", "")
     if not params_secret:
-        return params
+        return notification_object
 
     k8s = mlrun.api.utils.singletons.k8s.get_k8s()
     if not k8s:

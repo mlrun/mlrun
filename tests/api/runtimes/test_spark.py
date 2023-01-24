@@ -14,6 +14,7 @@
 #
 import os
 import typing
+import unittest
 
 import deepdiff
 import fastapi.testclient
@@ -26,6 +27,8 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.errors
 import mlrun.runtimes.pod
 import tests.api.runtimes.base
+from mlrun.datastore import ParquetTarget
+from mlrun.feature_store import RunConfig
 
 
 class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
@@ -569,3 +572,54 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.spec.image_pull_secret = new_image_pull_secret
         self.execute_function(runtime)
         self._assert_image_pull_secret(new_image_pull_secret)
+
+    def test_get_offline_features(
+        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    ):
+        import mlrun.feature_store as fstore
+
+        fv = fstore.FeatureVector("my-vector", features=[])
+        fv.save = unittest.mock.Mock()
+
+        self._reset_mocks()
+        runtime = self._generate_runtime()
+
+        mlrun.config.config.artifact_path = "v3io:///mypath"
+
+        runtime.with_driver_limits(cpu="1")
+        runtime.with_driver_requests(cpu="1", mem="1G")
+        runtime.with_executor_limits(cpu="1")
+        runtime.with_executor_requests(cpu="1", mem="1G")
+
+        resp = fstore.get_offline_features(
+            fv,
+            with_indexes=True,
+            entity_timestamp_column="timestamp",
+            engine="spark",
+            run_config=RunConfig(local=False, function=runtime),
+            target=ParquetTarget(),
+        )
+        runspec = resp.run.spec.to_dict()
+        assert runspec == {
+            "parameters": {
+                "vector_uri": "store://feature-vectors/default/my-vector",
+                "target": {
+                    "name": "parquet",
+                    "kind": "parquet",
+                    "partitioned": True,
+                    "max_events": 10000,
+                    "flush_after_seconds": 900,
+                },
+                "timestamp_column": "timestamp",
+                "drop_columns": None,
+                "with_indexes": True,
+                "query": None,
+                "engine_args": None,
+            },
+            "outputs": [],
+            "output_path": "v3io:///mypath",
+            "function": "None/my-vector_merger@0f4fef1da6f72c229b33fefbff0e5b58d87263c7",
+            "secret_sources": [],
+            "data_stores": [],
+            "handler": "merge_handler",
+        }

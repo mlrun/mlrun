@@ -16,6 +16,7 @@ import mimetypes
 from http import HTTPStatus
 
 import fastapi
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
 import mlrun.api.crud.secrets
@@ -23,6 +24,7 @@ import mlrun.api.schemas
 import mlrun.api.utils.auth.verifier
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
+from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -43,7 +45,7 @@ def get_files(
 
 
 @router.get("/projects/{project}/files")
-def get_files_with_project_secrets(
+async def get_files_with_project_secrets(
     project: str,
     schema: str = "",
     objpath: str = fastapi.Query("", alias="path"),
@@ -55,7 +57,7 @@ def get_files_with_project_secrets(
         mlrun.api.api.deps.authenticate_request
     ),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
@@ -63,9 +65,11 @@ def get_files_with_project_secrets(
 
     secrets = {}
     if use_secrets:
-        secrets = _verify_and_get_project_secrets(project, auth_info)
+        secrets = await _verify_and_get_project_secrets(project, auth_info)
 
-    return _get_files(schema, objpath, user, size, offset, auth_info, secrets=secrets)
+    return await run_in_threadpool(
+        _get_files, schema, objpath, user, size, offset, auth_info, secrets=secrets
+    )
 
 
 @router.get("/filestat")
@@ -81,7 +85,7 @@ def get_filestat(
 
 
 @router.get("/projects/{project}/filestat")
-def get_filestat_with_project_secrets(
+async def get_filestat_with_project_secrets(
     project: str,
     schema: str = "",
     path: str = "",
@@ -91,7 +95,7 @@ def get_filestat_with_project_secrets(
     user: str = "",
     use_secrets: bool = fastapi.Query(True, alias="use-secrets"),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
@@ -99,9 +103,11 @@ def get_filestat_with_project_secrets(
 
     secrets = {}
     if use_secrets:
-        secrets = _verify_and_get_project_secrets(project, auth_info)
+        secrets = await _verify_and_get_project_secrets(project, auth_info)
 
-    return _get_filestat(schema, path, user, auth_info, secrets=secrets)
+    return await run_in_threadpool(
+        _get_filestat, schema, path, user, auth_info, secrets=secrets
+    )
 
 
 def _get_files(
@@ -139,7 +145,7 @@ def _get_files(
 
         body = obj.get(size, offset)
     except FileNotFoundError as exc:
-        log_and_raise(HTTPStatus.NOT_FOUND.value, path=objpath, err=str(exc))
+        log_and_raise(HTTPStatus.NOT_FOUND.value, path=objpath, err=err_to_str(exc))
 
     if body is None:
         log_and_raise(HTTPStatus.NOT_FOUND.value, path=objpath)
@@ -176,7 +182,7 @@ def _get_filestat(
     try:
         stat = store_manager.object(url=path, secrets=secrets).stat()
     except FileNotFoundError as exc:
-        log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=str(exc))
+        log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc))
 
     ctype, _ = mimetypes.guess_type(path)
     if not ctype:
@@ -189,15 +195,16 @@ def _get_filestat(
     }
 
 
-def _verify_and_get_project_secrets(project, auth_info):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+async def _verify_and_get_project_secrets(project, auth_info):
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.secret,
         project,
         mlrun.api.schemas.SecretProviderName.kubernetes,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    secrets_data = mlrun.api.crud.Secrets().list_project_secrets(
+    secrets_data = await run_in_threadpool(
+        mlrun.api.crud.Secrets().list_project_secrets,
         project,
         mlrun.api.schemas.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,

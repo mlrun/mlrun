@@ -35,6 +35,7 @@ class ClientSpec(
             spark_app_image_tag=config.spark_app_image_tag,
             spark_history_server_path=config.spark_history_server_path,
             kfp_image=config.kfp_image,
+            kfp_url=config.resolve_kfp_url(),
             dask_kfp_image=config.dask_kfp_image,
             api_url=config.httpdb.api_url,
             nuclio_version=resolve_nuclio_version(),
@@ -43,6 +44,7 @@ class ClientSpec(
             generate_artifact_target_path_from_artifact_hash=config.artifacts.generate_target_path_from_artifact_hash,
             redis_url=config.redis.url,
             redis_type=config.redis.type,
+            sql_url=config.sql.url,
             # These don't have a default value, but we don't send them if they are not set to allow the client to know
             # when to use server value and when to use client value (server only if set). Since their default value is
             # empty and not set is also empty we can use the same _get_config_value_if_not_default
@@ -86,8 +88,13 @@ class ClientSpec(
             ),
             force_run_local=self._get_config_value_if_not_default("force_run_local"),
             function=self._get_config_value_if_not_default("function"),
+            # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
             ce_mode=config.ce.mode,
+            ce=config.ce.to_dict(),
             logs=self._get_config_value_if_not_default("httpdb.logs"),
+            feature_store_data_prefixes=self._get_config_value_if_not_default(
+                "feature_store.data_prefixes"
+            ),
         )
 
     @staticmethod

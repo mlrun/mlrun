@@ -42,6 +42,7 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
+from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
@@ -188,7 +189,7 @@ def _generate_function_and_task_from_submit_run_body(
 
 async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data):
     _, _, _, response = await run_in_threadpool(
-        _submit_run, db_session, auth_info, data
+        submit_run_sync, db_session, auth_info, data
     )
     return response
 
@@ -681,7 +682,7 @@ def ensure_function_security_context(function, auth_info: mlrun.api.schemas.Auth
         )
 
 
-def _submit_run(
+def submit_run_sync(
     db_session: Session, auth_info: mlrun.api.schemas.AuthInfo, data
 ) -> typing.Tuple[str, str, str, typing.Dict]:
     """
@@ -693,6 +694,7 @@ def _submit_run(
     """
     run_uid = None
     project = None
+    response = None
     try:
         fn, task = _generate_function_and_task_from_submit_run_body(
             db_session, auth_info, data
@@ -732,7 +734,22 @@ def _submit_run(
                 "name": task["metadata"]["name"],
             }
         else:
-            run = fn.run(task, watch=False)
+            # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
+            # locally from the mlrun service pod) - include project secrets and the caller's access key
+            param_file_secrets = (
+                mlrun.api.crud.Secrets()
+                .list_project_secrets(
+                    task["metadata"]["project"],
+                    mlrun.api.schemas.SecretProviderName.kubernetes,
+                    allow_secrets_from_k8s=True,
+                )
+                .secrets
+            )
+            param_file_secrets["V3IO_ACCESS_KEY"] = (
+                auth_info.data_session or auth_info.access_key
+            )
+
+            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:
@@ -745,7 +762,10 @@ def _submit_run(
         raise
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason=f"runtime error: {err}")
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"runtime error: {err_to_str(err)}",
+        )
 
     logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}

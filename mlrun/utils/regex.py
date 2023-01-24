@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# k8s character limit is for 63 characters
+k8s_character_limit = [r"^.{0,63}$"]
+
 # k8s label value format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L161
-label_value = [r"^.{0,63}$", r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$"]
+label_value = k8s_character_limit + [r"^(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?$"]
 
 # DNS Subdomain (RFC 1123) - used by k8s for most resource names format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L204
@@ -25,10 +29,7 @@ dns_1123_subdomain = [
 
 # DNS Label (RFC 1123) - used by k8s for resource names format
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L183
-dns_1123_label = [
-    r"^.{0,63}$",
-    r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-]
+dns_1123_label = k8s_character_limit + [r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"]
 
 # DNS 1035 - used by k8s for services services
 # https://github.com/kubernetes/kubernetes/blob/v1.20.0/staging/src/k8s.io/apimachinery/pkg/util/validation/validation.go#L220
@@ -69,5 +70,9 @@ sparkjob_name = label_value + sprakjob_length + sparkjob_service_name
 # It should be a valid namespace name (cause we plan to map it to one) which is dns 1123 label
 # of the 3 restrictions, dns 1123 label is the most strict, so we enforce only it
 project_name = dns_1123_label
+
+# Special characters are not permitted in tag names because they can be included in the url and cause problems.
+# We only accept letters, capital letters, numbers, dots, and hyphens, with a k8s character limit.
+tag_name = label_value
 
 secret_key = k8s_secret_and_config_map_key

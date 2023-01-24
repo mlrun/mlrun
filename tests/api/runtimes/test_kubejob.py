@@ -403,7 +403,15 @@ def my_func(context):
         runtime.with_code(body=expected_code)
 
         self.execute_function(runtime)
-        self._assert_pod_creation_config(expected_code=expected_code)
+        self._assert_pod_creation_config(
+            expected_code=expected_code,
+            expected_args=[
+                "run",
+                "--name",
+                "test-function",
+                "--from-env",
+            ],
+        )
 
     def test_set_env(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
@@ -448,6 +456,23 @@ def my_func(context):
             runtime.with_code()
         assert "please specify" in str(excinfo.value)
 
+    def test_run_with_args(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        runtime.spec.args = ["--arg1", "value1"]
+
+        self.execute_function(runtime)
+        self._assert_pod_creation_config(
+            expected_args=[
+                "run",
+                "--name",
+                "test-function",
+                "--from-env",
+                "*",
+                "--arg1",
+                "value1",
+            ],
+        )
+
     def test_set_label(self, db: Session, client: TestClient):
         task = self._generate_task()
         task.set_label("category", "test")
@@ -456,6 +481,24 @@ def my_func(context):
         runtime = self._generate_runtime()
         self.execute_function(runtime, runspec=task)
         self._assert_pod_creation_config(expected_labels=labels)
+
+    def test_with_image_pull_configuration(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        policy = "IfNotPresent"
+        secret = "some_secret"
+        runtime.set_image_pull_configuration(
+            image_pull_policy=policy, image_pull_secret_name=secret
+        )
+        assert (
+            runtime.spec.image_pull_policy == policy
+            and runtime.spec.image_pull_secret == secret
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Image pull policy must be one of",
+        ):
+            runtime.set_image_pull_configuration(image_pull_policy="invalidPolicy")
 
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()

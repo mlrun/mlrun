@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import inspect
+import pathlib
 import re
 import time
 import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from os import environ, path
-from typing import Dict, List, Optional, Tuple, Union
+from os import environ
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun
 
@@ -358,10 +359,9 @@ class ImageBuilder(ModelObj):
     @source.setter
     def source(self, source):
         if source and not (
-            source.endswith(".tar.gz")
-            or source.endswith(".zip")
-            or source.startswith("git://")
-            or path.isfile(source)
+            source.startswith("git://")
+            # lenient check for file extension because we support many file types locally and remotely
+            or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -1279,6 +1279,7 @@ class DataTargetBase(ModelObj):
         "flush_after_seconds",
         "storage_options",
         "run_id",
+        "schema",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1310,6 +1311,7 @@ class DataTargetBase(ModelObj):
         flush_after_seconds: Optional[int] = None,
         after_state=None,
         storage_options: Dict[str, str] = None,
+        schema: Dict[str, Any] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1333,6 +1335,7 @@ class DataTargetBase(ModelObj):
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
         self.run_id = None
+        self.schema = schema
 
 
 class FeatureSetProducer(ModelObj):

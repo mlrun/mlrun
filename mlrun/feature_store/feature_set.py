@@ -23,6 +23,7 @@ import mlrun.api.schemas
 
 from ..config import config as mlconf
 from ..datastore import get_store_uri
+from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
     TargetTypes,
     get_default_targets,
@@ -82,6 +83,7 @@ class FeatureSetSpec(ModelObj):
         analysis=None,
         engine=None,
         output_path=None,
+        passthrough=None,
     ):
         """Feature set spec object, defines the feature-set's configuration.
 
@@ -100,6 +102,8 @@ class FeatureSetSpec(ModelObj):
         :param function: MLRun runtime to execute the feature-set in
         :param engine: name of the processing engine (storey, pandas, or spark), defaults to storey
         :param output_path: default location where to store results (defaults to MLRun's artifact path)
+        :param passthrough: if true, ingest will skip offline targets, and get_offline_features will
+               read directly from source
         """
         self._features: ObjectList = None
         self._entities: ObjectList = None
@@ -124,6 +128,7 @@ class FeatureSetSpec(ModelObj):
         self.analysis = analysis or {}
         self.engine = engine
         self.output_path = output_path or mlconf.artifact_path
+        self.passthrough = passthrough
 
     @property
     def entities(self) -> List[Entity]:
@@ -199,11 +204,20 @@ class FeatureSetSpec(ModelObj):
         return self._source
 
     @source.setter
-    def source(self, source: DataSource):
-        self._source = self._verify_dict(source, "source", DataSource)
+    def source(self, source: Union[BaseSourceDriver, dict]):
+        if isinstance(source, dict):
+            kind = source.get("kind", "")
+            source = source_kind_to_driver[kind].from_dict(source)
+        self._source = source
 
     def require_processing(self):
         return len(self._graph.steps) > 0
+
+    def validate_no_processing_for_passthrough(self):
+        if self.passthrough and self.require_processing():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "passthrough feature set can not have graph transformations"
+            )
 
 
 class FeatureSetStatus(ModelObj):
@@ -286,6 +300,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
+        passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -301,6 +316,8 @@ class FeatureSet(ModelObj):
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
         :param label_column:  name of the label column (the one holding the target (y) values)
+        :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
+                              directly from source
         """
         self._spec: FeatureSetSpec = None
         self._metadata = None
@@ -314,6 +331,7 @@ class FeatureSet(ModelObj):
             timestamp_key=timestamp_key,
             engine=engine,
             label_column=label_column,
+            passthrough=passthrough,
         )
 
         if timestamp_key in self.spec.entities.keys():
@@ -725,6 +743,7 @@ class FeatureSet(ModelObj):
                     after=after,
                     before=before,
                     class_name="storey.AggregateByKey",
+                    time_field=self.spec.timestamp_key,
                     aggregates=[aggregation],
                     table=".",
                     **class_args,
@@ -768,7 +787,28 @@ class FeatureSet(ModelObj):
         self._spec.features.update(item, key)
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
-        """generate graphviz plot"""
+        """plot/save graph using graphviz
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ...
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_aggregation(name='priceN',
+                                column='price',
+                                operations=['avg'],
+                                windows=['1d'],
+                                period='1h')
+            ticks.plot(rankdir="LR", with_targets=True)
+
+        :param filename:     target filepath for the graph image (None for the notebook)
+        :param format:       the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param with_targets: show targets in the graph image
+        :param kw:           kwargs passed to graphviz, e.g. rankdir=”LR” (see https://graphviz.org/doc/info/attrs.html)
+        :return:             graphviz graph object
+        """
         graph = self.spec.graph
         _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None
@@ -777,7 +817,7 @@ class FeatureSet(ModelObj):
             validate_target_placement(graph, default_final_step, self.spec.targets)
             targets = [
                 BaseStep(
-                    target.kind,
+                    f"{target.kind}/{target.name}",
                     after=target.after_step or default_final_step,
                     shape="cylinder",
                 )
@@ -811,6 +851,14 @@ class FeatureSet(ModelObj):
             if self.spec.timestamp_key and self.spec.timestamp_key not in entities:
                 columns = [self.spec.timestamp_key] + columns
             columns = entities + columns
+
+        if self.spec.passthrough:
+            if not self.spec.source:
+                raise mlrun.errors.MLRunNotFoundError(
+                    "passthrough feature set {self.metadata.name} with no source"
+                )
+            return self.spec.source.to_dataframe()
+
         target = get_offline_target(self, name=target_name)
         if not target:
             raise mlrun.errors.MLRunNotFoundError(

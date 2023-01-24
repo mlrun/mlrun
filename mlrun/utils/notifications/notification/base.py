@@ -18,7 +18,7 @@ import typing
 import mlrun.lists
 
 
-class NotificationSeverity(enum.Enum):
+class NotificationSeverity(str, enum.Enum):
     INFO = "info"
     DEBUG = "debug"
     VERBOSE = "verbose"

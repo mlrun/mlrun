@@ -36,6 +36,7 @@ from yaml.representer import RepresenterError
 import mlrun
 import mlrun.errors
 import mlrun.utils.version.version
+from mlrun.errors import err_to_str
 
 from ..config import config
 from .logger import create_logger
@@ -151,6 +152,38 @@ def verify_field_regex(
             else:
                 return False
     return True
+
+
+def validate_tag_name(
+    tag_name: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    """
+    This function is used to validate a tag name for invalid characters using field regex.
+    if raise_on_failure is set True, throws an MLRunInvalidArgumentError if the tag is invalid,
+    otherwise, it returns False
+    """
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        tag_name,
+        mlrun.utils.regex.tag_name,
+        raise_on_failure=raise_on_failure,
+    )
+
+
+def get_regex_list_as_string(regex_list: List) -> str:
+    """
+    This function is used to combine a list of regex strings into a single regex,
+    with and condition between them.
+    """
+    return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+
+
+def tag_name_regex_as_string() -> str:
+    return get_regex_list_as_string(mlrun.utils.regex.tag_name)
+
+
+def is_yaml_path(url):
+    return url.endswith(".yaml") or url.endswith(".yml")
 
 
 # Verifying that a field input is of the expected type. If not the method raises a detailed MLRunInvalidArgumentError
@@ -431,7 +464,7 @@ def dict_to_yaml(struct) -> str:
     try:
         data = yaml.safe_dump(struct, default_flow_style=False, sort_keys=False)
     except RepresenterError as exc:
-        raise ValueError(f"error: data result cannot be serialized to YAML, {exc}")
+        raise ValueError("error: data result cannot be serialized to YAML") from exc
     return data
 
 
@@ -773,9 +806,17 @@ def retry_until_successful(
     if isinstance(backoff, int) or isinstance(backoff, float):
         backoff = create_linear_backoff(base=backoff, coefficient=0)
 
+    first_interval = next(backoff)
+    if timeout and timeout <= first_interval:
+        logger.warning(
+            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f" Set timeout to be higher than backoff."
+        )
+
     # If deadline was not provided or deadline not reached
     while timeout is None or time.time() < start_time + timeout:
-        next_interval = next(backoff)
+        next_interval = first_interval or next(backoff)
+        first_interval = None
         try:
             result = _function(*args, **kwargs)
             return result
@@ -789,7 +830,8 @@ def retry_until_successful(
             if timeout is None or time.time() + next_interval < start_time + timeout:
                 if logger is not None and verbose:
                     logger.debug(
-                        f"Operation not yet successful, Retrying in {next_interval} seconds. exc: {exc}"
+                        f"Operation not yet successful, Retrying in {next_interval} seconds."
+                        f" exc: {err_to_str(exc)}"
                     )
 
                 time.sleep(next_interval)
@@ -906,7 +948,7 @@ def get_class(class_name, namespace=None):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, class {class_name} not found, {exc}")
+        raise ImportError(f"state init failed, class {class_name} not found") from exc
     return class_object
 
 
@@ -928,8 +970,8 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found, {exc}"
-        )
+            f"state/function init failed, handler {function} not found"
+        ) from exc
     return function_object
 
 
@@ -958,7 +1000,9 @@ def get_handler_extended(
     try:
         instance = class_object(**class_args)
     except TypeError as exc:
-        raise TypeError(f"failed to init class {class_path}, {exc}\n args={class_args}")
+        raise TypeError(
+            f"failed to init class {class_path}\n args={class_args}"
+        ) from exc
 
     if not hasattr(instance, handler_path):
         raise ValueError(

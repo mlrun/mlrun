@@ -16,6 +16,7 @@ import os
 import pathlib
 import shutil
 import tempfile
+import unittest.mock
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -39,6 +40,10 @@ def context():
         shutil.rmtree(context)
 
 
+def assets_path():
+    return pathlib.Path(__file__).absolute().parent / "assets"
+
+
 def test_sync_functions():
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
@@ -55,9 +60,27 @@ def test_sync_functions():
     assert fn.metadata.name == "describe", "func did not return"
 
     # test that functions can be fetched from the DB (w/o set_function)
-    mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+    mlrun.import_function("hub://auto_trainer", new_name="train").save()
     fn = project.get_function("train")
     assert fn.metadata.name == "train", "train func did not return"
+
+
+def test_sync_functions_with_names_different_than_default():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+
+    describe_func = mlrun.import_function("hub://describe")
+    # set a different name than the default
+    project.set_function(describe_func, "new_describe_func")
+
+    project_function_object = project.spec._function_objects
+    project_function_definition = project.spec._function_definitions
+
+    # sync functions - expected to sync the function objects from the definitions
+    project.sync_functions()
+
+    assert project.spec._function_objects == project_function_object
+    assert project.spec._function_definitions == project_function_definition
 
 
 def test_create_project_from_file_with_legacy_structure():
@@ -411,6 +434,46 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
+@pytest.mark.parametrize(
+    "sync,expected_num_of_funcs, save",
+    [
+        (
+            False,
+            0,
+            False,
+        ),
+        (
+            True,
+            4,
+            False,
+        ),
+        (
+            True,
+            4,
+            True,
+        ),
+    ],
+)
+def test_load_project_and_sync_functions(
+    context, rundb_mock, sync, expected_num_of_funcs, save
+):
+    url = "git://github.com/mlrun/project-demo.git"
+    project = mlrun.load_project(
+        context=str(context), url=url, sync_functions=sync, save=save
+    )
+    assert len(project.spec._function_objects) == expected_num_of_funcs
+
+    if sync:
+        function_names = project.get_function_names()
+        assert len(function_names) == expected_num_of_funcs
+        for func in function_names:
+            fn = project.get_function(func)
+            assert fn.metadata.name == func, "func did not return"
+
+    if save:
+        assert rundb_mock._function is not None
+
+
 def _assert_project_function_objects(project, expected_function_objects):
     project_function_objects = project.spec._function_objects
     assert len(project_function_objects) == len(expected_function_objects)
@@ -468,6 +531,67 @@ def test_set_func_with_tag():
     )
     func = project.get_function("desc2")
     assert func.metadata.tag is None
+
+
+def test_set_function_with_relative_path(context):
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    project.set_function(
+        "handler.py",
+        "desc1",
+        image="mlrun/mlrun",
+    )
+
+    func = project.get_function("desc1")
+    assert func is not None and func.spec.build.origin_filename.startswith(
+        str(assets_path())
+    )
+
+
+def test_import_artifact_using_relative_path():
+    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+
+    # log an artifact and save the content/body in the object (inline)
+    artifact = project.log_artifact(
+        "x", body="123", is_inline=True, artifact_path=str(assets_path())
+    )
+    assert artifact.spec.get_body() == "123"
+    artifact.export(f"{str(assets_path())}/artifact.yaml")
+
+    # importing the artifact using a relative path
+    artifact = project.import_artifact("artifact.yaml", "y")
+    assert artifact.spec.get_body() == "123"
+    assert artifact.metadata.key == "y"
+
+
+@pytest.mark.parametrize(
+    "relative_artifact_path,project_context,expected_path,expected_in_context",
+    [
+        (
+            "artifact.yml",
+            "/project/context/assets",
+            "/project/context/assets/artifact.yml",
+            True,
+        ),
+        (
+            "../../artifact.yml",
+            "/project/assets/project/context",
+            "/project/assets/artifact.yml",
+            True,
+        ),
+        ("../artifact.json", "/project/context", "/project/artifact.json", True),
+        ("v3io://artifact.zip", "/project/context", "v3io://artifact.zip", False),
+        ("/artifact.json", "/project/context", "/artifact.json", False),
+    ],
+)
+def test_get_item_absolute_path(
+    relative_artifact_path, project_context, expected_path, expected_in_context
+):
+    with unittest.mock.patch("os.path.isfile", return_value=True):
+        project = mlrun.new_project("inline", save=False)
+        project.spec.context = project_context
+        result, in_context = project.get_item_absolute_path(relative_artifact_path)
+        assert result == expected_path and in_context == expected_in_context
 
 
 def test_function_run_cli():

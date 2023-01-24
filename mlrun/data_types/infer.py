@@ -105,23 +105,19 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.names:
         df = df.reset_index()
-    for col, values in df.describe(
-        include="all", percentiles=[], datetime_is_numeric=True
-    ).items():
+    for col, values in df.describe(include="all", datetime_is_numeric=True).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
-            # TODO: why is 50% excluded from the results?
-            if stat != "50%":
-                if isinstance(val, (float, np.floating, np.float64)):
-                    stats_dict[stat] = float(val)
-                elif isinstance(val, (int, np.integer, np.int64)):
-                    # boolean values are considered subclass of int
-                    if isinstance(val, bool):
-                        stats_dict[stat] = bool(val)
-                    else:
-                        stats_dict[stat] = int(val)
+            if isinstance(val, (float, np.floating, np.float64)):
+                stats_dict[stat] = float(val)
+            elif isinstance(val, (int, np.integer, np.int64)):
+                # boolean values are considered subclass of int
+                if isinstance(val, bool):
+                    stats_dict[stat] = bool(val)
                 else:
-                    stats_dict[stat] = str(val)
+                    stats_dict[stat] = int(val)
+            else:
+                stats_dict[stat] = str(val)
 
         if InferOptions.get_common_options(
             options, InferOptions.Histogram

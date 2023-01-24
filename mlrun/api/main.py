@@ -47,6 +47,7 @@ from mlrun.api.utils.singletons.project_member import (
 )
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
 from mlrun.runtimes import RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
@@ -132,6 +133,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     ):
         logger.debug(
             "Received request",
+            headers=request.headers,
             method=request.method,
             client_address=get_client_address(request.scope),
             http_version=request.scope["http_version"],
@@ -144,7 +146,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         logger.warning(
             "Request handling failed. Sending response",
             # User middleware (like this one) runs after the exception handling middleware, the only thing running after
-            # it is Starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
+            # it is starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
             # and transforming it to 500 response. therefore we can statically assign status code to 500
             status_code=500,
             request_id=request_id,
@@ -155,7 +157,7 @@ async def log_request_response(request: fastapi.Request, call_next):
         )
         raise
     else:
-        # convert from nano seconds to milliseconds
+        # convert from nanoseconds to milliseconds
         elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
         if not any(
             silent_logging_path in path_with_query_string
@@ -168,6 +170,7 @@ async def log_request_response(request: fastapi.Request, call_next):
                 elapsed_time=elapsed_time_in_ms,
                 uri=path_with_query_string,
                 method=request.method,
+                headers=response.headers,
             )
         return response
 
@@ -265,13 +268,13 @@ async def _synchronize_with_chief_clusterization_spec():
 
     try:
         chief_client = mlrun.api.utils.clients.chief.Client()
-        clusterization_spec = chief_client.get_clusterization_spec(
+        clusterization_spec = await chief_client.get_clusterization_spec(
             return_fastapi_response=False, raise_on_failure=True
         )
     except Exception as exc:
         logger.debug(
             "Failed receiving clusterization spec",
-            exc=str(exc),
+            exc=err_to_str(exc),
             traceback=traceback.format_exc(),
         )
     else:
@@ -322,7 +325,9 @@ def _monitor_runs():
                 runtime_handler.monitor_runs(db, db_session)
             except Exception as exc:
                 logger.warning(
-                    "Failed monitoring runs. Ignoring", exc=str(exc), kind=kind
+                    "Failed monitoring runs. Ignoring",
+                    exc=err_to_str(exc),
+                    kind=kind,
                 )
         _push_run_notifications(db, db_session)
     finally:
@@ -338,7 +343,9 @@ def _cleanup_runtimes():
                 runtime_handler.delete_resources(get_db(), db_session)
             except Exception as exc:
                 logger.warning(
-                    "Failed deleting resources. Ignoring", exc=str(exc), kind=kind
+                    "Failed deleting resources. Ignoring",
+                    exc=err_to_str(exc),
+                    kind=kind,
                 )
     finally:
         close_session(db_session)
@@ -376,7 +383,6 @@ def main():
         "mlrun.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
-        debug=config.httpdb.debug,
         access_log=False,
         timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
     )

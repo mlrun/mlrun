@@ -38,6 +38,7 @@ import semver
 import yaml
 
 import mlrun.errors
+from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -115,6 +116,9 @@ default_config = {
     "redis": {
         "url": "",
         "type": "standalone",  # deprecated.
+    },
+    "sql": {
+        "url": "",
     },
     "v3io_framesd": "http://framesd:8080",
     "datastore": {"async_source_mode": "disabled"},
@@ -300,7 +304,7 @@ default_config = {
         },
         "scheduling": {
             # the minimum interval that will be allowed between two scheduled jobs - e.g. a job wouldn't be
-            # allowed to be scheduled to run more then 2 times in X. Can't be less then 1 minute, "0" to disable
+            # allowed to be scheduled to run more than 2 times in X. Can't be less than 1 minute, "0" to disable
             "min_allowed_interval": "10 minutes",
             "default_concurrency_limit": 1,
             # Firing our jobs include things like creating pods which might not be instant, therefore in the case of
@@ -431,6 +435,10 @@ default_config = {
         # 1. A string of comma-separated parameters, using this format: "param1=value1,param2=value2"
         # 2. A base-64 encoded json dictionary containing the list of parameters
         "auto_mount_params": "",
+        # map file data items starting with virtual path to the real path, used when consumers have different mounts
+        # e.g. Windows client (on host) and Linux container (Jupyter, Nuclio..) need to access the same files/artifacts
+        # need to map container path to host windows paths, e.g. "\data::c:\\mlrun_data" ("::" used as splitter)
+        "item_to_real_path": "",
     },
     "default_function_pod_resources": {
         "requests": {"cpu": None, "memory": None, "gpu": None},
@@ -451,10 +459,14 @@ default_config = {
     "ce": {
         # ce mode can be one of: "", lite, full
         "mode": "",
+        # not possible to call this "version" because the Config class has a "version" property
+        # which returns the version from the version.json file
+        "release": "",
     },
     "debug": {
         "expose_internal_api_endpoints": False,
     },
+    "default_workflow_runner_name": "workflow-runner-{}",
 }
 
 _is_running_as_api = None
@@ -514,7 +526,9 @@ class Config:
                     except mlrun.errors.MLRunRuntimeError as exc:
                         if not skip_errors:
                             raise exc
-                        print(f"Warning, failed to set config key {key}={value}, {exc}")
+                        print(
+                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                        )
 
     def dump_yaml(self, stream=None):
         return yaml.dump(self._cfg, stream, default_flow_style=False)

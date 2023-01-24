@@ -35,6 +35,7 @@ from mlrun.utils import get_git_username_password_from_token
 
 from ..api.schemas import AuthInfo
 from ..config import config as mlconf
+from ..errors import err_to_str
 from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
@@ -251,6 +252,7 @@ class NuclioStatus(FunctionStatus):
         internal_invocation_urls=None,
         external_invocation_urls=None,
         build_pod=None,
+        container_image=None,
     ):
         super().__init__(state, build_pod)
 
@@ -264,6 +266,9 @@ class NuclioStatus(FunctionStatus):
         # still exists for backwards compatability reasons.
         # on latest Nuclio (>= 1.6.x) versions, use external_invocation_urls / internal_invocation_urls instead
         self.address = address
+
+        # the name of the image that was built and pushed to the registry, and used by the nuclio function
+        self.container_image = container_image
 
 
 class RemoteRuntime(KubeResource):
@@ -549,6 +554,9 @@ class RemoteRuntime(KubeResource):
             data = db.remote_builder(self, False, builder_env=builder_env)
             self.status = data["data"].get("status")
             self._update_credentials_from_remote_build(data["data"])
+
+            # when a function is deployed, we wait for it to be ready by default
+            # this also means that the function object will be updated with the function status
             self._wait_for_function_deployment(db, verbose=verbose)
 
             # NOTE: on older mlrun versions & nuclio versions, function are exposed via NodePort
@@ -696,6 +704,7 @@ class RemoteRuntime(KubeResource):
             )
             self.status.state = state
             self.status.nuclio_name = name
+            self.status.container_image = function_status.get("containerImage", "")
             if address:
                 self.status.address = address
                 self.spec.command = f"http://{address}"
@@ -863,7 +872,9 @@ class RemoteRuntime(KubeResource):
             logger.info("invoking function", method=method, path=path)
             resp = requests.request(method, path, headers=headers, **kwargs)
         except OSError as err:
-            raise OSError(f"error: cannot run function at url {path}, {err}")
+            raise OSError(
+                f"error: cannot run function at url {path}, {err_to_str(err)}"
+            )
         if not resp.ok:
             raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
@@ -901,7 +912,7 @@ class RemoteRuntime(KubeResource):
         try:
             resp = requests.put(command, json=runobj.to_dict(), headers=headers)
         except OSError as err:
-            logger.error(f"error invoking function: {err}")
+            logger.error(f"error invoking function: {err_to_str(err)}")
             raise OSError(f"error: cannot run function at url {command}")
 
         if not resp.ok:

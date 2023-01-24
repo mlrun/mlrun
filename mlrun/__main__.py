@@ -36,6 +36,7 @@ import mlrun
 from .builder import upload_tarball
 from .config import config as mlconf
 from .db import get_run_db
+from .errors import err_to_str
 from .k8s_utils import K8sHelper
 from .model import RunTemplate
 from .platforms import auto_mount as auto_mount_modifier
@@ -312,7 +313,14 @@ def run(
         if kfp:
             print(f"code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
-        if suffix != ".py" and mode != "pass" and url_file != "{codefile}":
+
+        # * is a placeholder for the url file when we want to use url args and let mlrun resolve the url file
+        if (
+            suffix != ".py"
+            and mode != "pass"
+            and url_file != "{codefile}"
+            and url_file != "*"
+        ):
             print(
                 f"command/url ({url}) must specify a .py file when not in 'pass' mode"
             )
@@ -337,6 +345,11 @@ def run(
             url = f"{url_file} {url_args}".strip()
         with open(url_file, "w") as fp:
             fp.write(code)
+
+    # at this point the url placeholder should have been resolved to the actual url file
+    if url == "*":
+        print("command/url '*' placeholder is not allowed when code is not from env")
+        exit(1)
 
     if url:
         if not name and not runtime:
@@ -400,7 +413,7 @@ def run(
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print(f"runtime error: {err}")
+        print(f"runtime error: {err_to_str(err)}")
         exit(1)
 
 
@@ -541,7 +554,7 @@ def build(
                 with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
             )
         except Exception as err:
-            print(f"deploy error, {err}")
+            print(f"deploy error, {err_to_str(err)}")
             exit(1)
 
         state = func.status.state
@@ -654,7 +667,7 @@ def deploy(
     try:
         addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
     except Exception as err:
-        print(f"deploy error: {err}")
+        print(f"deploy error: {err_to_str(err)}")
         exit(1)
 
     print(f"function deployed, address={addr}")
@@ -697,7 +710,7 @@ def watch(pod, namespace, timeout):
 def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     """List/get one or more object per kind/class.
 
-    KIND - resource type to list/get: run | runtime | artifact | function
+    KIND - resource type to list/get: run | runtime | workflow | artifact | function
     NAME - optional, resource name or category
     """
 
@@ -770,9 +783,38 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             ]
             lines.append(line)
         print(tabulate(lines, headers=headers))
+
+    elif kind.startswith("workflow"):
+        run_db = get_run_db()
+        if project == "*":
+            print("warning, reading workflows for all projects may take a long time !")
+            pipelines = run_db.list_pipelines(project=project, page_size=200)
+            pipe_runs = pipelines.runs
+            while pipelines.next_page_token is not None:
+                pipelines = run_db.list_pipelines(
+                    project=project, page_token=pipelines.next_page_token
+                )
+                pipe_runs.extend(pipelines.runs)
+        else:
+            pipelines = run_db.list_pipelines(project=project)
+            pipe_runs = pipelines.runs
+
+        lines = []
+        headers = ["project", "name", "status", "created at", "finished at"]
+        for pipe_run in pipe_runs:
+            line = [
+                pipe_run["project"],
+                pipe_run["name"],
+                pipe_run["status"],
+                pipe_run["created_at"],
+                pipe_run["finished_at"],
+            ]
+            lines.append(line)
+        print(tabulate(lines, headers=headers))
+
     else:
         print(
-            "currently only get runs | runtimes | artifacts | func [name] | runtime are supported"
+            "currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
         )
 
 
@@ -969,6 +1011,21 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+# TODO: Remove in 1.6.0 --overwrite-schedule and -os, keep --override-workflow and -ow
+@click.option(
+    "--override-workflow",
+    "--overwrite-schedule",
+    "-ow",
+    "-os",
+    "override_workflow",
+    is_flag=True,
+    help="Override a schedule when submitting a new one with the same name.",
+)
+@click.option(
+    "--save-secrets",
+    is_flag=True,
+    help="Store the project secrets as k8s secrets",
+)
 def project(
     context,
     name,
@@ -994,6 +1051,8 @@ def project(
     timeout,
     ensure_project,
     schedule,
+    override_workflow,
+    save_secrets,
 ):
     """load and/or run a project"""
     if env_file:
@@ -1025,7 +1084,13 @@ def project(
         proj.spec.params["commit_id"] = commit
     if secrets:
         secrets = line2keylist(secrets, "kind", "source")
-        proj._secrets = SecretsStore.from_list(secrets)
+        secret_store = SecretsStore.from_list(secrets)
+        # Used to run a workflow with secrets in runtime, without using or storing k8s secrets.
+        # To run a scheduled workflow or to use those secrets in other runs, save
+        # the secrets in k8s and use the --save-secret flag
+        proj._secrets = secret_store
+        if save_secrets:
+            proj.set_secrets(secret_store._secrets)
     print(proj.to_yaml())
 
     if run:
@@ -1041,8 +1106,6 @@ def project(
             args = fill_params(arguments)
 
         print(f"running workflow {run} file: {workflow_path}")
-        message = ""
-        had_error = False
         gitops = (
             git_issue
             or environ.get("GITHUB_EVENT_PATH")
@@ -1059,8 +1122,8 @@ def project(
             )
         try:
             proj.run(
-                run,
-                workflow_path,
+                name=run,
+                workflow_path=workflow_path,
                 arguments=args,
                 artifact_path=artifact_path,
                 namespace=namespace,
@@ -1072,16 +1135,13 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
+                override=override_workflow,
             )
+
         except Exception as exc:
             print(traceback.format_exc())
-            message = f"failed to run pipeline, {exc}"
-            had_error = True
-            print(message)
-
-        if had_error:
+            message = f"failed to run pipeline, {err_to_str(exc)}"
             proj.notifiers.push(message, "error")
-        if had_error:
             exit(1)
 
     elif sync:
@@ -1348,7 +1408,7 @@ def func_url_to_runtime(func_url, ensure_project: bool = False):
                 function.spec.command = command
             runtime = function.to_dict()
     except Exception as exc:
-        logger.error(f"function {func_url} not found, {exc}")
+        logger.error(f"function {func_url} not found, {err_to_str(exc)}")
         return None
 
     if not runtime:

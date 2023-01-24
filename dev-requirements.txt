@@ -1,16 +1,16 @@
-pytest~=5.4
+pytest~=6.0
 twine~=3.1
-# TODO: bump black when it become stable
 black~=22.0
 flake8~=5.0
 pytest-asyncio~=0.15.0
-pytest-alembic~=0.4.0
+pytest-alembic~=0.9.1
 pytest-httpserver~=1.0
+aioresponses~=0.7
 requests-mock~=1.8
 httpx~=0.22.0
 # needed for system tests
-matplotlib~=3.0
-graphviz~=0.16.0
+matplotlib~=3.5
+graphviz~=0.20.0
 nuclio-sdk~=0.3.0
 isort~=5.7
 avro~=1.11
@@ -19,3 +19,4 @@ scikit-learn~=1.0
 # needed for frameworks tests
 lightgbm~=3.0
 xgboost~=1.1
+sqlalchemy_utils~=0.39.0

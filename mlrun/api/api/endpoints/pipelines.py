@@ -38,7 +38,7 @@ router = APIRouter()
 @router.get(
     "/projects/{project}/pipelines", response_model=mlrun.api.schemas.PipelinesOutput
 )
-def list_pipelines(
+async def list_pipelines(
     project: str,
     namespace: str = None,
     sort_by: str = "",
@@ -56,7 +56,7 @@ def list_pipelines(
     if namespace is None:
         namespace = config.namespace
     if project != "*":
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             project,
             mlrun.api.schemas.AuthorizationAction.read,
             auth_info,
@@ -70,7 +70,8 @@ def list_pipelines(
             if format_ == mlrun.api.schemas.PipelinesFormat.name_only
             else format_
         )
-        total_size, next_page_token, runs = mlrun.api.crud.Pipelines().list_pipelines(
+        total_size, next_page_token, runs = await run_in_threadpool(
+            mlrun.api.crud.Pipelines().list_pipelines,
             db_session,
             project,
             namespace,
@@ -80,7 +81,7 @@ def list_pipelines(
             computed_format,
             page_size,
         )
-    allowed_runs = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    allowed_runs = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
         runs,
         lambda run: (
@@ -151,8 +152,7 @@ async def _create_pipeline(
 ):
     # If we have the project (new clients from 0.7.0 uses the new endpoint in which it's mandatory) - check auth now
     if project:
-        await run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",
@@ -176,8 +176,7 @@ async def _create_pipeline(
             " the server version"
         )
     else:
-        await run_in_threadpool(
-            mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
             project,
             "",
@@ -227,7 +226,7 @@ def _try_resolve_project_from_body(
 @router.get("/pipelines/{run_id}")
 @router.get("/pipelines/{run_id}/")
 # TODO: remove when 0.6.6 is no longer relevant
-def get_pipeline_legacy(
+async def get_pipeline_legacy(
     run_id: str,
     namespace: str = Query(config.namespace),
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
@@ -235,11 +234,11 @@ def get_pipeline_legacy(
     ),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    return _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
+    return await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
 
 
 @router.get("/projects/{project}/pipelines/{run_id}")
-def get_pipeline(
+async def get_pipeline(
     run_id: str,
     project: str,
     namespace: str = Query(config.namespace),
@@ -260,9 +259,9 @@ def get_pipeline(
         # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
         # we don't use the return value from this function since the user may have asked for a different format than
         # summary which is the one used inside
-        _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
+        await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
     else:
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
             project,
             run_id,
@@ -272,7 +271,7 @@ def get_pipeline(
     return pipeline
 
 
-def _get_pipeline_without_project(
+async def _get_pipeline_without_project(
     db_session: Session,
     auth_info: mlrun.api.schemas.AuthInfo,
     run_id: str,
@@ -283,14 +282,15 @@ def _get_pipeline_without_project(
     So we first get the pipeline, resolve the project out of it, and now that we know the project, we can verify
     permissions
     """
-    run = mlrun.api.crud.Pipelines().get_pipeline(
+    run = await run_in_threadpool(
+        mlrun.api.crud.Pipelines().get_pipeline,
         db_session,
         run_id,
         namespace=namespace,
         # minimal format that includes the project
         format_=mlrun.api.schemas.PipelinesFormat.summary,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.pipeline,
         run["run"]["project"],
         run["run"]["id"],

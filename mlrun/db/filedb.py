@@ -111,7 +111,6 @@ class FileRunDB(RunDBInterface):
 
     def update_run(self, updates: dict, uid, project="", iter=0):
         run = self.read_run(uid, project, iter=iter)
-        # TODO: Should we raise if run not found?
         if run and updates:
             for key, val in updates.items():
                 update_in(run, key, val)
@@ -133,7 +132,7 @@ class FileRunDB(RunDBInterface):
     def list_runs(
         self,
         name="",
-        uid=None,
+        uid: Optional[Union[str, List[str]]] = None,
         project="",
         labels=None,
         state="",
@@ -155,6 +154,11 @@ class FileRunDB(RunDBInterface):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Runs partitioning not supported"
             )
+        if uid and isinstance(uid, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Runs list with multiple uids not supported"
+            )
+
         labels = [] if labels is None else labels
         filepath = self._filepath(run_logs, project)
         results = RunList()

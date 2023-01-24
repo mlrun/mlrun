@@ -64,8 +64,13 @@ def test_function(context):
     ...
 ```
 
+To create **GIT_TOKEN** secrets, use this command:
+```
+project.set_secrets({"GIT_TOKEN":<git token>}
+```
+
 ### Using tasks with secrets
-MLRun uses the concept of Tasks to encapsulate runtime parameters. Tasks are used to specify execution context
+MLRun uses the concept of tasks to encapsulate runtime parameters. Tasks are used to specify execution context
 such as hyper-parameters. They can also be used to pass details about secrets that are going to be used in the 
 runtime. This allows for control over specific secrets passed to runtimes, and support for the various MLRun secret
 providers.

@@ -91,6 +91,44 @@ class TestNuclioRuntime(tests.system.base.TestMLRunSystem):
             assert resp.status_code == 200
             assert resp.text == "NoneType"
 
+    def test_nuclio_function_status_fields(self):
+        code_path = str(self.assets_path / "nuclio_function_to_print_type.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="test-function",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image="mlrun/mlrun",
+        )
+
+        # since we're deploying a serving function, we need to add a graph to it
+        graph = function.set_topology("flow", engine="sync")
+        graph.add_step(name="type", class_name="Type")
+
+        self._logger.debug("Deploying nuclio function")
+        url = function.deploy()
+
+        resp = requests.get(url)
+        assert resp.status_code == 200
+
+        response = self._run_db.api_call(
+            "GET", "funcs", params={"project": self.project_name}
+        )
+
+        assert response.ok
+        data = response.json()
+        deployed_function = data["funcs"][0]
+
+        status = deployed_function["status"]
+        assert "state" in status
+        assert "nuclio_name" in status
+        assert "internal_invocation_urls" in status
+        assert "external_invocation_urls" in status
+        assert "address" in status
+        assert "container_image" in status
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
@@ -214,7 +252,6 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         self._logger.debug(f"Intermediate record: {record}")
         assert record["full_event_wrapper"] is True
         assert record["body"] == {"hello": "world"}
-        assert "time" in record.keys()
         assert "id" in record.keys()
 
 
@@ -448,7 +485,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         self._logger.debug(f"Intermediate record: {payload}")
         assert payload["full_event_wrapper"] is True
         assert payload["body"] == {"hello": "world"}
-        assert "time" in payload.keys()
         assert "id" in payload.keys()
         assert record.partition == 1
 

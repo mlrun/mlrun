@@ -65,6 +65,7 @@ from mlrun.api.db.sqldb.models import (
     _tagged,
 )
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
@@ -76,6 +77,7 @@ from mlrun.utils import (
     is_legacy_artifact,
     logger,
     update_in,
+    validate_tag_name,
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -111,7 +113,9 @@ def retry_on_conflict(function):
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
-                    logger.warning("Got conflict error from DB. Retrying", err=str(exc))
+                    logger.warning(
+                        "Got conflict error from DB. Retrying", err=err_to_str(exc)
+                    )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Got conflict error from DB"
                     ) from exc
@@ -239,7 +243,7 @@ class SQLDB(DBInterface):
         self,
         session,
         name=None,
-        uid=None,
+        uid: typing.Optional[typing.Union[str, List[str]]] = None,
         project=None,
         labels=None,
         states=None,
@@ -546,6 +550,10 @@ class SQLDB(DBInterface):
         self._upsert(session, [art])
         if tag_artifact:
             tag = tag or "latest"
+
+            # we want to ensure that the tag is valid before storing,
+            # if it isn't, MLRunInvalidArgumentError will be raised
+            validate_tag_name(tag, "artifact.metadata.tag")
             self.tag_artifacts(session, [art], project, tag)
             # we want to tag the artifact also as "latest" if it's the first time we store it, reason is that there are
             # updates we are doing to the metadata of the artifact (like updating the labels) and we don't want those
@@ -1133,6 +1141,7 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
             labels=labels,
             concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
         )
         self._upsert(session, [schedule])
 
@@ -1239,6 +1248,10 @@ class SQLDB(DBInterface):
             )
             tag = query.one_or_none()
             if not tag:
+                # To maintain backwards compatibility,
+                # we validate the tag name only if it does not already exist on the artifact,
+                # we don't want to fail on old tags that were created before the validation was added.
+                validate_tag_name(tag_name=name, field_name="artifact.metadata.tag")
                 tag = artifact.Tag(project=project, name=name)
             tag.obj_id = artifact.id
             self._upsert(session, [tag], ignore=True)
@@ -2662,7 +2675,9 @@ class SQLDB(DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                raise mlrun.errors.MLRunConflictError(f"add user: {err}") from err
+                raise mlrun.errors.MLRunConflictError(
+                    f"add user: {err_to_str(err)}"
+                ) from err
         return users
 
     def _get_class_instance_by_uid(self, session, cls, name, project, uid):
@@ -2712,7 +2727,9 @@ class SQLDB(DBInterface):
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
                     ) from err
-                logger.warning("Failed committing changes to DB", cls=cls, err=str(err))
+                logger.warning(
+                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                )
                 if not ignore:
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
@@ -2747,7 +2764,11 @@ class SQLDB(DBInterface):
         labels = label_set(labels)
         if project == "*":
             project = None
-        query = self._query(session, Run, uid=uid, project=project)
+        query = self._query(session, Run, project=project)
+        if uid:
+            # uid may be either a single uid (string) or a list of uids
+            uid = mlrun.utils.helpers.as_list(uid)
+            query = query.filter(Run.uid.in_(uid))
         return self._add_labels_filter(session, query, Run, labels)
 
     def _find_notifications(

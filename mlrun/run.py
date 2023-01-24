@@ -155,6 +155,11 @@ def run_local(
     :param params:   input parameters (dict)
     :param inputs:   input objects (dict of key: path)
     :param artifact_path: default artifact output path
+    :param mode:    Runtime mode for more details head to `mlrun.new_function`
+    :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
+                                    (allows to have function which don't depend on having targets,
+                                    e.g a function which accepts a feature vector uri and generate
+                                     the offline vector e.g. parquet_ for it if it doesn't exist)
 
     :return: run object
     """
@@ -440,7 +445,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     examples::
 
-        function = mlrun.import_function("hub://sklearn_classifier")
+        function = mlrun.import_function("hub://auto_trainer")
         function = mlrun.import_function("./func.yaml")
         function = mlrun.import_function("https://raw.githubusercontent.com/org/repo/func.yaml")
 
@@ -1528,6 +1533,11 @@ class OutputsLogger:
                     artifact = BokehArtifact(key=key, figure=obj)
             except ModuleNotFoundError:
                 pass
+            except ImportError:
+                logger.warn(
+                    "Bokeh installation is ignored. If needed, "
+                    "make sure you have the required version with `pip install mlrun[bokeh]`"
+                )
 
         # Log the artifact:
         if artifact is None:
@@ -1729,7 +1739,10 @@ class ContextHandler:
         for key in kwargs.keys():
             if isinstance(kwargs[key], mlrun.DataItem) and expected_arguments_types[
                 key
-            ] not in [inspect._empty, mlrun.DataItem]:
+            ] not in [
+                inspect._empty,
+                mlrun.DataItem,
+            ]:
                 kwargs[key] = self._parse_input(
                     data_item=kwargs[key], expected_type=expected_arguments_types[key]
                 )
@@ -1836,6 +1849,11 @@ class ContextHandler:
             ] = ArtifactType.PLOT
         except ModuleNotFoundError:
             pass
+        except ImportError:
+            logger.warn(
+                "Bokeh installation is ignored. If needed, "
+                "make sure you have the required version with `pip install mlrun[bokeh]`"
+            )
 
     @classmethod
     def _init_outputs_logging_map(cls):

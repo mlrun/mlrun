@@ -23,8 +23,10 @@ import (
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
+	"github.com/mlrun/mlrun/pkg/services/logcollector/test/nop"
 	"github.com/mlrun/mlrun/proto/build/log_collector"
 
+	"github.com/google/uuid"
 	"github.com/nuclio/logger"
 	"github.com/nuclio/loggerus"
 	"github.com/stretchr/testify/suite"
@@ -36,11 +38,12 @@ import (
 
 type LogCollectorTestSuite struct {
 	suite.Suite
-	LogCollectorServer *LogCollectorServer
+	LogCollectorServer *Server
 	logger             logger.Logger
 	ctx                context.Context
 	kubeClientSet      fake.Clientset
 	namespace          string
+	projectName        string
 	baseDir            string
 }
 
@@ -52,11 +55,12 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.kubeClientSet = *fake.NewSimpleClientset()
 	suite.ctx = context.Background()
 	suite.namespace = "default"
+	suite.projectName = "test-project"
 	stateFileUpdateIntervalStr := "5s"
 	readLogWaitTime := "3s"
 	monitoringInterval := "30s"
 	bufferPoolSize := 20
-	bufferSizeBytes := 512
+	bufferSizeBytes := 100
 
 	// create base dir
 	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
@@ -92,10 +96,10 @@ func (suite *LogCollectorTestSuite) TestValidateOffsetAndSize() {
 
 	for _, testCase := range []struct {
 		name           string
-		offset         uint64
+		offset         int64
 		size           int64
 		fileSize       int64
-		expectedOffset uint64
+		expectedOffset int64
 		expectedSize   int64
 	}{
 		{
@@ -192,14 +196,14 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	startedChan := make(chan bool)
 
 	// stream pod logs
-	go suite.LogCollectorServer.startLogStreaming(ctx, runId, pod.Name, startedChan, cancel)
+	go suite.LogCollectorServer.startLogStreaming(ctx, runId, pod.Name, suite.projectName, startedChan, cancel)
 
 	// wait for log streaming to start
 	started := <-startedChan
 	suite.Require().True(started, "Log streaming didn't start")
 
 	// resolve log file path
-	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, pod.Name)
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(suite.projectName, runId, pod.Name)
 
 	// read log file until it has content, or timeout
 	timeout := time.After(30 * time.Second)
@@ -230,57 +234,60 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 
 func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 
-	runId := "some-run-id"
+	runUID := uuid.New().String()
 	podName := "my-pod"
 
-	// creat log file for runId and pod
-	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(runId, podName)
+	// creat log file for runUID and pod
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(suite.projectName, runUID, podName)
 
 	// write log file
-	logText := "Some fake pod logs"
+	logText := "Some fake pod logs\n"
 	err := common.WriteToFile(logFilePath, []byte(logText), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
+	// initialize stream
+	nopStream := &nop.GetLogsResponseStreamNop{}
+
 	// get logs
-	log, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
-		RunUID: runId,
-		Offset: 0,
-		Size:   100,
-	})
+	err = suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+		RunUID:      runUID,
+		Offset:      0,
+		Size:        100,
+		ProjectName: suite.projectName,
+	}, nopStream)
 	suite.Require().NoError(err, "Failed to get logs")
 
 	// verify logs
-	suite.Require().Equal(logText, string(log.Logs))
-}
+	suite.Require().Equal(logText, string(nopStream.Logs))
 
-func (suite *LogCollectorTestSuite) TestGetLogFailOnSize() {
+	// clean mock stream logs
+	nopStream.Logs = []byte{}
 
-	for _, testCase := range []struct {
-		name string
-		size int64
-	}{
-		{
-			name: "size is negative",
-			size: -1,
-		},
-		{
-			name: "size is zero",
-			size: 0,
-		},
-		{
-			name: "size is larger than buffer size",
-			size: 1000000,
-		},
-	} {
-		suite.Run(testCase.name, func() {
-			_, err := suite.LogCollectorServer.GetLogs(suite.ctx, &log_collector.GetLogsRequest{
-				RunUID: "some-run-id",
-				Offset: 0,
-				Size:   testCase.size,
-			})
-			suite.Require().Error(err, "Expected error on size")
-		})
+	expectedResultLogs := []byte(logText)
+
+	suite.logger.DebugWith("Writing more logs to file", "logFilePath", logFilePath)
+
+	// write more logs to log file
+	for i := 0; i < 5; i++ {
+		expectedResultLogs = append(expectedResultLogs, []byte(logText)...)
+		err = common.WriteToFile(logFilePath, []byte(logText), true)
+		suite.Require().NoError(err, "Failed to write to file")
 	}
+
+	// get logs with offset and size -1, to get all logs at once
+	err = suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+		RunUID:      runUID,
+		Offset:      1,
+		Size:        -1,
+		ProjectName: suite.projectName,
+	}, nopStream)
+	suite.Require().NoError(err, "Failed to get logs")
+
+	// truncate expected logs to offset
+	expectedResultLogs = expectedResultLogs[1:]
+
+	// verify logs
+	suite.Require().Equal(expectedResultLogs, nopStream.Logs)
 }
 
 func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
@@ -336,7 +343,7 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 
 			message := fmt.Sprintf(messageTemplate, j)
 			size := int64(len(message))
-			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx, "1", filePath, uint64(offset), size)
+			logs, err := suite.LogCollectorServer.readLogsFromFile(ctx, "1", filePath, int64(offset), size)
 			suite.Require().NoError(err, "Failed to read logs from file")
 
 			// verify logs

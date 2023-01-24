@@ -27,6 +27,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// GetEnvOrDefaultString returns the string value of the environment variable with the given key, or the given default
+// value if the environment variable is not set
 func GetEnvOrDefaultString(key string, defaultValue string) string {
 	value := os.Getenv(key)
 	if value == "" {
@@ -37,10 +39,14 @@ func GetEnvOrDefaultString(key string, defaultValue string) string {
 	return value
 }
 
+// GetEnvOrDefaultBool returns the boolean value of the environment variable with the given key, or the given default
+// value if the environment variable is not set
 func GetEnvOrDefaultBool(key string, defaultValue bool) bool {
 	return strings.ToLower(GetEnvOrDefaultString(key, strconv.FormatBool(defaultValue))) == "true"
 }
 
+// GetEnvOrDefaultInt returns the integer value of the environment variable with the given key, or the given default
+// value if the environment variable is not set
 func GetEnvOrDefaultInt(key string, defaultValue int) int {
 	valueInt, err := strconv.Atoi(GetEnvOrDefaultString(key, strconv.Itoa(defaultValue)))
 	if err != nil {
@@ -49,6 +55,7 @@ func GetEnvOrDefaultInt(key string, defaultValue int) int {
 	return valueInt
 }
 
+// GetKubernetesClientConfig returns a kubernetes client config
 func GetKubernetesClientConfig(kubeconfigPath string) (*rest.Config, error) {
 	if kubeconfigPath != "" {
 		return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
@@ -57,6 +64,7 @@ func GetKubernetesClientConfig(kubeconfigPath string) (*rest.Config, error) {
 	return rest.InClusterConfig()
 }
 
+// EnsureDirExists creates a directory if it doesn't exist
 func EnsureDirExists(dirPath string, mode os.FileMode) error {
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(dirPath, mode); err != nil {
@@ -67,6 +75,7 @@ func EnsureDirExists(dirPath string, mode os.FileMode) error {
 	return nil
 }
 
+// EnsureFileExists creates a file if it doesn't exist
 func EnsureFileExists(filePath string) error {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 
@@ -117,6 +126,23 @@ func WriteToFile(filePath string,
 	return nil
 }
 
+// GetFileSize returns the size of the given file
+func GetFileSize(filePath string) (int64, error) {
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
+	if err != nil {
+		return 0, errors.Wrapf(err, "Failed to open log file - %s", filePath)
+	}
+	defer file.Close() // nolint: errcheck
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, errors.Wrapf(err, "Failed to get file info for file - %s", filePath)
+	}
+
+	return fileInfo.Size(), nil
+}
+
+// SyncMapLength returns the length of a sync.Map
 func SyncMapLength(m *sync.Map) int {
 	var i int
 	m.Range(func(k, v interface{}) bool {

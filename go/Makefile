@@ -21,6 +21,7 @@ GO_VERSION=1.19
 GOPATH ?= $(shell go env GOPATH)
 OS_NAME = $(shell uname)
 DOCKER_IMAGES = log-collector
+KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
 
 CI_BIN_DIR=$(shell pwd)/.bin
 
@@ -114,9 +115,12 @@ test-unit-dockerized: schemas-compiler
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: schemas-compiler
+	MLRUN_TEST_KUBECONFIG=$(if $(MLRUN_TEST_KUBECONFIG),$(MLRUN_TEST_KUBECONFIG),$(KUBECONFIG)) \
 	docker run \
-		-v $(HOME)/.kube/config:/root/.kube/config \
-		-v $(shell dirname $(PWD)):/app \
+		--volume $(shell dirname $(PWD)):/app \
+		--volume $(MLRUN_TEST_KUBECONFIG)/:/kubeconfig \
+		--env MINIKUBE_HOME=$(MINIKUBE_HOME) \
+		--env KUBECONFIG=/kubeconfig \
 		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
 		make test-integration-local
 

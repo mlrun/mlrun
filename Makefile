@@ -577,7 +577,7 @@ test-go-integration: ## Run mlrun go unit tests
 		make test-integration-local
 
 .PHONY: test-go-dockerized
-test-go-integration-dockerized: ## Run mlrun go unit tests in docker container
+test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
 	cd go && \
 		make test-integration-dockerized
 

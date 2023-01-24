@@ -134,6 +134,10 @@ jobs:
           kubernetes version: "v1.25.3"
           driver: docker
           github token: ${{ github.token }}
+      - name: Prepare minikube
+        run: |
+          minikube kubectl -- config view --flatten > kubeconfig_flatten
+          echo "MLRUN_TEST_KUBECONFIG=$(pwd)/kubeconfig_flatten" >> $GITHUB_ENV
       - name: Run GO tests
         run: |
           make test-go-integration-dockerized

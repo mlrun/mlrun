@@ -29,7 +29,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: typing.List[mlrun.model.Notification],
         run_uid: str,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         notification_objects_to_store = []

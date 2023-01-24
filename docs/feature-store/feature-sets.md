@@ -20,11 +20,12 @@ The feature set object contains the following information:
 - [Create a Feature Set](#create-a-feature-set)
 - [Create a feature set without ingesting its data](#create-a-feature-set-without-ingesting-its-data)
 - [Add transformations](#add-transformations)
-- [Simulate and debug the data pipeline with a small dataset](#simulate-the-data-pipeline-with-a-small-dataset)
+
+**See also**:
+- [Verify a feature set with a small dataset by inferring data](../data-prep/ingest-data-fs.html#verify-a-feature-set-with-a-small-dataset-by-inferring-data)
+- {ref}`Ingest data using the feature store <ingest-data-fs>`
 
 
-See also {ref}`Ingest data using the feature store <ingest-data-fs>`.
-  
    
 ## Create a feature set
 
@@ -120,22 +121,3 @@ df = fstore.ingest(stocks_set, stocks_df)
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
 See more details in {ref}`transformations`.
-
-## Simulate and debug the data pipeline with a small dataset
-During the development phase it's pretty common to check the feature set definition and to simulate the creation of the 
-feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
-This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `infer`. It infers the source data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
-The infer operation also learns the feature set schema and does statistical analysis on the result by default.
-  
-```python
-df = fstore.preview(quotes_set, quotes)
-
-# print the feature statistics
-print(quotes_set.get_stats_table())
-```
-
-
-
-
-
-

@@ -20,7 +20,7 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 ```
 
 **In this section**
-- [Inferring data](#inferring-data)
+- [Verify a feature set with a small dataset by inferring data](#verify-a-feature-set-with-a-small-dataset-by-inferring-data)
 - [Ingest data locally](#ingest-data-locally)
 - [Ingest data using an MLRun job](#ingest-data-using-an-mlrun-job)
 - [Real-time ingestion](#real-time-ingestion)
@@ -28,14 +28,30 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 - [Data sources](#data-sources)
 - [Target stores](#target-stores)
 
-See also {ref}`feature-store`.
+**See also**:
+- {ref}`feature-sets`
 
-## Inferring data
+## Verify a feature set with a small dataset by inferring data 
 
-There are 2 types of infer options:
+Ingesting an entire dataset can take a fair amount of time. Therefore, you may want to first check the feature set definition by 
+simulating the creation of the feature set (before ingesting the entire dataset). <br>
+This gives a preview of the results (in the returned dataframe). The simulation method is called `infer`. 
+It infers the source data schema, and processes the graph logic (assuming there is one) on a small subset of data. 
+The infer operation also learns the feature set schema and does statistical analysis on the result by default.
+  
+```python
+df = fstore.preview(quotes_set, quotes)
+
+# print the feature statistics
+print(quotes_set.get_stats_table())
+```
+
+### Inferring data
+
+There are two ways to infer data:
 - Metadata/schema: This is responsible for describing the dataset and generating its meta-data, such as deducing the 
 data-types of the features and listing the entities that are involved. Options belonging to this type are 
-`Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value 
+`Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function that returns a value 
 containing all the options of this type.
 - Stats/preview: This relates to calculating statistics and generating a preview of the actual data in the dataset. 
 Options of this type are `Stats`, `Histogram` and `Preview`. 
@@ -50,9 +66,11 @@ class InferOptions:<br>
     Histogram = 16<br>
     Preview = 32<br>
     
-The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
+The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 
+24 means `Stats` + `Histogram`.
 
-When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
+When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring 
+metadata/stats and once for the actual ingest. This is normal behavior.
 
 ## Ingest data locally
 

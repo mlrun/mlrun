@@ -24,11 +24,11 @@ import (
 	"github.com/nuclio/logger"
 )
 
-type StateStoreType string
+type Kind string
 
 const (
-	StateStoreTypeFile     StateStoreType = "file"
-	StateStoreTypeInMemory StateStoreType = "inMemory"
+	KindFile     Kind = "file"
+	KindInMemory Kind = "inMemory"
 )
 
 type LogItem struct {
@@ -45,6 +45,7 @@ type State struct {
 	InProgress *sync.Map `json:"inProgress"`
 }
 
+// UnmarshalJSON is a custom unmarshaler for the state
 func (s *State) UnmarshalJSON(data []byte) error {
 	tempState := marshalledState{
 		InProgress: map[string]LogItem{},
@@ -61,6 +62,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON is a custom marshaler for the state
 func (s *State) MarshalJSON() ([]byte, error) {
 
 	tempState := marshalledState{

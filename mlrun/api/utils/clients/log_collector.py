@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 
 import mlrun.api.utils.clients.protocols.grpc
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -95,13 +97,27 @@ class LogCollectorClient(
             offset=offset,
             size=size,
         )
-        response = await self._call("GetLogs", request)
-        if not response.success:
-            msg = f"Failed to get logs for run {run_uid}"
-            if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.error}"
-                )
-            if verbose:
-                logger.warning(msg, error=response.error)
-        return response.logs
+
+        # retry calling the server, it can fail in case the log-collector hasn't started collecting logs for this yet
+        # TODO: add async retry function
+        try_count = 0
+        while True:
+            try:
+                response_stream = self._call_stream("GetLogs", request)
+                logs = b""
+                async for chunk in response_stream:
+                    if not chunk.success:
+                        msg = f"Failed to get logs for run {run_uid}"
+                        if raise_on_error:
+                            raise mlrun.errors.MLRunInternalServerError(
+                                f"{msg},error= {chunk.error}"
+                            )
+                        if verbose:
+                            logger.warning(msg, error=chunk.error)
+                    logs += chunk.logs
+                return logs
+            except Exception as exc:
+                try_count += 1
+                if try_count == config.log_collector.get_logs.max_retries:
+                    raise exc
+                await asyncio.sleep(3)

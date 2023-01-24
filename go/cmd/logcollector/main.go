@@ -30,17 +30,17 @@ import (
 func StartServer() error {
 
 	// env vars parsing
-	listenPort := flag.Int("listen-port", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_LISTEN_PORT", 8080), "GRPC listen port")
-	logLevel := flag.String("log-level", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
-	logFormatter := flag.String("log-formatter", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_LOG_FORMATTER", "text"), "Log formatter (text, json)")
-	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_BASE_DIR", "/var/mlrun/log-collector/pod-logs"), "The directory to store the logs in")
-	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_KUBECONFIG_PATH", ""), "Path to kubeconfig file")
-	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_STATE_FILE_UPDATE_INTERVAL", "10s"), "Periodic interval for updating the state file")
-	readLogWaitTime := flag.String("read-log-wait-time", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_READ_LOG_WAIT_TIME", "3s"), "Wait time until trying to get more logs from the pod")
-	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR_MONITORING_INTERVAL", "30s"), "Periodic interval for monitoring the goroutines collecting logs")
-	logCollectionbufferPoolSize := flag.Int("log-collection-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_LOG_COLLECTION_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for collecting logs (default: 512 buffers)")
-	getLogsBufferPoolSize := flag.Int("get-logs-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_GET_LOGS_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for getting logs (default: 512 buffers)")
-	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR_BUFFER_SIZE_BYTES", 10*1024*1024), "Size of buffer in bytes for reading pod logs (default: 10MB)")
+	listenPort := flag.Int("listen-port", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LISTEN_PORT", 8080), "GRPC listen port")
+	logLevel := flag.String("log-level", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
+	logFormatter := flag.String("log-formatter", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__LOG_FORMATTER", "text"), "Log formatter (text, json)")
+	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__BASE_DIR", "/var/mlrun/log-collector/pod-logs"), "The directory to store the logs in")
+	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__KUBECONFIG_PATH", ""), "Path to kubeconfig file")
+	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__STATE_FILE_UPDATE_INTERVAL", "10s"), "Periodic interval for updating the state file (default 10s)")
+	readLogWaitTime := flag.String("read-log-wait-time", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__READ_LOG_WAIT_TIME", "3s"), "Wait time until trying to get more logs from the pod (default 3s)")
+	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__MONITORING_INTERVAL", "10s"), "Periodic interval for monitoring the goroutines collecting logs (default 10s)")
+	logCollectionBufferPoolSize := flag.Int("log-collection-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_COLLECTION_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for collecting logs (default: 512 buffers)")
+	getLogsBufferPoolSize := flag.Int("get-logs-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for getting logs (default: 512 buffers)")
+	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__BUFFER_SIZE_BYTES", 10*1024*1024), "Size of buffers in the buffer pool, in bytes (default: 10MB)")
 
 	// if namespace is not passed, it will be taken from env
 	namespace := flag.String("namespace", "", "The namespace to collect logs from")
@@ -70,7 +70,7 @@ func StartServer() error {
 		*readLogWaitTime,
 		*monitoringInterval,
 		kubeClientSet,
-		*logCollectionbufferPoolSize,
+		*logCollectionBufferPoolSize,
 		*getLogsBufferPoolSize,
 		*bufferSizeBytes)
 	if err != nil {
@@ -87,7 +87,7 @@ func getNamespace(namespaceArgument string) string {
 	}
 
 	// if the namespace exists in env, use that
-	if namespaceEnv := os.Getenv("MLRUN_LOG_COLLECTOR_NAMESPACE"); namespaceEnv != "" {
+	if namespaceEnv := os.Getenv("MLRUN_LOG_COLLECTOR__NAMESPACE"); namespaceEnv != "" {
 		return namespaceEnv
 	}
 

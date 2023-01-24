@@ -247,7 +247,7 @@ def _start_logs_collection():
         config.log_collector.concurrent_start_logs_workers
     )
     run_function_periodically(
-        interval=config.log_collector.periodic_start_log_interval,
+        interval=int(config.log_collector.periodic_start_log_interval),
         name=_initiate_logs_collection.__name__,
         replace=False,
         function=_initiate_logs_collection,

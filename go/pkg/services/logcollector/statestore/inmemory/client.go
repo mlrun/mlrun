@@ -21,48 +21,48 @@ import (
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 )
 
-type InMemoryStateStore struct {
+type Store struct {
 	inProgress *sync.Map
 }
 
-func NewInMemoryStateStore() *InMemoryStateStore {
-	return &InMemoryStateStore{
+func NewInMemoryStore() *Store {
+	return &Store{
 		inProgress: &sync.Map{},
 	}
 }
 
 // Initialize initializes the state store
-func (i *InMemoryStateStore) Initialize(ctx context.Context) {}
+func (s *Store) Initialize(ctx context.Context) {}
 
 // AddLogItem adds a log item to the state store
-func (i *InMemoryStateStore) AddLogItem(ctx context.Context, runId, selector string) error {
+func (s *Store) AddLogItem(ctx context.Context, runId, selector string) error {
 	logItem := statestore.LogItem{
 		RunUID:        runId,
 		LabelSelector: selector,
 	}
-	i.inProgress.Store(runId, logItem)
+	s.inProgress.Store(runId, logItem)
 	return nil
 }
 
 // RemoveLogItem removes a log item from the state store
-func (i *InMemoryStateStore) RemoveLogItem(runId string) error {
-	i.inProgress.Delete(runId)
+func (s *Store) RemoveLogItem(runId string) error {
+	s.inProgress.Delete(runId)
 	return nil
 }
 
 // WriteState writes the state to persistent storage
-func (i *InMemoryStateStore) WriteState(state *statestore.State) error {
+func (s *Store) WriteState(state *statestore.State) error {
 	return nil
 }
 
 // GetItemsInProgress returns the in progress log items
-func (i *InMemoryStateStore) GetItemsInProgress() (*sync.Map, error) {
-	return i.inProgress, nil
+func (s *Store) GetItemsInProgress() (*sync.Map, error) {
+	return s.inProgress, nil
 }
 
 // GetState returns the state store state
-func (i *InMemoryStateStore) GetState() *statestore.State {
+func (s *Store) GetState() *statestore.State {
 	return &statestore.State{
-		InProgress: i.inProgress,
+		InProgress: s.inProgress,
 	}
 }

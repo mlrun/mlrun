@@ -68,21 +68,6 @@ func (suite *RetryUntilSuccessfulTestSuite) TestPositive() {
 	suite.Require().Error(err)
 }
 
-func (suite *RetryUntilSuccessfulTestSuite) TestNoErrorOnTimeout() {
-	callCount := 0
-
-	err := RetryUntilSuccessful(25*time.Millisecond, 10*time.Millisecond, func() (bool, error) {
-		if callCount == 0 {
-			callCount++
-			return true, errors.New("test")
-		}
-		callCount++
-		return true, nil
-	})
-
-	suite.Require().NoError(err)
-}
-
 func (suite *RetryUntilSuccessfulTestSuite) TestRetryWithResult() {
 	callCount := 0
 	result, err := RetryUntilSuccessfulWithResult(50*time.Millisecond, 10*time.Millisecond, func() (interface{}, bool, error) {

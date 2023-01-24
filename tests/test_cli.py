@@ -18,7 +18,7 @@ from mlrun.__main__ import load_notification
 
 
 def test_add_notification_to_cli_from_file():
-    input_file_path = str(pathlib.Path(__file__).parent / "notification.json")
+    input_file_path = str(pathlib.Path(__file__).parent / "assets/notification.json")
     notifications = (f"file={input_file_path}",)
     project = mlrun.projects.MlrunProject(name="test")
     load_notification(notifications, project)

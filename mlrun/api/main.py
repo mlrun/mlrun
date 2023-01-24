@@ -27,7 +27,6 @@ from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.db.base
 import mlrun.api.schemas
-import mlrun.api.api.utils
 import mlrun.api.utils.clients.chief
 import mlrun.errors
 import mlrun.utils
@@ -358,6 +357,9 @@ def _cleanup_runtimes():
 
 
 def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+
+    # Import here to avoid circular import
+    import mlrun.api.api.utils
 
     # When pushing notifications, push notifications only for runs that entered a terminal state
     # since the last time we pushed notifications.

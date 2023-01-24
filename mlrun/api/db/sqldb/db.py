@@ -3128,8 +3128,8 @@ class SQLDB(DBInterface):
             notification_record
         ).to_dict()
         notification_status = {
-            "state": notification_spec.pop("state"),
-            "sent_time": notification_spec.pop("sent_time"),
+            "status": notification_spec.pop("status", None),
+            "sent_time": notification_spec.pop("sent_time", None),
         }
         return notification_spec, notification_status
 

@@ -34,7 +34,7 @@ type FileStateStoreTestSuite struct {
 	logger     logger.Logger
 	ctx        context.Context
 	baseDir    string
-	stateStore *FileStateStore
+	stateStore *Store
 }
 
 func (suite *FileStateStoreTestSuite) SetupTest() {
@@ -50,7 +50,7 @@ func (suite *FileStateStoreTestSuite) SetupTest() {
 	suite.Require().NoError(err, "Failed to create base dir")
 
 	// create state store
-	suite.stateStore = NewFileStateStore(suite.logger, suite.baseDir, 2*time.Second)
+	suite.stateStore = NewFileStore(suite.logger, suite.baseDir, 2*time.Second)
 	suite.stateStore.Initialize(suite.ctx)
 
 	suite.logger.InfoWith("Setup complete")

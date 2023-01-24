@@ -22,7 +22,6 @@ import mlrun.api.crud
 import mlrun.api.main
 import mlrun.api.utils.clients.log_collector
 import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.k8s
 from tests.api.utils.clients.test_log_collector import StartLogResponse
 
 

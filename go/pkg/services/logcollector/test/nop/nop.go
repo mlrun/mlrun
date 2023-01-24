@@ -22,16 +22,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-type GetLogsServerNop struct {
+// GetLogsResponseStreamNop is a nop implementation of the protologcollector.LogCollector_GetLogsServer interface
+type GetLogsResponseStreamNop struct {
 	grpc.ServerStream
 	Logs []byte
 }
 
-func (m *GetLogsServerNop) Send(response *log_collector.GetLogsResponse) error {
+func (m *GetLogsResponseStreamNop) Send(response *log_collector.GetLogsResponse) error {
 	m.Logs = append(m.Logs, response.Logs...)
 	return nil
 }
 
-func (m *GetLogsServerNop) Context() context.Context {
+func (m *GetLogsResponseStreamNop) Context() context.Context {
 	return context.Background()
 }

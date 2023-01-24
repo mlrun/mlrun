@@ -16,6 +16,7 @@ import asyncio
 import mlrun.api.utils.clients.protocols.grpc
 import mlrun.errors
 import mlrun.utils.singleton
+from mlrun.config import config
 from mlrun.utils import logger
 
 
@@ -25,10 +26,9 @@ class LogCollectorClient(
 ):
     name = "log_collector"
 
-    def __init__(self, address: str = None, get_logs_retry_count: int = 4):
+    def __init__(self, address: str = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
-        self._get_logs_retry_count = get_logs_retry_count
         super().__init__(address=address or mlrun.mlconf.log_collector.address)
 
     def _initialize_proto_client_imports(self):
@@ -78,7 +78,6 @@ class LogCollectorClient(
         project: str,
         offset: int = 0,
         size: int = -1,
-        stream: bool = False,
         verbose: bool = True,
         raise_on_error: bool = True,
     ) -> bytes:
@@ -106,10 +105,6 @@ class LogCollectorClient(
             try:
                 response_stream = self._call_stream("GetLogs", request)
                 logs = b""
-
-                if stream:
-                    return response_stream
-
                 async for chunk in response_stream:
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
@@ -123,6 +118,6 @@ class LogCollectorClient(
                 return logs
             except Exception as exc:
                 try_count += 1
-                if try_count == self._get_logs_retry_count:
+                if try_count == config.log_collector.get_logs.max_retries:
                     raise exc
                 await asyncio.sleep(3)

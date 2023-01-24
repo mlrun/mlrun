@@ -29,7 +29,7 @@ import (
 	"github.com/nuclio/logger"
 )
 
-type FileStateStore struct {
+type Store struct {
 	state                   *statestore.State
 	logger                  logger.Logger
 	stateFilePath           string
@@ -37,8 +37,8 @@ type FileStateStore struct {
 	lock                    sync.Locker
 }
 
-func NewFileStateStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *FileStateStore {
-	return &FileStateStore{
+func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInterval time.Duration) *Store {
+	return &Store{
 		state: &statestore.State{
 			InProgress: &sync.Map{},
 		},
@@ -49,77 +49,82 @@ func NewFileStateStore(logger logger.Logger, baseDirPath string, stateFileUpdate
 	}
 }
 
-func (f *FileStateStore) Initialize(ctx context.Context) {
+// Initialize initializes the file state store
+func (s *Store) Initialize(ctx context.Context) {
 
 	// spawn a goroutine that will update the state file periodically
-	go f.stateFileUpdateLoop(ctx)
+	go s.stateFileUpdateLoop(ctx)
 }
 
-func (f *FileStateStore) AddLogItem(ctx context.Context, runUID, selector string) error {
+// AddLogItem adds a log item to the state store
+func (s *Store) AddLogItem(ctx context.Context, runUID, selector string) error {
 	logItem := statestore.LogItem{
 		RunUID:        runUID,
 		LabelSelector: selector,
 	}
 
-	if existingItem, exists := f.state.InProgress.Load(runUID); exists {
-		f.logger.DebugWithCtx(ctx,
+	if existingItem, exists := s.state.InProgress.Load(runUID); exists {
+		s.logger.DebugWithCtx(ctx,
 			"Item already exists in state file. Overwriting label selector",
 			"runUID", runUID,
 			"existingItem", existingItem)
 	}
 
-	f.state.InProgress.Store(logItem.RunUID, logItem)
+	s.state.InProgress.Store(logItem.RunUID, logItem)
 	return nil
 }
 
-func (f *FileStateStore) RemoveLogItem(runUID string) error {
-	f.state.InProgress.Delete(runUID)
+// RemoveLogItem removes a log item from the state store
+func (s *Store) RemoveLogItem(runUID string) error {
+	s.state.InProgress.Delete(runUID)
 	return nil
 }
 
 // WriteState writes the state to file, used mainly for testing
-func (f *FileStateStore) WriteState(state *statestore.State) error {
-	return f.writeStateToFile(state)
+func (s *Store) WriteState(state *statestore.State) error {
+	return s.writeStateToFile(state)
 }
 
-func (f *FileStateStore) GetItemsInProgress() (*sync.Map, error) {
-	state, err := f.readStateFile()
+// GetItemsInProgress returns the in progress log items
+func (s *Store) GetItemsInProgress() (*sync.Map, error) {
+	state, err := s.readStateFile()
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to read state file")
 	}
 
 	// set the state in the file state store
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	f.state = state
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.state = state
 
-	return f.state.InProgress, nil
+	return s.state.InProgress, nil
 }
 
-func (f *FileStateStore) GetState() *statestore.State {
-	return f.state
+// GetState returns the state store state
+func (s *Store) GetState() *statestore.State {
+	return s.state
 }
 
 // stateFileUpdateLoop updates the state file periodically
-func (f *FileStateStore) stateFileUpdateLoop(ctx context.Context) {
+func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 
 	// create ticker
-	ticker := time.NewTicker(f.stateFileUpdateInterval)
+	ticker := time.NewTicker(s.stateFileUpdateInterval)
 
 	for range ticker.C {
 
 		// get state
-		state := f.GetState()
+		state := s.GetState()
 
 		// write state to file
-		if err := f.writeStateToFile(state); err != nil {
-			f.logger.WarnWithCtx(ctx, "Failed to write state file", "err", err)
+		if err := s.writeStateToFile(state); err != nil {
+			s.logger.WarnWithCtx(ctx, "Failed to write state file", "err", err)
 		}
 	}
 }
 
 // writeStateToFile writes the state to file
-func (f *FileStateStore) writeStateToFile(state *statestore.State) error {
+func (s *Store) writeStateToFile(state *statestore.State) error {
 
 	// marshal state file
 	encodedState, err := json.Marshal(state)
@@ -128,25 +133,25 @@ func (f *FileStateStore) writeStateToFile(state *statestore.State) error {
 	}
 
 	// get lock, unlock later
-	f.lock.Lock()
-	defer f.lock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	// write to file
-	return common.WriteToFile(f.stateFilePath, encodedState, false)
+	return common.WriteToFile(s.stateFilePath, encodedState, false)
 }
 
 // readStateFile reads the state from the file
-func (f *FileStateStore) readStateFile() (*statestore.State, error) {
+func (s *Store) readStateFile() (*statestore.State, error) {
 
 	// get lock so file won't be updated while reading
-	f.lock.Lock()
-	defer f.lock.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	// read file
-	if err := common.EnsureFileExists(f.stateFilePath); err != nil {
+	if err := common.EnsureFileExists(s.stateFilePath); err != nil {
 		return nil, errors.Wrap(err, "Failed to ensure state file exists")
 	}
-	stateFileBytes, err := os.ReadFile(f.stateFilePath)
+	stateFileBytes, err := os.ReadFile(s.stateFilePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to read stateFile")
 	}

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import typing
 
 import mlrun.api.utils.clients.protocols.grpc
 import mlrun.errors
@@ -80,7 +81,7 @@ class LogCollectorClient(
         size: int = -1,
         verbose: bool = True,
         raise_on_error: bool = True,
-    ) -> bytes:
+    ) -> typing.AsyncIterable[bytes]:
         """
         Get logs from the log collector service
         :param run_uid: The run uid
@@ -104,9 +105,9 @@ class LogCollectorClient(
         while True:
             try:
                 response_stream = self._call_stream("GetLogs", request)
-                logs = b""
                 async for chunk in response_stream:
                     if not chunk.success:
+                        print(chunk.error)
                         msg = f"Failed to get logs for run {run_uid}"
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
@@ -114,10 +115,11 @@ class LogCollectorClient(
                             )
                         if verbose:
                             logger.warning(msg, error=chunk.error)
-                    logs += chunk.logs
-                return logs
+                    yield chunk.logs
+                return
             except Exception as exc:
                 try_count += 1
+                print(f"Failed to get logs, retrying ({try_count})")
                 if try_count == config.log_collector.get_logs.max_retries:
                     raise exc
                 await asyncio.sleep(3)

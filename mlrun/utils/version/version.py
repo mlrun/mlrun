@@ -43,9 +43,7 @@ class Version(metaclass=Singleton):
     def get(self):
         return self.version_info
 
-    def get_python_version(
-        self, as_str: bool = True
-    ) -> typing.Union[str, tuple]:
+    def get_python_version(self, as_str: bool = True) -> typing.Union[str, tuple]:
         if as_str:
             return f"{self.python_version.major}.{self.python_version.minor}.{self.python_version.micro}"
         return self.python_version

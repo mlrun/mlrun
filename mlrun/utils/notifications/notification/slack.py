@@ -16,10 +16,11 @@ import typing
 
 import aiohttp
 
+import mlrun.api.schemas
 import mlrun.lists
 import mlrun.utils.helpers
 
-from .base import NotificationBase, NotificationSeverity
+from .base import NotificationBase
 
 
 class SlackNotification(NotificationBase):
@@ -36,7 +37,9 @@ class SlackNotification(NotificationBase):
     async def send(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
@@ -59,7 +62,9 @@ class SlackNotification(NotificationBase):
     def _generate_slack_data(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
     ) -> dict:
         data = {

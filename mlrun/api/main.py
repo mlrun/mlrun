@@ -56,6 +56,10 @@ from mlrun.utils import logger
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 
+# TODO: find better solution than a global variable for chunking the list of runs
+#      for which to send notifications
+_last_notification_push_time: datetime.datetime = None
+
 
 app = fastapi.FastAPI(
     title="MLRun",

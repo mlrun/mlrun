@@ -18,10 +18,11 @@ import typing
 
 import aiohttp
 
+import mlrun.api.schemas
 import mlrun.errors
 import mlrun.lists
 
-from .base import NotificationBase, NotificationSeverity
+from .base import NotificationBase
 
 
 class GitNotification(NotificationBase):
@@ -32,7 +33,9 @@ class GitNotification(NotificationBase):
     async def send(
         self,
         message: str,
-        severity: typing.Union[NotificationSeverity, str] = NotificationSeverity.INFO,
+        severity: typing.Union[
+            mlrun.api.schemas.NotificationSeverity, str
+        ] = mlrun.api.schemas.NotificationSeverity.INFO,
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):

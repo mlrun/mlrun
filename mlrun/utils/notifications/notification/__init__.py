@@ -15,7 +15,7 @@
 import enum
 import typing
 
-from .base import NotificationBase, NotificationSeverity, NotificationStatus  # noqa
+from .base import NotificationBase
 from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification

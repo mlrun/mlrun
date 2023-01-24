@@ -1013,7 +1013,7 @@ def load_and_run(
             try:
                 notification_pusher.push(
                     message=message,
-                    severity=mlrun.utils.notifications.NotificationSeverity.ERROR,
+                    severity=mlrun.api.schemas.NotificationSeverity.ERROR,
                 )
 
             except Exception as exc:

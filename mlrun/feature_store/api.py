@@ -131,6 +131,7 @@ def get_offline_features(
         print(resp.to_dataframe())
         print(vector.get_stats_table())
         resp.to_parquet("./out.parquet")
+
     :param feature_vector: feature vector uri or FeatureVector object. passing feature vector obj requires update
                             permissions
     :param entity_rows:    dataframe with entity rows to join with

@@ -232,20 +232,6 @@ class FeatureSetSpec(ModelObj):
 
 
 class FeatureSetStatus(ModelObj):
-    """Feature set status object, containing the current feature-set's status.
-
-    .. warning::
-        This class should not be modified directly. It is managed by the parent feature-set object or using
-        feature-store APIs. Modifying the status manually may result in unpredictable behaviour.
-
-    :param state: object's current state
-    :param targets: list of the data targets used in the last ingestion operation
-    :param stats: feature statistics calculated in the last ingestion (if stats calculation was requested)
-    :param preview: preview of the feature-set contents (if preview generation was requested)
-    :param function_uri: function used to execute the feature-set graph
-    :param run_uri: last run used for ingestion
-    """
-
     def __init__(
         self,
         state=None,
@@ -255,6 +241,20 @@ class FeatureSetStatus(ModelObj):
         function_uri=None,
         run_uri=None,
     ):
+        """Feature set status object, containing the current feature-set's status.
+
+        .. warning::
+            This class should not be modified directly. It is managed by the parent feature-set object or using
+            feature-store APIs. Modifying the status manually may result in unpredictable behaviour.
+
+        :param state: object's current state
+        :param targets: list of the data targets used in the last ingestion operation
+        :param stats: feature statistics calculated in the last ingestion (if stats calculation was requested)
+        :param preview: preview of the feature-set contents (if preview generation was requested)
+        :param function_uri: function used to execute the feature-set graph
+        :param run_uri: last run used for ingestion
+        """
+
         self.state = state or "created"
         self._targets: ObjectList = None
         self.targets = targets or []

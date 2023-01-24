@@ -146,15 +146,41 @@ For Spark engine, other sources are also supported.
 ## Data sources
 
 For batch ingestion the feature store supports dataframes and files (i.e. csv & parquet). <br>
-The files can reside on S3, NFS, Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
-When working with S3/Azure, there are additional requirements. Use: pip install mlrun[s3]; pip install mlrun[azure-blob-storage]; or pip install mlrun[google-cloud-storage] to install them. 
-- Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`. 
-- S3: define `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_BUCKET`.
+The files can reside on S3, NFS, SQL (for example, MYSQL), Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
 
-For real time ingestion the source can be http, kafka or v3io stream, etc.
+For real time ingestion the source can be http, Kafka, MySQL, or V3IO stream, etc.
 When defining a source, it maps to nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
+
+### S3/Azure data source
+
+When working with S3/Azure, there are additional requirements. Use: pip install mlrun[s3]; pip install mlrun[azure-blob-storage]; 
+or pip install mlrun[google-cloud-storage] to install them. 
+- Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`
+- S3: define `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_BUCKET`
+
+### SQL data source
+
+`SQLSource` can be used for both batch ingestion and real time ingestion. It supports storey but does not support Spark. To configure 
+either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
+`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
+
+```
+ db_path = "mysql+pymysql://abc:abc@localhost:3306/my_db"
+       source = SqlDBSource(
+           table_name='source_name', db_path=self.db, key_field='key', time_fields=['timestamp'],
+       )
+
+
+        feature_set = fs.FeatureSet(
+            "my_fs", entities=[fs.Entity('key')],
+        )
+        feature_set.set_targets([])
+        df = fs.ingest(feature_set, source=source)
+```
+
+
 
 ## Target stores
 
@@ -165,7 +191,7 @@ since it supports low latency data retrieval based on key access.
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
 The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in 
-NFS, S3, Azure blob storage, Redis, and on Iguazio DB/FS.
+NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
 
 ### Redis target store
@@ -175,7 +201,7 @@ Tech Preview
 ```
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
-- The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>
+- The `RedisNoSqlTarget` accepts the path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>
 For example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)
    - The server is password protected (password="abcde")
@@ -187,3 +213,24 @@ For example: `rediss://:abcde@localhost:6379` creates a redis target, where:
 To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
+
+### SQL target store
+
+The `SQLTarget` online target supports storey but does not support spark.<br>
+To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
+`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
+
+You can pass the schema of the table you want to create or the name of an existing table, for example:
+
+```
+ target = SQLTarget(
+            table_name=target_name,
+            create_table=False,
+            primary_key_column=key,
+            time_fields=["time"]
+        )
+        feature_set = fs.FeatureSet(
+            "my_fs", entities=[fs.Entity('key')],
+        )
+        fs.ingest(feature_set, source=origin_df, targets=[target])
+```

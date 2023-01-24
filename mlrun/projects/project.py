@@ -1013,6 +1013,14 @@ class MlrunProject(ModelObj):
         return self.spec.default_image
 
     def set_default_image(self, default_image: str):
+        """
+        Set the default image to be used for running runtimes (functions) in this project. This image will be used
+        if an image was not provided for a runtime. In case the default image is replaced, functions already
+        registered with the project that used the previous default image will have their image replaced on
+        next execution.
+
+        :param default_image: Default image to use
+        """
         current_default_image = self.spec.default_image
         if current_default_image:
             self.spec._replace_default_image_in_enriched_functions(

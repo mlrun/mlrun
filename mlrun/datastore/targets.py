@@ -1186,24 +1186,26 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
-    def _make_endpoint_from_secrets(self):
-        host = self._get_credential("REDIS_HOST", "REDIS_HOST_secret_should_be_set")
-        port = self._get_credential("REDIS_PORT", "6379")
-        user = self._get_credential("REDIS_USER", "")
-        password = self._get_credential("REDIS_PASSWORD", "")
-        scheme = self._get_credential("REDIS_URL_SCHEME", "redis")
-        if user or password:
-            return f"{scheme}://{user}:{password}@{host}:{port}"
-        else:
-            return f"{scheme}://{host}:{port}"
-
-    # First it tries to fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
-    # If not set it tries to fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
-    # And if that's not set, it tries to build it from the secrets
+    # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
+    # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
+    # Then look for username and password at REDIS_xxx secrets
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        endpoint = endpoint or self._make_endpoint_from_secrets()
+        parsed_endpoint = urlparse(endpoint)
+        if parsed_endpoint.username or parsed_endpoint.password:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Provide Redis username and password only via secrets"
+            )
+        user = self._get_credential("REDIS_USER", "")
+        password = self._get_credential("REDIS_PASSWORD", "")
+        host = parsed_endpoint.hostname
+        port = parsed_endpoint.port if parsed_endpoint.port else "6379"
+        scheme = parsed_endpoint.scheme
+        if user or password:
+            endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+        else:
+            endpoint = f"{scheme}://{host}:{port}"
         return endpoint, uri
 
     def get_table_object(self):
@@ -1228,7 +1230,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "table": "{" + store_path_to_spark(self.get_target_path()),
             "format": "org.apache.spark.sql.redis",
             "host": parsed_endpoint.hostname,
-            "port": parsed_endpoint.port if parsed_endpoint.port else "6379",
+            "port": parsed_endpoint.port,
             "user": parsed_endpoint.username if parsed_endpoint.username else None,
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }

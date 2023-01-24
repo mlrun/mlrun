@@ -32,6 +32,7 @@ from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
+import mlrun.api.crud
 import mlrun.api.db.sqldb.session
 import mlrun.api.utils.singletons.db
 import mlrun.errors
@@ -1020,9 +1021,8 @@ class BaseRuntime(ModelObj):
 
             # If in the api server, we can assume that watch=False, so we save notification
             # configs to the DB, for the run monitor to later pick up and fire.
-            db = mlrun.api.utils.singletons.db.get_db()
             session = mlrun.api.db.sqldb.session.create_session()
-            db.store_notifications(
+            mlrun.api.crud.Notifications().store_notifications(
                 session,
                 runobj.spec.notifications,
                 runobj.metadata.uid,

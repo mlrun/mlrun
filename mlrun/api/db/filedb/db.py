@@ -494,11 +494,7 @@ class FileDB(DBInterface):
             raise DBError(exc.args)
 
     def store_notifications(
-        self,
-        session,
-        notification_models,
-        run_uid: str,
-        project: str,
+        self, session, notification_objects, run_uid: str, project: str
     ):
         raise NotImplementedError()
 

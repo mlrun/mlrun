@@ -3529,7 +3529,7 @@ class SQLDB(DBInterface):
     def store_notifications(
         self,
         session,
-        notification_models: typing.List[mlrun.model.Notification],
+        notification_objects: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
     ):
@@ -3544,7 +3544,7 @@ class SQLDB(DBInterface):
             for notification in self._find_notifications(session, run_id=run.id)
         }
         notifications = []
-        for notification_model in notification_models:
+        for notification_model in notification_objects:
             new_notification = False
             notification = run_notifications.get(notification_model.name, None)
             if not notification:
@@ -3558,23 +3558,12 @@ class SQLDB(DBInterface):
             notification.severity = notification_model.severity
             notification.when = ",".join(notification_model.when)
             notification.condition = notification_model.condition
+            notification.params = notification_model.params
             notification.status = (
                 notification_model.status
                 or mlrun.utils.notifications.NotificationStatus.PENDING.value
             )
             notification.sent_time = notification_model.sent_time
-
-            k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-            if k8s.running_inside_kubernetes_cluster and not (
-                notification_model.params and "secret" in notification_model.params
-            ):
-                # store params as secret
-                secret_name = f"notification-{run_uid}-{notification.name}"
-                secret_data = notification_model.params
-                k8s.store_secrets(secret_name, secret_data)
-                notification.params = {"secret": secret_name}
-            else:
-                notification.params = notification_model.params
 
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",

@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import collections
+import json
 import re
 import traceback
 import typing
-import uuid
 from hashlib import sha1
 from http import HTTPStatus
 from os import environ
@@ -203,23 +203,34 @@ def apply_enrichment_and_validation_on_task(
 
 
 def _mask_notification_params_on_task(task):
+    run_uid = get_in(task, "metadata.uid")
+    project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
     if notifications:
-        k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-        if not k8s.running_inside_kubernetes_cluster:
-            logger.warning(
-                "Kubernetes cluster unavailable, skipping masking notification config params"
-            )
-            return
-
         for notification in notifications:
-            params = notification.get("params", {})
-            if "secret" not in params:
+            notification_object = mlrun.model.Notification.from_dict(notification)
+            mask_notification_params_with_secret(project, run_uid, notification_object)
 
-                # unique secret name per notification config
-                secret_name = f"notification-{str(uuid.uuid4())}"
-                k8s.store_secrets(secret_name, params)
-                notification["params"] = {"secret": secret_name}
+
+def mask_notification_params_with_secret(
+    project: str, run_uid: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    if not notification_object.params and "secret" in notification_object.params:
+        secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
+            mlrun.api.crud.SecretsClientType.notifications,
+            f"{run_uid}-{notification_object.name}",
+        )
+        mlrun.api.crud.Secrets().store_project_secrets(
+            project,
+            mlrun.api.schemas.SecretsData(
+                provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+                secrets={secret_key: json.dumps(notification_object.params)},
+            ),
+            allow_internal_secrets=True,
+        )
+        notification_object.params = {"secret": secret_key}
+
+    return notification_object
 
 
 def apply_enrichment_and_validation_on_function(

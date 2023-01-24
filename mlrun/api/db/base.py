@@ -553,7 +553,7 @@ class DBInterface(ABC):
     def store_notifications(
         self,
         session,
-        notification_models: typing.List[mlrun.model.Notification],
+        notification_objects: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
     ):

@@ -14,15 +14,17 @@
 
 import ast
 import asyncio
-import base64
 import datetime
+import json
 import os
 import typing
 
 from fastapi.concurrency import run_in_threadpool
 
+import mlrun.api.crud
 import mlrun.api.db.base
 import mlrun.api.db.session
+import mlrun.api.schemas
 import mlrun.api.utils.singletons.k8s
 import mlrun.config
 import mlrun.lists
@@ -118,7 +120,7 @@ class NotificationPusher(object):
             notification.kind or NotificationTypes.console
         )
         notification_key = f"{run.metadata.uid}-{name or notification_type}"
-        params = self._load_notification_params(notification)
+        params = self._load_notification_params(run.metadata.project, notification)
         if notification_key not in self._notifications:
             self._notifications[
                 notification_key
@@ -132,7 +134,9 @@ class NotificationPusher(object):
         return self._notifications[notification_key]
 
     @staticmethod
-    def _load_notification_params(notification: mlrun.model.Notification) -> dict:
+    def _load_notification_params(
+        project: str, notification: mlrun.model.Notification
+    ) -> dict:
         params = notification.params or {}
         params_secret = params.get("secret", "")
         if not params_secret:
@@ -144,14 +148,15 @@ class NotificationPusher(object):
                 "Not running in k8s environment, cannot load notification params secret"
             )
 
-        encoded_params = k8s.load_secret(params_secret)
-        params = {}
-        if encoded_params:
-            for key, value in encoded_params.items():
-                if isinstance(value, str):
-                    value = value.encode("utf-8")
-                params[key] = base64.decodebytes(value).decode("utf-8")
-        return params
+        return json.loads(
+            mlrun.api.crud.Secrets().get_project_secret(
+                project,
+                mlrun.api.schemas.SecretProviderName.kubernetes,
+                secret_key=params_secret,
+                allow_internal_secrets=True,
+                allow_secrets_from_k8s=True,
+            )
+        )
 
     async def _send_notification(
         self,
@@ -205,6 +210,8 @@ class NotificationPusher(object):
         db_session = mlrun.api.db.session.create_session()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
+
+        # store directly in db, no need to use crud as the secrets are already loaded
         await run_in_threadpool(
             db.store_notifications,
             db_session,

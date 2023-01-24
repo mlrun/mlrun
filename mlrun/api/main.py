@@ -374,8 +374,6 @@ def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
         with_notifications=True,
     )
 
-    logger.debug("Pushing run notifications", runs=runs)
-
     # Unmasking the run parameters from secrets before sending them to the notification handler
     # as importing the `Secrets` crud in the notification handler will cause a circular import
     unmasked_runs = [
@@ -383,7 +381,7 @@ def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
         for run in runs
     ]
 
-    logger.debug("Checking for run notifications", runs_amount=len(runs))
+    logger.debug("Got terminal runs with configured notifications", runs_amount=len(runs))
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
 
     _last_notification_push_time = datetime.datetime.now(datetime.timezone.utc)

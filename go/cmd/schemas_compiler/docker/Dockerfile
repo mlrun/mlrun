@@ -22,8 +22,11 @@ ARG GRPCIO_TOOLS_VERSION="~=1.41.0"
 
 WORKDIR /app/go
 
-RUN apt-get update
-RUN apt install -y protobuf-compiler python3 python3-setuptools python3-pip
+RUN apt-get update && apt install -y \
+    protobuf-compiler \
+    python3 \
+    python3-setuptools  \
+    python3-pip
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}

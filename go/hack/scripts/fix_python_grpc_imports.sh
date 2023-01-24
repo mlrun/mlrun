@@ -20,16 +20,15 @@ get_os() {
       Darwin*)    os=Mac;;
       *)          os="UNKNOWN:${unameOut}"
   esac
-  echo ${os}
+  echo "${os}"
 }
 
-SCHEMAS_DIR=../mlrun/api/proto/
 SED_REGEX='s/from proto import/from \. import/g'
 OS=$(get_os)
 SCHEMA_FILES=$(find ../mlrun/api/proto/ -name '*pb2_grpc.py')
 
 if [ "${OS}" = "Mac" ]; then
-  sed -i '' -e "${SED_REGEX}" ${SCHEMA_FILES}
+  sed -i '' -e "${SED_REGEX}" "${SCHEMA_FILES}"
 else
-  sed -i -e "${SED_REGEX}" ${SCHEMA_FILES}
+  sed -i -e "${SED_REGEX}" "${SCHEMA_FILES}"
 fi

@@ -352,6 +352,18 @@ class TestNuclioRuntime(TestRuntimeBase):
         else:
             assert deploy_spec.get("securityContext") is None
 
+    def test_compile_function_config_with_special_character_labels(
+        self, db: Session, client: TestClient
+    ):
+        """
+        Test that compiling function configuration with labels containing special characters correctly sets them
+        """
+        function = self._generate_runtime(self.runtime_kind)
+        key, val = "test.label.com/env", "test"
+        function.set_label(key, val)
+        _, _, config = compile_function_config(function)
+        assert config["metadata"]["labels"].get(key) == val
+
     def test_enrich_with_ingress_no_overriding(self, db: Session, client: TestClient):
         """
         Expect no ingress template to be created, thought its mode is "always",
@@ -784,6 +796,19 @@ class TestNuclioRuntime(TestRuntimeBase):
                 deploy_metadata["annotations"].get("annotation-key")
                 == "annotation-value"
             )
+
+    def test_set_metadata_labels(self, db: Session, client: TestClient):
+
+        function = self._generate_runtime(self.runtime_kind)
+        function.with_labels({"label.key.test": "label-value"})
+        function.spec.base_spec["metadata"].setdefault("annotations", {})
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_metadata = args[0]["metadata"]
+
+        if deploy_metadata.get("labels"):
+            assert deploy_metadata["labels"].get("label.key.test") == "label-value"
 
     def test_deploy_python_decode_string_env_var_enrichment(
         self, db: Session, client: TestClient

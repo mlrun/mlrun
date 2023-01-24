@@ -393,6 +393,7 @@ class BaseStoreTarget(DataTargetBase):
         flush_after_seconds: Optional[int] = None,
         storage_options: Dict[str, str] = None,
         schema: Dict[str, Any] = None,
+        credentials_prefix=None,
     ):
         super().__init__(
             self.kind,
@@ -434,6 +435,15 @@ class BaseStoreTarget(DataTargetBase):
         self._target = None
         self._resource = None
         self._secrets = {}
+        self._credentials_prefix = credentials_prefix
+
+    def _get_credential(self, key, default_value=None):
+        return mlrun.get_secret_or_env(
+            key,
+            secret_provider=self._secrets,
+            default=default_value,
+            prefix=self._credentials_prefix,
+        )
 
     def _get_store(self):
         store, _ = mlrun.store_manager.get_or_create_store(self.get_target_path())
@@ -1142,9 +1152,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
             df = df.groupby(df.index).last()
-            access_key = self._secrets.get(
-                "V3IO_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
-            )
+            access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())
             container, path = split_path(path_with_container)
@@ -1178,12 +1186,33 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     support_spark = True
     writer_step_name = "RedisNoSqlTarget"
 
+    # Fetch server url from the RedisNoSqlTarget::__init__() 'path' parameter.
+    # If not set fetch it from 'mlrun.mlconf.redis.url' (MLRUN_REDIS__URL environment variable).
+    # Then look for username and password at REDIS_xxx secrets
+    def _get_server_endpoint(self):
+        endpoint, uri = parse_path(self.get_target_path())
+        endpoint = endpoint or mlrun.mlconf.redis.url
+        parsed_endpoint = urlparse(endpoint)
+        if parsed_endpoint.username or parsed_endpoint.password:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Provide Redis username and password only via secrets"
+            )
+        user = self._get_credential("REDIS_USER", "")
+        password = self._get_credential("REDIS_PASSWORD", "")
+        host = parsed_endpoint.hostname
+        port = parsed_endpoint.port if parsed_endpoint.port else "6379"
+        scheme = parsed_endpoint.scheme
+        if user or password:
+            endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+        else:
+            endpoint = f"{scheme}://{host}:{port}"
+        return endpoint, uri
+
     def get_table_object(self):
         from storey import Table
         from storey.redis_driver import RedisDriver
 
-        endpoint, uri = parse_path(self.get_target_path())
-        endpoint = endpoint or mlrun.mlconf.redis.url
+        endpoint, uri = self._get_server_endpoint()
 
         return Table(
             uri,
@@ -1192,19 +1221,18 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        parsed_url = urlparse(self.get_target_path())
-        if parsed_url.hostname is None:
-            self.path = mlrun.mlconf.redis.url
-            parsed_url = urlparse(self.get_target_path())
+
+        endpoint, uri = self._get_server_endpoint()
+        parsed_endpoint = urlparse(endpoint)
 
         return {
             "key.column": "_spark_object_name",
             "table": "{" + store_path_to_spark(self.get_target_path()),
             "format": "org.apache.spark.sql.redis",
-            "host": parsed_url.hostname,
-            "port": parsed_url.port if parsed_url.port else "6379",
-            "user": parsed_url.username,
-            "auth": parsed_url.password,
+            "host": parsed_endpoint.hostname,
+            "port": parsed_endpoint.port,
+            "user": parsed_endpoint.username if parsed_endpoint.username else None,
+            "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
 
     def prepare_spark_df(self, df, key_columns):

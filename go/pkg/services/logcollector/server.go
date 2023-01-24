@@ -245,7 +245,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		"offset", request.Offset)
 
 	// get log file path
-	filePath, err := s.getLogFilePath(ctx, request.RunUID)
+	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
 	}
@@ -531,7 +531,7 @@ func (s *Server) hasLogs(ctx context.Context, runUID string, streamReader *bufio
 }
 
 // getLogFilePath returns the path to the run's latest log file
-func (s *Server) getLogFilePath(ctx context.Context, runUID string) (string, error) {
+func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string) (string, error) {
 
 	s.Logger.DebugWithCtx(ctx, "Getting log file path", "runUID", runUID)
 
@@ -547,7 +547,7 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID string) (string, err
 			}
 
 			// if file name starts with run id, it's a log file
-			if strings.HasPrefix(info.Name(), runUID) {
+			if strings.HasPrefix(info.Name(), runUID) && strings.Contains(path, projectName) {
 
 				// if it's the first file, set it as the log file path
 				// otherwise, check if it's the latest modified file

@@ -118,6 +118,6 @@ class LogCollectorClient(
                 return logs
             except Exception as exc:
                 try_count += 1
-                if try_count == config.log_collector.get_logs_max_retries:
+                if try_count == config.log_collector.get_logs.max_retries:
                     raise exc
                 await asyncio.sleep(3)

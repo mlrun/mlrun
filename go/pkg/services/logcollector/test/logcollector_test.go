@@ -151,9 +151,10 @@ func (suite *LogCollectorTestSuite) TestLogCollector() {
 
 		// get logs until everything is read
 		err := suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
-			RunUID: runUID,
-			Offset: 0,
-			Size:   -1,
+			RunUID:      runUID,
+			Offset:      0,
+			Size:        -1,
+			ProjectName: projectName,
 		}, nopStream)
 		suite.Require().NoError(err, "Failed to get logs")
 

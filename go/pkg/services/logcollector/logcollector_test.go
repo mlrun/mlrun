@@ -250,9 +250,10 @@ func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 
 	// get logs
 	err = suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
-		RunUID: runUID,
-		Offset: 0,
-		Size:   100,
+		RunUID:      runUID,
+		Offset:      0,
+		Size:        100,
+		ProjectName: suite.projectName,
 	}, nopStream)
 	suite.Require().NoError(err, "Failed to get logs")
 
@@ -275,9 +276,10 @@ func (suite *LogCollectorTestSuite) TestGetLogSuccessful() {
 
 	// get logs with offset and size -1, to get all logs at once
 	err = suite.LogCollectorServer.GetLogs(&log_collector.GetLogsRequest{
-		RunUID: runUID,
-		Offset: 1,
-		Size:   -1,
+		RunUID:      runUID,
+		Offset:      1,
+		Size:        -1,
+		ProjectName: suite.projectName,
 	}, nopStream)
 	suite.Require().NoError(err, "Failed to get logs")
 

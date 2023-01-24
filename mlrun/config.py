@@ -482,7 +482,10 @@ default_config = {
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
-        "get_logs_max_retries": 4,
+        "get_logs": {
+            # the number of retries to get logs from the log collector
+            "max_retries": 4,
+        },
     },
 }
 

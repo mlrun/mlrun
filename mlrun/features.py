@@ -414,18 +414,17 @@ class RegexValidator(Validator):
 
     def check(self, value):
         ok, args = super().check(value)
-        if ok:
+        if ok and self.regex_compile:
             try:
-                if self.regex is not None:
-                    if not re.fullmatch(self.regex_compile, value):
-                        return (
-                            False,
-                            {
-                                "message": "Value is not valid with regular expression",
-                                "regexp": self.regex,
-                                "value": _limited_string(str(value)),
-                            },
-                        )
+                if not re.fullmatch(self.regex_compile, value):
+                    return (
+                        False,
+                        {
+                            "message": "Value is not valid with regular expression",
+                            "regexp": self.regex,
+                            "value": _limited_string(str(value)),
+                        },
+                    )
             except Exception as err:
                 return (
                     False,
@@ -438,8 +437,8 @@ class RegexValidator(Validator):
         new_obj = super(RegexValidator, cls).from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
-        if hasattr(new_obj, "regex") and new_obj.regex is not None:
-            new_obj.regex_compile = re.compile(new_obj.regex)
+        if hasattr(new_obj, "regex"):
+            new_obj.regex_compile = re.compile(new_obj.regex) if new_obj.regex else None
         else:
             raise MLRunRuntimeError(
                 f"Object with type {type(new_obj)} "

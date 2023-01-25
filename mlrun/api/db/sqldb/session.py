@@ -43,6 +43,7 @@ def create_session(dsn=None) -> Session:
 # doing lazy load to allow tests to initialize the engine
 def _get_session_maker(dsn) -> SessionMaker:
     global _session_makers
+    dsn = dsn or config.httpdb.dsn
     if dsn not in _session_makers:
         _init_session_maker(dsn=dsn)
     return _session_makers[dsn]

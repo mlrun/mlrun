@@ -168,6 +168,7 @@ class BaseRuntime(ModelObj):
         self.status = None
         self._is_api_server = False
         self.verbose = False
+        self._enriched_image = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:

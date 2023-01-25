@@ -23,6 +23,7 @@ import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
+from typing import Dict, List, Optional, Union
 
 import dotenv
 import inflection
@@ -2322,7 +2323,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -2345,7 +2346,8 @@ class MlrunProject(ModelObj):
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -2374,7 +2376,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -2387,10 +2389,12 @@ class MlrunProject(ModelObj):
             # Get latest version of all models in project
             latest_models = project.list_models('', tag='latest')
 
+
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If

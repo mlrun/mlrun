@@ -6,6 +6,7 @@
 - [run_function](#run)
 - [build_function](#build)
 - [deploy_function](#deploy)
+- [Project default image](#default_image)
 
 <a id="overview"></a>
 ## Overview
@@ -132,3 +133,34 @@ Example of using `deploy_function` inside a pipeline, after the `train` step, to
 ```{admonition} Note
 If you want to create a simulated (mock) function instead of a real Kubernetes service, set the `mock` flag is set to `True`. See [deploy_function api](https://docs.mlrun.org/en/latest/api/mlrun.projects.html#mlrun.projects.MlrunProject.deploy_function).
 ```
+
+<a id="default_image"></a>
+## Project default image
+
+You can set a default image for the project. This image will be used for deploying and running any function that does
+not have an explicit image assigned, and replaces MLRun's default image of `mlrun/mlrun`. To set the default image use 
+the {py:meth}`~mlrun.projects.MlrunProject.set_default_image` method with the name of the default image to use.
+
+The default image is applied to the functions in the process of enriching the function prior to running or 
+deploying. Functions will therefore use the default image set in the project at the time of their execution, not the
+image that was set when the function was added to the project.
+
+For example:
+
+    project = mlrun.new_project(project_name, "./proj")
+    # use v1 of a pre-built image as default
+    project.set_default_image("myrepo/my-prebuilt-image:v1")
+    # set function without an image, will use the project's default image
+    project.set_function("mycode.py", "prep")
+
+    # function will run with the "myrepo/my-prebuilt-image:v1" image
+    run1 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
+
+    ...
+
+    # replace the default image with a newer v2
+    project.set_default_image("myrepo/my-prebuilt-image:v2")
+    # function will now run using the v2 version of the image 
+    run2 = project.run_function("prep", params={"x": 7}, inputs={'data': data_url})
+
+

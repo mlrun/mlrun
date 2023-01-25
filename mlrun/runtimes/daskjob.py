@@ -15,7 +15,6 @@ import datetime
 import inspect
 import socket
 import time
-import warnings
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -310,7 +309,7 @@ class DaskCluster(KubejobRuntime):
         selector = get_func_selector(meta.project, meta.name, meta.tag)
         if self._is_remote_api():
             db = self._get_db()
-            return db.remote_status(meta.project, meta.name, self.kind, s)
+            return db.remote_status(meta.project, meta.name, self.kind, selector)
 
         status = get_obj_status(selector)
         print(status)

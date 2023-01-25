@@ -369,7 +369,7 @@ class BaseRuntime(ModelObj):
                 artifact_path,
                 notifications=notifications,
             )
-            self._save_or_fire_notifications(result, local)
+            self._save_or_fire_notifications(result)
             return result
 
         run = self._enrich_run(
@@ -483,7 +483,7 @@ class BaseRuntime(ModelObj):
                 last_err = err
                 result = self._update_run_state(task=run, err=err)
 
-        self._save_or_fire_notifications(run, local)
+        self._save_or_fire_notifications(run)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -992,7 +992,7 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _save_or_fire_notifications(self, runobj: RunObject, local: bool = False):
+    def _save_or_fire_notifications(self, runobj: RunObject):
 
         # import here to avoid circular imports
         import mlrun.api.crud

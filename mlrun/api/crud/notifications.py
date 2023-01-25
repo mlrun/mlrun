@@ -63,6 +63,18 @@ class Notifications(
         project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
+
+        # Delete notification param project secret
+        notifications = [
+            notification
+            for notification in self.list_notifications(session, run_uid, project)
+            if notification.name == name
+        ]
+        if notifications:
+            # unique constraint on name, run_uid, project, so the list will contain one item at most
+            notification = notifications[0]
+            mlrun.api.api.utils.delete_notification_params_secret(project, notification)
+
         mlrun.api.utils.singletons.db.get_db().delete_notifications(
             session, name, run_uid, project
         )

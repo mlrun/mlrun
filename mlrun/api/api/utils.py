@@ -194,12 +194,10 @@ async def submit_run(db_session: Session, auth_info: mlrun.api.schemas.AuthInfo,
     return response
 
 
-def apply_enrichment_and_validation_on_task(
-    task, mask_notification_params: bool = True
-):
-    if mask_notification_params:
-        # Masking notification config params from the task object
-        mask_notification_params_on_task(task)
+def apply_enrichment_and_validation_on_task(task):
+
+    # Masking notification config params from the task object
+    mask_notification_params_on_task(task)
 
 
 def mask_notification_params_on_task(task):
@@ -218,7 +216,8 @@ def mask_notification_params_with_secret(
     if notification_object.params and "secret" not in notification_object.params:
         secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.SecretsClientType.notifications,
-            f"{run_uid}-{notification_object.name}",
+            run_uid,
+            notification_object.name,
         )
         mlrun.api.crud.Secrets().store_project_secrets(
             project,
@@ -269,6 +268,29 @@ def unmask_notification_params_secret(
     )
 
     return notification_object
+
+
+def delete_notification_params_secret(
+    project: str, notification_object: mlrun.model.Notification
+) -> None:
+    params = notification_object.params or {}
+    params_secret = params.get("secret", "")
+    if not params_secret:
+        return
+
+    k8s = mlrun.api.utils.singletons.k8s.get_k8s()
+    if not k8s:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Not running in k8s environment, cannot delete notification params secret"
+        )
+
+    mlrun.api.crud.Secrets().delete_project_secret(
+        project,
+        mlrun.api.schemas.SecretProviderName.kubernetes,
+        secret_key=params_secret,
+        allow_internal_secrets=True,
+        allow_secrets_from_k8s=True,
+    )
 
 
 def apply_enrichment_and_validation_on_function(

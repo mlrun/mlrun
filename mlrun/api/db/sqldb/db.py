@@ -3610,17 +3610,8 @@ class SQLDB(DBInterface):
         if project == "*":
             project = None
 
-        k8s = mlrun.api.utils.singletons.k8s.get_k8s()
-
         query = self._find_notifications(session, name, run_id, project)
         for notification in query:
-            if (
-                notification.params
-                and "secret" in notification.params
-                and k8s.running_inside_kubernetes_cluster
-            ):
-                k8s.delete_secrets(notification.params["secret"], None)
-
             session.delete(notification)
 
         if commit:

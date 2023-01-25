@@ -21,6 +21,7 @@ Create Date: 2022-09-20 10:44:41.727488
 """
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = "c905d15bd91d"
@@ -49,7 +50,7 @@ def upgrade():
         ),
         sa.Column("params", sa.JSON(), nullable=True),
         sa.Column("run", sa.Integer(), nullable=True),
-        sa.Column("sent_time", sa.TIMESTAMP(), nullable=True),
+        sa.Column("sent_time", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column(
             "status", sa.String(length=255, collation="utf8_bin"), nullable=False
         ),

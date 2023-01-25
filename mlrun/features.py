@@ -414,17 +414,18 @@ class RegexValidator(Validator):
 
     def check(self, value):
         ok, args = super().check(value)
-        if ok and self.regex_compile:
+        if ok:
             try:
-                if not re.fullmatch(self.regex_compile, value):
-                    return (
-                        False,
-                        {
-                            "message": "Value is not valid with regular expression",
-                            "regexp": self.regex,
-                            "value": _limited_string(str(value)),
-                        },
-                    )
+                if self.regex is not None:
+                    if not re.fullmatch(self.regex_compile, value):
+                        return (
+                            False,
+                            {
+                                "message": "Value is not valid with regular expression",
+                                "regexp": self.regex,
+                                "value": _limited_string(str(value)),
+                            },
+                        )
             except Exception as err:
                 return (
                     False,

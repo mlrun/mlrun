@@ -28,6 +28,7 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas
+import semver
 import yaml
 from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
@@ -644,9 +645,10 @@ def enrich_image_url(
         mlrun.utils.version.Version().get()["version"]
     )
     image_url = image_url.strip()
-    tag = config.images_tag or client_version or server_version
-    tag += _resolve_image_tag_suffix(
-        tag=tag, client_python_version=client_python_version
+    mlrun_version = config.images_tag or client_version or server_version
+    tag = mlrun_version
+    tag += resolve_image_tag_suffix(
+        mlrun_version=mlrun_version, python_version=client_python_version
     )
     registry = config.images_registry
 
@@ -672,21 +674,24 @@ def enrich_image_url(
     return image_url
 
 
-def _resolve_image_tag_suffix(
-    tag: str = None, client_python_version: str = None
+def resolve_image_tag_suffix(
+    mlrun_version: str = None, python_version: str = None
 ) -> str:
     """
     resolves what suffix should be appended to the image tag
-    :param tag: the image tag version
-    :param client_python_version: the client python version
+    :param mlrun_version: the mlrun version
+    :param python_version: the requested python version
     :return: the suffix to append to the image tag
     """
-    if not client_python_version or not tag:
+    if not python_version or not mlrun_version:
         return ""
-
     # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
     # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
-    if tag == "1.3.0" and client_python_version < "3.9":
+    # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
+    # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
+    if semver.VersionInfo.parse("1.3.0-X") <= semver.VersionInfo.parse(
+        mlrun_version
+    ) < semver.VersionInfo.parse("1.4.0-X") and python_version.startswith("3.7"):
         return "-py37"
     return ""
 

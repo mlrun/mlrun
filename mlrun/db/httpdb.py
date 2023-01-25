@@ -102,7 +102,7 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
-        self.python_version = version.Version().get_python_version(as_str=True)
+        self.python_version = str(version.Version().get_python_version())
 
     def __repr__(self):
         cls = self.__class__.__name__

@@ -25,6 +25,16 @@ else:
     from importlib_resources import read_text
 
 
+class _VersionInfo:
+    def __init__(self, major, minor, micro):
+        self.major = major
+        self.minor = minor
+        self.micro = micro
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.micro}"
+
+
 class Version(metaclass=Singleton):
     def __init__(self):
         # When installing un-released version (e.g. by doing pip install git+https://github.com/mlrun/mlrun@development)
@@ -43,11 +53,9 @@ class Version(metaclass=Singleton):
     def get(self):
         return self.version_info
 
-    def get_python_version(self, as_str: bool = True) -> typing.Union[str, tuple]:
-        if as_str:
-            return f"{self.python_version.major}.{self.python_version.minor}.{self.python_version.micro}"
+    def get_python_version(self) -> _VersionInfo:
         return self.python_version
 
     @staticmethod
     def _resolve_python_version() -> sys.version_info:
-        return sys.version_info
+        return _VersionInfo(*sys.version_info[:3])

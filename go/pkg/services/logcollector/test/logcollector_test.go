@@ -61,15 +61,6 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	err = os.MkdirAll(suite.baseDir, 0777)
 	suite.Require().NoError(err, "Failed to create base dir")
 
-	suite.ctx = context.Background()
-	suite.namespace = "mlrun"
-	suite.bufferSizeBytes = 1024
-	stateFileUpdateIntervalStr := "5s"
-	readLogWaitTime := "3s"
-	monitoringInterval := "30s"
-	bufferPoolSize := 30
-	listenPort := 8282
-
 	// get kube config file path
 	homeDir, err := os.UserHomeDir()
 	suite.Require().NoError(err, "Failed to get home dir")
@@ -81,20 +72,34 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.kubeClientSet, err = kubernetes.NewForConfig(restConfig)
 	suite.Require().NoError(err)
 
+	suite.ctx = context.Background()
+	suite.namespace = "mlrun-integ-test"
+	suite.bufferSizeBytes = 1024
+
+	_, err = suite.kubeClientSet.CoreV1().Namespaces().Create(context.Background(), &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: suite.namespace,
+		},
+	}, metav1.CreateOptions{})
+	suite.Require().NoError(err, "Failed to create namespace")
+
+	// TODO: move to test setup / teardown
 	suite.LogCollectorServer, err = logcollector.NewLogCollectorServer(suite.logger,
 		suite.namespace,
 		suite.baseDir,
-		stateFileUpdateIntervalStr,
-		readLogWaitTime,
-		monitoringInterval,
+		"5s",  /* stateFileUpdateIntervalStr */
+		"3s",  /* readLogWaitTime */
+		"30s", /* monitoringInterval */
 		suite.kubeClientSet,
-		bufferPoolSize,
-		bufferPoolSize,
+		30, /* logCollectionBufferPoolSize */
+		30, /* getLogsBufferSizeBytes */
 		suite.bufferSizeBytes)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test
-	go suite.startLogCollectorServer(listenPort)
+	go suite.startLogCollectorServer(
+		8282, /* listenPort */
+	)
 
 	suite.logger.InfoWith("Setup completed")
 }

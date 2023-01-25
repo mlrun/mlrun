@@ -57,7 +57,7 @@ from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
-from mlrun.features import MinMaxValidator
+from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
@@ -3786,6 +3786,48 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected_df.set_index(["first_name", "last_name"], inplace=True)
         assert res_df.equals(expected_df), f"unexpected result: {res_df}"
+
+    @pytest.mark.parametrize("engine", ["storey", "pandas"])
+    def test_ingest_with_validator_from_uri(self, engine):
+        df = pd.DataFrame(
+            {
+                "key": [1, 2, 3, 4, 5, 6, 7],
+                "key1": ["1", "2", "3", "4", "5", "6", "7"],
+                "key2": ["C", "F", "I", "W", "X", "J", "K"],
+            }
+        )
+
+        feature_set = fstore.FeatureSet(
+            "myfset", entities=[fstore.Entity("key")], engine=engine
+        )
+        feature_set["key1"] = fstore.Feature(
+            validator=RegexValidator(regex=".[A-Za-z]", severity="info"),
+            value_type="str",
+        )
+        try:
+            feature_set["key"] = fstore.Feature(
+                validator=RegexValidator(regex=".[A-Za-z]", severity="info"),
+                value_type="str",
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass  # test equal name for entity and feature
+
+        feature_set.graph.to(
+            FeaturesetValidator(),
+            name="validator",
+            columns=["key1"],
+            full_event=True,
+        )
+
+        feature_set.save()
+        output_path = tempfile.TemporaryDirectory()
+        df = fstore.ingest(
+            feature_set.uri,
+            df,
+            targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+        )
+
+        assert isinstance(df, pd.DataFrame)
 
 
 def verify_purge(fset, targets):

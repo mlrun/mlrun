@@ -800,7 +800,13 @@ class FeatureSet(ModelObj):
         return self._spec.features[name]
 
     def __setitem__(self, key, item):
-        self._spec.features.update(item, key)
+        if key not in self._spec.entities.keys():
+            self._spec.features.update(item, key)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A `FeatureSet` cannot have an entity and a feature with the same name. "
+                f"The feature that was given to add '{key}' has the same name of the `FeatureSet`'s entity."
+            )
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
         """plot/save graph using graphviz

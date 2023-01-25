@@ -91,3 +91,8 @@ class TimeSeriesTarget:
 class ModelEndpointTarget:
     KV = "kv"
     SQL = "sql"
+
+
+class ProjectSecretKeys:
+    CONNECTION_STRING = "MODEL_MONITORING_CONNECTION_STRING"
+    ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"

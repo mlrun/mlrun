@@ -48,6 +48,7 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
+from mlrun.model_monitoring.constants import ProjectSecretKeys
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
@@ -598,7 +599,7 @@ def _build_function(
                         model_monitoring_access_key = _process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
-                            "MODEL_MONITORING_ACCESS_KEY",
+                            ProjectSecretKeys.ACCESS_KEY,
                         )
 
                         # initialize model monitoring stream

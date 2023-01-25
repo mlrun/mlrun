@@ -86,11 +86,11 @@ def initial_model_monitoring_stream_processing_function(
 
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
-        "MODEL_MONITORING_ACCESS_KEY",
+        model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-            "MODEL_MONITORING_ACCESS_KEY",
+            model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         ),
     )
 
@@ -142,11 +142,11 @@ def get_model_monitoring_batch_function(
 
     # Set model monitoring access key for managing permissions
     function.set_env_from_secret(
-        "MODEL_MONITORING_ACCESS_KEY",
+        model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(project),
         mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-            "MODEL_MONITORING_ACCESS_KEY",
+            model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY,
         ),
     )
 

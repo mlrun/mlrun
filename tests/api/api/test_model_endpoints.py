@@ -18,11 +18,11 @@ import typing
 from random import choice, randint
 from typing import Optional
 
+import deepdiff
 import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
-from mlrun.api.crud.model_monitoring.stores import ModelEndpointStore  # noqa: F401
 from mlrun.api.schemas import (
     ModelEndpoint,
     ModelEndpointMetadata,
@@ -30,6 +30,10 @@ from mlrun.api.schemas import (
     ModelEndpointStatus,
 )
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
+from mlrun.model_monitoring.stores import (  # noqa: F401
+    ModelEndpointStore,
+    ModelEndpointStoreType,
+)
 
 TEST_PROJECT = "test_model_endpoints"
 CONNECTION_STRING = "sqlite:///test.db"
@@ -45,9 +49,7 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-        value="kv"
-    )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
 
     endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
@@ -231,9 +233,7 @@ def test_get_endpoint_features_function():
     feature_names = list(stats.keys())
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-        value="kv"
-    )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
 
     endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
@@ -279,9 +279,7 @@ def test_generating_tsdb_paths():
     usually important when the user call the delete project API and as a result the TSDB resources should be deleted"""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-        value="kv"
-    )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
     endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
     )
@@ -329,7 +327,7 @@ def test_sql_target_list_model_endpoints():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
         value="sql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
@@ -378,7 +376,7 @@ def test_sql_target_patch_endpoint():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
         value="sql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
@@ -415,3 +413,32 @@ def test_sql_target_patch_endpoint():
     # Drop model endpoints test table from DB
     list_of_endpoints = endpoint_store.list_model_endpoints()
     endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
+
+
+def test_validate_model_endpoints_schema():
+    # Validate that both model endpoint basemodel schema and model endpoint ModelObj schema have similar keys
+    model_endpoint_basemodel = mlrun.api.schemas.ModelEndpoint()
+    model_endpoint_modelobj = mlrun.model_monitoring.ModelEndpoint()
+
+    # Compare status
+    base_model_status = model_endpoint_basemodel.status.__dict__
+    base_model_status.pop("state")
+    model_object_status = model_endpoint_modelobj.status.__dict__
+    assert (
+        deepdiff.DeepDiff(
+            base_model_status,
+            model_object_status,
+            ignore_order=True,
+        )
+    ) == {}
+
+    # Compare spec
+    base_model_status = model_endpoint_basemodel.status.__dict__
+    model_object_status = model_endpoint_modelobj.status.__dict__
+    assert (
+        deepdiff.DeepDiff(
+            base_model_status,
+            model_object_status,
+            ignore_order=True,
+        )
+    ) == {}

@@ -15,10 +15,10 @@
 
 import json
 import typing
+from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as db
-from sqlalchemy.ext.declarative import declarative_base
 
 import mlrun
 import mlrun.api.schemas
@@ -26,12 +26,11 @@ import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.api.db.sqldb.session import create_session, get_engine
-from mlrun.api.utils.helpers import BaseModel
 from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
-
-Base = declarative_base()
+from .models import get_ModelEndpointsTable
+from .models.base import Base
 
 
 class SQLModelEndpointStore(ModelEndpointStore):
@@ -57,19 +56,22 @@ class SQLModelEndpointStore(ModelEndpointStore):
         """
 
         super().__init__(project=project)
+
         self.connection_string = (
             connection_string
-            or mlrun.mlconf.model_endpoint_monitoring.connection_string
+            or mlrun.utils.model_monitoring.get_connection_string(project=self.project)
         )
+
         self.table_name = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
 
-        self._engine = get_engine(dsn=connection_string)
-
-        # Create table if not exist. The `metadata` contains the `ModelEndpointsTable` defined later
+        self._engine = get_engine(dsn=self.connection_string)
+        self.ModelEndpointsTable = get_ModelEndpointsTable(
+            connection_string=self.connection_string
+        )
+        # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
         if not self._engine.has_table(self.table_name):
             Base.metadata.create_all(bind=self._engine)
-
-        self.model_endpoints_table = ModelEndpointsTable.__table__
+        self.model_endpoints_table = self.ModelEndpointsTable.__table__
 
     def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
         """
@@ -84,8 +86,17 @@ class SQLModelEndpointStore(ModelEndpointStore):
             # Retrieving the relevant attributes from the model endpoint object
             endpoint_dict = self.get_params(endpoint=endpoint)
 
+            # Adjust timestamps fields
+            endpoint_dict[
+                model_monitoring_constants.EventFieldType.FIRST_REQUEST
+            ] = datetime.now(timezone.utc)
+            endpoint_dict[
+                model_monitoring_constants.EventFieldType.LAST_REQUEST
+            ] = datetime.now(timezone.utc)
+
             # Convert the result into a pandas Dataframe and write it into the database
             endpoint_df = pd.DataFrame([endpoint_dict])
+
             endpoint_df.to_sql(
                 self.table_name, con=connection, index=False, if_exists="append"
             )
@@ -104,8 +115,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
         with create_session(dsn=self.connection_string) as session:
 
             # Generate and commit the update session query
-            session.query(ModelEndpointsTable).filter(
-                ModelEndpointsTable.endpoint_id == endpoint_id
+            session.query(self.ModelEndpointsTable).filter(
+                self.ModelEndpointsTable.endpoint_id == endpoint_id
             ).update(attributes)
 
             session.commit()
@@ -121,7 +132,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         with create_session(dsn=self.connection_string) as session:
 
             # Generate and commit the delete query
-            session.query(ModelEndpointsTable).filter_by(
+            session.query(self.ModelEndpointsTable).filter_by(
                 endpoint_id=endpoint_id
             ).delete()
             session.commit()
@@ -169,7 +180,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
             # Generate the get query
             endpoint_record = (
-                session.query(ModelEndpointsTable)
+                session.query(self.ModelEndpointsTable)
                 .filter_by(endpoint_id=endpoint_id)
                 .one_or_none()
             )
@@ -254,7 +265,9 @@ class SQLModelEndpointStore(ModelEndpointStore):
         with create_session(dsn=self.connection_string) as session:
 
             # Generate the list query
-            query = session.query(ModelEndpointsTable).filter_by(project=self.project)
+            query = session.query(self.ModelEndpointsTable).filter_by(
+                project=self.project
+            )
 
             # Apply filters
             if model:
@@ -447,93 +460,3 @@ class SQLModelEndpointStore(ModelEndpointStore):
             "Real time metrics service using Prometheus will be implemented in 1.4.0"
         )
         return {}
-
-
-class ModelEndpointsTable(Base, BaseModel):
-    __tablename__ = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
-
-    endpoint_id = db.Column(
-        model_monitoring_constants.EventFieldType.ENDPOINT_ID,
-        db.String(40),
-        primary_key=True,
-    )
-    state = db.Column(model_monitoring_constants.EventFieldType.STATE, db.String(10))
-    project = db.Column(
-        model_monitoring_constants.EventFieldType.PROJECT, db.String(40)
-    )
-    function_uri = db.Column(
-        model_monitoring_constants.EventFieldType.FUNCTION_URI,
-        db.String(255),
-    )
-    model = db.Column(model_monitoring_constants.EventFieldType.MODEL, db.String(255))
-    model_class = db.Column(
-        model_monitoring_constants.EventFieldType.MODEL_CLASS,
-        db.String(255),
-    )
-    labels = db.Column(model_monitoring_constants.EventFieldType.LABELS, db.Text)
-    model_uri = db.Column(
-        model_monitoring_constants.EventFieldType.MODEL_URI, db.String(255)
-    )
-    stream_path = db.Column(
-        model_monitoring_constants.EventFieldType.STREAM_PATH, db.Text
-    )
-    algorithm = db.Column(
-        model_monitoring_constants.EventFieldType.ALGORITHM,
-        db.String(255),
-    )
-    active = db.Column(model_monitoring_constants.EventFieldType.ACTIVE, db.Boolean)
-    monitoring_mode = db.Column(
-        model_monitoring_constants.EventFieldType.MONITORING_MODE,
-        db.String(10),
-    )
-    feature_stats = db.Column(
-        model_monitoring_constants.EventFieldType.FEATURE_STATS, db.Text
-    )
-    current_stats = db.Column(
-        model_monitoring_constants.EventFieldType.CURRENT_STATS, db.Text
-    )
-    feature_names = db.Column(
-        model_monitoring_constants.EventFieldType.FEATURE_NAMES, db.Text
-    )
-    children = db.Column(model_monitoring_constants.EventFieldType.CHILDREN, db.Text)
-    label_names = db.Column(
-        model_monitoring_constants.EventFieldType.LABEL_NAMES, db.Text
-    )
-    timestamp = db.Column(
-        model_monitoring_constants.EventFieldType.TIMESTAMP,
-        db.DateTime,
-    )
-    endpoint_type = db.Column(
-        model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
-        db.String(10),
-    )
-    children_uids = db.Column(
-        model_monitoring_constants.EventFieldType.CHILDREN_UIDS, db.Text
-    )
-    drift_measures = db.Column(
-        model_monitoring_constants.EventFieldType.DRIFT_MEASURES, db.Text
-    )
-    drift_status = db.Column(
-        model_monitoring_constants.EventFieldType.DRIFT_STATUS,
-        db.String(40),
-    )
-    monitor_configuration = db.Column(
-        model_monitoring_constants.EventFieldType.MONITOR_CONFIGURATION,
-        db.Text,
-    )
-    monitoring_feature_set_uri = db.Column(
-        model_monitoring_constants.EventFieldType.FEATURE_SET_URI,
-        db.String(255),
-    )
-    first_request = db.Column(
-        model_monitoring_constants.EventFieldType.FIRST_REQUEST,
-        db.String(40),
-    )
-    last_request = db.Column(
-        model_monitoring_constants.EventFieldType.LAST_REQUEST,
-        db.String(40),
-    )
-    error_count = db.Column(
-        model_monitoring_constants.EventFieldType.ERROR_COUNT, db.Integer
-    )
-    metrics = db.Column(model_monitoring_constants.EventFieldType.METRICS, db.Text)

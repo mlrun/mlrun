@@ -28,13 +28,14 @@ import mlrun.feature_store.steps
 import mlrun.utils
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.api.crud.model_monitoring.stores import get_model_endpoint_store
 from mlrun.model_monitoring import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
     ModelEndpointTarget,
+    ProjectSecretKeys,
 )
+from mlrun.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
 
 
@@ -74,7 +75,7 @@ class EventStreamProcessor:
         self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
             model_monitoring_access_key
-            or os.environ.get("MODEL_MONITORING_ACCESS_KEY")
+            or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
             or self.v3io_access_key
         )
         self.storage_options = dict(
@@ -399,6 +400,8 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
+        # c = os.environ.get('MODEL_MONITORING_CONNECTION_STRING')
+        # print('[EYAL]: connection string from env: ', c)
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -410,7 +413,6 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
                 EventFieldType.FUNCTION_URI,
                 EventFieldType.MODEL,
                 EventFieldType.MODEL_CLASS,
-                EventFieldType.TIMESTAMP,
                 EventFieldType.ENDPOINT_ID,
                 EventFieldType.LABELS,
                 EventFieldType.FIRST_REQUEST,

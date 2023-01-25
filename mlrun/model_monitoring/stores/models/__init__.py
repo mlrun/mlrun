@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .model_endpoints import ModelEndpoints
+
+def get_ModelEndpointsTable(connection_string: str = None):
+    """Return ModelEndpointsTable based on the provided connection string"""
+    if "mysql:" in connection_string:
+        from .mysql import ModelEndpointsTable
+    else:
+        from .sqlite import ModelEndpointsTable
+    return ModelEndpointsTable

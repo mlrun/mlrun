@@ -2202,15 +2202,20 @@ class MlrunProject(ModelObj):
                 mlrun.get_dataitem(filepath).upload(tmp_path)
                 remove(tmp_path)
 
-    def set_model_monitoring_credentials(self, access_key: str):
+    def set_model_monitoring_credentials(
+        self, access_key: str = None, connection_string: str = None
+    ):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
         The supplied credentials must have data access
 
-        :param access_key: Model Monitoring access key for managing user permissions.
+        :param access_key:        Model Monitoring access key for managing user permissions.
+        :param connection_string: SQL connection string.
         """
         set_project_model_monitoring_credentials(
-            access_key=access_key, project=self.metadata.name
+            access_key=access_key,
+            project=self.metadata.name,
+            connection_string=connection_string,
         )
 
     def run_function(

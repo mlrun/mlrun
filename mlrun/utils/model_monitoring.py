@@ -20,6 +20,7 @@ import mlrun.model
 import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.platforms.iguazio
 from mlrun.api.schemas.schedule import ScheduleCronTrigger
+from mlrun.config import is_running_as_api
 
 
 def parse_model_endpoint_project_prefix(path: str, project_name: str):
@@ -33,20 +34,32 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
 
 def set_project_model_monitoring_credentials(
-    access_key: str, project: Optional[str] = None
+    access_key: Optional[str] = None, project: Optional[str] = None, connection_string: Optional[str] = None
 ):
     """Set the credentials that will be used by the project's model monitoring
     infrastructure functions.
     The supplied credentials must have data access
 
-    :param access_key: Model Monitoring access key for managing user permissions.
-    :param project: The name of the model monitoring project.
+    :param access_key:         Model Monitoring access key for managing user permissions.
+    :param project:            The name of the model monitoring project.
+    :param connection_string:  SQL connection string
     """
-    mlrun.get_run_db().create_project_secrets(
-        project=project or mlrun.mlconf.default_project,
-        provider=mlrun.api.schemas.SecretProviderName.kubernetes,
-        secrets={"MODEL_MONITORING_ACCESS_KEY": access_key},
-    )
+    if access_key:
+        mlrun.get_run_db().create_project_secrets(
+            project=project or mlrun.mlconf.default_project,
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+            secrets={
+                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY: access_key
+            },
+        )
+    if connection_string:
+        mlrun.get_run_db().create_project_secrets(
+            project=project or mlrun.mlconf.default_project,
+            provider=mlrun.api.schemas.SecretProviderName.kubernetes,
+            secrets={
+                model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING: connection_string
+            },
+        )
 
 
 class TrackingPolicy(mlrun.model.ModelObj):
@@ -113,3 +126,31 @@ class TrackingPolicy(mlrun.model.ModelObj):
                 model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS
             ] = self.default_batch_intervals.dict()
         return struct
+
+
+def get_connection_string(project: str = None):
+    """Get SQL connections string from the project secret. If wasn't set, take it from the system configurations"""
+    if is_running_as_api():
+        # Running on server side
+        import mlrun.api.crud.secrets
+        import mlrun.api.schemas
+
+        return (
+            mlrun.api.crud.secrets.Secrets().get_project_secret(
+                project=project,
+                provider=mlrun.api.schemas.secret.SecretProviderName.kubernetes,
+                allow_secrets_from_k8s=True,
+                secret_key=model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING,
+            )
+            or mlrun.mlconf.model_endpoint_monitoring.connection_string
+        )
+    else:
+        # Running on client side
+        import mlrun
+
+        return (
+            mlrun.get_secret_or_env(
+                model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING
+            )
+            or mlrun.mlconf.model_endpoint_monitoring.connection_string
+        )

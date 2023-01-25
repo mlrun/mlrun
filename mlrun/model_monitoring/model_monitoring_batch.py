@@ -35,7 +35,7 @@ import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring import EventFieldType
+from mlrun.model_monitoring import EventFieldType, ProjectSecretKeys
 from mlrun.utils import logger
 
 
@@ -863,7 +863,7 @@ def handler(context: mlrun.run.MLClientCtx):
     batch_processor = BatchProcessor(
         context=context,
         project=context.project,
-        model_monitoring_access_key=os.environ.get("MODEL_MONITORING_ACCESS_KEY"),
+        model_monitoring_access_key=os.environ.get(ProjectSecretKeys.ACCESS_KEY),
         v3io_access_key=os.environ.get("V3IO_ACCESS_KEY"),
     )
     batch_processor.post_init()

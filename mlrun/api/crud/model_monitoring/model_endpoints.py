@@ -38,9 +38,8 @@ from mlrun.model_monitoring.helpers import (
     get_model_monitoring_batch_function,
     initial_model_monitoring_stream_processing_function,
 )
+from mlrun.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
-
-from .stores import get_model_endpoint_store
 
 
 class ModelEndpoints:

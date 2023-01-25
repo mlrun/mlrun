@@ -31,6 +31,7 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.model_monitoring.stores
 from mlrun.api.api.endpoints.grafana_proxy import (
     _parse_query_parameters,
     _validate_query_parameters,
@@ -85,9 +86,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-        value="kv"
-    )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
     endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=_get_access_key()
     )
@@ -433,9 +432,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.api.crud.model_monitoring.ModelEndpointStoreType(
-        value="kv"
-    )
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
     endpoint_store = store_type_object.to_endpoint_store(
         project=TEST_PROJECT, access_key=_get_access_key()
     )

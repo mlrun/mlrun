@@ -21,7 +21,7 @@ from .feature_store import FeatureStore
 from .functions import Functions
 from .logs import Logs
 from .marketplace import Marketplace
-from .model_monitoring import ModelEndpoints, ModelEndpointStoreType
+from .model_monitoring import ModelEndpoints
 from .pipelines import Pipelines
 from .projects import Projects
 from .runs import Runs

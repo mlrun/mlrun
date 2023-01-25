@@ -20,8 +20,6 @@ from abc import ABC, abstractmethod
 import mlrun
 import mlrun.api.schemas
 import mlrun.model_monitoring.constants as model_monitoring_constants
-import mlrun.utils.model_monitoring
-import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
 

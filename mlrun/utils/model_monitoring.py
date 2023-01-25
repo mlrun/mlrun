@@ -34,7 +34,9 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
 
 
 def set_project_model_monitoring_credentials(
-    access_key: Optional[str] = None, project: Optional[str] = None, connection_string: Optional[str] = None
+    access_key: Optional[str] = None,
+    project: Optional[str] = None,
+    connection_string: Optional[str] = None,
 ):
     """Set the credentials that will be used by the project's model monitoring
     infrastructure functions.

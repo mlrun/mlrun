@@ -224,13 +224,12 @@ You can pass the schema and the name of the table you want to create or the name
 
 ```
  target = SQLTarget(
-            table_name=target_name,
-            create_table=False,
-            primary_key_column=key,
+            table_name='my_table',
+            schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
+            create_table=True,
+            primary_key_column='id',
             time_fields=["time"]
         )
-        feature_set = fs.FeatureSet(
-            "my_fs", entities=[fs.Entity('key')],
-        )
-        fs.ingest(feature_set, source=origin_df, targets=[target])
+feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
+fs.ingest(feature_set, source=df, targets=[target])
 ```

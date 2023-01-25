@@ -438,7 +438,7 @@ class RegexValidator(Validator):
         new_obj = super(RegexValidator, cls).from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
-        if hasattr(new_obj, "regex"):
+        if hasattr(new_obj, "regex") and new_obj.regex is not None:
             new_obj.regex_compile = re.compile(new_obj.regex)
         else:
             raise MLRunRuntimeError(

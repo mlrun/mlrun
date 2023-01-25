@@ -466,7 +466,7 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(run, execution)
-                if watch and self.kind not in ["", "handler", "local"]:
+                if watch and self.kind not in ["", "handler", "local", "dask"]:
                     state, _ = run.logs(True, self._get_db())
                     if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")

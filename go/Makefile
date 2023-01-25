@@ -117,6 +117,7 @@ test-unit-dockerized: schemas-compiler
 test-integration-dockerized: schemas-compiler
 	MLRUN_TEST_KUBECONFIG=$(if $(MLRUN_TEST_KUBECONFIG),$(MLRUN_TEST_KUBECONFIG),$(KUBECONFIG)) \
 	docker run \
+		--network host \
 		--volume $(shell dirname $(PWD)):/app \
 		--volume $(MLRUN_TEST_KUBECONFIG)/:/kubeconfig \
 		--env MINIKUBE_HOME=$(MINIKUBE_HOME) \

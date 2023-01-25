@@ -561,6 +561,26 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run
 
+.PHONY: test-go
+test-go-unit: ## Run mlrun go unit tests
+	cd go && \
+		make test-unit-local
+
+.PHONY: test-go-dockerized
+test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
+	cd go && \
+		make test-unit-dockerized
+
+.PHONY: test-go
+test-go-integration: ## Run mlrun go unit tests
+	cd go && \
+		make test-integration-local
+
+.PHONY: test-go-dockerized
+test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
+	cd go && \
+		make test-integration-dockerized
+
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
 	python -m mlrun db
@@ -625,6 +645,16 @@ fmt-check: ## Format and check the code (using black)
 flake8: ## Run flake8 lint
 	@echo "Running flake8 lint..."
 	python -m flake8 .
+
+.PHONY: lint-go
+lint-go:
+	cd go && \
+		make lint
+
+.PHONY: fmt-go
+fmt-go:
+	cd go && \
+		make fmt
 
 .PHONY: release
 release: ## Release a version

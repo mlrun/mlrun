@@ -620,7 +620,7 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 	// read size bytes from offset
 	buffer := s.getLogsBufferPool.Get()
 	defer s.getLogsBufferPool.Put(buffer)
-	if _, err := file.ReadAt(buffer, int64(offset)); err != nil {
+	if _, err := file.ReadAt(buffer, offset); err != nil {
 
 		// if error is EOF, return empty bytes
 		if err == io.EOF {

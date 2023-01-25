@@ -1,3 +1,5 @@
+//go:build test_unit
+
 // Copyright 2018 Iguazio
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

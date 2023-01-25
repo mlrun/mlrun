@@ -102,6 +102,8 @@ func (s *Store) GetItemsInProgress() (*sync.Map, error) {
 
 // GetState returns the state store state
 func (s *Store) GetState() *statestore.State {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	return s.state
 }
 
@@ -110,6 +112,7 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 
 	// create ticker
 	ticker := time.NewTicker(s.stateFileUpdateInterval)
+	defer ticker.Stop()
 
 	for range ticker.C {
 

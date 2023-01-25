@@ -18,7 +18,12 @@ MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 
 GO_VERSION=1.19
+GOPATH ?= $(shell go env GOPATH)
+OS_NAME = $(shell uname)
 DOCKER_IMAGES = log-collector
+KUBECONFIG := $(if $(KUBECONFIG),$(KUBECONFIG),$(HOME)/.kube/config)
+
+CI_BIN_DIR=$(shell pwd)/.bin
 
 #
 # Build
@@ -91,6 +96,36 @@ cleanup:
 
 
 #
+# Test
+#
+.PHONY: test-unit-local
+test-unit-local: compile-schemas-local
+	go test -v -race -tags=test_unit ./... -short
+
+.PHONY: test-integration-local
+test-integration-local: compile-schemas-local
+	go test -v -p 1 -race -tags=test_integration ./...
+
+.PHONY: test-unit-dockerized
+test-unit-dockerized: schemas-compiler
+	docker run \
+		-v $(shell dirname $(PWD)):/app \
+		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		make test-unit-local
+
+.PHONY: test-integration-dockerized
+test-integration-dockerized: schemas-compiler
+	MLRUN_TEST_KUBECONFIG=$(if $(MLRUN_TEST_KUBECONFIG),$(MLRUN_TEST_KUBECONFIG),$(KUBECONFIG)) \
+	docker run \
+		--network host \
+		--volume $(shell dirname $(PWD)):/app \
+		--volume $(MLRUN_TEST_KUBECONFIG)/:/kubeconfig \
+		--env MINIKUBE_HOME=$(MINIKUBE_HOME) \
+		--env KUBECONFIG=/kubeconfig \
+		$(MLRUN_DOCKER_IMAGE_PREFIX)/schemas-compiler:latest \
+		make test-integration-local
+
+#
 # Misc
 #
 .PHONY: fmt
@@ -99,26 +134,38 @@ fmt:
 	golangci-lint run --fix
 
 .PHONY: lint
-lint:
+lint: compile-schemas-go ensure-test-files-annotated
 	@echo Installing linters...
-	@test -e $(GOPATH)/bin/impi || \
-		(mkdir -p $(GOPATH)/bin && \
+	@test -e $(CI_BIN_DIR)/impi || \
+		(mkdir -p $(CI_BIN_DIR) && \
 		curl -s https://api.github.com/repos/pavius/impi/releases/latest \
 		| grep -i "browser_download_url.*impi.*$(OS_NAME)" \
 		| cut -d : -f 2,3 \
 		| tr -d \" \
-		| wget -O $(GOPATH)/bin/impi -qi - \
-		&& chmod +x $(GOPATH)/bin/impi)
+		| wget -O $(CI_BIN_DIR)/impi -qi - \
+		&& chmod +x $(CI_BIN_DIR)/impi)
 
-	@test -e $(GOPATH)/bin/golangci-lint || \
-	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOPATH)/bin v1.50.0)
+	@test -e $(CI_BIN_DIR)/golangci-lint || \
+	  	(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(CI_BIN_DIR) v1.50.1)
 
 	@echo Verifying imports...
-	$(GOPATH)/bin/impi \
+	$(CI_BIN_DIR)/impi \
 		--local github.com/mlrun/mlrun/ \
 		--scheme stdLocalThirdParty \
 		./cmd/... ./pkg/...
 
 	@echo Linting...
-	$(GOPATH)/bin/golangci-lint run -v
+	$(CI_BIN_DIR)/golangci-lint run -v
 	@echo Done.
+
+.PHONY: ensure-test-files-annotated
+ensure-test-files-annotated:
+	$(eval test_files_missing_build_annotations=$(strip $(shell find . -type f -name '*_test.go' -exec bash -c "grep -m 1 -L '//go:build ' {} | grep go" \;)))
+	@if [ -n "$(test_files_missing_build_annotations)" ]; then \
+		echo "Found go test files without build annotations: "; \
+		echo $(test_files_missing_build_annotations); \
+		echo "!!! Go test files must be annotated with '//go:build test_<x>' !!!"; \
+		exit 1; \
+	fi
+	@echo "All go test files have //go:build test_X annotation"
+	@exit $(.SHELLSTATUS)

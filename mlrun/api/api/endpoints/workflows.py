@@ -132,6 +132,7 @@ async def submit_workflow(
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
+    print(f"1. DEBUG YONI:\n{workflow_request.dict()}")
     # Getting project
     project = await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().get_project,
@@ -174,6 +175,8 @@ async def submit_workflow(
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
+        print(f"2. DEBUG YONI:\n{workflow_request.dict()}")
+        print(f"3. DEBUG YONI:\n{request}")
         chief_client = mlrun.api.utils.clients.chief.Client()
         return await chief_client.submit_workflow(
             project=project.metadata.name,

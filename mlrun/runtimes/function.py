@@ -41,14 +41,7 @@ from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
-from ..utils import (
-    as_number,
-    enrich_image_url,
-    get_in,
-    logger,
-    resolve_image_python_version_per_mlrun_and_python_version,
-    update_in,
-)
+from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
@@ -1208,9 +1201,12 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+
     nuclio_runtime = (
-        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+        function.spec.nuclio_runtime
+        or _resolve_nuclio_runtime_python_image(client_version, client_python_version)
     )
+
     if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
         "python:3.7",
         "python:3.8",
@@ -1221,7 +1217,7 @@ def compile_function_config(
                 f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
             )
         else:
-            # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
+            # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
     # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
@@ -1642,11 +1638,22 @@ def _resolve_work_dir_and_handler(handler):
 
 
 def _resolve_nuclio_runtime_python_image(
-    mlrun_version: str = None, client_python_version: str = None
+    mlrun_version: str = None, python_version: str = None
 ):
-    python_version = resolve_image_python_version_per_mlrun_and_python_version(
-        mlrun_version, client_python_version
-    )
-    if python_version == "3.7":
+    # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 there for need
+    # to use the default runtime which was previously which is python 3.7
+    if not python_version or not mlrun_version:
         return "python:3.7"
+
+    # if mlrun version is older than 1.3.0 we need to use the default runtime which was previously which is python 3.7
+    if semver.VersionInfo.parse(mlrun_version) < semver.VersionInfo.parse("1.3.0-X"):
+        return "python:3.7"
+
+    # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
+    if semver.VersionInfo.parse("1.3.0-X") <= semver.VersionInfo.parse(
+        mlrun_version
+    ) < semver.VersionInfo.parse("1.4.0-X") and python_version.startswith("3.7"):
+        return "python:3.7"
+
+    # if none of the above conditions are met we use the default runtime which is python 3.9
     return mlrun.mlconf.default_nuclio_runtime

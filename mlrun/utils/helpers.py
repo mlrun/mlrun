@@ -683,23 +683,6 @@ def resolve_image_tag_suffix(
     :param python_version: the requested python version
     :return: the suffix to append to the image tag
     """
-    python_version = resolve_image_python_version_per_mlrun_and_python_version(
-        mlrun_version, python_version
-    )
-    if python_version == "3.7":
-        return "-py37"
-    return ""
-
-
-def resolve_image_python_version_per_mlrun_and_python_version(
-    mlrun_version: str = None, python_version: str = None
-) -> str:
-    """
-    resolves what python version should be used for the image
-    :param mlrun_version: the mlrun version
-    :param python_version: the requested python version
-    :return: the python version to use
-    """
     if not python_version or not mlrun_version:
         return ""
     # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
@@ -710,7 +693,7 @@ def resolve_image_python_version_per_mlrun_and_python_version(
     if semver.VersionInfo.parse("1.3.0-X") <= semver.VersionInfo.parse(
         mlrun_version
     ) < semver.VersionInfo.parse("1.4.0-X") and python_version.startswith("3.7"):
-        return "3.7"
+        return "-py37"
     return ""
 
 

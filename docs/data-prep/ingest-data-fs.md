@@ -167,17 +167,14 @@ either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this for
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
 
 ```
- db_path = "mysql+pymysql://abc:abc@localhost:3306/my_db"
-       source = SqlDBSource(
-           table_name='source_name', db_path=self.db, key_field='key', time_fields=['timestamp'],
-       )
-
-
-        feature_set = fs.FeatureSet(
-            "my_fs", entities=[fs.Entity('key')],
-        )
-        feature_set.set_targets([])
-        df = fs.ingest(feature_set, source=source)
+source = SqlDBSource(table_name='my_table', 
+                     db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
+                     key_field='key',
+                     time_fields=['timestamp'], )
+ 
+ feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
+ feature_set.set_targets([])
+ df = fs.ingest(feature_set, source=source)
 ```
 
 

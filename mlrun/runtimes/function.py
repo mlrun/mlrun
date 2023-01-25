@@ -41,7 +41,14 @@ from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
-from ..utils import as_number, enrich_image_url, get_in, logger, update_in
+from ..utils import (
+    as_number,
+    enrich_image_url,
+    get_in,
+    logger,
+    resolve_image_python_version_per_mlrun_and_python_version,
+    update_in,
+)
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
@@ -1632,3 +1639,14 @@ def _resolve_work_dir_and_handler(handler):
         return "", extend_handler(handler)
 
     return split_handler[0], extend_handler(split_handler[1])
+
+
+def _resolve_nuclio_runtime_python_image(
+    mlrun_version: str = None, client_python_version: str = None
+):
+    python_version = resolve_image_python_version_per_mlrun_and_python_version(
+        mlrun_version, client_python_version
+    )
+    if python_version == "3.7":
+        return "python:3.7"
+    return mlrun.mlconf.default_nuclio_runtime

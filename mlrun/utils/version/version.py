@@ -14,7 +14,6 @@
 #
 import json
 import sys
-import typing
 
 import mlrun.utils
 from mlrun.utils.singleton import Singleton
@@ -26,13 +25,13 @@ else:
 
 
 class _VersionInfo:
-    def __init__(self, major, minor, micro):
+    def __init__(self, major, minor, patch):
         self.major = major
         self.minor = minor
-        self.micro = micro
+        self.patch = patch
 
     def __str__(self):
-        return f"{self.major}.{self.minor}.{self.micro}"
+        return f"{self.major}.{self.minor}.{self.patch}"
 
 
 class Version(metaclass=Singleton):

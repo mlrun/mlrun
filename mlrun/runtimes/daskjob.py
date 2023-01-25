@@ -598,6 +598,7 @@ def enrich_dask_cluster(
         function.full_image_path(
             client_version=client_version, client_python_version=client_python_version
         )
+        # TODO: we might never enter here, since running a function requires defining an image
         or "daskdev/dask:latest"
     )
     env = spec.env

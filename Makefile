@@ -185,7 +185,7 @@ docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
 .PHONY: push-docker-images
 push-docker-images: docker-images ## Push all docker images
 	@echo "Pushing images concurrently $(DEFAULT_IMAGES)"
-	@echo $(DEFAULT_IMAGES) | xargs -n 1 -P 5 docker push
+	@echo $(DEFAULT_IMAGES) | xargs -n 1 -P 3 docker push
 	@echo Done.
 
 .PHONY: print-docker-images

@@ -21,6 +21,7 @@ import fastapi
 import uvicorn.protocols.utils
 from starlette.middleware.base import BaseHTTPMiddleware
 
+import mlrun.api.schemas.constants
 from mlrun.config import config
 from mlrun.utils import logger
 
@@ -98,7 +99,9 @@ async def ui_clear_cache(request: fastapi.Request, call_next):
     """
     This middleware tells ui when to clear its cache based on backend version changes.
     """
-    ui_version = request.headers.get("X-MLRun-UI-Version", "")
+    ui_version = request.headers.get(
+        mlrun.api.schemas.constants.HeaderNames.ui_version, ""
+    )
     response: fastapi.Response = await call_next(request)
     development_version = config.version.startswith("0.0.0")
 
@@ -109,7 +112,9 @@ async def ui_clear_cache(request: fastapi.Request, call_next):
         response.headers["Clear-Site-Data"] = '"cache"'
 
         # tell ui to reload
-        response.headers["X-MLRun-UI-Clear-Cache"] = "true"
+        response.headers[
+            mlrun.api.schemas.constants.HeaderNames.ui_clear_cache
+        ] = "true"
     return response
 
 
@@ -118,7 +123,9 @@ async def ensure_be_version(request: fastapi.Request, call_next):
     This middleware ensures response header includes backend version
     """
     response: fastapi.Response = await call_next(request)
-    response.headers["X-MLRun-BE-Version"] = config.version
+    response.headers[
+        mlrun.api.schemas.constants.HeaderNames.backend_version
+    ] = config.version
     return response
 
 

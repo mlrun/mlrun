@@ -92,6 +92,9 @@ class HeaderNames:
     pipeline_arguments = f"{headers_prefix}pipeline-arguments"
     client_version = f"{headers_prefix}client-version"
     python_version = f"{headers_prefix}client-python-version"
+    backend_version = f"{headers_prefix}be-version"
+    ui_version = f"{headers_prefix}ui-version"
+    ui_clear_cache = f"{headers_prefix}ui-clear-cache"
 
 
 class FeatureStorePartitionByField(mlrun.api.utils.helpers.StrEnum):

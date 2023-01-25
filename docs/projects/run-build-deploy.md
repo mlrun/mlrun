@@ -6,7 +6,7 @@
 - [run_function](#run)
 - [build_function](#build)
 - [deploy_function](#deploy)
-- [Project default image](#default_image)
+- [Default image](#default_image)
 
 <a id="overview"></a>
 ## Overview
@@ -135,11 +135,11 @@ If you want to create a simulated (mock) function instead of a real Kubernetes s
 ```
 
 <a id="default_image"></a>
-## Project default image
+## Default image
 
 You can set a default image for the project. This image will be used for deploying and running any function that does
 not have an explicit image assigned, and replaces MLRun's default image of `mlrun/mlrun`. To set the default image use 
-the {py:meth}`~mlrun.projects.MlrunProject.set_default_image` method with the name of the default image to use.
+the {py:meth}`~mlrun.projects.MlrunProject.set_default_image` method with the name of the image.
 
 The default image is applied to the functions in the process of enriching the function prior to running or 
 deploying. Functions will therefore use the default image set in the project at the time of their execution, not the

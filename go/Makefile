@@ -100,11 +100,11 @@ cleanup:
 #
 .PHONY: test-unit-local
 test-unit-local: compile-schemas-local
-	go test -race -tags=test_unit ./... -short
+	go test -v -race -tags=test_unit ./... -short
 
 .PHONY: test-integration-local
 test-integration-local: compile-schemas-local
-	go test -race -tags=test_integration ./...
+	go test -v -p 1 -race -tags=test_integration ./...
 
 .PHONY: test-unit-dockerized
 test-unit-dockerized: schemas-compiler

@@ -270,7 +270,7 @@ class AbstractSparkRuntime(KubejobRuntime):
     def deploy(
         self,
         watch=True,
-        with_mlrun=None,
+        with_mlrun=True,
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,

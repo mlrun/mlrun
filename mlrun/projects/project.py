@@ -773,9 +773,7 @@ class ProjectSpec(ModelObj):
             return
         for key in self._function_objects:
             function = self._function_objects[key]
-            if hasattr(function, "_enriched_image") and getattr(
-                function, "_enriched_image", False
-            ):
+            if function._enriched_image:
                 function.spec.image = new_image
 
 

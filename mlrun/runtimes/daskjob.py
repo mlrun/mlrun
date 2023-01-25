@@ -382,6 +382,7 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
         show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies
@@ -402,6 +403,7 @@ class DaskCluster(KubejobRuntime):
             skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
 

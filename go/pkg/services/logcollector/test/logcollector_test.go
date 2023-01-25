@@ -99,13 +99,16 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.logger.InfoWith("Setup completed")
 }
 
+func (suite *LogCollectorTestSuite) SetupTest() {
+	suite.logger.InfoWith("Running test", "testName", suite.T().Name())
+}
+
 func (suite *LogCollectorTestSuite) TearDownSuite() {
 
 	// delete base dir and created files
 	err := os.RemoveAll(suite.baseDir)
 	suite.Require().NoError(err, "Failed to delete base dir")
-
-	suite.logger.InfoWith("Tear down complete")
+	suite.logger.InfoWith("Tear down complete", "testName", suite.T().Name())
 }
 
 func (suite *LogCollectorTestSuite) TestLogCollector() {

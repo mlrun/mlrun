@@ -220,7 +220,7 @@ The `SQLTarget` online target supports storey but does not support spark.<br>
 To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
 `mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
 
-You can pass the schema of the table you want to create or the name of an existing table, for example:
+You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
 
 ```
  target = SQLTarget(

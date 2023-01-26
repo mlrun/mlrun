@@ -200,7 +200,7 @@ class Client(
         request_kwargs = self._resolve_request_kwargs_from_request(
             request, json, **kwargs
         )
-        print(f"4. DEBUG YONI:\n{request_kwargs}")
+
         async with self._send_request_to_api(
             method=method,
             path=path,

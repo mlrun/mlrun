@@ -94,13 +94,21 @@ def _fill_workflow_missing_fields_from_project(
     return workflow_spec
 
 
-def schedule_requested(
+def is_requested_schedule(
     name: str,
     workflow_spec: mlrun.api.schemas.WorkflowSpec,
     project: mlrun.api.schemas.Project,
-):
-    project_wf = _get_workflow_by_name(project, name)
-    return project_wf.get("schedule") or workflow_spec.schedule
+) -> bool:
+    """
+    Checks if the workflow needs to be scheduled, which can be decided either the request itself
+    contains schedule information or the workflow which was predefined in the project contains schedule.
+    :param name:            workflow name
+    :param workflow_spec:   workflow spec input
+    :param project:         MLRun project that contains the workflow
+    :return: True if the workflow need to be scheduled and False if not.
+    """
+    project_workflow = _get_workflow_by_name(project, name)
+    return project_workflow.get("schedule") or workflow_spec.schedule
 
 
 @router.post(
@@ -141,8 +149,6 @@ async def submit_workflow(
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
     """
-    print(f"1. DEBUG YONI:\n{workflow_request.dict()}")
-    # Getting project
     project = await run_in_threadpool(
         mlrun.api.utils.singletons.project_member.get_project_member().get_project,
         db_session=db_session,
@@ -168,12 +174,10 @@ async def submit_workflow(
     )
     # Re-route to chief in case of schedule
     if (
-        schedule_requested(name, workflow_request.spec, project)
+        is_requested_schedule(name, workflow_request.spec, project)
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
-        print(f"2. DEBUG YONI:\n{workflow_request.dict()}")
-        print(f"3. DEBUG YONI:\n{request}")
         chief_client = mlrun.api.utils.clients.chief.Client()
         return await chief_client.submit_workflow(
             project=project.metadata.name,

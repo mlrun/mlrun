@@ -70,7 +70,7 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     MLRUN_DBPATH=<URL endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
     ```
 
-2. If the remote service is on an instance of the Iguazio MLOps Platform (**"the platform"**), set the following environment variables as well:
+2. If the remote service is on an instance of the Iguazio MLOps Platform (**not relevant for MLRun CE**), set the following environment variables as well:
 
     ```ini
     V3IO_USERNAME=<username of a platform user with access to the MLRun service>
@@ -90,6 +90,21 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 # Use remote service
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
+
+3. Run `mlrun config set` command line to set configuration parameters in mlrun default or specified .env file. By default, it stores all of the configuration into the default environment file, and your own environment file does not need editing.
+
+The `set` command can work with the following parameters:
+    `-f` to set the url path to the mlrun .env file (defaults to '~/.mlrun.env' for Linux and to %USERPROFILE%/.mlrun.env for Windows)
+    `-a` to set the url (local or remote) for MLRun API
+    `-p` to set the artifact path (optional)
+    `-u` to set the username (for remote access)
+    `-k` to set the access key (for remote access)
+    `-e` to set the environment variables (optional)
+   
+Example:
+ `mlrun config set -a http://localhost:8080 -u joe -k mykey -e AWS_ACCESS_KEY_ID=<key-id>`
+
+Alternatively (**not recommended**), you can load the configuration and credential environmental variables from your own environment file as explained below:
 
 ### Load the configuration and credential environmental variables from file
 

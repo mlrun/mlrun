@@ -101,7 +101,7 @@ class Client(
         project: str,
         name: str,
         request: fastapi.Request,
-        json: dict = None,
+        json: dict,
     ) -> fastapi.Response:
         """
         Workflow schedules are running only on chief

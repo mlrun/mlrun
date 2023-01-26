@@ -94,6 +94,15 @@ def _fill_workflow_missing_fields_from_project(
     return workflow_spec
 
 
+def schedule_requested(
+    name: str,
+    workflow_spec: mlrun.api.schemas.WorkflowSpec,
+    project: mlrun.api.schemas.Project,
+):
+    project_wf = _get_workflow_by_name(project, name)
+    return project_wf.get("schedule") or workflow_spec.schedule
+
+
 @router.post(
     "/projects/{project}/workflows/{name}/submit",
     status_code=HTTPStatus.ACCEPTED.value,
@@ -157,21 +166,9 @@ async def submit_workflow(
         action=mlrun.api.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-
-    workflow_spec = _fill_workflow_missing_fields_from_project(
-        project=project,
-        name=name,
-        spec=workflow_request.spec,
-        arguments=workflow_request.arguments,
-    )
-    updated_request = workflow_request.copy()
-    updated_request.spec = workflow_spec
-
     # Re-route to chief in case of schedule
-    # must be done after getting data from project regarding the workflow,
-    # since it may contain information about scheduling.
     if (
-        workflow_request.spec.schedule
+        schedule_requested(name, workflow_request.spec, project)
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.api.schemas.ClusterizationRole.chief
     ):
@@ -184,6 +181,16 @@ async def submit_workflow(
             request=request,
             json=workflow_request.dict(),
         )
+
+    workflow_spec = _fill_workflow_missing_fields_from_project(
+        project=project,
+        name=name,
+        spec=workflow_request.spec,
+        arguments=workflow_request.arguments,
+    )
+    updated_request = workflow_request.copy()
+    updated_request.spec = workflow_spec
+
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
     workflow_runner = await run_in_threadpool(

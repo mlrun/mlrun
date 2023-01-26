@@ -68,7 +68,7 @@ func GetKubernetesClientConfig(kubeconfigPath string) (*rest.Config, error) {
 func EnsureDirExists(dirPath string, mode os.FileMode) error {
 	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(dirPath, mode); err != nil {
-			return err
+			return errors.Wrap(err, "Failed to create directory")
 		}
 	}
 
@@ -163,6 +163,8 @@ func RetryUntilSuccessful(duration time.Duration,
 	}
 
 	_, err := RetryUntilSuccessfulWithResult(duration, interval, wrapFunctionNoResult)
+
+	// do not wrap err, we want to return the original error
 	return err
 }
 

@@ -484,7 +484,7 @@ default_config = {
         "concurrent_start_logs_workers": 15,
         "get_logs": {
             # the number of retries to get logs from the log collector
-            "max_retries": 4,
+            "max_retries": 3,
         },
     },
 }

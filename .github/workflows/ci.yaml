@@ -60,13 +60,13 @@ jobs:
     - name: Extract git branch
       id: git_info
       run: |
-        echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+        echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-        echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
 
@@ -79,13 +79,13 @@ jobs:
     - name: Extract git branch
       id: git_info
       run: |
-        echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+        echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
     - name: Resolve docker cache tag
       id: docker_cache
       run: |
         export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
         export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-        echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-integration-dockerized
 
@@ -98,13 +98,13 @@ jobs:
       - name: Extract git branch
         id: git_info
         run: |
-          echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Resolve docker cache tag
         id: docker_cache
         run: |
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Dockerized DB Migration tests
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-migrations-dockerized
 
@@ -114,7 +114,8 @@ jobs:
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
-        python-version: [3.9]
+        # 3.7 is for clients with the previous supported python version
+        python-version: [3.7, 3.9]
     steps:
     - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
@@ -136,13 +137,13 @@ jobs:
       - name: Extract git branch
         id: git_info
         run: |
-          echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+          echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Resolve docker cache tag
         id: docker_cache
         run: |
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
@@ -163,7 +164,7 @@ jobs:
     steps:
       - id: resolve_base_branch
         run: |
-            echo "name=branch::$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
+            echo "branch=$(echo ${GITHUB_BASE_REF#refs/heads/})" >> $GITHUB_OUTPUT
       - name: Checkout PR Base (target) Branch
         uses: actions/checkout@v3
         with:
@@ -178,7 +179,7 @@ jobs:
         run: |
           export version_suffix=$(echo "${{ steps.git_info.outputs.branch }}" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.')
           export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi)
-          echo "name=tag::$(echo $unstable_tag)" >> $GITHUB_OUTPUT
+          echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
       - name: Run Backward Compatibility Tests
         run: |
           cd head/mlrun
@@ -215,16 +216,21 @@ jobs:
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.9 is the current >= 1.3.0 python version
+        # 3.7 is for clients with the previous supported python version
+        python-version: [ 3.7, 3.9 ]
     steps:
     - uses: actions/checkout@v3
-    - name: Set up python
+    - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: 3.9
+        python-version: ${{ matrix.python-version }}
         cache: 'pip'
-    - name: Install requirements
+    - name: Install requirements ${{ matrix.python-version }}
       run: make install-requirements
-    - name: Install Complete Requirements
+    - name: Install Complete Requirements ${{ matrix.python-version }}
       run: make install-complete-requirements
-    - name: Install All Requirements
+    - name: Install All Requirements ${{ matrix.python-version }}
       run: make install-all-requirements

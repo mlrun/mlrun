@@ -17,7 +17,7 @@ import re
 from typing import Dict, List, Optional
 
 from .data_types import ValueType
-from .errors import err_to_str
+from .errors import MLRunRuntimeError, err_to_str
 from .model import ModelObj
 
 
@@ -36,6 +36,8 @@ def _limited_string(value: str, max_size: int = 40):
 
 class Entity(ModelObj):
     """data entity (index)"""
+
+    kind = "entity"
 
     def __init__(
         self,
@@ -57,6 +59,9 @@ class Entity(ModelObj):
         if name and not value_type:
             self.value_type = ValueType.STRING
         self.labels = labels or {}
+
+    def __eq__(self, other):
+        return self.name == other.name
 
 
 class Feature(ModelObj):
@@ -410,7 +415,7 @@ class RegexValidator(Validator):
         """
         super().__init__(check_type, severity)
         self.regex = regex
-        self.regex_compile = re.compile(self.regex)
+        self.regex_compile = re.compile(self.regex) if self.regex else None
 
     def check(self, value):
         ok, args = super().check(value)
@@ -432,6 +437,20 @@ class RegexValidator(Validator):
                     {"message": err_to_str(err), "type": self.kind},
                 )
         return ok, args
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = super(RegexValidator, cls).from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        if hasattr(new_obj, "regex"):
+            new_obj.regex_compile = re.compile(new_obj.regex) if new_obj.regex else None
+        else:
+            raise MLRunRuntimeError(
+                f"Object with type {type(new_obj)} "
+                f"have to contain `regex` attribute"
+            )
+        return new_obj
 
 
 validator_kinds = {

@@ -1,8 +1,6 @@
 (ingest-data-fs)=
 # Ingest data using the feature store
 
-<!-- taken from feature-store/feature-sets -->
-
 Define the source and material targets, and start the ingestion process (as [local process](#ingest-data-locally), [using an MLRun job](#ingest-data-using-an-mlrun-job), [real-time ingestion](#real-time-ingestion), or [incremental ingestion](#incremental-ingestion)).
 
 Data can be ingested as a batch process either by running the ingest command on demand or as a scheduled job. Batch ingestion 
@@ -22,7 +20,7 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 ```
 
 **In this section**
-- [Inferring data](#inferring-data)
+- [Verify a feature set with a small dataset by inferring data](#verify-a-feature-set-with-a-small-dataset-by-inferring-data)
 - [Ingest data locally](#ingest-data-locally)
 - [Ingest data using an MLRun job](#ingest-data-using-an-mlrun-job)
 - [Real-time ingestion](#real-time-ingestion)
@@ -30,12 +28,30 @@ also general limitations in [Attribute name restrictions](https://www.iguazio.co
 - [Data sources](#data-sources)
 - [Target stores](#target-stores)
 
-## Inferring data
+**See also**:
+- {ref}`feature-sets`
 
-There are 2 types of infer options:
+## Verify a feature set with a small dataset by inferring data 
+
+Ingesting an entire dataset can take a fair amount of time. Therefore, you may want to first check the feature set definition by 
+simulating the creation of the feature set (before ingesting the entire dataset). <br>
+This gives a preview of the results (in the returned dataframe). The simulation method is called `infer`. 
+It infers the source data schema, and processes the graph logic (assuming there is one) on a small subset of data. 
+The infer operation also learns the feature set schema and does statistical analysis on the result by default.
+  
+```python
+df = fstore.preview(quotes_set, quotes)
+
+# print the feature statistics
+print(quotes_set.get_stats_table())
+```
+
+### Inferring data
+
+There are two ways to infer data:
 - Metadata/schema: This is responsible for describing the dataset and generating its meta-data, such as deducing the 
 data-types of the features and listing the entities that are involved. Options belonging to this type are 
-`Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function which returns a value 
+`Entities`, `Features` and `Index`. The `InferOptions` class has the `InferOptions.schema()` function that returns a value 
 containing all the options of this type.
 - Stats/preview: This relates to calculating statistics and generating a preview of the actual data in the dataset. 
 Options of this type are `Stats`, `Histogram` and `Preview`. 
@@ -50,16 +66,18 @@ class InferOptions:<br>
     Histogram = 16<br>
     Preview = 32<br>
     
-The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 24 means `Stats` + `Histogram`.
+The `InferOptions class` basically translates to a value that can be a combination of the above values. For example, passing a value of 
+24 means `Stats` + `Histogram`.
 
-When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring metadata/stats and once for the actual ingest. This is normal behavior.
+When simultaneously ingesting data and requesting infer options, part of the data might be ingested twice: once for inferring 
+metadata/stats and once for the actual ingest. This is normal behavior.
 
 ## Ingest data locally
 
-Use a Feature Set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
+Use a feature set to create the basic feature-set definition and then an ingest method to run a simple ingestion "locally" in the Jupyter Notebook pod.
 
 ```python
-# Simple feature set that reads a csv file as a dataframe and ingests it as is 
+# Simple feature set that reads a csv file as a dataframe and ingests it "as is" 
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 stocks = pd.read_csv("stocks.csv")
 df = ingest(stocks_set, stocks)
@@ -80,7 +98,7 @@ This option is more robust since it can leverage the cluster resources, as oppos
 It also enables you to schedule the job or use bigger/faster resources.
 
 ```python
-# Running as remote job
+# Running as a remote job
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 config = RunConfig(image='mlrun/mlrun')
 df = ingest(stocks_set, stocks, run_config=config)
@@ -88,7 +106,7 @@ df = ingest(stocks_set, stocks, run_config=config)
 
 ## Real-time ingestion
 
-Real-time use cases (e.g. real time fraud detection) require feature engineering on live data (e.g. z-score calculation)
+Real-time use cases (e.g. real-time fraud detection) require feature engineering on live data (e.g. z-score calculation)
 while the data is coming from a streaming engine (e.g. kafka) or a live http endpoint. <br>
 The feature store enables you to start real-time ingestion service. <br>
 When running the {py:class}`~mlrun.feature_store.deploy_ingestion_service` the feature store creates an elastic real-time serverless function 
@@ -105,54 +123,82 @@ config = RunConfig(function=func)
 fstore.deploy_ingestion_service(my_set, source, run_config=config)
 ```
 
-To learn more about deploy_ingestion_service go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
+To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
 
 ## Incremental ingestion
 
-You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
+You can schedule an ingestion job for a feature set on an ongoing basis. The first scheduled job runs on all the data in the source 
+and the subsequent jobs ingest only the deltas since the previous run (from the last timestamp of the previous run until `datetime.now`). 
 Example:
 
 ```
-cron_trigger = "* */1 * * *" #will run every hour
+cron_trigger = "* */1 * * *" #runs every hour
 source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
 feature_set = fstore.FeatureSet(name=name, entities=[fstore.Entity("first_name")], timestamp_key="time",)
 fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
 ```
 
-The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the target from the previous ingest is not deleted.
-For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). For Spark engine, other sources are also supported. 
+The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the 
+target from the previous ingest is not deleted.
+For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). 
+For Spark engine, other sources are also supported. 
 
 ## Data sources
 
 For batch ingestion the feature store supports dataframes and files (i.e. csv & parquet). <br>
-The files can reside on S3, NFS, Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
-When working with S3/Azure, there are additional requirements. Use: pip install mlrun[s3]; pip install mlrun[azure-blob-storage]; or pip install mlrun[google-cloud-storage] to install them. 
-- Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`. 
-- S3: define `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_BUCKET`.
+The files can reside on S3, NFS, SQL (for example, MYSQL), Azure blob storage, or the Iguazio platform. MLRun also supports Google BigQuery as a data source. 
 
-For real time ingestion the source can be http, kafka or v3io stream, etc.
+For real time ingestion the source can be http, Kafka, MySQL, or V3IO stream, etc.
 When defining a source, it maps to nuclio event triggers. <br>
 
 You can also create a custom `source` to access various databases or data sources.
 
+### S3/Azure data source
+
+When working with S3/Azure, there are additional requirements. Use: pip install mlrun[s3]; pip install mlrun[azure-blob-storage]; 
+or pip install mlrun[google-cloud-storage] to install them. 
+- Azure: define the environment variable `AZURE_STORAGE_CONNECTION_STRING`
+- S3: define `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_BUCKET`
+
+### SQL data source
+
+`SQLSource` can be used for both batch ingestion and real time ingestion. It supports storey but does not support Spark. To configure 
+either, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br> 
+`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`, for example:
+
+```
+source = SqlDBSource(table_name='my_table', 
+                     db_path="mysql+pymysql://abc:abc@localhost:3306/my_db", 
+                     key_field='key',
+                     time_fields=['timestamp'], )
+ 
+ feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('key')],)
+ feature_set.set_targets([])
+ df = fs.ingest(feature_set, source=source)
+```
+
+
+
 ## Target stores
 
 By default, the feature sets are saved in parquet and the Iguazio NoSQL DB ({py:class}`~mlrun.datastore.NoSqlTarget`). <br>
-The parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application since it supports low latency data retrieval based on key access. 
+The Parquet file is ideal for fetching large set of data for training while the key value is ideal for an online application 
+since it supports low latency data retrieval based on key access. 
 
 ```{admonition} Note
 When working with the Iguazio MLOps platform the default feature set storage location is under the "Projects" container: `<project name>/fs/..` folder. 
-The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in NFS, S3, Azure blob storage, Redis, and on Iguazio DB/FS.
+The default location can be modified in mlrun config or specified per ingest operation. The parquet/csv files can be stored in 
+NFS, S3, Azure blob storage, Redis, SQL, and on Iguazio DB/FS.
 ```
 
 ### Redis target store
 
-```{admonition} Tech preview
+```{admonition} Note
+Tech Preview
 ```
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
-- The `RedisNoSqlTarget` does not support the spark engine, (only supports the storey engine).
-- The `RedisNoSqlTarget` accepts path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>
+- The `RedisNoSqlTarget` accepts the path parameter in the form `<redis|rediss>://[<username>]:[<password>]@<host>[:port]`<br>
 For example: `rediss://:abcde@localhost:6379` creates a redis target, where:
    - The client/server protocol (rediss) is TLS protected (vs. "redis" if no TLS is established)
    - The server is password protected (password="abcde")
@@ -164,3 +210,23 @@ For example: `rediss://:abcde@localhost:6379` creates a redis target, where:
 To use the Redis online target store, you can either change the default to be parquet and Redis, or you can specify the Redis target 
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
+
+### SQL target store
+
+The `SQLTarget` online target supports storey but does not support spark.<br>
+To configure, pass the `db_uri` or overwrite the `MLRUN_SQL__URL` env var, in this format:<br>
+`mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>`
+
+You can pass the schema and the name of the table you want to create or the name of an existing table, for example:
+
+```
+ target = SQLTarget(
+            table_name='my_table',
+            schema= {'id': string, 'age': int, 'time': pd.Timestamp, ...}
+            create_table=True,
+            primary_key_column='id',
+            time_fields=["time"]
+        )
+feature_set = fs.FeatureSet("my_fs", entities=[fs.Entity('id')],)
+fs.ingest(feature_set, source=df, targets=[target])
+```

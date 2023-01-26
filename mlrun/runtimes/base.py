@@ -168,6 +168,7 @@ class BaseRuntime(ModelObj):
         self.status = None
         self._is_api_server = False
         self.verbose = False
+        self._enriched_image = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -427,7 +428,7 @@ class BaseRuntime(ModelObj):
             db,
             autocommit=False,
             is_api=self._is_api_server,
-            update_db=False,
+            store_run=False,
         )
 
         self._verify_run_params(run.spec.parameters)
@@ -442,8 +443,8 @@ class BaseRuntime(ModelObj):
             for task in tasks:
                 self._verify_run_params(task.spec.parameters)
 
-        # post verifications, update execution in db and run pre run hooks
-        execution.commit(completed=False)
+        # post verifications, store execution in db and run pre run hooks
+        execution.store_run()
         self._pre_run(run, execution)  # hook for runtime specific prep
 
         last_err = None
@@ -459,14 +460,15 @@ class BaseRuntime(ModelObj):
             results = runner(task_generator, execution, run)
             results_to_iter(results, run, execution)
             result = execution.to_dict()
+            result = self._update_run_state(result, task=run)
 
         else:
             # single run
             try:
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
-                    state = run.logs(True, self._get_db())
-                    if state != "succeeded":
+                    state, _ = run.logs(True, self._get_db())
+                    if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")
                 result = self._update_run_state(resp, task=run)
             except RunError as err:
@@ -718,11 +720,11 @@ class BaseRuntime(ModelObj):
             )
         return runspec
 
-    def _submit_job(self, runspec, schedule, db, watch):
+    def _submit_job(self, run: RunObject, schedule, db, watch):
         if self._secrets:
-            runspec.spec.secret_sources = self._secrets.to_serial()
+            run.spec.secret_sources = self._secrets.to_serial()
         try:
-            resp = db.submit_job(runspec, schedule=schedule)
+            resp = db.submit_job(run, schedule=schedule)
             if schedule:
                 logger.info(f"task scheduled, {resp}")
                 return
@@ -737,8 +739,8 @@ class BaseRuntime(ModelObj):
             # if we got a schedule no reason to do post_run stuff (it purposed to update the run status with error,
             # but there's no run in case of schedule)
             if not schedule:
-                result = self._update_run_state(task=runspec, err=err_to_str(err))
-            return self._wrap_run_result(result, runspec, schedule=schedule, err=err)
+                result = self._update_run_state(task=run, err=err_to_str(err))
+            return self._wrap_run_result(result, run, schedule=schedule, err=err)
 
         if resp:
             txt = get_in(resp, "status.status_text")
@@ -761,19 +763,19 @@ class BaseRuntime(ModelObj):
                 config.httpdb.logs.pipelines.pull_state.pull_logs_interval
             )
 
-            runspec.wait_for_completion(
+            run.wait_for_completion(
                 show_logs=True,
                 sleep=state_interval,
                 logs_interval=logs_interval,
                 raise_on_failure=False,
             )
-            resp = self._get_db_run(runspec)
+            resp = self._get_db_run(run)
 
         elif watch or self.kfp:
-            runspec.logs(True, self._get_db())
-            resp = self._get_db_run(runspec)
+            run.logs(True, self._get_db())
+            resp = self._get_db_run(run)
 
-        return self._wrap_run_result(resp, runspec, schedule=schedule)
+        return self._wrap_run_result(resp, run, schedule=schedule)
 
     @staticmethod
     def _handle_submit_job_http_error(error: requests.HTTPError):
@@ -941,20 +943,32 @@ class BaseRuntime(ModelObj):
 
         updates = None
         last_state = get_in(resp, "status.state", "")
+        kind = get_in(resp, "metadata.labels.kind", "")
         if last_state == "error" or err:
-            updates = {"status.last_update": now_date().isoformat()}
-            updates["status.state"] = "error"
+            updates = {
+                "status.last_update": now_date().isoformat(),
+                "status.state": "error",
+            }
             update_in(resp, "status.state", "error")
             if err:
                 update_in(resp, "status.error", err_to_str(err))
             err = get_in(resp, "status.error")
             if err:
                 updates["status.error"] = err_to_str(err)
-        elif not was_none and last_state != "completed":
-            updates = {"status.last_update": now_date().isoformat()}
-            updates["status.state"] = "completed"
-            update_in(resp, "status.state", "completed")
 
+        elif not was_none and last_state != "completed":
+            try:
+                runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+                updates = runtime_handler._get_run_completion_updates(resp)
+            except KeyError:
+                updates = BaseRuntimeHandler._get_run_completion_updates(resp)
+
+        logger.debug(
+            "Run updates",
+            kind=kind,
+            last_state=last_state,
+            updates=updates,
+        )
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")
             uid = get_in(resp, "metadata.uid")
@@ -1714,6 +1728,19 @@ class BaseRuntimeHandler(ABC):
         if len(class_values) == 1:
             return f"mlrun/class={class_values[0]}"
         return f"mlrun/class in ({', '.join(class_values)})"
+
+    @staticmethod
+    def _get_run_completion_updates(run: dict) -> dict:
+        """
+        Get the required updates for the run object when it's completed and update the run object state
+        Override this if the run completion is not resolved by a single execution
+        """
+        updates = {
+            "status.last_update": now_date().isoformat(),
+            "status.state": "completed",
+        }
+        update_in(run, "status.state", "completed")
+        return updates
 
     @staticmethod
     def _get_crd_info() -> Tuple[str, str, str]:

@@ -601,6 +601,20 @@ class TestProject(TestMLRunSystem):
         assert fn.spec.image, "image path got cleared"
         assert run_result.output("score")
 
+        # Use project default image to run function, don't specify image when calling set_function
+        project.set_default_image(fn.spec.image)
+        project.set_function(
+            "./sentiment.py",
+            "scores4",
+            kind="job",
+            handler="handler",
+        )
+        enriched_fn = project.get_function("scores4", enrich=True)
+        assert enriched_fn.spec.image == fn.spec.image
+        project.run_function("scores4", params={"text": "good evening"})
+        assert fn.status.state == "ready"
+        assert run_result.output("score")
+
     def test_set_secrets(self):
         name = "set-secrets"
         self.custom_project_names_to_delete.append(name)

@@ -1073,12 +1073,12 @@ class FlowStep(BaseStep):
     def plot(self, filename=None, format=None, source=None, targets=None, **kw):
         """plot/save graph using graphviz
 
-        :param filename:  target filepath for the image (None for the notebook)
-        :param format:    The output format used for rendering (``'pdf'``, ``'png'``, etc.)
-        :param source:    source step to add to the graph
-        :param targets:   list of target steps to add to the graph
-        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see: https://graphviz.org/doc/info/attrs.html)
-        :return: graphviz graph object
+        :param filename:  target filepath for the graph image (None for the notebook)
+        :param format:    the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param source:    source step to add to the graph image
+        :param targets:   list of target steps to add to the graph image
+        :param kw:        kwargs passed to graphviz, e.g. rankdir="LR" (see https://graphviz.org/doc/info/attrs.html)
+        :return:          graphviz graph object
         """
         return _generate_graphviz(
             self,

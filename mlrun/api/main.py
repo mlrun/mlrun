@@ -230,10 +230,10 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
-            _start_logs_collection()
+            await _start_logs_collection()
 
 
-def _start_logs_collection():
+async def _start_logs_collection():
     if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
         logger.info(
             "Using legacy logs collection method, skipping logs collection periodic function",
@@ -248,7 +248,8 @@ def _start_logs_collection():
     start_logs_limit = asyncio.Semaphore(
         config.log_collector.concurrent_start_logs_workers
     )
-    _verify_log_collection_started_on_startup(start_logs_limit)
+
+    await _verify_log_collection_started_on_startup(start_logs_limit)
 
     run_function_periodically(
         interval=int(config.log_collector.periodic_start_log_interval),
@@ -293,7 +294,7 @@ async def _verify_log_collection_started_on_startup(
             only_uids=False,
             last_start_time_from=datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(
-                hours=int(config.log_collector.log_buffer_start_collection_in_hours)
+                hours=int(config.log_collector.api_downtime_grace_period)
             ),
             states=mlrun.runtimes.constants.RunStates.terminal_states(),
         )

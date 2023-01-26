@@ -622,13 +622,6 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 	offset,
 	size int64) ([]byte, error) {
 
-	s.Logger.DebugWithCtx(ctx,
-		"Reading logs from file",
-		"runUID", runUID,
-		"filePath", filePath,
-		"offset", offset,
-		"size", size)
-
 	fileSize, err := common.GetFileSize(filePath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Failed to get file size for run id %s", runUID)

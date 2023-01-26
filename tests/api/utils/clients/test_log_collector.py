@@ -98,21 +98,28 @@ class TestLogCollector:
         project_name = "some-project"
         log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
 
+        log_byte_string = b"some log"
+
         log_collector._call_stream = unittest.mock.MagicMock(
-            return_value=GetLogsResponse(True, "", b"some log", 1)
+            return_value=GetLogsResponse(True, "", log_byte_string, 1)
         )
 
-        log = await log_collector.get_logs(run_uid=run_uid, project=project_name)
-        assert log == b"some log"
+        log_stream = log_collector.get_logs(run_uid=run_uid, project=project_name)
+        async for log in log_stream:
+            assert log == log_byte_string
 
         # mock failed response for 5 calls for the next 2 tests, because get_logs retries 4 times
         log_collector._call_stream = unittest.mock.MagicMock(
             return_value=GetLogsResponse(False, "Failed to get logs", b"", 5),
         )
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
-            await log_collector.get_logs(run_uid=run_uid, project=project_name)
+            async for log in log_collector.get_logs(
+                run_uid=run_uid, project=project_name
+            ):
+                assert log == b""  # should not get here
 
-        log = await log_collector.get_logs(
+        log_stream = log_collector.get_logs(
             run_uid=run_uid, project=project_name, raise_on_error=False
         )
-        assert log == b""
+        async for log in log_stream:
+            assert log == b""

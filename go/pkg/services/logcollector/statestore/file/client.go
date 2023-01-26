@@ -114,6 +114,9 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 	ticker := time.NewTicker(s.stateFileUpdateInterval)
 	defer ticker.Stop()
 
+	// count the errors so we won't spam the logs
+	errCount := 0
+
 	for range ticker.C {
 
 		// get state
@@ -121,7 +124,11 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 
 		// write state to file
 		if err := s.writeStateToFile(state); err != nil {
-			s.logger.WarnWithCtx(ctx, "Failed to write state file", "err", err)
+			if errCount%5 == 0 {
+				errCount = 0
+				s.logger.WarnWithCtx(ctx, "Failed to write state file", "err", err.Error())
+			}
+			errCount++
 		}
 	}
 }

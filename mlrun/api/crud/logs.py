@@ -65,7 +65,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-    ) -> typing.Tuple[str, bytes]:
+    ) -> typing.Tuple[str, typing.AsyncIterable[bytes]]:
         """
         Get logs
         :param db_session: db session
@@ -79,16 +79,16 @@ class Logs(
         :return: run state and logs
         """
         project = project or mlrun.mlconf.default_project
-        logs = b""
         run = await self._get_run_for_log(db_session, project, uid)
         run_state = run.get("status", {}).get("state", "")
+        log_stream = None
         if (
             mlrun.mlconf.log_collector.mode
             == mlrun.api.schemas.LogsCollectorMode.best_effort
             and source == LogSources.AUTO
         ):
             try:
-                logs = await self._get_logs_from_logs_collector(
+                log_stream = self._get_logs_from_logs_collector(
                     project,
                     uid,
                     size,
@@ -100,8 +100,7 @@ class Logs(
                         "Failed to get logs from logs collector, falling back to legacy method",
                         exc=exc,
                     )
-                logs = await run_in_threadpool(
-                    self._get_logs_legacy_method,
+                log_stream = self._get_logs_legacy_method_generator_wrapper(
                     db_session,
                     project,
                     uid,
@@ -115,7 +114,7 @@ class Logs(
             == mlrun.api.schemas.LogsCollectorMode.sidecar
             and source == LogSources.AUTO
         ):
-            logs = await self._get_logs_from_logs_collector(
+            log_stream = self._get_logs_from_logs_collector(
                 project,
                 uid,
                 size,
@@ -126,8 +125,7 @@ class Logs(
             == mlrun.api.schemas.LogsCollectorMode.legacy
             or source != LogSources.AUTO
         ):
-            logs = await run_in_threadpool(
-                self._get_logs_legacy_method,
+            log_stream = self._get_logs_legacy_method_generator_wrapper(
                 db_session,
                 project,
                 uid,
@@ -136,7 +134,7 @@ class Logs(
                 source,
                 run,
             )
-        return run_state, logs
+        return run_state, log_stream
 
     @staticmethod
     async def _get_logs_from_logs_collector(
@@ -144,14 +142,14 @@ class Logs(
         run_uid: str,
         size: int = -1,
         offset: int = 0,
-    ) -> bytes:
-        logs = await log_collector.LogCollectorClient().get_logs(
+    ) -> typing.AsyncIterable[bytes]:
+        async for log in log_collector.LogCollectorClient().get_logs(
             run_uid=run_uid,
             project=project,
             size=size,
             offset=offset,
-        )
-        return logs
+        ):
+            yield log
 
     @staticmethod
     def _get_logs_legacy_method(
@@ -202,6 +200,28 @@ class Logs(
                             else:
                                 log_contents = resp.encode()[offset : offset + size]
         return log_contents
+
+    async def _get_logs_legacy_method_generator_wrapper(
+        self,
+        db_session: Session,
+        project: str,
+        uid: str,
+        size: int = -1,
+        offset: int = 0,
+        source: LogSources = LogSources.AUTO,
+        run: dict = None,
+    ):
+        log_contents = await run_in_threadpool(
+            self._get_logs_legacy_method,
+            db_session,
+            project,
+            uid,
+            size,
+            offset,
+            source,
+            run,
+        )
+        yield log_contents
 
     @staticmethod
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:

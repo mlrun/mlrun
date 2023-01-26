@@ -505,10 +505,11 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s().resolve_namespace(),
             )
-        _, log = await crud.Logs().get_logs(
+        _, logs = await crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY
         )
-        assert log == expected_log.encode()
+        async for log_line in logs:
+            assert log_line == expected_log.encode()
 
     @staticmethod
     def _assert_run_reached_state(

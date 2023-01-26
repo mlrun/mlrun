@@ -107,7 +107,6 @@ class LogCollectorClient(
                 response_stream = self._call_stream("GetLogs", request)
                 async for chunk in response_stream:
                     if not chunk.success:
-                        print(chunk.error)
                         msg = f"Failed to get logs for run {run_uid}"
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
@@ -119,7 +118,7 @@ class LogCollectorClient(
                 return
             except Exception as exc:
                 try_count += 1
-                print(f"Failed to get logs, retrying ({try_count})")
+                logger.warning("Failed to get logs, retrying", try_count=try_count)
                 if try_count == config.log_collector.get_logs.max_retries:
                     raise exc
                 await asyncio.sleep(3)

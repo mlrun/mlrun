@@ -414,15 +414,6 @@ class HTTPRunDB(RunDBInterface):
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def stream_log(self, uid: str, project: str = ""):
-        """Stream a log from the API
-        :param uid: Log unique ID
-        :param project: Project name for which this log belongs
-        """
-        path = self._path_of("log-stream", project, uid)
-        error = f"stream log {project}/{uid}"
-        self.api_call("GET", path, error, stream=True, to_stdout=True)
-
     def get_log(self, uid, project="", offset=0, size=-1):
         """Retrieve a log.
 

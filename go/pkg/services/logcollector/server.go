@@ -664,6 +664,9 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 
 	monitoringTicker := time.NewTicker(s.monitoringInterval)
 
+	// count the errors so we won't spam the logs
+	errCount := 0
+
 	// Check the items in the inMemoryState against the items in the state store.
 	// If an item is written in the state store but not in the in memory state - call StartLog for it,
 	// as the state store is the source of truth
@@ -703,7 +706,11 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 		} else {
 
 			// don't fail because we still need the server to run
-			s.Logger.WarnWithCtx(ctx, "Failed to get log items in progress")
+			if errCount%5 == 0 {
+				errCount = 0
+				s.Logger.WarnWithCtx(ctx, "Failed to get log items in progress", "err", err.Error())
+			}
+			errCount++
 		}
 	}
 }

@@ -18,8 +18,8 @@ from typing import List
 import pandas as pd
 import pytest
 import sqlalchemy as db
-import mlrun
 
+import mlrun
 import mlrun.feature_store as fs
 from mlrun.datastore.sources import SQLSource
 from mlrun.datastore.targets import SQLTarget

@@ -86,23 +86,23 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     assert only_uids[0] == uid
 
     only_uids_requested_true = db.list_distinct_runs_uids(
-        db_session, project=project_name, only_uids=True, requested_logs=True
+        db_session, project=project_name, only_uids=True, requested_logs_modes=[True]
     )
     assert len(only_uids_requested_true) == 0
 
     only_uids_requested_false = db.list_distinct_runs_uids(
-        db_session, project=project_name, only_uids=True, requested_logs=False
+        db_session, project=project_name, only_uids=True, requested_logs_modes=[False]
     )
     assert len(only_uids_requested_false) == 1
     assert type(only_uids[0]) == str
 
     distinct_runs_requested_true = db.list_distinct_runs_uids(
-        db_session, project=project_name, requested_logs=True
+        db_session, project=project_name, requested_logs_modes=[True]
     )
     assert len(distinct_runs_requested_true) == 0
 
     distinct_runs_requested_false = db.list_distinct_runs_uids(
-        db_session, project=project_name, requested_logs=False
+        db_session, project=project_name, requested_logs_modes=[False]
     )
     assert len(distinct_runs_requested_false) == 1
     assert type(distinct_runs[0]) == dict

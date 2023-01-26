@@ -48,7 +48,7 @@ class TestCollectRunSLogs:
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
-            requested_logs=False,
+            requested_logs_modes=[False],
             only_uids=False,
         )
         assert len(runs) == 3
@@ -83,7 +83,7 @@ class TestCollectRunSLogs:
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
-            requested_logs=False,
+            requested_logs_modes=[False],
             only_uids=False,
         )
         assert len(runs) == 0
@@ -103,6 +103,57 @@ class TestCollectRunSLogs:
         )
 
     @pytest.mark.asyncio
+    async def test_collect_logs_on_startup(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        project_name = "some-project"
+        run_uids = ["some_uid", "some_uid2", "some_uid3"]
+        for run_uid in run_uids:
+            for i in range(3):
+                _create_new_run(
+                    db,
+                    project_name,
+                    uid=run_uid,
+                    name=run_uid,
+                    iteration=i,
+                    kind="job",
+                    state=mlrun.runtimes.constants.RunStates.completed,
+                )
+
+        runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[False],
+            only_uids=False,
+        )
+        assert len(runs) == 3
+
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=StartLogResponse(True, "")
+        )
+        mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs = (
+            unittest.mock.Mock()
+        )
+
+        await mlrun.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
+
+        assert (
+            mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_count
+            == 1
+        )
+        assert (
+            mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                1
+            ]["uids"]
+            == run_uids
+        )
+
+    @pytest.mark.asyncio
     async def test_collect_logs_with_runs_fails(
         self, db: sqlalchemy.orm.session.Session, client: fastapi.testclient.TestClient
     ):
@@ -118,7 +169,7 @@ class TestCollectRunSLogs:
 
         runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
             db,
-            requested_logs=False,
+            requested_logs_modes=[False],
             only_uids=False,
         )
         assert len(runs) == 3

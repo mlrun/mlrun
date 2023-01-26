@@ -482,6 +482,10 @@ default_config = {
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
+        # the time in hours in which to start log collection for runs when initialization API
+        # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
+        # we want to collect their logs in the new log collection method (sidecar)
+        "log_buffer_start_collection_in_hours": 6,
         "get_logs": {
             # the number of retries to get logs from the log collector
             "max_retries": 3,

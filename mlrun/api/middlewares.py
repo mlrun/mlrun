@@ -105,8 +105,12 @@ async def ui_clear_cache(request: fastapi.Request, call_next):
     response: fastapi.Response = await call_next(request)
     development_version = config.version.startswith("0.0.0")
 
-    # do not ask ui to reload cache on development versions as it will make each request to reload ui and clear cache
-    if not development_version and not ui_version or ui_version != config.version:
+    # ask ui to reload cache if
+    #  - ui sent a version
+    #  - backend is not a development version
+    #  - ui version is different from backend version
+    # otherwise, do not ask ui to reload its cache as it will make each request to reload ui and clear cache
+    if ui_version and not development_version and ui_version != config.version:
 
         # clear site cache
         response.headers["Clear-Site-Data"] = '"cache"'

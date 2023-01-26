@@ -298,6 +298,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey.sort_index(axis=1)
         )
 
+    @pytest.mark.skipif(
+        not mlrun.mlconf.redis.url,
+        reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
+    )
     def test_ingest_to_redis(self):
         key = "patient_id"
         name = "measurements_spark"

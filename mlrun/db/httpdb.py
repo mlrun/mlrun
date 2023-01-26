@@ -691,7 +691,7 @@ class HTTPRunDB(RunDBInterface):
         name=None,
         project=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -707,12 +707,15 @@ class HTTPRunDB(RunDBInterface):
             latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
             # check different artifact versions for a specific artifact
             result_versions = db.list_artifacts('results', tag='*', project='iris')
+            # Show artifacts with label filters - both uploaded and of binary type
+            result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -726,10 +729,14 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
 
+        labels = labels or []
+        if isinstance(labels, dict):
+            labels = [f"{key}={value}" for key, value in labels.items()]
+
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
             "iter": iter,
             "best-iteration": best_iteration,
             "kind": kind,

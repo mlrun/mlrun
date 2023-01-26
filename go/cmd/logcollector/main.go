@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"github.com/mlrun/mlrun/pkg/common"
+	"github.com/mlrun/mlrun/pkg/common/k8s"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector"
 
@@ -48,7 +49,7 @@ func StartServer() error {
 
 	flag.Parse()
 
-	*namespace = getNamespace(*namespace)
+	*namespace = k8s.ResolveRunningNamespace(*namespace)
 
 	// initialize kubernetes client
 	restConfig, err := common.GetKubernetesClientConfig(*kubeconfigPath)
@@ -79,22 +80,6 @@ func StartServer() error {
 		return errors.Wrap(err, "Failed to create log collector server")
 	}
 	return framework.StartServer(server, *listenPort, server.Logger)
-}
-
-func getNamespace(namespaceArgument string) string {
-
-	// if the namespace was passed in the arguments, use that
-	if namespaceArgument != "" {
-		return namespaceArgument
-	}
-
-	// if the namespace exists in env, use that
-	if namespaceEnv := os.Getenv("MLRUN_NAMESPACE"); namespaceEnv != "" {
-		return namespaceEnv
-	}
-
-	// if nothing was passed, assume "this" namespace
-	return "@mlrun.selfNamespace"
 }
 
 func main() {

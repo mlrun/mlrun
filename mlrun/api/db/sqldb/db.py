@@ -271,8 +271,12 @@ class SQLDB(DBInterface):
     ):
         # note that you should commit right after the synchronize_session=False
         # https://stackoverflow.com/questions/70350298/what-does-synchronize-session-false-do-exactly-in-update-functions-for-sqlalch
-        self._query(session, Run).filter(Run.id.in_(uids)).update(
-            {Run.requested_logs: requested_logs}, synchronize_session=False
+        self._query(session, Run).filter(Run.uid.in_(uids)).update(
+            {
+                Run.requested_logs: requested_logs,
+                Run.updated: datetime.now(timezone.utc),
+            },
+            synchronize_session=False,
         )
         session.commit()
 

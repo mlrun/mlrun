@@ -109,7 +109,7 @@ func (s *AbstractMlrunGRPCServer) Watch(request *health.HealthCheckRequest, stre
 	if err := stream.Send(&health.HealthCheckResponse{
 		Status: currentStatus,
 	}); err != nil {
-		return err
+		return errors.Wrap(err, "Failed to send initial status")
 	}
 
 	// start watching status
@@ -119,7 +119,7 @@ func (s *AbstractMlrunGRPCServer) Watch(request *health.HealthCheckRequest, stre
 			if err := stream.Send(&health.HealthCheckResponse{
 				Status: currentStatus,
 			}); err != nil {
-				return err
+				return errors.Wrap(err, "Failed to send status")
 			}
 		}
 		time.Sleep(HealthWatchInterval)

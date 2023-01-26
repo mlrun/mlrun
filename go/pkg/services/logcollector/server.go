@@ -163,7 +163,9 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 
 	// to make start log idempotent, if log collection has already started for this run uid, return success
 	if s.isLogCollectionRunning(ctx, request.RunUID) {
-		s.Logger.DebugWithCtx(ctx, "Logs are already being collected for this run uid", "runUID", request.RunUID)
+		s.Logger.DebugWithCtx(ctx,
+			"Logs are already being collected for this run uid",
+			"runUID", request.RunUID)
 		return &protologcollector.StartLogResponse{
 			Success: true,
 		}, nil
@@ -190,6 +192,7 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	}); err != nil {
 		s.Logger.ErrorWithCtx(ctx,
 			"Failed to get pod using label selector",
+			"err", err.Error(),
 			"runUID", request.RunUID,
 			"selector", request.Selector)
 		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
@@ -256,6 +259,10 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	// get log file path
 	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
 	if err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get log file path",
+			"err", err.Error(),
+			"runUID", request.RunUID)
 		return errors.Wrapf(err, "Failed to get log file path for run id %s", request.RunUID)
 	}
 
@@ -276,7 +283,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	}
 
 	// if size < 0 - we read only the logs we have for this moment in time starting from offset, so GetLogs will be finite.
-	// otherwise, we read the only the request size from the offset
+	// otherwise, we read only the request size from the offset
 	endSize := currentLogFileSize - request.Offset
 	if request.Size > 0 && endSize > request.Size {
 		endSize = request.Size
@@ -576,9 +583,9 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 	if err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
 
 		// list all files in base directory
-		err := filepath.Walk(s.baseDir, func(path string, info os.FileInfo, err error) error {
+		if err := filepath.Walk(s.baseDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "Failed to walk path %s", path)
 			}
 
 			// if file name starts with run id, it's a log file
@@ -593,8 +600,7 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 			}
 
 			return nil
-		})
-		if err != nil {
+		}); err != nil {
 			return false, errors.Wrap(err, "Failed to list files in base directory")
 		}
 
@@ -653,10 +659,7 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 		if err == io.EOF {
 			return buffer[:size], nil
 		}
-
-		// else return error
-		err := errors.Wrapf(err, "Failed to read log file for run id %s", runUID)
-		return nil, err
+		return nil, errors.Wrapf(err, "Failed to read log file for run id %s", runUID)
 	}
 
 	return buffer[:size], nil
@@ -688,6 +691,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 
 	s.Logger.DebugWithCtx(ctx,
 		"Monitoring log streaming goroutines periodically",
+		"namespace", s.namespace,
 		"monitoringInterval", s.monitoringInterval)
 
 	monitoringTicker := time.NewTicker(s.monitoringInterval)
@@ -749,7 +753,9 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID string) bool
 	if err != nil {
 
 		// this is just for sanity, as inMemoryState won't return an error
-		s.Logger.WarnWithCtx(ctx, "Failed to get in progress items from in memory state", "err", err)
+		s.Logger.WarnWithCtx(ctx,
+			"Failed to get in progress items from in memory state",
+			"err", err.Error())
 		return false
 	}
 

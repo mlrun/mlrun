@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import http
 import typing
 
 import mlrun.api.utils.clients.protocols.grpc
@@ -62,6 +63,9 @@ class LogCollectorClient(
         request = self._log_collector_pb2.StartLogRequest(
             runUID=run_uid, selector=selector, projectName=project
         )
+        logger.debug(
+            "Starting logs", run_uid=run_uid, selector=selector, project=project
+        )
         response = await self._call("StartLog", request)
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
@@ -109,6 +113,9 @@ class LogCollectorClient(
             size=size,
         )
 
+        # TODO: make a request to ensure file exists, return 404 if not
+        # otherwise, the first requests will return 500
+
         # retry calling the server, it can fail in case the log-collector hasn't started collecting logs for this yet
         # TODO: add async retry function
         try_count = 0
@@ -128,9 +135,16 @@ class LogCollectorClient(
                 return
             except Exception as exc:
                 try_count += 1
-                logger.warning("Failed to get logs, retrying", try_count=try_count)
+                logger.warning(
+                    "Failed to get logs, retrying",
+                    try_count=try_count,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
                 if try_count == config.log_collector.get_logs.max_retries:
-                    raise exc
+                    raise mlrun.errors.raise_for_status_code(
+                        http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
+                        mlrun.errors.err_to_str(exc),
+                    )
                 await asyncio.sleep(3)
 
     async def has_logs(

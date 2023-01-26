@@ -126,7 +126,9 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 		if err := s.writeStateToFile(state); err != nil {
 			if errCount%5 == 0 {
 				errCount = 0
-				s.logger.WarnWithCtx(ctx, "Failed to write state file", "err", err.Error())
+				s.logger.WarnWithCtx(ctx,
+					"Failed to write state file",
+					"err", err.Error())
 			}
 			errCount++
 		}

@@ -60,7 +60,7 @@ class BaseGRPCClient(object):
         """
         Call a unary endpoint of the gRPC server
         :param endpoint: The server endpoint to call
-        :param request: The request to send to the server
+        :param request: The request to send
         :return: The server response
         """
         self._ensure_stub()

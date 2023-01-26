@@ -963,15 +963,17 @@ class BaseRuntime(ModelObj):
             except KeyError:
                 updates = BaseRuntimeHandler._get_run_completion_updates(resp)
 
+        uid = get_in(resp, "metadata.uid")
         logger.debug(
             "Run updates",
+            name=get_in(resp, "metadata.name"),
+            uid=uid,
             kind=kind,
             last_state=last_state,
             updates=updates,
         )
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")
-            uid = get_in(resp, "metadata.uid")
             iter = get_in(resp, "metadata.iteration", 0)
             self._get_db().update_run(updates, uid, project, iter=iter)
 

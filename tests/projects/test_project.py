@@ -444,12 +444,12 @@ def test_load_project(
         ),
         (
             True,
-            4,
+            5,
             False,
         ),
         (
             True,
-            4,
+            5,
             True,
         ),
     ],

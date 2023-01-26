@@ -27,15 +27,19 @@ import mlrun.api.utils.clients.log_collector
 class StartLogResponse:
     def __init__(self, success, error):
         self.success = success
-        self.error_message = error
-        self.error_code = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
+        self.errorMessage = error
+        self.errorCode = (
+            mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
+        )
 
 
 class GetLogsResponse:
     def __init__(self, success, error, logs, total_calls):
         self.success = success
-        self.error_message = error
-        self.error_code = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
+        self.errorMessage = error
+        self.errorCode = (
+            mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
+        )
         self.logs = logs
         self.total_calls = total_calls
         self.current_calls = 0
@@ -54,9 +58,11 @@ class GetLogsResponse:
 class HasLogsResponse:
     def __init__(self, success, error, has_logs):
         self.success = success
-        self.error_message = error
-        self.error_code = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
-        self.has_logs = has_logs
+        self.errorMessage = error
+        self.errorCode = (
+            mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
+        )
+        self.hasLogs = has_logs
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"

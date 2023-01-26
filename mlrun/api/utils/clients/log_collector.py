@@ -76,16 +76,16 @@ class LogCollectorClient(
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
             if verbose:
-                logger.warning(msg, error=response.error)
+                logger.warning(msg, error=response.errorMessage)
             if raise_on_error:
-                if response.error_code == LogCollectorErrorCode.ErrCodeNotFound.value:
+                if response.errorCode == LogCollectorErrorCode.ErrCodeNotFound.value:
                     raise mlrun.errors.MLRunNotFoundError(
-                        f"{msg},error= {response.error_message}"
+                        f"{msg},error= {response.errorMessage}"
                     )
                 raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.error_message}"
+                    f"{msg},error= {response.errorMessage}"
                 )
-        return response.success, response.error
+        return response.success, response.errorMessage
 
     async def get_logs(
         self,
@@ -140,12 +140,12 @@ class LogCollectorClient(
                 async for chunk in response_stream:
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
+                        if verbose:
+                            logger.warning(msg, error=chunk.errorMessage)
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
-                                f"{msg},error= {chunk.error_message}"
+                                f"{msg},error= {chunk.errorMessage}"
                             )
-                        if verbose:
-                            logger.warning(msg, error=chunk.error_message)
                     yield chunk.logs
                 return
             except Exception as exc:
@@ -185,9 +185,9 @@ class LogCollectorClient(
         if not response.success:
             msg = f"Failed to check if run has logs to collect for {run_uid}"
             if verbose:
-                logger.warning(msg, error=response.error_message)
+                logger.warning(msg, error=response.errorMessage)
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.error_message}"
+                    f"{msg},error= {response.errorMessage}"
                 )
-        return response.has_logs
+        return response.hasLogs

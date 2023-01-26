@@ -343,12 +343,9 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 // HasLogs returns true if the log file exists for a given run id
 func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogsRequest) (*protologcollector.HasLogsResponse, error) {
 
-	s.Logger.DebugWithCtx(ctx, "Received Has Logs request", "runUID", request.RunUID)
-
 	// get log file path
-	_, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
-	if err != nil {
-		if strings.Contains(common.GetErrorStack(err, 10), "not found") {
+	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
+		if strings.Contains(errors.RootCause(err).Error(), "not found") {
 			return &protologcollector.HasLogsResponse{
 				Success: true,
 				HasLogs: false,

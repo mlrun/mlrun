@@ -14,6 +14,7 @@
 
 package common
 
+// error codes
 const (
 	ErrCodeNotFound int32 = iota
 	ErrCodeInternal

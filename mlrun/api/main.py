@@ -270,6 +270,10 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
             requested_logs=False,
             only_uids=False,
         )
+        logger.debug(
+            "Found runs which require logs collection",
+            runs_uids=runs,
+        )
         # each result contains either run_uid or None
         # if it's None it means something went wrong and we should skip it
         # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
@@ -280,7 +284,10 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
             ]
         )
         runs_to_update_requested_logs = [result for result in results if result]
-
+        logger.debug(
+            "Updating runs to indicate that we requested logs collection for them",
+            runs_uids=runs_to_update_requested_logs,
+        )
         if len(runs_to_update_requested_logs) > 0:
             # update the runs to indicate that we have requested log collection for them
             await fastapi.concurrency.run_in_threadpool(

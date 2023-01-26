@@ -61,6 +61,9 @@ class LogCollectorClient(
         request = self._log_collector_pb2.StartLogRequest(
             runUID=run_uid, selector=selector, projectName=project
         )
+        logger.debug(
+            "Starting logs", run_uid=run_uid, selector=selector, project=project
+        )
         response = await self._call("StartLog", request)
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"

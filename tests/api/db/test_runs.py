@@ -276,6 +276,28 @@ def test_store_run_success(db: DBInterface, db_session: Session):
 @pytest.mark.parametrize(
     "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
 )
+def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
+    project, name, uid, iteration, run = _create_new_run(db, db_session)
+
+    runs_before = db.list_runs(
+        db_session, project=project, uid=uid, return_as_run_structs=False
+    )
+    assert runs_before[0].requested_logs is False
+    run_updated_time = runs_before[0].updated
+
+    db.update_runs_requested_logs(db_session, [uid], True)
+
+    runs_after = db.list_runs(
+        db_session, project=project, uid=uid, return_as_run_structs=False
+    )
+    assert runs_after[0].requested_logs is True
+    assert runs_after[0].updated > run_updated_time
+
+
+# running only on sqldb cause filedb is not really a thing anymore, will be removed soon
+@pytest.mark.parametrize(
+    "db,db_session", [(dbs[0], dbs[0])], indirect=["db", "db_session"]
+)
 def test_update_run_success(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 

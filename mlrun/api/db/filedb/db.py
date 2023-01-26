@@ -98,7 +98,7 @@ class FileDB(DBInterface):
         partition_order: schemas.OrderType = schemas.OrderType.desc,
         max_partitions: int = 0,
         requested_logs: bool = None,
-        return_only_run_structs: bool = True,
+        return_as_run_structs: bool = True,
     ):
         return self._transform_run_db_error(
             self.db.list_runs,
@@ -119,6 +119,8 @@ class FileDB(DBInterface):
             partition_sort_by,
             partition_order,
             max_partitions,
+            requested_logs,
+            return_as_run_structs,
         )
 
     def del_run(self, session, uid, project="", iter=0):

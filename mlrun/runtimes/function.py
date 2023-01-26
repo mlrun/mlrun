@@ -1196,10 +1196,6 @@ def compile_function_config(
     builder_env=None,
     auth_info=None,
 ):
-    labels = function.metadata.labels or {}
-    labels.update({"mlrun/class": function.kind})
-    function.with_labels(labels)
-
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
@@ -1356,6 +1352,12 @@ def compile_function_config(
         config = nuclio.config.extend_config(
             config, nuclio_spec, tag, function.spec.build.code_origin
         )
+        labels = function.metadata.labels or {}
+        labels.update({"mlrun/class": function.kind})
+        function.with_labels(labels)
+        for key, value in labels.items():
+            config["metadata"]["labels"][key] = str(value)
+
         update_in(config, "metadata.name", function.metadata.name)
         update_in(config, "spec.volumes", function.spec.generate_nuclio_volumes())
         base_image = (

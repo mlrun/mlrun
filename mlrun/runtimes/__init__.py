@@ -158,6 +158,22 @@ class RuntimeKinds(object):
             return True
         return False
 
+    @staticmethod
+    def is_watchable(kind):
+        """
+        Returns True if the runtime kind is watchable, False otherwise.
+        Runtimes that are not watchable are blocking, meaning that the run() method will not return until the runtime
+        is completed.
+        """
+        # "" or None counted as local
+        if not kind:
+            return False
+        return kind not in [
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
+            RuntimeKinds.dask,
+        ]
+
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 

@@ -37,10 +37,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
 
     @classmethod
     def _init_env(cls):
-        env = cls._get_env_from_file()
-        cls.db = (
-            env["MLRUN_SQL__URL"] if "MLRUN_SQL__URL" in env else mlrun.mlconf.sql.url
-        )
+        cls.db = mlrun.mlconf.sql.url
         cls.source_collection = "source_collection"
         cls.target_collection = "target_collection"
 
@@ -266,7 +263,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         origin_df = self.get_data(target_name)
         schema = self.get_schema(target_name)
         engine = db.create_engine(self.db)
-        with engine.connect() as conn:
+        with engine.connect():
             metadata = db.MetaData()
             self._create(schema, target_name, metadata, engine, key)
 

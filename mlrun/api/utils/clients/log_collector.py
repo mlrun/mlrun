@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import enum
 import http
 import typing
 
@@ -20,6 +21,11 @@ import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.utils import logger
+
+
+class LogCollectorErrorCode(enum.Enum):
+    ErrCodeNotFound = 0
+    ErrCodeInternal = 1
 
 
 class LogCollectorClient(
@@ -69,13 +75,17 @@ class LogCollectorClient(
         response = await self._call("StartLog", request)
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
-            if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.error}"
-                )
             if verbose:
-                logger.warning(msg, error=response.error)
-        return response.success, response.error
+                logger.warning(msg, error=response.errorMessage)
+            if raise_on_error:
+                if response.errorCode == LogCollectorErrorCode.ErrCodeNotFound.value:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"{msg},error= {response.errorMessage}"
+                    )
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
+                )
+        return response.success, response.errorMessage
 
     async def get_logs(
         self,
@@ -96,15 +106,30 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: The logs bytes
         """
+
+        # check if this run has logs to collect
+        try:
+            has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
+            if not has_logs:
+
+                # run has no logs - return empty logs and exit so caller won't wait for logs or retry
+                yield b""
+                return
+        except mlrun.errors.MLRunInternalServerError as exc:
+            logger.warning(
+                "Failed to check if run has logs to collect", run_uid=run_uid
+            )
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to check if run has logs to collect for {run_uid}. exception= {exc}"
+                )
+
         request = self._log_collector_pb2.GetLogsRequest(
             runUID=run_uid,
             projectName=project,
             offset=offset,
             size=size,
         )
-
-        # TODO: make a request to ensure file exists, return 404 if not
-        # otherwise, the first requests will return 500
 
         # retry calling the server, it can fail in case the log-collector hasn't started collecting logs for this yet
         # TODO: add async retry function
@@ -115,12 +140,12 @@ class LogCollectorClient(
                 async for chunk in response_stream:
                     if not chunk.success:
                         msg = f"Failed to get logs for run {run_uid}"
+                        if verbose:
+                            logger.warning(msg, error=chunk.errorMessage)
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
-                                f"{msg},error= {chunk.error}"
+                                f"{msg},error= {chunk.errorMessage}"
                             )
-                        if verbose:
-                            logger.warning(msg, error=chunk.error)
                     yield chunk.logs
                 return
             except Exception as exc:
@@ -136,3 +161,33 @@ class LogCollectorClient(
                         mlrun.errors.err_to_str(exc),
                     )
                 await asyncio.sleep(3)
+
+    async def has_logs(
+        self,
+        run_uid: str,
+        project: str,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> bool:
+        """
+        Check if the log collector service has logs for the given run
+        :param run_uid: The run uid
+        :param project: The project name
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: Whether the log collector service has logs for the given run
+        """
+        request = self._log_collector_pb2.HasLogsRequest(
+            runUID=run_uid, projectName=project
+        )
+
+        response = await self._call("HasLogs", request)
+        if not response.success:
+            msg = f"Failed to check if run has logs to collect for {run_uid}"
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
+                )
+        return response.hasLogs

@@ -87,9 +87,10 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	suite.LogCollectorServer, err = logcollector.NewLogCollectorServer(suite.logger,
 		suite.namespace,
 		suite.baseDir,
-		"5s",  /* stateFileUpdateIntervalStr */
-		"3s",  /* readLogWaitTime */
-		"30s", /* monitoringInterval */
+		"5s",    /* stateFileUpdateIntervalStr */
+		"3s",    /* readLogWaitTime */
+		"30s",   /* monitoringInterval */
+		"chief", /* clusterizationRole */
 		suite.kubeClientSet,
 		30, /* logCollectionBufferPoolSize */
 		30, /* getLogsBufferSizeBytes */
@@ -110,8 +111,12 @@ func (suite *LogCollectorTestSuite) SetupTest() {
 
 func (suite *LogCollectorTestSuite) TearDownSuite() {
 
+	// delete namespace
+	err := suite.kubeClientSet.CoreV1().Namespaces().Delete(context.Background(), suite.namespace, metav1.DeleteOptions{})
+	suite.Require().NoError(err, "Failed to delete namespace")
+
 	// delete base dir and created files
-	err := os.RemoveAll(suite.baseDir)
+	err = os.RemoveAll(suite.baseDir)
 	suite.Require().NoError(err, "Failed to delete base dir")
 	suite.logger.InfoWith("Tear down complete", "testName", suite.T().Name())
 }

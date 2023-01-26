@@ -54,6 +54,7 @@ type Server struct {
 	readLogWaitTime         time.Duration
 	monitoringInterval      time.Duration
 	bufferSizeBytes         int
+	isChief                 bool
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -62,7 +63,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	baseDir,
 	stateFileUpdateInterval,
 	readLogWaitTime,
-	monitoringInterval string,
+	monitoringInterval,
+	clusterizationRole string,
 	kubeClientSet kubernetes.Interface,
 	logCollectionBufferPoolSize,
 	getLogsBufferPoolSize,
@@ -124,6 +126,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		logCollectionBufferPool: logCollectionBufferPool,
 		getLogsBufferPool:       getLogsBufferPool,
 		bufferSizeBytes:         bufferSizeBytes,
+		isChief:                 clusterizationRole == "chief",
 	}, nil
 }
 
@@ -132,10 +135,13 @@ func (s *Server) OnBeforeStart(ctx context.Context) error {
 	s.Logger.DebugCtx(ctx, "Initializing Server")
 
 	// initialize the state store (load state from file, start state file update loop)
-	s.stateStore.Initialize(ctx)
+	// if the server is not the chief, do not monitor anything
+	if s.isChief {
+		s.stateStore.Initialize(ctx)
 
-	// start logging monitor
-	go s.monitorLogCollection(ctx)
+		// start logging monitor
+		go s.monitorLogCollection(ctx)
+	}
 
 	return nil
 }
@@ -191,8 +197,9 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 			"selector", request.Selector)
 		err := errors.Wrapf(err, "Failed to list pods for run id %s", request.RunUID)
 		return &protologcollector.StartLogResponse{
-			Success: false,
-			Error:   err.Error(),
+			Success:      false,
+			ErrorCode:    common.ErrCodeNotFound,
+			ErrorMessage: err.Error(),
 		}, err
 	}
 
@@ -203,8 +210,9 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	if err := s.stateStore.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
 		return &protologcollector.StartLogResponse{
-			Success: false,
-			Error:   err.Error(),
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: common.GetErrorStack(err, 10),
 		}, err
 	}
 
@@ -223,8 +231,9 @@ func (s *Server) StartLog(ctx context.Context, request *protologcollector.StartL
 	if err := s.inMemoryState.AddLogItem(ctx, request.RunUID, request.Selector); err != nil {
 		err := errors.Wrapf(err, "Failed to add run id %s to in memory state", request.RunUID)
 		return &protologcollector.StartLogResponse{
-			Success: false,
-			Error:   err.Error(),
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: common.GetErrorStack(err, 10),
 		}, err
 	}
 
@@ -331,6 +340,30 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 	return nil
 }
 
+// HasLogs returns true if the log file exists for a given run id
+func (s *Server) HasLogs(ctx context.Context, request *protologcollector.HasLogsRequest) (*protologcollector.HasLogsResponse, error) {
+
+	// get log file path
+	if _, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName); err != nil {
+		if strings.Contains(errors.RootCause(err).Error(), "not found") {
+			return &protologcollector.HasLogsResponse{
+				Success: true,
+				HasLogs: false,
+			}, nil
+		}
+		return &protologcollector.HasLogsResponse{
+			Success:      false,
+			ErrorCode:    common.ErrCodeInternal,
+			ErrorMessage: common.GetErrorStack(err, 10),
+		}, err
+	}
+
+	return &protologcollector.HasLogsResponse{
+		Success: true,
+		HasLogs: true,
+	}, nil
+}
+
 // startLogStreaming streams logs from a pod and writes them into a file
 func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
@@ -388,7 +421,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	)
 
 	// stream logs - retry if failed
-	err := common.RetryUntilSuccessful(5*time.Second, 1*time.Second, func() (bool, error) {
+	err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
 		stream, streamErr = restClientRequest.Stream(ctx)
 		if streamErr != nil {
 			s.Logger.WarnWithCtx(ctx,
@@ -507,7 +540,7 @@ func (s *Server) streamPodLogs(ctx context.Context,
 
 // resolvePodLogFilePath returns the path to the pod log file
 func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) string {
-	return path.Join(s.baseDir, "logs", projectName, fmt.Sprintf("%s_%s.log", runUID, podName))
+	return path.Join(s.baseDir, "logs", projectName, fmt.Sprintf("%s_%s", runUID, podName))
 }
 
 // hasLogs returns true if the stream has logs, or false if the stream is empty or context is dead
@@ -569,15 +602,7 @@ func (s *Server) getLogFilePath(ctx context.Context, runUID, projectName string)
 		}
 
 		if logFilePath == "" {
-
-			// if log collection for this runUID has already started, sleep and retry,
-			// as the log file might not have been created yet
-			if s.isLogCollectionRunning(ctx, runUID) {
-				return true, nil
-			}
-
-			// otherwise fail
-			return false, errors.Errorf("Failed to find log file for run id %s", runUID)
+			return false, errors.Errorf("Log file not found for run %s", runUID)
 		}
 
 		// found log file
@@ -596,13 +621,6 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 	filePath string,
 	offset,
 	size int64) ([]byte, error) {
-
-	s.Logger.DebugWithCtx(ctx,
-		"Reading logs from file",
-		"runUID", runUID,
-		"filePath", filePath,
-		"offset", offset,
-		"size", size)
 
 	fileSize, err := common.GetFileSize(filePath)
 	if err != nil {

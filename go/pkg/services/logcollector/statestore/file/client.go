@@ -43,7 +43,7 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 			InProgress: &sync.Map{},
 		},
 		logger:                  logger.GetChild("filestatestore"),
-		stateFilePath:           path.Join(baseDirPath, "state.json"),
+		stateFilePath:           path.Join(baseDirPath, "metadata", "state.json"),
 		stateFileUpdateInterval: stateFileUpdateInterval,
 		lock:                    &sync.Mutex{},
 	}

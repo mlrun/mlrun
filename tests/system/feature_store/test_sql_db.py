@@ -269,7 +269,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         with engine.connect() as conn:
             metadata = db.MetaData()
             self._create(schema, target_name, metadata, engine, key)
-            conn.close()
 
         target = SQLTarget(
             table_name=target_name,
@@ -349,7 +348,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         engine = db.create_engine(self.db)
         with engine.connect() as conn:
             origin_df.to_sql(table_name, conn, if_exists="replace", index=False)
-            conn.close()
 
         source = SQLSource(
             table_name=table_name,

@@ -183,6 +183,7 @@ class BaseRuntime(ModelObj):
         self.status = None
         self._is_api_server = False
         self.verbose = False
+        self._enriched_image = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -481,8 +482,8 @@ class BaseRuntime(ModelObj):
             try:
                 resp = self._run(run, execution)
                 if watch and self.kind not in ["", "handler", "local"]:
-                    state = run.logs(True, self._get_db())
-                    if state != "succeeded":
+                    state, _ = run.logs(True, self._get_db())
+                    if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")
                 result = self._update_run_state(resp, task=run)
             except RunError as err:
@@ -977,15 +978,17 @@ class BaseRuntime(ModelObj):
             except KeyError:
                 updates = BaseRuntimeHandler._get_run_completion_updates(resp)
 
+        uid = get_in(resp, "metadata.uid")
         logger.debug(
             "Run updates",
+            name=get_in(resp, "metadata.name"),
+            uid=uid,
             kind=kind,
             last_state=last_state,
             updates=updates,
         )
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")
-            uid = get_in(resp, "metadata.uid")
             iter = get_in(resp, "metadata.iteration", 0)
             self._get_db().update_run(updates, uid, project, iter=iter)
 

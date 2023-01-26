@@ -167,7 +167,8 @@ jobs:
     strategy:
       matrix:
         # 3.9 is the current >= 1.3.0 python version
-        python-version: [3.9]
+        # 3.7 is for clients with the previous supported python version
+        python-version: [3.7, 3.9]
     steps:
     - uses: actions/checkout@v3
     - name: Set up python ${{ matrix.python-version }}
@@ -268,16 +269,21 @@ jobs:
   verify-compatible-requirements-one-after-one:
     name: Verify compatible requirements (one after one)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.9 is the current >= 1.3.0 python version
+        # 3.7 is for clients with the previous supported python version
+        python-version: [ 3.7, 3.9 ]
     steps:
     - uses: actions/checkout@v3
-    - name: Set up python
+    - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: 3.9
+        python-version: ${{ matrix.python-version }}
         cache: 'pip'
-    - name: Install requirements
+    - name: Install requirements ${{ matrix.python-version }}
       run: make install-requirements
-    - name: Install Complete Requirements
+    - name: Install Complete Requirements ${{ matrix.python-version }}
       run: make install-complete-requirements
-    - name: Install All Requirements
+    - name: Install All Requirements ${{ matrix.python-version }}
       run: make install-all-requirements

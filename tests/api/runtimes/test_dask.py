@@ -222,12 +222,15 @@ class TestDaskRuntime(TestRuntimeBase):
         runtime.with_scheduler_limits(
             mem=expected_scheduler_limits["memory"],
             cpu=expected_scheduler_limits["cpu"],
+            gpus=expected_gpus,
+            gpu_type=gpu_type,
         )
         runtime.with_worker_limits(
             mem=expected_worker_limits["memory"],
             cpu=expected_worker_limits["cpu"],
+            gpus=expected_gpus,
+            gpu_type=gpu_type,
         )
-        runtime.gpus(expected_gpus, gpu_type)
         _ = runtime.client
 
         self.kube_cluster_mock.assert_called_once()

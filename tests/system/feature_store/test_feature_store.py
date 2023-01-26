@@ -57,7 +57,7 @@ from mlrun.feature_store import Entity, FeatureSet
 from mlrun.feature_store.feature_set import aggregates_step
 from mlrun.feature_store.feature_vector import FixedWindowType
 from mlrun.feature_store.steps import FeaturesetValidator, OneHotEncoder
-from mlrun.features import MinMaxValidator
+from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
@@ -1923,7 +1923,7 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()]
         fstore.ingest(fset, df1, targets=targets)
 
-        features = ["overwrite-fs.*"]
+        features = ["overwrite-fstore.*"]
         fvec = fstore.FeatureVector("overwrite-vec", features=features)
 
         csv_path = fset.get_target_path(name="csv")
@@ -3336,6 +3336,375 @@ class TestFeatureStore(TestMLRunSystem):
 
         assert_frame_equal(expected_stat, actual_stat)
 
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    @pytest.mark.parametrize("join_type", ["inner", "outer"])
+    def test_relation_join(self, engine, join_type, with_indexes):
+        """Test 3 option of using get offline feature with relations"""
+        departments = pd.DataFrame(
+            {
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
+            }
+        )
+
+        employees_with_department = pd.DataFrame(
+            {
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
+            }
+        )
+
+        employees_with_class = pd.DataFrame(
+            {
+                "id": [100, 200, 300],
+                "name": [f"employee{num}" for num in range(100, 400, 100)],
+                "department_id": [1, 1, 2],
+                "class_id": [i for i in range(20, 23)],
+            }
+        )
+
+        classes = pd.DataFrame(
+            {
+                "c_id": [i for i in range(20, 30, 2)],
+                "name": [f"class{num}" for num in range(20, 30, 2)],
+            }
+        )
+
+        managers = pd.DataFrame(
+            {
+                "m_id": [i for i in range(10, 20, 2)],
+                "name": [f"manager{num}" for num in range(10, 20, 2)],
+            }
+        )
+
+        join_employee_department = pd.merge(
+            employees_with_department,
+            departments,
+            how=join_type,
+            left_on=["department_id"],
+            right_on=["d_id"],
+            suffixes=("_employees", "_departments"),
+        )
+
+        join_employee_managers = pd.merge(
+            join_employee_department,
+            managers,
+            how=join_type,
+            left_on=["manager_id"],
+            right_on=["m_id"],
+            suffixes=("_manage", "_"),
+        )
+
+        join_employee_sets = pd.merge(
+            employees_with_department,
+            employees_with_class,
+            how=join_type,
+            left_on=["id"],
+            right_on=["id"],
+            suffixes=("_employees", "_e_mini"),
+        )
+
+        _merge_step = pd.merge(
+            join_employee_department,
+            employees_with_class,
+            how=join_type,
+            left_on=["id"],
+            right_on=["id"],
+            suffixes=("_", "_e_mini"),
+        )
+
+        join_all = pd.merge(
+            _merge_step,
+            classes,
+            how=join_type,
+            left_on=["class_id"],
+            right_on=["c_id"],
+            suffixes=("_e_mini", "_cls"),
+        )
+
+        col_1 = ["name_employees", "name_departments"]
+        col_2 = ["name_employees", "name_departments", "name"]
+        col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
+        if with_indexes:
+            join_employee_sets.set_index(["id"], inplace=True)
+            if engine == "local":
+                join_employee_department.set_index(["id", "d_id"], inplace=True)
+                join_employee_managers.set_index(["id", "d_id", "m_id"], inplace=True)
+                join_all.set_index(["id", "d_id", "c_id"], inplace=True)
+            else:
+                col_1 = ["id", "name_employees", "d_id", "name_departments"]
+                col_2 = [
+                    "id",
+                    "name_employees",
+                    "d_id",
+                    "name_departments",
+                    "m_id",
+                    "name",
+                ]
+                col_4 = [
+                    "id",
+                    "name_employees",
+                    "d_id",
+                    "name_departments",
+                    "name_e_mini",
+                    "c_id",
+                    "name_cls",
+                ]
+
+        join_employee_department = join_employee_department[col_1].rename(
+            columns={"name_departments": "n2", "name_employees": "n"},
+        )
+
+        join_employee_managers = join_employee_managers[col_2].rename(
+            columns={
+                "name_departments": "n2",
+                "name_employees": "n",
+                "name": "man_name",
+            },
+        )
+
+        join_employee_sets = join_employee_sets[
+            ["name_employees", "name_e_mini"]
+        ].rename(
+            columns={"name_employees": "n", "name_e_mini": "mini_name"},
+        )
+
+        join_all = join_all[col_4].rename(
+            columns={
+                "name_employees": "n",
+                "name_departments": "n2",
+                "name_e_mini": "mini_name",
+            },
+        )
+
+        engine_args = {}
+        if engine == "dask":
+            dask_cluster = mlrun.new_function(
+                "dask_tests", kind="dask", image="mlrun/ml-models"
+            )
+            dask_cluster.apply(mlrun.mount_v3io())
+            dask_cluster.spec.remote = True
+            dask_cluster.with_scheduler_requests(mem="2G")
+            dask_cluster.save()
+            engine_args = {
+                "dask_client": dask_cluster,
+                "dask_cluster_uri": dask_cluster.uri,
+            }
+        # relations according to departments_set relations
+        managers_set_entity = fstore.Entity("m_id")
+        managers_set = fstore.FeatureSet(
+            "managers",
+            entities=[managers_set_entity],
+        )
+        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(managers_set, managers)
+
+        classes_set_entity = fstore.Entity("c_id")
+        classes_set = fstore.FeatureSet(
+            "classes",
+            entities=[classes_set_entity],
+        )
+        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(classes_set, classes)
+
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
+            "departments",
+            entities=[departments_set_entity],
+            relations={"manager_id": managers_set_entity},
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(departments_set, departments)
+
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(employees_set, employees_with_department)
+
+        mini_employees_set = fstore.FeatureSet(
+            "mini-employees",
+            entities=[employees_set_entity],
+            relations={
+                "department_id": departments_set_entity,
+                "class_id": classes_set_entity,
+            },
+        )
+        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(mini_employees_set, employees_with_class)
+
+        features = ["employees.name"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        resp = fstore.get_offline_features(
+            vector,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+        if with_indexes:
+            expected = pd.DataFrame(employees_with_department, columns=["name", "id"])
+            expected.set_index("id", inplace=True)
+            assert_frame_equal(expected, resp.to_dataframe())
+        else:
+            assert_frame_equal(
+                pd.DataFrame(employees_with_department, columns=["name"]),
+                resp.to_dataframe(),
+            )
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        resp_1 = fstore.get_offline_features(
+            vector,
+            join_type=join_type,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+        features = [
+            "employees.name as n",
+            "departments.name as n2",
+            "managers.name as man_name",
+        ]
+
+        vector_2 = fstore.FeatureVector(
+            "man-vec", features, description="Employees feature vector"
+        )
+        vector_2.save()
+
+        resp_2 = fstore.get_offline_features(
+            vector_2,
+            join_type=join_type,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
+
+        features = ["employees.name as n", "mini-employees.name as mini_name"]
+
+        vector_3 = fstore.FeatureVector(
+            "mini-emp-vec", features, description="Employees feature vector"
+        )
+        vector_3.save()
+
+        resp_3 = fstore.get_offline_features(
+            vector_3,
+            join_type=join_type,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+
+        features = [
+            "employees.name as n",
+            "departments.name as n2",
+            "mini-employees.name as mini_name",
+            "classes.name as name_cls",
+        ]
+
+        vector_4 = fstore.FeatureVector(
+            "four-vec", features, description="Employees feature vector"
+        )
+        vector_4.save()
+
+        resp_4 = fstore.get_offline_features(
+            vector_4,
+            join_type=join_type,
+            engine_args=engine_args,
+            with_indexes=with_indexes,
+            engine=engine,
+        )
+        assert_frame_equal(join_all, resp_4.to_dataframe())
+
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    def test_relation_asof_join(self, with_indexes):
+        """Test 3 option of using get offline feature with relations"""
+        departments = pd.DataFrame(
+            {
+                "d_id": [i for i in range(1, 11, 2)],
+                "name": [f"dept{num}" for num in range(1, 11, 2)],
+                "manager_id": [i for i in range(10, 15)],
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
+            }
+        )
+
+        employees_with_department = pd.DataFrame(
+            {
+                "id": [num for num in range(100, 600, 100)],
+                "name": [f"employee{num}" for num in range(100, 600, 100)],
+                "department_id": [1, 1, 2, 6, 11],
+                "time": [pd.Timestamp(f"2023-01-01 0{i}:00:00") for i in range(5)],
+            }
+        )
+
+        join_employee_department = pd.merge_asof(
+            employees_with_department,
+            departments,
+            left_on=["time"],
+            right_on=["time"],
+            left_by=["department_id"],
+            right_by=["d_id"],
+            suffixes=("_employees", "_departments"),
+        )
+
+        col_1 = ["name_employees", "name_departments"]
+        if with_indexes:
+            join_employee_department.set_index(["id", "d_id"], inplace=True)
+            col_1 = ["time"] + col_1
+
+        join_employee_department = join_employee_department[col_1].rename(
+            columns={"name_departments": "n2", "name_employees": "n"},
+        )
+
+        # relations according to departments_set relations
+        departments_set_entity = fstore.Entity("d_id")
+        departments_set = fstore.FeatureSet(
+            "departments", entities=[departments_set_entity], timestamp_key="time"
+        )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(departments_set, departments)
+
+        employees_set_entity = fstore.Entity("id")
+        employees_set = fstore.FeatureSet(
+            "employees",
+            entities=[employees_set_entity],
+            relations={"department_id": departments_set_entity},
+            timestamp_key="time",
+        )
+        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        fstore.ingest(employees_set, employees_with_department)
+
+        features = ["employees.name as n", "departments.name as n2"]
+
+        vector = fstore.FeatureVector(
+            "employees-vec", features, description="Employees feature vector"
+        )
+        vector.save()
+
+        resp_1 = fstore.get_offline_features(
+            vector,
+            with_indexes=with_indexes,
+        )
+        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
     def test_ingest_with_kafka_source_fails(self):
         source = KafkaSource(
             brokers="broker_host:9092",
@@ -3417,6 +3786,48 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected_df.set_index(["first_name", "last_name"], inplace=True)
         assert res_df.equals(expected_df), f"unexpected result: {res_df}"
+
+    @pytest.mark.parametrize("engine", ["storey", "pandas"])
+    def test_ingest_with_validator_from_uri(self, engine):
+        df = pd.DataFrame(
+            {
+                "key": [1, 2, 3, 4, 5, 6, 7],
+                "key1": ["1", "2", "3", "4", "5", "6", "7"],
+                "key2": ["C", "F", "I", "W", "X", "J", "K"],
+            }
+        )
+
+        feature_set = fstore.FeatureSet(
+            "myfset", entities=[fstore.Entity("key")], engine=engine
+        )
+        feature_set["key1"] = fstore.Feature(
+            validator=RegexValidator(regex=".[A-Za-z]", severity="info"),
+            value_type="str",
+        )
+        try:
+            feature_set["key"] = fstore.Feature(
+                validator=RegexValidator(regex=".[A-Za-z]", severity="info"),
+                value_type="str",
+            )
+        except mlrun.errors.MLRunInvalidArgumentError:
+            pass  # test equal name for entity and feature
+
+        feature_set.graph.to(
+            FeaturesetValidator(),
+            name="validator",
+            columns=["key1"],
+            full_event=True,
+        )
+
+        feature_set.save()
+        output_path = tempfile.TemporaryDirectory()
+        df = fstore.ingest(
+            feature_set.uri,
+            df,
+            targets=[ParquetTarget(path=f"{output_path.name}/temp.parquet")],
+        )
+
+        assert isinstance(df, pd.DataFrame)
 
 
 def verify_purge(fset, targets):

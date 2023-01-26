@@ -617,6 +617,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 "drop_columns": None,
                 "with_indexes": True,
                 "query": None,
+                "join_type": "inner",
                 "engine_args": None,
             },
             "outputs": [],

@@ -1508,7 +1508,7 @@ def get_nuclio_deploy_status(
                 exc.err.response,
                 get_err_message,
             )
-        raise
+        raise exc
     else:
         text = "\n".join(outputs) if outputs else ""
         return state, address, name, last_log_timestamp, text, function_status

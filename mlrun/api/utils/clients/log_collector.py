@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import enum
 import http
 import typing
 
@@ -20,6 +21,11 @@ import mlrun.errors
 import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.utils import logger
+
+
+class LogCollectorErrorCode(enum.Enum):
+    ErrCodeNotFound = 0
+    ErrCodeInternal = 1
 
 
 class LogCollectorClient(
@@ -69,12 +75,16 @@ class LogCollectorClient(
         response = await self._call("StartLog", request)
         if not response.success:
             msg = f"Failed to start logs for run {run_uid}"
-            if raise_on_error:
-                raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
-                )
             if verbose:
                 logger.warning(msg, error=response.error)
+            if raise_on_error:
+                if response.error_code == LogCollectorErrorCode.ErrCodeNotFound.value:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"{msg},error= {response.error_message}"
+                    )
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.error_message}"
+                )
         return response.success, response.error
 
     async def get_logs(
@@ -97,14 +107,22 @@ class LogCollectorClient(
         :return: The logs bytes
         """
 
-        # make sure this run has logs to collect
+        # check if this run has logs to collect
         try:
             has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
-        except mlrun.errors.MLRunInternalServerError:
-            return
+            if not has_logs:
 
-        if not has_logs:
-            return
+                # run has no logs - return empty logs and exit so caller won't wait for logs or retry
+                yield b""
+                return
+        except mlrun.errors.MLRunInternalServerError as exc:
+            logger.warning(
+                "Failed to check if run has logs to collect", run_uid=run_uid
+            )
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Failed to check if run has logs to collect for {run_uid}. exception= {exc}"
+                )
 
         request = self._log_collector_pb2.GetLogsRequest(
             runUID=run_uid,
@@ -112,9 +130,6 @@ class LogCollectorClient(
             offset=offset,
             size=size,
         )
-
-        # TODO: make a request to ensure file exists, return 404 if not
-        # otherwise, the first requests will return 500
 
         # retry calling the server, it can fail in case the log-collector hasn't started collecting logs for this yet
         # TODO: add async retry function
@@ -127,10 +142,10 @@ class LogCollectorClient(
                         msg = f"Failed to get logs for run {run_uid}"
                         if raise_on_error:
                             raise mlrun.errors.MLRunInternalServerError(
-                                f"{msg},error= {chunk.error}"
+                                f"{msg},error= {chunk.error_message}"
                             )
                         if verbose:
-                            logger.warning(msg, error=chunk.error)
+                            logger.warning(msg, error=chunk.error_message)
                     yield chunk.logs
                 return
             except Exception as exc:
@@ -170,9 +185,9 @@ class LogCollectorClient(
         if not response.success:
             msg = f"Failed to check if run has logs to collect for {run_uid}"
             if verbose:
-                logger.warning(msg, error=response.errorMessage)
+                logger.warning(msg, error=response.error_message)
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.errorMessage}"
+                    f"{msg},error= {response.error_message}"
                 )
-        return response.hasLogs
+        return response.has_logs

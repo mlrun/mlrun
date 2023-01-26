@@ -27,13 +27,15 @@ import mlrun.api.utils.clients.log_collector
 class StartLogResponse:
     def __init__(self, success, error):
         self.success = success
-        self.error = error
+        self.error_message = error
+        self.error_code = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
 
 
 class GetLogsResponse:
     def __init__(self, success, error, logs, total_calls):
         self.success = success
-        self.error = error
+        self.error_message = error
+        self.error_code = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
         self.logs = logs
         self.total_calls = total_calls
         self.current_calls = 0
@@ -47,6 +49,14 @@ class GetLogsResponse:
             self.current_calls += 1
             return self
         raise StopAsyncIteration
+
+
+class HasLogsResponse:
+    def __init__(self, success, error, has_logs):
+        self.success = success
+        self.error_message = error
+        self.error_code = mlrun.api.utils.clients.log_collector.LogCollectorErrorCode.ErrCodeInternal
+        self.has_logs = has_logs
 
 
 mlrun.mlconf.log_collector.address = "http://localhost:8080"
@@ -100,6 +110,10 @@ class TestLogCollector:
 
         log_byte_string = b"some log"
 
+        # mock responses for HasLogs and GetLogs
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=HasLogsResponse(True, "", True)
+        )
         log_collector._call_stream = unittest.mock.MagicMock(
             return_value=GetLogsResponse(True, "", log_byte_string, 1)
         )
@@ -117,6 +131,11 @@ class TestLogCollector:
                 run_uid=run_uid, project=project_name
             ):
                 assert log == b""  # should not get here
+
+        # mock HasLogs response to return False
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=HasLogsResponse(True, "", False)
+        )
 
         log_stream = log_collector.get_logs(
             run_uid=run_uid, project=project_name, raise_on_error=False

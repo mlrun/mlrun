@@ -18,6 +18,7 @@ from typing import List
 import pandas as pd
 import pytest
 import sqlalchemy as db
+import mlrun
 
 import mlrun.feature_store as fs
 from mlrun.datastore.sources import SQLSource
@@ -26,21 +27,25 @@ from mlrun.feature_store.steps import OneHotEncoder
 from tests.system.base import TestMLRunSystem
 
 
-@pytest.mark.enterprise
+@pytest.mark.skipif(
+    not mlrun.mlconf.sql.url
+    and "MLRUN_SQL__URL" not in TestMLRunSystem._get_env_from_file(),
+    reason="mlrun.mlconf.sql.url is not set, skipping until testing against real sql",
+)
 class TestFeatureStoreSqlDB(TestMLRunSystem):
     project_name = "fs-system-test-sqldb"
 
     @classmethod
-    def _init_env_from_file(cls):
+    def _init_env(cls):
         env = cls._get_env_from_file()
-        cls.db = env["MLRUN_SQL__URL"]
-        if cls.db == "" or cls.db is None:
-            pytest.skip("Environment variable MLRUN_SQL_DB_PATH_STRING is not defined")
+        cls.db = (
+            env["MLRUN_SQL__URL"] if "MLRUN_SQL__URL" in env else mlrun.mlconf.sql.url
+        )
         cls.source_collection = "source_collection"
         cls.target_collection = "target_collection"
 
     def custom_setup(self):
-        self._init_env_from_file()
+        self._init_env()
         self.prepare_data()
 
     def get_data(self, data_name: str):
@@ -117,7 +122,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
                 if_exists="replace",
                 index=False,
             )
-            conn.close()
+
         source = SQLSource(
             table_name=source_name,
             key_field=key,
@@ -155,7 +160,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
                 if source_name == "quotes"
                 else None,
             )
-            conn.close()
 
         # test source
         source = SQLSource(
@@ -203,7 +207,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
                 if source_name == "quotes"
                 else None,
             )
-            conn.close()
 
         # test source
         source = SQLSource(table_name=source_name, key_field=key, time_fields=["time"])

@@ -540,7 +540,7 @@ func (s *Server) streamPodLogs(ctx context.Context,
 
 // resolvePodLogFilePath returns the path to the pod log file
 func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) string {
-	return path.Join(s.baseDir, "logs", projectName, fmt.Sprintf("%s_%s", runUID, podName))
+	return path.Join(s.baseDir, projectName, fmt.Sprintf("%s_%s", runUID, podName))
 }
 
 // hasLogs returns true if the stream has logs, or false if the stream is empty or context is dead

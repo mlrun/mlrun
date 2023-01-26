@@ -14,6 +14,7 @@
 #
 import asyncio
 import concurrent.futures
+import datetime
 import time
 import traceback
 import typing
@@ -21,6 +22,7 @@ import uuid
 
 import fastapi
 import fastapi.concurrency
+import sqlalchemy.orm
 import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
@@ -228,10 +230,10 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
-            _start_logs_collection()
+            await _start_logs_collection()
 
 
-def _start_logs_collection():
+async def _start_logs_collection():
     if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
         logger.info(
             "Using legacy logs collection method, skipping logs collection periodic function",
@@ -246,6 +248,9 @@ def _start_logs_collection():
     start_logs_limit = asyncio.Semaphore(
         config.log_collector.concurrent_start_logs_workers
     )
+
+    await _verify_log_collection_started_on_startup(start_logs_limit)
+
     run_function_periodically(
         interval=int(config.log_collector.periodic_start_log_interval),
         name=_initiate_logs_collection.__name__,
@@ -253,6 +258,53 @@ def _start_logs_collection():
         function=_initiate_logs_collection,
         start_logs_limit=start_logs_limit,
     )
+
+
+async def _verify_log_collection_started_on_startup(
+    start_logs_limit: asyncio.Semaphore,
+):
+    """
+    Verifies that log collection was started on startup for all runs which might started before the API initialization
+    or after upgrade.
+    In that case we want to make sure that all runs which are in non terminal state will have their logs collected
+    with the new log collection method and runs which might have reached terminal state while the API was down will
+    have their logs collected as well.
+    :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
+    """
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    logger.debug(
+        "Getting all runs which are in non terminal state and require logs collection"
+    )
+    runs = await fastapi.concurrency.run_in_threadpool(
+        get_db().list_distinct_runs_uids,
+        db_session,
+        requested_logs_modes=[None, False],
+        only_uids=False,
+        states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
+    )
+    logger.debug(
+        "Getting all runs which are might have reached terminal state while the API was down",
+        api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
+    )
+    runs.extend(
+        await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[None, False],
+            only_uids=False,
+            last_start_time_from=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(
+                hours=int(config.log_collector.api_downtime_grace_period)
+            ),
+            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        )
+    )
+    if runs:
+        logger.debug(
+            "Found runs which require logs collection",
+            runs_uids=runs,
+        )
+        await _start_log_and_update_runs(start_logs_limit, db_session, runs)
 
 
 async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
@@ -267,37 +319,53 @@ async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
         runs = await fastapi.concurrency.run_in_threadpool(
             get_db().list_distinct_runs_uids,
             db_session,
-            requested_logs=False,
+            requested_logs_modes=[False],
             only_uids=False,
         )
-        logger.debug(
-            "Found runs which require logs collection",
-            runs_uids=runs,
-        )
-        # each result contains either run_uid or None
-        # if it's None it means something went wrong and we should skip it
-        # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
-        results = await asyncio.gather(
-            *[
-                _start_log_for_run(run, start_logs_limit, raise_on_error=False)
-                for run in runs
-            ]
-        )
-        runs_to_update_requested_logs = [result for result in results if result]
+        if runs:
+            logger.debug(
+                "Found runs which require logs collection",
+                runs_uids=runs,
+            )
+            await _start_log_and_update_runs(start_logs_limit, db_session, runs)
+
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+
+async def _start_log_and_update_runs(
+    start_logs_limit: asyncio.Semaphore,
+    db_session: sqlalchemy.orm.Session,
+    runs: list,
+):
+    if not runs:
+        return
+
+    # each result contains either run_uid or None
+    # if it's None it means something went wrong and we should skip it
+    # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
+    results = await asyncio.gather(
+        *[
+            _start_log_for_run(run, start_logs_limit, raise_on_error=False)
+            for run in runs
+        ]
+    )
+    runs_to_update_requested_logs = [result for result in results if result]
+
+    # distinct the runs uids
+    runs_to_update_requested_logs = list(set(runs_to_update_requested_logs))
+
+    if len(runs_to_update_requested_logs) > 0:
         logger.debug(
             "Updating runs to indicate that we requested logs collection for them",
             runs_uids=runs_to_update_requested_logs,
         )
-        if len(runs_to_update_requested_logs) > 0:
-            # update the runs to indicate that we have requested log collection for them
-            await fastapi.concurrency.run_in_threadpool(
-                get_db().update_runs_requested_logs,
-                db_session,
-                uids=runs_to_update_requested_logs,
-            )
-
-    finally:
-        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+        # update the runs to indicate that we have requested log collection for them
+        await fastapi.concurrency.run_in_threadpool(
+            get_db().update_runs_requested_logs,
+            db_session,
+            uids=runs_to_update_requested_logs,
+        )
 
 
 async def _start_log_for_run(

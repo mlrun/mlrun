@@ -230,15 +230,23 @@ class SQLDB(DBInterface):
         self._delete_empty_labels(session, Run.Label)
 
     def list_distinct_runs_uids(
-        self, session, project: str = None, requested_logs: bool = None, only_uids=True
-    ) -> typing.Union[List[str], RunList]:
+        self,
+        session,
+        project: str = None,
+        requested_logs_modes: typing.List[bool] = None,
+        only_uids=True,
+        last_start_time_from: datetime = None,
+        states: typing.List[str] = None,
+    ) -> typing.Union[typing.List[str], RunList]:
         """
         List all runs uids in the DB
         :param session: DB session
         :param project: Project name, `*` or `None` lists across all projects
-        :param requested_logs: If not `None`, will return only runs for which logs were requested (or not)
+        :param requested_logs_modes: If not `None`, will return only runs with the given requested logs modes
         :param only_uids: If True, will return only the uids of the runs as list of strings
                           If False, will return the full run objects as RunList
+        :param last_start_time_from: If not `None`, will return only runs created after this time
+        :param states: If not `None`, will return only runs with the given states
         :return: List of runs uids or RunList
         """
         if only_uids:
@@ -249,8 +257,15 @@ class SQLDB(DBInterface):
 
         if project and project != "*":
             query = query.filter(Run.project == project)
-        if requested_logs is not None:
-            query = query.filter(Run.requested_logs == requested_logs)
+
+        if states:
+            query = query.filter(Run.state.in_(states))
+
+        if last_start_time_from is not None:
+            query = query.filter(Run.start_time >= last_start_time_from)
+
+        if requested_logs_modes is not None:
+            query = query.filter(Run.requested_logs.in_(requested_logs_modes))
 
         if not only_uids:
             # group_by allows us to have a row per uid with the whole record rather than just the uid (as distinct does)

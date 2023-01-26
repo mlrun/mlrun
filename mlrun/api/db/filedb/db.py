@@ -64,8 +64,10 @@ class FileDB(DBInterface):
         self,
         session,
         project: str = None,
-        requested_logs: bool = None,
+        requested_logs_modes: List[bool] = None,
         only_uids: bool = False,
+        last_update_time_from: datetime.datetime = None,
+        states: List[str] = None,
     ):
         raise NotImplementedError()
 

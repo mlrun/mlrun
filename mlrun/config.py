@@ -476,7 +476,7 @@ default_config = {
         # note that this mode also effects the log querying method as well, meaning if the mode is "best-effort"
         # the log query will try to use the sidecar first and if it's not available it will use the legacy method
         # TODO: once this is changed to "sidecar" by default, also change in common_fixtures.py
-        "mode": "legacy",
+        "mode": "sidecar",
         # interval for collecting and sending runs which require their logs to be collected
         "periodic_start_log_interval": 10,
         "verbose": True,

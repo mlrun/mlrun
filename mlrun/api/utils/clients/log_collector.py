@@ -67,7 +67,7 @@ class LogCollectorClient(
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
                 raise mlrun.errors.MLRunInternalServerError(
-                    f"{msg},error= {response.error}"
+                    f"{msg},error= {response.errorMessage}"
                 )
             if verbose:
                 logger.warning(msg, error=response.error)
@@ -92,6 +92,16 @@ class LogCollectorClient(
         :param raise_on_error: Whether to raise an exception on error
         :return: The logs bytes
         """
+
+        # make sure this run has logs to collect
+        try:
+            has_logs = await self.has_logs(run_uid, project, verbose, raise_on_error)
+        except mlrun.errors.MLRunInternalServerError:
+            return
+
+        if not has_logs:
+            return
+
         request = self._log_collector_pb2.GetLogsRequest(
             runUID=run_uid,
             projectName=project,
@@ -122,3 +132,33 @@ class LogCollectorClient(
                 if try_count == config.log_collector.get_logs.max_retries:
                     raise exc
                 await asyncio.sleep(3)
+
+    async def has_logs(
+        self,
+        run_uid: str,
+        project: str,
+        verbose: bool = True,
+        raise_on_error: bool = True,
+    ) -> bool:
+        """
+        Check if the log collector service has logs for the given run
+        :param run_uid: The run uid
+        :param project: The project name
+        :param verbose: Whether to log errors
+        :param raise_on_error: Whether to raise an exception on error
+        :return: Whether the log collector service has logs for the given run
+        """
+        request = self._log_collector_pb2.HasLogsRequest(
+            runUID=run_uid, projectName=project
+        )
+
+        response = await self._call("HasLogs", request)
+        if not response.success:
+            msg = f"Failed to check if run has logs to collect for {run_uid}"
+            if verbose:
+                logger.warning(msg, error=response.errorMessage)
+            if raise_on_error:
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"{msg},error= {response.errorMessage}"
+                )
+        return response.hasLogs

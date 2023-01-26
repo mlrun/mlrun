@@ -15,6 +15,7 @@
 package common
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -77,7 +78,10 @@ func EnsureDirExists(dirPath string, mode os.FileMode) error {
 
 // EnsureFileExists creates a file if it doesn't exist
 func EnsureFileExists(filePath string) error {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if exists, err := FileExists(filePath); !exists {
+		if err != nil {
+			return errors.Wrap(err, "Failed to check if file exists")
+		}
 
 		// get file directory
 		dirPath := filepath.Dir(filePath)
@@ -90,6 +94,20 @@ func EnsureFileExists(filePath string) error {
 	}
 
 	return nil
+}
+
+// FileExists returns true if the given file exists
+func FileExists(filePath string) (bool, error) {
+	_, err := os.Stat(filePath)
+	if err == nil {
+		return true, nil
+
+	} else if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+
+	// sanity: file may or may not exist
+	return false, err
 }
 
 // WriteToFile writes the given bytes to the given file path
@@ -204,4 +222,10 @@ func RetryUntilSuccessfulWithResult(duration time.Duration,
 
 	// duration expired, but last callback succeeded
 	return result, lastErr
+}
+
+func GetErrorStack(err error, depth int) string {
+	errorStack := bytes.Buffer{}
+	errors.PrintErrorStack(&errorStack, err, depth)
+	return errorStack.String()
 }

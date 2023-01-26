@@ -63,6 +63,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	monitoringInterval := "30s"
 	bufferPoolSize := 20
 	bufferSizeBytes := 100
+	clusterizationRole := "chief"
 
 	// create base dir
 	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
@@ -76,6 +77,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		stateFileUpdateIntervalStr,
 		readLogWaitTime,
 		monitoringInterval,
+		clusterizationRole,
 		&suite.kubeClientSet,
 		bufferPoolSize,
 		bufferPoolSize,
@@ -360,6 +362,36 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 	// wait for goroutines to finish
 	err = errGroup.Wait()
 	suite.Require().NoError(err, "Failed to wait for goroutines to finish")
+}
+
+func (suite *LogCollectorTestSuite) TestHasLogs() {
+	runUID := uuid.New().String()
+	podName := "my-pod"
+
+	request := &log_collector.HasLogsRequest{
+		RunUID:      runUID,
+		ProjectName: suite.projectName,
+	}
+
+	// call has logs with no logs
+	hasLogsResponse, err := suite.LogCollectorServer.HasLogs(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to check if has logs")
+	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
+	suite.Require().False(hasLogsResponse.HasLogs, "Expected run to not have logs")
+
+	// create log file for runUID and pod
+	logFilePath := suite.LogCollectorServer.resolvePodLogFilePath(suite.projectName, runUID, podName)
+
+	// write log file
+	logText := "Some fake pod logs\n"
+	err = common.WriteToFile(logFilePath, []byte(logText), false)
+	suite.Require().NoError(err, "Failed to write to file")
+
+	// check if run has logs
+	hasLogsResponse, err = suite.LogCollectorServer.HasLogs(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to check if has logs")
+	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
+	suite.Require().True(hasLogsResponse.HasLogs, "Expected run to have logs")
 }
 
 func TestLogCollectorTestSuite(t *testing.T) {

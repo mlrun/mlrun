@@ -1055,7 +1055,9 @@ class BaseRuntime(ModelObj):
         :param selector:        selection criteria for hyper params
         :param hyper_param_options:  hyper param options (selector, early stop, strategy, ..)
                             see: :py:class:`~mlrun.model.HyperParamOptions`
-        :param inputs:          input objects (dict of key: path)
+        :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be
+                                parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
+                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
         :param workdir:         default input artifacts path

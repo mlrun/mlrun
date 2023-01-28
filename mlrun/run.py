@@ -151,7 +151,9 @@ def run_local(
 
     :param handler:  pointer or name of a function handler
     :param params:   input parameters (dict)
-    :param inputs:   input objects (dict of key: path)
+    :param inputs:   Input objects to pass to the handler. Type hints can be given so the input will be parsed
+                     during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
+                     in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
     :param artifact_path: default artifact output path
     :param mode:    Runtime mode for more details head to `mlrun.new_function`
     :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs

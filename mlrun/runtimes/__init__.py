@@ -26,6 +26,7 @@ __all__ = [
 ]
 
 
+from mlrun.runtimes.package.context_handler import ArtifactType, ContextHandler
 from mlrun.runtimes.utils import (
     resolve_mpijob_crd_version,
     resolve_spark_operator_version,
@@ -33,7 +34,6 @@ from mlrun.runtimes.utils import (
 
 from .base import BaseRuntime, BaseRuntimeHandler, RunError  # noqa
 from .constants import MPIJobCRDVersions
-from .context_handler import ContextHandler, LogInstructionType, ParseInstructionType, ArtifactType
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime
 from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa

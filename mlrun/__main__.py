@@ -183,6 +183,11 @@ def main():
     is_flag=True,
     help="ensure the project exists, if not, create project",
 )
+@click.option(
+    "--returns",
+    multiple=True,
+    help="Logging configurations for the handler's returning values",
+)
 def run(
     url,
     param,
@@ -225,6 +230,7 @@ def run(
     auto_build,
     run_args,
     ensure_project,
+    returns,
 ):
     """Execute a task and inject parameters."""
 
@@ -372,6 +378,9 @@ def run(
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(runobj.spec, inputs, run_keys.inputs, list2dict(inputs))
+    set_item(
+        runobj.spec, returns, run_keys.returns, [py_eval(value) for value in returns]
+    )
     set_item(runobj.spec, in_path, run_keys.input_path)
     set_item(runobj.spec, out_path, run_keys.output_path)
     set_item(runobj.spec, outputs, run_keys.outputs, list(outputs))

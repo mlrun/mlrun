@@ -309,15 +309,19 @@ class BaseRuntime(ModelObj):
         local_code_path=None,
         auto_build=None,
         param_file_secrets: Dict[str, str] = None,
+        returns: List[Union[str, Dict[str, str]]] = None,
     ) -> RunObject:
-        """Run a local or remote task.
+        """
+        Run a local or remote task.
 
         :param runspec:        run template object or dict (see RunTemplate)
         :param handler:        pointer or name of a function handler
         :param name:           execution name
         :param project:        project name
         :param params:         input parameters (dict)
-        :param inputs:         input objects (dict of key: path)
+        :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
+                               during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
+                               in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
         :param out_path:       default artifact output path
         :param artifact_path:  default artifact output path (will replace out_path)
         :param workdir:        default input artifacts path
@@ -339,6 +343,17 @@ class BaseRuntime(ModelObj):
                            function run, use only if you dont plan on changing the build config between runs
         :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
                             These secrets are only used locally and will not be stored anywhere
+        :param returns: List of log hints - configurations for how to log the returning values from the handler's run
+                        (as artifacts or results). The list's length must be equal to the amount of returning objects. A
+                        log hint may be given as:
+
+                        * A string of the key to use to log the returning value as result or as an artifact. To specify
+                          The artifact type, it is possible to pass a string in the following structure:
+                          "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                          artifact type is specified, the object's default artifact type will be used.
+                        * A dictionary of configurations to use when logging. Further info per object type and artifact
+                          type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+
         :return: run context object (RunObject) with run metadata, results and status
         """
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
@@ -361,6 +376,7 @@ class BaseRuntime(ModelObj):
                 handler,
                 params,
                 inputs,
+                returns,
                 artifact_path,
             )
 
@@ -371,6 +387,7 @@ class BaseRuntime(ModelObj):
             name,
             params,
             inputs,
+            returns,
             hyperparams,
             hyper_param_options,
             verbose,
@@ -567,6 +584,7 @@ class BaseRuntime(ModelObj):
         handler,
         params,
         inputs,
+        returns,
         artifact_path,
     ):
         if schedule is not None:
@@ -592,9 +610,13 @@ class BaseRuntime(ModelObj):
             artifact_path=artifact_path,
             mode=self.spec.mode,
             allow_empty_resources=self.spec.allow_empty_resources,
+            returns=returns,
         )
 
     def _create_run_object(self, runspec):
+        # TODO: Once implemented the `RunTime` handlers configurations (doc strings, params type hints and returning
+        #       log hints, possible parameter values, etc), the configured type hints and log hints should be set into
+        #       the `RunObject` from the `RunTime`.
         if runspec:
             runspec = deepcopy(runspec)
             if isinstance(runspec, str):
@@ -618,6 +640,7 @@ class BaseRuntime(ModelObj):
         name,
         params,
         inputs,
+        returns,
         hyperparams,
         hyper_param_options,
         verbose,
@@ -652,6 +675,7 @@ class BaseRuntime(ModelObj):
         )
         runspec.spec.parameters = params or runspec.spec.parameters
         runspec.spec.inputs = inputs or runspec.spec.inputs
+        runspec.spec.returns = returns or runspec.spec.returns
         runspec.spec.hyperparams = hyperparams or runspec.spec.hyperparams
         runspec.spec.hyper_param_options = (
             hyper_param_options or runspec.spec.hyper_param_options
@@ -1002,6 +1026,7 @@ class BaseRuntime(ModelObj):
         use_db=True,
         verbose=None,
         scrape_metrics=False,
+        returns: List[Union[str, Dict[str, str]]] = None,
     ):
         """Run a local or remote task.
 
@@ -1023,7 +1048,16 @@ class BaseRuntime(ModelObj):
         :param use_db:          save function spec in the db (vs the workflow file)
         :param verbose:         add verbose prints/logs
         :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
+        :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts
+                        or results). The list's length must be equal to the amount of returning objects. A
+                        configuration may be given as:
 
+                        * A string of the key to use to log the returning value as result or as an artifact. To specify
+                          The artifact type, it is possible to pass a string in the following structure:
+                          "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
+                          artifact type is specified, the object's default artifact type will be used.
+                        * A dictionary of configurations to use when logging. Further info per object type and artifact
+                          type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
         :return: KubeFlow containerOp
         """
 
@@ -1055,6 +1089,7 @@ class BaseRuntime(ModelObj):
             selector=selector,
             hyper_param_options=hyper_param_options,
             inputs=inputs,
+            returns=returns,
             outputs=outputs,
             job_image=image,
             labels=labels,

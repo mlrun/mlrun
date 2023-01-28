@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import getpass
 import json
 import os
 import os.path
 from copy import deepcopy
+from typing import Dict, List, Union
 
 from kfp import dsl
 from kubernetes import client as k8s_client
@@ -26,7 +26,7 @@ from mlrun.errors import err_to_str
 
 from .config import config
 from .db import get_or_set_dburl, get_run_db
-from .model import HyperParamOptions
+from .model import HyperParamOptions, RunSpec
 from .utils import (
     dict_to_yaml,
     gen_md_table,
@@ -193,6 +193,7 @@ def mlrun_op(
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
+    returns: List[Union[str, Dict[str, str]]] = None,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
 
@@ -231,6 +232,16 @@ def mlrun_op(
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
+    :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts or
+                    results). The list's length must be equal to the amount of returning objects. A configuration may be
+                    given as:
+
+                    * A string of the key to use to log the returning value as result or as an artifact. To specify
+                      The artifact type, it is possible to pass a string in the following structure:
+                      "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
+                      type is specified, the object's default artifact type will be used.
+                    * A dictionary of configurations to use when logging. Further info per object type and artifact
+                      type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
 
     :returns: KFP step operation
 
@@ -275,6 +286,7 @@ def mlrun_op(
     if hyper_param_options and isinstance(hyper_param_options, dict):
         hyper_param_options = HyperParamOptions.from_dict(hyper_param_options)
     inputs = {} if inputs is None else inputs
+    returns = [] if returns is None else returns
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
 
@@ -327,6 +339,7 @@ def mlrun_op(
             selector or runobj.spec.selector or runobj.spec.hyper_param_options.selector
         )
         inputs = inputs or runobj.spec.inputs
+        returns = returns or runobj.spec.returns
         outputs = outputs or runobj.spec.outputs
         in_path = in_path or runobj.spec.input_path
         out_path = out_path or runobj.spec.output_path
@@ -335,6 +348,8 @@ def mlrun_op(
         labels = runobj.metadata.labels or labels
         verbose = verbose or runobj.spec.verbose
         scrape_metrics = scrape_metrics or runobj.spec.scrape_metrics
+
+    outputs = RunSpec.join_outputs_and_returns(outputs=outputs, returns=returns)
 
     if not name:
         if not function_name:
@@ -375,6 +390,8 @@ def mlrun_op(
         cmd += ["-x", f"{xpram}={val}"]
     for input_param, val in inputs.items():
         cmd += ["-i", f"{input_param}={val}"]
+    for logging_configuration in returns:
+        cmd += ["--returns", f"{logging_configuration}"]
     for label, val in labels.items():
         cmd += ["--label", f"{label}={val}"]
     for output in outputs:

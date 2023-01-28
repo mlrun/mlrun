@@ -118,10 +118,10 @@ def test_set_labels_from_function_and_wrapper_with_mlrun():
 
 @mlrun.handler(
     outputs=[
-        ("my_array", mlrun.ArtifactType.DATASET),
+        "my_array",
         "my_df:dataset",
-        ("my_dict", mlrun.ArtifactType.DATASET),
-        ("my_list", "dataset"),
+        "my_dict : dataset",
+        "my_list :dataset",
     ]
 )
 def log_dataset() -> Tuple[np.ndarray, pd.DataFrame, dict, list]:
@@ -173,7 +173,7 @@ def test_log_dataset_with_mlrun():
 
 @mlrun.handler(
     outputs=[
-        ("my_dir", mlrun.ArtifactType.DIRECTORY),
+        "my_dir: directory",
     ]
 )
 def log_directory(path: str) -> str:
@@ -230,7 +230,7 @@ def test_log_directory_with_mlrun():
 
 @mlrun.handler(
     outputs=[
-        ("my_file", mlrun.ArtifactType.FILE),
+        "my_file : file",
     ]
 )
 def log_file(path: str) -> str:
@@ -274,11 +274,7 @@ def test_log_file_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.handler(
-    outputs=[
-        ("my_object", mlrun.ArtifactType.OBJECT),
-    ]
-)
+@mlrun.handler(outputs=["my_object : object"])
 def log_object() -> Pipeline:
     encoder_to_imputer = Pipeline(
         steps=[
@@ -334,11 +330,7 @@ def test_log_object_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.handler(
-    outputs=[
-        ("my_plot", mlrun.ArtifactType.PLOT),
-    ]
-)
+@mlrun.handler(outputs=["my_plot: plot"])
 def log_plot() -> plt.Figure:
     my_plot, axes = plt.subplots()
     axes.plot([1, 2, 3, 4])
@@ -379,10 +371,7 @@ def test_log_plot_with_mlrun():
 
 @mlrun.handler(
     outputs=[
-        (
-            "my_int",
-            mlrun.ArtifactType.RESULT,
-        ),
+        "my_int",
         "my_float",
         "my_dict: result",
         "my_array:result",
@@ -566,12 +555,7 @@ def test_log_with_none_values_with_mlrun(
     artifact_path.cleanup()
 
 
-@mlrun.handler(
-    outputs=[
-        ("wrapper_dataset", "dataset"),
-        ("wrapper_result", mlrun.ArtifactType.RESULT),
-    ]
-)
+@mlrun.handler(outputs=["wrapper_dataset: dataset", "wrapper_result: result"])
 def log_from_function_and_wrapper(context: mlrun.MLClientCtx = None):
     if context:
         context.log_result(key="context_result", value=1)
@@ -690,7 +674,7 @@ def test_parse_inputs_from_type_hints_with_mlrun():
 
 
 @mlrun.handler(inputs={"my_data": np.ndarray})
-def parse_inputs_from_wrapper(my_data, my_encoder, add, mul: int = 2):
+def parse_inputs_from_wrapper_using_types(my_data, my_encoder, add, mul: int = 2):
     if isinstance(my_encoder, mlrun.DataItem):
         my_encoder = my_encoder.local()
         with open(my_encoder, "rb") as pickle_file:
@@ -698,22 +682,22 @@ def parse_inputs_from_wrapper(my_data, my_encoder, add, mul: int = 2):
     return (my_encoder.transform(my_data) + add * mul).tolist()
 
 
-def test_parse_inputs_from_wrapper_without_mlrun():
+def test_parse_inputs_from_wrapper_using_types_without_mlrun():
     """
-    Run the `parse_inputs_from_wrapper` function without MLRun to see the wrapper is transparent.
+    Run the `parse_inputs_from_wrapper_using_types` function without MLRun to see the wrapper is transparent.
     """
     _, _, _, my_data = log_dataset()
     my_encoder = log_object()
-    result = parse_inputs_from_wrapper(
+    result = parse_inputs_from_wrapper_using_types(
         pd.DataFrame(my_data), my_encoder=my_encoder, add=1
     )
     assert isinstance(result, list)
     assert result == [[2], [3], [4]]
 
 
-def test_parse_inputs_from_wrapper_with_mlrun():
+def test_parse_inputs_from_wrapper_using_types_with_mlrun():
     """
-    Run the `parse_inputs_from_wrapper` function with MLRun to see the wrapper is parsing the given inputs
+    Run the `parse_inputs_from_wrapper_using_types` function with MLRun to see the wrapper is parsing the given inputs
     (`DataItem`s) to the written configuration provided to the wrapper.
     """
     # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
@@ -732,7 +716,7 @@ def test_parse_inputs_from_wrapper_with_mlrun():
 
     # Run the function that will parse the data items:
     run_object = mlrun_function.run(
-        handler="parse_inputs_from_wrapper",
+        handler="parse_inputs_from_wrapper_using_types",
         inputs={
             "my_data": log_dataset_run.outputs["my_list"],
             "my_encoder": log_object_run.outputs["my_object"],
@@ -752,7 +736,82 @@ def test_parse_inputs_from_wrapper_with_mlrun():
     artifact_path.cleanup()
 
 
-@mlrun.handler(outputs=[("error_numpy", mlrun.ArtifactType.DATASET)])
+@mlrun.handler(
+    inputs={
+        "my_list": "list",
+        "my_array": "numpy.ndarray",
+        "my_encoder": "sklearn.pipeline.Pipeline",
+    },
+    outputs=["result"],
+)
+def parse_inputs_from_wrapper_using_strings(
+    my_list, my_array, my_df, my_encoder, add, mul: int = 2
+):
+    if isinstance(my_df, mlrun.DataItem):
+        my_df = my_df.as_df()
+    assert my_list == [["A"], ["B"], [""]]
+    assert isinstance(my_encoder, Pipeline)
+    return int((my_df.sum().sum() + my_array.sum() + add) * mul)
+
+
+def test_parse_inputs_from_wrapper_using_strings_without_mlrun():
+    """
+    Run the `parse_inputs_from_wrapper_using_strings` function without MLRun to see the wrapper is transparent.
+    """
+    my_array, my_df, _, my_list = log_dataset()
+    my_encoder = log_object()
+    result = parse_inputs_from_wrapper_using_strings(
+        my_list, my_array, my_df=my_df, my_encoder=my_encoder, add=1
+    )
+    assert isinstance(result, int)
+    assert result == 402
+
+
+def test_parse_inputs_from_wrapper_using_strings_with_mlrun():
+    """
+    Run the `parse_inputs_from_wrapper_using_strings` function with MLRun to see the wrapper is parsing the given inputs
+    (`DataItem`s) to the written configuration provided to the wrapper.
+    """
+    # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+    log_dataset_run = mlrun_function.run(
+        handler="log_dataset",
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+    log_object_run = mlrun_function.run(
+        handler="log_object",
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Run the function that will parse the data items:
+    run_object = mlrun_function.run(
+        handler="parse_inputs_from_wrapper_using_strings",
+        inputs={
+            "my_list": log_dataset_run.outputs["my_list"],
+            "my_array": log_dataset_run.outputs["my_array"],
+            "my_df": log_dataset_run.outputs["my_df"],
+            "my_encoder": log_object_run.outputs["my_object"],
+        },
+        params={"add": 1},
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Manual validation:
+    mlrun.utils.logger.info(run_object.outputs)
+
+    # Assertion:
+    assert len(run_object.outputs) == 1  # result
+    assert run_object.outputs["result"] == 402
+
+    # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+@mlrun.handler(outputs=["error_numpy"])
 def raise_error_while_logging():
     return np.ones(shape=(7, 7, 7))
 
@@ -784,8 +843,8 @@ def test_raise_error_while_logging_with_mlrun():
 
 def test_raise_error_while_parsing_with_mlrun():
     """
-    Run the `parse_inputs_from_wrapper` function with MLRun and send it wrong types to see the wrapper is raising the
-    relevant exception.
+    Run the `parse_inputs_from_wrapper_using_types` function with MLRun and send it wrong types to see the wrapper is
+    raising the relevant exception.
     """
     # Create the function and run 2 of the previous functions to create a dataset and encoder objects:
     mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
@@ -804,7 +863,7 @@ def test_raise_error_while_parsing_with_mlrun():
     # Run the function that will parse the data items and expect an error:
     try:
         mlrun_function.run(
-            handler="parse_inputs_from_wrapper",
+            handler="parse_inputs_from_wrapper_using_types",
             inputs={
                 "my_data": log_object_run.outputs["my_object"],
                 "my_encoder": log_dataset_run.outputs["my_list"],
@@ -829,10 +888,10 @@ class MyClass:
 
     @mlrun.handler(
         outputs=[
-            ("my_array", mlrun.ArtifactType.DATASET),
-            "my_df:dataset",
-            ("my_dict", mlrun.ArtifactType.DATASET),
-            ("my_list", "dataset"),
+            "my_array:dataset",
+            "my_df: dataset",
+            "my_dict :dataset",
+            "my_list : dataset",
         ]
     )
     def log_dataset(self) -> Tuple[np.ndarray, pd.DataFrame, dict, list]:
@@ -843,11 +902,7 @@ class MyClass:
             [["A"], ["B"], [""]],
         )
 
-    @mlrun.handler(
-        outputs=[
-            ("my_object", mlrun.ArtifactType.OBJECT),
-        ]
-    )
+    @mlrun.handler(outputs=["my_object: object"])
     def log_object(self) -> Pipeline:
         encoder_to_imputer = Pipeline(
             steps=[

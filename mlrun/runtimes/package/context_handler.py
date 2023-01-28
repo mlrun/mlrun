@@ -18,18 +18,19 @@ import shutil
 from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Type, Union
 
 import cloudpickle
 import numpy as np
 import pandas as pd
 
-from ..datastore import DataItem
-from ..errors import MLRunInvalidArgumentError, MLRunRuntimeError
-from ..execution import MLClientCtx
-from ..utils import logger
+from mlrun.datastore import DataItem
+from mlrun.errors import MLRunInvalidArgumentError, MLRunRuntimeError
+from mlrun.execution import MLClientCtx
+from mlrun.utils import logger
 
 
+# TODO: Move the `ArtifactType` to constants.py
 class ArtifactType(Enum):
     """
     Possible artifact types to log using the MLRun `context` decorator.
@@ -45,18 +46,6 @@ class ArtifactType(Enum):
 
     # Constants:
     DEFAULT = RESULT
-
-
-# Instruction types:
-LogInstructionType = Union[
-    Tuple[str, ArtifactType],
-    Tuple[str, str],
-    Tuple[str, ArtifactType, Dict[str, Any]],
-    Tuple[str, str, Dict[str, Any]],
-    str,
-    None,
-]
-ParseInstructionType = Dict[str, Type]
 
 
 class InputsParser:
@@ -491,32 +480,32 @@ class ContextHandler:
         return self._context is not None
 
     def parse_inputs(
-        self, args: tuple, kwargs: dict, expected_arguments_types: OrderedDict
+        self,
+        args: tuple,
+        kwargs: dict,
+        type_hints: OrderedDict[str, Type],
     ) -> tuple:
         """
         Parse the given arguments and keyword arguments data items to the expected types.
 
-        :param args:                     The arguments tuple passed to the function.
-        :param kwargs:                   The keyword arguments dictionary passed to the function.
-        :param expected_arguments_types: An ordered dictionary of the expected types of arguments.
+        :param args:       The arguments tuple passed to the function.
+        :param kwargs:     The keyword arguments dictionary passed to the function.
+        :param type_hints: An ordered dictionary of the expected types of arguments.
 
         :returns: The parsed args (kwargs are parsed inplace).
         """
         # Parse the arguments:
         parsed_args = []
-        expected_arguments_keys = list(expected_arguments_types.keys())
+        type_hints_keys = list(type_hints.keys())
         for i, argument in enumerate(args):
             if (
                 isinstance(argument, DataItem)
-                and expected_arguments_types[expected_arguments_keys[i]]
-                != inspect._empty
+                and type_hints[type_hints_keys[i]] != inspect._empty
             ):
                 parsed_args.append(
                     self._parse_input(
                         data_item=argument,
-                        expected_type=expected_arguments_types[
-                            expected_arguments_keys[i]
-                        ],
+                        type_hint=type_hints[type_hints_keys[i]],
                     )
                 )
                 continue
@@ -525,11 +514,12 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key in kwargs.keys():
-            if isinstance(kwargs[key], DataItem) and expected_arguments_types[
-                key
-            ] not in [inspect._empty, DataItem]:
+            if isinstance(kwargs[key], DataItem) and type_hints[key] not in [
+                inspect._empty,
+                DataItem,
+            ]:
                 kwargs[key] = self._parse_input(
-                    data_item=kwargs[key], expected_type=expected_arguments_types[key]
+                    data_item=kwargs[key], type_hint=type_hints[key]
                 )
 
         return parsed_args
@@ -537,38 +527,24 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        logging_instructions: List[LogInstructionType],
+        log_hints: List[Union[dict[str, str], None]],
     ):
         """
         Log the given outputs as artifacts with the stored context.
 
-        :param outputs:              List of outputs to log.
-        :param logging_instructions: List of logging instructions to use.
+        :param outputs:   List of outputs to log.
+        :param log_hints: List of logging configurations to use.
         """
-        for obj, instructions in zip(outputs, logging_instructions):
+        for obj, log_hint in zip(outputs, log_hints):
             # Check if needed to log (not None):
-            if instructions is None:
+            if log_hint is None:
                 continue
             # Parse the instructions:
             artifact_type = self._DEFAULT_OBJECTS_ARTIFACT_TYPES_MAP.get(
                 type(obj), self._ARTIFACT_TYPE_CLASS.DEFAULT
             ).value
-            key = None
-            logging_kwargs = {}
-            if isinstance(instructions, str):
-                # A string with a template of "{key}" or "{key}: {artifact_type}":
-                if ":" in instructions:
-                    key, artifact_type = instructions.split(":", 1)
-                    # Remove spaces after ':':
-                    artifact_type = artifact_type.lstrip(" ")
-                else:
-                    key = instructions
-            elif isinstance(instructions, tuple):
-                # A tuple of [0] - key, [1] - artifact type, [2] - context log kwargs:
-                key = instructions[0]
-                artifact_type = instructions[1]
-                if len(instructions) > 2:
-                    logging_kwargs = instructions[2]
+            key = log_hint.pop("key")
+            artifact_type = log_hint.pop("artifact_type", artifact_type)
             # Check if the object to log is None (None values are only logged if the artifact type is Result):
             if obj is None and artifact_type != ArtifactType.RESULT.value:
                 continue
@@ -577,7 +553,7 @@ class ContextHandler:
                 obj=obj,
                 artifact_type=artifact_type,
                 key=key,
-                logging_kwargs=logging_kwargs,
+                logging_kwargs=log_hint,
             )
 
     def set_labels(self, labels: Dict[str, str]):
@@ -667,13 +643,13 @@ class ContextHandler:
             object: InputsParser.parse_object,
         }
 
-    def _parse_input(self, data_item: DataItem, expected_type: type) -> Any:
+    def _parse_input(self, data_item: DataItem, type_hint: type) -> Any:
         """
         Parse the given data frame to the expected type. By default, it will be parsed to an object (will be treated as
         a pickle).
 
-        :param data_item:     The data item to parse.
-        :param expected_type: THe expected type to parse to.
+        :param data_item: The data item to parse.
+        :param type_hint: The expected type to parse to.
 
         :returns: The parsed data item.
 
@@ -681,11 +657,11 @@ class ContextHandler:
         """
         try:
             return self._INPUTS_PARSING_MAP.get(
-                expected_type, self._INPUTS_PARSING_MAP[object]
+                type_hint, self._INPUTS_PARSING_MAP[object]
             )(data_item=data_item)
         except Exception as exception:
             raise MLRunRuntimeError(
-                f"MLRun tried to parse a `DataItem` of type '{expected_type}' but failed. Be sure the item was "
+                f"MLRun tried to parse a `DataItem` of type '{type_hint}' but failed. Be sure the item was "
                 f"logged correctly - as the type you are trying to parse it back to. In general, python objects should "
                 f"be logged as pickles."
             ) from exception

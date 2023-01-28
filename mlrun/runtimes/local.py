@@ -442,7 +442,15 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         try:
             if cwd:
                 os.chdir(cwd)
-            val = handler(**kwargs)
+            # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints:
+            val = mlrun.handler(
+                inputs=(
+                    runobj.spec.inputs_type_hints
+                    if runobj.spec.inputs_type_hints
+                    else True
+                ),
+                outputs=runobj.spec.returns if runobj.spec.returns else False,
+            )(handler)(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)

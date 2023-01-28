@@ -527,7 +527,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: List[Union[dict[str, str], None]],
+        log_hints: List[Union[Dict[str, str], None]],
     ):
         """
         Log the given outputs as artifacts with the stored context.

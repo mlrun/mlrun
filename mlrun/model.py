@@ -528,6 +528,12 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
 
+    def to_dict(self, fields=None, exclude=None):
+        struct = super().to_dict(fields, exclude=["handler"])
+        if self.handler and isinstance(self.handler, str):
+            struct["handler"] = self.handler
+        return struct
+
     def is_hyper_job(self):
         param_file = self.param_file or self.hyper_param_options.param_file
         return param_file or self.hyperparams

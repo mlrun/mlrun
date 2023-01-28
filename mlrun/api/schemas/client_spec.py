@@ -34,6 +34,7 @@ class ClientSpec(pydantic.BaseModel):
     spark_history_server_path: typing.Optional[str]
     spark_operator_version: typing.Optional[str]
     kfp_image: typing.Optional[str]
+    kfp_url: typing.Optional[str]
     dask_kfp_image: typing.Optional[str]
     api_url: typing.Optional[str]
     nuclio_version: typing.Optional[str]
@@ -55,6 +56,7 @@ class ClientSpec(pydantic.BaseModel):
     function: typing.Optional[Function]
     redis_url: typing.Optional[str]
     redis_type: typing.Optional[str]
+    sql_url: typing.Optional[str]
 
     # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
     ce_mode: typing.Optional[str]

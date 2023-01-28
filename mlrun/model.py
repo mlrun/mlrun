@@ -21,7 +21,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 from os import environ
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun
 
@@ -169,7 +169,12 @@ class ObjectDict:
 
         new_obj = cls(classes_map, default_kind)
         for name, child in children.items():
-            child_obj = new_obj._get_child_object(child, name)
+            obj_name = name
+            if hasattr(child, "name") and child.name is not None:
+                obj_name = child.name
+            elif isinstance(child, dict) and "name" in child:
+                obj_name = child["name"]
+            child_obj = new_obj._get_child_object(child, obj_name)
             new_obj._children[name] = child_obj
 
         return new_obj
@@ -1505,6 +1510,7 @@ class DataTargetBase(ModelObj):
         "flush_after_seconds",
         "storage_options",
         "run_id",
+        "schema",
     ]
 
     # TODO - remove once "after_state" is fully deprecated
@@ -1536,6 +1542,7 @@ class DataTargetBase(ModelObj):
         flush_after_seconds: Optional[int] = None,
         after_state=None,
         storage_options: Dict[str, str] = None,
+        schema: Dict[str, Any] = None,
     ):
         if after_state:
             warnings.warn(
@@ -1559,6 +1566,7 @@ class DataTargetBase(ModelObj):
         self.flush_after_seconds = flush_after_seconds
         self.storage_options = storage_options
         self.run_id = None
+        self.schema = schema
 
 
 class FeatureSetProducer(ModelObj):

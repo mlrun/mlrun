@@ -37,6 +37,7 @@ def run_merge_job(
     drop_columns=None,
     with_indexes=None,
     query=None,
+    join_type="inner",
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -72,10 +73,10 @@ def run_merge_job(
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
+            "join_type": join_type,
             "engine_args": engine_args,
         },
         inputs={"entity_rows": entity_rows},
-        out_path=function.spec.output_path,
     )
     task.spec.secret_sources = run_config.secret_sources
     task.set_label("job-type", "feature-merge").set_label("feature-vector", vector.uri)
@@ -133,7 +134,7 @@ import mlrun
 import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
-                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, engine_args=None):
+                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, join_type='inner', engine_args=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
@@ -143,7 +144,8 @@ def merge_handler(context, vector_uri, target, entity_rows=None,
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
-                 query=query)
+                 query=query, join_type=join_type)
+
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)
     context.log_result('target', target)

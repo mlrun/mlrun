@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import datetime
 import functools
 import http
@@ -23,11 +24,15 @@ import fastapi
 import pytest
 import requests_mock as requests_mock_package
 import starlette.datastructures
+from aioresponses import CallbackResult
+from requests.cookies import cookiejar_from_dict
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
 import mlrun.config
 import mlrun.errors
+from mlrun.api.utils.asyncio import maybe_coroutine
+from tests.common_fixtures import aioresponses_mock
 
 
 @pytest.fixture()
@@ -40,19 +45,65 @@ async def api_url() -> str:
 @pytest.fixture()
 async def iguazio_client(
     api_url: str,
+    request,
 ) -> mlrun.api.utils.clients.iguazio.Client:
-    client = mlrun.api.utils.clients.iguazio.Client()
+    if request.param == "async":
+        client = mlrun.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = mlrun.api.utils.clients.iguazio.Client()
+
     # force running init again so the configured api url will be used
     client.__init__()
     client._wait_for_job_completion_retry_interval = 0
     client._wait_for_project_terminal_state_retry_interval = 0
+
+    # inject the request param into client, so we can use it in tests
+    setattr(client, "mode", request.param)
     return client
 
 
-def test_verify_request_session_success(
+def patch_restful_request(
+    is_client_sync: bool,
+    requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
+    method: str,
+    url: str,
+    callback: typing.Optional[typing.Callable] = None,
+    status_code: typing.Optional[int] = None,
+):
+    """
+    Consolidating the requests_mock / aioresponses library to mock a RESTful request.
+    """
+    kwargs = {}
+    if is_client_sync:
+        if callback:
+            kwargs["json"] = callback
+        if status_code:
+            kwargs["status_code"] = status_code
+        requests_mock.request(
+            method,
+            url,
+            **kwargs,
+        )
+    else:
+        if callback:
+            kwargs["callback"] = callback
+        if status_code:
+            kwargs["status"] = status_code
+        aioresponses_mock.add(
+            url,
+            method,
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_verify_request_session_success(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
     mock_request_headers = starlette.datastructures.Headers(
         {"cookie": "session=some-session-cookie"}
@@ -62,17 +113,23 @@ def test_verify_request_session_success(
 
     mock_response_headers = _generate_session_verification_response_headers()
 
-    def _verify_session_mock(request, context):
+    def _verify_session_mock(*args, **kwargs):
+        response = {}
+        if iguazio_client.is_sync:
+            request, context = args
+            request_headers = request.headers
+            context.headers = mock_response_headers
+        else:
+            request_headers = kwargs["headers"]
         for header_key, header_value in mock_request_headers.items():
-            assert request.headers[header_key] == header_value
-        context.headers = mock_response_headers
-        return {}
+            assert request_headers[header_key] == header_value
+        if iguazio_client.is_sync:
+            return response
+        else:
+            return CallbackResult(headers=mock_response_headers)
 
-    def _verify_session_with_body_mock(request, context):
-        for header_key, header_value in mock_request_headers.items():
-            assert request.headers[header_key] == header_value
-        context.headers = mock_response_headers
-        return {
+    def _verify_session_with_body_mock(*args, **kwargs):
+        response = {
             "data": {
                 "attributes": {
                     "username": "some-user",
@@ -84,12 +141,26 @@ def test_verify_request_session_success(
                                 "some-group-id-1,some-group-id-2",
                             ],
                             "mode": "normal",
-                        }
+                        },
                     },
-                }
-            }
+                },
+            },
         }
+        if iguazio_client.is_sync:
+            request, context = args
+            request_headers = request.headers
+            context.headers = mock_response_headers
+        else:
+            request_headers = kwargs["headers"]
+        for header_key, header_value in mock_request_headers.items():
+            assert request_headers[header_key] == header_value
 
+        if iguazio_client.is_sync:
+            return response
+        else:
+            return CallbackResult(payload=response, headers=mock_response_headers)
+
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
     for test_case in [
         {
             "response_json": _verify_session_mock,
@@ -98,56 +169,90 @@ def test_verify_request_session_success(
             "response_json": _verify_session_with_body_mock,
         },
     ]:
-        requests_mock.post(
-            f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
-            json=test_case["response_json"],
+        patch_restful_request(
+            iguazio_client.is_sync,
+            requests_mock,
+            aioresponses_mock,
+            method="POST",
+            url=url,
+            callback=test_case["response_json"],
         )
-        auth_info = iguazio_client.verify_request_session(mock_request)
+
+        auth_info = await maybe_coroutine(
+            iguazio_client.verify_request_session(mock_request)
+        )
         _assert_auth_info_from_session_verification_mock_response_headers(
             auth_info, mock_response_headers
         )
 
 
-def test_verify_request_session_failure(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_verify_request_session_failure(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
     mock_request = fastapi.Request({"type": "http"})
     mock_request._headers = starlette.datastructures.Headers()
-
-    requests_mock.post(
-        f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    patch_restful_request(
+        iguazio_client.is_sync,
+        requests_mock,
+        aioresponses_mock,
+        method="POST",
+        url=url,
         status_code=http.HTTPStatus.UNAUTHORIZED.value,
     )
-    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-        iguazio_client.verify_request_session(mock_request)
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
+        await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
+        assert exc.value.status_code == http.HTTPStatus.UNAUTHORIZED.value
 
 
-def test_verify_session_success(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_verify_session_success(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
+    aioresponses_mock: aioresponses_mock,
 ):
     session = "some-session"
     mock_response_headers = _generate_session_verification_response_headers()
 
-    def _verify_session_mock(request, context):
-        _verify_request_cookie(request.headers, session)
-        context.headers = mock_response_headers
-        return {}
+    def _verify_session_mock(*args, **kwargs):
+        if iguazio_client.is_sync:
+            request, context = args
+            _verify_request_cookie(request.headers, session)
+            context.headers = mock_response_headers
+        else:
+            _verify_request_cookie(kwargs, session)
 
-    requests_mock.post(
-        f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}",
-        json=_verify_session_mock,
+        return (
+            {}
+            if iguazio_client.is_sync
+            else CallbackResult(headers=mock_response_headers)
+        )
+
+    url = f"{api_url}/api/{mlrun.mlconf.httpdb.authentication.iguazio.session_verification_endpoint}"
+    patch_restful_request(
+        iguazio_client.is_sync,
+        requests_mock,
+        aioresponses_mock,
+        method="POST",
+        url=url,
+        callback=_verify_session_mock,
     )
-    auth_info = iguazio_client.verify_session(session)
+    auth_info = await maybe_coroutine(iguazio_client.verify_session(session))
     _assert_auth_info_from_session_verification_mock_response_headers(
         auth_info, mock_response_headers
     )
 
 
-def test_get_grafana_service_url_success(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_grafana_service_url_success(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -167,11 +272,15 @@ def test_get_grafana_service_url_success(
     }
     response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
     assert grafana_url == expected_grafana_url
 
 
-def test_get_grafana_service_url_ignoring_disabled_service(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_grafana_service_url_ignoring_disabled_service(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -179,22 +288,30 @@ def test_get_grafana_service_url_ignoring_disabled_service(
     grafana_service = {"spec": {"kind": "grafana"}, "status": {"state": "disabled"}}
     response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
     assert grafana_url is None
 
 
-def test_get_grafana_service_url_no_grafana_exists(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_grafana_service_url_no_grafana_exists(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     response_body = _generate_app_services_manifests_body([])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
     assert grafana_url is None
 
 
-def test_get_grafana_service_url_no_urls(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_grafana_service_url_no_urls(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -205,11 +322,15 @@ def test_get_grafana_service_url_no_urls(
     }
     response_body = _generate_app_services_manifests_body([grafana_service])
     requests_mock.get(f"{api_url}/api/app_services_manifests", json=response_body)
-    grafana_url = iguazio_client.try_get_grafana_service_url("session-cookie")
+    grafana_url = await maybe_coroutine(
+        iguazio_client.try_get_grafana_service_url("session-cookie")
+    )
     assert grafana_url is None
 
 
-def test_get_or_create_access_key_success(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_or_create_access_key_success(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -246,7 +367,9 @@ def test_get_or_create_access_key_success(
             _get_or_create_access_key_mock, http.HTTPStatus.CREATED.value
         ),
     )
-    returned_access_key = iguazio_client.get_or_create_access_key(session, planes)
+    returned_access_key = await maybe_coroutine(
+        iguazio_client.get_or_create_access_key(session, planes)
+    )
     assert access_key_id == returned_access_key
 
     # mock get
@@ -256,11 +379,15 @@ def test_get_or_create_access_key_success(
             _get_or_create_access_key_mock, http.HTTPStatus.OK.value
         ),
     )
-    returned_access_key = iguazio_client.get_or_create_access_key(session, planes)
+    returned_access_key = await maybe_coroutine(
+        iguazio_client.get_or_create_access_key(session, planes)
+    )
     assert access_key_id == returned_access_key
 
 
-def test_get_project_owner(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_get_project_owner(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -288,15 +415,19 @@ def test_get_project_owner(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json=verify_get,
     )
-    project_owner = iguazio_client.get_project_owner(
-        session,
-        project.metadata.name,
+    project_owner = await maybe_coroutine(
+        iguazio_client.get_project_owner(
+            session,
+            project.metadata.name,
+        )
     )
     assert project_owner.username == owner_username
     assert project_owner.access_key == owner_access_key
 
 
-def test_list_project_with_updated_after(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_list_project_with_updated_after(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -326,13 +457,17 @@ def test_list_project_with_updated_after(
         f"{api_url}/api/projects",
         json=verify_list,
     )
-    iguazio_client.list_projects(
-        session,
-        updated_after,
+    await maybe_coroutine(
+        iguazio_client.list_projects(
+            session,
+            updated_after,
+        )
     )
 
 
-def test_list_project(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_list_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -370,7 +505,9 @@ def test_list_project(
         ]
     }
     requests_mock.get(f"{api_url}/api/projects", json=response_body)
-    projects, latest_updated_at = iguazio_client.list_projects(None)
+    projects, latest_updated_at = await maybe_coroutine(
+        iguazio_client.list_projects(None)
+    )
     for index, project in enumerate(projects):
         assert project.metadata.name == mock_projects[index]["name"]
         assert project.spec.description == mock_projects[index].get("description")
@@ -397,16 +534,20 @@ def test_list_project(
     )
 
 
-def test_create_project(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_create_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
-    _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
+    await _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
 
 
-def test_create_project_failures(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_create_project_failures(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -436,9 +577,11 @@ def test_create_project_failures(
     with pytest.raises(
         mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"
     ):
-        iguazio_client.create_project(
-            session,
-            project,
+        await maybe_coroutine(
+            iguazio_client.create_project(
+                session,
+                project,
+            )
         )
 
     # mock job failure - with nice error message in result
@@ -466,9 +609,11 @@ def test_create_project_failures(
     with pytest.raises(
         mlrun.errors.MLRunBadRequestError, match=rf"(.*){error_message}(.*)"
     ):
-        iguazio_client.create_project(
-            session,
-            project,
+        await maybe_coroutine(
+            iguazio_client.create_project(
+                session,
+                project,
+            )
         )
 
     # mock job failure - without nice error message (shouldn't happen, but let's test)
@@ -481,13 +626,17 @@ def test_create_project_failures(
     )
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
-        iguazio_client.create_project(
-            session,
-            project,
+        await maybe_coroutine(
+            iguazio_client.create_project(
+                session,
+                project,
+            )
         )
 
 
-def test_create_project_minimal_project(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_create_project_minimal_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -497,10 +646,12 @@ def test_create_project_minimal_project(
             name="some-name",
         ),
     )
-    _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
+    await _create_project_and_assert(api_url, iguazio_client, requests_mock, project)
 
 
-def test_create_project_without_wait(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_create_project_without_wait(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -515,13 +666,15 @@ def test_create_project_without_wait(
             _verify_creation, iguazio_client, project, session, job_id
         ),
     )
-    is_running_in_background = iguazio_client.create_project(
-        session, project, wait_for_completion=False
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.create_project(session, project, wait_for_completion=False)
     )
     assert is_running_in_background is True
 
 
-def test_update_project(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_update_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -539,14 +692,18 @@ def test_update_project(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json=verify_store_update,
     )
-    iguazio_client.update_project(
-        session,
-        project.metadata.name,
-        project,
+    await maybe_coroutine(
+        iguazio_client.update_project(
+            session,
+            project.metadata.name,
+            project,
+        )
     )
 
 
-def test_update_project_remove_labels_and_annotations(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_update_project_remove_labels_and_annotations(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -582,19 +739,25 @@ def test_update_project_remove_labels_and_annotations(
         json=verify_no_labels_and_annotations_in_request,
     )
 
-    iguazio_client.update_project(
-        session,
-        project.metadata.name,
-        project,
+    await maybe_coroutine(
+        iguazio_client.update_project(
+            session,
+            project.metadata.name,
+            project,
+        )
     )
-    iguazio_client.update_project(
-        session,
-        project_without_labels.metadata.name,
-        project_without_labels,
+    await maybe_coroutine(
+        iguazio_client.update_project(
+            session,
+            project_without_labels.metadata.name,
+            project_without_labels,
+        )
     )
 
 
-def test_delete_project(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_delete_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -610,7 +773,9 @@ def test_delete_project(
     mocker, num_of_calls_until_completion = _mock_job_progress(
         api_url, requests_mock, session, job_id
     )
-    is_running_in_background = iguazio_client.delete_project(session, project_name)
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name)
+    )
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
 
@@ -618,7 +783,7 @@ def test_delete_project(
     requests_mock.delete(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.NOT_FOUND.value
     )
-    iguazio_client.delete_project(session, project_name)
+    await maybe_coroutine(iguazio_client.delete_project(session, project_name))
 
     # TODO: not sure really needed
     # assert correctly propagating 412 errors (will be returned when project has resources)
@@ -626,10 +791,12 @@ def test_delete_project(
         f"{api_url}/api/projects", status_code=http.HTTPStatus.PRECONDITION_FAILED.value
     )
     with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
-        iguazio_client.delete_project(session, project_name)
+        await maybe_coroutine(iguazio_client.delete_project(session, project_name))
 
 
-def test_delete_project_without_wait(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_delete_project_without_wait(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -642,18 +809,22 @@ def test_delete_project_without_wait(
         f"{api_url}/api/projects",
         json=functools.partial(_verify_deletion, project_name, session, job_id),
     )
-    is_running_in_background = iguazio_client.delete_project(
-        session, project_name, wait_for_completion=False
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.delete_project(session, project_name, wait_for_completion=False)
     )
     assert is_running_in_background is True
 
 
-def test_format_as_leader_project(
+@pytest.mark.parametrize("iguazio_client", ("async", "sync"), indirect=True)
+@pytest.mark.asyncio
+async def test_format_as_leader_project(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
-    iguazio_project = iguazio_client.format_as_leader_project(project)
+    iguazio_project = await maybe_coroutine(
+        iguazio_client.format_as_leader_project(project)
+    )
     assert (
         deepdiff.DeepDiff(
             _build_project_response(iguazio_client, project),
@@ -713,7 +884,7 @@ def _assert_auth_info(
     assert auth_info.data_session == data_session
 
 
-def _create_project_and_assert(
+async def _create_project_and_assert(
     api_url: str,
     iguazio_client: mlrun.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
@@ -735,9 +906,11 @@ def _create_project_and_assert(
         f"{api_url}/api/projects/__name__/{project.metadata.name}",
         json={"data": _build_project_response(iguazio_client, project)},
     )
-    is_running_in_background = iguazio_client.create_project(
-        session,
-        project,
+    is_running_in_background = await maybe_coroutine(
+        iguazio_client.create_project(
+            session,
+            project,
+        )
     )
     assert is_running_in_background is False
     assert mocker.call_count == num_of_calls_until_completion
@@ -766,7 +939,24 @@ def _verify_creation(iguazio_client, project, session, job_id, request, context)
 
 
 def _verify_request_cookie(headers: dict, session: str):
-    assert headers["Cookie"] == f'session=j:{{"sid": "{session}"}}'
+    expected_session_value = f'session=j:{{"sid": "{session}"}}'
+    if "Cookie" in headers:
+        assert headers["Cookie"] == expected_session_value
+    elif "cookies" in headers:
+
+        # in async client we get the `cookies` key while it contains the cookies in form of a dict
+        # use requests to construct it back to a string as expected above
+        cookie = "; ".join(
+            list(
+                map(
+                    lambda x: f"{x[0]}={x[1]}",
+                    cookiejar_from_dict(headers["cookies"]).items(),
+                )
+            )
+        )
+        assert cookie == expected_session_value
+    else:
+        raise AssertionError("No cookie found in headers")
 
 
 def _verify_project_request_headers(headers: dict, session: str):

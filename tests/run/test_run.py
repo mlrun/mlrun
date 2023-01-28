@@ -162,6 +162,10 @@ def test_local_context():
     project_name = "xtst"
     mlrun.mlconf.artifact_path = out_path
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
+    db = mlrun.get_run_db()
+    run = db.read_run(context._uid, project=project_name)
+    assert run["status"]["state"] == "running", "run status not updated in db"
+
     with context:
         context.log_artifact("xx", body="123", local_path="a.txt")
         context.log_model("mdl", body="456", model_file="mdl.pkl", artifact_path="+/mm")
@@ -172,9 +176,8 @@ def test_local_context():
 
     assert context._state == "completed", "task did not complete"
 
-    db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
-    assert run["status"]["state"] == "completed", "run status not updated in db"
+    assert run["status"]["state"] == "running", "run status was updated in db"
     assert (
         run["status"]["artifacts"][0]["metadata"]["key"] == "xx"
     ), "artifact not updated in db"

@@ -483,7 +483,7 @@ class ContextHandler:
         self,
         args: tuple,
         kwargs: dict,
-        type_hints: OrderedDict[str, Type],
+        type_hints: OrderedDict,
     ) -> tuple:
         """
         Parse the given arguments and keyword arguments data items to the expected types.

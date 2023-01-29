@@ -610,7 +610,7 @@ class DropFeatures(StepToDict, MLRunStep):
                                         description="feature set",
                                         engine="pandas",
                                         )
-            # Pre-processing grpah steps
+            # Pre-processing graph steps
             feature_set.graph.to(DropFeatures(features=["age"]))
             df_pandas = fstore.ingest(feature_set, data)
 

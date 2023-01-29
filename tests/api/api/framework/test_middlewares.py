@@ -49,7 +49,7 @@ def test_ui_clear_cache_middleware(
         mlrun.utils.version.Version, "get", return_value={"version": backend_version}
     ):
         response = client.get(
-            f"client-spec",
+            "client-spec",
             headers={
                 mlrun.api.schemas.constants.HeaderNames.ui_version: ui_version,
             },

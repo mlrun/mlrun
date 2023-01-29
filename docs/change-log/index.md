@@ -61,7 +61,7 @@ DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - Fully supports ingesting with pandas engine, now equivalent to ingestion with `storey` engine (TechPreview):
    - Support DataFrame with multi-index.
    - Support mlrun steps when using pandas engine: `OneHotEncoder` , `DateExtractor`, `MapValue`, `Imputer` and `FeatureValidation`.
-- Add new step: `DropFeature` for pandas and storey engines. (TechPreview)
+- Add new step: `DropFeatures` for pandas, storey and spark engines. (TechPreview)
 - Add param query for `get_offline_feature` for filtering the output.
 
 #### Frameworks

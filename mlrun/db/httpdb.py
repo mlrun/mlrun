@@ -154,6 +154,9 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: API call timeout
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
+        :param stream: If True, the response will be streamed, otherwise it will be read into memory
+        :param to_stdout: If True, the response will be streamed to stdout, otherwise it will be read into memory
+           and returned as a string
 
         :return: Python HTTP response object
         """

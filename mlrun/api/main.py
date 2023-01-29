@@ -14,18 +14,22 @@
 #
 import asyncio
 import concurrent.futures
+import datetime
 import time
 import traceback
+import typing
 import uuid
 
 import fastapi
 import fastapi.concurrency
+import sqlalchemy.orm
 import uvicorn
 import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.clients.log_collector
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.version
@@ -47,7 +51,7 @@ from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_sched
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.k8s_utils import get_k8s_helper
-from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -226,6 +230,198 @@ async def move_api_to_online():
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
+            await _start_logs_collection()
+
+
+async def _start_logs_collection():
+    if config.log_collector.mode == mlrun.api.schemas.LogsCollectorMode.legacy:
+        logger.info(
+            "Using legacy logs collection method, skipping logs collection periodic function",
+            mode=config.log_collector.mode,
+        )
+        return
+    logger.info(
+        "Starting logs collection periodic function",
+        mode=config.log_collector.mode,
+        interval=config.log_collector.periodic_start_log_interval,
+    )
+    start_logs_limit = asyncio.Semaphore(
+        config.log_collector.concurrent_start_logs_workers
+    )
+
+    await _verify_log_collection_started_on_startup(start_logs_limit)
+
+    run_function_periodically(
+        interval=int(config.log_collector.periodic_start_log_interval),
+        name=_initiate_logs_collection.__name__,
+        replace=False,
+        function=_initiate_logs_collection,
+        start_logs_limit=start_logs_limit,
+    )
+
+
+async def _verify_log_collection_started_on_startup(
+    start_logs_limit: asyncio.Semaphore,
+):
+    """
+    Verifies that log collection was started on startup for all runs which might started before the API initialization
+    or after upgrade.
+    In that case we want to make sure that all runs which are in non terminal state will have their logs collected
+    with the new log collection method and runs which might have reached terminal state while the API was down will
+    have their logs collected as well.
+    :param start_logs_limit: Semaphore which limits the number of concurrent log collection tasks
+    """
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    logger.debug(
+        "Getting all runs which are in non terminal state and require logs collection"
+    )
+    runs = await fastapi.concurrency.run_in_threadpool(
+        get_db().list_distinct_runs_uids,
+        db_session,
+        requested_logs_modes=[None, False],
+        only_uids=False,
+        states=mlrun.runtimes.constants.RunStates.non_terminal_states(),
+    )
+    logger.debug(
+        "Getting all runs which are might have reached terminal state while the API was down",
+        api_downtime_grace_period=config.log_collector.api_downtime_grace_period,
+    )
+    runs.extend(
+        await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[None, False],
+            only_uids=False,
+            last_start_time_from=datetime.datetime.now(datetime.timezone.utc)
+            - datetime.timedelta(
+                hours=int(config.log_collector.api_downtime_grace_period)
+            ),
+            states=mlrun.runtimes.constants.RunStates.terminal_states(),
+        )
+    )
+    if runs:
+        logger.debug(
+            "Found runs which require logs collection",
+            runs_uids=runs,
+        )
+        await _start_log_and_update_runs(start_logs_limit, db_session, runs)
+
+
+async def _initiate_logs_collection(start_logs_limit: asyncio.Semaphore):
+    """
+    This function is responsible for initiating the logs collection process. It will get a list of all runs which are
+    in a state which requires logs collection and will initiate the logs collection process for each of them.
+    :param start_logs_limit: a semaphore which limits the number of concurrent logs collection processes
+    """
+    db_session = await fastapi.concurrency.run_in_threadpool(create_session)
+    try:
+        # list all the runs in the system which we didn't request logs collection for yet
+        runs = await fastapi.concurrency.run_in_threadpool(
+            get_db().list_distinct_runs_uids,
+            db_session,
+            requested_logs_modes=[False],
+            only_uids=False,
+        )
+        if runs:
+            logger.debug(
+                "Found runs which require logs collection",
+                runs_uids=runs,
+            )
+            await _start_log_and_update_runs(start_logs_limit, db_session, runs)
+
+    finally:
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+
+
+async def _start_log_and_update_runs(
+    start_logs_limit: asyncio.Semaphore,
+    db_session: sqlalchemy.orm.Session,
+    runs: list,
+):
+    if not runs:
+        return
+
+    # each result contains either run_uid or None
+    # if it's None it means something went wrong and we should skip it
+    # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
+    results = await asyncio.gather(
+        *[
+            _start_log_for_run(run, start_logs_limit, raise_on_error=False)
+            for run in runs
+        ]
+    )
+    runs_to_update_requested_logs = [result for result in results if result]
+
+    # distinct the runs uids
+    runs_to_update_requested_logs = list(set(runs_to_update_requested_logs))
+
+    if len(runs_to_update_requested_logs) > 0:
+        logger.debug(
+            "Updating runs to indicate that we requested logs collection for them",
+            runs_uids=runs_to_update_requested_logs,
+        )
+        # update the runs to indicate that we have requested log collection for them
+        await fastapi.concurrency.run_in_threadpool(
+            get_db().update_runs_requested_logs,
+            db_session,
+            uids=runs_to_update_requested_logs,
+        )
+
+
+async def _start_log_for_run(
+    run: dict, start_logs_limit: asyncio.Semaphore = None, raise_on_error: bool = True
+) -> typing.Union[str, None]:
+    """
+    Starts log collection for a specific run
+    :param run: run object
+    :param start_logs_limit: semaphore to limit the number of concurrent log collection requests
+    :param raise_on_error: if True, will raise an exception if something went wrong, otherwise will return None and
+    log the error
+    :return: the run_uid of the run if log collection was started, None otherwise
+    """
+    # using semaphore to limit the number of concurrent log collection requests
+    # this is to prevent opening too many connections to many connections
+    async with start_logs_limit:
+        logs_collector_client = (
+            mlrun.api.utils.clients.log_collector.LogCollectorClient()
+        )
+        run_kind = run.get("metadata", {}).get("labels", {}).get("kind", None)
+        project_name = run.get("metadata", {}).get("project", None)
+        run_uid = run.get("metadata", {}).get("uid", None)
+        # if local run, the log collector doesn't support it
+        # we mark the run as requested logs collection so we won't iterate over it again
+        if mlrun.runtimes.RuntimeKinds.is_local_runtime(run_kind):
+            return run_uid
+        try:
+            runtime_handler = await fastapi.concurrency.run_in_threadpool(
+                get_runtime_handler, run_kind
+            )
+            label_selector = runtime_handler.resolve_label_selector(
+                project=project_name,
+                object_id=run_uid,
+                class_mode=RuntimeClassMode.run,
+            )
+            success, _ = await logs_collector_client.start_logs(
+                run_uid=run_uid,
+                selector=label_selector,
+                project=project_name,
+                raise_on_error=True,
+            )
+            if success:
+                # update the run to mark that we requested logs collection for it
+                return run_uid
+
+        except Exception as exc:
+            if raise_on_error:
+                raise exc
+
+            logger.warning(
+                "Failed to start logs for run",
+                run_uid=run_uid,
+                exc=exc,
+                traceback=traceback.format_exc(),
+            )
+            return None
 
 
 def _start_periodic_cleanup():

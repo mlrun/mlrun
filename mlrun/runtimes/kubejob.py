@@ -14,7 +14,6 @@
 
 import os
 import time
-import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -29,7 +28,7 @@ from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError
+from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import AsyncLogWriter
 
@@ -408,6 +407,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 class KubeRuntimeHandler(BaseRuntimeHandler):
     kind = "job"
+    class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
 
     @staticmethod
     def _expect_pods_without_uid() -> bool:
@@ -424,7 +424,3 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_possible_mlrun_class_label_values() -> typing.List[str]:
-        return ["build", "job"]

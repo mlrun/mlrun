@@ -137,8 +137,6 @@ class HTTPRunDB(RunDBInterface):
         headers=None,
         timeout=45,
         version=None,
-        stream: bool = False,
-        to_stdout: bool = False,
     ):
         """Perform a direct REST API call on the :py:mod:`mlrun` API server.
 
@@ -210,10 +208,6 @@ class HTTPRunDB(RunDBInterface):
             )
 
         try:
-            if stream:
-                return self.session.stream_request(
-                    method, url, to_stdout=to_stdout, timeout=timeout, **kw
-                )
             response = self.session.request(
                 method, url, timeout=timeout, verify=False, **kw
             )

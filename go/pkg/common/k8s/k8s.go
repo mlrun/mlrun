@@ -14,7 +14,7 @@ func ResolveRunningNamespace(namespaceArgument string) string {
 	}
 
 	// if the namespace exists in env, use that
-	if namespaceEnv := os.Getenv("MLRUN_LOG_COLLECTOR__NAMESPACE"); namespaceEnv != "" {
+	if namespaceEnv := os.Getenv("MLRUN_NAMESPACE"); namespaceEnv != "" {
 		return namespaceEnv
 	}
 

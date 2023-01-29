@@ -849,4 +849,4 @@ def test_validating_large_int_params(
             local=True,
         )
 
-    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)
+    assert run_saved == (rundb_mock._runs != {})

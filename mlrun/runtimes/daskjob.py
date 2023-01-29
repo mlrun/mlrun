@@ -408,10 +408,8 @@ class DaskCluster(KubejobRuntime):
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        # TODO: In 1.4.0 change to NotImplementedError
-        raise DeprecationWarning(
-            "Dask's gpus is deprecated and will be removed in 1.4.0, use "
-            "with_scheduler_limits/with_worker_limits instead",
+        raise NotImplementedError(
+            "Use with_scheduler_limits/with_worker_limits to set GPU resources",
         )
 
     def with_limits(
@@ -422,10 +420,8 @@ class DaskCluster(KubejobRuntime):
         gpu_type="nvidia.com/gpu",
         patch: bool = False,
     ):
-        # TODO: In 1.4.0 change to NotImplementedError
-        raise DeprecationWarning(
-            "Dask's with_limits is deprecated and will be removed in 1.4.0, use "
-            "with_scheduler_limits/with_worker_limits instead",
+        raise NotImplementedError(
+            "Use with_scheduler_limits/with_worker_limits to set resource limits",
         )
 
     def with_scheduler_limits(
@@ -461,10 +457,8 @@ class DaskCluster(KubejobRuntime):
         )
 
     def with_requests(self, mem=None, cpu=None, patch: bool = False):
-        # TODO: In 1.4.0 change to NotImplementedError
-        raise DeprecationWarning(
-            "Dask's with_requests is deprecated and will be removed in 1.4.0, use "
-            "with_scheduler_requests/with_worker_requests instead",
+        raise NotImplementedError(
+            "Use with_scheduler_requests/with_worker_requests to set resource requests",
         )
 
     def with_scheduler_requests(

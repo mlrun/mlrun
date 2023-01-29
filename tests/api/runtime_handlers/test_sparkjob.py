@@ -14,6 +14,7 @@
 #
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -128,7 +129,10 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 group_by=group_by,
             )
 
-    def test_delete_resources_completed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_completed_crd(
+        self, db: Session, client: TestClient
+    ):
         list_namespaced_crds_calls = [
             [self.completed_crd_dict],
             # 2 additional time for wait for pods deletion
@@ -166,7 +170,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -217,7 +221,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             len(list_namespaced_crds_calls),
         )
 
-    def test_delete_resources_with_force(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_delete_resources_with_force(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
             # additional time for wait for pods deletion
@@ -252,7 +257,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.running
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -260,7 +265,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.driver_pod.metadata.name,
         )
 
-    def test_monitor_run_completed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_completed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
             [self.completed_crd_dict],
@@ -290,7 +296,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
         )
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,
@@ -298,7 +304,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.driver_pod.metadata.name,
         )
 
-    def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
+    @pytest.mark.asyncio
+    async def test_monitor_run_failed_crd(self, db: Session, client: TestClient):
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
             [self.failed_crd_dict],
@@ -326,7 +333,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.pod_label_selector,
         )
         self._assert_run_reached_state(db, self.project, self.run_uid, RunStates.error)
-        self._assert_run_logs(
+        await self._assert_run_logs(
             db,
             self.project,
             self.run_uid,

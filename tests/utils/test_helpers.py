@@ -510,10 +510,19 @@ def test_enrich_image():
         ("1.3.1", "3.8.13", ""),
         ("1.3.1-rc12", "3.7.13", "-py37"),
         ("1.3.1-rc12", "3.9.13", ""),
+        # an example of a version which contains a suffix of commit hash and not a rc suffix (our CI uses this format)
+        ("1.3.0-zwqeiubz", "3.7.13", "-py37"),
+        ("1.3.0-zwqeiubz", "3.9.13", ""),
+        # an example of a dev version which contains `unstable` and not a rc suffix (When compiling from source without
+        # defining a version)
+        ("0.0.0-unstable", "3.7.13", "-py37"),
+        ("0.0.0-unstable", "3.9.13", ""),
+        # list of versions which are later than 1.3.0, if we decide to stop supporting python 3.7 in later versions
+        # we can remove them
         ("1.4.0", "3.9.13", ""),
-        # in 1.4.0 in case we will decide to continue supporting python 3.7 we will need to update the case below
-        ("1.4.0", "3.7.13", ""),
-        ("1.4.0-rc1", "3.7.13", ""),
+        ("1.4.0", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.7.13", "-py37"),
+        ("1.4.0-rc1", "3.9.13", ""),
     ],
 )
 def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):

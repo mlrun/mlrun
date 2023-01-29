@@ -685,14 +685,23 @@ def resolve_image_tag_suffix(
     """
     if not python_version or not mlrun_version:
         return ""
+
+    # if the mlrun version is 0.0.0-<unstable>/<commit hash> then it's a dev version, therefore we can't check if the
+    # mlrun version is higher than 1.3.0, but we can check the python version and if python version was passed it
+    # means it 1.3.0-rc or higher, so we can add the suffix of the python version.
+    if mlrun_version.startswith("0.0.0-") or "unstable" in mlrun_version:
+        if python_version.startswith("3.7"):
+            return "-py37"
+        return ""
+
     # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
     # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
     # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
     # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse("1.3.0-X") <= semver.VersionInfo.parse(
-        mlrun_version
-    ) < semver.VersionInfo.parse("1.4.0-X") and python_version.startswith("3.7"):
+    if semver.VersionInfo.parse(mlrun_version) >= semver.VersionInfo.parse(
+        "1.3.0-X"
+    ) and python_version.startswith("3.7"):
         return "-py37"
     return ""
 

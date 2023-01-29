@@ -797,6 +797,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             ("1.3.0", "3.9", "1.5.9", "python:3.9"),
             ("1.3.0-rc1", "3.9", "1.11.9", "python:3.9"),
             ("1.3.0-rc1", "3.7", "1.11.9", "python:3.7"),
+            ("0.0.0-unstable", "3.7", "1.11.9", "python:3.7"),
+            ("0.0.0-unstable", "3.9", "1.11.9", "python:3.9"),
         ],
     )
     def test_deploy_with_runtime(
@@ -816,7 +818,8 @@ class TestNuclioRuntime(TestRuntimeBase):
             client_python_version=client_python_version,
         )
         self._assert_deploy_called_basic_config(
-            expected_nuclio_runtime=expected_nuclio_runtime
+            expected_class=self.class_name,
+            expected_nuclio_runtime=expected_nuclio_runtime,
         )
 
     def test_deploy_python_decode_string_env_var_enrichment(

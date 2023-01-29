@@ -1209,7 +1209,9 @@ def compile_function_config(
 
     nuclio_runtime = (
         function.spec.nuclio_runtime
-        or _resolve_nuclio_runtime_python_image(client_version, client_python_version)
+        or _resolve_nuclio_runtime_python_image(
+            mlrun_client_version=client_version, python_version=client_python_version
+        )
     )
 
     if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
@@ -1664,21 +1666,32 @@ def _resolve_work_dir_and_handler(handler):
 
 
 def _resolve_nuclio_runtime_python_image(
-    mlrun_version: str = None, python_version: str = None
+    mlrun_client_version: str = None, python_version: str = None
 ):
     # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 there for need
     # to use the default runtime which was previously which is python 3.7
-    if not python_version or not mlrun_version:
+    if not python_version or not mlrun_client_version:
         return "python:3.7"
 
-    # if mlrun version is older than 1.3.0 we need to use the default runtime which was previously which is python 3.7
-    if semver.VersionInfo.parse(mlrun_version) < semver.VersionInfo.parse("1.3.0-X"):
+    # If the mlrun version is 0.0.0-unstable>/commit hash>, it is a dev version,
+    # so we can't check if it is higher than 1.3.0, but if the python version was passed,
+    # it means it is 1.3.0-rc or higher, so use the image according to the python version
+    if mlrun_client_version.startswith("0.0.0-") or "unstable" in mlrun_client_version:
+        if python_version.startswith("3.7"):
+            return "python:3.7"
+
+        return mlrun.mlconf.default_nuclio_runtime
+
+    # if mlrun version is older than 1.3.0 we need to use the previous default runtime which is python 3.7
+    if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse(
+        "1.3.0-X"
+    ):
         return "python:3.7"
 
     # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
-    if semver.VersionInfo.parse("1.3.0-X") <= semver.VersionInfo.parse(
-        mlrun_version
-    ) < semver.VersionInfo.parse("1.4.0-X") and python_version.startswith("3.7"):
+    if semver.VersionInfo.parse(mlrun_client_version) >= semver.VersionInfo.parse(
+        "1.3.0-X"
+    ) and python_version.startswith("3.7"):
         return "python:3.7"
 
     # if none of the above conditions are met we use the default runtime which is python 3.9

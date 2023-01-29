@@ -1127,10 +1127,15 @@ def deploy_nuclio_function(
     auth_info: AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
+    client_python_version: str = None,
 ):
     dashboard = dashboard or mlconf.nuclio_dashboard_url
     function_name, project_name, function_config = compile_function_config(
-        function, client_version, builder_env or {}, auth_info=auth_info
+        function,
+        client_version=client_version,
+        client_python_version=client_python_version,
+        builder_env=builder_env or {},
+        auth_info=auth_info,
     )
 
     # if mode allows it, enrich function http trigger with an ingress
@@ -1185,6 +1190,7 @@ def resolve_function_http_trigger(function_spec):
 def compile_function_config(
     function: RemoteRuntime,
     client_version: str = None,
+    client_python_version: str = None,
     builder_env=None,
     auth_info=None,
 ):
@@ -1200,9 +1206,14 @@ def compile_function_config(
         function.add_secrets_config_to_spec()
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
+
     nuclio_runtime = (
-        function.spec.nuclio_runtime or mlrun.config.config.default_nuclio_runtime
+        function.spec.nuclio_runtime
+        or _resolve_nuclio_runtime_python_image(
+            mlrun_client_version=client_version, python_version=client_python_version
+        )
     )
+
     if is_nuclio_version_in_range("0.0.0", "1.6.0") and nuclio_runtime in [
         "python:3.7",
         "python:3.8",
@@ -1213,7 +1224,7 @@ def compile_function_config(
                 f"Nuclio version does not support the configured runtime: {nuclio_runtime}"
             )
         else:
-            # our default is python:3.7, simply set it to python:3.6 to keep supporting envs with old Nuclio
+            # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
     # In nuclio 1.6.0<=v<1.8.0 python 3.7 and 3.8 runtime default behavior was to not decode event strings
@@ -1360,7 +1371,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.build.baseImage",
-                enrich_image_url(base_image, client_version),
+                enrich_image_url(base_image, client_version, client_python_version),
             )
 
         logger.info("deploy started")
@@ -1409,7 +1420,7 @@ def compile_function_config(
             update_in(
                 config,
                 "spec.build.baseImage",
-                enrich_image_url(base_image, client_version),
+                enrich_image_url(base_image, client_version, client_python_version),
             )
 
         name = get_fullname(name, project, tag)
@@ -1652,3 +1663,36 @@ def _resolve_work_dir_and_handler(handler):
         return "", extend_handler(handler)
 
     return split_handler[0], extend_handler(split_handler[1])
+
+
+def _resolve_nuclio_runtime_python_image(
+    mlrun_client_version: str = None, python_version: str = None
+):
+    # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 therefore need
+    # to use the previoud default runtime which is python 3.7
+    if not python_version or not mlrun_client_version:
+        return "python:3.7"
+
+    # If the mlrun version is 0.0.0-<unstable>, it is a dev version,
+    # so we can't check if it is higher than 1.3.0, but if the python version was passed,
+    # it means it is 1.3.0-rc or higher, so use the image according to the python version
+    if mlrun_client_version.startswith("0.0.0-") or "unstable" in mlrun_client_version:
+        if python_version.startswith("3.7"):
+            return "python:3.7"
+
+        return mlrun.mlconf.default_nuclio_runtime
+
+    # if mlrun version is older than 1.3.0 we need to use the previous default runtime which is python 3.7
+    if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse(
+        "1.3.0-X"
+    ):
+        return "python:3.7"
+
+    # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
+    if semver.VersionInfo.parse(mlrun_client_version) >= semver.VersionInfo.parse(
+        "1.3.0-X"
+    ) and python_version.startswith("3.7"):
+        return "python:3.7"
+
+    # if none of the above conditions are met we use the default runtime which is python 3.9
+    return mlrun.mlconf.default_nuclio_runtime

@@ -386,6 +386,8 @@ class TestRuntimeBase:
     def execute_function(self, runtime, **kwargs):
         # simulating sending to API - serialization through dict
         runtime = runtime.from_dict(runtime.to_dict())
+        # set watch to False, to mimic the API behavior (API doesn't watch on the job)
+        kwargs.update({"watch": False})
         self._execute_run(runtime, **kwargs)
 
     def _reset_mocks(self):

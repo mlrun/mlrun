@@ -1923,7 +1923,7 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()]
         fstore.ingest(fset, df1, targets=targets)
 
-        features = ["overwrite-fstore.*"]
+        features = ["overwrite-fs.*"]
         fvec = fstore.FeatureVector("overwrite-vec", features=features)
 
         csv_path = fset.get_target_path(name="csv")

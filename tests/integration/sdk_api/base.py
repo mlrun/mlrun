@@ -135,10 +135,16 @@ class TestMLRunIntegration:
     def _run_api(self):
         self._logger.debug("Starting API")
         self._run_command(
-            "make",
+            # already compiled schemas in run-test-db
+            "MLRUN_SKIP_COMPILE_SCHEMAS=true make",
             args=["run-api"],
             env=self._extend_current_env(
-                {"MLRUN_VERSION": "test-integration", "MLRUN_HTTPDB__DSN": self.db_dsn}
+                {
+                    "MLRUN_VERSION": "test-integration",
+                    "MLRUN_HTTPDB__DSN": self.db_dsn,
+                    # integration tests run in docker, and do no support sidecars for log collection
+                    "MLRUN__LOG_COLLECTOR__MODE": "legacy",
+                }
             ),
             cwd=TestMLRunIntegration.root_path,
         )

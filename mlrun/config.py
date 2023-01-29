@@ -470,6 +470,30 @@ default_config = {
         "default_workflow_runner_name": "workflow-runner-{}",
         "timeouts": {"local": 120, "kfp": 30},
     },
+    "log_collector": {
+        "address": "localhost:8282",
+        # log collection mode can be one of: "sidecar", "legacy", "best-effort"
+        # "sidecar" - use the sidecar to collect logs
+        # "legacy" - use the legacy log collection method (logs are collected straight from the pod)
+        # "best-effort" - use the sidecar, but if for some reason it's not available use the legacy method
+        # note that this mode also effects the log querying method as well, meaning if the mode is "best-effort"
+        # the log query will try to use the sidecar first and if it's not available it will use the legacy method
+        # TODO: once this is changed to "sidecar" by default, also change in common_fixtures.py
+        "mode": "legacy",
+        # interval for collecting and sending runs which require their logs to be collected
+        "periodic_start_log_interval": 10,
+        "verbose": True,
+        # the number of workers which will be used to trigger the start log collection
+        "concurrent_start_logs_workers": 15,
+        # the time in hours in which to start log collection from.
+        # after upgrade we might have runs which completed in the mean time or still in non-terminal state and
+        # we want to collect their logs in the new log collection method (sidecar)
+        "api_downtime_grace_period": 6,
+        "get_logs": {
+            # the number of retries to get logs from the log collector
+            "max_retries": 3,
+        },
+    },
 }
 
 _is_running_as_api = None

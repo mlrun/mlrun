@@ -1,24 +1,24 @@
 (install-remote)=
-# Set up your client environment <!-- omit in toc -->
+# Set up your remote environment <!-- omit in toc -->
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
 **In this section**
-- [Prerequisites](#prerequisites)
+- [Prerequisite: set up your client](#prerequisite-set-up-your-client)
 - [Configure remote environment](#configure-remote-environment)
-   - [Set environment variables](#set-environment-variables)
-   - [Load the configuration and credential environmental variables from file](#load-the-configuration-and-credential-environmental-variables-from-file)
-   - [Load the configuration and credential environmental variables from the command line](#load-the-configuration-and-credential-environmental-variables-from-the-command-line)
-- [IDE configuration](#ide-configuration)
-   - [Remote environment from PyCharm](#remote-environment-from-pycharm)
-   - [Remote environment from VSCode](#remote-environment-from-vscode)
-      - [Create environment file](#create-environment-file)
-      - [Create Python debug configuration](#create-python-debug-configuration)
-      - [Set environment file in debug configuration](#set-environment-file-in-debug-configuration)
+   - [Using the default `.env` file (**Recommended**)](#using-the-default-env-file-recommended)
+   - [Using your own environment file](#using-your-own-environment-file)
+   - [Using MLRun SDK or CLI](#using-mlrun-sdk-or-cli)
+   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
+      - [Remote environment from PyCharm](#remote-environment-from-pycharm)
+      - [Remote environment from VSCode](#remote-environment-from-vscode)
+         - [Create environment file](#create-environment-file)
+         - [Create Python debug configuration](#create-python-debug-configuration)
+         - [Set environment file in debug configuration](#set-environment-file-in-debug-configuration)
 
 
 <a id="prerequisites"></a>
-## Prerequisites
+## Prerequisite: set up your client
 
 Before you begin, ensure that the following prerequisites are met:
 
@@ -50,19 +50,92 @@ Before you begin, ensure that the following prerequisites are met:
       To install all extras, run:<br>
       ```pip install mlrun[complete]```
      
-2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
+3. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
     pip install -U mlrun==<version>
     ```
 
-2. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
+4. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
 
 ## Configure remote environment
+You have few options to configure your remote environment:
+1. Using the default `.env` file (**Recommended**)
+2. Using your own environment file
+3. Using MLRun SDK or CLI
+4. Using your IDE (e.g PyCharm or VSCode)
 
-### Set environment variables
+### Using the default `.env` file (**Recommended**)
 
-Set environment variables to define your MLRun configuration. As a minimum requirement:
+The default `.env` file is located by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows. This file can be edited manually or with `mlrun config set` command line:
+
+Run the `mlrun config set` command line to set configuration parameters in mlrun default or the specified `.env` file. By default, it stores all of the configuration into the default environment file, and your own environment file does not need editing.
+
+The `set` command can work with the following parameters:
+    -`--env-file` or `-f` to set the url path to the mlrun `.env file` 
+    -`--api` or `-a` to set the url (local or remote) for MLRun API
+    -`--artifact-path` or `-p` to set the artifact path (optional)
+    -`--username` or `-u` to set the username (for remote access)
+    -`--access-key` or `-k` to set the access key (for remote access)
+    -`--env-vars` or `-e` to set the environment variables (optional)
+   
+Example:
+ ```
+ mlrun config set -a http://localhost:8080 -u joe -k mykey -e AWS_ACCESS_KEY_ID=<key-id>
+ ```
+
+### Using your own environment file
+
+To use your own environment file, set the url path to it with `--env-file` or `-f` parameter in the `mlrun config set` command line.
+
+You can load the env via config file when working from remote (e.g. via PyCharm).
+   
+Example `.env` file:
+
+```
+# this is an env file
+V3IO_USERNAME=admin
+V3IO_ACCESS_KEY=MYKEY123
+MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
+AWS_ACCESS_KEY_ID=XXXX
+AWS_SECRET_ACCESS_KEY=YYYY
+```
+
+Usage:
+
+   - `set_env_from_file()` for reading `.env` files, setting the OS environment and reloading MLRun config
+   - `project.set_secrets()` reads dict or secrets env file and stores it in the project secrets
+      (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
+   - `function.set_envs()` set the pod environment variables from key/value dict or `.env` file
+
+```{admonition} Note
+The V3IO API is determined automatically. If you want to connect to a different V3IO service, set the service in the variable,br. `V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">`
+```
+
+```
+# set the env vars from a file and also return the results as a dict (e.g. for using in a function)
+env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
+
+# read env vars from dict or file and set as project secrets (plus set the local env)
+project.set_secrets({"SECRET1": "value"})
+project.set_secrets(file_path=env_file)
+
+# copy env from file into a function spec
+function.set_envs(file_path=env_file)
+```
+
+### Using MLRun SDK or CLI
+
+**You can set the environment using MLRun SDK, for example:**
+
+```python
+# Use local service
+mlrun.set_environment("http://localhost:8080", artifact_path="./")
+# Use remote service
+mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
+```
+
+Explanation:
 
 1. Set `MLRUN_DBPATH` to the URL of the remote MLRun database/API service:
 
@@ -82,81 +155,19 @@ Set environment variables to define your MLRun configuration. As a minimum requi
     key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web-shell or Jupyter Notebook service.
 
 
-You can also set the environment using MLRun SDK, for example:
-
-```python
-# Use local service
-mlrun.set_environment("http://localhost:8080", artifact_path="./")
-# Use remote service
-mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
-```
-
-3. Run `mlrun config set` command line to set configuration parameters in mlrun default or specified .env file. By default, it stores all of the configuration into the default environment file, and your own environment file does not need editing.
-
-The `set` command can work with the following parameters:
-    `--env-file` or `-f` to set the url path to the mlrun .env file (defaults to '~/.mlrun.env' for Linux and to %USERPROFILE%/.mlrun.env for Windows)
-    `--api` or `-a` to set the url (local or remote) for MLRun API
-    `--artifact-path` or `-p` to set the artifact path (optional)
-    `--username` or `-u` to set the username (for remote access)
-    `--access-key` or `-k` to set the access key (for remote access)
-    `--env-vars` or `-e` to set the environment variables (optional)
-   
-Example:
- `mlrun config set -a http://localhost:8080 -u joe -k mykey -e AWS_ACCESS_KEY_ID=<key-id>`
-
-Alternatively (**not recommended**), you can load the configuration and credential environmental variables from your own environment file as explained below:
-
-### Load the configuration and credential environmental variables from file
-
-You can load the env via config file when working from remote (e.g. via PyCharm).
-   
-Example env file:
-
-```
-# this is an env file
-V3IO_USERNAME=admin
-V3IO_ACCESS_KEY=MYKEY123
-MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
-AWS_ACCESS_KEY_ID=XXXX
-AWS_SECRET_ACCESS_KEY=YYYY
-```
-
-Usage:
-
-   - `set_env_from_file()` for reading `.env` files, setting the OS environment and reloading MLRun config
-   - `project.set_secrets()` reads dict or secrets env file and stores it in the project secrets
-      (note that MLRUN_DBPATH and V3IO_xxx vars are not written to the project secrets)
-   - `function.set_envs()` set the pod environment variables from key/value dict or .env file
-
-```{admonition} Note
-The V3IO API is determined automatically. If you want to connect to a different V3IO service, set the service in the variable,br. `V3IO_API=<API endpoint of the webapi service endpoint; e.g., "https://default-tenant.app.mycluster.iguazio.com:8444">`
-```
-
-```
-# set the env vars from a file and also return the results as a dict (e.g. for using in a function)
-env_dict = mlrun.set_env_from_file(env_path, return_dict=True)
-
-# read env vars from dict or file and set as project secrets (plus set the local env)
-project.set_secrets({"SECRET1": "value"})
-project.set_secrets(file_path=env_file)
-
-# copy env from file into a function spec
-function.set_envs(file_path=env_file)
-```
-
-### Load the configuration and credential environmental variables from the command line
+**You can also set the environment using MLRun CLI, for example:**
 
 1. Create an env file similar to the example, with lines in the form KEY=VALUE, and comment lines starting with "#".
 2. Use `--env-file <env file path>` in mlrun run/build/deploy/project CLI commands to load the config and credential env vars from file.
-2. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which will be loaded on import).
+3. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which load on import). If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
    If the `MLRUN_DBPATH` points to a remote iguazio cluster and the `V3IO_API` and/or `V3IO_FRAMESD` vars are not set, they will be inferred from the DBPATH.
-2. Add the default `env` file template in the Jupyter container `~/env` (to allow quick setup of remote demos).
+4. Add the default `env` file template in the Jupyter container `~/env` (to allow quick setup of remote demos).
 
-## IDE configuration
+### Using your IDE (e.g PyCharm or VSCode)
 
 Use these procedures to access MLRun remotely from your IDE (PyCharm or VSCode).
 
-### Remote environment from PyCharm
+#### Remote environment from PyCharm
 
 You can use PyCharm with MLRun remote by changing the environment variables configuration.
 
@@ -174,9 +185,9 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
    > If the remote service is on an instance of the Iguazio MLOps Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
-### Remote environment from VSCode
+#### Remote environment from VSCode
 
-#### Create environment file
+##### Create environment file
 
 Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
 
@@ -193,7 +204,7 @@ V3IO_ACCESS_KEY=<platform access key>
 Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
 ```
 
-### Create Python debug configuration
+#### Create Python debug configuration
 
 Create a [debug configuration in VSCode](https://code.visualstudio.com/docs/python/debugging). Configurations are defined in a `launch.json` file that's stored in a `.vscode` folder in your workspace.
 
@@ -220,7 +231,7 @@ Starting a debugging session through the Debug Panel, **F5** or **Run > Start De
 
    ![Configuration json](../_static/images/vscode/configuration-json.png)
 
-### Set environment file in debug configuration
+#### Set environment file in debug configuration
 
 Add an `envFile` setting to your configuration with the value of `${workspaceFolder}/mlrun.env`
 

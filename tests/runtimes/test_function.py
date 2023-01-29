@@ -22,6 +22,7 @@ import mlrun
 from mlrun import code_to_function
 from mlrun.runtimes.function import (
     _resolve_git_reference_from_source,
+    _resolve_nuclio_runtime_python_image,
     _resolve_work_dir_and_handler,
 )
 from tests.runtimes.test_base import TestAutoMount
@@ -164,6 +165,28 @@ def test_resolve_work_dir_and_handler():
     ]
     for handler, expected in cases:
         assert expected == _resolve_work_dir_and_handler(handler)
+
+
+@pytest.mark.parametrize(
+    "mlrun_client_version,python_version,expected_runtime",
+    [
+        ("1.3.0", "3.9.16", "python:3.9"),
+        ("1.3.0", "3.7.16", "python:3.7"),
+        (None, None, "python:3.7"),
+        (None, "3.9.16", "python:3.7"),
+        ("1.3.0", None, "python:3.7"),
+        ("0.0.0-unstable", "3.9.16", "python:3.9"),
+        ("0.0.0-unstable", "3.7.16", "python:3.7"),
+        ("1.2.0", "3.9.16", "python:3.7"),
+        ("1.2.0", "3.7.16", "python:3.7"),
+    ],
+)
+def test_resolve_nuclio_runtime_python_image(
+    mlrun_client_version, python_version, expected_runtime
+):
+    assert expected_runtime == _resolve_nuclio_runtime_python_image(
+        mlrun_client_version, python_version
+    )
 
 
 def test_resolve_git_reference_from_source():

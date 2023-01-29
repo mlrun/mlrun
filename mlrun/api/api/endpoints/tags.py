@@ -48,11 +48,10 @@ async def overwrite_object_tags_with_tag(
     )
 
     # check permission per object type
-    await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         getattr(mlrun.api.schemas.AuthorizationResourceTypes, tag_objects.kind),
         project,
-        resource_name=None,
+        resource_name="",
         # not actually overwriting objects, just overwriting the objects tags
         action=mlrun.api.schemas.AuthorizationAction.update,
         auth_info=auth_info,
@@ -87,11 +86,10 @@ async def append_tag_to_objects(
         auth_info=auth_info,
     )
 
-    await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         getattr(mlrun.api.schemas.AuthorizationResourceTypes, tag_objects.kind),
         project,
-        resource_name=None,
+        resource_name="",
         action=mlrun.api.schemas.AuthorizationAction.update,
         auth_info=auth_info,
     )
@@ -127,11 +125,10 @@ async def delete_tag_from_objects(
         auth_info=auth_info,
     )
 
-    await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         getattr(mlrun.api.schemas.AuthorizationResourceTypes, tag_objects.kind),
         project,
-        resource_name=None,
+        resource_name="",
         # not actually deleting objects, just deleting the objects tags
         action=mlrun.api.schemas.AuthorizationAction.update,
         auth_info=auth_info,

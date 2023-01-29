@@ -125,7 +125,7 @@ def test_get_pipeline_no_project_opa_validation(
         return_value=project
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
-        unittest.mock.Mock()
+        unittest.mock.AsyncMock()
     )
     api_run_detail = _generate_get_run_mock()
     _mock_get_run(kfp_client_mock, api_run_detail)

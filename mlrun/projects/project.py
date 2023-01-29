@@ -23,6 +23,7 @@ import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
+from typing import Dict, List, Optional, Union
 
 import dotenv
 import inflection
@@ -45,7 +46,14 @@ from ..model import EntrypointParam, ModelObj
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.utils import add_code_metadata
 from ..secrets import SecretsStore
-from ..utils import is_ipython, is_legacy_artifact, is_relative_path, logger, update_in
+from ..utils import (
+    is_ipython,
+    is_legacy_artifact,
+    is_relative_path,
+    is_yaml_path,
+    logger,
+    update_in,
+)
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.model_monitoring import set_project_model_monitoring_credentials
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
@@ -126,7 +134,7 @@ def new_project(
 
 
     :param name:         project name
-    :param context:      project local directory path
+    :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
     :param user_project: add the current user name to the provided project name (making it unique per user)
     :param remote:       remote Git url
@@ -207,6 +215,7 @@ def load_project(
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
+    sync_functions: bool = False,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -218,7 +227,7 @@ def load_project(
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
 
-    :param context:      project local directory path
+    :param context:      project local directory path (default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -232,6 +241,7 @@ def load_project(
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current user name to the project name (for db:// prefixes)
     :param save:         whether to save the created project and artifact in the DB
+    :param sync_functions: sync the project's functions into the project object (will be saved to the DB if save=True)
 
     :returns: project object
     """
@@ -246,7 +256,7 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
-        if url.endswith(".yaml"):
+        if is_yaml_path(url):
             project = _load_project_file(url, name, secrets)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -280,9 +290,15 @@ def load_project(
             project.spec.branch = repo.active_branch.name
         except Exception:
             pass
+
     if save and mlrun.mlconf.dbpath:
         project.save()
         project.register_artifacts()
+        if sync_functions:
+            project.sync_functions(names=project.get_function_names(), save=True)
+
+    elif sync_functions:
+        project.sync_functions(names=project.get_function_names(), save=False)
 
     _set_as_current_default_project(project)
 
@@ -311,7 +327,7 @@ def get_or_create_project(
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
 
     :param name:         project name
-    :param context:      project local directory path (Default value = "./")
+    :param context:      project local directory path (default value = "./")
     :param url:          name (in DB) or git or tar.gz or .zip sources archive path e.g.:
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
@@ -534,6 +550,7 @@ class ProjectSpec(ModelObj):
         owner=None,
         disable_auto_mount=None,
         workdir=None,
+        default_image=None,
     ):
         self.repo = None
 
@@ -565,6 +582,7 @@ class ProjectSpec(ModelObj):
         self._function_definitions = {}
         self.functions = functions or []
         self.disable_auto_mount = disable_auto_mount
+        self.default_image = default_image
 
     @property
     def source(self) -> str:
@@ -748,6 +766,17 @@ class ProjectSpec(ModelObj):
         """Get the path to the code root/workdir"""
         return path.join(self.context, self.workdir or self.subpath or "")
 
+    def _replace_default_image_in_enriched_functions(self, previous_image, new_image):
+        """
+        Set a new project-default-image in functions that were already enriched.
+        """
+        if previous_image == new_image:
+            return
+        for key in self._function_objects:
+            function = self._function_objects[key]
+            if function._enriched_image:
+                function.spec.image = new_image
+
 
 class ProjectStatus(ModelObj):
     def __init__(self, state=None):
@@ -843,46 +872,18 @@ class MlrunProject(ModelObj):
 
     @property
     def artifact_path(self) -> str:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.artifact_path instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.artifact_path
 
     @artifact_path.setter
     def artifact_path(self, artifact_path):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.artifact_path instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.artifact_path = artifact_path
 
     @property
     def source(self) -> str:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.source instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.source
 
     @source.setter
     def source(self, source):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.source instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.source = source
 
     def set_source(self, source, pull_at_runtime=False, workdir=None):
@@ -926,90 +927,40 @@ class MlrunProject(ModelObj):
 
     @property
     def context(self) -> str:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.context instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.context
 
     @context.setter
     def context(self, context):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.context instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.context = context
 
     @property
     def mountdir(self) -> str:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.mountdir instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.mountdir
 
     @mountdir.setter
     def mountdir(self, mountdir):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.mountdir instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.mountdir = mountdir
 
     @property
     def params(self) -> str:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.params instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.params
 
     @params.setter
     def params(self, params):
         warnings.warn(
-            "This is a property of the spec, use project.spec.params instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
+            "This is a property of the spec, use project.spec.params instead. "
+            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
+            FutureWarning,
         )
         self.spec.params = params
 
     @property
     def description(self) -> str:
-        """This is a property of the spec, look there for documentation
-        leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
-        warnings.warn(
-            "This is a property of the spec, use project.spec.description instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         return self.spec.description
 
     @description.setter
     def description(self, description):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.description instead"
-            "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
-            # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
-        )
         self.spec.description = description
 
     @property
@@ -1039,22 +990,42 @@ class MlrunProject(ModelObj):
         """This is a property of the spec, look there for documentation
         leaving here for backwards compatibility with users code that used MlrunProjectLegacy"""
         warnings.warn(
-            "This is a property of the spec, use project.spec.workflows instead"
+            "This is a property of the spec, use project.spec.workflows instead. "
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
+            FutureWarning,
         )
         return self.spec.workflows
 
     @workflows.setter
     def workflows(self, workflows):
         warnings.warn(
-            "This is a property of the spec, use project.spec.workflows instead"
+            "This is a property of the spec, use project.spec.workflows instead. "
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
+            FutureWarning,
         )
         self.spec.workflows = workflows
+
+    @property
+    def default_image(self) -> str:
+        return self.spec.default_image
+
+    def set_default_image(self, default_image: str):
+        """
+        Set the default image to be used for running runtimes (functions) in this project. This image will be used
+        if an image was not provided for a runtime. In case the default image is replaced, functions already
+        registered with the project that used the previous default image will have their image replaced on
+        next execution.
+
+        :param default_image: Default image to use
+        """
+        current_default_image = self.spec.default_image
+        if current_default_image:
+            self.spec._replace_default_image_in_enriched_functions(
+                current_default_image, default_image
+            )
+        self.spec.default_image = default_image
 
     def set_workflow(
         self,
@@ -1117,7 +1088,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.artifacts instead"
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
+            FutureWarning,
         )
         return self.spec.artifacts
 
@@ -1127,7 +1098,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.artifacts instead"
             "This will be deprecated in 0.7.0, and will be removed in 0.9.0",
             # TODO: In 0.7.0 do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
+            FutureWarning,
         )
         self.spec.artifacts = artifacts
 
@@ -1222,6 +1193,19 @@ class MlrunProject(ModelObj):
         except Exception:
             pass
         return None
+
+    def get_item_absolute_path(self, url: str) -> typing.Tuple[str, bool]:
+        in_context = False
+        # If the URL is for a remote location, we do not want to change it
+        if url and "://" not in url:
+            # We don't want to change the url if the project has no cntext or if it is already absolute
+            if self.spec.context and not url.startswith("/"):
+                in_context = True
+                url = path.normpath(path.join(self.spec.get_code_path(), url))
+                return url, in_context
+            if not path.isfile(url):
+                raise OSError(f"{url} not found")
+        return url, in_context
 
     def log_artifact(
         self,
@@ -1479,8 +1463,11 @@ class MlrunProject(ModelObj):
             artifact.metadata.tag = tag or artifact.metadata.tag
             return artifact
 
+        # Obtaining the item's absolute path from the project context, in case the user provided a relative path
+        item_path, _ = self.get_item_absolute_path(item_path)
         dataitem = mlrun.get_dataitem(item_path)
-        if item_path.endswith(".yaml") or item_path.endswith(".yml"):
+
+        if is_yaml_path(item_path):
             artifact_dict = yaml.load(dataitem.get(), Loader=yaml.FullLoader)
             artifact = get_artifact(artifact_dict)
         elif item_path.endswith(".json"):
@@ -1642,9 +1629,10 @@ class MlrunProject(ModelObj):
         :returns: function object
         """
         warnings.warn(
-            "This will be deprecated in future releases, use  get_function() instead",
-            # TODO: do changes in examples & demos In 0.9.0 remove
-            PendingDeprecationWarning,
+            "This will be deprecated in future releases, use  get_function() instead. "
+            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
+            # TODO: do changes in examples & demos In 1.5.0 remove
+            FutureWarning,
         )
         return self.get_function(key, sync)
 
@@ -1675,13 +1663,20 @@ class MlrunProject(ModelObj):
             function = get_db_function(self, key)
             self.spec._function_objects[key] = function
         if enrich:
-            return enrich_function_object(self, function, copy_function=copy_function)
+            function = enrich_function_object(
+                self, function, copy_function=copy_function
+            )
+            self.spec._function_objects[key] = function
         return function
 
     def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
+
+    def get_function_names(self) -> typing.List[str]:
+        """get a list of all the project function names"""
+        return [func["name"] for func in self.spec.functions]
 
     def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
@@ -1869,34 +1864,6 @@ class MlrunProject(ModelObj):
             self.metadata.name, provider=provider, secrets=env_vars
         )
 
-    def create_vault_secrets(self, secrets):
-        warnings.warn(
-            "This method is obsolete, use project.set_secrets() instead"
-            "This will be deprecated and removed in 1.0.0",
-            # TODO: In 1.0 remove
-            PendingDeprecationWarning,
-        )
-        run_db = mlrun.db.get_run_db(secrets=self._secrets)
-        run_db.create_project_secrets(
-            self.metadata.name, mlrun.api.schemas.SecretProviderName.vault, secrets
-        )
-
-    def get_vault_secrets(self, secrets=None, local=False):
-        if local:
-            logger.warning(
-                "get_vault_secrets executed locally. This is not recommended and may become deprecated soon"
-            )
-            return self._secrets.vault.get_secrets(secrets, project=self.metadata.name)
-
-        run_db = mlrun.db.get_run_db(secrets=self._secrets)
-        project_secrets = run_db.list_project_secrets(
-            self.metadata.name,
-            self._secrets.vault.token,
-            mlrun.api.schemas.SecretProviderName.vault,
-            secrets,
-        )
-        return project_secrets.secrets
-
     def get_param(self, key: str, default=None):
         """get project param by key"""
         if self.spec.params:
@@ -1939,6 +1906,8 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.api.schemas.ScheduleCronTrigger, bool] = None,
         timeout: int = None,
         overwrite: bool = False,
+        override: bool = False,
+        source: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -1966,8 +1935,11 @@ class MlrunProject(ModelObj):
                           see this link for help:
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
-        :param timeout:   timeout in seconds to wait for pipeline completion (used when watch=True)
-        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one.
+        :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param overwrite: replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param override:  replacing the schedule of the same workflow (under the same name) if exists with the new one
+        :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
+                          for other engines the source is to validate that the code is up-to-date
         :returns: run id
         """
 
@@ -2007,7 +1979,15 @@ class MlrunProject(ModelObj):
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
 
         if schedule:
-            workflow_spec.overwrite = overwrite or workflow_spec.overwrite
+            if override or overwrite:
+                if overwrite:
+                    logger.warn(
+                        "Please use override (SDK) or --override-workflow (CLI) "
+                        "instead of overwrite (SDK) or --overwrite-schedule (CLI)"
+                        "This will be removed in 1.6.0",
+                        # TODO: Remove in 1.6.0
+                    )
+                workflow_spec.override = True
             # Schedule = True -> use workflow_spec.schedule
             if not isinstance(schedule, bool):
                 workflow_spec.schedule = schedule
@@ -2035,20 +2015,19 @@ class MlrunProject(ModelObj):
             secrets=self._secrets,
             artifact_path=artifact_path,
             namespace=namespace,
+            source=source,
         )
         # run is None when scheduling
-        if (
-            run
-            and run.state != mlrun.run.RunStatuses.failed
-            and not workflow_spec.schedule
-        ):
+        if run and run.state == mlrun.run.RunStatuses.failed:
+            return run
+        if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
                 f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
-        if watch and not workflow_spec.schedule:
-            workflow_engine.get_run_status(project=self, run=run, timeout=timeout)
+        if (timeout or watch) and not workflow_spec.schedule:
+            run._engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -2077,9 +2056,9 @@ class MlrunProject(ModelObj):
         notifiers: CustomNotificationPusher = None,
     ):
         warnings.warn(
-            "This will be deprecated in 1.4.0, and will be removed in 1.6.0. "
+            "This is deprecated in 1.3.0, and will be removed in 1.5.0. "
             "Use `timeout` parameter in `project.run()` method instead",
-            PendingDeprecationWarning,
+            FutureWarning,
         )
         return run._engine.get_run_status(
             project=self,
@@ -2344,7 +2323,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -2367,7 +2346,8 @@ class MlrunProject(ModelObj):
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -2396,7 +2376,7 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -2409,10 +2389,12 @@ class MlrunProject(ModelObj):
             # Get latest version of all models in project
             latest_models = project.list_models('', tag='latest')
 
+
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -2791,19 +2773,13 @@ def _init_function_from_dict(f, project, name=None):
     requirements = f.get("requirements", None)
     tag = f.get("tag", None)
 
-    in_context = False
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
         raise ValueError("function missing a url or a spec or a module")
 
     relative_url = url
-    if url and "://" not in url:
-        if project.spec.context and not url.startswith("/"):
-            url = path.join(project.spec.get_code_path(), url)
-            in_context = True
-        if not path.isfile(url):
-            raise OSError(f"{url} not found")
+    url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
@@ -2811,12 +2787,13 @@ def _init_function_from_dict(f, project, name=None):
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         if tag:
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
             )
-        func = import_function(url)
+        func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):
@@ -2825,7 +2802,7 @@ def _init_function_from_dict(f, project, name=None):
             name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
     elif url.endswith(".py"):
-        if not image and kind != "local":
+        if not image and not project.default_image and kind != "local":
             raise ValueError(
                 "image must be provided with py code files which do not "
                 "run on 'local' engine kind"
@@ -2889,7 +2866,8 @@ def _init_function_from_dict_legacy(f, project):
     in_context = False
     if not url and "spec" not in f:
         raise ValueError("function missing a url or a spec")
-
+    # We are not using the project method to obtain an absolute path here,
+    # because legacy projects are built differently, and we cannot rely on them to have a spec
     if url and "://" not in url:
         if project.context and not url.startswith("/"):
             url = path.join(project.context, url)
@@ -2899,7 +2877,7 @@ def _init_function_from_dict_legacy(f, project):
 
     if "spec" in f:
         func = new_function(name, runtime=f["spec"])
-    elif url.endswith(".yaml") or url.startswith("db://") or url.startswith("hub://"):
+    elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url)
         if image:
             func.spec.image = image

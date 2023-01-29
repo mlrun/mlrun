@@ -19,6 +19,7 @@ from copy import copy
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
+import pandas as pd
 import v3io
 import v3io.dataplane
 from nuclio import KafkaTrigger
@@ -130,8 +131,11 @@ class CSVSource(BaseSourceDriver):
         time_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, List[int], List[str]] = None,
+        **kwargs,
     ):
-        super().__init__(name, path, attributes, key_field, time_field, schedule)
+        super().__init__(
+            name, path, attributes, key_field, time_field, schedule, **kwargs
+        )
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated, use parse_dates instead",
@@ -855,6 +859,115 @@ class KafkaSource(OnlineSource):
         return func
 
 
+class SQLSource(BaseSourceDriver):
+    kind = "sqldb"
+    support_storey = True
+    support_spark = False
+
+    def __init__(
+        self,
+        name: str = "",
+        chunksize: int = None,
+        key_field: str = None,
+        time_field: str = None,
+        schedule: str = None,
+        start_time: Optional[Union[datetime, str]] = None,
+        end_time: Optional[Union[datetime, str]] = None,
+        db_url: str = None,
+        table_name: str = None,
+        spark_options: dict = None,
+        time_fields: List[str] = None,
+    ):
+        """
+        Reads SqlDB as input source for a flow.
+        example::
+            db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
+            source = SqlDBSource(
+                collection_name='source_name', db_path=self.db, key_field='key'
+            )
+        :param name:            source name
+        :param chunksize:       number of rows per chunk (default large single chunk)
+        :param key_field:       the column to be used as the key for the collection.
+        :param time_field:      the column to be parsed as timestamp for events. Defaults to None
+        :param start_time:      filters out data before this time
+        :param end_time:        filters out data after this time
+        :param schedule:        string to configure scheduling of the ingestion job.
+                                For example '*/30 * * * *' will
+                                cause the job to run every 30 minutes
+        :param db_url:         url string connection to sql database.
+                                If not set, the MLRUN_SQL__URL environment variable will be used.
+        :param table_name:      the name of the collection to access,
+                                from the current database
+        :param spark_options:   additional spark read options
+        :param time_fields :    all the field to be parsed as timestamp.
+        """
+
+        db_url = db_url or mlrun.mlconf.sql.url
+        if db_url is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "cannot specify without db_path arg or secret MLRUN_SQL__URL"
+            )
+        attrs = {
+            "chunksize": chunksize,
+            "spark_options": spark_options,
+            "table_name": table_name,
+            "db_path": db_url,
+            "time_fields": time_fields,
+        }
+        attrs = {key: value for key, value in attrs.items() if value is not None}
+        super().__init__(
+            name,
+            attributes=attrs,
+            key_field=key_field,
+            time_field=time_field,
+            schedule=schedule,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+    def to_dataframe(self):
+        import sqlalchemy as db
+
+        query = self.attributes.get("query", None)
+        db_path = self.attributes.get("db_path")
+        table_name = self.attributes.get("table_name")
+        if not query:
+            query = f"SELECT * FROM {table_name}"
+        if table_name and db_path:
+            engine = db.create_engine(db_path)
+            with engine.connect() as con:
+                return pd.read_sql(
+                    query,
+                    con=con,
+                    chunksize=self.attributes.get("chunksize"),
+                    parse_dates=self.attributes.get("time_fields"),
+                )
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "table_name and db_name args must be specified"
+            )
+
+    def to_step(self, key_field=None, time_field=None, context=None):
+        import storey
+
+        attributes = self.attributes or {}
+        if context:
+            attributes["context"] = context
+
+        return storey.SQLSource(
+            key_field=self.key_field or key_field,
+            time_field=self.time_field or time_field,
+            end_filter=self.end_time,
+            start_filter=self.start_time,
+            filter_column=self.time_field or time_field,
+            **attributes,
+        )
+        pass
+
+    def is_iterator(self):
+        return True if self.attributes.get("chunksize") else False
+
+
 # map of sources (exclude DF source which is not serializable)
 source_kind_to_driver = {
     "": BaseSourceDriver,
@@ -866,4 +979,5 @@ source_kind_to_driver = {
     CustomSource.kind: CustomSource,
     BigQuerySource.kind: BigQuerySource,
     SnowflakeSource.kind: SnowflakeSource,
+    SQLSource.kind: SQLSource,
 }

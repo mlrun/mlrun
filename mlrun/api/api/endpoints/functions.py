@@ -74,8 +74,7 @@ async def store_function(
         project,
         auth_info=auth_info,
     )
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -104,7 +103,7 @@ async def store_function(
 
 
 @router.get("/func/{project}/{name}")
-def get_function(
+async def get_function(
     project: str,
     name: str,
     tag: str = "",
@@ -112,10 +111,15 @@ def get_function(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    func = mlrun.api.crud.Functions().get_function(
-        db_session, name, project, tag, hash_key
+    func = await run_in_threadpool(
+        mlrun.api.crud.Functions().get_function,
+        db_session,
+        name,
+        project,
+        tag,
+        hash_key,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -130,25 +134,27 @@ def get_function(
 @router.delete(
     "/projects/{project}/functions/{name}", status_code=HTTPStatus.NO_CONTENT.value
 )
-def delete_function(
+async def delete_function(
     project: str,
     name: str,
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
         mlrun.api.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    mlrun.api.crud.Functions().delete_function(db_session, project, name)
+    await run_in_threadpool(
+        mlrun.api.crud.Functions().delete_function, db_session, project, name
+    )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.get("/funcs")
-def list_functions(
+async def list_functions(
     project: str = None,
     name: str = None,
     tag: str = None,
@@ -158,15 +164,20 @@ def list_functions(
 ):
     if project is None:
         project = config.default_project
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.api.schemas.AuthorizationAction.read,
         auth_info,
     )
-    functions = mlrun.api.crud.Functions().list_functions(
-        db_session, project, name, tag, labels
+    functions = await run_in_threadpool(
+        mlrun.api.crud.Functions().list_functions,
+        db_session,
+        project,
+        name,
+        tag,
+        labels,
     )
-    functions = mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    functions = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         functions,
         lambda function: (
@@ -189,6 +200,9 @@ async def build_function(
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
     ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
+    ),
 ):
     data = None
     try:
@@ -206,8 +220,7 @@ async def build_function(
         project,
         auth_info=auth_info,
     )
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         function_name,
@@ -232,7 +245,7 @@ async def build_function(
                 function=function,
             )
             chief_client = mlrun.api.utils.clients.chief.Client()
-            return chief_client.build_function(request=request, json=data)
+            return await chief_client.build_function(request=request, json=data)
 
     if isinstance(data.get("with_mlrun"), bool):
         with_mlrun = data.get("with_mlrun")
@@ -250,6 +263,7 @@ async def build_function(
         mlrun_version_specifier,
         data.get("builder_env"),
         client_version,
+        client_python_version,
     )
     return {
         "data": fn.to_dict(),
@@ -267,6 +281,9 @@ async def start_function(
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
     ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
+    ),
 ):
     # TODO: ensure project here !!! for background task
     data = None
@@ -278,8 +295,7 @@ async def start_function(
     logger.info("Got request to start function", body=data)
 
     function = await run_in_threadpool(_parse_start_function_body, db_session, data)
-    await run_in_threadpool(
-        mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         function.metadata.project,
         function.metadata.name,
@@ -299,6 +315,7 @@ async def start_function(
         function,
         auth_info,
         client_version,
+        client_python_version,
     )
 
     return background_task
@@ -316,7 +333,7 @@ async def function_status(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    resp = await run_in_threadpool(_get_function_status, data, auth_info)
+    resp = await _get_function_status(data, auth_info)
     return {
         "data": resp,
     }
@@ -324,7 +341,7 @@ async def function_status(
 
 @router.get("/build/status")
 @router.get("/build/status/")
-def build_status(
+async def build_status(
     name: str = "",
     project: str = "",
     tag: str = "",
@@ -335,7 +352,7 @@ def build_status(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project or mlrun.mlconf.default_project,
         name,
@@ -344,74 +361,53 @@ def build_status(
         mlrun.api.schemas.AuthorizationAction.store,
         auth_info,
     )
-    fn = mlrun.api.crud.Functions().get_function(db_session, name, project, tag)
+    fn = await run_in_threadpool(
+        mlrun.api.crud.Functions().get_function, db_session, name, project, tag
+    )
     if not fn:
         log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
-        (
-            state,
-            address,
-            nuclio_name,
-            last_log_timestamp,
-            text,
-            status,
-        ) = get_nuclio_deploy_status(
-            name,
-            project,
-            tag,
-            # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
-            last_log_timestamp=last_log_timestamp or 1.0,
-            verbose=verbose,
-            auth_info=auth_info,
-        )
-        if state == "ready":
-            logger.info("Nuclio function deployed successfully", name=name)
-        if state in ["error", "unhealthy"]:
-            logger.error(f"Nuclio deploy error, {text}", name=name)
-
-        internal_invocation_urls = status.get("internalInvocationUrls", [])
-        external_invocation_urls = status.get("externalInvocationUrls", [])
-
-        # on earlier versions of mlrun, address used to represent the nodePort external invocation url
-        # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
-        # and hence, for BC it would be filled with the external invocation url first item
-        # or completely empty.
-        address = external_invocation_urls[0] if external_invocation_urls else ""
-
-        update_in(fn, "status.nuclio_name", nuclio_name)
-        update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
-        update_in(fn, "status.external_invocation_urls", external_invocation_urls)
-        update_in(fn, "status.state", state)
-        update_in(fn, "status.address", address)
-
-        versioned = False
-        if state == "ready":
-            # Versioned means the version will be saved in the DB forever, we don't want to spam
-            # the DB with intermediate or unusable versions, only successfully deployed versions
-            versioned = True
-        mlrun.api.crud.Functions().store_function(
+        return await run_in_threadpool(
+            _handle_nuclio_deploy_status,
             db_session,
+            auth_info,
             fn,
             name,
             project,
             tag,
-            versioned=versioned,
-        )
-        return Response(
-            content=text,
-            media_type="text/plain",
-            headers={
-                "x-mlrun-function-status": state,
-                "x-mlrun-last-timestamp": str(last_log_timestamp),
-                "x-mlrun-address": address,
-                "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
-                "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
-                "x-mlrun-name": nuclio_name,
-            },
+            last_log_timestamp,
+            verbose,
         )
 
+    return await run_in_threadpool(
+        _handle_job_deploy_status,
+        db_session,
+        auth_info,
+        fn,
+        name,
+        project,
+        tag,
+        last_log_timestamp,
+        verbose,
+        offset,
+        logs,
+    )
+
+
+def _handle_job_deploy_status(
+    db_session,
+    auth_info,
+    fn,
+    name,
+    project,
+    tag,
+    last_log_timestamp,
+    verbose,
+    offset,
+    logs,
+):
     # job deploy status
     state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
@@ -498,6 +494,77 @@ def build_status(
     )
 
 
+def _handle_nuclio_deploy_status(
+    db_session, auth_info, fn, name, project, tag, last_log_timestamp, verbose
+):
+    (
+        state,
+        _,
+        nuclio_name,
+        last_log_timestamp,
+        text,
+        status,
+    ) = get_nuclio_deploy_status(
+        name,
+        project,
+        tag,
+        # Workaround since when passing 0.0 to nuclio current timestamp is used and no logs are returned
+        last_log_timestamp=last_log_timestamp or 1.0,
+        verbose=verbose,
+        auth_info=auth_info,
+    )
+    if state == "ready":
+        logger.info("Nuclio function deployed successfully", name=name)
+    if state in ["error", "unhealthy"]:
+        logger.error(f"Nuclio deploy error, {text}", name=name)
+
+    internal_invocation_urls = status.get("internalInvocationUrls", [])
+    external_invocation_urls = status.get("externalInvocationUrls", [])
+
+    # on earlier versions of mlrun, address used to represent the nodePort external invocation url
+    # now that functions can be not exposed (using service_type clusterIP) this no longer relevant
+    # and hence, for BC it would be filled with the external invocation url first item
+    # or completely empty.
+    address = external_invocation_urls[0] if external_invocation_urls else ""
+
+    # the built and pushed image name used to run the nuclio function container
+    container_image = status.get("containerImage", "")
+
+    update_in(fn, "status.nuclio_name", nuclio_name)
+    update_in(fn, "status.internal_invocation_urls", internal_invocation_urls)
+    update_in(fn, "status.external_invocation_urls", external_invocation_urls)
+    update_in(fn, "status.state", state)
+    update_in(fn, "status.address", address)
+    update_in(fn, "status.container_image", container_image)
+
+    versioned = False
+    if state == "ready":
+        # Versioned means the version will be saved in the DB forever, we don't want to spam
+        # the DB with intermediate or unusable versions, only successfully deployed versions
+        versioned = True
+    mlrun.api.crud.Functions().store_function(
+        db_session,
+        fn,
+        name,
+        project,
+        tag,
+        versioned=versioned,
+    )
+    return Response(
+        content=text,
+        media_type="text/plain",
+        headers={
+            "x-mlrun-function-status": state,
+            "x-mlrun-last-timestamp": str(last_log_timestamp),
+            "x-mlrun-address": address,
+            "x-mlrun-internal-invocation-urls": ",".join(internal_invocation_urls),
+            "x-mlrun-external-invocation-urls": ",".join(external_invocation_urls),
+            "x-mlrun-container-image": container_image,
+            "x-mlrun-name": nuclio_name,
+        },
+    )
+
+
 def _build_function(
     db_session,
     auth_info: mlrun.api.schemas.AuthInfo,
@@ -507,6 +574,7 @@ def _build_function(
     mlrun_version_specifier=None,
     builder_env=None,
     client_version=None,
+    client_python_version=None,
 ):
     fn = None
     ready = None
@@ -564,6 +632,7 @@ def _build_function(
                 fn,
                 auth_info=auth_info,
                 client_version=client_version,
+                client_python_version=client_python_version,
                 builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
@@ -585,6 +654,7 @@ def _build_function(
                 skip_deployed,
                 builder_env=builder_env,
                 client_version=client_version,
+                client_python_version=client_python_version,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
@@ -619,7 +689,10 @@ def _parse_start_function_body(db_session, data):
 
 
 def _start_function(
-    function, auth_info: mlrun.api.schemas.AuthInfo, client_version: str = None
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
@@ -638,7 +711,11 @@ def _start_function(
             )
 
             #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](function, client_version=client_version)
+            resource["start"](
+                function,
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
             function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:
@@ -651,7 +728,7 @@ def _start_function(
         mlrun.api.db.session.close_session(db_session)
 
 
-def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
+async def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     logger.info(f"function_status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
@@ -666,7 +743,7 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
     if not project or not name:
         project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.function,
         project,
         name,
@@ -681,7 +758,6 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
             reason="runtime error: 'status' not supported by this runtime",
         )
 
-    resp = None
     try:
         resp = resource["status"](selector)
         logger.info("status: %s", resp)
@@ -694,7 +770,6 @@ def _get_function_status(data, auth_info: mlrun.api.schemas.AuthInfo):
 
 
 def _create_model_monitoring_stream(project: str):
-
     stream_path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=project, kind="stream"
     )

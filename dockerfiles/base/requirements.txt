@@ -6,9 +6,11 @@ lz4~=3.0
 vaex~=4.0
 yellowbrick~=1.1
 lifelines~=0.25.0
-plotly~=5.4
+# plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
+# so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
+plotly~=5.4, <5.12.0
 pyod~=0.8.1
-pytest~=5.4
+pytest~=6.0
 scikit-multiflow~=0.5.3
 scikit-optimize~=0.8.1
 scikit-image~=0.16.0

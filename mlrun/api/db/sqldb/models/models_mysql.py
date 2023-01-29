@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import orjson
 import sqlalchemy.dialects.mysql
 from sqlalchemy import (
+    BOOLEAN,
     JSON,
     Column,
     ForeignKey,
@@ -248,6 +249,11 @@ with warnings.catch_warnings():
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), default=datetime.utcnow
         )
+        # requested logs column indicates whether logs were requested for this run
+        # None - old runs prior to the column addition, logs were already collected for them, so no need to collect them
+        # False - logs were not requested for this run
+        # True - logs were requested for this run
+        requested_logs = Column(BOOLEAN, default=False, index=True)
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")

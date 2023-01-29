@@ -10,12 +10,6 @@ You can write your code on a local machine while running your functions on a rem
    - [Using your own environment file](#using-your-own-environment-file)
    - [Using MLRun SDK or CLI](#using-mlrun-sdk-or-cli)
    - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
-      - [Remote environment from PyCharm](#remote-environment-from-pycharm)
-      - [Remote environment from VSCode](#remote-environment-from-vscode)
-         - [Create environment file](#create-environment-file)
-         - [Create Python debug configuration](#create-python-debug-configuration)
-         - [Set environment file in debug configuration](#set-environment-file-in-debug-configuration)
-
 
 <a id="prerequisites"></a>
 ## Prerequisite: set up your client
@@ -59,11 +53,11 @@ Before you begin, ensure that the following prerequisites are met:
 4. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
 
 ## Configure remote environment
-You have few options to configure your remote environment:
-1. Using the default `.env` file (**Recommended**)
-2. Using your own environment file
-3. Using MLRun SDK or CLI
-4. Using your IDE (e.g PyCharm or VSCode)
+You have a few options to configure your remote environment:
+- Using the default `.env` file (**Recommended**)
+- Using your own environment file
+- Using MLRun SDK or CLI
+- Using your IDE (e.g PyCharm or VSCode)
 
 ### Using the default `.env` file (**Recommended**)
 
@@ -160,7 +154,6 @@ Explanation:
 1. Create an env file similar to the example, with lines in the form KEY=VALUE, and comment lines starting with "#".
 2. Use `--env-file <env file path>` in mlrun run/build/deploy/project CLI commands to load the config and credential env vars from file.
 3. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which load on import). If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
-   If the `MLRUN_DBPATH` points to a remote iguazio cluster and the `V3IO_API` and/or `V3IO_FRAMESD` vars are not set, they will be inferred from the DBPATH.
 4. Add the default `env` file template in the Jupyter container `~/env` (to allow quick setup of remote demos).
 
 ### Using your IDE (e.g PyCharm or VSCode)

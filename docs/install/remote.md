@@ -54,10 +54,10 @@ Before you begin, ensure that the following prerequisites are met:
 
 ## Configure remote environment
 You have a few options to configure your remote environment:
-- Using the default `.env` file (**Recommended**)
-- Using your own environment file
-- Using MLRun SDK or CLI
-- Using your IDE (e.g PyCharm or VSCode)
+- [Using the default `.env` file (**Recommended**)](#using-the-default-env-file-recommended)
+- [Using your own environment file](#using-your-own-environment-file)
+- [Using MLRun SDK or CLI](#using-mlrun-sdk-or-cli)
+- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
 
 ### Using the default `.env` file (**Recommended**)
 

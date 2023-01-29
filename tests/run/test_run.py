@@ -19,6 +19,7 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun import get_run_db, new_function, new_task
+from tests.common_fixtures import rundb_mock
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -135,11 +136,50 @@ def test_local_runtime_hyper():
 
 
 def test_local_handler():
+    mlrun.RunObject.logs = Mock()
+
     spec = tag_test(base_spec, "test_local_runtime")
     result = new_function(command=f"{examples_path}/handler.py").run(
         spec, handler="my_func"
     )
     verify_state(result)
+
+    assert mlrun.RunObject.logs.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "kind,watch,expected_watch_count",
+    [
+        ("", True, 0),
+        ("", True, 0),
+        ("local", False, 0),
+        ("local", False, 0),
+        ("dask", True, 0),
+        ("dask", False, 0),
+        ("job", True, 1),
+        ("job", False, 0),
+    ],
+)
+def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
+    mlrun.RunObject.logs = Mock()
+    spec = tag_test(base_spec, "test_local_runtime")
+    func = new_function(
+        command=f"{examples_path}/handler.py",
+        kind=kind,
+    )
+    func.spec.remote = False
+    func.spec.image = "some-image"
+    result = func.run(
+        spec,
+        handler="my_func",
+        watch=watch,
+    )
+
+    # since there is no API, the job will not be submitted - hence no run will be stored
+    if kind != "job":
+        verify_state(result)
+
+    assert mlrun.RunObject.logs.call_count == expected_watch_count
 
 
 def test_local_args():

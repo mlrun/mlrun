@@ -15,7 +15,6 @@ import datetime
 import inspect
 import socket
 import time
-import warnings
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -152,7 +151,7 @@ class DaskSpec(KubeResourceSpec):
             "scheduler_resources", scheduler_resources
         )
         self._worker_resources = self.enrich_resources_with_default_pod_resources(
-            "worker_resources", scheduler_resources
+            "worker_resources", worker_resources
         )
 
     @property
@@ -307,12 +306,12 @@ class DaskCluster(KubejobRuntime):
 
     def get_status(self):
         meta = self.metadata
-        s = get_func_selector(meta.project, meta.name, meta.tag)
+        selector = get_func_selector(meta.project, meta.name, meta.tag)
         if self._is_remote_api():
             db = self._get_db()
-            return db.remote_status(meta.project, meta.name, self.kind, s)
+            return db.remote_status(meta.project, meta.name, self.kind, selector)
 
-        status = get_obj_status(s)
+        status = get_obj_status(selector)
         print(status)
         return status
 
@@ -383,6 +382,7 @@ class DaskCluster(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
+        builder_env: dict = None,
         show_on_failure: bool = False,
     ):
         """deploy function, build container with dependencies
@@ -403,34 +403,30 @@ class DaskCluster(KubejobRuntime):
             skip_deployed,
             is_kfp=is_kfp,
             mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        warnings.warn(
-            "Dask's gpus will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
+        # TODO: In 1.4.0 change to NotImplementedError
+        raise DeprecationWarning(
+            "Dask's gpus is deprecated and will be removed in 1.4.0, use "
             "with_scheduler_limits/with_worker_limits instead",
-            # TODO: In 0.8.0 deprecate and replace gpus to with_worker/scheduler_limits in examples & demos (or maybe
-            #  just change behavior ?)
-            PendingDeprecationWarning,
         )
-        # the scheduler/worker specific functions was introduced after the general one, to keep backwards compatibility
-        # this function just sets the gpus for both of them
-        update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
-        update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 
-    def with_limits(self, mem=None, cpu=None, gpus=None, gpu_type="nvidia.com/gpu"):
-        warnings.warn(
-            "Dask's with_limits will be deprecated in 0.8.0, and will be removed in 0.10.0, use "
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        # TODO: In 1.4.0 change to NotImplementedError
+        raise DeprecationWarning(
+            "Dask's with_limits is deprecated and will be removed in 1.4.0, use "
             "with_scheduler_limits/with_worker_limits instead",
-            # TODO: In 0.8.0 deprecate and replace with_limits to with_worker/scheduler_limits in examples & demos (or
-            #  maybe just change behavior ?)
-            PendingDeprecationWarning,
         )
-        # the scheduler/worker specific function was introduced after the general one, to keep backwards compatibility
-        # this function just sets the limits for both of them
-        self.with_scheduler_limits(mem, cpu, gpus, gpu_type)
-        self.with_worker_limits(mem, cpu, gpus, gpu_type)
 
     def with_scheduler_limits(
         self,
@@ -666,7 +662,10 @@ def _validate_dask_related_libraries_installed():
         raise exc
 
 
-def get_obj_status(selector=[], namespace=None):
+def get_obj_status(selector=None, namespace=None):
+    if selector is None:
+        selector = []
+
     k8s = get_k8s_helper()
     namespace = namespace or config.namespace
     selector = ",".join(["dask.org/component=scheduler"] + selector)

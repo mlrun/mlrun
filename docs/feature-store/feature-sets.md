@@ -18,12 +18,14 @@ The feature set object contains the following information:
 
 **In this section**
 - [Create a Feature Set](#create-a-feature-set)
+- [Create a feature set without ingesting its data](#create-a-feature-set-without-ingesting-its-data)
 - [Add transformations](#add-transformations)
-- [Simulate and debug the data pipeline with a small dataset](#simulate-the-data-pipeline-with-a-small-dataset)
+
+**See also**:
+- [Verify a feature set with a small dataset by inferring data](../data-prep/ingest-data-fs.html#verify-a-feature-set-with-a-small-dataset-by-inferring-data)
+- {ref}`Ingest data using the feature store <ingest-data-fs>`
 
 
-See also [Ingest data using the feature store](#ingest-data-fs)
-  
    
 ## Create a feature set
 
@@ -43,13 +45,36 @@ Example:
 stocks_set = FeatureSet("stocks", entities=[Entity("ticker")])
 ```
 
-To learn more about Feature Sets go to {py:class}`~mlrun.feature_store.FeatureSet`.
 
-```{admonition} Note 
-Feature sets can also be created in the UI. To create a feature set:
+### Create a feature set in the UI
+
 1. Select a project and press **Feature store**, then press **Create Set**.
 3. After completing the form, press **Save and Ingest** to start the process, or **Save** to save the set for later ingestion.
+
+## Create a feature set without ingesting its data
+
+You can define and register a feature set (and use it in a feature vector) without ingesting its data into MLRun offline targets.
+
+The use-case for this is when you have a large amount of data in a remote storage that is ready to be consumed by a model-training pipeline.
+When this feature is enabled on a feature set, data is **not** saved to the offline target during ingestion. Instead, when  
+`get_offline_features` is called on a vector containing that feature set, that data is read directly from the source.
+Online targets are still ingested, and their value represents a timeslice of the offline source.
+Transformations are not allowed when this feature is enabled: no computation graph, no aggregations, etc.
+Enable this feature by including `passthrough=True` in the feature set definition. All three ingestion engines (Storey, Spark, Pandas) 
+are supported, as well as the retrieval engines "local" and "spark".
+
+Typical code, from defining the feature set through ingesting its data:
 ```
+# Flag the feature set as passthrough
+my_fset = fstore.FeatureSet("my_fset", entities=[Entity("patient_id)], timestamp_key="timestamp", passthrough=True) 
+csv_source = CSVSource("my_csv", path="data.csv"), time_field="timestamp")
+# Ingest the source data, but only to online/nosql target
+fstore.ingest(my_fset, csv_source) 
+vector = fstore.FeatureVector("myvector", features=[f"my_fset"])
+# Read the offline data directly from the csv source
+resp = fstore.get_offline_features(vector, entity_timestamp_column="timestamp", with_indexes=True) 
+```
+
 
 ## Add transformations 
 
@@ -95,22 +120,4 @@ df = fstore.ingest(stocks_set, stocks_df)
 
 The graph steps can use built-in transformation classes, simple python classes, or function handlers. 
 
-See more details in [Feature set transformations](transformations.html).
-
-## Simulate and debug the data pipeline with a small dataset
-During the development phase it's pretty common to check the feature set definition and to simulate the creation of the feature set before ingesting the entire dataset, since ingesting the entire feature set can take time. <br>
-This allows you to get a preview of the results (in the returned dataframe). The simulation method is called `infer`. It infers the source data schema as well as processing the graph logic (assuming there is one) on a small subset of data. 
-The infer operation also learns the feature set schema and does statistical analysis on the result by default.
-  
-```python
-df = fstore.preview(quotes_set, quotes)
-
-# print the featue statistics
-print(quotes_set.get_stats_table())
-```
-
-
-
-
-
-
+See more details in {ref}`transformations`.

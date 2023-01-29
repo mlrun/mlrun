@@ -499,7 +499,7 @@ def _handle_nuclio_deploy_status(
 ):
     (
         state,
-        address,
+        _,
         nuclio_name,
         last_log_timestamp,
         text,

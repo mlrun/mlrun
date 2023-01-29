@@ -43,7 +43,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
     conda init bash
 
 ARG MLRUN_PIP_VERSION=22.3.0
-ARG MLRUN_PYTHON_VERSION=3.9.13
+ARG MLRUN_PYTHON_VERSION=3.9
 ARG OMPI_VERSION=4.1.4
 
 ENV CONDA_OVERRIDE_CUDA ${CUDA_VER}
@@ -63,7 +63,6 @@ RUN conda install -n base -c rapidsai -c nvidia -c pytorch -c conda-forge \
         cython \
         make \
         nccl \
-        python=${MLRUN_PYTHON_VERSION} \
         pytorch=1.13 \
         rapids=22.10 \
         tensorflow=2.9 \

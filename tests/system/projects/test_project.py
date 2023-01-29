@@ -109,7 +109,10 @@ class TestProject(TestMLRunSystem):
             "echo 2222",
         ]
         self.project.set_function(
-            "assets/handler.py", func_name, kind="job", image="mlrun/mlrun"
+            str(self.assets_path / "handler.py"),
+            func_name,
+            kind="job",
+            image="mlrun/mlrun",
         )
         self.project.build_function(
             func_name, base_image="mlrun/mlrun", commands=commands
@@ -148,7 +151,9 @@ class TestProject(TestMLRunSystem):
         assert models[0].producer["workflow"] == run.run_id
 
         functions = project2.list_functions(tag="latest")
-        assert len(functions) == 2  # prep-data, auto-trainer
+        assert (
+            len(functions) == 3
+        )  # prep-data, auto-trainer twice (train, test - see assets/kflow.py)
         assert functions[0].metadata.project == name
 
     def test_run_artifact_path(self):
@@ -595,6 +600,20 @@ class TestProject(TestMLRunSystem):
         run_result = project.run_function(fn, params={"text": "good morning"})
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
+        assert run_result.output("score")
+
+        # Use project default image to run function, don't specify image when calling set_function
+        project.set_default_image(fn.spec.image)
+        project.set_function(
+            "./sentiment.py",
+            "scores4",
+            kind="job",
+            handler="handler",
+        )
+        enriched_fn = project.get_function("scores4", enrich=True)
+        assert enriched_fn.spec.image == fn.spec.image
+        project.run_function("scores4", params={"text": "good evening"})
+        assert fn.status.state == "ready"
         assert run_result.output("score")
 
     def test_set_secrets(self):

@@ -444,12 +444,12 @@ def test_load_project(
         ),
         (
             True,
-            4,
+            5,
             False,
         ),
         (
             True,
-            4,
+            5,
             True,
         ),
     ],
@@ -685,6 +685,64 @@ def test_function_receives_project_artifact_path(rundb_mock):
     # expected to call `get_project`, but the project wasn't saved yet, so it will use the default artifact path
     run5 = func3.run(local=True, project="proj1")
     assert run5.spec.output_path == mlrun.mlconf.artifact_path
+
+
+def test_function_receives_project_default_image():
+    func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
+    mlrun.mlconf.artifact_path = "/tmp"
+    proj1 = mlrun.new_project("proj1", save=False)
+    default_image = "myrepo/myimage1"
+
+    # Without a project default image, set_function with file-path for remote kind must get an image
+    with pytest.raises(ValueError, match="image must be provided"):
+        proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+
+    proj1.set_default_image(default_image)
+    proj1.set_function(func=func_path, name="func", kind="job", handler="myhandler")
+
+    # Functions should remain without the default image in the project cache (i.e. without enrichment). Only with
+    # enrichment, the default image should apply
+    non_enriched_function = proj1.get_function("func", enrich=False)
+    assert non_enriched_function.spec.image == ""
+    enriched_function = proj1.get_function("func", enrich=True)
+    assert enriched_function.spec.image == default_image
+
+    # Same check - with a function object
+    func1 = mlrun.code_to_function(
+        "func2", kind="job", handler="myhandler", filename=func_path
+    )
+    proj1.set_function(func1, name="func2")
+
+    non_enriched_function = proj1.get_function("func2", enrich=False)
+    assert non_enriched_function.spec.image == ""
+    enriched_function = proj1.get_function("func2", enrich=True)
+    assert enriched_function.spec.image == default_image
+
+    # If function already had an image, the default image must not override
+    func1.spec.image = "some/other_image"
+    proj1.set_function(func1, name="func3")
+
+    enriched_function = proj1.get_function("func3", enrich=True)
+    assert enriched_function.spec.image == "some/other_image"
+
+    # Enrich the function in-place. Validate that changing the default image affects this function
+    proj1.get_function("func", enrich=True, copy_function=False)
+    new_default_image = "mynewrepo/mynewimage1"
+    proj1.set_default_image(new_default_image)
+
+    enriched_function = proj1.get_function("func")
+    assert enriched_function.spec.image == new_default_image
+
+
+def test_project_exports_default_image():
+    project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
+    default_image = "myrepo/myimage1"
+    project = mlrun.new_project("proj1", save=False)
+    project.set_default_image(default_image)
+
+    project.export(str(project_file_path))
+    imported_project = mlrun.load_project("./", str(project_file_path), save=False)
+    assert imported_project.default_image == default_image
 
 
 def test_run_function_passes_project_artifact_path(rundb_mock):

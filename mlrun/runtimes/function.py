@@ -21,6 +21,7 @@ from time import sleep
 from urllib.parse import urlparse
 
 import nuclio
+import nuclio.utils
 import requests
 import semver
 from aiohttp.client import ClientSession
@@ -46,8 +47,6 @@ from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
 from .pod import KubeResource, KubeResourceSpec
 from .utils import get_item_name, log_std
-
-default_max_replicas = 4
 
 
 def validate_nuclio_version_compatibility(*min_versions):
@@ -209,14 +208,12 @@ class NuclioSpec(KubeResourceSpec):
         self.no_cache = no_cache
         self.readiness_timeout = readiness_timeout
 
-        # TODO: we would prefer to default to 0, but invoking a scaled to zero function requires to either add the
-        #  x-nuclio-target header or to create the function with http trigger and invoke the function through it - so
-        #  we need to do one of the two
         self.min_replicas = min_replicas or 1
-        self.max_replicas = max_replicas or default_max_replicas
+        self.max_replicas = max_replicas or 4
+
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
-        self.base_image_pull: bool = None
+        self.base_image_pull = False
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -404,7 +401,7 @@ class RemoteRuntime(KubeResource):
         :param port:       TCP port
         :param host:       hostname
         :param paths:      list of sub paths
-        :param canary:     k8s ingress canary (% traffic value between 0 to 100)
+        :param canary:     k8s ingress canary (% traffic value between 0 and 100)
         :param secret:     k8s secret name for SSL certificate
         :param worker_timeout:  worker wait timeout in sec (how long a message should wait in the worker queue
                                 before an error is returned)
@@ -1148,18 +1145,26 @@ def deploy_nuclio_function(
         mlconf.httpdb.nuclio.default_service_type,
     )
 
-    return nuclio.deploy.deploy_config(
-        function_config,
-        dashboard_url=dashboard,
-        name=function_name,
-        project=project_name,
-        tag=function.metadata.tag,
-        verbose=function.verbose,
-        create_new=True,
-        watch=watch,
-        return_address_mode=nuclio.deploy.ReturnAddressModes.all,
-        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
-    )
+    try:
+        return nuclio.deploy.deploy_config(
+            function_config,
+            dashboard_url=dashboard,
+            name=function_name,
+            project=project_name,
+            tag=function.metadata.tag,
+            verbose=function.verbose,
+            create_new=True,
+            watch=watch,
+            return_address_mode=nuclio.deploy.ReturnAddressModes.all,
+            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+        )
+    except nuclio.utils.DeployError as exc:
+        if exc.err:
+            mlrun.errors.raise_for_status(
+                exc.err.response,
+                f"Failed to deploy function {project_name}/{function_name} to Nuclio",
+            )
+        raise
 
 
 def resolve_function_ingresses(function_spec):
@@ -1482,19 +1487,40 @@ def get_nuclio_deploy_status(
 ):
     api_address = find_dashboard_url(dashboard or mlconf.nuclio_dashboard_url)
     name = get_fullname(name, project, tag)
+    get_err_message = f"Failed to get function {name} deploy status"
 
-    state, address, last_log_timestamp, outputs, function_status = get_deploy_status(
-        api_address,
-        name,
-        last_log_timestamp,
-        verbose,
-        resolve_address,
-        return_function_status=True,
-        auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
-    )
+    try:
+        (
+            state,
+            address,
+            last_log_timestamp,
+            outputs,
+            function_status,
+        ) = get_deploy_status(
+            api_address,
+            name,
+            last_log_timestamp,
+            verbose,
+            resolve_address,
+            return_function_status=True,
+            auth_info=auth_info.to_nuclio_auth_info() if auth_info else None,
+        )
+    except requests.exceptions.ConnectionError as exc:
+        mlrun.errors.raise_for_status(
+            exc.response,
+            get_err_message,
+        )
 
-    text = "\n".join(outputs) if outputs else ""
-    return state, address, name, last_log_timestamp, text, function_status
+    except nuclio.utils.DeployError as exc:
+        if exc.err:
+            mlrun.errors.raise_for_status(
+                exc.err.response,
+                get_err_message,
+            )
+        raise exc
+    else:
+        text = "\n".join(outputs) if outputs else ""
+        return state, address, name, last_log_timestamp, text, function_status
 
 
 def _compile_nuclio_archive_config(

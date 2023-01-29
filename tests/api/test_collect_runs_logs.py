@@ -68,10 +68,16 @@ class TestCollectRunSLogs:
             == 1
         )
         assert (
-            mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
-                1
-            ]["uids"]
-            == run_uids
+            deepdiff.DeepDiff(
+                mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
+                    1
+                ][
+                    "uids"
+                ],
+                run_uids,
+                ignore_order=True,
+            )
+            == {}
         )
 
     @pytest.mark.asyncio

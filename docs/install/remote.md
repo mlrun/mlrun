@@ -1,10 +1,10 @@
 (install-remote)=
-# Set up your client environment <!-- omit in toc -->
+# Set up your remote environment <!-- omit in toc -->
 
 You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
 
 **In this section**
-- [Prerequisites](#prerequisites)
+- [Prerequisite: set up your client](#prerequisite-set-up-your-client)
 - [Configure remote environment](#configure-remote-environment)
    - [Using the default `.env` file (**Recommended**)](#using-the-default-env-file-recommended)
    - [Using your own environment file](#using-your-own-environment-file)
@@ -18,7 +18,7 @@ You can write your code on a local machine while running your functions on a rem
 
 
 <a id="prerequisites"></a>
-## Prerequisites
+## Prerequisite: set up your client
 
 Before you begin, ensure that the following prerequisites are met:
 
@@ -61,23 +61,23 @@ Before you begin, ensure that the following prerequisites are met:
 ## Configure remote environment
 You have few options to configure your remote environment:
 1. Using the default `.env` file (**Recommended**)
-  - The default `.env` file is located by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows
-  - The file can be edited manually or with `mlrun config set` command line (see below explanations of this command)
 2. Using your own environment file
 3. Using MLRun SDK or CLI
 4. Using your IDE (e.g PyCharm or VSCode)
 
 ### Using the default `.env` file (**Recommended**)
 
-Run `mlrun config set` command line to set configuration parameters in mlrun default or specified `.env` file. By default, it stores all of the configuration into the default environment file, and your own environment file does not need editing.
+The default `.env` file is located by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows. This file can be edited manually or with `mlrun config set` command line:
+
+Run the `mlrun config set` command line to set configuration parameters in mlrun default or the specified `.env` file. By default, it stores all of the configuration into the default environment file, and your own environment file does not need editing.
 
 The `set` command can work with the following parameters:
-    - `--env-file` or `-f` to set the url path to the mlrun `.env file` 
-    - `--api` or `-a` to set the url (local or remote) for MLRun API
-    - `--artifact-path` or `-p` to set the artifact path (optional)
-    - `--username` or `-u` to set the username (for remote access)
-    - `--access-key` or `-k` to set the access key (for remote access)
-    - `--env-vars` or `-e` to set the environment variables (optional)
+    -`--env-file` or `-f` to set the url path to the mlrun `.env file` 
+    -`--api` or `-a` to set the url (local or remote) for MLRun API
+    -`--artifact-path` or `-p` to set the artifact path (optional)
+    -`--username` or `-u` to set the username (for remote access)
+    -`--access-key` or `-k` to set the access key (for remote access)
+    -`--env-vars` or `-e` to set the environment variables (optional)
    
 Example:
  ```
@@ -85,6 +85,8 @@ Example:
  ```
 
 ### Using your own environment file
+
+To use your own environment file, set the url path to it with `--env-file` or `-f` parameter in the `mlrun config set` command line.
 
 You can load the env via config file when working from remote (e.g. via PyCharm).
    
@@ -157,7 +159,7 @@ Explanation:
 
 1. Create an env file similar to the example, with lines in the form KEY=VALUE, and comment lines starting with "#".
 2. Use `--env-file <env file path>` in mlrun run/build/deploy/project CLI commands to load the config and credential env vars from file.
-3. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which will be loaded on import).
+3. Set the `MLRUN_ENV_FILE=<env file path>` env var to point to a default env file (which load on import). If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
    If the `MLRUN_DBPATH` points to a remote iguazio cluster and the `V3IO_API` and/or `V3IO_FRAMESD` vars are not set, they will be inferred from the DBPATH.
 4. Add the default `env` file template in the Jupyter container `~/env` (to allow quick setup of remote demos).
 

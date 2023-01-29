@@ -19,7 +19,6 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun import get_run_db, new_function, new_task
-from tests.common_fixtures import rundb_mock
 from tests.conftest import (
     examples_path,
     has_secrets,
@@ -162,20 +161,30 @@ def test_local_handler():
 )
 def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
     mlrun.RunObject.logs = Mock()
-    spec = tag_test(base_spec, "test_local_runtime")
+    spec = tag_test(base_spec, "test_is_watchable")
     func = new_function(
         command=f"{examples_path}/handler.py",
         kind=kind,
     )
-    func.spec.remote = False
-    func.spec.image = "some-image"
+
+    if kind == "dask":
+
+        # don't start dask cluster
+        func.spec.remote = False
+    elif kind == "job":
+
+        # mark as deployed
+        func.spec.image = "some-image"
+
     result = func.run(
         spec,
         handler="my_func",
         watch=watch,
     )
 
-    # since there is no API, the job will not be submitted - hence no run will be stored
+    # rundb_mock mocks the job submission when kind is job
+    # therefore, if we watch we get an empty result as the run was not created (it is mocked)
+    # else, the state will not be 'completed'
     if kind != "job":
         verify_state(result)
 

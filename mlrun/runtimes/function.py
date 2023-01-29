@@ -1668,12 +1668,12 @@ def _resolve_work_dir_and_handler(handler):
 def _resolve_nuclio_runtime_python_image(
     mlrun_client_version: str = None, python_version: str = None
 ):
-    # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 there for need
-    # to use the default runtime which was previously which is python 3.7
+    # if no python version or mlrun version is passed it means we use mlrun client older than 1.3.0 therefore need
+    # to use the previoud default runtime which is python 3.7
     if not python_version or not mlrun_client_version:
         return "python:3.7"
 
-    # If the mlrun version is 0.0.0-unstable>/commit hash>, it is a dev version,
+    # If the mlrun version is 0.0.0-<unstable>, it is a dev version,
     # so we can't check if it is higher than 1.3.0, but if the python version was passed,
     # it means it is 1.3.0-rc or higher, so use the image according to the python version
     if mlrun_client_version.startswith("0.0.0-") or "unstable" in mlrun_client_version:

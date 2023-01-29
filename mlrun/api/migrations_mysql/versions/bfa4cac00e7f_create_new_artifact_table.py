@@ -49,6 +49,9 @@ def upgrade():
         sa.ForeignKeyConstraint(
             ["parent"],
             ["artifacts.id"],
+            # set name to avoid conflict with legacy table, foreign key indexes are not getting renamed when renaming
+            # the table
+            "_new_artifacts_labels_parent_fk",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "parent", name="_artifacts_labels_uc"),
@@ -67,6 +70,9 @@ def upgrade():
         sa.ForeignKeyConstraint(
             ["obj_id"],
             ["artifacts.id"],
+            # set name to avoid conflict with legacy table, foreign key indexes are not getting renamed when renaming
+            # the table
+            "_new_artifacts_tags_obj_id_fk",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project", "name", "obj_name", name="_artifacts_tags_uc"),

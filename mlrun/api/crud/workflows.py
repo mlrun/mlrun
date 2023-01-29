@@ -184,13 +184,14 @@ class WorkflowRunners(
 
     @staticmethod
     def get_workflow_id(
-        uid: str, project: str, db_session: Session
+        uid: str, project: str, engine: str, db_session: Session
     ) -> mlrun.api.schemas.GetWorkflowResponse:
         """
         Retrieving the actual workflow id form the workflow runner
 
         :param uid:         the id of the workflow runner job
         :param project:     name of the project
+        :param engine:      pipeline runner, for example: "kfp"
         :param db_session:  session that manages the current dialog with the database
 
         :return: The id of the workflow.
@@ -200,11 +201,14 @@ class WorkflowRunners(
             db_session=db_session, uid=uid, iter=0, project=project
         )
         run_object = RunObject.from_dict(run)
-
+        state = run_object.status.state
         workflow_id = None
         if isinstance(run_object.status.results, dict):
-            workflow_id = run_object.status.results.get("workflow_id")
-        if not workflow_id:
+            workflow_id = run_object.status.results.get("workflow_id", None)
+        elif engine == "local" and state == mlrun.run.RunStatuses.running:
+            workflow_id = ""
+
+        if workflow_id is None:
             raise mlrun.errors.MLRunNotFoundError(
                 f"workflow id of run {uid}:{project} not found"
             )

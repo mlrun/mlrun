@@ -3011,6 +3011,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         name: str,
         run_id: str,
+        engine: str = "",
     ):
         """
         Retrieve workflow id from the uid of the workflow runner.
@@ -3018,11 +3019,17 @@ class HTTPRunDB(RunDBInterface):
         :param project: project name
         :param name:    workflow name
         :param run_id:  the id of the workflow runner - the job that runs the workflow
+        :param engine:  pipeline runner
 
         :returns:   :py:class:`~mlrun.api.schemas.GetWorkflowResponse`.
         """
+        params = {}
+        if engine:
+            params["engine"] = engine
         response = self.api_call(
-            "GET", f"projects/{project}/workflows/{name}/references/{run_id}"
+            "GET",
+            f"projects/{project}/workflows/{name}/references/{run_id}",
+            params=params,
         )
         return schemas.GetWorkflowResponse(**response.json())
 

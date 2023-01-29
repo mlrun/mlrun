@@ -447,7 +447,7 @@ class TestProject(TestMLRunSystem):
         )
 
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
-        assert run.run_id, "workflow's run id failed to fetch"
+        assert run.run_id is not None, "workflow's run id failed to fetch"
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):
         project_name = "rmtpipe-kfp-github"

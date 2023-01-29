@@ -780,6 +780,7 @@ class _RemoteRunner(_PipelineRunner):
                 project=project.name,
                 name=workflow_response.name,
                 run_id=workflow_response.run_id,
+                engine=workflow_spec.engine,
             )
             workflow_id = response.workflow_id
             # After fetching the workflow_id the workflow executed successfully

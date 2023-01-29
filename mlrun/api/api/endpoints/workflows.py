@@ -52,7 +52,9 @@ def _get_workflow_by_name(
     for workflow in project.spec.workflows:
         if workflow["name"] == name:
             return workflow
-    return None
+    log_and_raise(
+        reason=f"workflow {name} not found in project",
+    )
 
 
 def _fill_workflow_missing_fields_from_project(
@@ -73,10 +75,7 @@ def _fill_workflow_missing_fields_from_project(
     """
     # Verifying workflow exists in project:
     workflow = _get_workflow_by_name(project, name)
-    if not workflow:
-        log_and_raise(
-            reason=f"workflow {name} not found in project",
-        )
+
     if spec:
         # Merge between the workflow spec provided in the request with existing
         # workflow while the provided workflow takes precedence over the existing workflow params
@@ -268,6 +267,7 @@ async def get_workflow_id(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
+    engine: str = "kfp",
 ) -> mlrun.api.schemas.GetWorkflowResponse:
     """
     Retrieve workflow id from the uid of the workflow runner.
@@ -286,6 +286,7 @@ async def get_workflow_id(
     :param uid:         the id of the running job that runs the workflow
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
+    :param engine:      pipeline runner, for example: "kfp"
 
     :returns: workflow id
     """
@@ -310,5 +311,6 @@ async def get_workflow_id(
         mlrun.api.crud.WorkflowRunners().get_workflow_id,
         uid=uid,
         project=project,
+        engine=engine,
         db_session=db_session,
     )

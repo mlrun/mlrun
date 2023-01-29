@@ -371,6 +371,7 @@ def mlrun_op(
     params = params or {}
     hyperparams = hyperparams or {}
     inputs = inputs or {}
+    returns = returns or []
     secrets = secrets or []
 
     if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:

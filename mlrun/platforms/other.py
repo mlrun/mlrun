@@ -121,6 +121,24 @@ def mount_secret(secret_name, mount_path, volume_name="secret", items=None):
     return _mount_secret
 
 
+def mount_env_from_secret(secret_name, prefix=None):
+    """
+    Modifier function to mount kubernetes secret as environment variables. Uses k8s env_from
+    to apply all contents of the secret as env. variables.
+
+    :param secret_name:         k8s secret name
+    :param prefix:              Prefix to append to env. variable names when mounting to the pod
+    """
+
+    def _mount_env_from_secret(task):
+        from kubernetes import client as k8s_client
+
+        env_from = k8s_client.V1EnvFromSource(secret_ref=secret_name, prefix=prefix)
+        task.container.add_env_from(env_from)
+
+    return _mount_env_from_secret
+
+
 def mount_configmap(configmap_name, mount_path, volume_name="configmap", items=None):
     """Modifier function to mount kubernetes configmap as files(s)
 

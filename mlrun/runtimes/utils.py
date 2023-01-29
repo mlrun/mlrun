@@ -420,6 +420,11 @@ def apply_kfp(modify, cop, runtime):
                 env_names.append(name)
         cop.container.env.clear()
 
+    if cop.container.env_from:
+        for env_from in cop.container.env_from:
+            runtime.spec.env_from.append(api.sanitize_for_serialization(env_from))
+        cop.container.env_from.clear()
+
     if cop.volumes and cop.container.volume_mounts:
         vols = api.sanitize_for_serialization(cop.volumes)
         mounts = api.sanitize_for_serialization(cop.container.volume_mounts)

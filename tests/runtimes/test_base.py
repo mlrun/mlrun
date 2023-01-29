@@ -223,3 +223,13 @@ class TestAutoMount:
         rundb_mock.reset()
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
+
+    def test_auto_mount_env_from_secret(self, rundb_mock):
+        secret_name = "my_secret_1"
+
+        mlconf.storage.auto_mount_type = "env_from_secret"
+        mlconf.storage.auto_mount_params = f"secret_name={secret_name}"
+
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_from_secret_configured(secret_name)

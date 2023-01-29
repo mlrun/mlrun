@@ -388,6 +388,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         name="base",
         image=image,
         env=extra_env + runtime.spec.env,
+        env_from=runtime.spec.env_from,
         command=[command],
         args=args,
         working_dir=workdir,

@@ -91,6 +91,7 @@ class KubeResourceSpec(FunctionSpec):
         "volumes",
         "volume_mounts",
         "env",
+        "env_from",
         "resources",
         "replicas",
         "image_pull_policy",
@@ -133,6 +134,7 @@ class KubeResourceSpec(FunctionSpec):
         tolerations=None,
         preemption_mode=None,
         security_context=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -152,6 +154,7 @@ class KubeResourceSpec(FunctionSpec):
         self.volumes = volumes or []
         self.volume_mounts = volume_mounts or []
         self.env = env or []
+        self.env_from = env_from or []
         self._resources = self.enrich_resources_with_default_pod_resources(
             "resources", resources
         )
@@ -807,6 +810,7 @@ class AutoMountType(str, Enum):
     pvc = "pvc"
     s3 = "s3"
     env = "env"
+    env_from_secret = "env_from_secret"
 
     @classmethod
     def _missing_(cls, value):
@@ -831,6 +835,7 @@ class AutoMountType(str, Enum):
             mlrun.auto_mount.__name__,
             mlrun.platforms.mount_s3.__name__,
             mlrun.platforms.set_env_variables.__name__,
+            mlrun.platforms.other.mount_env_from_secret.__name__,
         ]
 
     @classmethod
@@ -865,6 +870,7 @@ class AutoMountType(str, Enum):
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun.platforms.mount_s3,
             AutoMountType.env: mlrun.platforms.set_env_variables,
+            AutoMountType.env_from_secret: mlrun.platforms.other.mount_env_from_secret,
         }[self]
 
 

@@ -308,6 +308,11 @@ class RunDBMock:
         assert len(volumes) == 0
         assert len(volume_mounts) == 0
 
+    def assert_env_from_secret_configured(self, secret_name):
+        env_from_list = self._function["spec"]["env_from"]
+        secret_names = [env_from["secretRef"] for env_from in env_from_list]
+        assert secret_name in secret_names
+
     def assert_v3io_mount_or_creds_configured(
         self, v3io_user, v3io_access_key, cred_only=False
     ):

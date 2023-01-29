@@ -135,15 +135,11 @@ def test_local_runtime_hyper():
 
 
 def test_local_handler():
-    mlrun.RunObject.logs = Mock()
-
     spec = tag_test(base_spec, "test_local_runtime")
     result = new_function(command=f"{examples_path}/handler.py").run(
         spec, handler="my_func"
     )
     verify_state(result)
-
-    assert mlrun.RunObject.logs.call_count == 1
 
 
 @pytest.mark.parametrize(

@@ -211,9 +211,6 @@ class LocalFeatureMerger(BaseMerger):
         right_keys: list,
         columns: list,
     ):
-        if not left_keys and not right_keys:
-            # when using entity_df param
-            left_keys = right_keys = entity_df.index.names
         fs_name = featureset.metadata.name
         merged_df = pd.merge(
             entity_df,

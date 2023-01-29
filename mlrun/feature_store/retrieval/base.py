@@ -196,6 +196,9 @@ class BaseMerger(abc.ABC):
             entity_timestamp_column = (
                 entity_timestamp_column or featureset.spec.timestamp_key
             )
+        elif entity_df is not None and featureset_dfs:
+            # when `entity_rows` passed to `get_offline_features`
+            keys[0][0] = keys[0][1] = entity_df.index.names
 
         for featureset, featureset_df, lr_key, columns in zip(
             featuresets, featureset_dfs, keys, all_columns

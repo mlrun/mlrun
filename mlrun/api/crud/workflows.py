@@ -206,13 +206,17 @@ class WorkflowRunners(
         workflow_id = None
         if isinstance(run_object.status.results, dict):
             workflow_id = run_object.status.results.get("workflow_id", None)
-        elif engine == "local" and state.casefold() == mlrun.run.RunStatuses.running.casefold():
-            workflow_id = ""
 
         if workflow_id is None:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"workflow id of run {uid}:{project} not found"
-            )
+            if (
+                engine == "local"
+                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
+            ):
+                workflow_id = ""
+            else:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"workflow id of run {uid}:{project} not found"
+                )
 
         return mlrun.api.schemas.GetWorkflowResponse(workflow_id=workflow_id)
 

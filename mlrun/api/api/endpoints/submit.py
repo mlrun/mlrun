@@ -43,6 +43,9 @@ async def submit_job(
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
     ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
+    ),
 ):
     data = None
     try:
@@ -118,9 +121,16 @@ async def submit_job(
     client_version = client_version or data["task"]["metadata"].get("labels", {}).get(
         "mlrun/client_version"
     )
+    client_python_version = client_python_version or data["task"]["metadata"].get(
+        "labels", {}
+    ).get("mlrun/client_python_version")
     if client_version is not None:
         data["task"]["metadata"].setdefault("labels", {}).update(
             {"mlrun/client_version": client_version}
+        )
+    if client_python_version is not None:
+        data["task"]["metadata"].setdefault("labels", {}).update(
+            {"mlrun/client_python_version": client_python_version}
         )
     logger.info("Submitting run", data=data)
     return await mlrun.api.api.utils.submit_run(db_session, auth_info, data)

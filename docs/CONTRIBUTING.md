@@ -42,7 +42,7 @@ used to specify the default), the value can be fixed number for constants or $me
 - To join two nouns, use a - (hyphen). <br>
 - Use colons or &mdash; when separating text (not hyphen):
    - Yes: `v3io` storage through API: 
-   - Yes: `v3io` storage through API&mdash; 
+   - Yes: `v3io` storage through API &mdash; (m dashes are always surrounded by spaces)
    - No: `v3io` storage through API - 
 - For a range of numbers, use the &ndash;  For example: The range is 2&ndash;4. 
 
@@ -85,6 +85,20 @@ Do not use may in place of can!
 - Yes: You can update the code using...
 - Yes: As use-cases evolve, other types of storage access might be needed.
 - No: As use-cases evolve, other types of storage access may be needed.
+
+## Cheat sheet
+
+**x-refs**
+
+To x-ref a file by name and not location, use the file id.
+
+Target file starts with:
+      (mlops-dev-flow)=
+      # MLOps development flow
+
+X-ref looks like one of:
+{ref}`mlops-dev-flow`
+{ref}`title<mlops-dev-flow>`
 
 ## Documenting APIs
 

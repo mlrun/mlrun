@@ -24,11 +24,22 @@ else:
     from importlib_resources import read_text
 
 
+class _VersionInfo:
+    def __init__(self, major, minor, patch):
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+
 class Version(metaclass=Singleton):
     def __init__(self):
         # When installing un-released version (e.g. by doing pip install git+https://github.com/mlrun/mlrun@development)
         # it won't have a version file, so adding some sane defaults
         self.version_info = {"git_commit": "unknown", "version": "0.0.0+unstable"}
+        self.python_version = self._resolve_python_version()
         try:
             self.version_info = json.loads(
                 read_text("mlrun.utils.version", "version.json")
@@ -40,3 +51,10 @@ class Version(metaclass=Singleton):
 
     def get(self):
         return self.version_info
+
+    def get_python_version(self) -> _VersionInfo:
+        return self.python_version
+
+    @staticmethod
+    def _resolve_python_version() -> sys.version_info:
+        return _VersionInfo(*sys.version_info[:3])

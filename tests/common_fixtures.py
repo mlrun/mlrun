@@ -96,6 +96,9 @@ def config_test_base():
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
     mlrun.runtimes.utils.cached_nuclio_version = None
 
+    # TODO: update this to "sidecar" once the default mode is changed
+    mlrun.config.config.log_collector.mode = "legacy"
+
 
 @pytest.fixture
 def aioresponses_mock():
@@ -189,6 +192,7 @@ class RunDBMock:
         self._pipeline = None
         self._function = None
         self._artifact = None
+        self._runs = {}
 
     def reset(self):
         self._function = None
@@ -203,13 +207,14 @@ class RunDBMock:
         return "1234-1234-1234-1234"
 
     def store_run(self, struct, uid, project="", iter=0):
-        self._run = {
-            uid: {
-                "struct": struct,
-                "projct": project,
-                "iter": iter,
-            }
+        self._runs[uid] = {
+            "struct": struct,
+            "project": project,
+            "iter": iter,
         }
+
+    def read_run(self, uid, project, iter=0):
+        return self._runs.get(uid, {})
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
         self._artifact = artifact

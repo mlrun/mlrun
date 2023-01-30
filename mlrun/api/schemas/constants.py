@@ -91,6 +91,7 @@ class HeaderNames:
     secret_store_token = f"{headers_prefix}secret-store-token"
     pipeline_arguments = f"{headers_prefix}pipeline-arguments"
     client_version = f"{headers_prefix}client-version"
+    python_version = f"{headers_prefix}client-python-version"
 
 
 class FeatureStorePartitionByField(mlrun.api.utils.helpers.StrEnum):
@@ -170,3 +171,9 @@ class APIStates:
 class ClusterizationRole:
     chief = "chief"
     worker = "worker"
+
+
+class LogsCollectorMode:
+    legacy = "legacy"
+    sidecar = "sidecar"
+    best_effort = "best-effort"

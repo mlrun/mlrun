@@ -30,7 +30,7 @@ class GitNotification(NotificationBase):
     API/Client notification for setting a rich run statuses git issue comment (github/gitlab)
     """
 
-    async def send(
+    async def push(
         self,
         message: str,
         severity: typing.Union[

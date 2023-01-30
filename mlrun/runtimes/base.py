@@ -343,7 +343,7 @@ class BaseRuntime(ModelObj):
                            function run, use only if you dont plan on changing the build config between runs
         :param param_file_secrets: dictionary of secrets to be used only for accessing the hyper-param parameter file.
                             These secrets are only used locally and will not be stored anywhere
-        :param notifications: list of notifications to fire when the run is completed
+        :param notifications: list of notifications to push when the run is completed
         :return: run context object (RunObject) with run metadata, results and status
         """
         mlrun.utils.helpers.verify_dict_items_type("Inputs", inputs, [str], [str])
@@ -369,7 +369,7 @@ class BaseRuntime(ModelObj):
                 artifact_path,
                 notifications=notifications,
             )
-            self._save_or_fire_notifications(result)
+            self._save_or_push_notifications(result)
             return result
 
         run = self._enrich_run(
@@ -483,7 +483,7 @@ class BaseRuntime(ModelObj):
                 last_err = err
                 result = self._update_run_state(task=run, err=err)
 
-        self._save_or_fire_notifications(run)
+        self._save_or_push_notifications(run)
 
         self._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -992,14 +992,14 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _save_or_fire_notifications(self, runobj: RunObject):
+    def _save_or_push_notifications(self, runobj: RunObject):
 
         # import here to avoid circular imports
         import mlrun.api.crud
 
         if not runobj.spec.notifications:
             logger.debug(
-                "No notifications to send for run", run_uid=runobj.metadata.uid
+                "No notifications to push for run", run_uid=runobj.metadata.uid
             )
             return
 
@@ -1017,15 +1017,15 @@ class BaseRuntime(ModelObj):
         if not is_running_as_api():
 
             # If the run is local, we can assume that watch=True, therefore this code runs
-            # once the run is completed, and we can just fire the notifications.
+            # once the run is completed, and we can just push the notifications.
             mlrun.utils.notifications.NotificationPusher([runobj]).push()
 
         else:
 
             # If in the api server, we can assume that watch=False, so we save notification
-            # configs to the DB, for the run monitor to later pick up and fire.
+            # configs to the DB, for the run monitor to later pick up and push.
             session = mlrun.api.db.sqldb.session.create_session()
-            mlrun.api.crud.Notifications().store_notifications(
+            mlrun.api.crud.Notifications().store_run_notifications(
                 session,
                 runobj.spec.notifications,
                 runobj.metadata.uid,

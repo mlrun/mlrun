@@ -28,7 +28,7 @@ class ConsoleNotification(NotificationBase):
     Client only notification for printing run status notifications in console
     """
 
-    def send(
+    def push(
         self,
         message: str,
         severity: typing.Union[

@@ -493,12 +493,12 @@ class FileDB(DBInterface):
         except RunDBError as exc:
             raise DBError(exc.args)
 
-    def store_notifications(
+    def store_run_notifications(
         self, session, notification_objects, run_uid: str, project: str
     ):
         raise NotImplementedError()
 
-    def list_notifications(
+    def list_run_notifications(
         self,
         session,
         run_uid: str,
@@ -506,7 +506,7 @@ class FileDB(DBInterface):
     ):
         raise NotImplementedError()
 
-    def delete_notifications(
+    def delete_run_notifications(
         self,
         session,
         name: str = None,

@@ -959,7 +959,7 @@ def _create_resources_of_all_kinds(
             severity="info",
             params={"some-param": "some-value"},
         )
-        db.store_notifications(db_session, [notification], run_uid, project)
+        db.store_run_notifications(db_session, [notification], run_uid, project)
 
     # Create several logs
     log = b"some random log"

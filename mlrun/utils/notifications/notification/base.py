@@ -31,7 +31,7 @@ class NotificationBase:
     def active(self) -> bool:
         return True
 
-    def send(
+    def push(
         self,
         message: str,
         severity: typing.Union[

@@ -550,7 +550,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_notifications(
+    def store_run_notifications(
         self,
         session,
         notification_objects: typing.List[mlrun.model.Notification],
@@ -560,7 +560,7 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_notifications(
+    def list_run_notifications(
         self,
         session,
         run_uid: str,
@@ -568,7 +568,7 @@ class DBInterface(ABC):
     ) -> typing.List[mlrun.model.Notification]:
         pass
 
-    def delete_notifications(
+    def delete_run_notifications(
         self,
         session,
         name: str = None,

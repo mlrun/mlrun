@@ -46,7 +46,7 @@ class IPythonNotification(NotificationBase):
     def active(self) -> bool:
         return self._ipython is not None
 
-    def send(
+    def push(
         self,
         message: str,
         severity: typing.Union[

@@ -34,7 +34,7 @@ class SlackNotification(NotificationBase):
         "error": ":x:",
     }
 
-    async def send(
+    async def push(
         self,
         message: str,
         severity: typing.Union[

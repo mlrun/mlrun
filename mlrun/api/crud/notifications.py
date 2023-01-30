@@ -24,7 +24,7 @@ import mlrun.utils.singleton
 class Notifications(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    def store_notifications(
+    def store_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
         notification_objects: typing.List[mlrun.model.Notification],
@@ -40,22 +40,22 @@ class Notifications(
                 )
             )
 
-        mlrun.api.utils.singletons.db.get_db().store_notifications(
+        mlrun.api.utils.singletons.db.get_db().store_run_notifications(
             session, notification_objects_to_store, run_uid, project
         )
 
-    def list_notifications(
+    def list_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
         run_uid: str,
         project: str = "",
     ) -> typing.List[mlrun.model.Notification]:
         project = project or mlrun.mlconf.default_project
-        return mlrun.api.utils.singletons.db.get_db().list_notifications(
+        return mlrun.api.utils.singletons.db.get_db().list_run_notifications(
             session, run_uid, project
         )
 
-    def delete_notifications(
+    def delete_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
         name: str = None,
@@ -67,7 +67,7 @@ class Notifications(
         # Delete notification param project secret
         notifications = [
             notification
-            for notification in self.list_notifications(session, run_uid, project)
+            for notification in self.list_run_notifications(session, run_uid, project)
             if notification.name == name
         ]
         if notifications:
@@ -75,6 +75,6 @@ class Notifications(
             notification = notifications[0]
             mlrun.api.api.utils.delete_notification_params_secret(project, notification)
 
-        mlrun.api.utils.singletons.db.get_db().delete_notifications(
+        mlrun.api.utils.singletons.db.get_db().delete_run_notifications(
             session, name, run_uid, project
         )

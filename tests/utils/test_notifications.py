@@ -107,7 +107,7 @@ def test_console_notification(monkeypatch, runs, expected, is_table):
         print_result = result
 
     monkeypatch.setattr(builtins, "print", set_result)
-    console_notification.send("test-message", "info", runs)
+    console_notification.push("test-message", "info", runs)
 
     if is_table:
         expected = tabulate.tabulate(
@@ -245,7 +245,7 @@ async def test_git_notification(monkeypatch, params, expected_url, expected_head
 
     requests_mock = unittest.mock.MagicMock(return_value=request_future)
     monkeypatch.setattr(aiohttp.ClientSession, "post", requests_mock)
-    await git_notification.send("test-message", "info", [])
+    await git_notification.push("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
         expected_url,
@@ -274,18 +274,18 @@ def test_inverse_dependencies(
         ]
     )
 
-    mock_console_send = unittest.mock.MagicMock()
-    mock_ipython_send = unittest.mock.MagicMock()
+    mock_console_push = unittest.mock.MagicMock()
+    mock_ipython_push = unittest.mock.MagicMock()
     monkeypatch.setattr(
-        mlrun.utils.notifications.ConsoleNotification, "send", mock_console_send
+        mlrun.utils.notifications.ConsoleNotification, "push", mock_console_push
     )
     monkeypatch.setattr(
-        mlrun.utils.notifications.IPythonNotification, "send", mock_ipython_send
+        mlrun.utils.notifications.IPythonNotification, "push", mock_ipython_push
     )
     monkeypatch.setattr(
         mlrun.utils.notifications.IPythonNotification, "active", ipython_active
     )
 
     custom_notification_pusher.push("test-message", "info", [])
-    assert mock_console_send.call_count == expected_console_call_amount
-    assert mock_ipython_send.call_count == expected_ipython_call_amount
+    assert mock_console_push.call_count == expected_console_call_amount
+    assert mock_ipython_push.call_count == expected_ipython_call_amount

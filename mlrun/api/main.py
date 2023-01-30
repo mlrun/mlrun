@@ -56,8 +56,12 @@ from mlrun.utils import logger
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 
+# When pushing notifications, push notifications only for runs that entered a terminal state
+# since the last time we pushed notifications.
+# On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+# and their notifications haven't been sent yet.
 # TODO: find better solution than a global variable for chunking the list of runs
-#      for which to send notifications
+#      for which to push notifications
 _last_notification_push_time: datetime.datetime = None
 
 
@@ -334,7 +338,7 @@ def _monitor_runs():
                     exc=err_to_str(exc),
                     kind=kind,
                 )
-        _push_run_notifications(db, db_session)
+        _push_terminal_run_notifications(db, db_session)
     finally:
         close_session(db_session)
 
@@ -356,14 +360,19 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
+    """
+    Get all runs with notification configs which became terminal since the last call to the function
+    and push their notifications if they haven't been pushed yet.
+    """
 
     # Import here to avoid circular import
     import mlrun.api.api.utils
 
     # When pushing notifications, push notifications only for runs that entered a terminal state
     # since the last time we pushed notifications.
-    # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state.
+    # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
+    # and their notifications haven't been sent yet.
     global _last_notification_push_time
 
     runs = db.list_runs(
@@ -374,7 +383,7 @@ def _push_run_notifications(db: mlrun.api.db.base.DBInterface, db_session):
         with_notifications=True,
     )
 
-    # Unmasking the run parameters from secrets before sending them to the notification handler
+    # Unmasking the run parameters from secrets before handing them over to the notification handler
     # as importing the `Secrets` crud in the notification handler will cause a circular import
     unmasked_runs = [
         mlrun.api.api.utils.unmask_notification_params_secret_on_task(run)

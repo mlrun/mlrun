@@ -57,11 +57,17 @@ class NotificationPusher(object):
         self,
         db: mlrun.api.db.base.DBInterface = None,
     ):
+        """
+        Asynchronously push notifications for all runs in the initialized runs list (if they should be pushed).
+        When running from a sync environment, the notifications will be pushed asynchronously however the function will
+        wait for all notifications to be pushed before returning.
+        """
+
         async def _push():
             tasks = []
             for notification_data in self._notification_data:
                 tasks.append(
-                    self._send_notification(
+                    self._push_notification(
                         self._load_notification(*notification_data),
                         notification_data[0],
                         notification_data[1],
@@ -75,8 +81,14 @@ class NotificationPusher(object):
         )
         main_event_loop = asyncio.get_event_loop()
         if main_event_loop.is_running():
+
+            # If running from the api or from jupyter notebook, we are already in an event loop.
+            # We add the async push function to the loop and run it.
             asyncio.run_coroutine_threadsafe(_push(), main_event_loop)
         else:
+
+            # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
+            # We create a new event loop and run the async push function in it.
             main_event_loop.run_until_complete(_push())
 
     @staticmethod
@@ -88,7 +100,7 @@ class NotificationPusher(object):
         condition = notification.condition
         run_state = run.state()
 
-        # if the notification isn't pending, don't send it
+        # if the notification isn't pending, don't push it
         if (
             notification.status
             and notification.status != mlrun.api.schemas.NotificationStatus.PENDING
@@ -125,7 +137,7 @@ class NotificationPusher(object):
         )
         return self._notifications[notification_key]
 
-    async def _send_notification(
+    async def _push_notification(
         self,
         notification: NotificationBase,
         run: mlrun.model.RunObject,
@@ -137,15 +149,15 @@ class NotificationPusher(object):
             notification_object.severity or mlrun.api.schemas.NotificationSeverity.INFO
         )
         logger.debug(
-            "Sending notification",
+            "Pushing notification",
             notification=notification_object.to_dict(),
             run_uid=run.metadata.uid,
         )
         try:
-            if asyncio.iscoroutinefunction(notification.send):
-                await notification.send(message, severity, [run.to_dict()])
+            if asyncio.iscoroutinefunction(notification.push):
+                await notification.push(message, severity, [run.to_dict()])
             else:
-                notification.send(message, severity, [run.to_dict()])
+                notification.push(message, severity, [run.to_dict()])
 
             if mlrun.config.is_running_as_api():
                 await self._update_notification_status(
@@ -182,7 +194,7 @@ class NotificationPusher(object):
 
         # store directly in db, no need to use crud as the secrets are already loaded
         await run_in_threadpool(
-            db.store_notifications,
+            db.store_run_notifications,
             db_session,
             [notification],
             run_uid,
@@ -209,9 +221,9 @@ class CustomNotificationPusher(object):
         async def _push():
             tasks = []
             for notification_type, notification in self._notifications.items():
-                if self.should_send_notification(notification_type):
+                if self.should_push_notification(notification_type):
                     tasks.append(
-                        self._send_notification(
+                        self._push_notification(
                             notification, message, severity, runs, custom_html
                         )
                     )
@@ -224,7 +236,7 @@ class CustomNotificationPusher(object):
             main_event_loop.run_until_complete(_push())
 
     @staticmethod
-    async def _send_notification(
+    async def _push_notification(
         notification: NotificationBase,
         message: str,
         severity: typing.Union[
@@ -233,10 +245,10 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        if asyncio.iscoroutinefunction(notification.send):
-            await notification.send(message, severity, runs, custom_html)
+        if asyncio.iscoroutinefunction(notification.push):
+            await notification.push(message, severity, runs, custom_html)
         else:
-            notification.send(message, severity, runs, custom_html)
+            notification.push(message, severity, runs, custom_html)
 
     def add_notification(
         self, notification_type: str, params: typing.Dict[str, str] = None
@@ -248,12 +260,12 @@ class CustomNotificationPusher(object):
                 notification_type
             ).get_notification()(params)
 
-    def should_send_notification(self, notification_type):
+    def should_push_notification(self, notification_type):
         notification = self._notifications.get(notification_type)
         if not notification or not notification.active:
             return False
 
-        # get notification's inverse dependencies, and only send the notification if
+        # get notification's inverse dependencies, and only push the notification if
         # none of its inverse dependencies are being sent
         inverse_dependencies = NotificationTypes(
             notification_type

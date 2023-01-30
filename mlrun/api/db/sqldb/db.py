@@ -308,6 +308,8 @@ class SQLDB(DBInterface):
         for run in query:
             run_struct = run.struct
             if with_notifications:
+                run_struct.setdefault("spec", {}).setdefault("notifications", [])
+                run_struct.setdefault("status", {}).setdefault("notifications", {})
                 for notification in run.notifications:
                     (
                         notification_spec,
@@ -315,10 +317,8 @@ class SQLDB(DBInterface):
                     ) = self._transform_notification_record_to_spec_and_status(
                         notification
                     )
-                    run_struct.setdefault("spec", {}).setdefault(
-                        "notifications", []
-                    ).append(notification_spec)
-                    run_struct.setdefault("status", {}).setdefault("notifications", {})[
+                    run_struct["spec"]["notifications"].append(notification_spec)
+                    run_struct["status"]["notifications"][
                         notification.name
                     ] = notification_status
             runs.append(run_struct)
@@ -1629,7 +1629,7 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
         runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
-        notifications = self._find_notifications(session, project=name)
+        notifications = self._get_db_notifications(session, project=name)
         self._verify_empty_list_of_project_related_resources(
             name, notifications, "notifications"
         )
@@ -1653,7 +1653,7 @@ class SQLDB(DBInterface):
     def delete_project_related_resources(self, session: Session, name: str):
         self.del_artifacts(session, project=name)
         self._delete_logs(session, name)
-        self.delete_notifications(session, project=name)
+        self.delete_run_notifications(session, project=name)
         self.del_runs(session, project=name)
         self.delete_schedules(session, name)
         self._delete_functions(session, name)
@@ -2777,7 +2777,7 @@ class SQLDB(DBInterface):
             query = query.filter(Run.uid.in_(uid))
         return self._add_labels_filter(session, query, Run, labels)
 
-    def _find_notifications(
+    def _get_db_notifications(
         self, session, name: str = None, run_id: int = None, project: str = None
     ):
         return self._query(
@@ -3525,13 +3525,14 @@ class SQLDB(DBInterface):
             return True
         return False
 
-    def store_notifications(
+    def store_run_notifications(
         self,
         session,
         notification_objects: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str,
     ):
+        # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
         run = self._get_run(session, run_uid, project, 0)
         if not run:
             raise mlrun.errors.MLRunNotFoundError(
@@ -3540,7 +3541,7 @@ class SQLDB(DBInterface):
 
         run_notifications = {
             notification.name: notification
-            for notification in self._find_notifications(session, run_id=run.id)
+            for notification in self._get_db_notifications(session, run_id=run.id)
         }
         notifications = []
         for notification_model in notification_objects:
@@ -3574,12 +3575,14 @@ class SQLDB(DBInterface):
 
         self._upsert(session, notifications)
 
-    def list_notifications(
+    def list_run_notifications(
         self,
         session,
         run_uid: str,
         project: str = "",
     ) -> typing.List[mlrun.model.Notification]:
+
+        # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
         run = self._get_run(session, run_uid, project, 0)
         if not run:
             return []
@@ -3589,7 +3592,7 @@ class SQLDB(DBInterface):
             for notification in self._query(session, Notification, run=run.id).all()
         ]
 
-    def delete_notifications(
+    def delete_run_notifications(
         self,
         session,
         name: str = None,
@@ -3599,6 +3602,8 @@ class SQLDB(DBInterface):
     ):
         run_id = None
         if run_uid:
+
+            # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
             run = self._get_run(session, run_uid, project, 0)
             if not run:
                 raise mlrun.errors.MLRunNotFoundError(
@@ -3610,7 +3615,7 @@ class SQLDB(DBInterface):
         if project == "*":
             project = None
 
-        query = self._find_notifications(session, name, run_id, project)
+        query = self._get_db_notifications(session, name, run_id, project)
         for notification in query:
             session.delete(notification)
 

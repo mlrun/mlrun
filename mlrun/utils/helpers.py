@@ -261,7 +261,11 @@ def normalize_name(name):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
-    name = name.replace("_", "-")
+    if "_" in name:
+        logger.warning(
+            "Replacing underscores (_) with dashes (-). Names with underscore will be deprecated, use dashes instead."
+        )
+        name = name.replace("_", "-")
     return name.lower()
 
 

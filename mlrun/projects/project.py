@@ -52,6 +52,7 @@ from ..utils import (
     is_relative_path,
     is_yaml_path,
     logger,
+    normalize_name,
     update_in,
 )
 from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
@@ -2793,7 +2794,7 @@ def _init_function_from_dict(f, project, name=None):
             raise ValueError(
                 "function with db:// or hub:// url or .yaml file, does not support tag value "
             )
-        func = import_function(url, new_name=name)
+        func = import_function(url, new_name=normalize_name(name))
         if image:
             func.spec.image = image
     elif url.endswith(".ipynb"):

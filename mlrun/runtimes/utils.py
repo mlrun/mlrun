@@ -421,14 +421,8 @@ def apply_kfp(modify, cop, runtime):
         cop.container.env.clear()
 
     if cop.container.env_from:
-        runtime.spec.env_from = [
-            {
-                "secret_ref": env_from.secret_ref
-                if hasattr(env_from, "secret_ref")
-                else env_from["secret_ref"]
-            }
-            for env_from in cop.container.env_from
-        ]
+        for env_from in cop.container.env_from:
+            runtime.spec.env_from.append(api.sanitize_for_serialization(env_from))
         cop.container.env_from.clear()
 
     if cop.volumes and cop.container.volume_mounts:

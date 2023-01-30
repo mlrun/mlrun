@@ -94,6 +94,11 @@ jobs:
     - name: Run Dockerized tests
       run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make test-dockerized
 
+      # REMOVE BEFORE MERGE
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ failure() }}
+
   integration-tests:
     name: Run Dockerized Integration Tests
     runs-on: ubuntu-latest

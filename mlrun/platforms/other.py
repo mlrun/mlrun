@@ -133,7 +133,7 @@ def mount_env_from_secret(secret_name, prefix=None):
 
     if secret_name.startswith("mlrun-"):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "secret must not be an MLRun internal secret"
+            "env_from secret must not be an MLRun internal secret"
         )
 
     def _mount_env_from_secret(task):

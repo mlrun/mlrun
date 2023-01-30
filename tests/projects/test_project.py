@@ -27,6 +27,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.utils.helpers
 import tests.conftest
 
 
@@ -468,7 +469,9 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == func, "func did not return"
+            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
+                func
+            ), "func did not return"
 
     if save:
         assert rundb_mock._function is not None

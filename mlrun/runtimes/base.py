@@ -1047,6 +1047,8 @@ class BaseRuntime(ModelObj):
         elif local:
             # If the run is local, we can assume that watch=True, therefore this code runs
             # once the run is completed, and we can just push the notifications.
+            # TODO: add store_notifications API endpoint so we can store notifications pushed from the
+            #       SDK for documentation purposes.
             mlrun.utils.notifications.NotificationPusher([runobj]).push()
 
     def _force_handler(self, handler):

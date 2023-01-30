@@ -215,6 +215,7 @@ class DaskFeatureMerger(BaseMerger):
         right_keys: list,
         columns: list,
     ):
+
         fs_name = featureset.metadata.name
         merged_df = merge(
             entity_df,

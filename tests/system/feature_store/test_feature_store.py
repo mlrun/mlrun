@@ -193,9 +193,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
 
-    def _ingest_quotes_featureset(self):
+    def _ingest_quotes_featureset(self, timestamp_key="time"):
         quotes_set = FeatureSet(
-            "stock-quotes", entities=["ticker"], timestamp_key="time"
+            "stock-quotes", entities=["ticker"], timestamp_key=timestamp_key
         )
 
         flow = quotes_set.graph
@@ -231,17 +231,22 @@ class TestFeatureStore(TestMLRunSystem):
         assert df["zz"].mean() == 9, "map didnt set the zz column properly"
         quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-        quotes_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # quotes_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         df = fstore.ingest(quotes_set, quotes, return_df=True)
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
-    def _get_offline_vector(self, features, features_size, engine=None):
+    def _get_offline_vector(
+        self, features, features_size, entity_timestamp_column, engine=None
+    ):
         vector = fstore.FeatureVector("myvector", features, "stock-quotes.xx")
         resp = fstore.get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", engine=engine
+            vector,
+            entity_rows=trades,
+            entity_timestamp_column=entity_timestamp_column,
+            engine=engine,
         )
         assert len(vector.spec.features) == len(
             features
@@ -255,7 +260,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert vector.status.label_column == "xx", "unexpected label_column name"
 
         df = resp.to_dataframe()
-        columns = trades.shape[1] + features_size - 2  # - 2 keys
+        if entity_timestamp_column:
+            columns = trades.shape[1] + features_size - 2  # - 2 keys ['ticker', 'time']
+        else:
+            columns = trades.shape[1] + features_size - 1  # - 1 keys ['ticker']
         assert df.shape[1] == columns, "unexpected num of returned df columns"
         resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
 
@@ -301,13 +309,15 @@ class TestFeatureStore(TestMLRunSystem):
                 len(resp2[0]) == features_size - 1
             ), "unexpected online vector size"  # -1 label
 
-    def test_ingest_and_query(self):
+    @pytest.mark.parametrize("entity_timestamp_column", [None, "time"])
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_ingest_and_query(self, engine, entity_timestamp_column):
 
         self._logger.debug("Creating stocks feature set")
         self._ingest_stocks_featureset()
 
         self._logger.debug("Creating stock-quotes feature set")
-        self._ingest_quotes_featureset()
+        self._ingest_quotes_featureset(entity_timestamp_column)
 
         self._logger.debug("Get offline feature vector")
         features = [
@@ -320,11 +330,13 @@ class TestFeatureStore(TestMLRunSystem):
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
 
-        # test fetch with the pandas merger engine
-        self._get_offline_vector(features, features_size, engine="local")
-
-        # test fetch with the dask merger engine
-        self._get_offline_vector(features, features_size, engine="dask")
+        # test fetch
+        self._get_offline_vector(
+            features,
+            features_size,
+            engine=engine,
+            entity_timestamp_column=entity_timestamp_column,
+        )
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)

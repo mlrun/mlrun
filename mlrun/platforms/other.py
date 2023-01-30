@@ -133,7 +133,9 @@ def mount_env_from_secret(secret_name, prefix=None):
     def _mount_env_from_secret(task):
         from kubernetes import client as k8s_client
 
-        env_from = k8s_client.V1EnvFromSource(secret_ref=secret_name, prefix=prefix)
+        env_from = k8s_client.V1EnvFromSource(
+            secret_ref=k8s_client.V1SecretEnvSource(name=secret_name), prefix=prefix
+        )
         task.container.add_env_from(env_from)
 
     return _mount_env_from_secret

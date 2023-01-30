@@ -310,7 +310,7 @@ class RunDBMock:
 
     def assert_env_from_secret_configured(self, secret_name):
         env_from_list = self._function["spec"]["env_from"]
-        secret_names = [env_from["secretRef"] for env_from in env_from_list]
+        secret_names = [env_from["secret_ref"] for env_from in env_from_list]
         assert secret_name in secret_names
 
     def assert_v3io_mount_or_creds_configured(

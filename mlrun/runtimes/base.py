@@ -385,7 +385,7 @@ class BaseRuntime(ModelObj):
                 artifact_path,
                 notifications=notifications,
             )
-            self._save_or_push_notifications(result)
+            self._save_or_push_notifications(result, local)
             return result
 
         run = self._enrich_run(
@@ -1010,7 +1010,7 @@ class BaseRuntime(ModelObj):
 
         return resp
 
-    def _save_or_push_notifications(self, runobj: RunObject):
+    def _save_or_push_notifications(self, runobj: RunObject, local: bool = False):
 
         # import here to avoid circular imports
         import mlrun.api.crud
@@ -1032,13 +1032,7 @@ class BaseRuntime(ModelObj):
         # If the run is remote, and we are in the SDK, we let the api deal with the notifications
         # so there's nothing to do here.
         # Otherwise, we continue on.
-        if not is_running_as_api():
-
-            # If the run is local, we can assume that watch=True, therefore this code runs
-            # once the run is completed, and we can just push the notifications.
-            mlrun.utils.notifications.NotificationPusher([runobj]).push()
-
-        else:
+        if is_running_as_api():
 
             # If in the api server, we can assume that watch=False, so we save notification
             # configs to the DB, for the run monitor to later pick up and push.
@@ -1049,6 +1043,11 @@ class BaseRuntime(ModelObj):
                 runobj.metadata.uid,
                 runobj.metadata.project,
             )
+
+        elif local:
+            # If the run is local, we can assume that watch=True, therefore this code runs
+            # once the run is completed, and we can just push the notifications.
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()
 
     def _force_handler(self, handler):
         if not handler:

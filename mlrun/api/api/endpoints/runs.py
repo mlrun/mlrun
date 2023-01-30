@@ -208,7 +208,7 @@ async def list_runs(
         partition_sort_by,
         partition_order,
         max_partitions,
-        with_notifications,
+        with_notifications=with_notifications,
     )
     filtered_runs = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.run,

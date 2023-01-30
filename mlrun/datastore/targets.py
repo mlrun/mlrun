@@ -1151,7 +1151,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
-            df = df.groupby(df.index).last()
+            df = df.groupby(df.index.names).last()
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())

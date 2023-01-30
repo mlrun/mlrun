@@ -208,3 +208,19 @@ def test_volume_mounts_addition():
         sanitized_dict_volume_mount,
     ]
     assert len(function.spec.volume_mounts) == 1
+
+
+def test_filtering_env_from_entries():
+    function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
+    function.apply(
+        mlrun.platforms.other.mount_env_from_secret(secret_name="mlrun-internal-secret")
+    )
+    function.apply(
+        mlrun.platforms.other.mount_env_from_secret(secret_name="a-valid-secret")
+    )
+    assert len(function.spec.env_from) == 2
+
+    function._filter_env_from_entries_before_running()
+
+    assert len(function.spec.env_from) == 1
+    assert function.spec.env_from[0]["secretRef"]["name"] == "a-valid-secret"

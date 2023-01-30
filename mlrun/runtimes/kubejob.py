@@ -353,6 +353,9 @@ class KubejobRuntime(KubeResource):
                 # relative path mapped to real path in the job pod
                 workdir = os.path.join("/mlrun", workdir)
 
+        # make sure internal mlrun project secrets were not accessed through env_from
+        self._filter_env_from_entries_before_running()
+
         pod_spec = func_to_pod(
             self.full_image_path(
                 client_version=runobj.metadata.labels.get("mlrun/client_version")

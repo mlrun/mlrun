@@ -1171,6 +1171,18 @@ class KubeResource(BaseRuntime):
             new_meta.generate_name = norm_name
         return new_meta
 
+    def _filter_env_from_entries_before_running(self):
+        filtered_env_from = []
+        for env_from in self.spec.env_from:
+            if env_from["secretRef"]["name"].startswith("mlrun-"):
+                logger.warning(
+                    "env_from attempted with an internal mlrun secret",
+                    name=env_from["secretRef"]["name"],
+                )
+            else:
+                filtered_env_from.append(env_from)
+        self.spec.env_from = filtered_env_from
+
     def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
         if self._secrets:
             if self._secrets.has_vault_source():

@@ -723,7 +723,7 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         warning_message = (
-            "[warning] timeout ({}) should be higher than backoff (10)."
+            "[warning] timeout ({}) must be higher than backoff (10)."
             " Set timeout to be higher than backoff."
         )
         expected_warning_log = warning_message.format(bad_timeout)
@@ -749,11 +749,17 @@ class TestProject(TestMLRunSystem):
         project = self._create_project(name)
         self.custom_project_names_to_delete.append(name)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            project.run("main", schedule="*/10 * * * *")
+        # scheduling project with non-remote source (scheduling)
+        run = project.run("main", schedule="*/10 * * * *")
+        assert (
+            run.state == mlrun.run.RunStatuses.failed
+        ), f"pipeline should failed, state = {run.state}"
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            project.run("main", engine="remote")
+        # scheduling project with non-remote source (single run)
+        run = project.run("main", engine="remote")
+        assert (
+            run.state == mlrun.run.RunStatuses.failed
+        ), f"pipeline should failed, state = {run.state}"
 
     def test_remote_workflow_source(self):
         name = "source-project"

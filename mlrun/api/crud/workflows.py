@@ -180,6 +180,7 @@ class WorkflowRunners(
             runspec=run_spec,
             artifact_path=artifact_path,
             local=False,
+            watch=False,
         )
 
     @staticmethod

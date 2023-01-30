@@ -15,7 +15,7 @@
 """notifications
 
 Revision ID: 959ae00528ad
-Revises: 6401142f2d7c
+Revises: 803438ecd005
 Create Date: 2022-09-20 10:40:41.354209
 
 """
@@ -24,7 +24,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "959ae00528ad"
-down_revision = "6401142f2d7c"
+down_revision = "803438ecd005"
 branch_labels = None
 depends_on = None
 

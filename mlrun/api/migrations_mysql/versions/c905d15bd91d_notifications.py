@@ -15,7 +15,7 @@
 """notifications
 
 Revision ID: c905d15bd91d
-Revises: ee041e8fdaa0
+Revises: 88e656800d6a
 Create Date: 2022-09-20 10:44:41.727488
 
 """
@@ -25,7 +25,7 @@ from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
 revision = "c905d15bd91d"
-down_revision = "ee041e8fdaa0"
+down_revision = "88e656800d6a"
 branch_labels = None
 depends_on = None
 

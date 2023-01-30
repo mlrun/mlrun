@@ -481,7 +481,7 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(run, execution)
-                if watch and self.kind not in ["", "handler", "local"]:
+                if watch and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind):
                     state, _ = run.logs(True, self._get_db())
                     if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")
@@ -998,10 +998,12 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
 
-    def full_image_path(self, image=None, client_version: str = None):
+    def full_image_path(
+        self, image=None, client_version: str = None, client_python_version: str = None
+    ):
         image = image or self.spec.image or ""
 
-        image = enrich_image_url(image, client_version)
+        image = enrich_image_url(image, client_version, client_python_version)
         if not image.startswith("."):
             return image
         registry, repository = get_parsed_docker_registry()

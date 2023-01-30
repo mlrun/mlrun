@@ -408,10 +408,8 @@ class DaskCluster(KubejobRuntime):
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        # TODO: In 1.4.0 change to NotImplementedError
-        raise DeprecationWarning(
-            "Dask's gpus is deprecated and will be removed in 1.4.0, use "
-            "with_scheduler_limits/with_worker_limits instead",
+        raise NotImplementedError(
+            "Use with_scheduler_limits/with_worker_limits to set GPU resources",
         )
 
     def with_limits(
@@ -422,10 +420,8 @@ class DaskCluster(KubejobRuntime):
         gpu_type="nvidia.com/gpu",
         patch: bool = False,
     ):
-        # TODO: In 1.4.0 change to NotImplementedError
-        raise DeprecationWarning(
-            "Dask's with_limits is deprecated and will be removed in 1.4.0, use "
-            "with_scheduler_limits/with_worker_limits instead",
+        raise NotImplementedError(
+            "Use with_scheduler_limits/with_worker_limits to set resource limits",
         )
 
     def with_scheduler_limits(
@@ -461,10 +457,8 @@ class DaskCluster(KubejobRuntime):
         )
 
     def with_requests(self, mem=None, cpu=None, patch: bool = False):
-        # TODO: In 1.4.0 change to NotImplementedError
-        raise DeprecationWarning(
-            "Dask's with_requests is deprecated and will be removed in 1.4.0, use "
-            "with_scheduler_requests/with_worker_requests instead",
+        raise NotImplementedError(
+            "Use with_scheduler_requests/with_worker_requests to set resource requests",
         )
 
     def with_scheduler_requests(
@@ -513,11 +507,16 @@ class DaskCluster(KubejobRuntime):
         return context.to_dict()
 
 
-def deploy_function(function: DaskCluster, secrets=None, client_version: str = None):
+def deploy_function(
+    function: DaskCluster,
+    secrets=None,
+    client_version: str = None,
+    client_python_version: str = None,
+):
     _validate_dask_related_libraries_installed()
 
     scheduler_pod, worker_pod, function, namespace = enrich_dask_cluster(
-        function, secrets, client_version
+        function, secrets, client_version, client_python_version
     )
     return initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace)
 
@@ -570,7 +569,9 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
     return cluster
 
 
-def enrich_dask_cluster(function, secrets, client_version):
+def enrich_dask_cluster(
+    function, secrets, client_version: str = None, client_python_version: str = None
+):
     from dask.distributed import Client, default_client  # noqa: F401
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
     from kubernetes import client
@@ -584,7 +585,11 @@ def enrich_dask_cluster(function, secrets, client_version):
     spec.remote = True
 
     image = (
-        function.full_image_path(client_version=client_version) or "daskdev/dask:latest"
+        function.full_image_path(
+            client_version=client_version, client_python_version=client_python_version
+        )
+        # TODO: we might never enter here, since running a function requires defining an image
+        or "daskdev/dask:latest"
     )
     env = spec.env
     namespace = meta.namespace or config.namespace

@@ -142,6 +142,51 @@ def test_local_handler():
     verify_state(result)
 
 
+@pytest.mark.parametrize(
+    "kind,watch,expected_watch_count",
+    [
+        ("", True, 0),
+        ("", True, 0),
+        ("local", False, 0),
+        ("local", False, 0),
+        ("dask", True, 0),
+        ("dask", False, 0),
+        ("job", True, 1),
+        ("job", False, 0),
+    ],
+)
+def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
+    mlrun.RunObject.logs = Mock()
+    spec = tag_test(base_spec, "test_is_watchable")
+    func = new_function(
+        command=f"{examples_path}/handler.py",
+        kind=kind,
+    )
+
+    if kind == "dask":
+
+        # don't start dask cluster
+        func.spec.remote = False
+    elif kind == "job":
+
+        # mark as deployed
+        func.spec.image = "some-image"
+
+    result = func.run(
+        spec,
+        handler="my_func",
+        watch=watch,
+    )
+
+    # rundb_mock mocks the job submission when kind is job
+    # therefore, if we watch we get an empty result as the run was not created (it is mocked)
+    # else, the state will not be 'completed'
+    if kind != "job":
+        verify_state(result)
+
+    assert mlrun.RunObject.logs.call_count == expected_watch_count
+
+
 def test_local_args():
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}

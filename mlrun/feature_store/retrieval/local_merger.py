@@ -39,8 +39,12 @@ class LocalFeatureMerger(BaseMerger):
 
         feature_sets = []
         dfs = []
-        keys = []
-        all_columns = list()
+        keys = (
+            []
+        )  # the struct of key is [[[],[]], ..] So that each record indicates which way the corresponding
+        # featureset is connected to the previous one, and within each record the left keys are indicated in index 0
+        # and the right keys in index 1, this keys will be the keys that will be used in this join
+        all_columns = []
 
         fs_link_list = self._create_linked_relation_list(
             feature_set_objects, feature_set_fields

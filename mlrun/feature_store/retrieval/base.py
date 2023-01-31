@@ -198,6 +198,8 @@ class BaseMerger(abc.ABC):
             )
         elif entity_df is not None and featureset_dfs:
             # when `entity_rows` passed to `get_offline_features`
+            # keys[0] mention the way that `entity_rows`  joins to the first `featureset`
+            # and it can join only by the entities of the first `featureset`
             keys[0][0] = keys[0][1] = list(featuresets[0].spec.entities.keys())
 
         for featureset, featureset_df, lr_key, columns in zip(

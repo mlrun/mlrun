@@ -108,7 +108,7 @@ The `set` command can work with the following parameters:
 - `--username` or `-u` to set the username 
 - `--access-key` or `-k` to set the access key 
 - `--artifact-path` or `-p` to set the [artifact path](https://docs.mlrun.org/en/latest/store/artifacts.html?highlight=artifact_path#artifact-path)
-- `--env-vars` or `-e` to set additional environment variables, e.g. -e ENV_NAME=<value>
+- `--env-vars` or `-e` to set additional environment variables, e.g. -e `ENV_NAME=<value>`
 
 ### Using environment file and `mlrun.set_env_from_file` command in MLRun SDK
 

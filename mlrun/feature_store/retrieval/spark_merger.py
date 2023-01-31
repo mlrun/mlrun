@@ -127,7 +127,7 @@ class SparkFeatureMerger(BaseMerger):
             entity_timestamp_column_list = (
                 [entity_timestamp_column]
                 if entity_timestamp_column
-                else feature_set.spec.timestamp_key
+                else list(feature_set.spec.timestamp_key)
             )
             if entity_timestamp_column_list:
                 column_names += entity_timestamp_column_list
@@ -142,7 +142,7 @@ class SparkFeatureMerger(BaseMerger):
             # select requested columns and rename with alias where needed
             df = df.select(
                 [
-                    col(name).alias(rename_col_dict[name] or name)
+                    col(name).alias(rename_col_dict.get(name, name))
                     for name in column_names
                 ]
             )

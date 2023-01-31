@@ -72,9 +72,9 @@ class SparkFeatureMerger(BaseMerger):
             columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
 
-            for col in node.data["save_cols"]:
-                if col not in column_names:
-                    self._append_drop_column(col)
+            for column in node.data["save_cols"]:
+                if column not in column_names:
+                    self._append_drop_column(column)
             column_names += node.data["save_cols"]
 
             if feature_set.spec.passthrough:
@@ -125,7 +125,7 @@ class SparkFeatureMerger(BaseMerger):
             node.data["save_cols"] += node.data["save_index"]
             entity_timestamp_column = (
                 [entity_timestamp_column]
-                if entity_timestamp_column
+                if entity_timestamp_column and entity_timestamp_column in df.columns
                 else feature_set.spec.timestamp_key
             )
             entity_timestamp_column_list = (
@@ -138,9 +138,9 @@ class SparkFeatureMerger(BaseMerger):
                 node.data["save_cols"] += entity_timestamp_column_list
             # rename columns to be unique for each feature set
             rename_col_dict = {
-                col: f"{col}_{name}"
-                for col in column_names
-                if col not in node.data["save_cols"]
+                column: f"{column}_{name}"
+                for column in column_names
+                if column not in node.data["save_cols"]
             }
 
             # select requested columns and rename with alias where needed
@@ -157,13 +157,13 @@ class SparkFeatureMerger(BaseMerger):
 
             # update alias according to the unique column name
             new_columns = []
-            for col, alias in columns:
-                if col in rename_col_dict and alias:
-                    new_columns.append((rename_col_dict[col], alias))
-                elif col in rename_col_dict and not alias:
-                    new_columns.append((rename_col_dict[col], col))
+            for column, alias in columns:
+                if column in rename_col_dict and alias:
+                    new_columns.append((rename_col_dict[column], alias))
+                elif column in rename_col_dict and not alias:
+                    new_columns.append((rename_col_dict[column], column))
                 else:
-                    new_columns.append((col, alias))
+                    new_columns.append((column, alias))
             all_columns.append(new_columns)
             self._update_alias(
                 dictionary={name: alias for name, alias in new_columns if alias}

@@ -193,6 +193,7 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
@@ -202,7 +203,6 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
           --override-image-repo ${{ steps.computed_params.outputs.mlrun_docker_repo }} \

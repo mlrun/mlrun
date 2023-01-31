@@ -186,7 +186,7 @@ class SparkFeatureMerger(BaseMerger):
         self._result_df = self._result_df.drop(*self._drop_columns)
 
         self._result_df = self._result_df.select(
-            [col(name).alias(alias or name) for name, alias in self._alias]
+            [col(name).alias(alias or name) for name, alias in self._alias.items()]
         )
 
         if self.vector.status.label_column:

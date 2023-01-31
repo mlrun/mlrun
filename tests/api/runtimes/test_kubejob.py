@@ -382,12 +382,14 @@ class TestKubejobRuntime(TestRuntimeBase):
         k8s_secrets_mock.store_project_secrets(self.project, project_secrets)
         k8s_secrets_mock.store_secret(global_secret_name, global_secrets)
 
-        mlconf.secret_stores.kubernetes.global_secret_name = global_secret_name
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
+            global_secret_name
+        )
         runtime = self._generate_runtime()
 
         self.execute_function(runtime)
 
-        mlconf.secret_stores.kubernetes.global_secret_name = None
+        mlconf.secret_stores.kubernetes.global_function_env_secret_name = None
 
         expected_env_from_secrets = (
             k8s_secrets_mock.get_expected_env_variables_from_secrets(

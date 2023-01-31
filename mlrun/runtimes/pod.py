@@ -1210,7 +1210,9 @@ class KubeResource(BaseRuntime):
     ):
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
         # project secrets, to allow project secret keys to override them
-        global_secret_name = mlconf.secret_stores.kubernetes.global_secret_name
+        global_secret_name = (
+            mlconf.secret_stores.kubernetes.global_function_env_secret_name
+        )
         if mlrun.config.is_running_as_api() and global_secret_name:
             global_secrets = self._get_k8s().get_secret_data(global_secret_name)
             for key, value in global_secrets.items():

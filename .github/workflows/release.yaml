@@ -86,7 +86,8 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.9
+          cache: pip
       - uses: actions/checkout@v3
       - name: Build & push to pypi
         run: |
@@ -128,7 +129,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: 3.9
           cache: pip
       - name: Install dependencies
         run: |

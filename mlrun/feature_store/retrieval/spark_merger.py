@@ -120,7 +120,6 @@ class SparkFeatureMerger(BaseMerger):
             df = source.to_spark_df(
                 self.spark, named_view=self.named_view, time_field=timestamp_key
             )
-            df = df.select(*column_names)
 
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]

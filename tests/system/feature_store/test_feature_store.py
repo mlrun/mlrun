@@ -3705,6 +3705,51 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    def test_pandas_ingest_from_parquet(self, with_indexes):
+        data = dict(
+            {
+                "vakyvqqs": [-1695310155621342, 9916582819298152, 4545678706539994],
+                "ckasipbb": [
+                    0.7052167561922659,
+                    0.9029099770737461,
+                    0.7156361441244429,
+                ],
+                "enfmtxfg": [
+                    "hwroaomkupgvwmgm",
+                    "ytxmgxtgjzhyacur",
+                    "abeamnfuyrvtzwqk",
+                ],
+                "hmwaebdl": [-5274748451575421, 754465957511269, 6582195755482209],
+                "ihoubacn": [
+                    0.6705152809781331,
+                    0.09957097874816279,
+                    0.815459038897896,
+                ],
+            }
+        )
+        orig_df = pd.DataFrame(data)
+        if with_indexes:
+            orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
+        orig_df.to_parquet("/v3io/bigdata/trfsinojud.parquet")
+        gnrxRnIYSr = ParquetSource(path="/v3io/bigdata/trfsinojud.parquet")
+
+        targets = [
+            ParquetTarget(path="v3io:///bigdata/opkgdkhlit.parquet"),
+            NoSqlTarget(path="v3io:///bigdata/zbihybbamh"),
+        ]
+        if with_indexes:
+            fset = fstore.FeatureSet(
+                "VIeHOGZgjv",
+                entities=[fstore.Entity(k) for k in ["enfmtxfg", "hmwaebdl"]],
+                engine="pandas",
+            )
+        else:
+            fset = fstore.FeatureSet("VIeHOGZgjv", engine="pandas")
+        df = fstore.ingest(featureset=fset, source=gnrxRnIYSr, targets=targets)
+        assert df.equals(orig_df)
+        os.remove("/v3io/bigdata/trfsinojud.parquet")
+
     def test_ingest_with_kafka_source_fails(self):
         source = KafkaSource(
             brokers="broker_host:9092",

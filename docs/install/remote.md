@@ -64,13 +64,13 @@ You have a few options to configure your remote environment:
 **Example1**<br>
 Run this command in MLRun CLI:
  ```
- mlrun config set -a http://localhost:8080 
+ mlrun config set -a https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
  ```
 
 It will create the following environment file:
 ```
 # this is an env file
-MLRUN_DBPATH=http://localhost:8080 
+MLRUN_DBPATH=https://mlrun-api.default-tenant.app.xxx.iguazio-cd1.com
 ```
 
 MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint <br>
@@ -108,7 +108,7 @@ The `set` command can work with the following parameters:
 - `--username` or `-u` to set the username 
 - `--access-key` or `-k` to set the access key 
 - `--artifact-path` or `-p` to set the [artifact path](https://docs.mlrun.org/en/latest/store/artifacts.html?highlight=artifact_path#artifact-path)
-- `--env-vars` or `-e` to set additional environment variables, e.g. -e AWS_ACCESS_KEY_ID=<key-id> AWS_SECRET_ACCESS_KEY=<secret-key>
+- `--env-vars` or `-e` to set additional environment variables, e.g. -e AWS_ACCESS_KEY_ID=<key-id>
 
 ### Using environment file and `mlrun.set_env_from_file` command in MLRun SDK
 

@@ -1173,11 +1173,11 @@ class KubeResource(BaseRuntime):
                 self._add_azure_vault_params_to_spec(
                     self._secrets.get_azure_vault_k8s_secret()
                 )
-            self._add_project_k8s_secrets_to_spec(
+            self._add_k8s_secrets_to_spec(
                 self._secrets.get_k8s_secrets(), runobj=runobj, project=project
             )
         else:
-            self._add_project_k8s_secrets_to_spec(None, runobj=runobj, project=project)
+            self._add_k8s_secrets_to_spec(None, runobj=runobj, project=project)
 
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
@@ -1201,9 +1201,26 @@ class KubeResource(BaseRuntime):
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
 
-    def _add_project_k8s_secrets_to_spec(
-        self, secrets, runobj=None, project=None, encode_key_names=True
+    def _add_k8s_secrets_to_spec(
+        self,
+        secrets,
+        runobj=None,
+        project=None,
+        encode_key_names=True,
     ):
+        # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
+        # project secrets, to allow project secret keys to override them
+        global_secret_name = mlconf.secret_stores.kubernetes.global_secret_name
+        if mlrun.config.is_running_as_api() and global_secret_name:
+            global_secrets = self._get_k8s().get_secret_data(global_secret_name)
+            for key, value in global_secrets.items():
+                env_var_name = (
+                    SecretsStore.k8s_env_variable_name_for_secret(key)
+                    if encode_key_names
+                    else key
+                )
+                self.set_env_from_secret(env_var_name, global_secret_name, key)
+
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
         if (

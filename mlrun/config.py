@@ -398,6 +398,7 @@ default_config = {
             "project_secret_name": "mlrun-project-secrets-{project}",
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "MLRUN_K8S_SECRET__",
+            "global_secret_name": None,
         },
     },
     "feature_store": {

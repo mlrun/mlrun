@@ -254,7 +254,7 @@ class Logs(
             return False, None
         for file in os.listdir(str(project_logs_dir)):
             if file.startswith(uid):
-                return True, pathlib.Path(file)
+                return True, project_logs_dir / file
 
         return False, None
 

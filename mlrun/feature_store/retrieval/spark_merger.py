@@ -124,10 +124,15 @@ class SparkFeatureMerger(BaseMerger):
 
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
-            entity_timestamp_column_list = (
+            entity_timestamp_column = (
                 [entity_timestamp_column]
                 if entity_timestamp_column
-                else list(feature_set.spec.timestamp_key)
+                else feature_set.spec.timestamp_key
+            )
+            entity_timestamp_column_list = (
+                entity_timestamp_column
+                if isinstance(entity_timestamp_column, list)
+                else [entity_timestamp_column]
             )
             if entity_timestamp_column_list:
                 column_names += entity_timestamp_column_list

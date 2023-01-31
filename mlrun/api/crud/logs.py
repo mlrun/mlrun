@@ -236,9 +236,26 @@ class Logs(
             raise FileNotFoundError(f"Log file does not exist: {log_file}")
         return log_file.stat().st_mtime
 
-    def log_file_exists(self, project: str, uid: str) -> bool:
-        log_file = log_path(project, uid)
-        return log_file.exists()
+    @staticmethod
+    def log_file_exists_for_run_uid(project: str, uid: str) -> bool:
+        """
+        Checks if the log file exists for the given project and uid
+        There could be two types of log files:
+        1. Log file which was created by the legacy logger with the following file format - project/<run-uid>)
+        2. Log file which was created by the new logger with the following file format- /project/<run-uid>-<pod-name>
+        Therefore, we check if the log file exists for both formats
+        :param project: project name
+        :param uid: run uid
+        :return: True if the log file exists, False otherwise
+        """
+        project_logs_dir = project_logs_path(project)
+        if not project_logs_dir.exists():
+            return False
+        for file in os.listdir(str(project_logs_dir)):
+            if file.startswith(uid):
+                return True
+
+        return False
 
     def _list_project_logs_uids(self, project: str) -> typing.List[str]:
         logs_path = project_logs_path(project)

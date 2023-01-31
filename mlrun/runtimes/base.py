@@ -2383,7 +2383,7 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        log_file_exists = crud.Logs().log_file_exists_for_run_uid(project, uid)
+        log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
             # this stays for now for backwards compatibility in case we would not use the log collector but rather
             # the legacy method to pull logs

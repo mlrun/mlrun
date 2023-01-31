@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import os
+import pathlib
 import shutil
 import typing
 from http import HTTPStatus
@@ -151,8 +152,8 @@ class Logs(
         ):
             yield log
 
-    @staticmethod
     def _get_logs_legacy_method(
+        self,
         db_session: Session,
         project: str,
         uid: str,
@@ -166,12 +167,12 @@ class Logs(
         """
         project = project or mlrun.mlconf.default_project
         log_contents = b""
-        log_file = log_path(project, uid)
+        log_file_exists, log_file = self.log_file_exists_for_run_uid(project, uid)
         if not run:
             run = get_db().read_run(db_session, uid, project)
         if not run:
             log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
-        if log_file.exists() and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
+        if log_file_exists and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)
                 log_contents = fp.read(size)
@@ -237,7 +238,7 @@ class Logs(
         return log_file.stat().st_mtime
 
     @staticmethod
-    def log_file_exists_for_run_uid(project: str, uid: str) -> bool:
+    def log_file_exists_for_run_uid(project: str, uid: str) -> (bool, pathlib.Path):
         """
         Checks if the log file exists for the given project and uid
         There could be two types of log files:
@@ -246,16 +247,16 @@ class Logs(
         Therefore, we check if the log file exists for both formats
         :param project: project name
         :param uid: run uid
-        :return: True if the log file exists, False otherwise
+        :return: True if the log file exists, False otherwise, and the log file path
         """
         project_logs_dir = project_logs_path(project)
         if not project_logs_dir.exists():
-            return False
+            return False, None
         for file in os.listdir(str(project_logs_dir)):
             if file.startswith(uid):
-                return True
+                return True, pathlib.Path(file)
 
-        return False
+        return False, None
 
     def _list_project_logs_uids(self, project: str) -> typing.List[str]:
         logs_path = project_logs_path(project)

@@ -83,12 +83,12 @@ jobs:
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
     steps:
+      - uses: actions/checkout@v3
       - name: Set up python
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
           cache: pip
-      - uses: actions/checkout@v3
       - name: Build & push to pypi
         run: |
           pip install twine

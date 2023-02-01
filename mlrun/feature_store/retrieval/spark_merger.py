@@ -307,6 +307,8 @@ class SparkFeatureMerger(BaseMerger):
 
         """
         # fs_name = featureset.metadata.name
+        print(featureset_df.show())
+        print(entity_df.show())
         join_cond = None
         if left_keys != right_keys:
             for key_l, key_r in zip(left_keys, right_keys):

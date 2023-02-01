@@ -578,6 +578,8 @@ def test_update_in():
             [1, 2, 3],
         ),
         (["metadata", "test", "labels", "test.data"], 1),
+        (["metadata.test", "test.test", "labels", "test.data"], True),
+        (["metadata", "test.middle.com", "labels", "test.data"], "data"),
     ],
 )
 def test_update_in_for_key_with_dots(keys, val):

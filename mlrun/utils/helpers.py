@@ -329,13 +329,14 @@ def split_by_dots_with_escaping(key: str):
 
 
 def update_in(obj, key, value, append=False, replace=True):
-    parts, last_key = split_by_dots_with_escaping(key) if isinstance(key, str) else key
+    parts = split_by_dots_with_escaping(key) if isinstance(key, str) else key
     for part in parts[:-1]:
         sub = obj.get(part, missing)
         if sub is missing:
             sub = obj[part] = {}
         obj = sub
 
+    last_key = parts[-1]
     if last_key not in obj:
         if append:
             obj[last_key] = []

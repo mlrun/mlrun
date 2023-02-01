@@ -17,14 +17,14 @@ You can write your code on a local machine while running your functions on a rem
 Before you begin, ensure that the following prerequisites are met:
 
 1. Applications:
-   - Python 3.7   
+   - Python 3.7 or later  
    - Recommended pip 22.x+
 
 2. Install MLRun locally.
 
     You need to install MLRun locally. Make sure the that the MLRun version you install is the same as the MLRun 
     service version. Install a specific version using the following command; replace the `<version>`  placeholder 
-    with the MLRun version number (e.g., `1.0.0`):
+    with the MLRun version number (e.g., `1.2.1`):
  
     ```sh
     pip install mlrun==<version>
@@ -151,6 +151,27 @@ For more explanations read the documentation [mlrun.set_environment](https://doc
 
 Use these procedures to access MLRun remotely from your IDE (PyCharm or VSCode).
 
+##### Create environment file
+
+Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
+
+``` ini
+# Remote URL to mlrun service
+MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
+# Iguazio platform username
+V3IO_USERNAME=<username of a platform user with access to the MLRun service>
+# Iguazio V3IO data layer credentials (copy from your user settings)
+V3IO_ACCESS_KEY=<platform access key>
+```
+
+```{admonition} Note
+If your remote service is on an instance of the Iguazio MLOps Platform, you can get all these parameters from the platform dashboard: select the user-profile picture or icon from the top right corner of any page, and select  **Remote settings**, it will copy them to clipboard.
+```
+
+```{admonition} Note
+Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
+```
+
 #### Remote environment from PyCharm
 
 You can use PyCharm with MLRun remote by changing the environment variables configuration.
@@ -170,23 +191,6 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
    > If the remote service is on an instance of the Iguazio MLOps Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
 
 #### Remote environment from VSCode
-
-##### Create environment file
-
-Create an environment file called `mlrun.env` in your workspace folder. Copy-paste the configuration below:
-
-``` ini
-# Remote URL to mlrun service
-MLRUN_DBPATH=<API endpoint of the MLRun APIs service endpoint; e.g., "https://mlrun-api.default-tenant.app.mycluster.iguazio.com">
-# Iguazio platform username
-V3IO_USERNAME=<username of a platform user with access to the MLRun service>
-# Iguazio V3IO data layer credentials (copy from your user settings)
-V3IO_ACCESS_KEY=<platform access key>
-```
-
-```{admonition} Note
-Make sure that you add `.env` to your `.gitignore` file. The environment file contains sensitive information that you should not store in your source control.
-```
 
 #### Create Python debug configuration
 

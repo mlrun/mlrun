@@ -20,6 +20,7 @@ import re
 import sys
 import time
 import typing
+import warnings
 from datetime import datetime, timezone
 from importlib import import_module
 from os import path
@@ -262,8 +263,10 @@ def normalize_name(name):
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
     if "_" in name:
-        logger.warning(
-            "Replacing underscores (_) with dashes (-). Names with underscore will be deprecated, use dashes instead."
+        warnings.warn(
+            "Names with underscore '_' are about to be deprecated, use dashes '-' instead."
+            "Replacing underscores with dashes.",
+            PendingDeprecationWarning,
         )
         name = name.replace("_", "-")
     return name.lower()

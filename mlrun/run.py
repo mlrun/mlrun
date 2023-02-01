@@ -473,7 +473,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     if project and is_hub_uri:
         function.metadata.project = project
     if new_name:
-        function.metadata.name = new_name
+        function.metadata.name = mlrun.utils.helpers.normalize_name(new_name)
     return function
 
 

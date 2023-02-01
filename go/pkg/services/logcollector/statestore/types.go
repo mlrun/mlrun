@@ -93,7 +93,7 @@ type Config struct {
 type StateStore interface {
 
 	// Initialize initializes the state store
-	Initialize(ctx context.Context)
+	Initialize(ctx context.Context) error
 
 	// AddLogItem adds a log item to the state store
 	AddLogItem(ctx context.Context, runId, selector string) error

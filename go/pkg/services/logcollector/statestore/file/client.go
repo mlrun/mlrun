@@ -43,7 +43,7 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 			InProgress: &sync.Map{},
 		},
 		logger: logger.GetChild("filestatestore"),
-		// setting _metadata with "_" as a sub directory, so it won't conflict with projects directories
+		// setting _metadata with "_" as a subdirectory, so it won't conflict with projects directories
 		stateFilePath:           path.Join(baseDirPath, "_metadata", "state.json"),
 		stateFileUpdateInterval: stateFileUpdateInterval,
 		lock:                    &sync.Mutex{},
@@ -51,10 +51,19 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 }
 
 // Initialize initializes the file state store
-func (s *Store) Initialize(ctx context.Context) {
+func (s *Store) Initialize(ctx context.Context) error {
+	stateFileDirectory := path.Dir(s.stateFilePath)
+	s.logger.DebugWithCtx(ctx,
+		"Ensuring file state store directory",
+		"stateFileDirectory", stateFileDirectory)
+	if err := common.EnsureDirExists(stateFileDirectory, os.ModePerm); err != nil {
+		return errors.Wrap(err, "Failed to create state file directory")
+	}
 
 	// spawn a goroutine that will update the state file periodically
 	go s.stateFileUpdateLoop(ctx)
+
+	return nil
 }
 
 // AddLogItem adds a log item to the state store
@@ -129,7 +138,8 @@ func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 				errCount = 0
 				s.logger.WarnWithCtx(ctx,
 					"Failed to write state file",
-					"err", err.Error())
+					"err", common.GetErrorStack(err, 10),
+				)
 			}
 			errCount++
 		}

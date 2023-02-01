@@ -137,7 +137,9 @@ func (s *Server) OnBeforeStart(ctx context.Context) error {
 	// initialize the state store (load state from file, start state file update loop)
 	// if the server is not the chief, do not monitor anything
 	if s.isChief {
-		s.stateStore.Initialize(ctx)
+		if err := s.stateStore.Initialize(ctx); err != nil {
+			return errors.Wrap(err, "Failed to initialize state store")
+		}
 
 		// start logging monitor
 		go s.monitorLogCollection(ctx)
@@ -719,7 +721,11 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 					}); err != nil {
 
 						// we don't fail here, as there might be other items to start log for, just log it
-						s.Logger.WarnWithCtx(ctx, "Failed to start log collection for log item", "runUID", runUID)
+						s.Logger.WarnWithCtx(ctx,
+							"Failed to start log collection for log item",
+							"runUID", runUID,
+							"err", common.GetErrorStack(err, 10),
+						)
 					}
 				}
 
@@ -730,7 +736,9 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 			// don't fail because we still need the server to run
 			if errCount%5 == 0 {
 				errCount = 0
-				s.Logger.WarnWithCtx(ctx, "Failed to get log items in progress", "err", err.Error())
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to get log items in progress",
+					"err", common.GetErrorStack(err, 10))
 			}
 			errCount++
 		}

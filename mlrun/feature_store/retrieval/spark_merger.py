@@ -227,13 +227,13 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql.functions import col, monotonically_increasing_id, row_number
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
-        indexes = list(featureset.spec.entities.keys())
+        # indexes = list(featureset.spec.entities.keys())
 
         # get columns for projection
         projection = [
             col(col_name).alias(
                 f"ft__{col_name}"
-                if col_name in indexes + [entity_timestamp_column]
+                if col_name in right_keys + [entity_timestamp_column]
                 else col_name
             )
             for col_name in featureset_df.columns
@@ -248,20 +248,20 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         # join based on entities
-        for key in indexes:
+        for key_l, key_r in zip(left_keys, right_keys):
             join_cond = join_cond & (
-                entity_with_id[key] == aliased_featureset_df[f"ft__{key}"]
+                entity_with_id[key_l] == aliased_featureset_df[f"ft__{key_r}"]
             )
 
         conditional_join = entity_with_id.join(
             aliased_featureset_df, join_cond, "leftOuter"
         )
-        for key in indexes + [entity_timestamp_column]:
+        for key in right_keys + [entity_timestamp_column]:
             conditional_join = conditional_join.drop(
                 aliased_featureset_df[f"ft__{key}"]
             )
 
-        window = Window.partitionBy("_row_nr", *indexes).orderBy(
+        window = Window.partitionBy("_row_nr", *left_keys).orderBy(
             col(entity_timestamp_column).desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(

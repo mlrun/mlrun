@@ -136,12 +136,12 @@ class SparkFeatureMerger(BaseMerger):
                 for column in column_names
                 if column not in node.data["save_cols"]
             }
-
+            fs_entities = list(feature_set.spec.entities.keys())
             # select requested columns and rename with alias where needed
             df = df.select(
                 [
                     col(name).alias(rename_col_dict.get(name, name))
-                    for name in column_names + list(feature_set.spec.entities.keys())
+                    for name in column_names
                 ]
             )
             dfs.append(df)
@@ -151,6 +151,8 @@ class SparkFeatureMerger(BaseMerger):
 
             # update alias according to the unique column name
             new_columns = []
+            if not self._drop_indexes:
+                new_columns.extend([ind, ind] for ind in fs_entities)
             for column, alias in columns:
                 if column in rename_col_dict and alias:
                     new_columns.append((rename_col_dict[column], alias))
@@ -177,10 +179,8 @@ class SparkFeatureMerger(BaseMerger):
             all_columns=all_columns,
         )
 
-        if not self._drop_indexes:
-            self._update_alias(dictionary={ind: ind for ind in self._index_columns})
-            if entity_timestamp_column:
-                self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
+        if not self._drop_indexes and entity_timestamp_column:
+            self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
         self._result_df = self._result_df.drop(*self._drop_columns)
 
         self._result_df = self._result_df.select(
@@ -306,7 +306,7 @@ class SparkFeatureMerger(BaseMerger):
                 be prefixed with featureset_df name.
 
         """
-        fs_name = featureset.metadata.name
+        # fs_name = featureset.metadata.name
         # join based on entities
         join_cond = None
         for key_l, key_r in zip(left_keys, right_keys):

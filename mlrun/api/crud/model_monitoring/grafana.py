@@ -108,7 +108,7 @@ async def grafana_list_endpoints(
 
     :return: GrafanaTable object that represents the model endpoints records.
     """
-    # print('[EYAL]: not in list model endpoint!')
+
     project = query_parameters.get("project")
 
     # Filters

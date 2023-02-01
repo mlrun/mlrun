@@ -2694,6 +2694,7 @@ class HTTPRunDB(RunDBInterface):
                 mlrun.model_monitoring.model_endpoint.ModelEndpoint.from_dict(obj)
                 for obj in model_endpoints
             ]
+        return []
 
     def get_model_endpoint(
         self,

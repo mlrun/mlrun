@@ -152,7 +152,7 @@ class SparkFeatureMerger(BaseMerger):
             # update alias according to the unique column name
             new_columns = []
             if not self._drop_indexes:
-                new_columns.extend([ind, ind] for ind in fs_entities)
+                new_columns.extend([(ind, ind) for ind in fs_entities])
             for column, alias in columns:
                 if column in rename_col_dict and alias:
                     new_columns.append((rename_col_dict[column], alias))

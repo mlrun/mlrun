@@ -3731,7 +3731,7 @@ class TestFeatureStore(TestMLRunSystem):
         orig_df = pd.DataFrame(data)
         if with_indexes:
             orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
-        parquet_path = "v3io:///bigdata/system-test-project/trfsinojud.parquet"
+        parquet_path = f"v3io:///projects/{self.project_name}/trfsinojud.parquet"
         orig_df.to_parquet(parquet_path)
         gnrxRnIYSr = ParquetSource(path=parquet_path)
 

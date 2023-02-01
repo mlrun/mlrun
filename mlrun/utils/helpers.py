@@ -312,16 +312,20 @@ def verify_list_and_update_in(
 
 def split_by_dots_with_escaping(key: str):
     """
-    splits the key by dots, taking escaping into account so that the final key can contain dots
+    splits the key by dots, taking escaping into account so that the key can contain dots
     """
-    last_key_start_index = key.find("\\")
-    if last_key_start_index > 0:
-        last_key = key[last_key_start_index + 1 : -1]
-        parts = key[:last_key_start_index].split(".")
-    else:
-        parts = key.split(".")
-        last_key = parts[-1]
-    return parts, last_key
+    parts = []
+    current_key, escape = "", False
+    for char in key:
+        if char == "." and not escape:
+            parts.append(current_key)
+            current_key = ""
+        elif char == "\\":
+            escape = not escape
+        else:
+            current_key += char
+    parts.append(current_key)
+    return parts
 
 
 def update_in(obj, key, value, append=False, replace=True):

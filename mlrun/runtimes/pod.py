@@ -15,6 +15,7 @@ import inspect
 import os
 import typing
 import uuid
+import warnings
 from enum import Enum
 
 import dotenv
@@ -997,6 +998,12 @@ class KubeResource(BaseRuntime):
         return self
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        warnings.warn(
+            "Job gpus is deprecated in 1.3.0, and will be removed in 1.5.0."
+            "Use 'with_limits' instead. ",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
+        )
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
     def set_image_pull_configuration(

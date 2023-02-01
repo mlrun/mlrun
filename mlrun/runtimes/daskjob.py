@@ -15,6 +15,7 @@ import datetime
 import inspect
 import socket
 import time
+import warnings
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -408,9 +409,14 @@ class DaskCluster(KubejobRuntime):
         )
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        raise NotImplementedError(
-            "Use with_scheduler_limits/with_worker_limits to set GPU resources",
+        warnings.warn(
+            "Dask gpus is deprecated in 1.3.0, and will be removed in 1.5.0."
+            "Use with_scheduler_limits / with_worker_limits instead.",
+            # TODO: Remove in 1.5.0
+            FutureWarning,
         )
+        update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
+        update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 
     def with_limits(
         self,

@@ -696,7 +696,7 @@ with ctx:
 
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         raise NotImplementedError(
-            "In spark runtimes, please use with_driver_requests & with_executor_requests"
+            "In spark runtimes, please use with_driver_limits & with_executor_limits"
         )
 
     def with_node_selection(

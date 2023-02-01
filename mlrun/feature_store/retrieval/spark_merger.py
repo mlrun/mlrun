@@ -268,16 +268,15 @@ class SparkFeatureMerger(BaseMerger):
                     aliased_featureset_df[f"ft__{key}"]
                 )
 
-        conditional_join = conditional_join.orderBy(col(entity_timestamp_column))
-        # window = Window.partitionBy("_row_nr", *left_keys).orderBy(
-        #     col(entity_timestamp_column).desc(),
-        # )
-        # filter_most_recent_feature_timestamp = conditional_join.withColumn(
-        #     "_rank", row_number().over(window)
-        # ).filter(col("_rank") == 1)
+        window = Window.partitionBy("_row_nr", *left_keys).orderBy(
+            col(entity_timestamp_column).desc(),
+        )
+        filter_most_recent_feature_timestamp = conditional_join.withColumn(
+            "_rank", row_number().over(window)
+        ).filter(col("_rank") == 1)
 
-        # return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
-        return conditional_join
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(col(entity_timestamp_column))
+
     def _join(
         self,
         entity_df,
@@ -308,16 +307,24 @@ class SparkFeatureMerger(BaseMerger):
 
         """
         fs_name = featureset.metadata.name
+        # join based on entities
+        join_cond = None
+        for key_l, key_r in zip(left_keys, right_keys):
+            join_cond = join_cond & (
+                entity_df[key_l] == featureset_df[key_r]
+            ) if join_cond else (
+                entity_df[key_l] == featureset_df[key_r]
+            )
+
         merged_df = entity_df.join(
             featureset_df,
+            join_cond,
             how=self._join_type,
-            left_on=left_keys,
-            right_on=right_keys,
-            suffixes=("", f"_{fs_name}_"),
+            # suffixes=("", f"_{fs_name}_"),
         )
-        for col in merged_df.columns:
-            if re.findall(f"_{fs_name}_$", col):
-                self._append_drop_column(col)
+        # for col in merged_df.columns:
+        #     if re.findall(f"_{fs_name}_$", col):
+        #         self._append_drop_column(col)
         return merged_df
 
     def get_df(self, to_pandas=True):

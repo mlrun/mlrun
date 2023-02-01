@@ -99,6 +99,7 @@ def test_requirement_specifiers_convention():
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},
+        "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         "click": {"~=8.0.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers

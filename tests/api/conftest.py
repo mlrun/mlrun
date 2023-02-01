@@ -108,6 +108,8 @@ class K8sSecretsMock:
         self.project_secrets_map = {}
         # ref -> secret_key -> secret_value
         self.auth_secrets_map = {}
+        # secret-name -> secret_key -> secret_value
+        self.secrets_map = {}
 
     # cannot use a property since it's used as a method on the actual class
     def is_running_inside_kubernetes_cluster(self) -> bool:
@@ -182,10 +184,26 @@ class K8sSecretsMock:
             if (secret_keys and key in secret_keys) or not secret_keys
         }
 
+    def store_secret(self, secret_name, secrets: dict):
+        self.secrets_map[secret_name] = secrets
+
+    def get_secret_data(self, secret_name, namespace=""):
+        return self.secrets_map[secret_name]
+
     def get_expected_env_variables_from_secrets(
-        self, project, encode_key_names=True, include_internal=False
+        self, project, encode_key_names=True, include_internal=False, global_secret=None
     ):
         expected_env_from_secrets = {}
+
+        if global_secret:
+            for key in self.secrets_map.get(global_secret, {}):
+                env_variable_name = (
+                    SecretsStore.k8s_env_variable_name_for_secret(key)
+                    if encode_key_names
+                    else key
+                )
+                expected_env_from_secrets[env_variable_name] = {global_secret: key}
+
         secret_name = mlrun.api.utils.singletons.k8s.get_k8s().get_project_secret_name(
             project
         )
@@ -256,6 +274,7 @@ def k8s_secrets_mock(monkeypatch, client: TestClient) -> K8sSecretsMock:
         "store_auth_secret",
         "delete_auth_secret",
         "read_auth_secret",
+        "get_secret_data",
     ]
 
     for mocked_function_name in mocked_function_names:

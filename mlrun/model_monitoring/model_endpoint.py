@@ -63,7 +63,7 @@ class ModelEndpointStatus(mlrun.model.ModelObj):
         features: Optional[List[Dict[str, Any]]] = None,
         children: Optional[List[str]] = None,
         children_uids: Optional[List[str]] = None,
-        endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP,
+        endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value,
         monitoring_feature_set_uri: Optional[str] = "",
         state: Optional[str] = "",
     ):
@@ -77,7 +77,7 @@ class ModelEndpointStatus(mlrun.model.ModelObj):
         self.features = features or []
         self.children = children or []
         self.children_uids = children_uids or []
-        self.endpoint_type = endpoint_type or EndpointType.NODE_EP
+        self.endpoint_type = endpoint_type
         self.monitoring_feature_set_uri = monitoring_feature_set_uri
         if metrics is None:
             self.metrics = {

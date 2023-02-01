@@ -160,6 +160,7 @@ class ModelEndpointStatus(ObjectStatus):
         mlrun.model_monitoring.EndpointType
     ] = mlrun.model_monitoring.EndpointType.NODE_EP.value
     monitoring_feature_set_uri: Optional[str] = ""
+    state: Optional[str] = ""
 
     class Config:
         extra = Extra.allow

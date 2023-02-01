@@ -16,6 +16,7 @@
 import typing
 from abc import ABC, abstractmethod
 
+
 class ModelEndpointStore(ABC):
     """
     An abstract class to handle the model endpoint in the DB target.
@@ -39,7 +40,9 @@ class ModelEndpointStore(ABC):
         pass
 
     @abstractmethod
-    def update_model_endpoint(self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]):
+    def update_model_endpoint(
+        self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]
+    ):
         """
         Update a model endpoint record with a given attributes.
 
@@ -110,7 +113,6 @@ class ModelEndpointStore(ABC):
         :return: A list of model endpoint dictionaries.
         """
         pass
-
 
     @abstractmethod
     def get_endpoint_real_time_metrics(

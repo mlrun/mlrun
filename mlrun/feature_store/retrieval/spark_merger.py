@@ -123,19 +123,12 @@ class SparkFeatureMerger(BaseMerger):
 
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
-            entity_timestamp_column = (
-                [entity_timestamp_column]
-                if entity_timestamp_column and entity_timestamp_column in df.columns
-                else feature_set.spec.timestamp_key
-            )
-            entity_timestamp_column_list = (
-                entity_timestamp_column
-                if isinstance(entity_timestamp_column, list)
-                else [entity_timestamp_column]
-            )
-            if entity_timestamp_column_list:
+            if feature_set.spec.timestamp_key:
+                entity_timestamp_column_list = feature_set.spec.timestamp_key if \
+                    isinstance(feature_set.spec.timestamp_key, list) else [feature_set.spec.timestamp_key]
                 column_names += entity_timestamp_column_list
                 node.data["save_cols"] += entity_timestamp_column_list
+
             # rename columns to be unique for each feature set
             rename_col_dict = {
                 column: f"{column}_{name}"

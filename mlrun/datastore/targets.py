@@ -582,6 +582,11 @@ class BaseStoreTarget(DataTargetBase):
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
 
+        if hasattr(spec, "_credentials_prefix"):
+            driver._credentials_prefix = spec._credentials_prefix
+        if hasattr(spec, "_secrets"):
+            driver._secrets = spec._secrets
+
         driver.partitioned = spec.partitioned
 
         driver.key_bucketing_number = spec.key_bucketing_number

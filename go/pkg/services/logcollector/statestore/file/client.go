@@ -52,12 +52,15 @@ func NewFileStore(logger logger.Logger, baseDirPath string, stateFileUpdateInter
 
 // Initialize initializes the file state store
 func (s *Store) Initialize(ctx context.Context) error {
-	stateFileDirectory := path.Dir(s.stateFilePath)
-	s.logger.DebugWithCtx(ctx,
-		"Ensuring file state store directory",
-		"stateFileDirectory", stateFileDirectory)
-	if err := common.EnsureDirExists(stateFileDirectory, os.ModePerm); err != nil {
-		return errors.Wrap(err, "Failed to create state file directory")
+	var err error
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	// load state from file before starting the update loop
+	// state file is our source of truth
+	s.state, err = s.readStateFile()
+	if err != nil {
+		return errors.Wrap(err, "Failed to read state file")
 	}
 
 	// spawn a goroutine that will update the state file periodically
@@ -97,15 +100,15 @@ func (s *Store) WriteState(state *statestore.State) error {
 
 // GetItemsInProgress returns the in progress log items
 func (s *Store) GetItemsInProgress() (*sync.Map, error) {
-	state, err := s.readStateFile()
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to read state file")
-	}
+	var err error
 
 	// set the state in the file state store
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	s.state = state
+	s.state, err = s.readStateFile()
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to read state file")
+	}
 
 	return s.state.InProgress, nil
 }
@@ -165,10 +168,6 @@ func (s *Store) writeStateToFile(state *statestore.State) error {
 
 // readStateFile reads the state from the file
 func (s *Store) readStateFile() (*statestore.State, error) {
-
-	// get lock so file won't be updated while reading
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	// read file
 	if err := common.EnsureFileExists(s.stateFilePath); err != nil {

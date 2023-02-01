@@ -82,8 +82,7 @@ func StartServer() error {
 }
 
 func main() {
-	err := StartServer()
-	if err != nil {
+	if err := StartServer(); err != nil {
 		stackTrace := errors.GetErrorStackString(err, 10)
 		fmt.Printf("Failed to start log collector server: %s", stackTrace)
 		panic(err)

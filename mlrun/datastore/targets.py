@@ -1153,6 +1153,8 @@ class NoSqlBaseTarget(BaseStoreTarget):
             # that the last event of a key is the one being persisted
             if len(df.index.names) and df.index.names[0] is not None:
                 df = df.groupby(df.index.names).last()
+            else:
+                df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())

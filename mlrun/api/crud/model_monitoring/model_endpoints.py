@@ -401,7 +401,7 @@ class ModelEndpoints:
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
 
-        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
+        :return: A `ModelEndpoint` object.
         """
 
         logger.info(

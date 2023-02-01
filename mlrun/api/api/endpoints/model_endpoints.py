@@ -353,7 +353,7 @@ async def get_model_endpoint(
                                        be added to the output of the resulting object.
     :param auth_info:                  The auth info of the request
 
-    :return:  A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
+    :return:  A `ModelEndpoint` object.
     """
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.api.schemas.AuthorizationResourceTypes.model_endpoint,

@@ -20,6 +20,7 @@ import re
 import sys
 import time
 import typing
+import warnings
 from datetime import datetime, timezone
 from importlib import import_module
 from os import path
@@ -261,7 +262,13 @@ def normalize_name(name):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
-    name = name.replace("_", "-")
+    if "_" in name:
+        warnings.warn(
+            "Names with underscore '_' are about to be deprecated, use dashes '-' instead."
+            "Replacing underscores with dashes.",
+            FutureWarning,
+        )
+        name = name.replace("_", "-")
     return name.lower()
 
 
@@ -987,7 +994,7 @@ def get_class(class_name, namespace=None):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, class {class_name} not found") from exc
+        raise ImportError(f"Failed to import {class_name}") from exc
     return class_object
 
 

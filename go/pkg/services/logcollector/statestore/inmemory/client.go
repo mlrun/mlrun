@@ -32,7 +32,9 @@ func NewInMemoryStore() *Store {
 }
 
 // Initialize initializes the state store
-func (s *Store) Initialize(ctx context.Context) {}
+func (s *Store) Initialize(ctx context.Context) error {
+	return nil
+}
 
 // AddLogItem adds a log item to the state store
 func (s *Store) AddLogItem(ctx context.Context, runId, selector string) error {

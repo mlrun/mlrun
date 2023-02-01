@@ -126,8 +126,7 @@ class SparkFeatureMerger(BaseMerger):
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
             if feature_set.spec.timestamp_key:
-                entity_timestamp_column_list = feature_set.spec.timestamp_key if \
-                    isinstance(feature_set.spec.timestamp_key, list) else [feature_set.spec.timestamp_key]
+                entity_timestamp_column_list = [feature_set.spec.timestamp_key]
                 column_names += entity_timestamp_column_list
                 node.data["save_cols"] += entity_timestamp_column_list
 
@@ -179,8 +178,9 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         if not self._drop_indexes:
-            self._update_alias(dictionary={ind: ind for ind in self._index_columns + [entity_timestamp_column]})
-
+            self._update_alias(dictionary={ind: ind for ind in self._index_columns})
+            if entity_timestamp_column:
+                self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
         self._result_df = self._result_df.drop(*self._drop_columns)
 
         self._result_df = self._result_df.select(

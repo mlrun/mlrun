@@ -43,7 +43,6 @@ class SparkFeatureMerger(BaseMerger):
         end_time=None,
         query=None,
     ):
-        print(11111111)
         from pyspark.sql import SparkSession
         from pyspark.sql.functions import col
 
@@ -176,6 +175,9 @@ class SparkFeatureMerger(BaseMerger):
             keys=keys,
             all_columns=all_columns,
         )
+
+        if not self._drop_indexes:
+            self._update_alias(dictionary={ind: ind for ind in self._index_columns})
 
         self._result_df = self._result_df.drop(*self._drop_columns)
 

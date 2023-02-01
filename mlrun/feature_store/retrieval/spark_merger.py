@@ -269,15 +269,15 @@ class SparkFeatureMerger(BaseMerger):
                 )
 
         conditional_join = conditional_join.orderBy(col(entity_timestamp_column))
-        window = Window.partitionBy("_row_nr", *left_keys).orderBy(
-            col(entity_timestamp_column).desc(),
-        )
-        filter_most_recent_feature_timestamp = conditional_join.withColumn(
-            "_rank", row_number().over(window)
-        ).filter(col("_rank") == 1)
+        # window = Window.partitionBy("_row_nr", *left_keys).orderBy(
+        #     col(entity_timestamp_column).desc(),
+        # )
+        # filter_most_recent_feature_timestamp = conditional_join.withColumn(
+        #     "_rank", row_number().over(window)
+        # ).filter(col("_rank") == 1)
 
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
-
+        # return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank")
+        return conditional_join
     def _join(
         self,
         entity_df,

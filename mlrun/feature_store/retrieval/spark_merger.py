@@ -231,13 +231,14 @@ class SparkFeatureMerger(BaseMerger):
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         # indexes = list(featureset.spec.entities.keys())
-
+        rename_right_keys = {}
+        for key in right_keys + [entity_timestamp_column]:
+            if key in entity_df.columns:
+                rename_right_keys[key] = f"ft__{key}"
         # get columns for projection
         projection = [
             col(col_name).alias(
-                f"ft__{col_name}"
-                if col_name in right_keys + [entity_timestamp_column]
-                else col_name
+                rename_right_keys.get(col_name, col_name)
             )
             for col_name in featureset_df.columns
         ]
@@ -247,22 +248,23 @@ class SparkFeatureMerger(BaseMerger):
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[f"ft__{entity_timestamp_column}"]
+            >= aliased_featureset_df[rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)]
         )
 
         # join based on entities
         for key_l, key_r in zip(left_keys, right_keys):
             join_cond = join_cond & (
-                entity_with_id[key_l] == aliased_featureset_df[f"ft__{key_r}"]
+                entity_with_id[key_l] == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
             )
 
         conditional_join = entity_with_id.join(
             aliased_featureset_df, join_cond, "leftOuter"
         )
         for key in right_keys + [entity_timestamp_column]:
-            conditional_join = conditional_join.drop(
-                aliased_featureset_df[f"ft__{key}"]
-            )
+            if f"ft__{key}" in conditional_join.columns:
+                conditional_join = conditional_join.drop(
+                    aliased_featureset_df[f"ft__{key}"]
+                )
 
         window = Window.partitionBy("_row_nr", *left_keys).orderBy(
             col(entity_timestamp_column).desc(),

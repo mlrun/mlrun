@@ -60,7 +60,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db = mlrun.get_run_db()
 
         db.create_model_endpoint(
-            endpoint.metadata.project, endpoint.metadata.uid, endpoint
+            endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
         )
 
         endpoint_response = db.get_model_endpoint(
@@ -86,7 +86,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
         db.create_model_endpoint(
             project=endpoint.metadata.project,
             endpoint_id=endpoint.metadata.uid,
-            model_endpoint=endpoint,
+            model_endpoint=endpoint.dict(),
         )
 
         endpoint_before_update = db.get_model_endpoint(
@@ -145,7 +145,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
 
         for endpoint in endpoints_in:
             db.create_model_endpoint(
-                endpoint.metadata.project, endpoint.metadata.uid, endpoint
+                endpoint.metadata.project, endpoint.metadata.uid, endpoint.dict()
             )
 
         endpoints_out = db.list_model_endpoints(self.project_name)
@@ -176,7 +176,7 @@ class TestModelMonitoringAPI(TestMLRunSystem):
             db.create_model_endpoint(
                 endpoint_details.metadata.project,
                 endpoint_details.metadata.uid,
-                endpoint_details,
+                endpoint_details.dict(),
             )
 
         filter_model = db.list_model_endpoints(self.project_name, model="filterme")

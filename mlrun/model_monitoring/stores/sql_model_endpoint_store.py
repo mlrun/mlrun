@@ -21,8 +21,8 @@ import pandas as pd
 import sqlalchemy as db
 
 import mlrun
-import mlrun.api.schemas
 import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.model_monitoring.model_endpoint
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.api.db.sqldb.session import create_session, get_engine
@@ -73,35 +73,34 @@ class SQLModelEndpointStore(ModelEndpointStore):
             Base.metadata.create_all(bind=self._engine)
         self.model_endpoints_table = self.ModelEndpointsTable.__table__
 
-    def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
+    def write_model_endpoint(self, endpoint: typing.Dict[str, typing.Any]):
         """
         Create a new endpoint record in the SQL table. This method also creates the model endpoints table within the
         SQL database if not exist.
 
-        :param endpoint: `ModelEndpoint` object that will be written into the DB.
+        :param endpoint: model endpoint dictionary that will be written into the DB.
         """
 
         with self._engine.connect() as connection:
 
-            # Retrieving the relevant attributes from the model endpoint object
-            endpoint_dict = self.get_params(endpoint=endpoint)
-
             # Adjust timestamps fields
-            endpoint_dict[
+            endpoint[
                 model_monitoring_constants.EventFieldType.FIRST_REQUEST
             ] = datetime.now(timezone.utc)
-            endpoint_dict[
+            endpoint[
                 model_monitoring_constants.EventFieldType.LAST_REQUEST
             ] = datetime.now(timezone.utc)
 
             # Convert the result into a pandas Dataframe and write it into the database
-            endpoint_df = pd.DataFrame([endpoint_dict])
+            endpoint_df = pd.DataFrame([endpoint])
 
             endpoint_df.to_sql(
                 self.table_name, con=connection, index=False, if_exists="append"
             )
 
-    def update_model_endpoint(self, endpoint_id: str, attributes: typing.Dict):
+    def update_model_endpoint(
+        self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]
+    ):
         """
         Update a model endpoint record with a given attributes.
 
@@ -114,11 +113,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Update the model endpoint record using sqlalchemy ORM
         with create_session(dsn=self.connection_string) as session:
 
+            # Remove endpoint id (foreign key) from the update query
+            attributes.pop(model_monitoring_constants.EventFieldType.ENDPOINT_ID, None)
+
             # Generate and commit the update session query
             session.query(self.ModelEndpointsTable).filter(
-                self.ModelEndpointsTable.endpoint_id == endpoint_id
+                self.ModelEndpointsTable.uid == endpoint_id
             ).update(attributes)
-
             session.commit()
 
     def delete_model_endpoint(self, endpoint_id: str):
@@ -132,45 +133,19 @@ class SQLModelEndpointStore(ModelEndpointStore):
         with create_session(dsn=self.connection_string) as session:
 
             # Generate and commit the delete query
-            session.query(self.ModelEndpointsTable).filter_by(
-                endpoint_id=endpoint_id
-            ).delete()
+            session.query(self.ModelEndpointsTable).filter_by(uid=endpoint_id).delete()
             session.commit()
 
     def get_model_endpoint(
         self,
         endpoint_id: str,
-        metrics: typing.List[str] = None,
-        start: str = "now-1h",
-        end: str = "now",
-        feature_analysis: bool = False,
-        convert_to_endpoint_object: bool = True,
-    ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
+    ) -> typing.Dict[str, typing.Any]:
         """
-        Get a single model endpoint object. You can apply different time series metrics that will be added to the
-        result.
+        Get a single model endpoint record.
 
-        :param endpoint_id:                The unique id of the model endpoint.
-        :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
-                                           pre-defined real-time metrics for model endpoints such as
-                                           predictions_per_second and latency_avg_5m but also custom metrics defined
-                                           by the user. Please note that these metrics are stored in the time series DB
-                                           and the results will be appeared under model_endpoint.spec.metrics.
-        :param start:                      The start time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                           0 for the earliest time.
-        :param end:                        The end time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                           `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days),
-                                           or 0 for the earliest time.
-        :param feature_analysis:           When True, the base feature statistics and current feature statistics will
-                                           be added to the output of the resulting object.
+        :param endpoint_id: The unique id of the model endpoint.
 
-        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a `ModelEndpoint` or not. True by default.
-
-        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
+        :return: A model endpoint record as a dictionary.
 
         :raise MLRunNotFoundError: If the model endpoints table was not found or the model endpoint id was not found.
         """
@@ -181,7 +156,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
             # Generate the get query
             endpoint_record = (
                 session.query(self.ModelEndpointsTable)
-                .filter_by(endpoint_id=endpoint_id)
+                .filter_by(uid=endpoint_id)
                 .one_or_none()
             )
 
@@ -189,31 +164,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         # Convert the database values and the table columns into a python dictionary
-        endpoint = endpoint_record.to_dict()
-
-        if convert_to_endpoint_object:
-            # Convert the model endpoint dictionary into a ModelEndpont object
-            endpoint = self._convert_into_model_endpoint_object(
-                endpoint=endpoint, feature_analysis=feature_analysis
-            )
-
-        # If time metrics were provided, retrieve the results from the time series DB
-        if metrics:
-            if endpoint.status.metrics is None:
-                endpoint.status.metrics = {}
-
-            endpoint_metrics = self.get_endpoint_real_time_metrics(
-                endpoint_id=endpoint_id,
-                start=start,
-                end=end,
-                metrics=metrics,
-            )
-            if endpoint_metrics:
-                endpoint.status.metrics[
-                    model_monitoring_constants.EventKeyMetrics.REAL_TIME
-                ] = endpoint_metrics
-
-        return endpoint
+        return endpoint_record.to_dict()
 
     def list_model_endpoints(
         self,
@@ -221,14 +172,11 @@ class SQLModelEndpointStore(ModelEndpointStore):
         function: str = None,
         labels: typing.List[str] = None,
         top_level: bool = None,
-        metrics: typing.List[str] = None,
-        start: str = "now-1h",
-        end: str = "now",
         uids: typing.List = None,
-    ) -> mlrun.api.schemas.ModelEndpointList:
+    ) -> typing.List[typing.Dict[str, typing.Any]]:
         """
-        Returns a list of `ModelEndpoint` objects, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available `ModelEndpoint` objects for the given project will
+        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
+        By default, when no filters are applied, all available model endpoints for the given project will
         be listed.
 
         :param model:           The name of the model to filter by.
@@ -237,29 +185,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
                                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param metrics:         A list of real-time metrics to return for each model endpoint. There are pre-defined
-                                real-time metrics for model endpoints such as predictions_per_second and latency_avg_5m
-                                but also custom metrics defined by the user. Please note that these metrics are stored
-                                in the time series DB and the results will be appeared under
-                                `model_endpoint.spec.metrics`.
-        :param start:           The start time of the metrics. Can be represented by a string containing an RFC 3339
-                                time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for the
-                                 earliest time.
-        :param end:              The end time of the metrics. Can be represented by a string containing an RFC 3339
-                                 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                 `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or 0 for
-                                 the earliest time.
         :param uids:             List of model endpoint unique ids to include in the result.
 
-        :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
+        :return: A list of model endpoint dictionaries.
         """
 
-        # Generate an empty ModelEndpointList that will be filled afterwards with ModelEndpoint objects
-        endpoint_list = mlrun.api.schemas.model_endpoints.ModelEndpointList(
-            endpoints=[]
-        )
+        # Generate an empty model endpoints that will be filled afterwards with model endpoint dictionaries
+        endpoint_list = []
 
         # Get the model endpoints records using sqlalchemy ORM
         with create_session(dsn=self.connection_string) as session:
@@ -288,7 +220,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=self.model_endpoints_table,
-                    key_filter=model_monitoring_constants.EventFieldType.ENDPOINT_ID,
+                    key_filter=model_monitoring_constants.EventFieldType.UID,
                     filtered_values=uids,
                     combined=False,
                 )
@@ -303,8 +235,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
                     filtered_values=endpoint_types,
                     combined=False,
                 )
-
-            # Convert the results from the DB into a ModelEndpoint object and append it to the ModelEndpointList
+            # Convert the results from the DB into a ModelEndpoint object and append it to the model endpoints list
             for endpoint_record in query.all():
                 endpoint_dict = endpoint_record.to_dict()
 
@@ -314,25 +245,8 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 ):
                     continue
 
-                endpoint_obj = self._convert_into_model_endpoint_object(endpoint_dict)
+                endpoint_list.append(endpoint_dict)
 
-                # If time metrics were provided, retrieve the results from the time series DB
-                if metrics:
-                    if endpoint_obj.status.metrics is None:
-                        endpoint_obj.status.metrics = {}
-                    endpoint_metrics = self.get_endpoint_real_time_metrics(
-                        endpoint_id=endpoint_obj.metadata.uid,
-                        start=start,
-                        end=end,
-                        metrics=metrics,
-                    )
-                    if endpoint_metrics:
-
-                        endpoint_obj.status.metrics[
-                            model_monitoring_constants.EventKeyMetrics.REAL_TIME
-                        ] = endpoint_metrics
-
-                endpoint_list.endpoints.append(endpoint_obj)
         return endpoint_list
 
     @staticmethod
@@ -411,20 +325,18 @@ class SQLModelEndpointStore(ModelEndpointStore):
         return True
 
     def delete_model_endpoints_resources(
-        self, endpoints: mlrun.api.schemas.model_endpoints.ModelEndpointList
+        self, endpoints: typing.List[typing.Dict[str, typing.Any]]
     ):
         """
-        Delete all model endpoints resources in both SQL and the time series DB. In addition, delete the model
-        endpoints table from SQL if it's empty at the end of the process.
+        Delete all model endpoints resources in both SQL and the time series DB.
 
-        :param endpoints: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
+        :param endpoints: A list of model endpoints flattened dictionaries.
         """
 
-        # Delete model endpoint record from SQL table
-        for endpoint in endpoints.endpoints:
+        for endpoint_dict in endpoints:
+            # Delete model endpoint record from SQL table
             self.delete_model_endpoint(
-                endpoint.metadata.uid,
+                endpoint_dict[model_monitoring_constants.EventFieldType.UID],
             )
 
     def get_endpoint_real_time_metrics(
@@ -434,7 +346,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         start: str = "now-1h",
         end: str = "now",
         access_key: str = None,
-    ) -> typing.Dict[str, typing.List]:
+    ) -> typing.Dict[str, typing.List[typing.Tuple[str, float]]]:
         """
         Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
         `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
@@ -455,8 +367,9 @@ class SQLModelEndpointStore(ModelEndpointStore):
         :return: A dictionary of metrics in which the key is a metric name and the value is a list of tuples that
                  includes timestamps and the values.
         """
-        # TODO : Implement this method once Perometheus is supported
+        # # TODO : Implement this method once Perometheus is supported
         logger.warning(
             "Real time metrics service using Prometheus will be implemented in 1.4.0"
         )
+
         return {}

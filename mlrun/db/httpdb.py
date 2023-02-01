@@ -31,7 +31,6 @@ import mlrun.projects
 from mlrun.api import schemas
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
-from ..api.schemas import ModelEndpoint
 from ..artifacts import Artifact
 from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
@@ -103,6 +102,7 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
+        self.python_version = str(version.Version().get_python_version())
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -155,6 +155,9 @@ class HTTPRunDB(RunDBInterface):
         :param timeout: API call timeout
         :param version: API version to use, None (the default) will mean to use the default value from config,
          for un-versioned api set an empty string.
+        :param stream: If True, the response will be streamed, otherwise it will be read into memory
+        :param to_stdout: If True, the response will be streamed to stdout, otherwise it will be read into memory
+           and returned as a string
 
         :return: Python HTTP response object
         """
@@ -188,7 +191,10 @@ class HTTPRunDB(RunDBInterface):
             "headers", {}
         ):
             kw["headers"].update(
-                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+                {
+                    mlrun.api.schemas.HeaderNames.client_version: self.client_version,
+                    mlrun.api.schemas.HeaderNames.python_version: self.python_version,
+                }
             )
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
@@ -692,7 +698,7 @@ class HTTPRunDB(RunDBInterface):
         name=None,
         project=None,
         tag=None,
-        labels=None,
+        labels: Optional[Union[Dict[str, str], List[str]]] = None,
         since=None,
         until=None,
         iter: int = None,
@@ -708,12 +714,15 @@ class HTTPRunDB(RunDBInterface):
             latest_artifacts = db.list_artifacts('', tag='latest', project='iris')
             # check different artifact versions for a specific artifact
             result_versions = db.list_artifacts('results', tag='*', project='iris')
+            # Show artifacts with label filters - both uploaded and of binary type
+            result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
         :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
             that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
-        :param labels: Return artifacts that have these labels.
+        :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
+            a list of "label=value" (match label key and value) or "label" (match just label key) strings.
         :param since: Not in use in :py:class:`HTTPRunDB`.
         :param until: Not in use in :py:class:`HTTPRunDB`.
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -727,10 +736,14 @@ class HTTPRunDB(RunDBInterface):
 
         project = project or config.default_project
 
+        labels = labels or []
+        if isinstance(labels, dict):
+            labels = [f"{key}={value}" for key, value in labels.items()]
+
         params = {
             "name": name,
             "tag": tag,
-            "label": labels or [],
+            "label": labels,
             "iter": iter,
             "best-iteration": best_iteration,
             "kind": kind,
@@ -2564,7 +2577,7 @@ class HTTPRunDB(RunDBInterface):
         project: str,
         endpoint_id: str,
         model_endpoint: Union[
-            ModelEndpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
         ],
     ):
         """
@@ -2574,9 +2587,8 @@ class HTTPRunDB(RunDBInterface):
         :param endpoint_id: The id of the endpoint.
         :param model_endpoint: An object representing the model endpoint.
         """
-        if isinstance(model_endpoint, ModelEndpoint):
-            model_endpoint = model_endpoint.dict()
-        elif isinstance(
+
+        if isinstance(
             model_endpoint, mlrun.model_monitoring.model_endpoint.ModelEndpoint
         ):
             model_endpoint = model_endpoint.to_dict()
@@ -2617,7 +2629,6 @@ class HTTPRunDB(RunDBInterface):
         metrics: Optional[List[str]] = None,
         top_level: bool = False,
         uids: Optional[List[str]] = None,
-        convert_to_endpoint_object=True,
     ) -> List[mlrun.model_monitoring.model_endpoint.ModelEndpoint]:
         """
         Returns a list of ModelEndpointState objects. Each object represents the current state of a model endpoint.
@@ -2666,7 +2677,6 @@ class HTTPRunDB(RunDBInterface):
                 "metric": metrics or [],
                 "top-level": top_level,
                 "uid": uids,
-                "convert_to_endpoint_object": convert_to_endpoint_object,
             },
         )
 
@@ -2686,7 +2696,6 @@ class HTTPRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         feature_analysis: bool = False,
-        convert_to_endpoint_object: bool = True,
     ) -> mlrun.model_monitoring.model_endpoint.ModelEndpoint:
         """
         Returns a single `ModelEndpoint` object with additional metrics and feature related data.
@@ -2708,8 +2717,6 @@ class HTTPRunDB(RunDBInterface):
                                            appeared under model_endpoint.spec.metrics.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
-        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a `ModelEndpoint` or not. True by default.
 
         :return: A `ModelEndpoint` object.
         """
@@ -2723,7 +2730,6 @@ class HTTPRunDB(RunDBInterface):
                 "end": end,
                 "metric": metrics or [],
                 "feature_analysis": feature_analysis,
-                "convert_to_endpoint_object": convert_to_endpoint_object,
             },
         )
 

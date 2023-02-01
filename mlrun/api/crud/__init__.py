@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+# flake8: noqa: F401  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .artifacts import Artifacts
 from .client_spec import ClientSpec

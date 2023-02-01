@@ -40,6 +40,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
+import mlrun.model_monitoring.constants
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
@@ -48,7 +49,6 @@ from mlrun.api.utils.singletons.k8s import get_k8s
 from mlrun.builder import build_runtime
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
-from mlrun.model_monitoring.constants import ProjectSecretKeys
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.function import deploy_nuclio_function, get_nuclio_deploy_status
@@ -201,6 +201,9 @@ async def build_function(
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
     ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
+    ),
 ):
     data = None
     try:
@@ -261,6 +264,7 @@ async def build_function(
         mlrun_version_specifier,
         data.get("builder_env"),
         client_version,
+        client_python_version,
     )
     return {
         "data": fn.to_dict(),
@@ -277,6 +281,9 @@ async def start_function(
     db_session: Session = Depends(deps.get_db_session),
     client_version: Optional[str] = Header(
         None, alias=mlrun.api.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = Header(
+        None, alias=mlrun.api.schemas.HeaderNames.python_version
     ),
 ):
     # TODO: ensure project here !!! for background task
@@ -309,6 +316,7 @@ async def start_function(
         function,
         auth_info,
         client_version,
+        client_python_version,
     )
 
     return background_task
@@ -492,7 +500,7 @@ def _handle_nuclio_deploy_status(
 ):
     (
         state,
-        address,
+        _,
         nuclio_name,
         last_log_timestamp,
         text,
@@ -567,6 +575,7 @@ def _build_function(
     mlrun_version_specifier=None,
     builder_env=None,
     client_version=None,
+    client_python_version=None,
 ):
     fn = None
     ready = None
@@ -599,7 +608,7 @@ def _build_function(
                         model_monitoring_access_key = _process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
-                            ProjectSecretKeys.ACCESS_KEY,
+                            mlrun.model_monitoring.constants.ProjectSecretKeys.ACCESS_KEY,
                         )
 
                         # initialize model monitoring stream
@@ -625,6 +634,7 @@ def _build_function(
                 fn,
                 auth_info=auth_info,
                 client_version=client_version,
+                client_python_version=client_python_version,
                 builder_env=builder_env,
             )
             # deploy only start the process, the get status API is used to check readiness
@@ -646,6 +656,7 @@ def _build_function(
                 skip_deployed,
                 builder_env=builder_env,
                 client_version=client_version,
+                client_python_version=client_python_version,
             )
         fn.save(versioned=True)
         logger.info("Fn:\n %s", fn.to_yaml())
@@ -680,7 +691,10 @@ def _parse_start_function_body(db_session, data):
 
 
 def _start_function(
-    function, auth_info: mlrun.api.schemas.AuthInfo, client_version: str = None
+    function,
+    auth_info: mlrun.api.schemas.AuthInfo,
+    client_version: str = None,
+    client_python_version: str = None,
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
@@ -699,7 +713,11 @@ def _start_function(
             )
 
             #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](function, client_version=client_version)
+            resource["start"](
+                function,
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
             function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
         except Exception as err:

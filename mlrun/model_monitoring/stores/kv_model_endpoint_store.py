@@ -20,7 +20,6 @@ import v3io.dataplane
 import v3io_frames
 
 import mlrun
-import mlrun.api.schemas
 import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
@@ -45,24 +44,23 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Get the KV table path and container
         self.path, self.container = self._get_path_and_container()
 
-    def write_model_endpoint(self, endpoint: mlrun.api.schemas.ModelEndpoint):
+    def write_model_endpoint(self, endpoint: typing.Dict[str, typing.Any]):
         """
         Create a new endpoint record in the KV table.
 
-        :param endpoint: `ModelEndpoint` object that will be written into the DB.
+        :param endpoint: model endpoint dictionary that will be written into the DB.
         """
 
-        # Retrieving the relevant attributes from the model endpoint object
-        attributes = self.get_params(endpoint)
-        # Create or update the model endpoint record
         self.client.kv.put(
             container=self.container,
             table_path=self.path,
-            key=endpoint.metadata.uid,
-            attributes=attributes,
+            key=endpoint[model_monitoring_constants.EventFieldType.UID],
+            attributes=endpoint,
         )
 
-    def update_model_endpoint(self, endpoint_id: str, attributes: dict):
+    def update_model_endpoint(
+        self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]
+    ):
         """
         Update a model endpoint record with a given attributes.
 
@@ -98,36 +96,13 @@ class KVModelEndpointStore(ModelEndpointStore):
     def get_model_endpoint(
         self,
         endpoint_id: str,
-        start: str = "now-1h",
-        end: str = "now",
-        metrics: typing.List[str] = None,
-        feature_analysis: bool = False,
-        convert_to_endpoint_object: bool = True,
-    ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
+    ) -> typing.Dict[str, typing.Any]:
         """
-        Get a single model endpoint object. You can apply different time series metrics that will be added to the
-        result.
+        Get a single model endpoint record.
 
-        :param endpoint_id:                The unique id of the model endpoint.
-        :param start:                      The start time of the metrics. Can be represented by a string containing
-                                           an RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'`
-                                           or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days),
-                                           or 0 for the earliest time.
-        :param end:                        The end time of the metrics. Can be represented by a string containing an
-                                           RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'`
-                                           or `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days),
-                                           or 0 for the earliest time.
-        :param metrics:                    A list of real-time metrics to return for the model endpoint. There are
-                                           pre-defined real-time metrics for model endpoints such as
-                                           predictions_per_second and latency_avg_5m but also custom metrics defined by
-                                           the user. Please note that these metrics are stored in the time series DB
-                                           and the results will appear under model_endpoint.spec.metrics.
-        :param feature_analysis:           When True, the base feature statistics and current feature statistics will
-                                           be added to the output of the resulting object.
-        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a `ModelEndpoint` or not. True by default.
+        :param endpoint_id: The unique id of the model endpoint.
 
-        :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
+        :return: A model endpoint record as a dictionary.
 
         :raise MLRunNotFoundError: If the endpoint was not found.
         """
@@ -144,36 +119,13 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         if not endpoint:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
-
-        # Generate a model endpoint object from the model endpoint KV record
-        if convert_to_endpoint_object:
-            endpoint = self._convert_into_model_endpoint_object(
-                endpoint=endpoint, feature_analysis=feature_analysis
-            )
-
-            # If time metrics were provided, retrieve the results from the time series DB
-            if metrics:
-                if endpoint.status.metrics is None:
-                    endpoint.status.metrics = {}
-                endpoint_metrics = self.get_endpoint_real_time_metrics(
-                    endpoint_id=endpoint_id,
-                    start=start,
-                    end=end,
-                    metrics=metrics,
-                    access_key=self.access_key,
-                )
-                if endpoint_metrics:
-                    endpoint.status.metrics[
-                        model_monitoring_constants.EventKeyMetrics.REAL_TIME
-                    ] = endpoint_metrics
-
         return endpoint
 
     def _get_path_and_container(self):
         """Getting path and container based on the model monitoring configurations"""
         path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
             project=self.project,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=model_monitoring_constants.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         (
             _,
@@ -188,14 +140,11 @@ class KVModelEndpointStore(ModelEndpointStore):
         function: str = None,
         labels: typing.List[str] = None,
         top_level: bool = None,
-        metrics: typing.List[str] = None,
-        start: str = "now-1h",
-        end: str = "now",
         uids: typing.List = None,
-    ) -> mlrun.api.schemas.ModelEndpointList:
+    ) -> typing.List[typing.Dict[str, typing.Any]]:
         """
-        Returns a list of `ModelEndpoint` objects, supports filtering by model, function, labels or top level.
-        By default, when no filters are applied, all available `ModelEndpoint` objects for the given project will
+        Returns a list of model endpoint dictionaries, supports filtering by model, function, labels or top level.
+        By default, when no filters are applied, all available model endpoints for the given project will
         be listed.
 
         :param model:           The name of the model to filter by.
@@ -204,30 +153,14 @@ class KVModelEndpointStore(ModelEndpointStore):
                                 of a label (i.e. list("key=value")) or by looking for the existence of a given
                                 key (i.e. "key").
         :param top_level:       If True will return only routers and endpoint that are NOT children of any router.
-        :param metrics:         A list of real-time metrics to return for the model endpoint. There are pre-defined
-                                real-time metrics for model endpoints such as predictions_per_second and latency_avg_5m
-                                but also custom metrics defined by the user. Please note that these metrics are stored
-                                in the time series DB and the results will be appeared under
-                                model_endpoint.spec.metrics.
-        :param start:           The start time of the metrics. Can be represented by a string containing an
-                                RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days), or
-                                0 for the earliest time.
-        :param end:             The end time of the metrics. Can be represented by a string containing an
-                                RFC 3339 time, a Unix timestamp in milliseconds, a relative time (`'now'` or
-                                `'now-[0-9]+[mhd]'`, where `m` = minutes, `h` = hours, and `'d'` = days),
-                                or 0 for the earliest time.
         :param uids:            List of model endpoint unique ids to include in the result.
 
 
-        :return: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
+        :return: A list of model endpoint dictionaries.
         """
 
-        # Initialize an empty model endpoints list
-        endpoint_list = mlrun.api.schemas.model_endpoints.ModelEndpointList(
-            endpoints=[]
-        )
+        # # Initialize an empty model endpoints list
+        endpoint_list = []
 
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:
@@ -241,7 +174,7 @@ class KVModelEndpointStore(ModelEndpointStore):
                     labels,
                     top_level,
                 ),
-                attribute_names=[model_monitoring_constants.EventFieldType.ENDPOINT_ID],
+                attribute_names=[model_monitoring_constants.EventFieldType.UID],
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
             items = cursor.all()
@@ -252,36 +185,31 @@ class KVModelEndpointStore(ModelEndpointStore):
         # Create a list of model endpoints unique ids
         if uids is None:
             uids = [
-                item[model_monitoring_constants.EventFieldType.ENDPOINT_ID]
-                for item in items
+                item[model_monitoring_constants.EventFieldType.UID] for item in items
             ]
 
         # Add each relevant model endpoint to the model endpoints list
         for endpoint_id in uids:
             endpoint = self.get_model_endpoint(
-                metrics=metrics,
                 endpoint_id=endpoint_id,
-                start=start,
-                end=end,
             )
-            endpoint_list.endpoints.append(endpoint)
+            endpoint_list.append(endpoint)
 
         return endpoint_list
 
     def delete_model_endpoints_resources(
-        self, endpoints: mlrun.api.schemas.model_endpoints.ModelEndpointList
+        self, endpoints: typing.List[typing.Dict[str, typing.Any]]
     ):
         """
         Delete all model endpoints resources in both KV and the time series DB.
 
-        :param endpoints: An object of `ModelEndpointList` which is literally a list of model endpoints along with some
-                          metadata. To get a standard list of model endpoints use `ModelEndpointList.endpoints`.
+        :param endpoints: A list of model endpoints flattened dictionaries.
         """
 
         # Delete model endpoint record from KV table
-        for endpoint in endpoints.endpoints:
+        for endpoint_dict in endpoints:
             self.delete_model_endpoint(
-                endpoint.metadata.uid,
+                endpoint_dict[model_monitoring_constants.EventFieldType.UID],
             )
 
         # Delete remain records in the KV
@@ -335,7 +263,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         start: str = "now-1h",
         end: str = "now",
         access_key: str = None,
-    ) -> typing.Dict[str, typing.List]:
+    ) -> typing.Dict[str, typing.List[typing.Tuple[str, float]]]:
         """
         Getting metrics from the time series DB. There are pre-defined metrics for model endpoints such as
         `predictions_per_second` and `latency_avg_5m` but also custom metrics defined by the user.
@@ -372,7 +300,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         events_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+                kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
             )
         )
         (
@@ -425,7 +353,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         full_path = (
             mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=self.project,
-                kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+                kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
             )
         )
 

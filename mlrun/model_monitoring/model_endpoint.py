@@ -65,6 +65,7 @@ class ModelEndpointStatus(mlrun.model.ModelObj):
         children_uids: Optional[List[str]] = None,
         endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP,
         monitoring_feature_set_uri: Optional[str] = "",
+        state: Optional[str] = "",
     ):
         self.feature_stats = feature_stats or {}
         self.current_stats = current_stats or {}
@@ -85,6 +86,7 @@ class ModelEndpointStatus(mlrun.model.ModelObj):
                     EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
+        self.state = state
 
 
 class ModelEndpoint(mlrun.model.ModelObj):
@@ -123,3 +125,17 @@ class ModelEndpoint(mlrun.model.ModelObj):
         self._metadata = self._verify_dict(
             metadata, "metadata", mlrun.model.VersionedObjMetadata
         )
+
+    @classmethod
+    def from_flat_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
+        new_obj = cls()
+        new_obj._metadata = mlrun.model.VersionedObjMetadata().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj._status = ModelEndpointStatus().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        new_obj._spec = ModelEndpointSpec().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
+        return new_obj

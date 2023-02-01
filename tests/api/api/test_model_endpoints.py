@@ -23,13 +23,8 @@ import pytest
 
 import mlrun.api.crud
 import mlrun.api.schemas
-from mlrun.api.schemas import (
-    ModelEndpoint,
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpointStatus,
-)
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
+from mlrun.model_monitoring import ModelMonitoringStoreKinds
 from mlrun.model_monitoring.stores import (  # noqa: F401
     ModelEndpointStore,
     ModelEndpointStoreType,
@@ -232,14 +227,16 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
+    # # Initialize endpoint store target object
+    # store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(value="kv")
+    #
+    # endpoint_store = store_type_object.to_endpoint_store(
+    #     project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+    # )
 
-    endpoint_store = store_type_object.to_endpoint_store(
-        project=TEST_PROJECT, access_key=V3IO_ACCESS_KEY
+    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+        feature_names, stats, stats
     )
-
-    features = endpoint_store.get_endpoint_features(feature_names, stats, stats)
     assert len(features) == 4
     # Commented out asserts should be re-enabled once buckets/counts length mismatch bug is fixed
     for feature in features:
@@ -252,7 +249,9 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = endpoint_store.get_endpoint_features(feature_names, stats, None)
+    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+        feature_names, stats, None
+    )
     assert len(features) == 4
     for feature in features:
         assert feature.expected is not None
@@ -261,7 +260,9 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = endpoint_store.get_endpoint_features(feature_names, None, stats)
+    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+        feature_names, None, stats
+    )
     assert len(features) == 4
     for feature in features:
         assert feature.expected is None
@@ -270,7 +271,9 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = endpoint_store.get_endpoint_features(feature_names[1:], None, stats)
+    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+        feature_names[1:], None, stats
+    )
     assert len(features) == 3
 
 
@@ -290,7 +293,7 @@ def test_generating_tsdb_paths():
     # Validate the expected results based on the full path to the TSDB events directory
     full_path = mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT,
-        kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+        kind=ModelMonitoringStoreKinds.EVENTS,
     )
 
     # TSDB short path that should point to the main directory
@@ -304,18 +307,22 @@ def _get_auth_info() -> mlrun.api.schemas.AuthInfo:
     return mlrun.api.schemas.AuthInfo(data_session=os.environ.get("V3IO_ACCESS_KEY"))
 
 
-def _mock_random_endpoint(state: Optional[str] = None) -> ModelEndpoint:
+def _mock_random_endpoint(
+    state: Optional[str] = None,
+) -> mlrun.api.schemas.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
 
-    return ModelEndpoint(
-        metadata=ModelEndpointMetadata(project=TEST_PROJECT, labels=random_labels()),
-        spec=ModelEndpointSpec(
+    return mlrun.api.schemas.ModelEndpoint(
+        metadata=mlrun.api.schemas.ModelEndpointMetadata(
+            project=TEST_PROJECT, labels=random_labels()
+        ),
+        spec=mlrun.api.schemas.ModelEndpointSpec(
             function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
             model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
             model_class="classifier",
         ),
-        status=ModelEndpointStatus(state=state),
+        status=mlrun.api.schemas.ModelEndpointStatus(state=state),
     )
 
 
@@ -339,34 +346,34 @@ def test_sql_target_list_model_endpoints():
     endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
 
     list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert len(list_of_endpoints.endpoints) == 0
+    assert len(list_of_endpoints) == 0
 
     # Generate and write the 1st model endpoint into the DB table
     mock_endpoint_1 = _mock_random_endpoint()
-    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_1)
+    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_1.flat_dict())
 
     # Validate that there is a single model endpoint
     list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert len(list_of_endpoints.endpoints) == 1
+    assert len(list_of_endpoints) == 1
 
     # Generate and write the 2nd model endpoint into the DB table
     mock_endpoint_2 = _mock_random_endpoint()
     mock_endpoint_2.spec.model = "test_model"
     mock_endpoint_2.metadata.uid = "12345"
-    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_2)
+    endpoint_store.write_model_endpoint(endpoint=mock_endpoint_2.flat_dict())
 
     # Validate that there are exactly two model endpoints within the DB
     list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert len(list_of_endpoints.endpoints) == 2
+    assert len(list_of_endpoints) == 2
 
     # List only the model endpoint that has the model test_model
     filtered_list_of_endpoints = endpoint_store.list_model_endpoints(model="test_model")
-    assert len(filtered_list_of_endpoints.endpoints) == 1
+    assert len(filtered_list_of_endpoints) == 1
 
     # Clean model endpoints from DB
     endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
     list_of_endpoints = endpoint_store.list_model_endpoints()
-    assert (len(list_of_endpoints.endpoints)) == 0
+    assert (len(list_of_endpoints)) == 0
 
 
 def test_sql_target_patch_endpoint():
@@ -385,16 +392,16 @@ def test_sql_target_patch_endpoint():
 
     # First, validate that there are no model endpoints records at the moment
     list_of_endpoints = endpoint_store.list_model_endpoints()
-    if len(list_of_endpoints.endpoints) > 0:
+    if len(list_of_endpoints) > 0:
         # Delete old model endpoints records
         endpoint_store.delete_model_endpoints_resources(endpoints=list_of_endpoints)
         list_of_endpoints = endpoint_store.list_model_endpoints()
-        assert len(list_of_endpoints.endpoints) == 0
+        assert len(list_of_endpoints) == 0
 
     # Generate and write the model endpoint into the DB table
     mock_endpoint = _mock_random_endpoint()
     mock_endpoint.metadata.uid = "1234"
-    endpoint_store.write_model_endpoint(mock_endpoint)
+    endpoint_store.write_model_endpoint(mock_endpoint.flat_dict())
 
     # Generate dictionary of attributes and update the model endpoint
     updated_attributes = {"model": "test_model", "error_count": 2}
@@ -404,6 +411,11 @@ def test_sql_target_patch_endpoint():
 
     # Validate that these attributes were actually updated
     endpoint = endpoint_store.get_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
+
+    # Convert to model endpoint object
+    endpoint = mlrun.api.crud.ModelEndpoints()._convert_into_model_endpoint_object(
+        endpoint=endpoint
+    )
     assert endpoint.spec.model == "test_model"
     assert endpoint.status.error_count == 2
 
@@ -422,7 +434,6 @@ def test_validate_model_endpoints_schema():
 
     # Compare status
     base_model_status = model_endpoint_basemodel.status.__dict__
-    base_model_status.pop("state")
     model_object_status = model_endpoint_modelobj.status.__dict__
     assert (
         deepdiff.DeepDiff(

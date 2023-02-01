@@ -15,7 +15,8 @@
 import json
 import os
 import warnings
-from typing import List, Optional, Union
+from http import HTTPStatus
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.concurrency import run_in_threadpool
@@ -188,6 +189,7 @@ async def patch_model_endpoint(
 
 @router.delete(
     "/projects/{project}/model-endpoints/{endpoint_id}",
+    status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def delete_model_endpoint(
     project: str,
@@ -327,8 +329,7 @@ async def get_model_endpoint(
     auth_info: mlrun.api.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-    convert_to_endpoint_object: bool = True,
-) -> Union[mlrun.api.schemas.ModelEndpoint, dict]:
+) -> mlrun.api.schemas.ModelEndpoint:
     """Get a single model endpoint object. You can apply different time series metrics that will be added to the
        result.
 
@@ -351,8 +352,6 @@ async def get_model_endpoint(
     :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                        be added to the output of the resulting object.
     :param auth_info:                  The auth info of the request
-    :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                       into a `ModelEndpoint` or not. True by default.
 
     :return:  A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
     """
@@ -373,5 +372,4 @@ async def get_model_endpoint(
         start=start,
         end=end,
         feature_analysis=feature_analysis,
-        convert_to_endpoint_object=convert_to_endpoint_object,
     )

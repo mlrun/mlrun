@@ -31,10 +31,11 @@ import mlrun
 import mlrun.api.crud
 import mlrun.api.schemas
 import mlrun.api.utils.clients.iguazio
+import mlrun.model_monitoring.constants as model_monitoring_constants
 import mlrun.model_monitoring.stores
-from mlrun.api.api.endpoints.grafana_proxy import (
-    _parse_query_parameters,
-    _validate_query_parameters,
+from mlrun.api.crud.model_monitoring.grafana import (
+    parse_query_parameters,
+    validate_query_parameters,
 )
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
@@ -92,7 +93,7 @@ def test_grafana_list_endpoints(db: Session, client: TestClient):
     )
 
     for endpoint in endpoints_in:
-        endpoint_store.write_model_endpoint(endpoint)
+        endpoint_store.write_model_endpoint(endpoint.flat_dict())
 
     response = client.post(
         url="grafana-proxy/model-endpoints/query",
@@ -302,30 +303,30 @@ def test_grafana_overall_feature_analysis(db: Session, client: TestClient):
 def test_parse_query_parameters_failure():
     # No 'targets' in body
     with pytest.raises(MLRunBadRequestError):
-        _parse_query_parameters({})
+        parse_query_parameters({})
 
     # No 'target' list in 'targets' dictionary
     with pytest.raises(MLRunBadRequestError):
-        _parse_query_parameters({"targets": []})
+        parse_query_parameters({"targets": []})
 
     # Target query not separated by equals ('=') char
     with pytest.raises(MLRunBadRequestError):
-        _parse_query_parameters({"targets": [{"target": "test"}]})
+        parse_query_parameters({"targets": [{"target": "test"}]})
 
 
 def test_parse_query_parameters_success():
     # Target query separated by equals ('=') char
-    params = _parse_query_parameters({"targets": [{"target": "test=some_test"}]})
+    params = parse_query_parameters({"targets": [{"target": "test=some_test"}]})
     assert params["test"] == "some_test"
 
     # Target query separated by equals ('=') char (multiple queries)
-    params = _parse_query_parameters(
+    params = parse_query_parameters(
         {"targets": [{"target": "test=some_test;another_test=some_other_test"}]}
     )
     assert params["test"] == "some_test"
     assert params["another_test"] == "some_other_test"
 
-    params = _parse_query_parameters(
+    params = parse_query_parameters(
         {"targets": [{"target": "test=some_test;another_test=some_other_test;"}]}
     )
     assert params["test"] == "some_test"
@@ -335,19 +336,17 @@ def test_parse_query_parameters_success():
 def test_validate_query_parameters_failure():
     # No 'target_endpoint' in query parameters
     with pytest.raises(MLRunBadRequestError):
-        _validate_query_parameters({})
+        validate_query_parameters({})
 
     # target_endpoint unsupported
     with pytest.raises(MLRunBadRequestError):
-        _validate_query_parameters(
+        validate_query_parameters(
             {"target_endpoint": "unsupported_endpoint"}, {"supported_endpoint"}
         )
 
 
 def test_validate_query_parameters_success():
-    _validate_query_parameters(
-        {"target_endpoint": "list_endpoints"}, {"list_endpoints"}
-    )
+    validate_query_parameters({"target_endpoint": "list_endpoints"}, {"list_endpoints"})
 
 
 def _get_access_key() -> Optional[str]:
@@ -359,13 +358,13 @@ def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=model_monitoring_constants.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS,
+            kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -414,7 +413,8 @@ def cleanup_endpoints(db: Session, client: TestClient):
 )
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
-        project=TEST_PROJECT, kind=mlrun.api.schemas.ModelMonitoringStoreKinds.EVENTS
+        project=TEST_PROJECT,
+        kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -438,7 +438,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
     )
 
     for endpoint in endpoints:
-        endpoint_store.write_model_endpoint(endpoint)
+        endpoint_store.write_model_endpoint(endpoint.flat_dict())
 
         total = 0
 

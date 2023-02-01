@@ -732,6 +732,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if endpoint_id not in self.endpoints:
 
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
+            print("[EYAL]: in trying to resume state!!!")
             endpoint_record = get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,
@@ -1042,6 +1043,7 @@ def update_endpoint_record(
     model_endpoint_store = get_model_endpoint_store(
         project=project,
     )
+
     model_endpoint_store.update_model_endpoint(
         endpoint_id=endpoint_id, attributes=attributes
     )
@@ -1051,6 +1053,4 @@ def get_endpoint_record(project: str, endpoint_id: str):
     model_endpoint_store = get_model_endpoint_store(
         project=project,
     )
-    return model_endpoint_store.get_model_endpoint(
-        endpoint_id=endpoint_id, convert_to_endpoint_object=False
-    )
+    return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)

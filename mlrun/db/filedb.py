@@ -23,9 +23,9 @@ from dateutil.parser import parse as parse_time
 
 import mlrun.api.schemas
 import mlrun.errors
+import mlrun.model_monitoring.model_endpoint
 
 from ..api import schemas
-from ..api.schemas import ModelEndpoint
 from ..config import config
 from ..datastore import store_manager
 from ..lists import ArtifactList, RunList
@@ -780,7 +780,9 @@ class FileRunDB(RunDBInterface):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         raise NotImplementedError()
 
@@ -800,7 +802,6 @@ class FileRunDB(RunDBInterface):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        convert_to_endpoint_object=True,
     ):
         raise NotImplementedError()
 
@@ -812,7 +813,6 @@ class FileRunDB(RunDBInterface):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        convert_to_endpoint_object: bool = True,
     ):
         raise NotImplementedError()
 

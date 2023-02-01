@@ -22,6 +22,7 @@ from sqlalchemy.orm import sessionmaker as SessionMaker
 
 from mlrun.config import config
 
+# TODO: wrap the following functions in a singleton class
 _engines: typing.Dict[str, Engine] = {}
 _session_makers: typing.Dict[str, SessionMaker] = {}
 

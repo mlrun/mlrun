@@ -31,11 +31,11 @@ import mlrun
 import mlrun.api.schemas
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.model_monitoring
 import mlrun.run
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring import EventFieldType, ProjectSecretKeys
 from mlrun.utils import logger
 
 
@@ -584,7 +584,9 @@ class BatchProcessor:
         self.exception = None
 
         # Get the batch interval range
-        self.batch_dict = context.parameters[EventFieldType.BATCH_INTERVALS_DICT]
+        self.batch_dict = context.parameters[
+            mlrun.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+        ]
 
         # TODO: This will be removed in 1.2.0 once the job params can be parsed with different types
         # Convert batch dict string into a dictionary
@@ -804,7 +806,7 @@ class BatchProcessor:
                     "endpoint_id": endpoint_id,
                     "timestamp": pd.to_datetime(
                         timestamp,
-                        format=EventFieldType.TIME_FORMAT,
+                        format=mlrun.model_monitoring.EventFieldType.TIME_FORMAT,
                     ),
                     "record_type": "drift_measures",
                     "tvd_mean": drift_result["tvd_mean"],
@@ -836,9 +838,9 @@ class BatchProcessor:
     def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
-            self.batch_dict[EventFieldType.MINUTES],
-            self.batch_dict[EventFieldType.HOURS],
-            self.batch_dict[EventFieldType.DAYS],
+            self.batch_dict[mlrun.model_monitoring.EventFieldType.MINUTES],
+            self.batch_dict[mlrun.model_monitoring.EventFieldType.HOURS],
+            self.batch_dict[mlrun.model_monitoring.EventFieldType.DAYS],
         )
         start_time = datetime.datetime.now() - datetime.timedelta(
             minutes=minutes, hours=hours, days=days
@@ -863,7 +865,9 @@ def handler(context: mlrun.run.MLClientCtx):
     batch_processor = BatchProcessor(
         context=context,
         project=context.project,
-        model_monitoring_access_key=os.environ.get(ProjectSecretKeys.ACCESS_KEY),
+        model_monitoring_access_key=os.environ.get(
+            mlrun.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+        ),
         v3io_access_key=os.environ.get("V3IO_ACCESS_KEY"),
     )
     batch_processor.post_init()

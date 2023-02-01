@@ -26,6 +26,7 @@ __all__ = [
     "TimeSeriesTarget",
     "ModelEndpointTarget",
     "ProjectSecretKeys",
+    "ModelMonitoringStoreKinds",
 ]
 
 from .common import EndpointType, ModelMonitoringMode, create_model_endpoint_id
@@ -34,6 +35,7 @@ from .constants import (
     EventKeyMetrics,
     EventLiveStats,
     ModelEndpointTarget,
+    ModelMonitoringStoreKinds,
     ProjectSecretKeys,
     TimeSeriesTarget,
 )

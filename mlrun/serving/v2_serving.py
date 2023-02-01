@@ -525,7 +525,7 @@ def _init_endpoint_record(
             db.create_model_endpoint(
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
-                model_endpoint=model_endpoint,
+                model_endpoint=model_endpoint.dict(),
             )
 
         except Exception as e:

@@ -18,7 +18,7 @@ import sqlalchemy.dialects
 from sqlalchemy import Boolean, Column, Integer, String, Text
 
 import mlrun.model_monitoring.constants as model_monitoring_constants
-from mlrun.api.utils.helpers import BaseModel
+from mlrun.api.utils.db.helpers import BaseModel
 
 from .base import Base
 
@@ -26,8 +26,8 @@ from .base import Base
 class ModelEndpointsTable(Base, BaseModel):
     __tablename__ = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
 
-    endpoint_id = Column(
-        model_monitoring_constants.EventFieldType.ENDPOINT_ID,
+    uid = Column(
+        model_monitoring_constants.EventFieldType.UID,
         String(40),
         primary_key=True,
     )

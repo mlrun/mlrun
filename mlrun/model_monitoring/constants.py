@@ -50,7 +50,7 @@ class EventFieldType:
     MINUTES = "minutes"
     HOURS = "hours"
     DAYS = "days"
-    MODEL_ENDPOINTS = "model_endpoints"
+    MODEL_ENDPOINTS = "model_endpoints_v8"
     STATE = "state"
     PROJECT = "project"
     STREAM_PATH = "stream_path"
@@ -96,3 +96,8 @@ class ModelEndpointTarget:
 class ProjectSecretKeys:
     CONNECTION_STRING = "MODEL_MONITORING_CONNECTION_STRING"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+
+
+class ModelMonitoringStoreKinds:
+    ENDPOINTS = "endpoints"
+    EVENTS = "events"

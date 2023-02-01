@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import os
 import typing
 import warnings
 
-import nuclio.utils
 import sqlalchemy.orm
 
 import mlrun.api.api.endpoints.functions
@@ -30,14 +30,11 @@ import mlrun.datastore.store_resources
 import mlrun.errors
 import mlrun.feature_store
 import mlrun.model_monitoring.constants as model_monitoring_constants
+import mlrun.model_monitoring.helpers
 import mlrun.runtimes.function
 import mlrun.utils.helpers
 import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.model_monitoring.helpers import (
-    get_model_monitoring_batch_function,
-    initial_model_monitoring_stream_processing_function,
-)
 from mlrun.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
 
@@ -54,7 +51,9 @@ class ModelEndpoints:
     ) -> mlrun.api.schemas.ModelEndpoint:
         # TODO: deprecated in 1.3.0, remove in 1.5.0.
         warnings.warn(
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0", FutureWarning
+            "This is deprecated in 1.3.0, and will be removed in 1.5.0."
+            "Please use create_model_endpoint() for create or patch_model_endpoint() for update",
+            FutureWarning,
         )
         """
         Either create or updates the record of a given `ModelEndpoint` object.
@@ -121,8 +120,8 @@ class ModelEndpoints:
                 model_endpoint.spec.label_names = model_label_names
 
             # Get algorithm from model object if not found in model endpoint object
-            if not model_endpoint.spec.algorithm and hasattr(model_obj, "algorithm"):
-                model_endpoint.spec.algorithm = model_obj.algorithm
+            if not model_endpoint.spec.algorithm and model_obj.spec.algorithm:
+                model_endpoint.spec.algorithm = model_obj.spec.algorithm
 
             # Create monitoring feature set if monitoring found in model endpoint object
             if (
@@ -165,7 +164,7 @@ class ModelEndpoints:
         model_endpoint_store = get_model_endpoint_store(
             project=model_endpoint.metadata.project,
         )
-        model_endpoint_store.write_model_endpoint(endpoint=model_endpoint)
+        model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
 
         logger.info("Model endpoint created", endpoint_id=model_endpoint.metadata.uid)
 
@@ -316,8 +315,8 @@ class ModelEndpoints:
             clean_feature_names.append(clean_name)
         return clean_feature_stats, clean_feature_names
 
-    @staticmethod
     def patch_model_endpoint(
+        self,
         project: str,
         endpoint_id: str,
         attributes: dict,
@@ -335,6 +334,7 @@ class ModelEndpoints:
         :return: A patched `ModelEndpoint` object.
         """
 
+        # Generate a model endpoint store object and apply the update process
         model_endpoint_store = get_model_endpoint_store(
             project=project,
         )
@@ -344,9 +344,12 @@ class ModelEndpoints:
 
         logger.info("Model endpoint table updated", endpoint_id=endpoint_id)
 
-        return model_endpoint_store.get_model_endpoint(
-            endpoint_id=endpoint_id, start="now-1h", end="now"
+        # Get the patched model endpoint record
+        model_endpoint_record = model_endpoint_store.get_model_endpoint(
+            endpoint_id=endpoint_id,
         )
+
+        return self._convert_into_model_endpoint_object(endpoint=model_endpoint_record)
 
     @staticmethod
     def delete_model_endpoint(
@@ -366,8 +369,8 @@ class ModelEndpoints:
 
         logger.info("Model endpoint table cleared", endpoint_id=endpoint_id)
 
-    @staticmethod
     def get_model_endpoint(
+        self,
         auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
@@ -375,8 +378,7 @@ class ModelEndpoints:
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
-        convert_to_endpoint_object: bool = True,
-    ) -> typing.Union[mlrun.api.schemas.ModelEndpoint, dict]:
+    ) -> mlrun.api.schemas.ModelEndpoint:
         """Get a single model endpoint object. You can apply different time series metrics that will be added to the
            result.
 
@@ -398,8 +400,6 @@ class ModelEndpoints:
                                            0 for the earliest time.
         :param feature_analysis:           When True, the base feature statistics and current feature statistics will
                                            be added to the output of the resulting object.
-        :param convert_to_endpoint_object: A boolean that indicates whether to convert the model endpoint dictionary
-                                           into a `ModelEndpoint` or not. True by default.
 
         :return: A `ModelEndpoint` object or a model endpoint dictionary if `convert_to_endpoint_object` is False.
         """
@@ -409,21 +409,40 @@ class ModelEndpoints:
             endpoint_id=endpoint_id,
         )
 
+        # Generate a model endpoint store object and get the model endpoint record as a dictionary
         model_endpoint_store = get_model_endpoint_store(
             project=project, access_key=auth_info.data_session
         )
 
-        return model_endpoint_store.get_model_endpoint(
+        model_endpoint_record = model_endpoint_store.get_model_endpoint(
             endpoint_id=endpoint_id,
-            metrics=metrics,
-            start=start,
-            end=end,
-            feature_analysis=feature_analysis,
-            convert_to_endpoint_object=convert_to_endpoint_object,
         )
 
-    @staticmethod
+        # Convert to `ModelEndpoint` object
+        model_endpoint_object = self._convert_into_model_endpoint_object(
+            endpoint=model_endpoint_record, feature_analysis=feature_analysis
+        )
+
+        # If time metrics were provided, retrieve the results from the time series DB
+        if metrics:
+            if model_endpoint_object.status.metrics is None:
+                model_endpoint_record.status.metrics = {}
+
+            endpoint_metrics = model_endpoint_store.get_endpoint_real_time_metrics(
+                endpoint_id=endpoint_id,
+                start=start,
+                end=end,
+                metrics=metrics,
+            )
+            if endpoint_metrics:
+                model_endpoint_object.status.metrics[
+                    model_monitoring_constants.EventKeyMetrics.REAL_TIME
+                ] = endpoint_metrics
+
+        return model_endpoint_object
+
     def list_model_endpoints(
+        self,
         auth_info: mlrun.api.schemas.AuthInfo,
         project: str,
         model: str = None,
@@ -434,10 +453,11 @@ class ModelEndpoints:
         end: str = "now",
         top_level: bool = False,
         uids: typing.List[str] = None,
-    ) -> mlrun.api.schemas.model_endpoints.ModelEndpointList:
+    ) -> mlrun.api.schemas.ModelEndpointList:
         """
-        Returns a list of `ModelEndpointState` objects. Each object represents the current state of a model endpoint.
-        This functions supports filtering by the following parameters:
+        Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
+        object represents the current state of a model endpoint. This functions supports filtering by the following
+        parameters:
         1) model
         2) function
         3) labels
@@ -485,19 +505,135 @@ class ModelEndpoints:
             uids=uids,
         )
 
+        # Initialize an empty model endpoints list
+        endpoint_list = mlrun.api.schemas.model_endpoints.ModelEndpointList(
+            endpoints=[]
+        )
+
+        # Generate a model endpoint store object and get a list of model endpoint dictionaries
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session, project=project
         )
 
-        return endpoint_store.list_model_endpoints(
+        endpoint_dictionary_list = endpoint_store.list_model_endpoints(
             function=function,
             model=model,
             labels=labels,
             top_level=top_level,
-            start=start,
-            end=end,
-            metrics=metrics,
             uids=uids,
+        )
+
+        for endpoint_dict in endpoint_dictionary_list:
+
+            # Convert to `ModelEndpoint` object
+            endpoint_obj = self._convert_into_model_endpoint_object(
+                endpoint=endpoint_dict
+            )
+
+            # If time metrics were provided, retrieve the results from the time series DB
+            if metrics:
+                if endpoint_obj.status.metrics is None:
+                    endpoint_obj.status.metrics = {}
+                endpoint_metrics = endpoint_store.get_endpoint_real_time_metrics(
+                    endpoint_id=endpoint_obj.metadata.uid,
+                    start=start,
+                    end=end,
+                    metrics=metrics,
+                )
+
+                if endpoint_metrics:
+
+                    endpoint_obj.status.metrics[
+                        model_monitoring_constants.EventKeyMetrics.REAL_TIME
+                    ] = endpoint_metrics
+
+            # Add the `ModelEndpoint` object into the model endpoints list
+            endpoint_list.endpoints.append(endpoint_obj)
+
+        return endpoint_list
+
+    def _convert_into_model_endpoint_object(
+        self, endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False
+    ) -> mlrun.api.schemas.ModelEndpoint:
+        """
+        Create a `ModelEndpoint` object according to a provided model endpoint dictionary.
+
+        :param endpoint:         Dictinoary that represents a DB record of a model endpoint which need to be converted
+                                 into a valid `ModelEndpoint` object.
+        :param feature_analysis: When True, the base feature statistics and current feature statistics will be added to
+                                 the output of the resulting object.
+
+        :return: A `ModelEndpoint` object.
+        """
+
+        # Convert into `ModelEndpoint` object
+        endpoint_obj = mlrun.api.schemas.ModelEndpoint().from_flat_dict(endpoint)
+
+        # If feature analysis was applied, add feature stats and current stats to the model endpoint result
+        if feature_analysis and endpoint_obj.spec.feature_names:
+
+            endpoint_features = self.get_endpoint_features(
+                feature_names=endpoint_obj.spec.feature_names,
+                feature_stats=endpoint_obj.status.feature_stats,
+                current_stats=endpoint_obj.status.current_stats,
+            )
+            if endpoint_features:
+                endpoint_obj.status.features = endpoint_features
+                # Add the latest drift measures results (calculated by the model monitoring batch)
+                drift_measures = self._json_loads_if_not_none(
+                    endpoint.get(
+                        model_monitoring_constants.EventFieldType.DRIFT_MEASURES
+                    )
+                )
+                endpoint_obj.status.drift_measures = drift_measures
+
+        return endpoint_obj
+
+    @staticmethod
+    def get_endpoint_features(
+        feature_names: typing.List[str],
+        feature_stats: dict = None,
+        current_stats: dict = None,
+    ) -> typing.List[mlrun.api.schemas.Features]:
+        """
+        Getting a new list of features that exist in feature_names along with their expected (feature_stats) and
+        actual (current_stats) stats. The expected stats were calculated during the creation of the model endpoint,
+        usually based on the data from the Model Artifact. The actual stats are based on the results from the latest
+        model monitoring batch job.
+
+        param feature_names: List of feature names.
+        param feature_stats: Dictionary of feature stats that were stored during the creation of the model endpoint
+                             object.
+        param current_stats: Dictionary of the latest stats that were stored during the last run of the model monitoring
+                             batch job.
+
+        return: List of feature objects. Each feature has a name, weight, expected values, and actual values. More info
+                can be found under `mlrun.api.schemas.Features`.
+        """
+
+        # Initialize feature and current stats dictionaries
+        safe_feature_stats = feature_stats or {}
+        safe_current_stats = current_stats or {}
+
+        # Create feature object and add it to a general features list
+        features = []
+        for name in feature_names:
+            if feature_stats is not None and name not in feature_stats:
+                logger.warn("Feature missing from 'feature_stats'", name=name)
+            if current_stats is not None and name not in current_stats:
+                logger.warn("Feature missing from 'current_stats'", name=name)
+            f = mlrun.api.schemas.Features.new(
+                name, safe_feature_stats.get(name), safe_current_stats.get(name)
+            )
+            features.append(f)
+        return features
+
+    @staticmethod
+    def _json_loads_if_not_none(field: typing.Any) -> typing.Any:
+        return (
+            json.loads(field)
+            if field and field != "null" and field is not None
+            else None
         )
 
     def deploy_monitoring_functions(
@@ -546,7 +682,8 @@ class ModelEndpoints:
                 f"Project {project_name} can not be deleted since related resources found: model endpoints"
             )
 
-    def delete_model_endpoints_resources(self, project_name: str):
+    @staticmethod
+    def delete_model_endpoints_resources(project_name: str):
         """
         Delete all model endpoints resources.
 
@@ -561,11 +698,13 @@ class ModelEndpoints:
         if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
             return
 
-        endpoints = self.list_model_endpoints(auth_info, project_name)
-
+        # Generate a model endpoint store object and get a list of model endpoint dictionaries
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session, project=project_name
         )
+        endpoints = endpoint_store.list_model_endpoints()
+
+        # Delete model endpoints resources from databases using the model endpoint store object
         endpoint_store.delete_model_endpoints_resources(endpoints)
 
     @staticmethod
@@ -595,19 +734,22 @@ class ModelEndpoints:
         try:
             # validate that the model monitoring stream has not yet been deployed
             mlrun.runtimes.function.get_nuclio_deploy_status(
-                name="model-monitoring-stream", project=project, tag=""
+                name="model-monitoring-stream",
+                project=project,
+                tag="",
+                auth_info=auth_info,
             )
             logger.info(
                 "Detected model monitoring stream processing function already deployed",
                 project=project,
             )
             return
-        except nuclio.utils.DeployError:
+        except mlrun.errors.MLRunNotFoundError:
             logger.info(
                 "Deploying model monitoring stream processing function", project=project
             )
 
-        fn = initial_model_monitoring_stream_processing_function(
+        fn = mlrun.model_monitoring.helpers.initial_model_monitoring_stream_processing_function(
             project, model_monitoring_access_key, db_session, tracking_policy
         )
 
@@ -655,7 +797,7 @@ class ModelEndpoints:
             return
 
         # Create a monitoring batch job function object
-        fn = get_model_monitoring_batch_function(
+        fn = mlrun.model_monitoring.helpers.get_model_monitoring_batch_function(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
             db_session=db_session,

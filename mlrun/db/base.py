@@ -17,8 +17,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
+import mlrun.model_monitoring.model_endpoint
 from mlrun.api import schemas
-from mlrun.api.schemas import ModelEndpoint
 
 
 class RunDBError(Exception):
@@ -479,7 +479,9 @@ class RunDBInterface(ABC):
         self,
         project: str,
         endpoint_id: str,
-        model_endpoint: ModelEndpoint,
+        model_endpoint: Union[
+            mlrun.model_monitoring.model_endpoint.ModelEndpoint, dict
+        ],
     ):
         pass
 
@@ -501,7 +503,6 @@ class RunDBInterface(ABC):
         start: str = "now-1h",
         end: str = "now",
         metrics: Optional[List[str]] = None,
-        convert_to_endpoint_object=True,
     ):
         pass
 
@@ -514,7 +515,6 @@ class RunDBInterface(ABC):
         end: Optional[str] = None,
         metrics: Optional[List[str]] = None,
         features: bool = False,
-        convert_to_endpoint_object: bool = True,
     ):
         pass
 

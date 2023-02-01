@@ -114,6 +114,8 @@ class SparkFeatureMerger(BaseMerger):
                     time_field=entity_timestamp_column,
                 )
 
+            if not entity_timestamp_column:
+                entity_timestamp_column = feature_set.spec.timestamp_key
             # add the index/key to selected columns
             timestamp_key = feature_set.spec.timestamp_key
 
@@ -177,7 +179,7 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         if not self._drop_indexes:
-            self._update_alias(dictionary={ind: ind for ind in self._index_columns})
+            self._update_alias(dictionary={ind: ind for ind in self._index_columns + [entity_timestamp_column]})
 
         self._result_df = self._result_df.drop(*self._drop_columns)
 
@@ -266,6 +268,7 @@ class SparkFeatureMerger(BaseMerger):
                     aliased_featureset_df[f"ft__{key}"]
                 )
 
+        conditional_join = conditional_join.sort(entity_timestamp_column)
         window = Window.partitionBy("_row_nr", *left_keys).orderBy(
             col(entity_timestamp_column).desc(),
         )

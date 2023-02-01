@@ -141,7 +141,7 @@ class SparkFeatureMerger(BaseMerger):
             df = df.select(
                 [
                     col(name).alias(rename_col_dict.get(name, name))
-                    for name in column_names
+                    for name in column_names + fs_entities
                 ]
             )
             dfs.append(df)

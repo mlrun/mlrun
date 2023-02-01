@@ -324,6 +324,9 @@ class SparkFeatureMerger(BaseMerger):
             how=self._join_type,
             # suffixes=("", f"_{fs_name}_"),
         )
+        repeated_columns = [c for c in entity_df.columns if c in featureset_df.columns]
+        for col in repeated_columns:
+            merged_df = merged_df.drop(featureset_df[col])
         # for col in merged_df.columns:
         #     if re.findall(f"_{fs_name}_$", col):
         #         self._append_drop_column(col)

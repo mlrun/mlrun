@@ -106,7 +106,7 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 
 	// ensure base dir exists
-	if err := common.EnsureDirExists(baseDir, os.ModeDir); err != nil {
+	if err := common.EnsureDirExists(baseDir, os.ModePerm); err != nil {
 		return nil, errors.Wrap(err, "Failed to ensure base dir exists")
 	}
 

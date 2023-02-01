@@ -543,6 +543,9 @@ class K8sHelper:
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)
+        return self._get_secret_raw_data(secret_name, namespace)
+
+    def _get_secret_raw_data(self, secret_name, namespace=""):
         namespace = self.resolve_namespace(namespace)
 
         try:
@@ -565,8 +568,15 @@ class K8sHelper:
         return secret_keys
 
     def get_project_secret_data(self, project, secret_keys=None, namespace=""):
-        results = {}
         secrets_data = self._get_project_secrets_raw_data(project, namespace)
+        return self._decode_secret_data(secrets_data, secret_keys)
+
+    def get_secret_data(self, secret_name, namespace=""):
+        secrets_data = self._get_secret_raw_data(secret_name, namespace)
+        return self._decode_secret_data(secrets_data)
+
+    def _decode_secret_data(self, secrets_data, secret_keys=None):
+        results = {}
         if not secrets_data:
             return results
 
@@ -577,7 +587,6 @@ class K8sHelper:
             encoded_value = secrets_data.get(key)
             if encoded_value:
                 results[key] = base64.b64decode(secrets_data[key]).decode("utf-8")
-
         return results
 
 

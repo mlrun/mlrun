@@ -40,6 +40,7 @@ from ..model import (
     DataTarget,
     DataTargetBase,
     ModelObj,
+    ObjectDict,
     ObjectList,
     VersionedObjMetadata,
 )
@@ -112,14 +113,15 @@ class FeatureSetSpec(ModelObj):
         self._source = None
         self._engine = None
         self._function: FunctionReference = None
+        self._relations: ObjectDict = None
 
         self.owner = owner
         self.description = description
         self.entities: List[Union[Entity, str]] = entities or []
+        self.relations: Dict[str, Entity] = relations or {}
         self.features: List[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
-        self.relations = relations or {}
         self.source = source
         self.targets = targets or []
         self.graph = graph
@@ -209,6 +211,15 @@ class FeatureSetSpec(ModelObj):
             kind = source.get("kind", "")
             source = source_kind_to_driver[kind].from_dict(source)
         self._source = source
+
+    @property
+    def relations(self) -> Dict[str, Entity]:
+        """feature set relations dict"""
+        return self._relations
+
+    @relations.setter
+    def relations(self, relations: Dict[str, Entity]):
+        self._relations = ObjectDict.from_dict({"entity": Entity}, relations, "entity")
 
     def require_processing(self):
         return len(self._graph.steps) > 0
@@ -300,6 +311,7 @@ class FeatureSet(ModelObj):
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
+        relations: Dict[str, Entity] = None,
         passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
@@ -316,6 +328,9 @@ class FeatureSet(ModelObj):
         :param timestamp_key: timestamp column name
         :param engine:        name of the processing engine (storey, pandas, or spark), defaults to storey
         :param label_column:  name of the label column (the one holding the target (y) values)
+        :param relations:     dictionary that indicates all the relations this feature set
+                              have with another feature sets. The format of this dictionary is
+                              {"my_column":Entity, ...}
         :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
                               directly from source
         """
@@ -331,6 +346,7 @@ class FeatureSet(ModelObj):
             timestamp_key=timestamp_key,
             engine=engine,
             label_column=label_column,
+            relations=relations,
             passthrough=passthrough,
         )
 
@@ -784,10 +800,37 @@ class FeatureSet(ModelObj):
         return self._spec.features[name]
 
     def __setitem__(self, key, item):
-        self._spec.features.update(item, key)
+        if key not in self._spec.entities.keys():
+            self._spec.features.update(item, key)
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A `FeatureSet` cannot have an entity and a feature with the same name. "
+                f"The feature that was given to add '{key}' has the same name of the `FeatureSet`'s entity."
+            )
 
     def plot(self, filename=None, format=None, with_targets=False, **kw):
-        """generate graphviz plot"""
+        """plot/save graph using graphviz
+
+        example::
+
+            import mlrun.feature_store as fstore
+            ...
+            ticks = fstore.FeatureSet("ticks",
+                            entities=["stock"],
+                            timestamp_key="timestamp")
+            ticks.add_aggregation(name='priceN',
+                                column='price',
+                                operations=['avg'],
+                                windows=['1d'],
+                                period='1h')
+            ticks.plot(rankdir="LR", with_targets=True)
+
+        :param filename:     target filepath for the graph image (None for the notebook)
+        :param format:       the output format used for rendering (``'pdf'``, ``'png'``, etc.)
+        :param with_targets: show targets in the graph image
+        :param kw:           kwargs passed to graphviz, e.g. rankdir=”LR” (see https://graphviz.org/doc/info/attrs.html)
+        :return:             graphviz graph object
+        """
         graph = self.spec.graph
         _, default_final_step, _ = graph.check_and_process_graph(allow_empty=True)
         targets = None

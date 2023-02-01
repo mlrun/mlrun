@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import logging
 from copy import copy
 from enum import Enum
 from typing import List, Union
@@ -319,10 +320,14 @@ class FeatureVector(ModelObj):
 
         def add_feature(name, alias, feature_set_object, feature_set_full_name):
             if alias in processed_features.keys():
-                raise mlrun.errors.MLRunInvalidArgumentError(
+                logging.log(
+                    logging.WARN,
                     f"feature name/alias {alias} already specified,"
-                    " use another alias (feature-set.name [as alias])"
+                    " you need to use another alias (feature-set.name [as alias])"
+                    f" by default it changed to be {alias}_{feature_set_full_name}",
                 )
+                alias = f"{alias}_{feature_set_full_name}"
+
             feature = feature_set_object[name]
             processed_features[alias or name] = (feature_set_object, feature)
             feature_set_fields[feature_set_full_name].append((name, alias))

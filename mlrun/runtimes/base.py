@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import enum
 import getpass
 import http
 import os
@@ -91,6 +91,21 @@ spec_fields = [
 ]
 
 
+class RuntimeClassMode(enum.Enum):
+    """
+    Runtime class mode
+    Currently there are two modes:
+    1. run - the runtime class is used to run a function
+    2. build - the runtime class is used to build a function
+
+    The runtime class mode is used to determine what should be the name of the runtime class, each runtime might have a
+    different name for each mode and some might not have both modes.
+    """
+
+    run = "run"
+    build = "build"
+
+
 class FunctionStatus(ModelObj):
     def __init__(self, state=None, build_pod=None):
         self.state = state
@@ -168,6 +183,7 @@ class BaseRuntime(ModelObj):
         self.status = None
         self._is_api_server = False
         self.verbose = False
+        self._enriched_image = False
 
     def set_db_connection(self, conn, is_api=False):
         if not self._db_conn:
@@ -465,9 +481,9 @@ class BaseRuntime(ModelObj):
             # single run
             try:
                 resp = self._run(run, execution)
-                if watch and self.kind not in ["", "handler", "local"]:
-                    state = run.logs(True, self._get_db())
-                    if state != "succeeded":
+                if watch and mlrun.runtimes.RuntimeKinds.is_watchable(self.kind):
+                    state, _ = run.logs(True, self._get_db())
+                    if state not in ["succeeded", "completed"]:
                         logger.warning(f"run ended with state {state}")
                 result = self._update_run_state(resp, task=run)
             except RunError as err:
@@ -962,15 +978,17 @@ class BaseRuntime(ModelObj):
             except KeyError:
                 updates = BaseRuntimeHandler._get_run_completion_updates(resp)
 
+        uid = get_in(resp, "metadata.uid")
         logger.debug(
             "Run updates",
+            name=get_in(resp, "metadata.name"),
+            uid=uid,
             kind=kind,
             last_state=last_state,
             updates=updates,
         )
         if self._get_db() and updates:
             project = get_in(resp, "metadata.project")
-            uid = get_in(resp, "metadata.uid")
             iter = get_in(resp, "metadata.iteration", 0)
             self._get_db().update_run(updates, uid, project, iter=iter)
 
@@ -980,10 +998,12 @@ class BaseRuntime(ModelObj):
         if not handler:
             raise RunError(f"handler must be provided for {self.kind} runtime")
 
-    def full_image_path(self, image=None, client_version: str = None):
+    def full_image_path(
+        self, image=None, client_version: str = None, client_python_version: str = None
+    ):
         image = image or self.spec.image or ""
 
-        image = enrich_image_url(image, client_version)
+        image = enrich_image_url(image, client_version, client_python_version)
         if not image.startswith("."):
             return image
         registry, repository = get_parsed_docker_registry()
@@ -1314,6 +1334,7 @@ def is_local(url):
 class BaseRuntimeHandler(ABC):
     # setting here to allow tests to override
     kind = "base"
+    class_modes: typing.Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
 
     @staticmethod
@@ -1324,14 +1345,17 @@ class BaseRuntimeHandler(ABC):
         """
         pass
 
-    @staticmethod
-    @abstractmethod
-    def _get_possible_mlrun_class_label_values() -> List[str]:
+    def _get_possible_mlrun_class_label_values(
+        self, class_mode: typing.Union[RuntimeClassMode, str] = None
+    ) -> List[str]:
         """
         Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
         handler kind
         """
-        pass
+        if not class_mode:
+            return list(self.class_modes.values())
+        class_mode = self.class_modes.get(class_mode, None)
+        return [class_mode] if class_mode else []
 
     def list_resources(
         self,
@@ -1351,9 +1375,7 @@ class BaseRuntimeHandler(ABC):
             return {}
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(
-            project, object_id, label_selector
-        )
+        label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
         crd_objects = self._list_crd_objects(namespace, label_selector)
@@ -1401,9 +1423,7 @@ class BaseRuntimeHandler(ABC):
             return
         k8s_helper = get_k8s_helper()
         namespace = k8s_helper.resolve_namespace()
-        label_selector = self._resolve_label_selector(
-            "*", label_selector=label_selector
-        )
+        label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
             deleted_resources = self._delete_crd_resources(
@@ -1717,11 +1737,13 @@ class BaseRuntimeHandler(ABC):
 
         return in_terminal_state, last_container_completion_time, run_state
 
-    def _get_default_label_selector(self) -> str:
+    def _get_default_label_selector(
+        self, class_mode: typing.Union[RuntimeClassMode, str] = None
+    ) -> str:
         """
         Override this to add a default label selector
         """
-        class_values = self._get_possible_mlrun_class_label_values()
+        class_values = self._get_possible_mlrun_class_label_values(class_mode)
         if not class_values:
             return ""
         if len(class_values) == 1:
@@ -1793,13 +1815,14 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
-    def _resolve_label_selector(
+    def resolve_label_selector(
         self,
         project: str,
         object_id: typing.Optional[str] = None,
         label_selector: typing.Optional[str] = None,
+        class_mode: typing.Union[RuntimeClassMode, str] = None,
     ) -> str:
-        default_label_selector = self._get_default_label_selector()
+        default_label_selector = self._get_default_label_selector(class_mode=class_mode)
 
         if label_selector:
             label_selector = ",".join([default_label_selector, label_selector])
@@ -2360,9 +2383,11 @@ class BaseRuntimeHandler(ABC):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
 
-        log_file_exists = crud.Logs().log_file_exists(project, uid)
+        log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
-            _, logs_from_k8s = crud.Logs().get_logs(
+            # this stays for now for backwards compatibility in case we would not use the log collector but rather
+            # the legacy method to pull logs
+            logs_from_k8s = crud.Logs()._get_logs_legacy_method(
                 db_session, project, uid, source=LogSources.K8S
             )
             if logs_from_k8s:

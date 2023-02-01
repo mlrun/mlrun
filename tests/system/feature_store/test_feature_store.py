@@ -3731,8 +3731,8 @@ class TestFeatureStore(TestMLRunSystem):
         orig_df = pd.DataFrame(data)
         if with_indexes:
             orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
-        orig_df.to_parquet("/v3io/bigdata/trfsinojud.parquet")
-        gnrxRnIYSr = ParquetSource(path="/v3io/bigdata/trfsinojud.parquet")
+        orig_df.to_parquet("v3io:///bigdata/trfsinojud.parquet")
+        gnrxRnIYSr = ParquetSource(path="v3io:///bigdata/trfsinojud.parquet")
 
         targets = [
             ParquetTarget(path="v3io:///bigdata/opkgdkhlit.parquet"),
@@ -3748,7 +3748,6 @@ class TestFeatureStore(TestMLRunSystem):
             fset = fstore.FeatureSet("VIeHOGZgjv", engine="pandas")
         df = fstore.ingest(featureset=fset, source=gnrxRnIYSr, targets=targets)
         assert df.equals(orig_df)
-        os.remove("/v3io/bigdata/trfsinojud.parquet")
 
     def test_ingest_with_kafka_source_fails(self):
         source = KafkaSource(

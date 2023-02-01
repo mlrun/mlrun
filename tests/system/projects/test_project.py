@@ -719,7 +719,7 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         warning_message = (
-            "[warning] timeout ({}) should be higher than backoff (10)."
+            "[warning] timeout ({}) must be higher than backoff (10)."
             " Set timeout to be higher than backoff."
         )
         expected_warning_log = warning_message.format(bad_timeout)

@@ -20,6 +20,7 @@ import re
 import sys
 import time
 import typing
+import warnings
 from datetime import datetime, timezone
 from importlib import import_module
 from os import path
@@ -28,6 +29,7 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas
+import semver
 import yaml
 from dateutil import parser
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
@@ -260,7 +262,13 @@ def normalize_name(name):
     # TODO: Must match
     # [a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?
     name = re.sub(r"\s+", "-", name)
-    name = name.replace("_", "-")
+    if "_" in name:
+        warnings.warn(
+            "Names with underscore '_' are about to be deprecated, use dashes '-' instead."
+            "Replacing underscores with dashes.",
+            FutureWarning,
+        )
+        name = name.replace("_", "-")
     return name.lower()
 
 
@@ -636,13 +644,19 @@ def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     )
 
 
-def enrich_image_url(image_url: str, client_version: str = None) -> str:
+def enrich_image_url(
+    image_url: str, client_version: str = None, client_python_version: str = None
+) -> str:
     client_version = _convert_python_package_version_to_image_tag(client_version)
     server_version = _convert_python_package_version_to_image_tag(
         mlrun.utils.version.Version().get()["version"]
     )
     image_url = image_url.strip()
-    tag = config.images_tag or client_version or server_version
+    mlrun_version = config.images_tag or client_version or server_version
+    tag = mlrun_version
+    tag += resolve_image_tag_suffix(
+        mlrun_version=mlrun_version, python_version=client_python_version
+    )
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -665,6 +679,38 @@ def enrich_image_url(image_url: str, client_version: str = None) -> str:
         image_url = f"{registry}{image_url}"
 
     return image_url
+
+
+def resolve_image_tag_suffix(
+    mlrun_version: str = None, python_version: str = None
+) -> str:
+    """
+    resolves what suffix should be appended to the image tag
+    :param mlrun_version: the mlrun version
+    :param python_version: the requested python version
+    :return: the suffix to append to the image tag
+    """
+    if not python_version or not mlrun_version:
+        return ""
+
+    # if the mlrun version is 0.0.0-<unstable>/<commit hash> then it's a dev version, therefore we can't check if the
+    # mlrun version is higher than 1.3.0, but we can check the python version and if python version was passed it
+    # means it 1.3.0-rc or higher, so we can add the suffix of the python version.
+    if mlrun_version.startswith("0.0.0-") or "unstable" in mlrun_version:
+        if python_version.startswith("3.7"):
+            return "-py37"
+        return ""
+
+    # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
+    # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
+    # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
+    # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
+    # using semver (x.y.z-X) to include rc versions as well
+    if semver.VersionInfo.parse(mlrun_version) >= semver.VersionInfo.parse(
+        "1.3.0-X"
+    ) and python_version.startswith("3.7"):
+        return "-py37"
+    return ""
 
 
 def get_docker_repository_or_default(repository: str) -> str:
@@ -948,7 +994,7 @@ def get_class(class_name, namespace=None):
     try:
         class_object = create_class(class_name)
     except (ImportError, ValueError) as exc:
-        raise ImportError(f"state init failed, class {class_name} not found") from exc
+        raise ImportError(f"Failed to import {class_name}") from exc
     return class_object
 
 

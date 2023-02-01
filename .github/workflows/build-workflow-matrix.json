@@ -53,5 +53,10 @@
     "image-name":"test",
     "python-version":"3.9",
     "include-suffix":""
+  },
+  {
+    "image-name":"log-collector",
+    "python-version":"",
+    "include-suffix":""
   }
 ]

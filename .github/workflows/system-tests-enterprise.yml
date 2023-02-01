@@ -107,10 +107,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up python 3.7
+    - name: Set up python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.9
+        cache: pip
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Install curl and jq
@@ -192,6 +193,7 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
           "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
@@ -229,10 +231,11 @@ jobs:
     steps:
     # checking out to the commit hash that the preparation step executed on
     - uses: actions/checkout@v3
-    - name: Set up python 3.7
+    - name: Set up python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.9
+        cache: pip
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: pip install -r automation/requirements.txt && pip install -e .
     - name: Install curl and jq
@@ -248,7 +251,7 @@ jobs:
           "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
           "${{ secrets.LATEST_SYSTEM_TEST_PASSWORD }}" \
-          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
+          "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}"
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \

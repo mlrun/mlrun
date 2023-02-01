@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import datetime
-import json
 import logging
 import pathlib
 import subprocess
@@ -22,8 +21,6 @@ import time
 
 import click
 import paramiko
-import requests
-import semver
 import yaml
 
 import mlrun.utils
@@ -41,9 +38,6 @@ class SystemTestPreparer:
         system_tests_env_yaml = pathlib.Path("tests") / "system" / "env.yml"
 
         git_url = "https://github.com/mlrun/mlrun.git"
-        provctl_releases = "https://api.github.com/repos/iguazio/provazio/releases"
-        provctl_release_search_amount = 10
-        provctl_binary_format = "provctl-{release_name}-linux-amd64"
 
     def __init__(
         self,
@@ -57,6 +51,7 @@ class SystemTestPreparer:
         data_cluster_ssh_password: str = None,
         app_cluster_ssh_password: str = None,
         github_access_token: str = None,
+        provctl_download_url: str = None,
         mlrun_dbpath: str = None,
         webapi_direct_http: str = None,
         framesd_url: str = None,
@@ -84,6 +79,7 @@ class SystemTestPreparer:
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
         self._github_access_token = github_access_token
+        self._provctl_download_url = provctl_download_url
         self._iguazio_version = iguazio_version
 
         self._env_config = {
@@ -290,46 +286,6 @@ class SystemTestPreparer:
 
         return stdout, stderr, exit_status
 
-    def _get_provctl_version_and_url(self):
-        def extract_version_from_release(release):
-            tag = release["tag_name"]
-            version = tag
-            # remove prefix v if exists
-            version = version.replace("v", "")
-            return semver.VersionInfo.parse(version)
-
-        response = requests.get(
-            self.Constants.provctl_releases,
-            headers={"Authorization": f"token {self._github_access_token}"},
-        )
-        response.raise_for_status()
-        provazio_releases = json.loads(response.content)
-        stable_provazio_releases = list(
-            filter(lambda release: release["tag_name"] != "unstable", provazio_releases)
-        )
-        latest_provazio_releases = stable_provazio_releases[
-            : self.Constants.provctl_release_search_amount
-        ]
-        # This should protect us from taking a backport release (assuming there are never
-        # {provctl_release_search_amount} backport releases in a row)
-        latest_provazio_releases.sort(key=extract_version_from_release, reverse=True)
-        for provazio_release in latest_provazio_releases:
-            for asset in provazio_release["assets"]:
-                if asset["name"] == self.Constants.provctl_binary_format.format(
-                    release_name=provazio_release["name"]
-                ):
-                    self._logger.debug(
-                        "Got provctl release url",
-                        release=provazio_release["name"],
-                        name=asset["name"],
-                        url=asset["url"],
-                    )
-                    return asset["name"], asset["url"]
-
-        raise RuntimeError(
-            f"provctl binary not found in {self.Constants.provctl_release_search_amount} latest releases"
-        )
-
     def _prepare_env_remote(self):
         self._run_command(
             "mkdir",
@@ -383,25 +339,21 @@ class SystemTestPreparer:
         )
 
     def _download_provctl(self):
-        provctl, provctl_url = self._get_provctl_version_and_url()
-        self._logger.debug("Downloading provctl to data node", provctl_url=provctl_url)
+        provctl_path = "provctl"
+        self._logger.debug("Downloading provctl to data node")
         self._run_command(
             "curl",
             args=[
                 "--verbose",
                 "--retry 3",
                 "--location",
-                "--remote-header-name",
-                "--remote-name",
-                "--header",
-                '"Accept: application/octet-stream"',
-                "--header",
-                f'"Authorization: token {self._github_access_token}"',
-                provctl_url,
+                self._provctl_download_url,
+                "--output",
+                "provctl",
             ],
         )
-        self._run_command("chmod", args=["+x", provctl])
-        return provctl
+        self._run_command("chmod", args=["+x", provctl_path])
+        return provctl_path
 
     def _run_and_wait_until_successful(
         self,
@@ -536,6 +488,7 @@ def main():
 @click.argument("data-cluster-ssh-password", type=str, required=True)
 @click.argument("app-cluster-ssh-password", type=str, required=True)
 @click.argument("github-access-token", type=str, required=True)
+@click.argument("provctl-download-url", type=str, required=True)
 @click.argument("mlrun-dbpath", type=str, required=True)
 @click.argument("webapi-direct-url", type=str, required=True)
 @click.argument("framesd-url", type=str, required=True)
@@ -562,6 +515,7 @@ def run(
     data_cluster_ssh_password: str,
     app_cluster_ssh_password: str,
     github_access_token: str,
+    provctl_download_url: str,
     mlrun_dbpath: str,
     webapi_direct_url: str,
     framesd_url: str,
@@ -584,6 +538,7 @@ def run(
         data_cluster_ssh_password,
         app_cluster_ssh_password,
         github_access_token,
+        provctl_download_url,
         mlrun_dbpath,
         webapi_direct_url,
         framesd_url,

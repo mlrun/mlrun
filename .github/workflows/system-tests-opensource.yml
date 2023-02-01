@@ -71,10 +71,11 @@ jobs:
     - name: Freeing up disk space
       run: |
         "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-    - name: Set up python 3.7
+    - name: Set up python
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.9
+        cache: pip
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
         pip install -r automation/requirements.txt -r dockerfiles/test-system/requirements.txt \

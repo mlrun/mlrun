@@ -36,7 +36,14 @@ from ..config import config
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
-from ..utils import datetime_to_iso, dict_to_json, logger, new_pipe_meta, version
+from ..utils import (
+    datetime_to_iso,
+    dict_to_json,
+    logger,
+    new_pipe_meta,
+    normalize_name,
+    version,
+)
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [
@@ -102,6 +109,7 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
+        self.python_version = str(version.Version().get_python_version())
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -190,7 +198,10 @@ class HTTPRunDB(RunDBInterface):
             "headers", {}
         ):
             kw["headers"].update(
-                {mlrun.api.schemas.HeaderNames.client_version: self.client_version}
+                {
+                    mlrun.api.schemas.HeaderNames.client_version: self.client_version,
+                    mlrun.api.schemas.HeaderNames.python_version: self.python_version,
+                }
             )
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
@@ -1231,7 +1242,7 @@ class HTTPRunDB(RunDBInterface):
 
         try:
             params = {
-                "name": func.metadata.name,
+                "name": normalize_name(func.metadata.name),
                 "project": func.metadata.project,
                 "tag": func.metadata.tag,
                 "logs": bool2str(logs),

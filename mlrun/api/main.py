@@ -15,16 +15,13 @@
 import asyncio
 import concurrent.futures
 import datetime
-import time
 import traceback
 import typing
-import uuid
 
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
 import uvicorn
-import uvicorn.protocols.utils
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.api.schemas
@@ -36,6 +33,7 @@ import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
+from mlrun.api.middlewares import init_middlewares
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -75,6 +73,8 @@ app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 # TODO: remove when 0.9.x versions are no longer relevant
 app.include_router(api_router, prefix=API_PREFIX, include_in_schema=False)
 
+init_middlewares(app)
+
 
 @app.exception_handler(Exception)
 async def generic_error_handler(request: fastapi.Request, exc: Exception):
@@ -110,71 +110,6 @@ async def http_status_error_handler(
             status_code=status_code, detail={"reason": error_message}
         ),
     )
-
-
-def get_client_address(scope):
-    # uvicorn expects this to be a tuple while starlette test client sets it to be a list
-    if isinstance(scope.get("client"), list):
-        scope["client"] = tuple(scope.get("client"))
-    return uvicorn.protocols.utils.get_client_addr(scope)
-
-
-@app.middleware("http")
-async def log_request_response(request: fastapi.Request, call_next):
-    request_id = str(uuid.uuid4())
-    silent_logging_paths = [
-        "healthz",
-    ]
-    path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
-        request.scope
-    )
-    start_time = time.perf_counter_ns()
-    if not any(
-        silent_logging_path in path_with_query_string
-        for silent_logging_path in silent_logging_paths
-    ):
-        logger.debug(
-            "Received request",
-            headers=request.headers,
-            method=request.method,
-            client_address=get_client_address(request.scope),
-            http_version=request.scope["http_version"],
-            request_id=request_id,
-            uri=path_with_query_string,
-        )
-    try:
-        response = await call_next(request)
-    except Exception as exc:
-        logger.warning(
-            "Request handling failed. Sending response",
-            # User middleware (like this one) runs after the exception handling middleware, the only thing running after
-            # it is starletter's ServerErrorMiddleware which is responsible for catching any un-handled exception
-            # and transforming it to 500 response. therefore we can statically assign status code to 500
-            status_code=500,
-            request_id=request_id,
-            uri=path_with_query_string,
-            method=request.method,
-            exc=exc,
-            traceback=traceback.format_exc(),
-        )
-        raise
-    else:
-        # convert from nanoseconds to milliseconds
-        elapsed_time_in_ms = (time.perf_counter_ns() - start_time) / 1000 / 1000
-        if not any(
-            silent_logging_path in path_with_query_string
-            for silent_logging_path in silent_logging_paths
-        ):
-            logger.debug(
-                "Sending response",
-                status_code=response.status_code,
-                request_id=request_id,
-                elapsed_time=elapsed_time_in_ms,
-                uri=path_with_query_string,
-                method=request.method,
-                headers=response.headers,
-            )
-        return response
 
 
 @app.on_event("startup")

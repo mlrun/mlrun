@@ -400,8 +400,7 @@ class ProcessBeforeEndpointUpdate(mlrun.feature_store.steps.MapClass):
         super().__init__(**kwargs)
 
     def do(self, event):
-        # c = os.environ.get('MODEL_MONITORING_CONNECTION_STRING')
-        # print('[EYAL]: connection string from env: ', c)
+
         # Compute prediction per second
         event[EventLiveStats.PREDICTIONS_PER_SECOND] = (
             float(event[EventLiveStats.PREDICTIONS_COUNT_5M]) / 300
@@ -732,7 +731,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         if endpoint_id not in self.endpoints:
 
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
-            print("[EYAL]: in trying to resume state!!!")
+
             endpoint_record = get_endpoint_record(
                 project=self.project,
                 endpoint_id=endpoint_id,

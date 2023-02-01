@@ -50,7 +50,7 @@ class EventFieldType:
     MINUTES = "minutes"
     HOURS = "hours"
     DAYS = "days"
-    MODEL_ENDPOINTS = "model_endpoints_v8"
+    MODEL_ENDPOINTS = "model_endpoints"
     STATE = "state"
     PROJECT = "project"
     STREAM_PATH = "stream_path"

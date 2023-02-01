@@ -40,7 +40,6 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # mainly used for mlrun, base, models and models-gpu images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
-MLRUN_PYTHON_VERSION ?= 3.9.13
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 22.3.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)

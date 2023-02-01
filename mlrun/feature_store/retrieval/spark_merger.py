@@ -268,7 +268,7 @@ class SparkFeatureMerger(BaseMerger):
                     aliased_featureset_df[f"ft__{key}"]
                 )
 
-        conditional_join = conditional_join.sort(entity_timestamp_column)
+        conditional_join = conditional_join.orderBy(col(entity_timestamp_column))
         window = Window.partitionBy("_row_nr", *left_keys).orderBy(
             col(entity_timestamp_column).desc(),
         )

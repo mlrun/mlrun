@@ -15,7 +15,6 @@
 package logcollector
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -53,6 +52,7 @@ type Server struct {
 	getLogsBufferPool       *bpool.BytePool
 	readLogWaitTime         time.Duration
 	monitoringInterval      time.Duration
+	streamTimeout           time.Duration
 	bufferSizeBytes         int
 	isChief                 bool
 }
@@ -64,6 +64,7 @@ func NewLogCollectorServer(logger logger.Logger,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval,
+	streamTimeout,
 	clusterizationRole string,
 	kubeClientSet kubernetes.Interface,
 	logCollectionBufferPoolSize,
@@ -85,7 +86,11 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 	monitoringIntervalDuration, err := time.ParseDuration(monitoringInterval)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to parse monitoring interval")
+		return nil, errors.Wrap(err, "Failed to parse monitoring interval duration")
+	}
+	streamTimeoutDuration, err := time.ParseDuration(streamTimeout)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to parse stream timeout duration")
 	}
 
 	stateStore, err := factory.CreateStateStore(
@@ -123,6 +128,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		kubeClientSet:           kubeClientSet,
 		readLogWaitTime:         readLogTimeoutDuration,
 		monitoringInterval:      monitoringIntervalDuration,
+		streamTimeout:           streamTimeoutDuration,
 		logCollectionBufferPool: logCollectionBufferPool,
 		getLogsBufferPool:       getLogsBufferPool,
 		bufferSizeBytes:         bufferSizeBytes,
@@ -302,6 +308,8 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return nil
 	}
 
+	s.Logger.DebugWithCtx(ctx, "Reading logs from file", "runUID", request.RunUID)
+
 	offset := request.Offset
 	totalLogsSize := int64(0)
 
@@ -410,44 +418,67 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		return
 	}
 
-	// get logs from pod, and keep the stream open (follow)
-	podLogOptions := &v1.PodLogOptions{
-		Follow: true,
+	// open log file in read/write and append, to allow reading the logs while we write more logs to it
+	openFlags := os.O_RDWR | os.O_APPEND
+	file, err := os.OpenFile(logFilePath, openFlags, 0644)
+	if err != nil {
+		s.Logger.ErrorWithCtx(ctx, "Failed to open file", "err", err, "logFilePath", logFilePath)
+		return
 	}
-	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
+	defer file.Close() // nolint: errcheck
 
 	// initialize stream and error for the while loop
 	var (
-		streamErr error
-		stream    io.ReadCloser
+		stream         io.ReadCloser
+		streamErr      error
+		streamErrCount = 0
+		keepLogging    bool
+		sinceTime      time.Time
 	)
 
-	// stream logs - retry if failed
-	err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
-		stream, streamErr = restClientRequest.Stream(ctx)
-		if streamErr != nil {
-			s.Logger.WarnWithCtx(ctx,
-				"Failed to get pod log stream, retrying",
-				"runUID", runUID,
-				"err", streamErr)
-			return true, streamErr
-		}
-		return false, nil
-	})
-	if err != nil {
-		s.Logger.ErrorWithCtx(ctx,
-			"Failed to get pod log stream",
-			"runUID", runUID,
-			"err", err)
-		return
-	}
-	defer stream.Close() // nolint: errcheck
-
 	for {
-		keepLogging, err := s.streamPodLogs(ctx, runUID, logFilePath, stream)
+		// get logs from pod. to avoid reading the same logs over and over again, we use the
+		// sinceTime parameter, which tells the API to return logs only after the given time
+		podLogOptions := &v1.PodLogOptions{
+			SinceTime: &metav1.Time{Time: sinceTime},
+		}
+		restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
+
+		// get the log stream - retry if failed
+		if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
+			stream, streamErr = restClientRequest.Stream(ctx)
+			if streamErr != nil {
+
+				// first 3 errors are not logged - they are expected if pod is not ready yet
+				if streamErrCount > 3 {
+					s.Logger.WarnWithCtx(ctx,
+						"Failed to get pod log stream, retrying",
+						"runUID", runUID,
+						"err", streamErr)
+				}
+				streamErrCount++
+				return true, streamErr
+			}
+			return false, nil
+		}); err != nil {
+			s.Logger.ErrorWithCtx(ctx,
+				"Failed to get pod log stream",
+				"runUID", runUID,
+				"err", err)
+			return
+		}
+
+		// create a context with timeout, to allow closing the stream after a while if no logs are received
+		ctxTimeout, cancelCtxTimeout := context.WithTimeout(ctx, s.streamTimeout)
+
+		sinceTime, keepLogging, err = s.streamPodLogs(ctxTimeout, runUID, file, stream)
 		if err != nil {
 			s.Logger.WarnWithCtx(ctx, "An error occurred while streaming pod logs", "err", err)
 		}
+
+		// cancel the context if it had finished before the timeout
+		cancelCtxTimeout()
+
 		if keepLogging {
 			continue
 		}
@@ -469,36 +500,21 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 // streamPodLogs streams logs from a pod to a file
 func (s *Server) streamPodLogs(ctx context.Context,
-	runUID,
-	logFilePath string,
-	stream io.ReadCloser) (bool, error) {
+	runUID string,
+	logFile *os.File,
+	stream io.ReadCloser) (time.Time, bool, error) {
 
-	// create a reader from the stream, to allow peeking into it
-	streamReader := bufio.NewReader(stream)
+	var streamCloseTime time.Time
 
-	// wait for the stream to have logs before reading them
-	if !s.hasLogs(ctx, runUID, streamReader) {
-		s.Logger.WarnWithCtx(ctx, "Stream doesn't have logs or context has been canceled", "runUID", runUID)
-		return false, nil
-	}
-
-	// open log file in read/write and append, to allow reading the logs while we write more logs to it
-	openFlags := os.O_RDWR | os.O_APPEND
-	file, err := os.OpenFile(logFilePath, openFlags, 0644)
-	if err != nil {
-		s.Logger.WarnWithCtx(ctx, "Failed to open file", "err", err, "logFilePath", logFilePath)
-		return true, errors.Wrapf(err, "Failed to open file in path %s", logFilePath)
-	}
-	defer file.Close() // nolint: errcheck
-
-	// spin a goroutine that will unblock `CopyBuffer` if context is dead
+	// spin a goroutine that will unblock `CopyBuffer` if context times out
 	copyBufferDone := make(chan struct{}, 1)
 	go func() {
 		select {
 		case <-ctx.Done():
 
-			// context is dead, so we close the file so `CopyBuffer` won't block and fail
-			file.Close() // nolint: errcheck
+			// context timed out, close the stream so `CopyBuffer` won't block forever
+			streamCloseTime = time.Now()
+			stream.Close() // nolint: errcheck
 		case <-copyBufferDone:
 
 			// `CopyBuffer` doesn't block anymore, we can stop the goroutine
@@ -512,20 +528,30 @@ func (s *Server) streamPodLogs(ctx context.Context,
 
 	// copy the stream into the file using the buffer, which allows us to control the size read from the file.
 	// this is blocking until there is something to read
-	numBytesWritten, err := io.CopyBuffer(file, streamReader, buf)
+	numBytesWritten, err := io.CopyBuffer(logFile, stream, buf)
 
 	// signal goroutine to exit
 	close(copyBufferDone)
 
+	// close stream now, it will be reopened in the next iteration
+	// it may be already closed if the context was done, in which case we ignore the error
+	if err := stream.Close(); err != nil {
+		if !errors.Is(err, os.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) {
+			s.Logger.WarnWithCtx(ctx, "Failed to close stream", "err", err, "runUID", runUID)
+		}
+	} else {
+		streamCloseTime = time.Now()
+	}
+
 	// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
 	if err == io.EOF {
 		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
-		return false, nil
+		return streamCloseTime, false, nil
 	}
 
 	// nothing read, continue
 	if numBytesWritten == 0 {
-		return true, nil
+		return streamCloseTime, true, nil
 	}
 
 	// if error is not EOF, log it and continue
@@ -533,42 +559,16 @@ func (s *Server) streamPodLogs(ctx context.Context,
 		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
 			"err", err.Error(),
 			"runUID", runUID)
-		return true, errors.Wrap(err, "Failed to read pod logs")
+		return streamCloseTime, true, errors.Wrap(err, "Failed to read pod logs")
 	}
 
 	// sanity
-	return true, nil
+	return streamCloseTime, true, nil
 }
 
 // resolvePodLogFilePath returns the path to the pod log file
 func (s *Server) resolvePodLogFilePath(projectName, runUID, podName string) string {
 	return path.Join(s.baseDir, projectName, fmt.Sprintf("%s_%s", runUID, podName))
-}
-
-// hasLogs returns true if the stream has logs, or false if the stream is empty or context is dead
-func (s *Server) hasLogs(ctx context.Context, runUID string, streamReader *bufio.Reader) bool {
-
-	// peek into the stream, and wait until there is something to read from it
-	// or until context is canceled
-	for {
-		select {
-		case <-time.After(s.readLogWaitTime):
-			peekBuf, err := streamReader.Peek(1)
-
-			// if there is something to read, return true
-			// if error is EOF, the pod has logs but not new ones
-			if err == io.EOF || len(peekBuf) > 0 {
-				return true
-			}
-			if err != nil {
-				s.Logger.WarnWithCtx(ctx, "Failed to peek into stream", "runUID", runUID, "err", err.Error())
-			}
-		case <-ctx.Done():
-			s.Logger.DebugWithCtx(ctx, "Context was canceled, stopping waiting for pod log stream", "runUID", runUID)
-			return false
-		}
-		time.Sleep(s.readLogWaitTime)
-	}
 }
 
 // getLogFilePath returns the path to the run's latest log file

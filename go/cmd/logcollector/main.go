@@ -38,6 +38,7 @@ func StartServer() error {
 	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__STATE_FILE_UPDATE_INTERVAL", "10s"), "Periodic interval for updating the state file (default 10s)")
 	readLogWaitTime := flag.String("read-log-wait-time", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__READ_LOG_WAIT_TIME", "3s"), "Wait time until trying to get more logs from the pod (default 3s)")
 	monitoringInterval := flag.String("monitoring-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__MONITORING_INTERVAL", "10s"), "Periodic interval for monitoring the goroutines collecting logs (default 10s)")
+	streamTimeout := flag.String("stream-timeout", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__STREAM_TIMEOUT", "30s"), "Timeout for waiting for logs from the pods' stream (default 30s)")
 	logCollectionBufferPoolSize := flag.Int("log-collection-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_COLLECTION_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for collecting logs (default: 512 buffers)")
 	getLogsBufferPoolSize := flag.Int("get-logs-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for getting logs (default: 512 buffers)")
 	bufferSizeBytes := flag.Int("buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__BUFFER_SIZE_BYTES", 10*1024*1024), "Size of buffers in the buffer pool, in bytes (default: 10MB)")
@@ -70,6 +71,7 @@ func StartServer() error {
 		*stateFileUpdateInterval,
 		*readLogWaitTime,
 		*monitoringInterval,
+		*streamTimeout,
 		*clusterizationRole,
 		kubeClientSet,
 		*logCollectionBufferPoolSize,

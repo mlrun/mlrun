@@ -1028,23 +1028,6 @@ class LegacyArtifact(ModelObj):
         self.license = ""
         self.extra_data = {}
         self.tag = None  # temp store of the tag
-        # self._warn()
-
-    # def _warn(self):
-    #     warnings.warn(
-    #         "Class 'LegacyArtifact' is deprecated in 1.3.0, and will be removed in 1.5.0."
-    #         "Use class 'Artifact' instead. ",
-    #         # TODO: Remove in 1.5.0
-    #         FutureWarning,
-    #     )
-    #
-    # def __call__(self, *args, **kwargs):
-    #     self._warn()
-    #     return self(*args, **kwargs)
-    #
-    # def __getattr__(self, attr):
-    #     self._warn()
-    #     return getattr(self, attr)
 
     def before_log(self):
         for key, item in self.extra_data.items():

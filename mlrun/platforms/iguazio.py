@@ -30,22 +30,20 @@ import v3io
 import mlrun.errors
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
-from mlrun.utils import dict_to_json
+from mlrun.utils import dict_to_json, future_warning_decorator
 
 _cached_control_session = None
 
 VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
+# TODO: Remove in 1.5.0
+@future_warning_decorator(
+    "mount_v3io_extended", "1.3.0", "1.5.0", replaced_by="mount_v3io"
+)
 def mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
 ):
-    warnings.warn(
-        "mount_v3io_extended is deprecated in 1.3.0, and will be removed in 1.5.0."
-        "Use 'mount_v3io' instead. ",
-        # TODO: Remove in 1.5.0
-        FutureWarning,
-    )
     return _mount_v3io_extended(
         name=name,
         remote=remote,
@@ -83,6 +81,10 @@ def mount_v3io(
     )
 
 
+# TODO: Remove in 1.5.0
+@future_warning_decorator(
+    "mount_v3io_legacy", "1.3.0", "1.5.0", replaced_by="mount_v3io"
+)
 def mount_v3io_legacy(
     name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None
 ):
@@ -94,12 +96,6 @@ def mount_v3io_legacy(
     :param user:            the username used to auth against v3io. if not given V3IO_USERNAME env var will be used
     :param secret:          k8s secret name which would be used to get the username and access key to auth against v3io.
     """
-    warnings.warn(
-        "mount_v3io_legacy is deprecated in 1.3.0, and will be removed in 1.5.0."
-        "Use 'mount_v3io' instead. ",
-        # TODO: Remove in 1.5.0
-        FutureWarning,
-    )
     return _mount_v3io_extended(
         name=name,
         remote=remote,

@@ -15,7 +15,6 @@ import inspect
 import os
 import typing
 import uuid
-import warnings
 from enum import Enum
 
 import dotenv
@@ -38,7 +37,7 @@ from ..k8s_utils import (
     generate_preemptible_tolerations,
 )
 from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in
+from ..utils import future_warning_decorator, logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
@@ -997,13 +996,9 @@ class KubeResource(BaseRuntime):
             self.set_env(name, value)
         return self
 
+    # TODO: Remove in 1.5.0
+    @future_warning_decorator("Job gpus", "1.3.0", "1.5.0", "with_limits")
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        warnings.warn(
-            "Job gpus is deprecated in 1.3.0, and will be removed in 1.5.0."
-            "Use 'with_limits' instead. ",
-            # TODO: Remove in 1.5.0
-            FutureWarning,
-        )
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 
     def set_image_pull_configuration(

@@ -15,7 +15,6 @@ import datetime
 import inspect
 import socket
 import time
-import warnings
 from os import environ
 from typing import Dict, List, Optional, Union
 
@@ -35,7 +34,7 @@ from ..execution import MLClientCtx
 from ..k8s_utils import get_k8s_helper
 from ..model import RunObject
 from ..render import ipython_display
-from ..utils import logger, normalize_name, update_in
+from ..utils import future_warning_decorator, logger, normalize_name, update_in
 from .base import FunctionStatus, RuntimeClassMode
 from .kubejob import KubejobRuntime
 from .local import exec_from_params, load_module
@@ -408,13 +407,11 @@ class DaskCluster(KubejobRuntime):
             show_on_failure=show_on_failure,
         )
 
+    # TODO: Remove in 1.5.0
+    @future_warning_decorator(
+        "Dask gpus", "1.3.0", "1.5.0", "with_scheduler_limits / with_worker_limits"
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        warnings.warn(
-            "Dask gpus is deprecated in 1.3.0, and will be removed in 1.5.0."
-            "Use with_scheduler_limits / with_worker_limits instead.",
-            # TODO: Remove in 1.5.0
-            FutureWarning,
-        )
         update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
         update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 

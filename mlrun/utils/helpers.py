@@ -1189,33 +1189,3 @@ def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
         raise ValueError(f"{field_name} must be numeric (str/int types)")
     return int(field_value)
-
-
-# TODO: this might not be needed :(
-# def class_decorator(function_decorator, *args, **kwargs):
-#     def decorator(cls):
-#         for name, obj in vars(cls).items():
-#             if callable(obj):
-#                 setattr(cls, name, function_decorator(*args, **kwargs)(obj))
-#         return cls
-#
-#     return decorator
-#
-#
-# def future_warning_decorator(
-#     name, deprecation_version, removal_version, replaced_by=None
-# ):
-#     msg = f"{name} is deprecated in {deprecation_version}, and will be removed in {removal_version}."
-#     if replaced_by:
-#         msg += f" Use '{replaced_by}' instead."
-#
-#     def decorator(func):
-#         @wraps(func)
-#         def wrapper(*args, **kw):
-#             print(msg)  # testing
-#             warnings.warn(msg, FutureWarning)
-#             return func(*args, **kw)
-#
-#         return wrapper
-#
-#     return decorator

@@ -20,6 +20,8 @@ from sklearn.model_selection import train_test_split
 
 from ..datastore import DataItem
 
+# TODO: remove mlutils in 1.5.0
+
 
 @deprecated(
     version="1.3.0",

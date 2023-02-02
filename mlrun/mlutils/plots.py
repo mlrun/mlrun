@@ -29,6 +29,8 @@ from sklearn.preprocessing import LabelBinarizer
 
 from ..artifacts import PlotArtifact
 
+# TODO: remove mlutils in 1.5.0
+
 
 @deprecated(
     version="1.3.0",

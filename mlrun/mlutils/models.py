@@ -21,6 +21,8 @@ from deprecated import deprecated
 # for backwards compatibility - can be removed when we separate the hub branches for 0.6.x ad 0.5.x
 from .plots import eval_class_model, eval_model_v2  # noqa: F401
 
+# TODO: remove mlutils in 1.5.0
+
 
 @deprecated(
     version="1.3.0",

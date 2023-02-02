@@ -14,6 +14,7 @@
 #
 import datetime
 import os
+import warnings
 from typing import List, Union
 
 import numpy as np
@@ -23,6 +24,8 @@ from pandas.api.types import is_numeric_dtype, is_string_dtype
 
 import mlrun
 from mlrun.utils import flatten
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
 
 max_table_rows = 50
 

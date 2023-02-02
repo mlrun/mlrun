@@ -151,9 +151,7 @@ class TestProject(TestMLRunSystem):
         assert models[0].producer["workflow"] == run.run_id
 
         functions = project2.list_functions(tag="latest")
-        assert (
-            len(functions) == 3
-        )  # prep-data, auto-trainer twice (train, test - see assets/kflow.py)
+        assert len(functions) == 2  # prep-data, auto-trainer
         assert functions[0].metadata.project == name
 
     def test_run_artifact_path(self):

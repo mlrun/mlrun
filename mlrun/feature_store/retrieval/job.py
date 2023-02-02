@@ -137,7 +137,7 @@ import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
                   timestamp_column=None, drop_columns=None, with_indexes=None, query=None, join_type='inner', 
-                  engine_args=None, order_by=order_by):
+                  engine_args=None, order_by=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
     entity_timestamp_column = timestamp_column or vector.spec.timestamp_field

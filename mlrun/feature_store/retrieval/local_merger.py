@@ -162,7 +162,6 @@ class LocalFeatureMerger(BaseMerger):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
 
         indexes = None
@@ -214,7 +213,6 @@ class LocalFeatureMerger(BaseMerger):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
         fs_name = featureset.metadata.name
         merged_df = pd.merge(
@@ -229,3 +227,20 @@ class LocalFeatureMerger(BaseMerger):
             if re.findall(f"_{fs_name}_$", col):
                 self._append_drop_column(col)
         return merged_df
+
+    def get_engine_df(
+        self, feature_set, column_names, start_time, end_time, entity_timestamp_column
+    ):
+        pass
+
+    def rename_columns(self, df, rename_col_dict, all_columns):
+        pass
+
+    def drop_columns_from_result(self):
+        pass
+
+    def filter(self, query):
+        pass
+
+    def orderBy(self, order_by_active):
+        pass

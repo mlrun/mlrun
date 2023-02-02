@@ -179,7 +179,6 @@ class DaskFeatureMerger(BaseMerger):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
 
         entity_df = self._reset_index(entity_df)
@@ -218,7 +217,6 @@ class DaskFeatureMerger(BaseMerger):
         featureset_df,
         left_keys: list,
         right_keys: list,
-        columns: list,
     ):
 
         fs_name = featureset.metadata.name
@@ -244,3 +242,26 @@ class DaskFeatureMerger(BaseMerger):
         if to_pandas and hasattr(self._result_df, "dask"):
             return self._result_df.compute()
         return self._result_df
+
+    def get_engine_df(
+        self,
+        feature_set,
+        feature_set_name,
+        column_names,
+        start_time,
+        end_time,
+        entity_timestamp_column,
+    ):
+        pass
+
+    def rename_columns(self, df, rename_col_dict, all_columns):
+        pass
+
+    def drop_columns_from_result(self):
+        pass
+
+    def filter(self, query):
+        pass
+
+    def orderBy(self, order_by_active):
+        pass

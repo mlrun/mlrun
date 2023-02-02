@@ -1499,7 +1499,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         col_1 = ["name_employees", "name_departments"]
         if with_indexes:
-            col_1 = ["id", "name_employees", "d_id" "name_departments"]
+            col_1 = ["id", "name_employees", "d_id", "name_departments", "time"]
 
         join_employee_department = join_employee_department[col_1].rename(
             columns={"name_departments": "n2", "name_employees": "n"},

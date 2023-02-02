@@ -7,9 +7,9 @@ You can write your code on a local machine while running your functions on a rem
 - [Prerequisite: set up your client](#prerequisite-set-up-your-client)
 - [Configure remote environment](#configure-remote-environment)
    - [Using environment file and `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
-   - [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrunset_env_from_file-command-in-mlrun-sdk)
-   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
+   - [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrun-set-env-from-file-command-in-mlrun-sdk)
+   - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
+   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisite: set up your client
@@ -55,9 +55,9 @@ Before you begin, ensure that the following prerequisites are met:
 ## Configure remote environment
 You have a few options to configure your remote environment:
 - [Using environment file and `mlrun config set` command in MLRun CLI](#using-environment-file-and-mlrun-config-set-command-in-mlrun-cli)
-- [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrunset_env_from_file-command-in-mlrun-sdk)
-- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrunset_environment-command-in-mlrun-sdk)
-- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-eg-pycharm-or-vscode)
+- [Using environment file and `mlrun.set_env_from_file` command in MLRun SDK](#using-environment-file-and-mlrun-set-env-from-file-command-in-mlrun-sdk)
+- [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
+- [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 ### Using environment file and `mlrun config set` command in MLRun CLI
 

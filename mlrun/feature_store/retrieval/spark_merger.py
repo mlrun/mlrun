@@ -213,7 +213,9 @@ class SparkFeatureMerger(BaseMerger):
                     f"self._result_df contains {self._result_df.columns} "
                     f"columns and can't order by {order_by}"
                 )
-            self._result_df = self._result_df.orderBy(*order_by_active)
+            self._result_df = self._result_df.orderBy(
+                *[col(col_name).asc_nulls_last() for col_name in order_by_active]
+            )
 
         self._write_to_target()
         return OfflineVectorResponse(self)
@@ -252,7 +254,6 @@ class SparkFeatureMerger(BaseMerger):
         from pyspark.sql.functions import col, monotonically_increasing_id, row_number
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
-        # indexes = list(featureset.spec.entities.keys())
         rename_right_keys = {}
         for key in right_keys + [entity_timestamp_column]:
             if key in entity_df.columns:

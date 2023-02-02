@@ -17,7 +17,7 @@ You can write your code on a local machine while running your functions on a rem
 Before you begin, ensure that the following prerequisites are met:
 
 1. Applications:
-   - Python 3.7 or later 
+   - Python 3.9 
    - Recommended pip 22.x+
 
 2. Install MLRun locally.

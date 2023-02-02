@@ -319,13 +319,15 @@ class SparkFeatureMerger(BaseMerger):
         print(entity_df)
         print(featureset_df)
 
-        for key_l, key_r in zip(left_keys, right_keys):
-            join_cond = join_cond & (
-                entity_df[key_l] == featureset_df[key_r]
-            ) if join_cond else (
-                entity_df[key_l] == featureset_df[key_r]
-            )
-
+        if left_keys != right_keys:
+            for key_l, key_r in zip(left_keys, right_keys):
+                join_cond = join_cond & (
+                    entity_df[key_l] == featureset_df[key_r]
+                ) if join_cond else (
+                    entity_df[key_l] == featureset_df[key_r]
+                )
+        else:
+            join_cond = left_keys
 
         merged_df = entity_df.join(
             featureset_df,

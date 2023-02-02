@@ -71,6 +71,7 @@ class BaseMerger(abc.ABC):
         update_stats=None,
         query=None,
         join_type="inner",
+        order_by=None
     ):
         self._target = target
         self._join_type = join_type
@@ -110,6 +111,7 @@ class BaseMerger(abc.ABC):
             start_time=start_time,
             end_time=end_time,
             query=query,
+            order_by=order_by
         )
 
     def _write_to_target(self):
@@ -164,6 +166,7 @@ class BaseMerger(abc.ABC):
         start_time=None,
         end_time=None,
         query=None,
+        order_by=None,
     ):
         raise NotImplementedError("_generate_vector() operation not supported in class")
 

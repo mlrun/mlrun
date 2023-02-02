@@ -42,6 +42,7 @@ class SparkFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         query=None,
+        order_by=None,
     ):
         from pyspark.sql import SparkSession
         from pyspark.sql.functions import col
@@ -197,6 +198,22 @@ class SparkFeatureMerger(BaseMerger):
         if query:
             self._result_df = self._result_df.filter(query)
 
+        if order_by:
+            if isinstance(order_by, str):
+                order_by = [order_by]
+            order_by_active = [
+                order_col
+                if order_col in self._result_df.columns
+                else self._alias.get(order_col, None)
+                for order_col in order_by
+            ]
+            if None in order_by_active:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"self._result_df contains {self._result_df.columns} "
+                    f"columns and can't order by {order_by}"
+                )
+            self._result_df = self._result_df.order_by(*order_by)
+
         self._write_to_target()
         return OfflineVectorResponse(self)
 
@@ -241,9 +258,7 @@ class SparkFeatureMerger(BaseMerger):
                 rename_right_keys[key] = f"ft__{key}"
         # get columns for projection
         projection = [
-            col(col_name).alias(
-                rename_right_keys.get(col_name, col_name)
-            )
+            col(col_name).alias(rename_right_keys.get(col_name, col_name))
             for col_name in featureset_df.columns
         ]
 
@@ -252,13 +267,16 @@ class SparkFeatureMerger(BaseMerger):
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)]
+            >= aliased_featureset_df[
+                rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)
+            ]
         )
 
         # join based on entities
         for key_l, key_r in zip(left_keys, right_keys):
             join_cond = join_cond & (
-                entity_with_id[key_l] == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
+                entity_with_id[key_l]
+                == aliased_featureset_df[rename_right_keys.get(key_r, key_r)]
             )
 
         conditional_join = entity_with_id.join(
@@ -277,7 +295,9 @@ class SparkFeatureMerger(BaseMerger):
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
 
-        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(col(entity_timestamp_column))
+        return filter_most_recent_feature_timestamp.drop("_row_nr", "_rank").orderBy(
+            col(entity_timestamp_column)
+        )
 
     def _join(
         self,
@@ -312,10 +332,10 @@ class SparkFeatureMerger(BaseMerger):
         join_cond = None
         if left_keys != right_keys:
             for key_l, key_r in zip(left_keys, right_keys):
-                join_cond = join_cond & (
-                    entity_df[key_l] == featureset_df[key_r]
-                ) if join_cond else (
-                    entity_df[key_l] == featureset_df[key_r]
+                join_cond = (
+                    join_cond & (entity_df[key_l] == featureset_df[key_r])
+                    if join_cond
+                    else (entity_df[key_l] == featureset_df[key_r])
                 )
         else:
             join_cond = left_keys

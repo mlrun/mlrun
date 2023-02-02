@@ -119,6 +119,10 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         if not endpoint:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
+
+        # For backwards compatability: replace null values for `error_count` and `metrics`
+        mlrun.utils.model_monitoring.validate_errors_and_metrics(endpoint=endpoint)
+
         return endpoint
 
     def _get_path_and_container(self):
@@ -164,6 +168,7 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Retrieve the raw data from the KV table and get the endpoint ids
         try:
+
             cursor = self.client.kv.new_cursor(
                 container=self.container,
                 table_path=self.path,
@@ -178,6 +183,7 @@ class KVModelEndpointStore(ModelEndpointStore):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
             items = cursor.all()
+
         except Exception as exc:
             logger.warning("Failed retrieving raw data from kv table", exc=exc)
             return endpoint_list
@@ -409,6 +415,7 @@ class KVModelEndpointStore(ModelEndpointStore):
 
         # Add labels filters
         if labels:
+
             for label in labels:
                 if not label.startswith("_"):
                     label = f"_{label}"

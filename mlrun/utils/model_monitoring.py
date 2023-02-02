@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import json
+import warnings
 from typing import Optional, Union
 
 import mlrun
@@ -155,4 +157,34 @@ def get_connection_string(project: str = None):
                 model_monitoring_constants.ProjectSecretKeys.CONNECTION_STRING
             )
             or mlrun.mlconf.model_endpoint_monitoring.connection_string
+        )
+
+
+def validate_errors_and_metrics(endpoint: dict):
+    """
+    Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0
+
+    Leaving here for backwards compatibility which related to the model endpoint schema
+
+    :param endpoint: An endpoint flattened dictionary.
+    """
+    warnings.warn(
+        "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
+        # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
+        FutureWarning,
+    )
+
+    # Validate default value for `error_count`
+    if endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] == "null":
+        endpoint[model_monitoring_constants.EventFieldType.ERROR_COUNT] = "0"
+
+    # Validate default value for `metrics`
+    if endpoint[model_monitoring_constants.EventFieldType.METRICS] == "null":
+        endpoint[model_monitoring_constants.EventFieldType.METRICS] = json.dumps(
+            {
+                model_monitoring_constants.EventKeyMetrics.GENERIC: {
+                    model_monitoring_constants.EventLiveStats.LATENCY_AVG_1H: 0,
+                    model_monitoring_constants.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+                }
+            }
         )

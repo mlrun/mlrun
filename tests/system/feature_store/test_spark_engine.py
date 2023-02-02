@@ -84,9 +84,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        False  # Set to True if you want to avoid the image building phase
+        True  # Set to True if you want to avoid the image building phase
     )
-    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = "https://github.com/davesh0812/mlrun.git@spark_getoff"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -1499,7 +1499,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         col_1 = ["name_employees", "name_departments"]
         if with_indexes:
-            col_1 = col_1 + ["id", "d_id", "time"]
+            col_1 = ["id", "name_employees", "d_id" "name_departments"]
 
         join_employee_department = join_employee_department[col_1].rename(
             columns={"name_departments": "n2", "name_employees": "n"},

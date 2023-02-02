@@ -27,6 +27,7 @@ from mlrun.utils import flatten
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
+
 max_table_rows = 50
 
 

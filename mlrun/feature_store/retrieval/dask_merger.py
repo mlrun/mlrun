@@ -41,6 +41,7 @@ class DaskFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         query=None,
+        order_by=None,
     ):
         if "index" not in self._index_columns:
             self._append_drop_column("index")

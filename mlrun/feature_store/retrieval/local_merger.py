@@ -35,6 +35,7 @@ class LocalFeatureMerger(BaseMerger):
         start_time=None,
         end_time=None,
         query=None,
+        order_by=None,
     ):
 
         feature_sets = []

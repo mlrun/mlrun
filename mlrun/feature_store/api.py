@@ -205,9 +205,19 @@ def get_offline_features(
         # if end_time is not specified set it to now()
         end_time = pd.Timestamp.now()
     merger = merger_engine(feature_vector, **(engine_args or {}))
-    return merger.start(entity_rows, entity_timestamp_column, target=target, drop_columns=drop_columns,
-                        start_time=start_time, end_time=end_time, with_indexes=with_indexes, update_stats=update_stats,
-                        query=query, join_type=join_type, order_by=order_by)
+    return merger.start(
+        entity_rows,
+        entity_timestamp_column,
+        target=target,
+        drop_columns=drop_columns,
+        start_time=start_time,
+        end_time=end_time,
+        with_indexes=with_indexes,
+        update_stats=update_stats,
+        query=query,
+        join_type=join_type,
+        order_by=order_by,
+    )
 
 
 def get_online_feature_service(

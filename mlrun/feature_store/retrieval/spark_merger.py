@@ -213,7 +213,7 @@ class SparkFeatureMerger(BaseMerger):
                     f"self._result_df contains {self._result_df.columns} "
                     f"columns and can't order by {order_by}"
                 )
-            self._result_df = self._result_df.orderBy(*order_by)
+            self._result_df = self._result_df.orderBy(*order_by_active)
 
         self._write_to_target()
         return OfflineVectorResponse(self)

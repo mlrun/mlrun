@@ -184,37 +184,35 @@ and you include this dictionary when initializing the feature set.
 
 ```
 departments_set_entity = fs.Entity("d_id")
-        departments_set = fs.FeatureSet(
-            "departments",
-            entities=[departments_set_entity],
-            relations={"manager_id": managers_set_entity},
-        )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(departments_set, departments)
+departments_set = fs.FeatureSet(
+    "departments",
+    entities=[departments_set_entity],
+)
 
-        employees_set_entity = fs.Entity("id")
-        employees_set = fs.FeatureSet(
-            "employees",
-            entities=[employees_set_entity],
-            relations={"department_id": departments_set_entity},
-        )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
-        fs.ingest(employees_set, employees)
+departments_set.set_targets(targets=["parquet"], with_defaults=False)
+fs.ingest(departments_set, departments)
 
-        features = ["employees.name as n", "departments.name as n2"]
+employees_set_entity = fs.Entity("id")
+employees_set = fs.FeatureSet(
+    "employees",
+    entities=[employees_set_entity],
+    relations={"department_id": departments_set_entity},  # dictionary where the key is str identifying a column/feature on this feature-set, and the dictionary value is an Entity object on another feature-set
+)
+employees_set.set_targets(targets=["parquet"], with_defaults=False)
+fs.ingest(employees_set, employees)
+features = ["employees.name as emp_name", "departments.name as dep_name"]
 
-        vector = fs.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
-        )
-        vector.save()
+vector = fs.FeatureVector(
+    "employees-vec", features, description="Employees feature vector"
+)
 
-        resp_1 = fs.get_offline_features(
-            vector,
-            join_type=join_type,
-            engine_args=engine_args,
-            with_indexes=with_indexes,
-            engine=engine,
-        )
+resp_1 = fs.get_offline_features(
+    vector,
+    join_type='inner', # one of following values: "inner" (as with current code), "outer", "right", "left"
+    engine_args=engine_args,
+    with_indexes=with_indexes,
+    engine=engine,
+)
 ```
 
 

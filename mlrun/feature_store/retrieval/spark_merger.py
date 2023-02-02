@@ -123,8 +123,6 @@ class SparkFeatureMerger(BaseMerger):
                 self.spark, named_view=self.named_view, time_field=timestamp_key
             )
 
-            print("before select")
-            print(df.show())
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
             if feature_set.spec.timestamp_key:
@@ -148,8 +146,6 @@ class SparkFeatureMerger(BaseMerger):
                 ]
             )
 
-            print("after select")
-            print(df.show())
             dfs.append(df)
             del df
 
@@ -189,8 +185,6 @@ class SparkFeatureMerger(BaseMerger):
             self._update_alias(key=entity_timestamp_column, val=entity_timestamp_column)
         self._result_df = self._result_df.drop(*self._drop_columns)
 
-        print("before last select")
-        print(self._result_df.show())
         self._result_df = self._result_df.select(
             [col(name).alias(alias or name) for name, alias in self._alias.items()]
         )
@@ -316,9 +310,6 @@ class SparkFeatureMerger(BaseMerger):
         """
         # fs_name = featureset.metadata.name
         join_cond = None
-        print(entity_df)
-        print(featureset_df)
-
         if left_keys != right_keys:
             for key_l, key_r in zip(left_keys, right_keys):
                 join_cond = join_cond & (
@@ -334,13 +325,6 @@ class SparkFeatureMerger(BaseMerger):
             join_cond,
             how=self._join_type,
         )
-        # repeated_columns = [c for c in entity_df.columns if c in featureset_df.columns]
-        # for col in repeated_columns:
-        #     merged_df = merged_df.drop(featureset_df[col])
-        # # for col in merged_df.columns:
-        # #     if re.findall(f"_{fs_name}_$", col):
-        # #         self._append_drop_column(col)
-        print(merged_df)
         return merged_df
 
     def get_df(self, to_pandas=True):

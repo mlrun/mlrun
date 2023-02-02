@@ -122,7 +122,8 @@ class SparkFeatureMerger(BaseMerger):
             df = source.to_spark_df(
                 self.spark, named_view=self.named_view, time_field=timestamp_key
             )
-
+            print("before select")
+            print(df.show())
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
             if feature_set.spec.timestamp_key:
@@ -144,6 +145,8 @@ class SparkFeatureMerger(BaseMerger):
                     for name in column_names + fs_entities
                 ]
             )
+            print("after select")
+            print(df.show())
             dfs.append(df)
             del df
 

@@ -71,7 +71,8 @@ class SparkFeatureMerger(BaseMerger):
             feature_set = feature_set_objects[name]
             feature_sets.append(feature_set)
             columns = feature_set_fields[name]
-            column_names = [name for name, alias in columns]
+            self._origin_alias.update({name: alias for name, alias in columns})
+            column_names = [name for name, _ in columns]
 
             for column in node.data["save_cols"]:
                 if column not in column_names:
@@ -204,7 +205,7 @@ class SparkFeatureMerger(BaseMerger):
             order_by_active = [
                 order_col
                 if order_col in self._result_df.columns
-                else self._alias.get(order_col, None)
+                else self._origin_alias.get(order_col, None)
                 for order_col in order_by
             ]
             if None in order_by_active:

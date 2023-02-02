@@ -33,7 +33,7 @@ func StartServer() error {
 	listenPort := flag.Int("listen-port", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LISTEN_PORT", 8080), "GRPC listen port")
 	logLevel := flag.String("log-level", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
 	logFormatter := flag.String("log-formatter", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__LOG_FORMATTER", "text"), "Log formatter (text, json)")
-	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__BASE_DIR", "/var/mlrun/log-collector/logs"), "The directory to store the logs in")
+	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__BASE_DIR", "/var/mlrun/logs"), "The directory to store the logs in")
 	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__KUBECONFIG_PATH", ""), "Path to kubeconfig file")
 	stateFileUpdateInterval := flag.String("state-file-update-interval", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__STATE_FILE_UPDATE_INTERVAL", "10s"), "Periodic interval for updating the state file (default 10s)")
 	readLogWaitTime := flag.String("read-log-wait-time", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__READ_LOG_WAIT_TIME", "3s"), "Wait time until trying to get more logs from the pod (default 3s)")
@@ -82,8 +82,7 @@ func StartServer() error {
 }
 
 func main() {
-	err := StartServer()
-	if err != nil {
+	if err := StartServer(); err != nil {
 		stackTrace := errors.GetErrorStackString(err, 10)
 		fmt.Printf("Failed to start log collector server: %s", stackTrace)
 		panic(err)

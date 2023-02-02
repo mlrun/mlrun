@@ -96,7 +96,7 @@ def init_featureset_graph(
         targets = [target for target in targets if not target.is_offline]
     for chunk in chunks:
         event = MockEvent(body=chunk)
-        if featureset.spec.entities[0] and isinstance(event.body, pd.DataFrame):
+        if len(featureset.spec.entities) and isinstance(event.body, pd.DataFrame):
             # set the entities to be the indexes of the df
             event.body = entities_to_index(featureset, event.body)
 

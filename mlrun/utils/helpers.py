@@ -22,7 +22,6 @@ import time
 import typing
 import warnings
 from datetime import datetime, timezone
-from functools import wraps
 from importlib import import_module
 from os import path
 from types import ModuleType
@@ -1192,30 +1191,31 @@ def as_number(field_name, field_value):
     return int(field_value)
 
 
-def class_decorator(function_decorator, *args, **kwargs):
-    def decorator(cls):
-        for name, obj in vars(cls).items():
-            if callable(obj):
-                setattr(cls, name, function_decorator(*args, **kwargs)(obj))
-        return cls
-
-    return decorator
-
-
-def future_warning_decorator(
-    name, deprecation_version, removal_version, replaced_by=None
-):
-    msg = f"{name} is deprecated in {deprecation_version}, and will be removed in {removal_version}."
-    if replaced_by:
-        msg += f" Use '{replaced_by}' instead."
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kw):
-            print(msg)  # testing
-            warnings.warn(msg, FutureWarning)
-            return func(*args, **kw)
-
-        return wrapper
-
-    return decorator
+# TODO: this might not be needed :(
+# def class_decorator(function_decorator, *args, **kwargs):
+#     def decorator(cls):
+#         for name, obj in vars(cls).items():
+#             if callable(obj):
+#                 setattr(cls, name, function_decorator(*args, **kwargs)(obj))
+#         return cls
+#
+#     return decorator
+#
+#
+# def future_warning_decorator(
+#     name, deprecation_version, removal_version, replaced_by=None
+# ):
+#     msg = f"{name} is deprecated in {deprecation_version}, and will be removed in {removal_version}."
+#     if replaced_by:
+#         msg += f" Use '{replaced_by}' instead."
+#
+#     def decorator(func):
+#         @wraps(func)
+#         def wrapper(*args, **kw):
+#             print(msg)  # testing
+#             warnings.warn(msg, FutureWarning)
+#             return func(*args, **kw)
+#
+#         return wrapper
+#
+#     return decorator

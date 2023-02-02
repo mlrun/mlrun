@@ -20,6 +20,7 @@ from enum import Enum
 import dotenv
 import kfp.dsl
 import kubernetes.client as k8s_client
+from deprecated import deprecated
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -37,7 +38,7 @@ from ..k8s_utils import (
     generate_preemptible_tolerations,
 )
 from ..secrets import SecretsStore
-from ..utils import future_warning_decorator, logger, normalize_name, update_in
+from ..utils import logger, normalize_name, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
@@ -997,7 +998,10 @@ class KubeResource(BaseRuntime):
         return self
 
     # TODO: Remove in 1.5.0
-    @future_warning_decorator("Job gpus", "1.3.0", "1.5.0", "with_limits")
+    @deprecated(
+        version="1.3.0",
+        reason="'Job gpus' will be removed in 1.5.0, use 'with_limits' instead",
+    )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)
 

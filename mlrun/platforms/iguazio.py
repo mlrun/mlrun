@@ -15,7 +15,6 @@
 import json
 import os
 import urllib
-import warnings
 from collections import namedtuple
 from datetime import datetime
 from http import HTTPStatus
@@ -26,11 +25,12 @@ import requests
 import semver
 import urllib3
 import v3io
+from deprecated import deprecated
 
 import mlrun.errors
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
-from mlrun.utils import dict_to_json, future_warning_decorator
+from mlrun.utils import dict_to_json
 
 _cached_control_session = None
 
@@ -38,8 +38,9 @@ VolumeMount = namedtuple("Mount", ["path", "sub_path"])
 
 
 # TODO: Remove in 1.5.0
-@future_warning_decorator(
-    "mount_v3io_extended", "1.3.0", "1.5.0", replaced_by="mount_v3io"
+@deprecated(
+    version="1.3.0",
+    reason="'mount_v3io_extended' will be removed in 1.5.0, use 'mount_v3io' instead",
 )
 def mount_v3io_extended(
     name="v3io", remote="", mounts=None, access_key="", user="", secret=None
@@ -82,8 +83,9 @@ def mount_v3io(
 
 
 # TODO: Remove in 1.5.0
-@future_warning_decorator(
-    "mount_v3io_legacy", "1.3.0", "1.5.0", replaced_by="mount_v3io"
+@deprecated(
+    version="1.3.0",
+    reason="'mount_v3io_legacy' will be removed in 1.5.0, use 'mount_v3io' instead",
 )
 def mount_v3io_legacy(
     name="v3io", remote="~/", mount_path="/User", access_key="", user="", secret=None

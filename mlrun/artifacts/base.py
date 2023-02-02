@@ -20,6 +20,7 @@ import warnings
 import zipfile
 
 import yaml
+from deprecated import deprecated
 
 import mlrun
 import mlrun.errors
@@ -29,8 +30,6 @@ from ..model import ModelObj
 from ..utils import (
     StorePrefix,
     calculate_local_file_hash,
-    class_decorator,
-    future_warning_decorator,
     generate_artifact_uri,
     is_relative_path,
 )
@@ -970,8 +969,9 @@ class LinkArtifact(Artifact):
 
 
 # TODO: remove in 1.5.0
-@class_decorator(
-    future_warning_decorator, "LegacyArtifact", "1.3.0", "1.5.0", replaced_by="Artifact"
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyArtifact' will be removed in 1.5.0, use 'Artifact' instead",
 )
 class LegacyArtifact(ModelObj):
 

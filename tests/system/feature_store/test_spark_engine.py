@@ -86,7 +86,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = "https://github.com/davesh0812/mlrun.git@spark_getoff"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -1265,28 +1265,44 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "name_cls",
             ]
 
-        join_employee_department = join_employee_department[col_1].rename(
-            columns={"name_departments": "n2", "name_employees": "n"},
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values(by="n", ignore_index=True)
         )
 
-        join_employee_managers = join_employee_managers[col_2].rename(
-            columns={
-                "name_departments": "n2",
-                "name_employees": "n",
-                "name": "man_name",
-            },
+        join_employee_managers = (
+            join_employee_managers[col_2]
+            .rename(
+                columns={
+                    "name_departments": "n2",
+                    "name_employees": "n",
+                    "name": "man_name",
+                },
+            )
+            .sort_values(by="n", ignore_index=True)
         )
 
-        join_employee_sets = join_employee_sets[col_3].rename(
-            columns={"name_employees": "n", "name_e_mini": "mini_name"},
+        join_employee_sets = (
+            join_employee_sets[col_3]
+            .rename(
+                columns={"name_employees": "n", "name_e_mini": "mini_name"},
+            )
+            .sort_values(by="n", ignore_index=True)
         )
 
-        join_all = join_all[col_4].rename(
-            columns={
-                "name_employees": "n",
-                "name_departments": "n2",
-                "name_e_mini": "mini_name",
-            },
+        join_all = (
+            join_all[col_4]
+            .rename(
+                columns={
+                    "name_employees": "n",
+                    "name_departments": "n2",
+                    "name_e_mini": "mini_name",
+                },
+            )
+            .sort_values(by="n", ignore_index=True)
         )
 
         # relations according to departments_set relations

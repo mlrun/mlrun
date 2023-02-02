@@ -122,8 +122,6 @@ class SparkFeatureMerger(BaseMerger):
             df = source.to_spark_df(
                 self.spark, named_view=self.named_view, time_field=timestamp_key
             )
-            print("before select")
-            print(df.show())
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
             if feature_set.spec.timestamp_key:
@@ -139,14 +137,13 @@ class SparkFeatureMerger(BaseMerger):
             }
             fs_entities = list(feature_set.spec.entities.keys())
             # select requested columns and rename with alias where needed
+
             df = df.select(
                 [
                     col(name).alias(rename_col_dict.get(name, name))
-                    for name in column_names + fs_entities
+                    for name in list(set(column_names + fs_entities))
                 ]
             )
-            print("after select")
-            print(df.show())
             dfs.append(df)
             del df
 
@@ -310,31 +307,27 @@ class SparkFeatureMerger(BaseMerger):
 
         """
         # fs_name = featureset.metadata.name
-        print(featureset_df.show())
-        print(entity_df.show())
         join_cond = None
-        if left_keys != right_keys:
-            for key_l, key_r in zip(left_keys, right_keys):
-                join_cond = join_cond & (
-                    entity_df[key_l] == featureset_df[key_r]
-                ) if join_cond else (
-                    entity_df[key_l] == featureset_df[key_r]
-                )
-        else:
-            join_cond = left_keys
+
+        for key_l, key_r in zip(left_keys, right_keys):
+            join_cond = join_cond & (
+                entity_df[key_l] == featureset_df[key_r]
+            ) if join_cond else (
+                entity_df[key_l] == featureset_df[key_r]
+            )
+
 
         merged_df = entity_df.join(
             featureset_df,
             join_cond,
             how=self._join_type,
-            # suffixes=("", f"_{fs_name}_"),
         )
-        repeated_columns = [c for c in entity_df.columns if c in featureset_df.columns]
-        for col in repeated_columns:
-            merged_df = merged_df.drop(featureset_df[col])
-        # for col in merged_df.columns:
-        #     if re.findall(f"_{fs_name}_$", col):
-        #         self._append_drop_column(col)
+        # repeated_columns = [c for c in entity_df.columns if c in featureset_df.columns]
+        # for col in repeated_columns:
+        #     merged_df = merged_df.drop(featureset_df[col])
+        # # for col in merged_df.columns:
+        # #     if re.findall(f"_{fs_name}_$", col):
+        # #         self._append_drop_column(col)
         return merged_df
 
     def get_df(self, to_pandas=True):

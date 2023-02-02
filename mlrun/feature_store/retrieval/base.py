@@ -36,6 +36,7 @@ class BaseMerger(abc.ABC):
         self._drop_indexes = True
         self._target = None
         self._alias = dict()
+        self._origin_alias = dict()
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:

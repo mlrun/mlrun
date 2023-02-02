@@ -24,7 +24,7 @@ Before you begin, ensure that the following prerequisites are met:
 
     You need to install MLRun locally. Make sure the that the MLRun version you install is the same as the MLRun 
     service version. Install a specific version using the following command; replace the `<version>`  placeholder 
-    with the MLRun version number (e.g., `1.2.1`):
+    with the MLRun version number:
  
     ```sh
     pip install mlrun==<version>

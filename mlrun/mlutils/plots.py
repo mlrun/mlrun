@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from deprecated import deprecated
 from scikitplot.metrics import plot_calibration_curve
 from scipy import interp
 from sklearn import metrics
@@ -29,6 +30,10 @@ from sklearn.preprocessing import LabelBinarizer
 from ..artifacts import PlotArtifact
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def gcf_clear(plt):
     """Utility to clear matplotlib figure
     Run this inside every plot method before calling any matplotlib
@@ -40,6 +45,10 @@ def gcf_clear(plt):
     plt.close()
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def feature_importances(model, header):
     """Display estimated feature importances
     Only works for models with attribute 'feature_importances_`
@@ -73,6 +82,10 @@ def feature_importances(model, header):
     )
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def plot_importance(
     context, model, key: str = "feature-importances", plots_dest: str = "plots"
 ):
@@ -110,6 +123,10 @@ def plot_importance(
     return context.log_dataset(key + "-tbl", df=feature_imp, local_path=fname)
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def learning_curves(model):
     """model class dependent
 
@@ -163,6 +180,10 @@ def learning_curves(model):
     return plots
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def confusion_matrix(model, xtest, ytest, cmap="Blues"):
     cmd = metrics.plot_confusion_matrix(
         model,
@@ -181,6 +202,10 @@ def confusion_matrix(model, xtest, ytest, cmap="Blues"):
     )
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     """"""
     n_classes = len(labels)
@@ -239,6 +264,10 @@ def precision_recall_multi(ytest_b, yprob, labels, scoring="micro"):
     )
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def roc_multi(ytest_b, yprob, labels):
     """"""
     n_classes = len(labels)
@@ -312,6 +341,10 @@ def roc_multi(ytest_b, yprob, labels):
     return PlotArtifact("roc-multiclass", body=plt.gcf(), title="Multiclass ROC Curve")
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def roc_bin(ytest, yprob, clear: bool = False):
     """"""
     # ROC plot
@@ -329,6 +362,10 @@ def roc_bin(ytest, yprob, clear: bool = False):
     return PlotArtifact("roc-binary", body=plt.gcf(), title="Binary ROC Curve")
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
     """"""
     if clear:
@@ -343,6 +380,10 @@ def precision_recall_bin(model, xtest, ytest, yprob, clear=False):
     )
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def plot_roc(
     context,
     y_labels,
@@ -406,6 +447,10 @@ def plot_roc(
     return context.log_artifact(PlotArtifact(key, body=plt.gcf()), local_path=fname)
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def eval_class_model(
     xtest, ytest, model, labels: str = "labels", pred_params: dict = {}
 ):
@@ -623,6 +668,10 @@ def eval_class_model(
     return model_metrics
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def eval_model_v2(
     context,
     xtest,

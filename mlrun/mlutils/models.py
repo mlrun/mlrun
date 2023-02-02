@@ -16,10 +16,16 @@ import json
 from importlib import import_module
 from inspect import _empty, signature
 
+from deprecated import deprecated
+
 # for backwards compatibility - can be removed when we separate the hub branches for 0.6.x ad 0.5.x
 from .plots import eval_class_model, eval_model_v2  # noqa: F401
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def get_class_fit(module_pkg_class: str):
     """generate a model config
     :param module_pkg_class:  str description of model, e.g.
@@ -42,6 +48,10 @@ def get_class_fit(module_pkg_class: str):
     }
 
 
+@deprecated(
+    version="1.3.0",
+    reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+)
 def gen_sklearn_model(model_pkg, skparams):
     """generate an sklearn model configuration
 

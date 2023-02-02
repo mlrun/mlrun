@@ -138,25 +138,13 @@ class BaseMerger(abc.ABC):
                     if index not in df.columns:
                         index_columns_missing.append(index)
                 if not index_columns_missing:
-                    if self.engine == "local" or self.engine == "spark":
-                        df.set_index(self._index_columns, inplace=True)
-                    elif self.engine == "dask" and len(self._index_columns) == 1:
-                        return df.set_index(self._index_columns[0])
-                    elif self.engine == "dask" and len(self._index_columns) != 1:
-                        return self._reset_index(self._result_df)
-                    else:
-                        logger.info(
-                            "The entities will stay as columns because "
-                            "Dask dataframe does not yet support multi-indexes"
-                        )
-                        return self._result_df
+                    df.set_index(self._index_columns, inplace=True)
+
                 else:
                     logger.warn(
                         f"Can't set index, not all index columns found: {index_columns_missing}. "
                         f"It is possible that column was already indexed."
                     )
-            else:
-                return df
 
     @abc.abstractmethod
     def _generate_vector(
@@ -398,6 +386,7 @@ class BaseMerger(abc.ABC):
 
     def get_df(self, to_pandas=True):
         """return the result as a dataframe (pandas by default)"""
+        self._set_indexes(self._result_df)
         return self._result_df
 
     def to_parquet(self, target_path, **kw):

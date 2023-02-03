@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
+	"github.com/mlrun/mlrun/pkg/common/bufferpool"
 	mlruncontext "github.com/mlrun/mlrun/pkg/context"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
@@ -35,7 +36,6 @@ import (
 
 	"github.com/nuclio/errors"
 	"github.com/nuclio/logger"
-	"github.com/oxtoacart/bpool"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -48,8 +48,8 @@ type Server struct {
 	kubeClientSet           kubernetes.Interface
 	stateStore              statestore.StateStore
 	inMemoryState           statestore.StateStore
-	logCollectionBufferPool *bpool.BytePool
-	getLogsBufferPool       *bpool.BytePool
+	logCollectionBufferPool bufferpool.Pool
+	getLogsBufferPool       bufferpool.Pool
 	readLogWaitTime         time.Duration
 	monitoringInterval      time.Duration
 	streamTimeout           time.Duration
@@ -116,8 +116,8 @@ func NewLogCollectorServer(logger logger.Logger,
 	}
 
 	// create a byte buffer pool - a pool of size `bufferPoolSize`, where each buffer is of size `bufferSizeBytes`
-	logCollectionBufferPool := bpool.NewBytePool(logCollectionBufferPoolSize, bufferSizeBytes)
-	getLogsBufferPool := bpool.NewBytePool(getLogsBufferPoolSize, bufferSizeBytes)
+	logCollectionBufferPool := bufferpool.NewSizedBytePool(logCollectionBufferPoolSize, bufferSizeBytes)
+	getLogsBufferPool := bufferpool.NewSizedBytePool(getLogsBufferPoolSize, bufferSizeBytes)
 
 	return &Server{
 		AbstractMlrunGRPCServer: abstractServer,

@@ -921,7 +921,7 @@ class MlrunProject(ModelObj):
             "This is a property of the spec, use project.spec.params instead. "
             "This is deprecated in 1.3.0, and will be removed in 1.5.0",
             # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            DeprecationWarning,
+            FutureWarning,
         )
         self.spec.params = params
 

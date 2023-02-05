@@ -27,6 +27,7 @@ from .plots import eval_class_model, eval_model_v2  # noqa: F401
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
 )
 def get_class_fit(module_pkg_class: str):
     """generate a model config
@@ -53,6 +54,7 @@ def get_class_fit(module_pkg_class: str):
 @deprecated(
     version="1.3.0",
     reason="'mlrun.mlutils' will be removed in 1.5.0, use 'mlrun.framework' instead",
+    category=FutureWarning,
 )
 def gen_sklearn_model(model_pkg, skparams):
     """generate an sklearn model configuration

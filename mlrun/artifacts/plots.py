@@ -248,6 +248,7 @@ class PlotlyArtifact(Artifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyPlotArtifact' will be removed in 1.5.0, use 'PlotArtifact' instead",
+    category=FutureWarning,
 )
 class LegacyPlotArtifact(LegacyArtifact):
     _TEMPLATE = """
@@ -294,6 +295,7 @@ class LegacyPlotArtifact(LegacyArtifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyChartArtifact' will be removed in 1.5.0, use 'ChartArtifact' instead",
+    category=FutureWarning,
 )
 class LegacyChartArtifact(LegacyArtifact):
     _TEMPLATE = """
@@ -367,6 +369,7 @@ class LegacyChartArtifact(LegacyArtifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyBokehArtifact' will be removed in 1.5.0, use 'BokehArtifact' instead",
+    category=FutureWarning,
 )
 class LegacyBokehArtifact(LegacyArtifact):
     """
@@ -422,6 +425,7 @@ class LegacyBokehArtifact(LegacyArtifact):
 @deprecated(
     version="1.3.0",
     reason="'LegacyPlotlyArtifact' will be removed in 1.5.0, use 'PlotlyArtifact' instead",
+    category=FutureWarning,
 )
 class LegacyPlotlyArtifact(LegacyArtifact):
     """

@@ -139,7 +139,7 @@ class CSVSource(BaseSourceDriver):
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated, use parse_dates instead",
-                DeprecationWarning,
+                PendingDeprecationWarning,
             )
             if isinstance(parse_dates, (int, str)):
                 parse_dates = [parse_dates]
@@ -641,7 +641,7 @@ class DataFrameSource:
         if time_field:
             warnings.warn(
                 "DataFrameSource's time_field parameter is deprecated and has no effect",
-                DeprecationWarning,
+                PendingDeprecationWarning,
             )
 
         self._df = df

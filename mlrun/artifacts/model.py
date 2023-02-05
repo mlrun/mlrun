@@ -172,9 +172,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.inputs instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         """input feature list"""
         return self.spec.inputs
@@ -185,9 +185,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.inputs instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         """input feature list"""
         self.spec.inputs = inputs
@@ -198,9 +198,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.outputs instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         """input feature list"""
         return self.spec.outputs
@@ -211,9 +211,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ModelArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.outputs instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         """input feature list"""
         self.spec.outputs = outputs
@@ -224,9 +224,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.model_file instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.model_file
 
@@ -236,9 +236,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.model_file instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.model_file = model_file
 
@@ -248,9 +248,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.parameters instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.parameters
 
@@ -260,9 +260,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.parameters instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.parameters = parameters
 
@@ -272,9 +272,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.metrics instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.metrics
 
@@ -284,9 +284,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.metrics instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.metrics = metrics
 
@@ -296,9 +296,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_stats instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.feature_stats
 
@@ -308,9 +308,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_stats instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.feature_stats = feature_stats
 
@@ -320,9 +320,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_vector instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.feature_vector
 
@@ -332,9 +332,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_vector instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.feature_vector = feature_vector
 
@@ -344,9 +344,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.feature_weights
 
@@ -356,9 +356,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.feature_weights = feature_weights
 
@@ -368,9 +368,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.model_target_file
 
@@ -380,9 +380,9 @@ class ModelArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.feature_weights instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.model_target_file = model_target_file
 

@@ -286,9 +286,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.column_metadata instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.column_metadata
 
@@ -298,9 +298,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.column_metadata instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.column_metadata = column_metadata
 
@@ -310,9 +310,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.schema instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.schema
 
@@ -322,9 +322,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.schema instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.schema = schema
 
@@ -334,9 +334,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.header instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.spec.header
 
@@ -346,9 +346,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the spec, use artifact.spec.header instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.spec.header = header
 
@@ -358,9 +358,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the status, use artifact.status.preview instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.status.preview
 
@@ -370,9 +370,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the status, use artifact.status.preview instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.status.preview = preview
 
@@ -382,9 +382,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the status, use artifact.status.stats instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         return self.status.stats
 
@@ -394,9 +394,9 @@ class DatasetArtifact(Artifact):
         leaving here for backwards compatibility with users code that used ArtifactLegacy"""
         warnings.warn(
             "This is a property of the status, use artifact.status.stats instead"
-            "This is deprecated in 1.0.0, and will be removed in 1.2.0",
+            "This will be deprecated in 1.0.0, and will be removed in 1.2.0",
             # TODO: In 1.0.0 do changes in examples & demos In 1.2.0 remove
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         self.status.stats = stats
 

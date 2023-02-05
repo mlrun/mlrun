@@ -132,8 +132,11 @@ class BaseMerger(abc.ABC):
                 self.vector.save()
         if self.vector.spec.with_indexes:
             from mlrun.feature_store.feature_vector import Feature
-            self.vector.spec.entity_fields = [Feature(name=feature, value_type=self._result_df[feature][0].dtype)
-                                              for feature in self._index_columns]
+
+            self.vector.spec.entity_fields = [
+                Feature(name=feature, value_type=self._result_df[feature][0].dtype)
+                for feature in self._index_columns
+            ]
             self.vector.save()
 
     def _set_indexes(self, df):
@@ -261,7 +264,6 @@ class BaseMerger(abc.ABC):
             featuresets=feature_sets,
             featureset_dfs=dfs,
             keys=keys,
-            all_columns=all_columns,
         )
 
         if not self._drop_indexes and entity_timestamp_column:
@@ -312,7 +314,6 @@ class BaseMerger(abc.ABC):
         featuresets: list,
         featureset_dfs: list,
         keys: list = None,
-        all_columns: list = None,
     ):
         """join the entities and feature set features into a result dataframe"""
         merged_df = entity_df

@@ -16,6 +16,7 @@ import abc
 
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
+from mlrun.feature_store.feature_vector import Feature
 
 from ...utils import logger
 from ..feature_vector import OfflineVectorResponse
@@ -131,8 +132,6 @@ class BaseMerger(abc.ABC):
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
         if self.vector.spec.with_indexes:
-            from mlrun.feature_store.feature_vector import Feature
-
             self.vector.spec.entity_fields = [
                 Feature(name=feature, value_type=str(self._result_df[feature][0].dtype))
                 for feature in self._index_columns

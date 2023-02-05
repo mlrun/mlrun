@@ -17,7 +17,7 @@ package bufferpool
 // SizedBytePool is a pool of byte buffers, with a max size
 // based on "github.com/oxtoacart/bpool"
 type SizedBytePool struct {
-	c           chan []byte
+	bufferChan  chan []byte
 	bufferSize  int
 	poolSize    int
 	currentSize int
@@ -26,7 +26,7 @@ type SizedBytePool struct {
 // NewSizedBytePool creates a new byte buffer pool
 func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 	return &SizedBytePool{
-		c:          make(chan []byte, poolSize),
+		bufferChan: make(chan []byte, poolSize),
 		bufferSize: bufferSize,
 		poolSize:   poolSize,
 	}
@@ -38,31 +38,35 @@ func NewSizedBytePool(poolSize, bufferSize int) *SizedBytePool {
 func (p *SizedBytePool) Get() []byte {
 	for {
 		select {
-		case b := <-p.c:
-			return b
+		case buf := <-p.bufferChan:
+			return buf
 		default:
 			if p.currentSize < p.poolSize {
 				p.currentSize++
-				return make([]byte, p.bufferSize)
+				p.bufferChan <- make([]byte, p.bufferSize)
 			}
 		}
 	}
 }
 
-func (p *SizedBytePool) Put(b []byte) {
-	if cap(b) < p.bufferSize {
+// Put returns a byte buffer to the pool.
+// If the buffer is too small, it is discarded.
+func (p *SizedBytePool) Put(buf []byte) {
+	if cap(buf) < p.bufferSize {
 		return
 	}
 	select {
-	case p.c <- b[:p.bufferSize]:
+	case p.bufferChan <- buf[:p.bufferSize]:
 	default:
 	}
 }
 
+// NumPooled returns the number of currently queued buffers in the pool.
 func (p *SizedBytePool) NumPooled() int {
-	return len(p.c)
+	return len(p.bufferChan)
 }
 
+// PoolSize returns the number of already allocated buffers in the pool.
 func (p *SizedBytePool) PoolSize() int {
 	return p.currentSize
 }

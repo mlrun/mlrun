@@ -136,6 +136,7 @@ def set_environment(
             "APIs such as 'get_or_create_project', 'load_project' to configure the active project.",
             # TODO: Remove in 1.5.0
             DeprecationWarning,
+            stacklevel=3,
         )
 
     if env_file:

@@ -29,7 +29,6 @@ from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions
 from .utils import (
     dict_to_yaml,
-    filter_warnings,
     gen_md_table,
     get_artifact_target,
     get_in,
@@ -48,6 +47,8 @@ KFP_ARTIFACTS_DIR = os.environ.get("KFP_ARTIFACTS_DIR", "/tmp")
 project_annotation = "mlrun/project"
 run_annotation = "mlrun/pipeline-step-type"
 function_annotation = "mlrun/function-uri"
+
+dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
 
 
 class PipelineRunType:
@@ -168,8 +169,6 @@ def get_kfp_outputs(artifacts, labels, project):
     return outputs, out_dict
 
 
-# due to ContainerOp warning to use reusable components
-@filter_warnings("ignore", FutureWarning)
 def mlrun_op(
     name: str = "",
     project: str = "",
@@ -449,8 +448,6 @@ def mlrun_op(
     return cop
 
 
-# due to ContainerOp warning to use reusable components
-@filter_warnings("ignore", FutureWarning)
 def deploy_op(
     name,
     function,
@@ -528,8 +525,6 @@ def add_env(env=None):
     return _add_env
 
 
-# due to ContainerOp warning to use reusable components
-@filter_warnings("ignore", FutureWarning)
 def build_op(
     name,
     function=None,

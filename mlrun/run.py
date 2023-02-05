@@ -30,10 +30,7 @@ from os import environ, makedirs, path
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
-import cloudpickle
 import nuclio
-import numpy as np
-import pandas as pd
 import yaml
 from kfp import Client
 

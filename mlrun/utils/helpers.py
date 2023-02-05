@@ -266,7 +266,7 @@ def normalize_name(name):
         warnings.warn(
             "Names with underscore '_' are about to be deprecated, use dashes '-' instead."
             "Replacing underscores with dashes.",
-            DeprecationWarning,
+            PendingDeprecationWarning,
         )
         name = name.replace("_", "-")
     return name.lower()

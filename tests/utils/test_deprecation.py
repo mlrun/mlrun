@@ -54,10 +54,10 @@ def test_filter_warnings_decorator():
 
     @mlrun.utils.filter_warnings("ignore", FutureWarning)
     def warn_ignored():
-        warnings.warn("I'm a FutureWarning", FutureWarning)
+        warnings.warn("I'm a FutureWarning that is ignored", FutureWarning)
 
     def warn():
-        warnings.warn("I'm a FutureWarning", FutureWarning)
+        warnings.warn("I'm a FutureWarning that is raised", FutureWarning)
 
     # should not raise
     warn_ignored()

@@ -703,9 +703,7 @@ class SQLDB(DBInterface):
                 "best-iteration cannot be used when iter is specified"
             )
         # TODO: Refactor this area
-        # in case where tag is not given ids will be "latest" to mark to _find_artifacts to find the latest using the
-        # old way - by the updated field
-        ids = "latest"
+        ids = "*"
         if tag:
             # use_tag_as_uid is used to catch old artifacts which were created when logging artifacts using the project
             # producer and not by context, this because when were logging artifacts using the project producer we were
@@ -796,9 +794,10 @@ class SQLDB(DBInterface):
                 continue
 
             artifact_struct = artifact.struct
-            # ids = "latest" and not tag means that it was not given by the user, so we will not set the tag in the
-            # artifact struct
-            if ids != "latest" or tag:
+
+            if tag:
+
+                # tag was given by the user, so we will set the tag in the artifact struct
                 artifacts_with_tag = self._add_tags_to_artifact_struct(
                     session, artifact_struct, artifact.id, tag
                 )

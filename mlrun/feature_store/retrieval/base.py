@@ -134,7 +134,7 @@ class BaseMerger(abc.ABC):
             from mlrun.feature_store.feature_vector import Feature
 
             self.vector.spec.entity_fields = [
-                Feature(name=feature, value_type=self._result_df[feature][0].dtype)
+                Feature(name=feature, value_type=str(self._result_df[feature][0].dtype))
                 for feature in self._index_columns
             ]
             self.vector.save()

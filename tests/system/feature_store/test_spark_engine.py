@@ -909,10 +909,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
+        target_df.set_index(["patient_id"], drop=True, inplace=True)
+        assert resp_df.equals(target_df)
+
         source_df = source.to_dataframe()
         expected_df = source_df[source_df["bad"] == 7][["bad", "department"]]
         expected_df.reset_index(drop=True, inplace=True)
-        assert resp_df.equals(target_df)
+        resp_df.reset_index(drop=True, inplace=True)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
     # ML-2802
@@ -1256,7 +1259,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             .rename(
                 columns={"name_departments": "n2", "name_employees": "n"},
             )
-            .sort_values(by="n", ignore_index=True)
+            .sort_values(by="n")
         )
 
         join_employee_managers = (
@@ -1268,7 +1271,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "name": "man_name",
                 },
             )
-            .sort_values(by="n", ignore_index=True)
+            .sort_values(by="n")
         )
 
         join_employee_sets = (
@@ -1276,7 +1279,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             .rename(
                 columns={"name_employees": "n", "name_e_mini": "mini_name"},
             )
-            .sort_values(by="n", ignore_index=True)
+            .sort_values(by="n")
         )
 
         join_all = (
@@ -1288,7 +1291,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "name_e_mini": "mini_name",
                 },
             )
-            .sort_values(by="n", ignore_index=True)
+            .sort_values(by="n")
         )
 
         # relations according to departments_set relations
@@ -1356,7 +1359,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             order_by="name",
         )
         if with_indexes:
-            expected = pd.DataFrame(employees_with_department, columns=["id", "name"]).set_index('id', drop=True)
+            expected = pd.DataFrame(
+                employees_with_department, columns=["id", "name"]
+            ).set_index("id", drop=True)
             assert_frame_equal(expected, resp.to_dataframe())
         else:
             assert_frame_equal(
@@ -1486,10 +1491,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         col_1 = ["name_employees", "name_departments"]
         if with_indexes:
             col_1 = ["name_employees", "name_departments", "time"]
-            join_employee_department.set_index(["id", "d_id"], drop=True)
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
 
-        join_employee_department = join_employee_department[col_1].rename(
-            columns={"name_departments": "n2", "name_employees": "n"},
+        join_employee_department = (
+            join_employee_department[col_1]
+            .rename(
+                columns={"name_departments": "n2", "name_employees": "n"},
+            )
+            .sort_values("n")
         )
 
         # relations according to departments_set relations
@@ -1524,6 +1533,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=False, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
+            order_by=["n"],
         )
 
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())

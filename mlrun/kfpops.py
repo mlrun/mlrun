@@ -29,6 +29,7 @@ from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions
 from .utils import (
     dict_to_yaml,
+    filter_warnings,
     gen_md_table,
     get_artifact_target,
     get_in,
@@ -167,6 +168,8 @@ def get_kfp_outputs(artifacts, labels, project):
     return outputs, out_dict
 
 
+# due to ContainerOp warning to use reusable components
+@filter_warnings("ignore", FutureWarning)
 def mlrun_op(
     name: str = "",
     project: str = "",
@@ -446,6 +449,8 @@ def mlrun_op(
     return cop
 
 
+# due to ContainerOp warning to use reusable components
+@filter_warnings("ignore", FutureWarning)
 def deploy_op(
     name,
     function,
@@ -523,6 +528,8 @@ def add_env(env=None):
     return _add_env
 
 
+# due to ContainerOp warning to use reusable components
+@filter_warnings("ignore", FutureWarning)
 def build_op(
     name,
     function=None,

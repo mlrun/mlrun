@@ -411,7 +411,7 @@ class DaskCluster(KubejobRuntime):
     # TODO: Remove in 1.5.0
     @deprecated(
         version="1.3.0",
-        reason="`Dask gpus` will be removed in 1.5.0, use `with_scheduler_limits` / `with_worker_limits` instead",
+        reason="'Dask gpus' will be removed in 1.5.0, use 'with_scheduler_limits' / 'with_worker_limits' instead",
         category=FutureWarning,
     )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):

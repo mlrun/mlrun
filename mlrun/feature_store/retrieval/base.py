@@ -131,8 +131,8 @@ class BaseMerger(abc.ABC):
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
         if not self.vector.spec.with_indexes:
-            self.vector.spec.entity_fields = self._index_columns
-            self.vector.save(entity_fields)
+            self.vector.spec.entity_fields(self._index_columns)
+            self.vector.save()
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:

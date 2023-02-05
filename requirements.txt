@@ -59,3 +59,4 @@ inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above
 setuptools~=65.5
+deprecated~=1.2

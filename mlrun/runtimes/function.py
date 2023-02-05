@@ -41,7 +41,13 @@ from ..k8s_utils import get_k8s_helper
 from ..kfpops import deploy_op
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import mount_v3io, parse_path, split_path, v3io_cred
+from ..platforms.iguazio import (
+    VolumeMount,
+    mount_v3io,
+    parse_path,
+    split_path,
+    v3io_cred,
+)
 from ..utils import as_number, enrich_image_url, get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .constants import NuclioIngressAddTemplatedIngressModes
@@ -372,7 +378,11 @@ class RemoteRuntime(KubeResource):
         :param remote: v3io path
         """
         if local and remote:
-            self.apply(mount_v3io(remote=remote, mount_path=local))
+            self.apply(
+                mount_v3io(
+                    remote=remote, volume_mounts=[VolumeMount(path=local, sub_path="")]
+                )
+            )
         else:
             self.apply(v3io_cred())
         return self

@@ -17,6 +17,7 @@ from os import path
 from typing import List
 
 import yaml
+from deprecated import deprecated
 
 import mlrun
 
@@ -513,6 +514,12 @@ class ModelArtifact(Artifact):
         return mlrun.get_dataitem(target_model_path).get()
 
 
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'LegacyModelArtifact' will be removed in 1.5.0, use 'ModelArtifact' instead",
+    category=FutureWarning,
+)
 class LegacyModelArtifact(LegacyArtifact):
     """ML Model artifact
 

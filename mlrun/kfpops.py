@@ -48,6 +48,8 @@ project_annotation = "mlrun/project"
 run_annotation = "mlrun/pipeline-step-type"
 function_annotation = "mlrun/function-uri"
 
+dsl.ContainerOp._DISABLE_REUSABLE_COMPONENT_WARNING = True
+
 
 class PipelineRunType:
     run = "run"

@@ -432,57 +432,46 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		stream         io.ReadCloser
 		streamErr      error
 		streamErrCount = 0
-		keepLogging    bool
-		sinceTime      time.Time
+		keepLogging    = true
 	)
 
-	for {
-		// get logs from pod. to avoid reading the same logs over and over again, we use the
-		// sinceTime parameter, which tells the API to return logs only after the given time
-		podLogOptions := &v1.PodLogOptions{
-			SinceTime: &metav1.Time{Time: sinceTime},
-		}
-		restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
+	// get logs from pod, and keep the stream open (follow)
+	podLogOptions := &v1.PodLogOptions{
+		Follow: true,
+	}
+	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
-		// get the log stream - retry if failed
-		if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
-			stream, streamErr = restClientRequest.Stream(ctx)
-			if streamErr != nil {
+	// get the log stream - retry if failed
+	if err := common.RetryUntilSuccessful(15*time.Second, 3*time.Second, func() (bool, error) {
+		stream, streamErr = restClientRequest.Stream(ctx)
+		if streamErr != nil {
 
-				// first 3 errors are not logged - they are expected if pod is not ready yet
-				if streamErrCount > 3 {
-					s.Logger.WarnWithCtx(ctx,
-						"Failed to get pod log stream, retrying",
-						"runUID", runUID,
-						"err", streamErr)
-				}
-				streamErrCount++
-				return true, streamErr
+			// first 3 errors are not logged - they are expected if pod is not ready yet
+			if streamErrCount > 3 {
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to get pod log stream, retrying",
+					"runUID", runUID,
+					"err", streamErr)
 			}
-			return false, nil
-		}); err != nil {
-			s.Logger.ErrorWithCtx(ctx,
-				"Failed to get pod log stream",
-				"runUID", runUID,
-				"err", err)
-			return
+			streamErrCount++
+			return true, streamErr
 		}
+		return false, nil
+	}); err != nil {
+		s.Logger.ErrorWithCtx(ctx,
+			"Failed to get pod log stream",
+			"runUID", runUID,
+			"err", common.GetErrorStack(err, 10))
+		return
+	}
+	defer stream.Close() // nolint: errcheck
 
-		// create a context with timeout, to allow closing the stream after a while if no logs are received
-		ctxTimeout, cancelCtxTimeout := context.WithTimeout(ctx, s.streamTimeout)
+	for keepLogging {
 
-		sinceTime, keepLogging, err = s.streamPodLogs(ctxTimeout, runUID, file, stream)
+		keepLogging, err = s.streamPodLogs(ctx, runUID, file, stream)
 		if err != nil {
 			s.Logger.WarnWithCtx(ctx, "An error occurred while streaming pod logs", "err", err)
 		}
-
-		// cancel the context if it had finished before the timeout
-		cancelCtxTimeout()
-
-		if keepLogging {
-			continue
-		}
-		break
 	}
 
 	s.Logger.DebugWithCtx(ctx,
@@ -502,68 +491,49 @@ func (s *Server) startLogStreaming(ctx context.Context,
 func (s *Server) streamPodLogs(ctx context.Context,
 	runUID string,
 	logFile *os.File,
-	stream io.ReadCloser) (time.Time, bool, error) {
-
-	var streamCloseTime time.Time
-
-	// spin a goroutine that will unblock `CopyBuffer` if context times out
-	copyBufferDone := make(chan struct{}, 1)
-	go func() {
-		select {
-		case <-ctx.Done():
-
-			// context timed out, close the stream so `CopyBuffer` won't block forever
-			streamCloseTime = time.Now()
-			stream.Close() // nolint: errcheck
-		case <-copyBufferDone:
-
-			// `CopyBuffer` doesn't block anymore, we can stop the goroutine
-			return
-		}
-	}()
+	stream io.ReadCloser) (bool, error) {
 
 	// get a buffer from the pool - so we can share buffers across goroutines
 	buf := s.logCollectionBufferPool.Get()
 	defer s.logCollectionBufferPool.Put(buf)
 
-	// copy the stream into the file using the buffer, which allows us to control the size read from the file.
-	// this is blocking until there is something to read
-	numBytesWritten, err := io.CopyBuffer(logFile, stream, buf)
+	// read from the stream into the buffer
+	// this is non-blocking, it will return immediately if there is nothing to read
+	numBytesRead, err := stream.Read(buf)
 
-	// signal goroutine to exit
-	close(copyBufferDone)
+	if numBytesRead > 0 {
 
-	// close stream now, it will be reopened in the next iteration
-	// it may be already closed if the context was done, in which case we ignore the error
-	if err := stream.Close(); err != nil {
-		if !errors.Is(err, os.ErrClosed) && !errors.Is(err, io.ErrClosedPipe) {
-			s.Logger.WarnWithCtx(ctx, "Failed to close stream", "err", err, "runUID", runUID)
+		// write to file
+		if _, err := logFile.Write(buf[:numBytesRead]); err != nil {
+			s.Logger.WarnWithCtx(ctx, "Failed to write pod log to file",
+				"err", err.Error(),
+				"runUID", runUID)
+			return true, errors.Wrap(err, "Failed to write pod log to file")
 		}
-	} else {
-		streamCloseTime = time.Now()
 	}
 
 	// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
 	if err == io.EOF {
 		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
-		return streamCloseTime, false, nil
+		return false, nil
 	}
 
-	// nothing read, continue
-	if numBytesWritten == 0 {
-		return streamCloseTime, true, nil
-	}
+	if numBytesRead == 0 {
 
-	// if error is not EOF, log it and continue
-	if err != nil {
-		s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
-			"err", err.Error(),
-			"runUID", runUID)
-		return streamCloseTime, true, errors.Wrap(err, "Failed to read pod logs")
+		// if error is not EOF, log it and continue
+		if err != nil {
+			s.Logger.WarnWithCtx(ctx, "Failed to read pod log",
+				"err", err.Error(),
+				"runUID", runUID)
+			return false, errors.Wrap(err, "Failed to read pod logs")
+		}
+
+		// nothing happened, continue
+		return true, nil
 	}
 
 	// sanity
-	return streamCloseTime, true, nil
+	return true, nil
 }
 
 // resolvePodLogFilePath returns the path to the pod log file

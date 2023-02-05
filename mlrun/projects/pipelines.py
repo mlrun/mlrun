@@ -920,7 +920,8 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
 
         # TODO: remove in 1.5.0
         warnings.warn(
-            "'init_functions' is deprecated in 1.3.0 and will be removed in 1.5.0",
+            "`init_functions` is deprecated in 1.3.0 and will be removed in 1.5.0. "
+            "Place function initialization in the pipeline code.",
             FutureWarning,
         )
         getattr(mod, "init_functions")(functions, project, secrets)

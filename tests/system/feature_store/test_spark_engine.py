@@ -84,9 +84,9 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     pq_target = "testdata_target.parquet"
     csv_source = "testdata.csv"
     spark_image_deployed = (
-        True  # Set to True if you want to avoid the image building phase
+        False  # Set to True if you want to avoid the image building phase
     )
-    test_branch = "https://github.com/davesh0812/mlrun.git@spark_getoff"  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
+    test_branch = ""  # For testing specific branch. e.g.: "https://github.com/mlrun/mlrun.git@development"
 
     @classmethod
     def _init_env_from_file(cls):
@@ -1244,26 +1244,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         col_3 = ["name_employees", "name_e_mini"]
         col_4 = ["name_employees", "name_departments", "name_e_mini", "name_cls"]
         if with_indexes:
-
-            col_1 = ["id", "name_employees", "d_id", "name_departments"]
-            col_2 = [
-                "id",
-                "name_employees",
-                "d_id",
-                "name_departments",
-                "m_id",
-                "name",
-            ]
-            col_3 = ["id", "name_employees", "name_e_mini"]
-            col_4 = [
-                "id",
-                "name_employees",
-                "d_id",
-                "name_departments",
-                "name_e_mini",
-                "c_id",
-                "name_cls",
-            ]
+            join_employee_department.set_index(["id", "d_id"], drop=True, inplace=True)
+            join_employee_managers.set_index(
+                ["id", "d_id", "m_id"], drop=True, inplace=True
+            )
+            join_employee_sets.set_index(["id"], drop=True, inplace=True)
+            join_all.set_index(["id", "d_id", "c_id"], drop=True, inplace=True)
 
         join_employee_department = (
             join_employee_department[col_1]
@@ -1370,7 +1356,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             order_by="name",
         )
         if with_indexes:
-            expected = pd.DataFrame(employees_with_department, columns=["id", "name"])
+            expected = pd.DataFrame(employees_with_department, columns=["id", "name"]).set_index('id', drop=True)
             assert_frame_equal(expected, resp.to_dataframe())
         else:
             assert_frame_equal(
@@ -1499,7 +1485,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         col_1 = ["name_employees", "name_departments"]
         if with_indexes:
-            col_1 = ["id", "name_employees", "d_id", "name_departments", "time"]
+            col_1 = ["name_employees", "name_departments", "time"]
+            join_employee_department.set_index(["id", "d_id"], drop=True)
 
         join_employee_department = join_employee_department[col_1].rename(
             columns={"name_departments": "n2", "name_employees": "n"},

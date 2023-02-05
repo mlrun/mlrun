@@ -220,17 +220,19 @@ class BaseMerger(abc.ABC):
                 if column not in node.data["save_cols"]
             }
             fs_entities = list(feature_set.spec.entities.keys())
-            df = (
+            df_temp = (
                 self.rename_columns_and_select(
                     df,
                     rename_col_dict,
                     all_columns=list(set(column_names + fs_entities)),
                 )
-                or df
             )
+
+            df = df_temp if df_temp is not None else df
 
             dfs.append(df)
             del df
+            del df_temp
 
             keys.append([node.data["left_keys"], node.data["right_keys"]])
 
@@ -271,13 +273,13 @@ class BaseMerger(abc.ABC):
 
         self._result_df = self.drop_columns_from_result() or self._result_df
 
-        self._result_df = (
+        df_temp = (
             self.rename_columns_and_select(
                 self._result_df, self._alias, all_columns=None
             )
-            or self._result_df
         )
-
+        self._result_df = df_temp if df_temp is not None else self._result_df
+        del df_temp
         # inplace
         if self.vector.status.label_column:
             self._result_df = self._result_df.dropna(

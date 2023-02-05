@@ -90,7 +90,6 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		"5s",    /* stateFileUpdateIntervalStr */
 		"3s",    /* readLogWaitTime */
 		"30s",   /* monitoringInterval */
-		"30s",   /* streamTimeout */
 		"chief", /* clusterizationRole */
 		suite.kubeClientSet,
 		30, /* logCollectionBufferPoolSize */

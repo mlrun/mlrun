@@ -52,7 +52,6 @@ type Server struct {
 	getLogsBufferPool       bufferpool.Pool
 	readLogWaitTime         time.Duration
 	monitoringInterval      time.Duration
-	streamTimeout           time.Duration
 	bufferSizeBytes         int
 	isChief                 bool
 }
@@ -64,7 +63,6 @@ func NewLogCollectorServer(logger logger.Logger,
 	stateFileUpdateInterval,
 	readLogWaitTime,
 	monitoringInterval,
-	streamTimeout,
 	clusterizationRole string,
 	kubeClientSet kubernetes.Interface,
 	logCollectionBufferPoolSize,
@@ -87,10 +85,6 @@ func NewLogCollectorServer(logger logger.Logger,
 	monitoringIntervalDuration, err := time.ParseDuration(monitoringInterval)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to parse monitoring interval duration")
-	}
-	streamTimeoutDuration, err := time.ParseDuration(streamTimeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to parse stream timeout duration")
 	}
 
 	stateStore, err := factory.CreateStateStore(
@@ -128,7 +122,6 @@ func NewLogCollectorServer(logger logger.Logger,
 		kubeClientSet:           kubeClientSet,
 		readLogWaitTime:         readLogTimeoutDuration,
 		monitoringInterval:      monitoringIntervalDuration,
-		streamTimeout:           streamTimeoutDuration,
 		logCollectionBufferPool: logCollectionBufferPool,
 		getLogsBufferPool:       getLogsBufferPool,
 		bufferSizeBytes:         bufferSizeBytes,

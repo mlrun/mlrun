@@ -481,6 +481,7 @@ def build_runtime(
     interactive=False,
     builder_env=None,
     client_version=None,
+    client_python_version=None,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -533,6 +534,7 @@ def build_runtime(
     enriched_base_image = enrich_image_url(
         base_image,
         client_version,
+        client_python_version,
     )
 
     status = build_image(

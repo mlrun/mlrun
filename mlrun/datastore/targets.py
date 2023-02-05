@@ -582,6 +582,11 @@ class BaseStoreTarget(DataTargetBase):
         if hasattr(spec, "columns"):
             driver.columns = spec.columns
 
+        if hasattr(spec, "_credentials_prefix"):
+            driver._credentials_prefix = spec._credentials_prefix
+        if hasattr(spec, "_secrets"):
+            driver._secrets = spec._secrets
+
         driver.partitioned = spec.partitioned
 
         driver.key_bucketing_number = spec.key_bucketing_number
@@ -1151,7 +1156,10 @@ class NoSqlBaseTarget(BaseStoreTarget):
         else:
             # To prevent modification of the original dataframe and make sure
             # that the last event of a key is the one being persisted
-            df = df.groupby(df.index).last()
+            if len(df.index.names) and df.index.names[0] is not None:
+                df = df.groupby(df.index.names).last()
+            else:
+                df = df.copy(deep=False)
             access_key = self._get_credential("V3IO_ACCESS_KEY")
 
             _, path_with_container = parse_path(self.get_target_path())

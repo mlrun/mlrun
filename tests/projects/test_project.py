@@ -27,6 +27,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.utils.helpers
 import tests.conftest
 
 
@@ -81,117 +82,6 @@ def test_sync_functions_with_names_different_than_default():
 
     assert project.spec._function_objects == project_function_object
     assert project.spec._function_definitions == project_function_definition
-
-
-def test_create_project_from_file_with_legacy_structure():
-    project_name = "project-name"
-    description = "project description"
-    params = {"param_key": "param value"}
-    artifact_path = "/tmp"
-    legacy_project = mlrun.projects.project.MlrunProjectLegacy(
-        project_name, description, params, artifact_path=artifact_path
-    )
-    function_name = "trainer-function"
-    function = mlrun.new_function(function_name, project_name)
-    legacy_project.set_function(function, function_name)
-    legacy_project.set_function("hub://describe", "describe")
-    workflow_name = "workflow-name"
-    workflow_file_path = (
-        pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "workflow.py"
-    )
-    legacy_project.set_workflow(workflow_name, str(workflow_file_path))
-    artifact_dict = {
-        "key": "raw-data",
-        "kind": "",
-        "iter": 0,
-        "tree": "latest",
-        "target_path": "https://raw.githubusercontent.com/mlrun/demos/master/customer-churn-prediction/WA_Fn-UseC_-Telc"
-        "o-Customer-Churn.csv",
-        "db_key": "raw-data",
-        "src_path": "./relative_path",
-    }
-    model_dict = {
-        "db_key": "model_best_estimator",
-        "framework": "xgboost",
-        "hash": "934cb89155cfd9225cb6f7271f1f1bb775eeb340",
-        "iter": "0",
-        "key": "model_best_estimator",
-        "kind": "model",
-        "labels": {"framework": "xgboost"},
-        "model_file": "model_best_estimator.pkl",
-        "producer": {
-            "kind": "run",
-            "name": "some_run",
-            "owner": "admin",
-            "uri": "some_run/311a3bb1c85145e7a3daa0aa4189a4f9",
-            "workflow": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
-        },
-        "size": 100,
-        "tag": "0.0.24",
-        "tree": "8d2c26cd-328e-4cd2-8e49-d8abbea42109",
-        "src_path": "./relative_path",
-        "target_path": "/some/target/path",
-        "updated": "2022-09-29T19:32:57.718312+00:00",
-    }
-
-    legacy_project.artifacts = [artifact_dict, model_dict]
-    legacy_project_file_path = pathlib.Path(tests.conftest.results) / "project.yaml"
-    legacy_project.save(str(legacy_project_file_path))
-    project = mlrun.load_project("./", str(legacy_project_file_path), save=False)
-
-    # This is usually called as part of load_project. However, since we're using save=False, this doesn't get
-    # called. So, calling manually to verify it works.
-    project.register_artifacts()
-
-    assert project.kind == "project"
-    assert project.metadata.name == project_name
-    assert project.spec.description == description
-    # assert accessible from the project as well
-    assert project.description == description
-    assert project.spec.artifact_path == artifact_path
-    # assert accessible from the project as well
-    assert project.artifact_path == artifact_path
-    assert (
-        deepdiff.DeepDiff(
-            params,
-            project.spec.params,
-            ignore_order=True,
-        )
-        == {}
-    )
-    # assert accessible from the project as well
-    assert (
-        deepdiff.DeepDiff(
-            params,
-            project.params,
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert (
-        deepdiff.DeepDiff(
-            legacy_project.functions,
-            project.functions,
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert (
-        deepdiff.DeepDiff(
-            legacy_project.workflows,
-            project.workflows,
-            ignore_order=True,
-        )
-        == {}
-    )
-    assert (
-        deepdiff.DeepDiff(
-            legacy_project.artifacts,
-            project.artifacts,
-            ignore_order=True,
-        )
-        == {}
-    )
 
 
 def test_export_project_dir_doesnt_exist():
@@ -468,7 +358,9 @@ def test_load_project_and_sync_functions(
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
-            assert fn.metadata.name == func, "func did not return"
+            assert fn.metadata.name == mlrun.utils.helpers.normalize_name(
+                func
+            ), "func did not return"
 
     if save:
         assert rundb_mock._function is not None
@@ -849,4 +741,4 @@ def test_validating_large_int_params(
             local=True,
         )
 
-    assert run_saved == (getattr(rundb_mock, "_run", None) is not None)
+    assert run_saved == (rundb_mock._runs != {})

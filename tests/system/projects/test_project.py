@@ -151,9 +151,7 @@ class TestProject(TestMLRunSystem):
         assert models[0].producer["workflow"] == run.run_id
 
         functions = project2.list_functions(tag="latest")
-        assert (
-            len(functions) == 3
-        )  # prep-data, auto-trainer twice (train, test - see assets/kflow.py)
+        assert len(functions) == 2  # prep-data, auto-trainer
         assert functions[0].metadata.project == name
 
     def test_run_artifact_path(self):
@@ -719,7 +717,7 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         warning_message = (
-            "[warning] timeout ({}) should be higher than backoff (10)."
+            "[warning] timeout ({}) must be higher than backoff (10)."
             " Set timeout to be higher than backoff."
         )
         expected_warning_log = warning_message.format(bad_timeout)

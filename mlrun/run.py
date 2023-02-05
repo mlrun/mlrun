@@ -30,9 +30,12 @@ from os import environ, makedirs, path
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Type, Union
 
+import cloudpickle
+import nuclio
+import numpy as np
+import pandas as pd
 import yaml
 from kfp import Client
-from nuclio import build_file, utils
 
 import mlrun.api.schemas
 import mlrun.errors
@@ -485,7 +488,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     if project and is_hub_uri:
         function.metadata.project = project
     if new_name:
-        function.metadata.name = new_name
+        function.metadata.name = mlrun.utils.helpers.normalize_name(new_name)
     return function
 
 
@@ -616,7 +619,7 @@ def new_function(
             name = "mlrun-" + uuid.uuid4().hex[0:6]
 
     # make sure function name is valid
-    name = utils.normalize_name(name)
+    name = mlrun.utils.helpers.normalize_name(name)
 
     runner.metadata.name = name
     runner.metadata.project = (
@@ -836,7 +839,7 @@ def code_to_function(
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
-    name, spec, code = build_file(
+    name, spec, code = nuclio.build_file(
         filename,
         name=name,
         handler=handler or "handler",
@@ -850,7 +853,7 @@ def code_to_function(
         # if its a nuclio subkind, redo nb parsing
         is_nuclio, subkind = resolve_nuclio_subkind(kind)
         if is_nuclio:
-            name, spec, code = build_file(
+            name, spec, code = nuclio.build_file(
                 filename,
                 name=name,
                 handler=handler or "handler",
@@ -898,7 +901,7 @@ def code_to_function(
     else:
         raise ValueError(f"unsupported runtime ({kind})")
 
-    name, spec, code = build_file(filename, name=name, ignored_tags=ignored_tags)
+    name, spec, code = nuclio.build_file(filename, name=name, ignored_tags=ignored_tags)
 
     if not name:
         raise ValueError("name must be specified")

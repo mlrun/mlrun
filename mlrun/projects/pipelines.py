@@ -20,6 +20,7 @@ import time
 import traceback
 import typing
 import uuid
+import warnings
 
 import kfp.compiler
 from kfp import dsl
@@ -916,6 +917,13 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     setattr(mod, "this_project", project)
 
     if hasattr(mod, "init_functions"):
+
+        # TODO: remove in 1.5.0
+        warnings.warn(
+            "'init_functions' is deprecated in 1.3.0 and will be removed in 1.5.0. "
+            "Place function initialization in the pipeline code.",
+            FutureWarning,
+        )
         getattr(mod, "init_functions")(functions, project, secrets)
 
     # verify all functions are in this project (init_functions may add new functions)

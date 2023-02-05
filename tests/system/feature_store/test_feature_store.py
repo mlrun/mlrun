@@ -193,9 +193,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
 
-    def _ingest_quotes_featureset(self):
+    def _ingest_quotes_featureset(self, timestamp_key="time"):
         quotes_set = FeatureSet(
-            "stock-quotes", entities=["ticker"], timestamp_key="time"
+            "stock-quotes", entities=["ticker"], timestamp_key=timestamp_key
         )
 
         flow = quotes_set.graph
@@ -238,10 +238,15 @@ class TestFeatureStore(TestMLRunSystem):
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
-    def _get_offline_vector(self, features, features_size, engine=None):
+    def _get_offline_vector(
+        self, features, features_size, entity_timestamp_column, engine=None
+    ):
         vector = fstore.FeatureVector("myvector", features, "stock-quotes.xx")
         resp = fstore.get_offline_features(
-            vector, entity_rows=trades, entity_timestamp_column="time", engine=engine
+            vector,
+            entity_rows=trades,
+            entity_timestamp_column=entity_timestamp_column,
+            engine=engine,
         )
         assert len(vector.spec.features) == len(
             features
@@ -255,7 +260,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert vector.status.label_column == "xx", "unexpected label_column name"
 
         df = resp.to_dataframe()
-        columns = trades.shape[1] + features_size - 2  # - 2 keys
+        if entity_timestamp_column:
+            columns = trades.shape[1] + features_size - 2  # - 2 keys ['ticker', 'time']
+        else:
+            columns = trades.shape[1] + features_size - 1  # - 1 keys ['ticker']
         assert df.shape[1] == columns, "unexpected num of returned df columns"
         resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
 
@@ -301,13 +309,15 @@ class TestFeatureStore(TestMLRunSystem):
                 len(resp2[0]) == features_size - 1
             ), "unexpected online vector size"  # -1 label
 
-    def test_ingest_and_query(self):
+    @pytest.mark.parametrize("entity_timestamp_column", [None, "time"])
+    @pytest.mark.parametrize("engine", ["local", "dask"])
+    def test_ingest_and_query(self, engine, entity_timestamp_column):
 
         self._logger.debug("Creating stocks feature set")
         self._ingest_stocks_featureset()
 
         self._logger.debug("Creating stock-quotes feature set")
-        self._ingest_quotes_featureset()
+        self._ingest_quotes_featureset(entity_timestamp_column)
 
         self._logger.debug("Get offline feature vector")
         features = [
@@ -320,11 +330,13 @@ class TestFeatureStore(TestMLRunSystem):
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
 
-        # test fetch with the pandas merger engine
-        self._get_offline_vector(features, features_size, engine="local")
-
-        # test fetch with the dask merger engine
-        self._get_offline_vector(features, features_size, engine="dask")
+        # test fetch
+        self._get_offline_vector(
+            features,
+            features_size,
+            engine=engine,
+            entity_timestamp_column=entity_timestamp_column,
+        )
 
         self._logger.debug("Get online feature vector")
         self._get_online_features(features, features_size)
@@ -1923,7 +1935,7 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [CSVTarget(), ParquetTarget(partitioned=False), NoSqlTarget()]
         fstore.ingest(fset, df1, targets=targets)
 
-        features = ["overwrite-fstore.*"]
+        features = ["overwrite-fs.*"]
         fvec = fstore.FeatureVector("overwrite-vec", features=features)
 
         csv_path = fset.get_target_path(name="csv")
@@ -3704,6 +3716,47 @@ class TestFeatureStore(TestMLRunSystem):
             with_indexes=with_indexes,
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+    @pytest.mark.parametrize("with_indexes", [True, False])
+    def test_pandas_ingest_from_parquet(self, with_indexes):
+        data = dict(
+            {
+                "vakyvqqs": [-1695310155621342, 9916582819298152, 4545678706539994],
+                "ckasipbb": [
+                    0.7052167561922659,
+                    0.9029099770737461,
+                    0.7156361441244429,
+                ],
+                "enfmtxfg": [
+                    "hwroaomkupgvwmgm",
+                    "ytxmgxtgjzhyacur",
+                    "abeamnfuyrvtzwqk",
+                ],
+                "hmwaebdl": [-5274748451575421, 754465957511269, 6582195755482209],
+                "ihoubacn": [
+                    0.6705152809781331,
+                    0.09957097874816279,
+                    0.815459038897896,
+                ],
+            }
+        )
+        orig_df = pd.DataFrame(data)
+        if with_indexes:
+            orig_df.set_index(["enfmtxfg", "hmwaebdl"], inplace=True)
+        parquet_path = f"v3io:///projects/{self.project_name}/trfsinojud.parquet"
+        orig_df.to_parquet(parquet_path)
+        gnrxRnIYSr = ParquetSource(path=parquet_path)
+
+        if with_indexes:
+            fset = fstore.FeatureSet(
+                "VIeHOGZgjv",
+                entities=[fstore.Entity(k) for k in ["enfmtxfg", "hmwaebdl"]],
+                engine="pandas",
+            )
+        else:
+            fset = fstore.FeatureSet("VIeHOGZgjv", engine="pandas")
+        df = fstore.ingest(featureset=fset, source=gnrxRnIYSr)
+        assert df.equals(orig_df)
 
     def test_ingest_with_kafka_source_fails(self):
         source = KafkaSource(

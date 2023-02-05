@@ -32,7 +32,7 @@ from mlrun.runtimes.utils import (
     resolve_spark_operator_version,
 )
 
-from .base import BaseRuntime, BaseRuntimeHandler, RunError  # noqa
+from .base import BaseRuntime, BaseRuntimeHandler, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime
@@ -158,6 +158,22 @@ class RuntimeKinds(object):
         if not kind or kind in RuntimeKinds.local_runtimes():
             return True
         return False
+
+    @staticmethod
+    def is_watchable(kind):
+        """
+        Returns True if the runtime kind is watchable, False otherwise.
+        Runtimes that are not watchable are blocking, meaning that the run() method will not return until the runtime
+        is completed.
+        """
+        # "" or None counted as local
+        if not kind:
+            return False
+        return kind not in [
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
+            RuntimeKinds.dask,
+        ]
 
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}

@@ -4,6 +4,7 @@
 .ipynb_checkpoints
 .pytest_cache/
 .vscode/
+.bin
 build
 chart
 chart.html
@@ -28,5 +29,5 @@ tests/system/env.yml
 .python-version
 *.bak
 docs/CONTRIBUTING.md
+mlrun/api/proto/*pb2*.py
 docs/tutorial/colab/01-mlrun-basics-colab.ipynb
-

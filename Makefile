@@ -39,6 +39,7 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
 # mainly used for mlrun, base, models and models-gpu images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
+MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 22.3.0
 MLRUN_CACHE_DATE ?= $(shell date +%s)
@@ -176,7 +177,8 @@ DEFAULT_DOCKER_IMAGES_RULES = \
 	jupyter \
 	base \
 	models \
-	models-gpu
+	models-gpu \
+	log-collector
 
 .PHONY: docker-images
 docker-images: $(DEFAULT_DOCKER_IMAGES_RULES) ## Build all docker images
@@ -365,6 +367,35 @@ jupyter: update-version-file ## Build mlrun jupyter docker image
 push-jupyter: jupyter ## Push mlrun jupyter docker image
 	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
 
+.PHONY: log-collector
+log-collector: update-version-file
+	cd go && \
+		MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
+		make log-collector
+
+.PHONY: push-log-collector
+push-log-collector: log-collector
+	cd go && \
+		MLRUN_VERSION=$(MLRUN_VERSION) \
+		MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
+		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
+		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
+		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
+		make push-log-collector
+
+
+.PHONY: compile-schemas
+compile-schemas: ## Compile schemas
+ifdef MLRUN_SKIP_COMPILE_SCHEMAS
+	@echo "Skipping compile schemas"
+else
+	cd go && \
+	  make compile-schemas
+endif
 
 MLRUN_API_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-api
 MLRUN_API_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-api
@@ -376,7 +407,7 @@ MLRUN_API_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),
 DEFAULT_IMAGES += $(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: api
-api: update-version-file ## Build mlrun-api docker image
+api: compile-schemas update-version-file ## Build mlrun-api docker image
 	$(MLRUN_API_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun-api/Dockerfile \
@@ -401,7 +432,7 @@ MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG)
 MLRUN_TEST_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_TEST_IMAGE_NAME_TAGGED) $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_TEST_CACHE_IMAGE_NAME_TAGGED),)
 
 .PHONY: build-test
-build-test: update-version-file ## Build test docker image
+build-test: compile-schemas update-version-file ## Build test docker image
 	$(MLRUN_TEST_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/test/Dockerfile \
@@ -419,7 +450,7 @@ push-test: build-test ## Push test docker image
 MLRUN_SYSTEM_TEST_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/test-system:$(MLRUN_DOCKER_TAG)
 
 .PHONY: build-test-system
-build-test-system: update-version-file ## Build system tests docker image
+build-test-system: compile-schemas update-version-file ## Build system tests docker image
 	docker build \
 		--file dockerfiles/test-system/Dockerfile \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
@@ -541,9 +572,29 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 		-m "not enterprise" \
 		$(MLRUN_SYSTEM_TESTS_COMMAND_SUFFIX)
 
-.PHONY: test-package
+.PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
 	python ./automation/package_test/test.py run
+
+.PHONY: test-go
+test-go-unit: ## Run mlrun go unit tests
+	cd go && \
+		make test-unit-local
+
+.PHONY: test-go-dockerized
+test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
+	cd go && \
+		make test-unit-dockerized
+
+.PHONY: test-go
+test-go-integration: ## Run mlrun go unit tests
+	cd go && \
+		make test-integration-local
+
+.PHONY: test-go-dockerized
+test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
+	cd go && \
+		make test-integration-dockerized
 
 .PHONY: run-api-undockerized
 run-api-undockerized: ## Run mlrun api locally (un-dockerized)
@@ -561,6 +612,8 @@ run-api: api ## Run mlrun api (dockerized)
 
 .PHONY: run-test-db
 run-test-db:
+	# clean up any previous test db container
+	docker rm test-db --force || true
 	docker run \
 		--name=test-db \
 		-v $(shell pwd):/mlrun \
@@ -607,6 +660,16 @@ fmt-check: ## Format and check the code (using black)
 flake8: ## Run flake8 lint
 	@echo "Running flake8 lint..."
 	python -m flake8 .
+
+.PHONY: lint-go
+lint-go:
+	cd go && \
+		make lint
+
+.PHONY: fmt-go
+fmt-go:
+	cd go && \
+		make fmt
 
 .PHONY: release
 release: ## Release a version

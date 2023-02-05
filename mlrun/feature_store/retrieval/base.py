@@ -130,8 +130,10 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
-        if not self.vector.spec.with_indexes:
-            self.vector.spec.entity_fields(self._index_columns)
+        if self.vector.spec.with_indexes:
+            from mlrun.feature_store.feature_vector import Feature
+            self.vector.spec.entity_fields = [Feature(name=feature, value_type=self._result_df[feature][0].dtype)
+                                              for feature in self._index_columns]
             self.vector.save()
 
     def _set_indexes(self, df):

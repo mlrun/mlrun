@@ -1001,6 +1001,7 @@ class KubeResource(BaseRuntime):
     @deprecated(
         version="1.3.0",
         reason="'Job gpus' will be removed in 1.5.0, use 'with_limits' instead",
+        category=FutureWarning,
     )
     def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
         update_in(self.spec.resources, ["limits", gpu_type], gpus)

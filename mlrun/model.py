@@ -480,7 +480,6 @@ class RunSpec(ModelObj):
         selector=None,
         handler=None,
         inputs=None,
-        returns=None,
         outputs=None,
         input_path=None,
         output_path=None,
@@ -493,6 +492,7 @@ class RunSpec(ModelObj):
         hyper_param_options=None,
         allow_empty_resources=None,
         inputs_type_hints=None,
+        returns=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -541,7 +541,7 @@ class RunSpec(ModelObj):
     @property
     def inputs(self) -> Dict[str, str]:
         """
-        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values .
+        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values.
 
         :return: The inputs dictionary.
         """
@@ -553,11 +553,12 @@ class RunSpec(ModelObj):
         Set the given inputs in the spec. Inputs can include a type hint string in their keys following a colon, meaning
         following this structure: "<input key : type hint>".
 
-        This setter method stores the inputs and the type hints in two separate dictionaries:
+        :exmaple:
 
-        * `inputs` - a dictionary of parameter names as keys and paths as values.
-        * `inputs_type_hints` - a dictionary of parameter names as keys and their type hints as values. If a parameter
-          is not in the type hints dictionary, its type hint will be `mlrun.DataItem` by default.
+        >>> run_spec.inputs = {
+        ...     "my_input": "...",
+        ...     "my_hinted_input : pandas.DataFrame": "..."
+        ... }
 
         :param inputs: The inputs to set.
         """
@@ -567,31 +568,7 @@ class RunSpec(ModelObj):
             return
 
         # Verify it's a dictionary:
-        inputs = self._verify_dict(inputs, "inputs")
-
-        # Prepare dictionaries to hold the cleared inputs and type hints:
-        cleared_inputs = {}
-        inputs_type_hints = {}
-
-        # Clear the current parsing configurations dictionary:
-        self._inputs_type_hints.clear()
-
-        # Clear the inputs from parsing configurations:
-        for input_key, input_value in inputs.items():
-            # Look for type hinted in input key:
-            if ":" in input_key:
-                # Separate the user input by colon:
-                input_key, input_type = self._separate_by_colon(value=input_key)
-                # Collect the type hint:
-                inputs_type_hints[input_key] = input_type
-            # Collect the cleared input key:
-            cleared_inputs[input_key] = input_value
-
-        # Set the now configuration free inputs:
-        self._inputs = cleared_inputs
-
-        # Set the collected input type hints:
-        self.inputs_type_hints = inputs_type_hints
+        self._inputs = self._verify_dict(inputs, "inputs")
 
     @property
     def inputs_type_hints(self) -> Dict[str, str]:
@@ -603,39 +580,16 @@ class RunSpec(ModelObj):
         return self._inputs_type_hints
 
     @inputs_type_hints.setter
-    def inputs_type_hints(self, inputs_type_hints: Dict[str, Union[type, str]]):
+    def inputs_type_hints(self, inputs_type_hints: Dict[str, str]):
         """
         Set the inputs type hints to parse during a run.
 
         :param inputs_type_hints: The type hints to set.
-
-        :raise MLRunInvalidArgumentError: In case the input type hints given are not valid or if there are no inputs in
-                                          this spec.
         """
         # Verify the given value is a dictionary or None:
         self._inputs_type_hints = self._verify_dict(
             inputs_type_hints, "inputs_type_hints"
         )
-
-        # Validate the inputs type hints provided:
-        if self._inputs_type_hints is not None:
-            # Inputs type hints are not valid without inputs:
-            if self.inputs is None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Inputs type hints cannot be provided if inputs were not provided."
-                )
-            # Go over the type hints keys:
-            for key in self._inputs_type_hints:
-                # Make sure all the type hints keys exist in the inputs dictionary:
-                if key not in self.inputs:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Each input type hint key must appear in the 'inputs' dictionary. "
-                        f"The following type hint: {key} does not exist in the 'inputs' dictionary."
-                    )
-                # Parse the type hint to string:
-                self._inputs_type_hints[key] = self._get_type_hint_string(
-                    type_hint=self._inputs_type_hints[key]
-                )
 
     @property
     def returns(self):
@@ -663,15 +617,6 @@ class RunSpec(ModelObj):
         # Validate:
         for log_hint in returns:
             mlrun.run._parse_log_hint(log_hint=log_hint)
-            # If it's a dictionary, make sure the 'key' key is in it:
-            if isinstance(log_hint, dict) and "key" not in log_hint:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Log hints dictionaries given in the `returns` list must have a 'key' key in them "
-                    f"(the artifact key). The following log hint is missing it:\n{log_hint}"
-                )
-            # Otherwise it's a string, make sure the structure is correct ("<artifact key> : <artifact type>"):
-            elif ":" in log_hint:
-                self._separate_by_colon(value=log_hint)
 
         # Store the results:
         self._returns = returns
@@ -733,6 +678,38 @@ class RunSpec(ModelObj):
             else:
                 return str(self.handler)
         return ""
+
+    def read_type_hints_from_inputs(self):
+        """
+        This method stores the inputs and the type hints provided in the inputs in two separate dictionaries:
+
+        * `inputs` - the inputs dictionary of parameter names as keys and paths as values.
+        * `inputs_type_hints` - a dictionary of parameter names as keys and their type hints as values. If a parameter
+          is not in the type hints dictionary, its type hint will be `mlrun.DataItem` by default.
+        """
+        # Validate there are inputs to read:
+        if self.inputs is None:
+            return
+
+        # Prepare dictionaries to hold the cleared inputs and type hints:
+        cleared_inputs = {}
+
+        # Clear the current parsing configurations dictionary:
+        self.inputs_type_hints.clear()
+
+        # Clear the inputs from parsing configurations:
+        for input_key, input_value in self.inputs.items():
+            # Look for type hinted in input key:
+            if ":" in input_key:
+                # Separate the user input by colon:
+                input_key, input_type = RunSpec._separate_by_colon(value=input_key)
+                # Collect the type hint:
+                self.inputs_type_hints[input_key] = input_type
+            # Collect the cleared input key:
+            cleared_inputs[input_key] = input_value
+
+        # Set the now configuration free inputs:
+        self.inputs = cleared_inputs
 
     @staticmethod
     def join_outputs_and_returns(
@@ -798,55 +775,6 @@ class RunSpec(ModelObj):
         value_key, value_type = value.replace(" ", "").split(":")
 
         return value_key, value_type
-
-    @staticmethod
-    def _get_type_hint_string(type_hint: Union[str, type]) -> str:
-        """
-        Get the string representation of a given type hint.
-
-        :param type_hint: The type hint to parse as string.
-
-        :return: The type hint's string.
-
-        :raise MLRunInvalidArgumentError: In case MLRun could not get the type hint string or if the type hint is of an
-                                          inner class.
-        """
-        # If the type hint already a string, simply return it:
-        if isinstance(type_hint, str):
-            return type_hint
-
-        # Try to get the string representation:
-        try:
-            # Try to get by type class attributes:
-            module = type_hint.__module__
-            if module == "builtins":
-                # Python builtin types like `int`, `str` are from the module
-                module = ""
-            name = (
-                type_hint.__qualname__
-                if hasattr(type_hint, "__qualname__")
-                else type_hint.__name__
-            )
-            # Validate the type hint is not of an inner class:
-            if "." in name:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Inner classes are not supported for input type hints. The class '{name}' won't be able to be "
-                    f"parsed."
-                )
-        except AttributeError as attribute_error:
-            # Try to get from class string representation (e.g a string structured as "<class 'module.class_name'>"):
-            splits = re.split(r"<class '(.*)'>", str(type_hint))
-            if len(splits) == 3 and splits[0] == "" and splits[2] == "":
-                module = ""
-                name = splits[1]
-            else:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"MLRun could not get the given type hint string: '{type_hint}'. Please make sure it is indeed a "
-                    f"python `Type` instance."
-                ) from attribute_error
-
-        # Construct the type hint string and return:
-        return f"{module}.{name}" if module else name
 
 
 class RunStatus(ModelObj):

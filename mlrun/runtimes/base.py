@@ -310,7 +310,7 @@ class BaseRuntime(ModelObj):
         local_code_path=None,
         auto_build=None,
         param_file_secrets: Dict[str, str] = None,
-        returns: List[Union[str, Dict[str, str]]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         """
         Run a local or remote task.
@@ -1042,7 +1042,7 @@ class BaseRuntime(ModelObj):
         use_db=True,
         verbose=None,
         scrape_metrics=False,
-        returns: List[Union[str, Dict[str, str]]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ):
         """Run a local or remote task.
 

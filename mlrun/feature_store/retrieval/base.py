@@ -209,19 +209,19 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column_list = [feature_set.spec.timestamp_key]
                 column_names += entity_timestamp_column_list
                 node.data["save_cols"] += entity_timestamp_column_list
-                columns += [(feature_set.spec.timestamp_key, feature_set.spec.timestamp_key)]
+                if not entity_timestamp_column:
+                    # if not entity_timestamp_column the firs `FeatureSet` will define it
+                    entity_timestamp_column = feature_set.spec.timestamp_key
 
-            # rename columns to be unique for each feature set
+            # rename columns to be unique for each feature set and select if needed
             rename_col_dict = {
                 column: f"{column}_{name}"
                 for column in column_names
                 if column not in node.data["save_cols"]
             }
             fs_entities = list(feature_set.spec.entities.keys())
-            # select requested columns and rename with alias where needed
-
             df = (
-                self.rename_columns(
+                self.rename_columns_and_select(
                     df,
                     rename_col_dict,
                     all_columns=list(set(column_names + fs_entities)),
@@ -272,7 +272,9 @@ class BaseMerger(abc.ABC):
         self._result_df = self.drop_columns_from_result() or self._result_df
 
         self._result_df = (
-            self.rename_columns(self._result_df, self._alias, all_columns=None)
+            self.rename_columns_and_select(
+                self._result_df, self._alias, all_columns=None
+            )
             or self._result_df
         )
 
@@ -625,7 +627,7 @@ class BaseMerger(abc.ABC):
     ):
         raise NotImplementedError
 
-    def rename_columns(self, df, rename_col_dict, all_columns):
+    def rename_columns_and_select(self, df, rename_col_dict, all_columns):
         raise NotImplementedError
 
     def drop_columns_from_result(self):

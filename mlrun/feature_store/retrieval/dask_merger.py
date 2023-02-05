@@ -240,8 +240,23 @@ class DaskFeatureMerger(BaseMerger):
 
     def get_df(self, to_pandas=True):
         if to_pandas and hasattr(self._result_df, "dask"):
-            return self._result_df.compute()
-        return self._result_df
+            df = self._result_df.compute()
+        else:
+            df = self._result_df
+        self._set_indexes(df)
+        return df
+
+    def create_engine_env(self):
+        if "index" not in self._index_columns:
+            self._append_drop_column("index")
+
+        # init the dask client if needed
+        if not self.client:
+            if self._dask_cluster_uri:
+                function = mlrun.import_function(self._dask_cluster_uri)
+                self.client = function.client
+            else:
+                self.client = Client()
 
     def get_engine_df(
         self,
@@ -252,16 +267,29 @@ class DaskFeatureMerger(BaseMerger):
         end_time,
         entity_timestamp_column,
     ):
-        pass
+        df = feature_set.to_dataframe(
+            columns=column_names,
+            df_module=dd,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=entity_timestamp_column,
+            index=False,
+        )
 
-    def rename_columns(self, df, rename_col_dict, all_columns):
-        pass
+        return df.reset_index()
+
+    def rename_columns_and_select(self, df, rename_col_dict, all_columns):
+        return df.rename(
+            columns=rename_col_dict,
+        )
 
     def drop_columns_from_result(self):
-        pass
+        self._result_df = self._result_df.drop(
+            columns=self._drop_columns, errors="ignore"
+        )
 
     def filter(self, query):
-        pass
+        self._result_df = self._result_df.query(query)
 
     def orderBy(self, order_by_active):
-        pass
+        self._result_df.sort_values(by=order_by_active)

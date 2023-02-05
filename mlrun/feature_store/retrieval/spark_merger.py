@@ -267,7 +267,7 @@ class SparkFeatureMerger(BaseMerger):
             self.spark, named_view=self.named_view, time_field=timestamp_key
         )
 
-    def rename_columns(self, df, rename_col_dict, all_columns=None):
+    def rename_columns_and_select(self, df, rename_col_dict, all_columns=None):
         return df.select(
             [
                 col(name).alias(rename_col_dict.get(name, name))

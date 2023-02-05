@@ -155,7 +155,7 @@ class LocalFeatureMerger(BaseMerger):
             df.reset_index(inplace=True)
         return df
 
-    def rename_columns(self, df, rename_col_dict, all_columns):
+    def rename_columns_and_select(self, df, rename_col_dict, all_columns):
         df.rename(
             columns=rename_col_dict,
             inplace=True,

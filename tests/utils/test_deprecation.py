@@ -15,6 +15,8 @@
 import unittest.mock
 import warnings
 
+import pytest
+
 import mlrun
 
 
@@ -45,3 +47,20 @@ def test_deprecation_warning_is_shown():
             "APIs such as 'get_or_create_project', 'load_project' to configure the active project."
             in str(w[-1].message)
         )
+
+
+def test_filter_warnings_decorator():
+    warnings.simplefilter("error", FutureWarning)
+
+    @mlrun.utils.filter_warnings("ignore", FutureWarning)
+    def warn_ignored():
+        warnings.warn("I'm a FutureWarning", FutureWarning)
+
+    def warn():
+        warnings.warn("I'm a FutureWarning", FutureWarning)
+
+    # should not raise
+    warn_ignored()
+
+    with pytest.raises(FutureWarning):
+        warn()

@@ -85,7 +85,7 @@ func EnsureFileExists(filePath string) error {
 
 		// get file directory
 		dirPath := filepath.Dir(filePath)
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
+		if err := EnsureDirExists(dirPath, os.ModePerm); err != nil {
 			return errors.Wrapf(err, "Failed to create directory - %s", dirPath)
 		}
 		if _, err := os.Create(filePath); err != nil {

@@ -53,7 +53,7 @@ func (suite *FileStateStoreTestSuite) SetupTest() {
 
 	// create state store
 	suite.stateStore = NewFileStore(suite.logger, suite.baseDir, 2*time.Second)
-	suite.stateStore.Initialize(suite.ctx)
+	suite.Require().NoError(suite.stateStore.Initialize(suite.ctx))
 
 	suite.logger.InfoWith("Setup complete")
 }

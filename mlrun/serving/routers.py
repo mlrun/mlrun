@@ -323,7 +323,7 @@ class ParallelRun(BaseModelRouter):
             logger.warn(
                 "ExecutorTypes is deprecated and will be removed in 1.5.0, use ParallelRunnerModes instead",
                 # TODO: In 1.5.0 to remove ExecutorTypes
-                PendingDeprecationWarning,
+                DeprecationWarning,
             )
         self.executor_type = ParallelRunnerModes(executor_type)
         self._pool: Union[

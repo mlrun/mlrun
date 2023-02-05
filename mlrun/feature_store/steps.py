@@ -561,7 +561,7 @@ class SetEventMetadata(MapClass):
         if time_path:
             warnings.warn(
                 "SetEventMetadata's time_path parameter is deprecated and has no effect",
-                PendingDeprecationWarning,
+                DeprecationWarning,
             )
 
         kwargs["full_event"] = True

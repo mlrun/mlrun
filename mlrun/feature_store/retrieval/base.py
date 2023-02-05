@@ -209,6 +209,7 @@ class BaseMerger(abc.ABC):
                 entity_timestamp_column_list = [feature_set.spec.timestamp_key]
                 column_names += entity_timestamp_column_list
                 node.data["save_cols"] += entity_timestamp_column_list
+                columns += [(feature_set.spec.timestamp_key, feature_set.spec.timestamp_key)]
 
             # rename columns to be unique for each feature set
             rename_col_dict = {
